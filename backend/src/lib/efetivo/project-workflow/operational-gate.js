@@ -1,5 +1,9 @@
 import { planningError } from '../planning/errors.js';
 import {
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
+  PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
+} from '../../../../../shared/schemas/project-workflow.js';
+import {
   projectWorkflowMobilizationAuthorization,
   projectWorkflowMobilizationGate
 } from './rules.js';
@@ -8,6 +12,8 @@ export const PROJECT_MOBILIZATION_NOT_AUTHORIZED = 'PROJECT_MOBILIZATION_NOT_AUT
 
 export const PROJECT_OPERATIONAL_GATE_INCLUDE = {
   checklists: { select: { key: true, status: true } },
+  teamMemberChecks: { select: { collaboratorId: true, key: true, status: true } },
+  clientReleases: { select: { key: true, attendanceDate: true, attendanceConfirmedAt: true, requested: true, requestedAt: true, requestedTo: true, completed: true, completedAt: true } },
   criticalAnswers: { select: { key: true, answer: true } },
   issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
   commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } },
@@ -20,12 +26,71 @@ export const PROJECT_OPERATIONAL_GATE_INCLUDE = {
   }
 };
 
+export const PROJECT_OPERATIONAL_GATE_MISSION_QUERY = {
+  where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+  orderBy: { updatedAt: 'desc' },
+  take: 1,
+  select: {
+    allocations: {
+      where: { deletedAt: null },
+      select: { collaboratorId: true, collaborator: { select: { name: true } } }
+    }
+  }
+};
+
+function dateKey(value) {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10) || null;
+}
+
+function workflowWithPreparationData(workflow, mission = null) {
+  if (!workflow) return workflow;
+  const teamPreparation = workflow.teamPreparation?.members
+    ? workflow.teamPreparation
+    : (() => {
+        const records = new Map((workflow.teamMemberChecks || []).map(item => [`${item.collaboratorId}:${item.key}`, item]));
+        const members = (mission?.allocations || []).map(allocation => ({
+          collaboratorId: allocation.collaboratorId,
+          name: allocation.collaborator?.name || 'Colaborador',
+          checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(definition => ({
+            key: definition.key,
+            label: definition.label,
+            status: records.get(`${allocation.collaboratorId}:${definition.key}`)?.status || 'PENDING'
+          }))
+        }));
+        return { defined: members.length > 0, members };
+      })();
+  const clientReleases = workflow.clientReleases?.attendance
+    ? workflow.clientReleases
+    : (() => {
+        const records = new Map((Array.isArray(workflow.clientReleases) ? workflow.clientReleases : []).map(item => [item.key, item]));
+        const attendance = records.get('ATTENDANCE_CONFIRMATION');
+        return {
+          attendance: {
+            date: dateKey(attendance?.attendanceDate) || dateKey(workflow.commercialExpectedStartDate) || dateKey(workflow.plannedMobilizationDate),
+            confirmed: Boolean(attendance?.attendanceConfirmedAt)
+          },
+          items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(definition => {
+            const record = records.get(definition.key);
+            return {
+              ...definition,
+              requested: record?.requested === true,
+              requestedAt: dateKey(record?.requestedAt),
+              requestedTo: record?.requestedTo || null,
+              completed: record?.completed === true,
+              completedAt: dateKey(record?.completedAt)
+            };
+          })
+        };
+      })();
+  return { ...workflow, teamPreparation, clientReleases };
+}
+
 function authorizationInstruction(status) {
   if (status === 'SUSPENDED') return 'Autorização suspensa: revalidar a mobilização na Gestão de Projetos';
   return 'Autorização não emitida: autorizar a mobilização na Gestão de Projetos';
 }
 
-export function projectOperationalMobilizationDecisionFromWorkflow(workflow, projectId = workflow?.projectId) {
+export function projectOperationalMobilizationDecisionFromWorkflow(workflow, projectId = workflow?.projectId, mission = null) {
   if (!workflow) {
     return {
       projectId,
@@ -37,8 +102,9 @@ export function projectOperationalMobilizationDecisionFromWorkflow(workflow, pro
     };
   }
 
-  const gate = projectWorkflowMobilizationGate(workflow);
-  const authorization = projectWorkflowMobilizationAuthorization(workflow, gate);
+  const preparedWorkflow = workflowWithPreparationData(workflow, mission);
+  const gate = projectWorkflowMobilizationGate(preparedWorkflow);
+  const authorization = projectWorkflowMobilizationAuthorization(preparedWorkflow, gate);
   return {
     projectId,
     enforced: true,
@@ -57,7 +123,14 @@ export async function projectOperationalMobilizationDecision(database, projectId
     where: { projectId },
     include: PROJECT_OPERATIONAL_GATE_INCLUDE
   });
-  return projectOperationalMobilizationDecisionFromWorkflow(workflow, projectId);
+  const mission = workflow && database.efetivoMissionPlan?.findFirst
+    ? await database.efetivoMissionPlan.findFirst({
+        where: { ...PROJECT_OPERATIONAL_GATE_MISSION_QUERY.where, projectId },
+        orderBy: PROJECT_OPERATIONAL_GATE_MISSION_QUERY.orderBy,
+        select: PROJECT_OPERATIONAL_GATE_MISSION_QUERY.select
+      })
+    : null;
+  return projectOperationalMobilizationDecisionFromWorkflow(workflowWithPreparationData(workflow, mission), projectId);
 }
 
 export async function assertProjectMobilizationAuthorized(database, projectId) {

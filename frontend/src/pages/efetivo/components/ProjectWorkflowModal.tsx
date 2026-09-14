@@ -19,7 +19,6 @@ import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import {
-  canDefineInitialProjectTeam,
   canManageProjectTeamCycles,
   WORKFLOW_STAGE_LABELS
 } from '../../../utils/projectWorkflow';
@@ -27,6 +26,10 @@ import { ProjectExecutionDashboard } from './ProjectExecutionDashboard';
 import { ProjectCloseoutPanel } from './ProjectCloseoutPanel';
 import { ProjectPostJobPanel } from './ProjectPostJobPanel';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
+import {
+  ProjectWorkflowClientReleasesPanel,
+  ProjectWorkflowDefinitiveTeam
+} from './ProjectWorkflowPreparationPanels';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import {
   ProjectWorkflowEquipmentPlanningCard,
@@ -431,8 +434,6 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   const initialTeam = detail?.project.operationalMission || null;
   const stageChecklists = workflow?.checklists.filter(item => item.section === workflow.stage) || [];
   const preparationSections = [
-    ['D15_TEAM', 'Equipe definitiva'],
-    ['D15_CLIENT', 'Cliente e liberações'],
     ['D15_EQUIPMENT', 'Equipamentos'],
     ['D15_MATERIALS', 'Materiais'],
     ['D15_PRE_JOB', 'Pré-job'],
@@ -509,7 +510,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               {workflow.stage === 'WAITING_PLANNING' ? <ProjectWorkflowCategory title="🕐 Aguardando D-30" description="A análise foi concluída. O sistema continua acompanhando itens críticos e documentação até o início do planejamento." status={workflow.milestones.d30Date ? displayDateOnly(workflow.milestones.d30Date) : 'Data não definida'} className="project-workflow-waiting"><p className="project-workflow-category-note">Itens críticos e documentação continuam monitorados nesta etapa.</p></ProjectWorkflowCategory> : null}
               <ProjectWorkflowDocumentationTracking workflow={workflow} saving={saving} onPatch={onPatch} />
               {workflow.stage === 'MOBILIZATION_PLANNING' ? <ProjectWorkflowCategory title="Planejamento da mobilização · D-30" description="Previsões organizadas por área responsável." status={`${workflow.planningReadiness.completed}/${workflow.planningReadiness.total} · ${workflow.planningReadiness.percentage}%`} complete={workflow.planningReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d30><div className="project-workflow-planning-grid"><ProjectWorkflowTeamPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /></div></ProjectWorkflowCategory> : null}
-              {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <ProjectWorkflowCategory title="Preparação para mobilização · D-15" description="Confirmações definitivas por frente responsável." status={`${workflow.preparationReadiness.completed}/${workflow.preparationReadiness.total} · ${workflow.preparationReadiness.percentage}%`} complete={workflow.preparationReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d15>{canDefineInitialProjectTeam(workflow.stage) ? <section className="project-workflow-initial-team"><div><strong>Equipe nominal inicial</strong><p>{initialTeam ? `${initialTeam.participantCount} colaborador(es) definido(s) para o primeiro ciclo.` : 'Selecione os colaboradores que participarão do primeiro ciclo da obra.'}</p></div><Button type="button" variant="secondary" onClick={onOpenTeamProgramming}>{initialTeam ? 'Editar equipe inicial' : 'Definir equipe inicial'}</Button>{initialTeam?.allocations.length ? <ul>{initialTeam.allocations.map(allocation => <li key={allocation.id}><strong>{allocation.collaborator?.name || 'Colaborador'}</strong><span>{allocation.jobRole?.name || allocation.collaborator?.role || 'Função não informada'}</span></li>)}</ul> : null}</section> : null}<div className="project-workflow-planning-grid">{preparationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
+              {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <ProjectWorkflowCategory title="Preparação para mobilização · D-15" description="Confirmações definitivas por frente responsável." status={`${workflow.preparationReadiness.completed}/${workflow.preparationReadiness.total} · ${workflow.preparationReadiness.percentage}%`} complete={workflow.preparationReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d15><div className="project-workflow-planning-grid"><ProjectWorkflowDefinitiveTeam workflow={workflow} saving={saving} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} /><ProjectWorkflowClientReleasesPanel workflow={workflow} saving={saving} onPatch={onPatch} />{preparationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}
               {workflow.stage === 'EXECUTION' ? <ProjectWorkflowCategory title="Dashboard de execução" description="Avanço, RDOs, relatórios técnicos e desvios da obra." status="Acompanhamento ativo"><ProjectExecutionDashboard projectId={workflow.projectId} /></ProjectWorkflowCategory> : null}
               {workflow.stage === 'DEMOBILIZATION' ? <ProjectWorkflowCategory title="Desmobilização" description="Conclusão do campo, retorno da equipe e entrega dos ativos." status={`${workflow.demobilizationReadiness.completed}/${workflow.demobilizationReadiness.total} · ${workflow.demobilizationReadiness.percentage}%`} complete={workflow.demobilizationReadiness.percentage === 100 && Boolean(workflow.fieldCompletionDate && workflow.demobilizationDate)} className="project-workflow-planning" data-project-workflow-demobilization><DemobilizationDatesForm workflow={workflow} project={detail.project} mission={detail.project.operationalMission} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}

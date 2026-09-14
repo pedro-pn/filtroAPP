@@ -116,6 +116,7 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   const page = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
   const navigation = fs.readFileSync(new URL('../src/utils/planningNavigation.ts', import.meta.url), 'utf8');
   assert.match(page, /ProjectWorkflowBoard/);
   assert.doesNotMatch(page, /MissionKanban/);
@@ -133,7 +134,7 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /MissionFormModal/);
   assert.match(board, /createPlanningMission/);
   assert.match(board, /updatePlanningMission/);
-  assert.match(modal, /primeiro ciclo/);
+  assert.match(preparation, /primeiro ciclo/);
   assert.match(board, /mission && teamCyclesAvailable/);
   assert.match(board, /canManageProjectTeamCycles\(stage\)/);
   assert.doesNotMatch(board, /section=missoes/);
@@ -155,6 +156,25 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.doesNotMatch(modal, /section=missoes/);
   assert.match(navigation, /projeto/);
   assert.match(navigation, /evolucao: \['projeto', 'busca', 'pagina', 'faseProjeto'\]/);
+});
+
+test('Preparação acompanha equipe nominal e liberações do cliente com salvamento automático', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  assert.match(modal, /ProjectWorkflowDefinitiveTeam/);
+  assert.match(modal, /ProjectWorkflowClientReleasesPanel/);
+  assert.match(panel, /Aguardando definição da equipe/);
+  assert.match(schema, /Colaborador informado/);
+  assert.match(schema, /EXAMS_RELEASED/);
+  assert.match(schema, /TRAININGS_RELEASED/);
+  assert.match(panel, /futura integração externa/);
+  assert.match(panel, /Confirmação do atendimento/);
+  assert.match(panel, /Data da solicitação/);
+  assert.match(panel, /Solicitado para quem/);
+  assert.match(panel, /Data da conclusão/);
+  assert.doesNotMatch(schema, /D15_CLIENT_TEAM_RELEASED/);
+  assert.doesNotMatch(schema, /D15_TEAM_DEFINITIVE_CONFIRMED/);
 });
 
 test('detalhe mostra prontidão comercial e mantém ações de avanço no rodapé', () => {

@@ -9,7 +9,9 @@ import AdmZip from 'adm-zip';
 
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
-  PROJECT_WORKFLOW_COMMERCIAL_FACTS
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
+  PROJECT_WORKFLOW_COMMERCIAL_FACTS,
+  PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../shared/schemas/project-workflow.js';
 import app from '../src/app.js';
 import { buildRomaneioDocx, buildRomaneioFileName } from '../src/lib/romaneio-docx.js';
@@ -99,6 +101,11 @@ function authorizedRomaneioWorkflow(projectId, overrides = {}) {
       note: item.evidence === 'note' ? 'Condição definida' : null
     })),
     documentationCategories: ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] })),
+    teamPreparation: { defined: true, members: [{ collaboratorId: 'collaborator-1', name: 'João', checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => ({ ...item, status: 'DONE' })) }] },
+    clientReleases: {
+      attendance: { date: '2026-09-15', confirmed: true },
+      items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({ ...item, requested: true, requestedAt: '2026-09-09', requestedTo: 'Portaria', completed: true, completedAt: '2026-09-10' }))
+    },
     issues: [],
     ...overrides
   };

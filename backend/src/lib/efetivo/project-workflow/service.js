@@ -1,6 +1,8 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_STAGES,
+  PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   projectWorkflowMilestones
 } from '../../../../../shared/schemas/project-workflow.js';
@@ -127,6 +129,8 @@ const WORKFLOW_INCLUDE = {
   leader: { select: { id: true, name: true, isActive: true } },
   closedBy: { select: { id: true, name: true } },
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
+  teamMemberChecks: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: [{ collaboratorId: 'asc' }, { key: 'asc' }] },
+  clientReleases: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   criticalAnswers: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   commercialFacts: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   documentationCategories: {
@@ -303,6 +307,78 @@ function canEditChecklist(workflow, definition, context) {
     || canEditEfetivoChecklistArea(context.user, definition.areaRoles);
 }
 
+function preparationIsAvailable(workflow) {
+  return ['PREPARATION', 'READY_TO_MOBILIZE'].includes(workflow?.stage);
+}
+
+function canEditPreparationArea(workflow, areaRoles, context) {
+  return preparationIsAvailable(workflow) && (
+    canEditWorkflow(workflow, context)
+    || canEditEfetivoChecklistArea(context.user, areaRoles)
+  );
+}
+
+function publicTeamPreparation(workflow, mission, context) {
+  const recordByKey = new Map((workflow?.teamMemberChecks || []).map(item => [`${item.collaboratorId}:${item.key}`, item]));
+  const members = (mission?.allocations || []).map(allocation => ({
+    allocationId: allocation.id,
+    collaboratorId: allocation.collaboratorId,
+    name: allocation.collaborator?.name || 'Colaborador',
+    role: allocation.jobRole?.name || allocation.collaborator?.role || 'Função não informada',
+    checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(definition => {
+      const record = recordByKey.get(`${allocation.collaboratorId}:${definition.key}`);
+      return {
+        key: definition.key,
+        label: definition.label,
+        status: record?.status || 'PENDING',
+        source: record?.source || 'MANUAL',
+        sourceRecordId: record?.sourceRecordId || null,
+        sourceUpdatedAt: record?.sourceUpdatedAt || null,
+        updatedAt: record?.updatedAt || null,
+        updatedBy: record?.updatedBy || null,
+        canEdit: canEditPreparationArea(workflow, definition.areaRoles, context) && record?.source !== 'EXTERNAL'
+      };
+    })
+  }));
+  return { defined: members.length > 0, members };
+}
+
+function publicClientReleases(workflow, context) {
+  const recordByKey = new Map((workflow?.clientReleases || []).map(item => [item.key, item]));
+  const attendance = recordByKey.get('ATTENDANCE_CONFIRMATION');
+  return {
+    attendance: {
+      date: dateKey(attendance?.attendanceDate)
+        || dateKey(workflow?.commercialExpectedStartDate)
+        || dateKey(workflow?.plannedMobilizationDate),
+      confirmed: Boolean(attendance?.attendanceConfirmedAt),
+      confirmedAt: attendance?.attendanceConfirmedAt || null,
+      source: attendance?.source || 'MANUAL',
+      updatedAt: attendance?.updatedAt || null,
+      updatedBy: attendance?.updatedBy || null,
+      canEdit: canEditPreparationArea(workflow, ['efetivo:operations'], context) && attendance?.source !== 'EXTERNAL'
+    },
+    items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(definition => {
+      const record = recordByKey.get(definition.key);
+      return {
+        key: definition.key,
+        label: definition.label,
+        requested: record?.requested === true,
+        requestedAt: dateKey(record?.requestedAt),
+        requestedTo: record?.requestedTo || null,
+        completed: record?.completed === true,
+        completedAt: dateKey(record?.completedAt),
+        source: record?.source || 'MANUAL',
+        sourceRecordId: record?.sourceRecordId || null,
+        sourceUpdatedAt: record?.sourceUpdatedAt || null,
+        updatedAt: record?.updatedAt || null,
+        updatedBy: record?.updatedBy || null,
+        canEdit: canEditPreparationArea(workflow, definition.areaRoles, context) && record?.source !== 'EXTERNAL'
+      };
+    })
+  };
+}
+
 function publicPermissions(workflow, context) {
   const manager = contextIsManager(context);
   const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
@@ -356,7 +432,7 @@ async function loadProjectDocumentGateState(database, projectId) {
   return projectDocumentGateState(documents);
 }
 
-function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = [], documents = [], resourcePlanning = null) {
+function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = [], documents = [], resourcePlanning = null, operationalMission = null) {
   if (!workflow) return null;
   const documentState = projectDocumentGateState(documents);
   const workflowWithDocuments = { ...workflow, ...documentState };
@@ -392,14 +468,16 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < today
   }));
   const documentationReadiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, today);
+  const teamPreparation = publicTeamPreparation(workflow, operationalMission, context);
+  const clientReleases = publicClientReleases(workflow, context);
   const planningReadiness = projectWorkflowPlanningReadiness({ ...workflow, checklists });
-  const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
+  const preparationReadiness = projectWorkflowPreparationReadiness({ checklists, teamPreparation, clientReleases });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
   const closureReadiness = projectWorkflowClosureReadiness({ checklists });
   const closureGate = projectWorkflowClosureGate({ ...workflowWithDocuments, checklists, issues });
-  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, issues }, milestones, today);
+  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
@@ -427,6 +505,8 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     commercialFacts,
     commercialReadiness,
     documentationCategories,
+    teamPreparation,
+    clientReleases,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
     resourcePlanning: resourcePlanning || emptyProjectWorkflowResourcePlanning(workflow),
@@ -569,6 +649,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             leader: { select: { id: true, name: true, isActive: true } },
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
+            teamMemberChecks: { select: { collaboratorId: true, key: true, status: true, source: true, sourceUpdatedAt: true } },
+            clientReleases: { select: { key: true, attendanceDate: true, attendanceConfirmedAt: true, requested: true, requestedAt: true, requestedTo: true, completed: true, completedAt: true, source: true, sourceUpdatedAt: true } },
             criticalAnswers: { select: { key: true, answer: true } },
             issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
             commercialFacts: { select: { key: true, status: true, source: true, evidenceDocumentId: true, reference: true, note: true, occurredOn: true } },
@@ -617,14 +699,17 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflowWithDocuments) : null;
       const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)) : null;
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
+      const mission = operationalMissionSummary(project);
+      const teamPreparation = workflow ? publicTeamPreparation(workflow, mission, context) : null;
+      const clientReleases = workflow ? publicClientReleases(workflow, context) : null;
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
-      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness(workflow) : null;
+      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness({ ...workflow, teamPreparation, clientReleases }) : null;
       const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
       const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
       const closeoutReadiness = workflow ? projectWorkflowCloseoutReadiness(workflow) : null;
       const closureReadiness = workflow ? projectWorkflowClosureReadiness(workflow) : null;
       const closureGate = workflow ? projectWorkflowClosureGate(workflowWithDocuments) : null;
-      const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflowWithDocuments, milestones, todayKey(now)) : null;
+      const mobilizationGate = workflow ? projectWorkflowMobilizationGate({ ...workflowWithDocuments, teamPreparation, clientReleases }, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
         id: project.id,
@@ -632,7 +717,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         name: project.name,
         clientName: project.clientName,
         location: project.location,
-        operationalMission: operationalMissionSummary(project),
+        operationalMission: mission,
         workflow: workflow ? {
           projectId: workflow.projectId,
           stage: workflow.stage,
@@ -717,7 +802,8 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       services,
       history,
       project.documents || [],
-      resourcePlanning
+      resourcePlanning,
+      operationalMissionSummary(project)
     ),
     permissions: publicPermissions(project.workflow, context)
   };
@@ -752,13 +838,23 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
   return getProjectWorkflow(projectId, context, { ...dependencies, database });
 }
 
-async function loadWorkflowForMutation(tx, projectId) {
+async function loadWorkflowForMutation(tx, projectId, context) {
   const workflow = await tx.projectWorkflow.findUnique({
     where: { projectId },
     include: WORKFLOW_INCLUDE
   });
   if (!workflow) throw notFound('A gestão deste projeto ainda não foi iniciada.');
   Object.assign(workflow, await loadProjectDocumentGateState(tx, projectId));
+  const mission = await tx.efetivoMissionPlan.findFirst({
+    where: { ...OPERATIONAL_MISSION_QUERY.where, projectId },
+    orderBy: OPERATIONAL_MISSION_QUERY.orderBy,
+    select: OPERATIONAL_MISSION_QUERY.select
+  });
+  const missionSummary = operationalMissionSummary({ efetivoMissionPlans: mission ? [mission] : [] });
+  Object.assign(workflow, {
+    teamPreparation: publicTeamPreparation(workflow, missionSummary, context),
+    clientReleases: publicClientReleases(workflow, context)
+  });
   return workflow;
 }
 
@@ -790,6 +886,21 @@ function assertChecklistEditable(workflow, key, context) {
     throw planningError('A alteração deste item é restrita ao Líder, gestor ou área responsável.', {
       statusCode: 403,
       code: 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
+    });
+  }
+}
+
+function assertPreparationAreaEditable(workflow, areaRoles, context) {
+  if (!preparationIsAvailable(workflow)) {
+    throw planningError('Este acompanhamento pertence à preparação para mobilização.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_PREPARATION_STAGE_FORBIDDEN'
+    });
+  }
+  if (!canEditPreparationArea(workflow, areaRoles, context)) {
+    throw planningError('A alteração é restrita ao Líder, gestor ou área responsável.', {
+      statusCode: 403,
+      code: 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
     });
   }
 }
@@ -832,6 +943,104 @@ async function applyChecklist(tx, workflow, payload, context) {
     update: {
       status: payload.status,
       note: payload.note || null,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
+}
+
+async function applyTeamMemberCheck(tx, workflow, payload, context) {
+  const mission = await tx.efetivoMissionPlan.findFirst({
+    where: {
+      projectId: workflow.projectId,
+      deletedAt: null,
+      scheduleStatus: { not: 'CANCELLED' },
+      plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
+    },
+    select: {
+      allocations: {
+        where: { collaboratorId: payload.collaboratorId, deletedAt: null },
+        select: { id: true },
+        take: 1
+      }
+    }
+  });
+  if (!mission?.allocations?.length) {
+    throw planningError('O colaborador não pertence à equipe definitiva atual.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_TEAM_MEMBER_INVALID'
+    });
+  }
+  await tx.projectWorkflowTeamMemberCheck.upsert({
+    where: {
+      projectId_collaboratorId_key: {
+        projectId: workflow.projectId,
+        collaboratorId: payload.collaboratorId,
+        key: payload.key
+      }
+    },
+    create: {
+      projectId: workflow.projectId,
+      collaboratorId: payload.collaboratorId,
+      key: payload.key,
+      status: payload.status,
+      source: 'MANUAL',
+      updatedByUserId: context.actorUserId || null
+    },
+    update: {
+      status: payload.status,
+      source: 'MANUAL',
+      sourceRecordId: null,
+      sourceUpdatedAt: null,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
+}
+
+async function applyClientAttendance(tx, workflow, payload, context, now) {
+  await tx.projectWorkflowClientRelease.upsert({
+    where: { projectId_key: { projectId: workflow.projectId, key: 'ATTENDANCE_CONFIRMATION' } },
+    create: {
+      projectId: workflow.projectId,
+      key: 'ATTENDANCE_CONFIRMATION',
+      attendanceDate: utcDate(payload.attendanceDate),
+      attendanceConfirmedAt: now,
+      source: 'MANUAL',
+      updatedByUserId: context.actorUserId || null
+    },
+    update: {
+      attendanceDate: utcDate(payload.attendanceDate),
+      attendanceConfirmedAt: now,
+      source: 'MANUAL',
+      sourceRecordId: null,
+      sourceUpdatedAt: null,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
+}
+
+async function applyClientRelease(tx, workflow, payload, context) {
+  await tx.projectWorkflowClientRelease.upsert({
+    where: { projectId_key: { projectId: workflow.projectId, key: payload.key } },
+    create: {
+      projectId: workflow.projectId,
+      key: payload.key,
+      requested: payload.requested,
+      requestedAt: payload.requestedAt ? utcDate(payload.requestedAt) : null,
+      requestedTo: payload.requestedTo || null,
+      completed: payload.completed,
+      completedAt: payload.completedAt ? utcDate(payload.completedAt) : null,
+      source: 'MANUAL',
+      updatedByUserId: context.actorUserId || null
+    },
+    update: {
+      requested: payload.requested,
+      requestedAt: payload.requestedAt ? utcDate(payload.requestedAt) : null,
+      requestedTo: payload.requestedTo || null,
+      completed: payload.completed,
+      completedAt: payload.completedAt ? utcDate(payload.completedAt) : null,
+      source: 'MANUAL',
+      sourceRecordId: null,
+      sourceUpdatedAt: null,
       updatedByUserId: context.actorUserId || null
     }
   });
@@ -1387,7 +1596,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
   const database = await resolvePlanningDatabase(dependencies.database);
   const now = dependencies.now || new Date();
   await runPlanningTransaction(database, async tx => {
-    const workflow = await loadWorkflowForMutation(tx, projectId);
+    const workflow = await loadWorkflowForMutation(tx, projectId, context);
     const reopening = workflow.stage === 'FINISHED' && payload.action === 'stage' && payload.stage === 'FINAL_MEASUREMENT';
     if (workflow.stage === 'FINISHED' && !reopening) {
       throw planningError('O projeto está encerrado. Reabra-o para alterar os dados.', {
@@ -1396,6 +1605,15 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
       });
     }
     if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
+    else if (payload.action === 'team_member_check') {
+      const definition = PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.find(item => item.key === payload.key);
+      assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+    } else if (payload.action === 'client_attendance') {
+      assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+    } else if (payload.action === 'client_release') {
+      const definition = PROJECT_WORKFLOW_CLIENT_RELEASES.find(item => item.key === payload.key);
+      assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+    }
     else if (['team_plan', 'equipment_plan', 'supply_plan', 'logistics_plan'].includes(payload.action)) {
       assertResourcePlanningEditable(workflow, payload.action, context);
     } else assertEditable(workflow, context);
@@ -1405,6 +1623,9 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     await reserveVersion(tx, workflow, payload.version);
     if (payload.action === 'settings') await applySettings(tx, workflow, payload, context);
     else if (payload.action === 'checklist') await applyChecklist(tx, workflow, payload, context);
+    else if (payload.action === 'team_member_check') await applyTeamMemberCheck(tx, workflow, payload, context);
+    else if (payload.action === 'client_attendance') await applyClientAttendance(tx, workflow, payload, context, now);
+    else if (payload.action === 'client_release') await applyClientRelease(tx, workflow, payload, context);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
     else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflow, payload);

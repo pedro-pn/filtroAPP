@@ -1936,6 +1936,45 @@
 .project-workflow-initial-team li strong,
 .project-workflow-initial-team li span { overflow-wrap: anywhere; }
 .project-workflow-initial-team li span { color: var(--mu); font-size: 12px; }
+.project-workflow-empty-team { align-items: center; background: var(--bg); border: 1px dashed var(--br); border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; min-width: 0; padding: 12px; }
+.project-workflow-empty-team > div { min-width: 0; }
+.project-workflow-empty-team p,
+.project-workflow-team-heading p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
+.project-workflow-team-heading { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.project-workflow-team-members { display: grid; gap: 8px; min-width: 0; }
+.project-workflow-team-member { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; }
+.project-workflow-team-member > header,
+.project-workflow-client-release > header,
+.project-workflow-client-attendance > header { align-items: start; display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.project-workflow-team-member > header > div,
+.project-workflow-client-attendance > header > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-team-member > header span,
+.project-workflow-client-attendance > header span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+.project-workflow-team-member-checks { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.project-workflow-member-check,
+.project-workflow-release-toggle { align-items: center; background: var(--wh); border: 1px solid var(--br); border-radius: var(--rs); cursor: pointer; display: flex; gap: 7px; min-width: 0; padding: 7px 8px; }
+.project-workflow-member-check.is-done { border-color: color-mix(in srgb, var(--g) 45%, var(--br)); }
+.project-workflow-member-check input,
+.project-workflow-release-toggle input { accent-color: var(--g); flex: 0 0 1rem; height: 1rem; margin: 0; width: 1rem; }
+.project-workflow-member-check span,
+.project-workflow-release-toggle span { min-width: 0; overflow-wrap: anywhere; }
+.project-workflow-member-check small { color: var(--g); margin-left: auto; }
+.project-workflow-integration-note { color: var(--mu); overflow-wrap: anywhere; }
+.project-workflow-client-attendance,
+.project-workflow-client-release { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 9px; min-width: 0; padding: 10px; }
+.project-workflow-client-attendance.is-complete,
+.project-workflow-client-release.is-complete { border-color: color-mix(in srgb, var(--g) 45%, var(--br)); }
+.project-workflow-client-attendance > header > span,
+.project-workflow-client-release > header > span { color: var(--mu); flex: 0 0 auto; font-size: 12px; font-weight: 700; }
+.project-workflow-client-attendance.is-complete > header > span,
+.project-workflow-client-release.is-complete > header > span { color: var(--g); }
+.project-workflow-client-attendance-fields { align-items: end; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
+.project-workflow-client-release-list { display: grid; gap: 8px; min-width: 0; }
+.project-workflow-client-release-fields { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.project-workflow-client-attendance-fields .field-group,
+.project-workflow-client-release-fields .field-group { margin: 0; min-width: 0; }
+.project-workflow-client-attendance-fields input,
+.project-workflow-client-release-fields input { box-sizing: border-box; max-width: 100%; min-width: 0; width: 100%; }
 .project-workflow-waiting { background: var(--bg); }
 .project-workflow-commercial-list { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .project-workflow-commercial-fact { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px; }
@@ -2361,6 +2400,9 @@
   .project-workflow-planning-grid,
   .project-workflow-initial-team,
   .project-workflow-initial-team > ul,
+  .project-workflow-team-member-checks,
+  .project-workflow-client-attendance-fields,
+  .project-workflow-client-release-fields,
   .project-post-job-grid,
   .project-post-job-history-list,
   .project-closeout-financial,

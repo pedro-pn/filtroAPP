@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CHECKLISTS,
-  PROJECT_WORKFLOW_CRITICAL_QUESTIONS
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
+  PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
+  PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../shared/schemas/project-workflow.js';
 import {
   getProjectWorkflow,
@@ -19,6 +21,8 @@ function fakeDatabase() {
     project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', location: 'Santos', mobilizationDate: null, startDate: null, demobilizationDate: null },
     workflow: null,
     checklists: [],
+    teamMemberChecks: [],
+    clientReleases: [],
     answers: [],
     issues: [],
     commercialFacts: [],
@@ -60,6 +64,8 @@ function fakeDatabase() {
     leader: users[state.workflow.leaderUserId],
     closedBy: users[state.workflow.closedByUserId] || null,
     checklists: state.checklists.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
+    teamMemberChecks: state.teamMemberChecks.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
+    clientReleases: state.clientReleases.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     criticalAnswers: state.answers.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     commercialFacts: state.commercialFacts.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     documentationCategories: state.documentationCategories.map(category => ({
@@ -165,6 +171,22 @@ function fakeDatabase() {
         const existing = state.checklists.find(item => item.key === key);
         if (existing) Object.assign(existing, input.update);
         else state.checklists.push({ id: `check-${state.checklists.length}`, ...input.create });
+      }
+    },
+    projectWorkflowTeamMemberCheck: {
+      upsert: async input => {
+        const key = input.where.projectId_collaboratorId_key;
+        const existing = state.teamMemberChecks.find(item => item.projectId === key.projectId && item.collaboratorId === key.collaboratorId && item.key === key.key);
+        if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
+        else state.teamMemberChecks.push({ id: `team-check-${state.teamMemberChecks.length + 1}`, createdAt: new Date(), updatedAt: new Date(), sourceRecordId: null, sourceUpdatedAt: null, ...input.create });
+      }
+    },
+    projectWorkflowClientRelease: {
+      upsert: async input => {
+        const key = input.where.projectId_key.key;
+        const existing = state.clientReleases.find(item => item.key === key);
+        if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
+        else state.clientReleases.push({ id: `client-release-${state.clientReleases.length + 1}`, attendanceDate: null, attendanceConfirmedAt: null, requested: false, requestedAt: null, requestedTo: null, completed: false, completedAt: null, sourceRecordId: null, sourceUpdatedAt: null, createdAt: new Date(), updatedAt: new Date(), ...input.create });
       }
     },
     projectWorkflowCriticalAnswer: {
@@ -654,6 +676,63 @@ function makeStateReadyForMobilization(state) {
     createdAt: new Date(),
     updatedAt: new Date()
   })));
+  state.operationalMission = {
+    id: 'mission-ready',
+    stage: 'STANDBY',
+    scheduleStatus: 'CONFIRMED',
+    version: 1,
+    kanbanOrder: 0,
+    mobilizationDate: new Date('2026-09-29T00:00:00Z'),
+    executionStartDate: new Date('2026-09-30T00:00:00Z'),
+    executionEndDate: new Date('2026-10-10T00:00:00Z'),
+    returnDate: null,
+    headquartersResponsibleName: 'Responsável de campo',
+    headquartersResponsibleRole: 'Supervisor',
+    headquartersResponsibleCollaboratorId: 'collaborator-1',
+    allocations: [{
+      id: 'allocation-ready',
+      collaboratorId: 'collaborator-1',
+      jobRoleId: 'role-1',
+      collaborator: { id: 'collaborator-1', name: 'João da Silva', isActive: true, jobRole: { id: 'role-1', name: 'Mecânico' } },
+      jobRole: { id: 'role-1', name: 'Mecânico' }
+    }]
+  };
+  state.teamMemberChecks.push(...PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => ({
+    id: `team-check-${item.key}`,
+    projectId: 'project-1',
+    collaboratorId: 'collaborator-1',
+    key: item.key,
+    status: 'DONE',
+    source: 'MANUAL',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  })));
+  state.clientReleases.push({
+    id: 'client-attendance',
+    projectId: 'project-1',
+    key: 'ATTENDANCE_CONFIRMATION',
+    attendanceDate: new Date('2026-09-30T00:00:00Z'),
+    attendanceConfirmedAt: new Date(),
+    requested: false,
+    completed: false,
+    source: 'MANUAL',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }, ...PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({
+    id: `client-${item.key}`,
+    projectId: 'project-1',
+    key: item.key,
+    attendanceDate: null,
+    attendanceConfirmedAt: null,
+    requested: true,
+    requestedAt: new Date('2026-09-09T00:00:00Z'),
+    requestedTo: 'Marina',
+    completed: true,
+    completedAt: new Date('2026-09-10T00:00:00Z'),
+    source: 'MANUAL',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  })));
 }
 
 test('D-30 completo permite entrar em Preparação', async () => {
@@ -698,7 +777,7 @@ test('D-30 completo permite entrar em Preparação', async () => {
   assert.deepEqual(detail.workflow.resourcePlanning.logistics.warnings, ['Hospedagem ainda não solicitada']);
   const result = await updateProjectWorkflow('project-1', { action: 'stage', version: detail.workflow.version, stage: 'PREPARATION' }, leader, { database });
   assert.equal(result.workflow.stage, 'PREPARATION');
-  assert.equal(result.workflow.preparationReadiness.total, 39);
+  assert.equal(result.workflow.preparationReadiness.total, 37);
 });
 
 test('QSMS edita sua frente sem avançar a etapa', async () => {
@@ -715,6 +794,32 @@ test('QSMS edita sua frente sem avançar a etapa', async () => {
     updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION_PLANNING' }, qsms, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
+});
+
+test('preparação acompanha equipe por colaborador e liberações do cliente com datas', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  let result = await updateProjectWorkflow('project-1', {
+    action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'NOTIFIED', status: 'PENDING'
+  }, operations, { database });
+  assert.equal(result.workflow.teamPreparation.members[0].checks.find(item => item.key === 'NOTIFIED').status, 'PENDING');
+  result = await updateProjectWorkflow('project-1', {
+    action: 'team_member_check', version: 2, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'PENDING'
+  }, administrative, { database });
+  assert.equal(result.workflow.mobilizationGate.fronts.find(item => item.key === 'DOCUMENTATION').status, 'BLOCKED');
+  result = await updateProjectWorkflow('project-1', {
+    action: 'client_attendance', version: 3, attendanceDate: '2026-10-01'
+  }, operations, { database, now: new Date('2026-09-12T15:00:00Z') });
+  assert.equal(result.workflow.clientReleases.attendance.date, '2026-10-01');
+  assert.equal(result.workflow.clientReleases.attendance.confirmed, true);
+  result = await updateProjectWorkflow('project-1', {
+    action: 'client_release', version: 4, key: 'CUSTOMER_REGISTRATION', requested: true,
+    requestedAt: '2026-09-12', requestedTo: 'Portaria da unidade', completed: false, completedAt: null
+  }, administrative, { database });
+  const registration = result.workflow.clientReleases.items.find(item => item.key === 'CUSTOMER_REGISTRATION');
+  assert.equal(registration.requestedTo, 'Portaria da unidade');
+  assert.equal(registration.completed, false);
 });
 
 test('gate verde emite autorização versionada e alteração posterior a suspende', async () => {

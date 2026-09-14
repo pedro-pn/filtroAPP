@@ -74,23 +74,30 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
   FINAL_CLOSEOUT: 'Checklist final de encerramento'
 };
 
+export const PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS = [
+  { key: 'NOTIFIED', label: 'Colaborador informado', areaRoles: ['efetivo:operations'] },
+  { key: 'DOCUMENTS_CHECKED', label: 'Documentação conferida', areaRoles: ['efetivo:administrative'] },
+  { key: 'EXAMS_RELEASED', label: 'Exames liberados', areaRoles: ['efetivo:administrative'] },
+  { key: 'TRAININGS_RELEASED', label: 'Treinamentos liberados', areaRoles: ['efetivo:administrative'] }
+];
+
+export const PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS = [
+  'CUSTOMER_REGISTRATION',
+  'DOCUMENTS_SENT',
+  'INTEGRATION_REQUEST'
+];
+
+export const PROJECT_WORKFLOW_CLIENT_RELEASES = [
+  { key: 'CUSTOMER_REGISTRATION', label: 'Cadastro no cliente', areaRoles: ['efetivo:administrative'] },
+  { key: 'DOCUMENTS_SENT', label: 'Documentação enviada ao cliente', areaRoles: ['efetivo:administrative'] },
+  { key: 'INTEGRATION_REQUEST', label: 'Solicitação de integração', areaRoles: ['efetivo:administrative'] }
+];
+
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
 
 export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
-
-  checklist('D15_TEAM_DEFINITIVE_CONFIRMED', 'PREPARATION', 'D15_TEAM', 'Equipe definitiva confirmada com o Gerente de Operações', ['efetivo:operations']),
-  checklist('D15_TEAM_COLLABORATORS_NOTIFIED', 'PREPARATION', 'D15_TEAM', 'Colaboradores comunicados', ['efetivo:operations']),
-  checklist('D15_TEAM_INDIVIDUAL_DOCUMENTS_CHECKED', 'PREPARATION', 'D15_TEAM', 'Documentação individual conferida', ['efetivo:administrative']),
-  checklist('D15_TEAM_EXAMS_RELEASED', 'PREPARATION', 'D15_TEAM', 'Exames liberados', ['efetivo:administrative']),
-  checklist('D15_TEAM_TRAININGS_RELEASED', 'PREPARATION', 'D15_TEAM', 'Treinamentos liberados', ['efetivo:administrative']),
-
-  checklist('D15_CLIENT_ATTENDANCE_CONFIRMED', 'PREPARATION', 'D15_CLIENT', 'Cliente confirmou o atendimento', ['efetivo:operations']),
-  checklist('D15_CLIENT_REGISTRATION_REQUESTED', 'PREPARATION', 'D15_CLIENT', 'Cadastro no cliente solicitado', ['efetivo:administrative']),
-  checklist('D15_CLIENT_DOCUMENTS_SENT', 'PREPARATION', 'D15_CLIENT', 'Documentação enviada ao cliente', ['efetivo:administrative']),
-  checklist('D15_CLIENT_INTEGRATION_SCHEDULED', 'PREPARATION', 'D15_CLIENT', 'Integração solicitada ou agendada', ['efetivo:administrative']),
-  checklist('D15_CLIENT_TEAM_RELEASED', 'PREPARATION', 'D15_CLIENT', 'Equipe liberada pelo cliente', ['efetivo:administrative', 'efetivo:operations']),
 
   checklist('D15_EQUIPMENT_RESERVED', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos definitivamente reservados', ['efetivo:assets']),
   checklist('D15_EQUIPMENT_AVAILABLE_AT_BASE', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos disponíveis na sede na data necessária', ['efetivo:assets']),
@@ -301,6 +308,35 @@ export function makeProjectWorkflowSchemas(z) {
   }).strict().refine(value => value.status !== 'NOT_APPLICABLE' || Boolean(value.note?.trim()), {
     path: ['note'],
     message: 'Justifique por que este item não se aplica.'
+  });
+  const teamMemberCheck = z.object({
+    action: z.literal('team_member_check'),
+    version,
+    collaboratorId: id,
+    key: z.enum(PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => item.key)),
+    status: z.enum(['PENDING', 'DONE'])
+  }).strict();
+  const clientAttendance = z.object({
+    action: z.literal('client_attendance'),
+    version,
+    attendanceDate: dateOnly
+  }).strict();
+  const clientRelease = z.object({
+    action: z.literal('client_release'),
+    version,
+    key: z.enum(PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS),
+    requested: z.boolean(),
+    requestedAt: dateOnly.nullable(),
+    requestedTo: z.string().trim().max(160, 'O destinatário deve ter no máximo 160 caracteres.').nullable(),
+    completed: z.boolean(),
+    completedAt: dateOnly.nullable()
+  }).strict().superRefine((value, ctx) => {
+    if (value.completed && !value.requested) {
+      ctx.addIssue({ code: 'custom', path: ['requested'], message: 'Registre a solicitação antes da conclusão.' });
+    }
+    if (value.requestedAt && value.completedAt && value.requestedAt > value.completedAt) {
+      ctx.addIssue({ code: 'custom', path: ['completedAt'], message: 'A conclusão não pode ser anterior à solicitação.' });
+    }
   });
   const critical = z.object({
     action: z.literal('critical'),
@@ -541,7 +577,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, clientAttendance, clientRelease, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

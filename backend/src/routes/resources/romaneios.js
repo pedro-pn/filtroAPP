@@ -29,6 +29,7 @@ import { planningError } from '../../lib/efetivo/planning/errors.js';
 import {
   assertProjectMobilizationAuthorized,
   PROJECT_OPERATIONAL_GATE_INCLUDE,
+  PROJECT_OPERATIONAL_GATE_MISSION_QUERY,
   projectOperationalMobilizationDecisionFromWorkflow
 } from '../../lib/efetivo/project-workflow/operational-gate.js';
 import { ensureRomaneioCatalogSynced } from '../../lib/romaneio-catalog.js';
@@ -271,7 +272,7 @@ export function romaneioProjectAvailableForType(project, type) {
   if (type === 'INBOUND') return true;
   if (type !== 'OUTBOUND') return true;
   if (!project.workflow) return project.isActive === true;
-  return projectOperationalMobilizationDecisionFromWorkflow(project.workflow, project.id).allowed;
+  return projectOperationalMobilizationDecisionFromWorkflow(project.workflow, project.id, project.efetivoMissionPlans?.[0]).allowed;
 }
 
 async function assertRomaneioProjectAccess(projectId, authUser, client = prisma, options = {}) {
@@ -1053,7 +1054,8 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
     select: {
       ...romaneioProjectSelect,
       ...(query.type === 'OUTBOUND' ? {
-        workflow: { include: PROJECT_OPERATIONAL_GATE_INCLUDE }
+        workflow: { include: PROJECT_OPERATIONAL_GATE_INCLUDE },
+        efetivoMissionPlans: PROJECT_OPERATIONAL_GATE_MISSION_QUERY
       } : {}),
       operator: {
         select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } }
@@ -1064,7 +1066,7 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
   res.json(items
     .filter(item => romaneioProjectAvailableForType(item, query.type))
     .map(item => {
-      const { workflow: _workflow, ...publicItem } = item;
+      const { workflow: _workflow, efetivoMissionPlans: _efetivoMissionPlans, ...publicItem } = item;
       return {
         ...publicItem,
         operator: item.operator ? { ...item.operator, role: item.operator.jobRole?.name || '' } : null

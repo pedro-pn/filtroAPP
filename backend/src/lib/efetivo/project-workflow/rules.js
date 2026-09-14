@@ -1,5 +1,6 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS
@@ -115,6 +116,82 @@ function checklistProgress(workflow, definitions) {
   };
 }
 
+function teamMemberProgress(workflow, keys, { requireTeam = true } = {}) {
+  const members = workflow?.teamPreparation?.members || [];
+  if (!workflow?.teamPreparation?.defined || members.length === 0) {
+    return requireTeam
+      ? {
+          completed: 0,
+          total: 1,
+          percentage: 0,
+          blockers: [{ key: 'TEAM_DEFINITION', label: 'Equipe definitiva', reason: 'Aguardando definição da equipe' }]
+        }
+      : { completed: 0, total: 0, percentage: 0, blockers: [] };
+  }
+  const requestedKeys = new Set(keys);
+  const entries = members.flatMap(member => (member.checks || [])
+    .filter(check => requestedKeys.has(check.key))
+    .map(check => ({ member, check })));
+  const completed = entries.filter(({ check }) => resolvedChecklist(check)).length;
+  const blockers = entries
+    .filter(({ check }) => !resolvedChecklist(check))
+    .map(({ member, check }) => ({
+      key: `TEAM_${member.collaboratorId}_${check.key}`,
+      label: member.name,
+      reason: `${check.label} pendente`
+    }));
+  return {
+    completed,
+    total: entries.length,
+    percentage: entries.length ? Math.round((completed / entries.length) * 100) : 0,
+    blockers
+  };
+}
+
+function clientReleaseProgress(workflow) {
+  const attendance = workflow?.clientReleases?.attendance || {};
+  const providedItems = new Map((workflow?.clientReleases?.items || []).map(item => [item.key, item]));
+  const items = PROJECT_WORKFLOW_CLIENT_RELEASES.map(definition => ({
+    ...definition,
+    requested: false,
+    requestedAt: null,
+    requestedTo: null,
+    completed: false,
+    completedAt: null,
+    ...providedItems.get(definition.key)
+  }));
+  let completed = attendance.confirmed && attendance.date ? 1 : 0;
+  const blockers = [];
+  if (!attendance.date) {
+    blockers.push({ key: 'CLIENT_ATTENDANCE', label: 'Confirmação do atendimento', reason: 'Informar a data do atendimento' });
+  } else if (!attendance.confirmed) {
+    blockers.push({ key: 'CLIENT_ATTENDANCE', label: 'Confirmação do atendimento', reason: 'Confirmar a data do atendimento' });
+  }
+  for (const item of items) {
+    const requestComplete = item.requested && item.requestedAt && item.requestedTo?.trim();
+    const completionComplete = item.completed && item.completedAt;
+    if (requestComplete) completed += 1;
+    else blockers.push({
+      key: `CLIENT_${item.key}_REQUEST`,
+      label: item.label,
+      reason: !item.requested ? 'Solicitação pendente' : 'Informar data e destinatário da solicitação'
+    });
+    if (completionComplete) completed += 1;
+    else blockers.push({
+      key: `CLIENT_${item.key}_COMPLETION`,
+      label: item.label,
+      reason: 'Conclusão pendente'
+    });
+  }
+  const total = 1 + (items.length * 2);
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+    blockers
+  };
+}
+
 export function projectWorkflowDocumentationReadiness(workflow, milestones, today) {
   const categories = normalizeProjectWorkflowDocumentation(workflow);
   const blockers = [];
@@ -193,6 +270,8 @@ export function projectWorkflowPlanningReadiness(workflow) {
 export function projectWorkflowPreparationReadiness(workflow) {
   const sectionKeys = ['D15_TEAM', 'D15_CLIENT', 'D15_EQUIPMENT', 'D15_MATERIALS', 'D15_PRE_JOB', 'D15_TRAVEL', 'D15_QSMS'];
   const sections = sectionKeys.map(key => {
+    if (key === 'D15_TEAM') return { key, ...teamMemberProgress(workflow, ['NOTIFIED', 'DOCUMENTS_CHECKED', 'EXAMS_RELEASED', 'TRAININGS_RELEASED']) };
+    if (key === 'D15_CLIENT') return { key, ...clientReleaseProgress(workflow) };
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
@@ -337,20 +416,9 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
     total: commercial.totalCount,
     blockers: []
   };
-  const teamDefinitions = checklistDefinitions({
-    sections: ['D15_TEAM'],
-    keys: ['D15_CLIENT_TEAM_RELEASED']
-  });
-  const documentDefinitions = checklistDefinitions({
-    keys: [
-      'D15_TEAM_INDIVIDUAL_DOCUMENTS_CHECKED',
-      'D15_TEAM_EXAMS_RELEASED',
-      'D15_TEAM_TRAININGS_RELEASED',
-      'D15_CLIENT_REGISTRATION_REQUESTED',
-      'D15_CLIENT_DOCUMENTS_SENT',
-      'D15_CLIENT_INTEGRATION_SCHEDULED'
-    ]
-  });
+  const teamProgress = teamMemberProgress(workflow, ['NOTIFIED']);
+  const memberDocumentProgress = teamMemberProgress(workflow, ['DOCUMENTS_CHECKED', 'EXAMS_RELEASED', 'TRAININGS_RELEASED'], { requireTeam: false });
+  const clientProgress = clientReleaseProgress(workflow);
   const requiredDocumentBlockers = (workflow?.documentRequirements?.MOBILIZATION?.blockers || []).map(item => ({
     key: `DOCUMENT_${item.documentId}`,
     label: item.title,
@@ -358,18 +426,24 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
   }));
   const fronts = [
     commercialFront,
-    readinessFromDefinitions(workflow, 'TEAM', 'Equipe', teamDefinitions),
+    { key: 'TEAM', label: 'Equipe', status: teamProgress.blockers.length ? 'BLOCKED' : 'READY', ...teamProgress },
     (() => {
-      const front = readinessFromDefinitions(workflow, 'DOCUMENTATION', 'Documentação', documentDefinitions,
-        [...documentation.blockers, ...requiredDocumentBlockers]);
-      return { ...front, completed: front.completed + documentation.completed, total: front.total + documentation.total };
+      const blockers = [...memberDocumentProgress.blockers, ...documentation.blockers, ...requiredDocumentBlockers];
+      return {
+        key: 'DOCUMENTATION',
+        label: 'Documentação',
+        status: blockers.length ? 'BLOCKED' : 'READY',
+        completed: memberDocumentProgress.completed + documentation.completed,
+        total: memberDocumentProgress.total + documentation.total,
+        blockers
+      };
     })(),
     readinessFromDefinitions(workflow, 'EQUIPMENT', 'Equipamentos', checklistDefinitions({ sections: ['D15_EQUIPMENT'] })),
     readinessFromDefinitions(workflow, 'MATERIALS', 'Materiais', checklistDefinitions({ sections: ['D15_MATERIALS'] })),
     readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
     readinessFromDefinitions(workflow, 'LODGING', 'Hospedagem', checklistDefinitions({ keys: ['D15_TRAVEL_LODGING_REQUESTED', 'D15_TRAVEL_LODGING_CONFIRMED'] })),
     readinessFromDefinitions(workflow, 'LOGISTICS', 'Logística', checklistDefinitions({ keys: ['D15_TRAVEL_TEAM_TRANSPORT_DEFINED', 'D15_TRAVEL_FREIGHT_REQUESTED', 'D15_TRAVEL_COMPANY_TRUCK_RESERVED', 'D15_TRAVEL_DEPARTURE_CONFIRMED'] })),
-    readinessFromDefinitions(workflow, 'CLIENT', 'Cliente', checklistDefinitions({ sections: ['D15_CLIENT'] }))
+    { key: 'CLIENT', label: 'Cliente', status: clientProgress.blockers.length ? 'BLOCKED' : 'READY', ...clientProgress }
   ];
   const preJob = readinessFromDefinitions(workflow, 'PRE_JOB', 'Pré-job', checklistDefinitions({ sections: ['D15_PRE_JOB'] }));
   const criticalIssues = activeProjectWorkflowIssues(workflow).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH');

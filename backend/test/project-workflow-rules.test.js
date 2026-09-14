@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
+  PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS,
   makeProjectWorkflowCommercialFactSchema,
   makeProjectWorkflowSchemas,
   projectWorkflowMilestones
@@ -43,6 +45,11 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true }).success, false);
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true, contactName: 'Marina', contactDate: '2026-09-10' }).success, true);
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: false }).success, true);
+  assert.equal(patch.safeParse({ action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'DONE' }).success, true);
+  assert.equal(patch.safeParse({ action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'NOT_APPLICABLE' }).success, false);
+  assert.equal(patch.safeParse({ action: 'client_attendance', version: 1, attendanceDate: '2026-09-20' }).success, true);
+  assert.equal(patch.safeParse({ action: 'client_release', version: 1, key: 'CUSTOMER_REGISTRATION', requested: true, requestedAt: '2026-09-10', requestedTo: 'Portaria', completed: false, completedAt: null }).success, true);
+  assert.equal(patch.safeParse({ action: 'client_release', version: 1, key: 'CUSTOMER_REGISTRATION', requested: false, requestedAt: null, requestedTo: null, completed: true, completedAt: '2026-09-10' }).success, false);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [] }).success, false);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 3 }] }).success, true);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: false, demands: [] }).success, true);
@@ -214,10 +221,29 @@ function readyMobilizationWorkflow(overrides = {}) {
     .filter(item => item.section.startsWith('D15_'))
     .map(item => ({ key: item.key, status: 'DONE' }));
   const documentationCategories = ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] }));
-  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, documentationCategories, issues: [], ...overrides };
+  const teamPreparation = {
+    defined: true,
+    members: [{
+      collaboratorId: 'collaborator-1',
+      name: 'João da Silva',
+      checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => ({ ...item, status: 'DONE' }))
+    }]
+  };
+  const clientReleases = {
+    attendance: { date: '2026-09-20', confirmed: true },
+    items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({
+      ...item,
+      requested: true,
+      requestedAt: '2026-09-09',
+      requestedTo: 'Marina',
+      completed: true,
+      completedAt: '2026-09-10'
+    }))
+  };
+  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, issues: [], ...overrides };
 }
 
-test('planejamento completo libera Preparação e D-15 soma 39 confirmações', () => {
+test('planejamento completo libera Preparação e D-15 acompanha equipe nominal e cliente', () => {
   const structuredPlanning = {
     teamPlanDefined: true,
     teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
@@ -229,10 +255,13 @@ test('planejamento completo libera Preparação e D-15 soma 39 confirmações', 
   };
   assert.equal(planningGateIssues({ checklists: [] }).length, 6);
   assert.deepEqual(planningGateIssues(structuredPlanning), []);
-  const readiness = projectWorkflowPreparationReadiness({ checklists: completed('PREPARATION').slice(0, 20) });
-  assert.equal(readiness.total, 39);
-  assert.equal(readiness.completed, 20);
+  const prepared = readyMobilizationWorkflow();
+  const readiness = projectWorkflowPreparationReadiness(prepared);
+  assert.equal(readiness.total, 40);
+  assert.equal(readiness.completed, 40);
   assert.equal(readiness.sections.length, 7);
+  prepared.teamPreparation.members[0].checks[0].status = 'PENDING';
+  assert.equal(projectWorkflowPreparationReadiness(prepared).completed, 39);
   assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 6);
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning }, 'PREPARATION'), []);
 });

@@ -569,6 +569,7 @@ model Collaborator {
   jobRoleHistory                 CollaboratorJobRoleHistory[]
   efetivoMissionResponsibilities EfetivoMissionPlan[]             @relation("EfetivoMissionResponsible")
   efetivoMissionAllocations      EfetivoMissionAllocation[]
+  projectWorkflowTeamChecks      ProjectWorkflowTeamMemberCheck[]
   maintenanceSupervisorConfigs   MaintenanceConfiguration[]       @relation("MaintenanceSupervisor")
 
   @@index([jobRoleId])
@@ -1059,6 +1060,8 @@ model ProjectWorkflow {
   leader                             User                                   @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
   closedBy                           User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   checklists                         ProjectWorkflowChecklist[]
+  teamMemberChecks                   ProjectWorkflowTeamMemberCheck[]
+  clientReleases                     ProjectWorkflowClientRelease[]
   criticalAnswers                    ProjectWorkflowCriticalAnswer[]
   issues                             ProjectWorkflowIssue[]
   commercialFacts                    ProjectWorkflowCommercialFact[]
@@ -1266,6 +1269,53 @@ model ProjectWorkflowChecklist {
 
   @@unique([projectId, key])
   @@index([updatedByUserId])
+}
+
+model ProjectWorkflowTeamMemberCheck {
+  id              String                         @id @default(cuid())
+  projectId       String
+  collaboratorId  String
+  key             String
+  status          ProjectWorkflowChecklistStatus @default(PENDING)
+  source          String                         @default("MANUAL")
+  sourceRecordId  String?
+  sourceUpdatedAt DateTime?
+  updatedByUserId String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  workflow        ProjectWorkflow                @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  collaborator    Collaborator                   @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+  updatedBy       User?                          @relation("ProjectWorkflowTeamMemberCheckUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, collaboratorId, key])
+  @@index([collaboratorId])
+  @@index([updatedByUserId])
+  @@index([source, sourceUpdatedAt])
+}
+
+model ProjectWorkflowClientRelease {
+  id                    String          @id @default(cuid())
+  projectId             String
+  key                   String
+  attendanceDate        DateTime?       @db.Date
+  attendanceConfirmedAt DateTime?
+  requested             Boolean         @default(false)
+  requestedAt           DateTime?       @db.Date
+  requestedTo           String?
+  completed             Boolean         @default(false)
+  completedAt           DateTime?       @db.Date
+  source                String          @default("MANUAL")
+  sourceRecordId        String?
+  sourceUpdatedAt       DateTime?
+  updatedByUserId       String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  workflow              ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy             User?           @relation("ProjectWorkflowClientReleaseUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([updatedByUserId])
+  @@index([source, sourceUpdatedAt])
 }
 
 model ProjectWorkflowCriticalAnswer {
@@ -2418,6 +2468,8 @@ model User {
   ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
   closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
   updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
+  updatedProjectWorkflowTeamChecks     ProjectWorkflowTeamMemberCheck[]     @relation("ProjectWorkflowTeamMemberCheckUpdater")
+  updatedProjectWorkflowClientReleases ProjectWorkflowClientRelease[]       @relation("ProjectWorkflowClientReleaseUpdater")
   updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
   updatedProjectWorkflowCommercialFacts ProjectWorkflowCommercialFact[]     @relation("ProjectWorkflowCommercialFactUpdater")
   workflowDocCategoriesUpdated          ProjectWorkflowDocumentationCategory[]    @relation("ProjectWorkflowDocumentationCategoryUpdater")

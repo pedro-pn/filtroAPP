@@ -3,6 +3,8 @@ import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
+export type ProjectWorkflowTeamMemberCheckKey = 'NOTIFIED' | 'DOCUMENTS_CHECKED' | 'EXAMS_RELEASED' | 'TRAININGS_RELEASED';
+export type ProjectWorkflowClientReleaseKey = 'CUSTOMER_REGISTRATION' | 'DOCUMENTS_SENT' | 'INTEGRATION_REQUEST';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
@@ -85,6 +87,54 @@ export interface ProjectWorkflowChecklist {
   updatedAt: string | null;
   updatedBy: { id: string; name: string } | null;
   canEdit: boolean;
+}
+
+export interface ProjectWorkflowTeamPreparation {
+  defined: boolean;
+  members: Array<{
+    allocationId: string;
+    collaboratorId: string;
+    name: string;
+    role: string;
+    checks: Array<{
+      key: ProjectWorkflowTeamMemberCheckKey;
+      label: string;
+      status: 'PENDING' | 'DONE';
+      source: 'MANUAL' | 'EXTERNAL';
+      sourceRecordId: string | null;
+      sourceUpdatedAt: string | null;
+      updatedAt: string | null;
+      updatedBy: { id: string; name: string } | null;
+      canEdit: boolean;
+    }>;
+  }>;
+}
+
+export interface ProjectWorkflowClientReleases {
+  attendance: {
+    date: string | null;
+    confirmed: boolean;
+    confirmedAt: string | null;
+    source: 'MANUAL' | 'EXTERNAL';
+    updatedAt: string | null;
+    updatedBy: { id: string; name: string } | null;
+    canEdit: boolean;
+  };
+  items: Array<{
+    key: ProjectWorkflowClientReleaseKey;
+    label: string;
+    requested: boolean;
+    requestedAt: string | null;
+    requestedTo: string | null;
+    completed: boolean;
+    completedAt: string | null;
+    source: 'MANUAL' | 'EXTERNAL';
+    sourceRecordId: string | null;
+    sourceUpdatedAt: string | null;
+    updatedAt: string | null;
+    updatedBy: { id: string; name: string } | null;
+    canEdit: boolean;
+  }>;
 }
 
 export interface ProjectWorkflowDocumentationReadiness {
@@ -464,6 +514,8 @@ export interface ProjectWorkflow {
   commercialFacts: ProjectWorkflowCommercialFact[];
   commercialReadiness: ProjectWorkflowCommercialReadiness;
   documentationCategories: ProjectWorkflowDocumentationCategory[];
+  teamPreparation: ProjectWorkflowTeamPreparation;
+  clientReleases: ProjectWorkflowClientReleases;
   documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
   resourcePlanning: ProjectWorkflowResourcePlanning;
@@ -620,6 +672,9 @@ export interface ProjectExecutionDeviationInput {
 export type ProjectWorkflowPatch =
   | { action: 'settings'; version: number; leaderUserId?: string; plannedMobilizationDate?: string }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
+  | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
+  | { action: 'client_attendance'; version: number; attendanceDate: string }
+  | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo: string | null; completed: boolean; completedAt: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
