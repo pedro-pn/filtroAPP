@@ -5,6 +5,7 @@ export function ProjectWorkflowCategory({
   description,
   status,
   complete = false,
+  initiallyOpen,
   className = '',
   children,
   ...detailsProps
@@ -13,9 +14,10 @@ export function ProjectWorkflowCategory({
   description?: string;
   status?: ReactNode;
   complete?: boolean;
+  initiallyOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(!complete);
+  const [open, setOpen] = useState(initiallyOpen ?? !complete);
   return (
     <details
       {...detailsProps}

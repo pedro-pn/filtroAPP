@@ -1931,6 +1931,7 @@
 .project-workflow-planning > header p { color: var(--mu); margin-top: 3px; }
 .project-workflow-planning-grid { align-items: start; display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
 .project-workflow-planning-grid > * { align-self: start; min-width: 0; }
+.project-workflow-definitive-team { grid-column: 1 / -1; width: 100%; }
 .project-workflow-initial-team { align-items: start; background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: grid; gap: 9px 12px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; padding: 10px; }
 .project-workflow-initial-team > div { min-width: 0; }
 .project-workflow-initial-team p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }

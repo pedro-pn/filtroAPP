@@ -390,11 +390,14 @@ test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const category = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowCategory.tsx', import.meta.url), 'utf8');
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
   const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectPostJobPanel.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(category, /<details/);
-  assert.match(category, /useState\(!complete\)/);
+  assert.match(category, /useState\(initiallyOpen \?\? !complete\)/);
+  assert.match(preparation, /initiallyOpen/);
+  assert.match(styles, /project-workflow-definitive-team \{ grid-column: 1 \/ -1/);
   assert.match(intake, /Liberação comercial e contratual/);
   assert.match(intake, /Documentação antecipada/);
   assert.match(modal, /data-project-workflow-post-job/);

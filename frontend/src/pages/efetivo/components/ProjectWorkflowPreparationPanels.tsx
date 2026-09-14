@@ -394,6 +394,7 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
       description="Acompanhe a preparação individual de cada colaborador selecionado."
       status={members.length ? `${progress.completed}/${progress.total}` : 'Pendente'}
       complete={complete}
+      initiallyOpen
       className="project-workflow-definitive-team"
       data-project-workflow-definitive-team
     >
