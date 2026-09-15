@@ -6,6 +6,7 @@ import type { Levantamento } from '../useLevantamento';
 import { CircuitosBloco } from './CircuitosBloco';
 import { FiltrosTabela } from './FiltrosTabela';
 import { ProdutosBloco } from './ProdutosBloco';
+import { custoTotalMateriaisEInsumos } from '../totaisDasSecoes';
 
 /**
  * Seção 3 — Materiais e insumos.
@@ -49,12 +50,21 @@ function novoMaterial(): AnyRecord {
 }
 
 export function InsumosSection({ levantamento }: { levantamento: Levantamento }) {
+  const { result } = levantamento;
+
   return (
     <>
       <MateriaisBloco levantamento={levantamento} />
       <CircuitosBloco levantamento={levantamento} />
       <ProdutosBloco levantamento={levantamento} />
       <FiltrosTabela levantamento={levantamento} />
+      <div
+        className="com-total-secao"
+        aria-label="Custo total da aba Materiais e insumos"
+      >
+        <strong>Custo total desta aba</strong>
+        <span>{money(custoTotalMateriaisEInsumos(result))}</span>
+      </div>
     </>
   );
 }

@@ -68,7 +68,7 @@ test('durante o levantamento, texto e destino indicam sempre a próxima etapa', 
   const casos = [
     ['premises', 'labor', 'Salvar e ir para Mão de obra →', logisticaPendente],
     ['labor', 'inputs', 'Salvar e ir para Materiais e insumos →', logisticaPendente],
-    ['inputs', 'logistics', 'Salvar e ir para Mob. e desmob. →', logisticaPendente],
+    ['inputs', 'logistics', 'Salvar e ir para Logística →', logisticaPendente],
     ['logistics', 'summary', 'Salvar e ir para Resumo e QQP →', nadaPendente]
   ];
 

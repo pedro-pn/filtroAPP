@@ -62,7 +62,7 @@ const SECOES: Array<{ value: CostSection; label: string }> = [
   { value: 'premises', label: 'Premissas' },
   { value: 'labor', label: 'Mão de obra' },
   { value: 'inputs', label: 'Materiais e insumos' },
-  { value: 'logistics', label: 'Mob. e desmob.' },
+  { value: 'logistics', label: 'Logística' },
   { value: 'summary', label: 'Resumo e QQP' }
 ];
 

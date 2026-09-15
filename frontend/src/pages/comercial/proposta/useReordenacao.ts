@@ -15,7 +15,7 @@ import {
 } from './sessaoDeArrasto';
 
 /**
- * Arrastar para reordenar — a L2, aplicada às três listas do módulo (T068–T071).
+ * Arrastar para reordenar — a L2, aplicada às listas do módulo (T068–T071).
  *
  * `utils/reorderDrag.ts` foi auditado na T001 e **aprovado sem dívida**
  * ([auditoria-reorder.md](../../../../../specs/009-modulo-comercial/contracts/auditoria-reorder.md)),
@@ -23,8 +23,8 @@ import {
  * não dá** — alça com `aria-label`, placeholder e cancelamento que restaura.
  * Este hook é essas três peças, montadas uma vez.
  *
- * **Uma vez, e não três**, porque o módulo tem três listas reordenáveis — itens
- * do escopo, serviços técnicos e blocos de conteúdo. O `QualityNaturesTab`, que
+ * **Uma vez para todas**, porque o módulo tem listas reordenáveis de itens do
+ * escopo, responsabilidades, serviços técnicos e blocos de conteúdo. O `QualityNaturesTab`, que
  * é o uso mais maduro do repositório, monta tudo inline em ~90 linhas; repetir
  * isso três vezes garantiria que as três divergissem, e a que divergisse em
  * silêncio seria o cancelamento, que ninguém exercita sem querer.

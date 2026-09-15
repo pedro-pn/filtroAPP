@@ -9,8 +9,10 @@ let server;
 let motor;
 let FaseCard;
 let CircuitosBloco;
+let LogisticaSection;
 let MaoDeObraSection;
 let ProdutosBloco;
+let totaisDasSecoes;
 
 test.before(async () => {
   server = await createServer({
@@ -27,12 +29,18 @@ test.before(async () => {
   ({ CircuitosBloco } = await server.ssrLoadModule(
     '/src/pages/comercial/custos/sections/CircuitosBloco.tsx'
   ));
+  ({ LogisticaSection } = await server.ssrLoadModule(
+    '/src/pages/comercial/custos/sections/LogisticaSection.tsx'
+  ));
   ({ MaoDeObraSection } = await server.ssrLoadModule(
     '/src/pages/comercial/custos/sections/MaoDeObraSection.tsx'
   ));
   ({ ProdutosBloco } = await server.ssrLoadModule(
     '/src/pages/comercial/custos/sections/ProdutosBloco.tsx'
   ));
+  totaisDasSecoes = await server.ssrLoadModule(
+    '/src/pages/comercial/custos/totaisDasSecoes.ts'
+  );
 });
 
 test.after(async () => {
@@ -224,6 +232,61 @@ test('os circuitos existentes nascem minimizados e mantêm nome e volume no resu
   assert.match(html, /aço carbono/i);
   assert.match(html, /Abrir para preencher/);
   assert.doesNotMatch(html, /Trechos de tubo/);
+});
+
+test('mobilização e desmobilização podem ser minimizadas de forma independente', () => {
+  const html = renderToStaticMarkup(
+    createElement(LogisticaSection, { levantamento: levantamento() })
+  );
+
+  assert.match(html, /<h2>Mobilização<\/h2>/);
+  assert.match(html, /<h2>Desmobilização<\/h2>/);
+  assert.match(html, /aria-controls="mobilizacao-conteudo"/);
+  assert.match(html, /aria-controls="desmobilizacao-conteudo"/);
+  assert.equal((html.match(/aria-expanded="true"/g) || []).length, 2);
+});
+
+test('a aba de mobilização e desmobilização se chama Logística', () => {
+  const fonte = readFileSync(
+    new URL('../src/pages/comercial/custos/CustosPage.tsx', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(fonte, /value: 'logistics', label: 'Logística'/);
+  assert.doesNotMatch(fonte, /label: 'Mob\. e desmob\.'/);
+});
+
+test('totais das abas agrupam somente as parcelas preenchidas em cada uma', () => {
+  const resultado = {
+    laborCost: 100,
+    contextResults: [{ expenseCost: 25 }, { expenseCost: 15 }],
+    materialCost: 30,
+    inputCost: 20,
+    mobilizationCost: 40,
+    demobilizationCost: 10
+  };
+
+  assert.equal(totaisDasSecoes.custoTotalMaoDeObra(resultado), 140);
+  assert.equal(totaisDasSecoes.custoTotalMateriaisEInsumos(resultado), 50);
+  assert.equal(totaisDasSecoes.custoTotalLogistica(resultado), 50);
+});
+
+test('as três abas exibem o custo total ao final', () => {
+  const estado = levantamento();
+  const maoDeObra = renderToStaticMarkup(
+    createElement(MaoDeObraSection, { levantamento: estado })
+  );
+  const logistica = renderToStaticMarkup(
+    createElement(LogisticaSection, { levantamento: estado })
+  );
+  const insumosFonte = readFileSync(
+    new URL('../src/pages/comercial/custos/sections/InsumosSection.tsx', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(maoDeObra, /Custo total desta aba/);
+  assert.match(logistica, /Custo total desta aba/);
+  assert.match(insumosFonte, /Custo total desta aba/);
 });
 
 test('o chrome comercial mantém as barras compactas em custos e proposta', () => {

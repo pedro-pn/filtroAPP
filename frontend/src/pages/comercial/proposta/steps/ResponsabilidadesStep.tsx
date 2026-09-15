@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { EQUIPAMENTOS_E_FERRAMENTAS_PADRAO } from '../../../../../../shared/comercial/dist/modelo-documento.js';
 import { AvisoPendencia } from '../../custos/ConfirmacaoEscopo';
@@ -10,7 +10,14 @@ import {
   removerCategoria,
   type LinhaResponsabilidade
 } from '../etapas';
-import { equipamentosSugeridosPeloEscopo } from '../equipamentosDaProposta';
+import {
+  descricaoDoEquipamento,
+  equipamentoComQuantidade,
+  equipamentosSugeridosPeloEscopo,
+  mesmoEquipamento,
+  quantidadeDoEquipamento
+} from '../equipamentosDaProposta';
+import { useReordenacao } from '../useReordenacao';
 
 /**
  * Etapa 3 — Matriz de responsabilidades (`PROP-CTL-034..042`).
@@ -62,6 +69,24 @@ export function ResponsabilidadesStep({
   const [recado, setRecado] = useState('');
   const [recadoEquipamentos, setRecadoEquipamentos] = useState('');
   const [gerenciando, setGerenciando] = useState(false);
+  const idsDasLinhas = useRef(new WeakMap<LinhaResponsabilidade, string>());
+  const sequenciaDosIds = useRef(0);
+
+  function idDaLinha(linha: LinhaResponsabilidade): string {
+    const existente = idsDasLinhas.current.get(linha);
+    if (existente) return existente;
+    const novo = `responsabilidade-${++sequenciaDosIds.current}`;
+    idsDasLinhas.current.set(linha, novo);
+    return novo;
+  }
+
+  const reordenar = useReordenacao({
+    itens: linhas,
+    aoReordenar: proximas => onLinhas(() => proximas),
+    idDe: idDaLinha,
+    seletorDaLinha: '.com-responsabilidade-linha',
+    desligado: linhas.length < 2
+  });
 
   const indiceDosEquipamentos = linhas.findIndex(ehLinhaDeEquipamentosDaFiltrovali);
   const linhaDosEquipamentos = linhas[indiceDosEquipamentos];
@@ -69,8 +94,8 @@ export function ResponsabilidadesStep({
     item.trim()
   );
   const equipamentosPersonalizados = equipamentosSelecionados.filter(
-    item => !EQUIPAMENTOS_E_FERRAMENTAS_PADRAO.includes(
-      item as (typeof EQUIPAMENTOS_E_FERRAMENTAS_PADRAO)[number]
+    item => !EQUIPAMENTOS_E_FERRAMENTAS_PADRAO.some(catalogo =>
+      mesmoEquipamento(item, catalogo)
     )
   );
   const equipamentosSugeridos = equipamentosSugeridosPeloEscopo(servicos);
@@ -82,7 +107,7 @@ export function ResponsabilidadesStep({
     ...equipamentosPersonalizados
   ];
   const sugestoesNaoSelecionadas = equipamentosSugeridos.filter(
-    equipamento => !equipamentosSelecionados.includes(equipamento)
+    equipamento => !equipamentosSelecionados.some(item => mesmoEquipamento(item, equipamento))
   );
 
   type CampoDeTexto = 'item' | 'owner' | 'note' | 'categoria';
@@ -121,7 +146,17 @@ export function ResponsabilidadesStep({
     definirEquipamentos(
       selecionado
         ? [...equipamentosSelecionados, equipamento]
-        : equipamentosSelecionados.filter(item => item !== equipamento)
+        : equipamentosSelecionados.filter(item => !mesmoEquipamento(item, equipamento))
+    );
+  }
+
+  function definirQuantidadeDoEquipamento(equipamento: string, quantidade: number) {
+    definirEquipamentos(
+      equipamentosSelecionados.map(item =>
+        mesmoEquipamento(item, equipamento)
+          ? equipamentoComQuantidade(item, quantidade)
+          : item
+      )
     );
   }
 
@@ -132,9 +167,7 @@ export function ResponsabilidadesStep({
       return;
     }
     if (
-      equipamentosSelecionados.some(
-        item => item.localeCompare(novo, 'pt-BR', { sensitivity: 'base' }) === 0
-      )
+      equipamentosSelecionados.some(item => mesmoEquipamento(item, novo))
     ) {
       setRecadoEquipamentos('Este equipamento já está selecionado.');
       return;
@@ -151,6 +184,17 @@ export function ResponsabilidadesStep({
       ...sugestoesNaoSelecionadas
     ]);
     setRecadoEquipamentos('');
+  }
+
+  function moverResponsabilidade(indice: number, direcao: -1 | 1) {
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= linhas.length) return;
+    onLinhas(atual => {
+      const proximas = [...atual];
+      const [movida] = proximas.splice(indice, 1);
+      proximas.splice(destino, 0, movida);
+      return proximas;
+    });
   }
 
   return (
@@ -206,24 +250,53 @@ export function ResponsabilidadesStep({
           )}
 
           <div className="com-equipamentos-opcoes">
-            {opcoesDeEquipamento.map(equipamento => (
-              <label
-                key={equipamento}
-                className={
-                  equipamentosSugeridos.includes(equipamento) ? 'is-sugerido' : undefined
-                }
-              >
-                <input
-                  type="checkbox"
-                  checked={equipamentosSelecionados.includes(equipamento)}
-                  onChange={evento =>
-                    alternarEquipamento(equipamento, evento.target.checked)
-                  }
-                />
-                <span>{equipamento}</span>
-                {equipamentosSugeridos.includes(equipamento) && <small>Sugerido pelo escopo</small>}
-              </label>
-            ))}
+            {opcoesDeEquipamento.map(equipamento => {
+              const selecionado = equipamentosSelecionados.find(item =>
+                mesmoEquipamento(item, equipamento)
+              );
+              const sugerido = equipamentosSugeridos.some(item =>
+                mesmoEquipamento(item, equipamento)
+              );
+              const descricao = descricaoDoEquipamento(equipamento);
+
+              return (
+                <div
+                  key={descricao}
+                  className={`com-equipamento-opcao${sugerido ? ' is-sugerido' : ''}`}
+                >
+                  <label className="com-equipamento-escolha">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selecionado)}
+                      onChange={evento =>
+                        alternarEquipamento(equipamento, evento.target.checked)
+                      }
+                    />
+                    <span>{descricao}</span>
+                    {sugerido && <small>Sugerido pelo escopo</small>}
+                  </label>
+
+                  {selecionado && (
+                    <label className="com-equipamento-quantidade">
+                      <span>Quantidade</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        aria-label={`Quantidade de ${descricao}`}
+                        value={quantidadeDoEquipamento(selecionado)}
+                        onChange={evento =>
+                          definirQuantidadeDoEquipamento(
+                            equipamento,
+                            Number(evento.target.value)
+                          )
+                        }
+                      />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="com-equipamentos-adicional">
@@ -334,6 +407,7 @@ export function ResponsabilidadesStep({
             <tbody>
               {linhas.map((linha, indice) => {
                 const semItem = mostrarErros && !linha.item.trim();
+                const linhaId = idDaLinha(linha);
                 /* Categoria vinda de rascunho antigo pode não estar mais na
                    lista. Sem esta opção o `select` mostraria a primeira da lista
                    e trocaria a categoria da linha sem ninguém pedir. */
@@ -341,7 +415,15 @@ export function ResponsabilidadesStep({
                   linha.categoria && !categorias.includes(linha.categoria);
 
                 return (
-                  <tr key={indice}>
+                  <tr
+                    key={linhaId}
+                    className={
+                      reordenar.idArrastado === linhaId
+                        ? 'com-responsabilidade-linha drag-placeholder'
+                        : 'com-responsabilidade-linha'
+                    }
+                    {...reordenar.propsDaLinha(linhaId)}
+                  >
                     <td>
                       <select
                         aria-label={`Categoria da responsabilidade ${indice + 1}`}
@@ -389,14 +471,45 @@ export function ResponsabilidadesStep({
                       />
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="com-remover"
-                        aria-label={`Remover responsabilidade ${indice + 1}`}
-                        onClick={() => onLinhas(atual => atual.filter((_, i) => i !== indice))}
-                      >
-                        ×
-                      </button>
+                      <div className="com-responsabilidade-acoes">
+                        <span
+                          className="com-alca"
+                          role="button"
+                          tabIndex={-1}
+                          {...reordenar.propsDaAlca(
+                            linhaId,
+                            `responsabilidade ${indice + 1}`
+                          )}
+                        >
+                          ⠿
+                        </span>
+                        <button
+                          type="button"
+                          className="com-btn com-btn-fantasma"
+                          aria-label={`Mover responsabilidade ${indice + 1} para cima`}
+                          disabled={indice === 0}
+                          onClick={() => moverResponsabilidade(indice, -1)}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="com-btn com-btn-fantasma"
+                          aria-label={`Mover responsabilidade ${indice + 1} para baixo`}
+                          disabled={indice === linhas.length - 1}
+                          onClick={() => moverResponsabilidade(indice, 1)}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="com-remover"
+                          aria-label={`Remover responsabilidade ${indice + 1}`}
+                          onClick={() => onLinhas(atual => atual.filter((_, i) => i !== indice))}
+                        >
+                          ×
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

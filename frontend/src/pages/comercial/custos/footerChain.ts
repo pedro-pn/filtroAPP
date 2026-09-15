@@ -77,7 +77,7 @@ const SECTION_LABEL: Record<CostSection, string> = {
   premises: 'Premissas',
   labor: 'Mão de obra',
   inputs: 'Materiais e insumos',
-  logistics: 'Mob. e desmob.',
+  logistics: 'Logística',
   summary: 'Resumo e QQP'
 };
 

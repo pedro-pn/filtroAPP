@@ -102,6 +102,17 @@ test('mobilização conjunta cobra uma composição por sentido', () => {
   );
   assert.equal(resultado.mobilizationCost, 100);
   assert.equal(resultado.demobilizationCost, 100);
+  assert.equal(
+    resultado.directCost,
+    resultado.laborCost
+      + resultado.indirectCost
+      + resultado.materialCost
+      + resultado.inputCost
+      + resultado.mobilizationCost
+      + resultado.demobilizationCost
+      + resultado.employeeReferralBonusCost,
+    'mobilização e desmobilização devem entrar uma única vez no custo direto'
+  );
 
   const indicesDeEquipamento = payload.logistics
     .map((item, indice) => item.slotType === 'equipment' ? indice : -1)

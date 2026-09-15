@@ -63,6 +63,34 @@ function normalizar(valor: unknown): string {
     .toLocaleLowerCase('pt-BR');
 }
 
+/** Texto do equipamento sem a quantidade inicial, usado como identidade estável. */
+export function descricaoDoEquipamento(valor: string): string {
+  return String(valor || '')
+    .trim()
+    .replace(/^\d+\s*[x×]\s*[—-]?\s*/u, '')
+    .replace(/^\d+\s+/u, '')
+    .trim();
+}
+
+export function quantidadeDoEquipamento(valor: string): number {
+  const quantidade = Number.parseInt(String(valor || '').trim().match(/^\d+/u)?.[0] || '1', 10);
+  return Number.isFinite(quantidade) && quantidade > 0 ? quantidade : 1;
+}
+
+export function mesmoEquipamento(a: string, b: string): boolean {
+  return normalizar(descricaoDoEquipamento(a)) === normalizar(descricaoDoEquipamento(b));
+}
+
+/**
+ * Mantém o catálogo original para uma unidade e usa “N × descrição” acima
+ * disso. A marcação é legível no documento e não força pluralizações frágeis.
+ */
+export function equipamentoComQuantidade(valor: string, quantidade: number): string {
+  const inteira = Math.max(1, Math.trunc(Number(quantidade) || 1));
+  const descricao = descricaoDoEquipamento(valor);
+  return inteira === 1 ? `1 ${descricao}` : `${inteira} × ${descricao}`;
+}
+
 /** Equipamentos recomendados pelos títulos e descrições do capítulo 2. */
 export function equipamentosSugeridosPeloEscopo(
   servicos: ServicoDoEscopo[]

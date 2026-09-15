@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import {
   MAX_SCOPE_SERVICE_ITEMS,
   createScopeServiceItem,
@@ -7,6 +9,11 @@ import {
 import { Area, Field } from '../../components/Field';
 import { ScopeContentEditor } from './ScopeContentEditor';
 import { useReordenacao } from '../useReordenacao';
+import {
+  SERVICOS_DA_PROPOSTA,
+  tituloDoNovoServico,
+  VALOR_OUTRO_SERVICO
+} from '../servicosDaProposta';
 
 /**
  * Etapa 2 — Escopo comum (`PROP-CTL-026..033` e `113..128`).
@@ -53,6 +60,19 @@ export function EscopoStep({
   erroDe
 }: Props) {
   const noLimite = itens.length >= MAX_SCOPE_SERVICE_ITEMS;
+  const [servicoParaAdicionar, setServicoParaAdicionar] = useState('');
+
+  function adicionarServico() {
+    if (!servicoParaAdicionar || noLimite) return;
+    onItens(atual => {
+      const novo = createScopeServiceItem(novoId(), atual.length);
+      return [
+        ...atual,
+        { ...novo, title: tituloDoNovoServico(servicoParaAdicionar, atual.length) }
+      ];
+    });
+    setServicoParaAdicionar('');
+  }
 
   const reordenar = useReordenacao({
     itens,
@@ -90,17 +110,35 @@ export function EscopoStep({
             tabelas e fotos.
           </span>
         </div>
-        <button
-          type="button"
-          className="com-btn-add"
-          disabled={noLimite}
-          title={noLimite ? `Limite de ${MAX_SCOPE_SERVICE_ITEMS} serviços atingido` : undefined}
-          onClick={() =>
-            onItens(atual => [...atual, createScopeServiceItem(novoId(), atual.length)])
-          }
-        >
-          ＋ Adicionar serviço
-        </button>
+        <div className="com-secao-acoes com-escopo-adicionar">
+          <select
+            aria-label="Serviço para adicionar"
+            value={servicoParaAdicionar}
+            disabled={noLimite}
+            onChange={evento => setServicoParaAdicionar(evento.target.value)}
+          >
+            <option value="">Selecione um serviço...</option>
+            {SERVICOS_DA_PROPOSTA.map(servico => (
+              <option key={servico} value={servico}>{servico}</option>
+            ))}
+            <option value={VALOR_OUTRO_SERVICO}>Outro serviço</option>
+          </select>
+          <button
+            type="button"
+            className="com-btn-add"
+            disabled={noLimite || !servicoParaAdicionar}
+            title={
+              noLimite
+                ? `Limite de ${MAX_SCOPE_SERVICE_ITEMS} serviços atingido`
+                : !servicoParaAdicionar
+                  ? 'Selecione um serviço antes de adicionar'
+                  : undefined
+            }
+            onClick={adicionarServico}
+          >
+            ＋ Adicionar serviço
+          </button>
+        </div>
       </div>
 
       {itens.map((item, indice) => (

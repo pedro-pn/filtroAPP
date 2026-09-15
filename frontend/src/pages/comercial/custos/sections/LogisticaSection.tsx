@@ -1,9 +1,12 @@
+import { useState } from 'react';
+
 import { LOGISTICS_TRAVEL_DEFAULTS } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { EnderecoInput } from '../../components/EnderecoField';
 import { AvisoPendencia, ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
 import { DistanciaDoDestino } from './DistanciaDoDestino';
 import { money, numberValue } from '../formato';
 import { itemPrecisaAtencao, transporteDispensado } from '../logistica';
+import { custoTotalLogistica } from '../totaisDasSecoes';
 import type { Levantamento } from '../useLevantamento';
 import { LogisticaItem } from './LogisticaItem';
 
@@ -354,12 +357,13 @@ export function LogisticaSection({ levantamento }: { levantamento: Levantamento 
             onAdicionar={() => acrescentarItem('demobilization')}
           />
 
-          <div className="com-painel com-total-logistica">
-            <strong>Custo de logística</strong>
-            <span>{money(numberValue(result.logisticsCost))}</span>
-          </div>
         </>
       )}
+
+      <div className="com-total-secao" aria-label="Custo total da aba Logística">
+        <strong>Custo total desta aba</strong>
+        <span>{money(custoTotalLogistica(result))}</span>
+      </div>
     </>
   );
 }
@@ -377,6 +381,11 @@ function BlocoDirecao({
   levantamento: Levantamento;
   onAdicionar: () => void;
 }) {
+  const [aberto, setAberto] = useState(true);
+  const corpoId = titulo === 'Mobilização'
+    ? 'mobilizacao-conteudo'
+    : 'desmobilizacao-conteudo';
+
   return (
     <section className="com-painel">
       <div className="com-secao-titulo">
@@ -384,23 +393,38 @@ function BlocoDirecao({
           <h2>{titulo}</h2>
           <p>{descricao}</p>
         </div>
-        <button type="button" className="com-btn-add" onClick={onAdicionar}>
-          + Adicionar deslocamento
-        </button>
+        <div className="com-secao-acoes">
+          <button
+            type="button"
+            className="com-btn com-btn-fantasma"
+            aria-expanded={aberto}
+            aria-controls={corpoId}
+            onClick={() => setAberto(valor => !valor)}
+          >
+            {aberto ? 'Minimizar' : 'Expandir'}
+          </button>
+          <button type="button" className="com-btn-add" onClick={onAdicionar}>
+            + Adicionar deslocamento
+          </button>
+        </div>
       </div>
 
-      {itens.length > 0 ? (
-        <div className="com-fases">
-          {itens.map(item => (
-            <LogisticaItem
-              key={String(item.id)}
-              item={item}
-              levantamento={levantamento}
-            />
-          ))}
+      {aberto && (
+        <div id={corpoId}>
+          {itens.length > 0 ? (
+            <div className="com-fases">
+              {itens.map(item => (
+                <LogisticaItem
+                  key={String(item.id)}
+                  item={item}
+                  levantamento={levantamento}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="com-vazio">Nenhum deslocamento nesta direção.</div>
+          )}
         </div>
-      ) : (
-        <div className="com-vazio">Nenhum deslocamento nesta direção.</div>
       )}
     </section>
   );

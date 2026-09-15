@@ -1,6 +1,10 @@
 import { MoneyField, Field, NumberField, SelectField } from '../../components/Field';
 import { ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
 import { money, number, numberValue, percent } from '../formato';
+import {
+  custoTotalLogistica,
+  custoTotalMateriaisEInsumos
+} from '../totaisDasSecoes';
 import type { Levantamento } from '../useLevantamento';
 
 /**
@@ -180,8 +184,11 @@ export function ResumoSection({ levantamento }: { levantamento: Levantamento }) 
 
         <div className="com-resumo-grade">
           <Dado label="Mão de obra" valor={money(numberValue(result.laborCost))} />
-          <Dado label="Materiais e insumos" valor={money(numberValue(result.inputCost))} />
-          <Dado label="Logística" valor={money(numberValue(result.logisticsCost))} />
+          <Dado
+            label="Materiais e insumos"
+            valor={money(custoTotalMateriaisEInsumos(result))}
+          />
+          <Dado label="Logística" valor={money(custoTotalLogistica(result))} />
           <Dado label="Custos indiretos" valor={money(numberValue(result.indirectCost))} />
           <Dado label="Custo direto" valor={money(numberValue(result.directCost))} destaque />
           <Dado label="Custo total" valor={money(numberValue(result.totalCost))} destaque />

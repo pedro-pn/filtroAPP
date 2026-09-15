@@ -1568,7 +1568,7 @@
   justify-content: center;
   min-width: 0;
   padding: 14px 16px;
-  border: 1px solid #c8d9cd;
+  border: 1px solid var(--com-borda);
   border-radius: 10px;
   background: linear-gradient(145deg, #f7faf8, #edf4ef);
 }
@@ -2156,16 +2156,21 @@
   background-color: #fff5f5 !important;
 }
 
-.com-root .com-total-logistica {
+.com-root .com-total-secao {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid #c8d9cd;
+  border-radius: 10px;
+  background: var(--com-superficie);
 }
 
-.com-root .com-total-logistica strong { color: var(--com-marca-forte); font-size: 13px; }
-.com-root .com-total-logistica span { font-size: 18px; font-weight: 700; color: var(--com-marca-forte); }
+.com-root .com-total-secao strong { color: var(--com-marca-forte); font-size: 13px; }
+.com-root .com-total-secao span { font-size: 18px; font-weight: 700; color: var(--com-marca-forte); }
 
 /* --- Formação do preço ---------------------------------------------------- */
 
@@ -2309,6 +2314,10 @@
 /* Etapa 2 — serviços do escopo e seus blocos de conteúdo. */
 .com-root .com-escopo-cabecalho {
   margin-top: 1.5rem;
+}
+
+.com-root .com-escopo-adicionar select {
+  min-width: min(100%, 230px);
 }
 
 .com-root .com-escopo-numero {
@@ -3597,7 +3606,8 @@
    "Soltar aqui" vem junto. */
 .com-root .com-escopo-card.drag-placeholder,
 .com-root .com-tecnica-card.drag-placeholder,
-.com-root .com-bloco.drag-placeholder {
+.com-root .com-bloco.drag-placeholder,
+.com-root .com-responsabilidade-linha.drag-placeholder {
   position: relative;
   min-height: 96px;
   border-style: dashed;
@@ -3607,13 +3617,15 @@
 
 .com-root .com-escopo-card.drag-placeholder > *,
 .com-root .com-tecnica-card.drag-placeholder > *,
-.com-root .com-bloco.drag-placeholder > * {
+.com-root .com-bloco.drag-placeholder > *,
+.com-root .com-responsabilidade-linha.drag-placeholder > * {
   visibility: hidden;
 }
 
 .com-root .com-escopo-card.drag-placeholder::after,
 .com-root .com-tecnica-card.drag-placeholder::after,
-.com-root .com-bloco.drag-placeholder::after {
+.com-root .com-bloco.drag-placeholder::after,
+.com-root .com-responsabilidade-linha.drag-placeholder::after {
   content: 'Soltar aqui';
   position: absolute;
   inset: 10px;
@@ -3749,39 +3761,73 @@
   gap: 8px;
 }
 
-.com-root .com-equipamentos-opcoes label {
+.com-root .com-equipamento-opcao {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 3px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   padding: 10px;
   border: 1px solid var(--com-borda);
   border-radius: 8px;
   background: var(--com-fundo);
   color: var(--com-texto);
+}
+
+.com-root .com-equipamento-escolha {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 3px 8px;
   cursor: pointer;
 }
 
-.com-root .com-equipamentos-opcoes label.is-sugerido {
+.com-root .com-equipamento-opcao.is-sugerido {
   border-color: var(--com-acao);
   background: var(--com-acao-suave);
 }
 
-.com-root .com-equipamentos-opcoes input {
+.com-root .com-equipamento-escolha input {
   margin-top: 2px;
   accent-color: var(--com-acao);
 }
 
-.com-root .com-equipamentos-opcoes span {
+.com-root .com-equipamento-escolha > span {
   overflow-wrap: anywhere;
 }
 
-.com-root .com-equipamentos-opcoes small {
+.com-root .com-equipamento-escolha small {
   grid-column: 2;
   color: var(--com-acao);
   font-size: 10px;
   font-weight: 750;
   text-transform: uppercase;
+}
+
+.com-root .com-equipamento-quantidade {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--com-texto-fraco);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.com-root .com-equipamento-quantidade input {
+  width: 64px;
+  min-width: 64px;
+}
+
+.com-root .com-responsabilidade-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.com-root .com-responsabilidade-acoes .com-btn {
+  min-width: 30px;
+  padding: 5px 7px;
 }
 
 .com-root .com-equipamentos-adicional {

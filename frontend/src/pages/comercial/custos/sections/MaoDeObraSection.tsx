@@ -5,7 +5,8 @@ import {
   roleSalary
 } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { AvisoPendencia, ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
-import { number, numberValue, people } from '../formato';
+import { money, number, numberValue, people } from '../formato';
+import { custoTotalMaoDeObra } from '../totaisDasSecoes';
 import type { Levantamento } from '../useLevantamento';
 import { FaseCard } from './FaseCard';
 
@@ -237,8 +238,14 @@ export function MaoDeObraSection({ levantamento }: { levantamento: Levantamento 
               />
             ))}
           </div>
+
         </>
       )}
+
+      <div className="com-total-secao" aria-label="Custo total da aba Mão de obra">
+        <strong>Custo total desta aba</strong>
+        <span>{money(custoTotalMaoDeObra(result))}</span>
+      </div>
     </section>
   );
 }

@@ -1,10 +1,10 @@
 /**
- * Arrastar para reordenar nas três listas do módulo — T068–T071.
+ * Arrastar para reordenar nas listas do módulo — T068–T071.
  *
  * O utilitário `utils/reorderDrag.ts` foi auditado na T001 e aprovado, mas ele
  * é um kit: a auditoria listou **três peças que ele não dá** — alça com
  * `aria-label`, placeholder e cancelamento que restaura. `useReordenacao` é
- * essas três peças, e é o que este arquivo cobre.
+ * essas três peças, e é o que este arquivo cobre em cada lista.
  *
  * O foco é o **cancelamento**, porque é a única parte que erra em silêncio:
  * arrastar move a lista à vista, e um placeholder que não aparece se nota na
@@ -124,7 +124,7 @@ test('sem sessão, encerrar não mexe em nada', async () => {
 });
 
 /* ------------------------------------------------------------------------- *
- * As três peças que a auditoria pediu, nas três listas.
+ * As três peças que a auditoria pediu, nas listas reordenáveis.
  * ------------------------------------------------------------------------- */
 
 test('a alça descreve O QUE se move, não apenas "arrastar"', async () => {
@@ -150,11 +150,12 @@ test('o cancelamento por Escape está tratado, além do pointercancel', async ()
   assert.match(fonte, /restaurar\(\)/);
 });
 
-test('as três listas passam pelo mesmo hook', async () => {
+test('as quatro listas passam pelo mesmo hook', async () => {
   const passos = [
     '/src/pages/comercial/proposta/steps/EscopoStep.tsx',
     '/src/pages/comercial/proposta/steps/TecnicaStep.tsx',
-    '/src/pages/comercial/proposta/steps/ScopeContentEditor.tsx'
+    '/src/pages/comercial/proposta/steps/ScopeContentEditor.tsx',
+    '/src/pages/comercial/proposta/steps/ResponsabilidadesStep.tsx'
   ];
 
   for (const passo of passos) {
@@ -165,13 +166,14 @@ test('as três listas passam pelo mesmo hook', async () => {
   }
 });
 
-test('as setas ↑/↓ continuam nas três listas — desvio nº 6', async () => {
+test('as setas ↑/↓ continuam nas quatro listas — desvio nº 6', async () => {
   // Arrastar é ACRÉSCIMO. Remover as setas tiraria o caminho de teclado, e a
   // regra de aceite do porte é que nenhum controle da referência desaparece.
   const passos = [
     ['/src/pages/comercial/proposta/steps/EscopoStep.tsx', /Mover serviço \$\{indice \+ 1\} para cima/],
     ['/src/pages/comercial/proposta/steps/TecnicaStep.tsx', /Mover serviço para cima/],
-    ['/src/pages/comercial/proposta/steps/ScopeContentEditor.tsx', /Mover conteúdo para cima/]
+    ['/src/pages/comercial/proposta/steps/ScopeContentEditor.tsx', /Mover conteúdo para cima/],
+    ['/src/pages/comercial/proposta/steps/ResponsabilidadesStep.tsx', /Mover responsabilidade \$\{indice \+ 1\} para cima/]
   ];
 
   for (const [passo, esperado] of passos) {
@@ -200,7 +202,12 @@ test('cada lista declara o próprio placeholder — o do base.css é escopado', 
     .transformRequest('/src/styles/comercial.css')
     .then(r => r.code);
 
-  for (const cartao of ['com-escopo-card', 'com-tecnica-card', 'com-bloco']) {
+  for (const cartao of [
+    'com-escopo-card',
+    'com-tecnica-card',
+    'com-bloco',
+    'com-responsabilidade-linha'
+  ]) {
     assert.match(
       css,
       new RegExp(`\\.${cartao}\\.drag-placeholder`),
@@ -208,4 +215,16 @@ test('cada lista declara o próprio placeholder — o do base.css é escopado', 
     );
   }
   assert.match(css, /Soltar aqui/);
+});
+
+test('responsabilidades permitem acrescentar linha e arrastar com efeito fantasma', async () => {
+  const fonte = await server
+    .transformRequest('/src/pages/comercial/proposta/steps/ResponsabilidadesStep.tsx')
+    .then(r => r.code);
+
+  assert.match(fonte, /\+ Adicionar responsabilidade/);
+  assert.match(fonte, /linhaVazia/);
+  assert.match(fonte, /com-responsabilidade-linha/);
+  assert.match(fonte, /propsDaLinha/);
+  assert.match(fonte, /propsDaAlca/);
 });
