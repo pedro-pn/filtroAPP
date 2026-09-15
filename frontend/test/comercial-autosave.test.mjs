@@ -65,5 +65,8 @@ test('a entrada do levantamento carrega os orçamentos salvos com ação de cont
 
   assert.match(custos, /listarLevantamentos\(\{ pageSize: 100 \}\)/);
   assert.match(custos, /Orçamentos salvos/);
+  assert.match(custos, /<strong>Novo orçamento<\/strong>/);
+  assert.match(custos, /<strong>Revisar orçamento<\/strong>/);
+  assert.doesNotMatch(custos, /<strong>Nova proposta<\/strong>/);
   assert.match(custos, /<b>Continuar<\/b>/);
 });

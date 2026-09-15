@@ -368,7 +368,7 @@ export function CustosPage() {
   }
 
   /**
-   * "Nova proposta" **reserva o número antes de abrir a tela**, como na referência.
+   * "Novo orçamento" **reserva o número antes de abrir a tela**, como na referência.
    *
    * Reservar depois pareceria mais econômico — só gasta número quem salva. Mas o
    * código aparece no título e no rodapé desde o primeiro instante, e o orçamentista
@@ -665,7 +665,7 @@ export function CustosPage() {
             <div className="com-modo-opcoes">
               <button type="button" disabled={reservando} onClick={iniciarNova}>
                 <MarcaDeOpcao tipo="nova" />
-                <strong>Nova proposta</strong>
+                <strong>Novo orçamento</strong>
                 <span>
                   Reserva o próximo número e inicia um levantamento por fases.
                 </span>
@@ -673,7 +673,7 @@ export function CustosPage() {
 
               <button type="button" onClick={() => setMostrarRevisao(true)}>
                 <MarcaDeOpcao tipo="revisao" />
-                <strong>Revisar proposta</strong>
+                <strong>Revisar orçamento</strong>
                 <span>
                   Carrega o último levantamento e preserva toda a composição.
                 </span>
