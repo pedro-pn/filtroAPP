@@ -65,12 +65,15 @@ export function encontrarDespesaCalculada(
 
 export function DespesasFase({
   fase,
-  levantamento
+  levantamento,
+  caminho = 'laborContexts[0]'
 }: {
   fase: AnyRecord;
   levantamento: Levantamento;
+  caminho?: string;
 }) {
-  const { updateNested, removeNested, addNested, resultadoDaFase } = levantamento;
+  const { updateNested, removeNested, addNested, resultadoDaFase, erroDe } = levantamento;
+  const erroDespesas = erroDe(`${caminho}.expenses`);
   const faseId = String(fase.id);
   const resumo = resultadoDaFase(faseId);
   const despesas = registros(fase.expenses);
@@ -90,6 +93,7 @@ export function DespesasFase({
           como a despesa cresce.
         </small>
       </header>
+      {erroDespesas && <p id={`${faseId}-despesas-erro`} className="field-error">{erroDespesas}</p>}
 
       {despesas.length > 0 ? (
         <div className="com-table-wrap">
@@ -168,6 +172,9 @@ export function DespesasFase({
                     <td>
                       <MoneyInput
                         aria-label="Valor unitário"
+                        invalid={Boolean(combustivelDoTrajeto && erroDespesas)}
+                        className={combustivelDoTrajeto && erroDespesas ? 'com-campo-invalido' : undefined}
+                        aria-describedby={combustivelDoTrajeto && erroDespesas ? `${faseId}-despesas-erro` : undefined}
                         value={(despesa.unitValue as number) ?? ''}
                         /* O VALOR do combustível continua editável: o preço
                            varia, a fórmula não. */

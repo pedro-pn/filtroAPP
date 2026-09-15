@@ -1,8 +1,7 @@
 import {
-  HOTEL_SITE_COMMUTE_EXPENSE_CODE,
   hasCompleteCircuitServices,
   hasMeaningfulInputs,
-  hasMeaningfulLabor
+  validateCostEstimate
 } from '../../../../../shared/comercial/dist/cost-model.js';
 import { numberValue } from './formato';
 import { faltaLogistica } from './logistica';
@@ -23,47 +22,15 @@ import { faltaLogistica } from './logistica';
 
 type AnyRecord = Record<string, unknown>;
 
-function registros(valor: unknown): AnyRecord[] {
-  return Array.isArray(valor) ? (valor as AnyRecord[]) : [];
-}
-
 /**
- * Falta informação obrigatória de mão de obra?
- *
- * Quatro condições, em `app/custos/page.tsx:89-107`. As três últimas valem
- * **por fase**: basta uma fase habilitada incompleta para a seção pender.
+ * A navegação usa os mesmos erros que aparecem nos campos e que a API valida.
+ * Uma regra paralela sobre o payload bruto podia bloquear por uma despesa que
+ * o motor já havia normalizado, sem existir nenhum campo inválido para mostrar.
  */
 export function faltaMaoDeObra(draft: AnyRecord): boolean {
-  const confirmacoes = (draft.scopeConfirmations as AnyRecord) || {};
-  if (confirmacoes.noLabor === true) return false;
-
-  if (!hasMeaningfulLabor(draft)) return true;
-
-  return registros(draft.laborContexts).some(contexto => {
-    if (contexto.enabled === false) return false;
-
-    // Condição de trabalho precisa ser escolhida E confirmada — são duas
-    // coisas. Escolher sem confirmar deixa a fase com base de cálculo por
-    // definir, e o custo sai plausível e errado.
-    if (!contexto.workCondition || !contexto.workConditionConfirmed) return true;
-    if (!contexto.vehicleType) return true;
-
-    if (contexto.workCondition !== 'travel' || contexto.vehicleType === 'none') return false;
-
-    // Fase em viagem: distância hotel ↔ obra e o combustível do trajeto.
-    if (numberValue(contexto.hotelSiteDistanceKmPerDay) <= 0) return true;
-
-    const combustivel = registros(contexto.expenses).find(
-      despesa => despesa.code === HOTEL_SITE_COMMUTE_EXPENSE_CODE
-    );
-
-    return (
-      !combustivel ||
-      combustivel.included === false ||
-      numberValue(combustivel.quantity) <= 0 ||
-      numberValue(combustivel.unitValue) <= 0
-    );
-  });
+  return validateCostEstimate(draft).errors.some(item =>
+    item.path === 'scopeConfirmations.noLabor' || item.path?.startsWith('laborContexts')
+  );
 }
 
 /**

@@ -1,10 +1,9 @@
 import {
-  HOTEL_SITE_COMMUTE_EXPENSE_CODE,
   LEC_CONTEXT_EXPENSE_PRESETS,
   LEC_CONTEXT_EXPENSES,
   roleSalary
 } from '../../../../../../shared/comercial/dist/cost-model.js';
-import { AvisoPendencia, ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
+import { ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
 import { money, number, numberValue, people } from '../formato';
 import { custoTotalMaoDeObra } from '../totaisDasSecoes';
 import type { Levantamento } from '../useLevantamento';
@@ -16,14 +15,13 @@ import { FaseCard } from './FaseCard';
  * É a maior das cinco: `CUSTO-CTL-039..137`, 99 controles. Porte de
  * `LaborSection` (`app/custos/page.tsx:639-1038`).
  *
- * **Este passo entrega a moldura da seção**: confirmação de escopo, os quatro
- * avisos de pendência, o resumo de três indicadores e a lista de fases com o
+ * **Este passo entrega a moldura da seção**: confirmação de escopo,
+ * o resumo de três indicadores e a lista de fases com o
  * que cada uma exige. A edição por alocação — cargo, salário, turno, horas,
  * despesas — é o grosso dos 99 controles e vem no passo seguinte.
  *
- * O que já é real aqui: a **pendência** que alimenta o rodapé-guia. Com esta
- * seção no ar, o botão do rodapé passa a dizer "Preencher itens obrigatórios
- * da mão de obra →" de verdade, e levar até aqui.
+ * As pendências vêm da validação compartilhada, aparecem nos campos e são
+ * listadas por fase em PendenciasDaSecao, acima deste painel.
  */
 
 type AnyRecord = Record<string, unknown>;
@@ -81,7 +79,7 @@ function novaFase(indice: number, inicio: number): AnyRecord {
 }
 
 export function MaoDeObraSection({ levantamento }: { levantamento: Levantamento }) {
-  const { draft, result, setDraft } = levantamento;
+  const { draft, result, setDraft, erroDe } = levantamento;
 
   const confirmacoes = (draft.scopeConfirmations as AnyRecord) || {};
   const semMaoDeObra = confirmacoes.noLabor === true;
@@ -125,29 +123,6 @@ export function MaoDeObraSection({ levantamento }: { levantamento: Levantamento 
     });
   }
 
-  // Os quatro avisos da referência, na mesma ordem. Eles são por SEÇÃO, não
-  // por campo — dizem que existe fase incompleta, e a marcação vermelha por
-  // campo (L1) diz qual. Os dois convivem.
-  const faseSemCondicao = fases.some(f => !f.workCondition || !f.workConditionConfirmed);
-  const faseSemVeiculo = fases.some(f => !f.vehicleType);
-  const faseSemDistancia = fases.some(
-    f => f.workCondition === 'travel'
-      && f.vehicleType !== 'none'
-      && numberValue(f.hotelSiteDistanceKmPerDay) <= 0
-  );
-  const faseSemCombustivel = fases.some(f => {
-    if (f.workCondition !== 'travel' || f.vehicleType === 'none') return false;
-    const combustivel = registros(f.expenses).find(
-      d => d.code === HOTEL_SITE_COMMUTE_EXPENSE_CODE
-    );
-    return (
-      !combustivel ||
-      combustivel.included === false ||
-      numberValue(combustivel.quantity) <= 0 ||
-      numberValue(combustivel.unitValue) <= 0
-    );
-  });
-
   return (
     <section className="com-painel">
       <div className="com-secao-titulo">
@@ -164,6 +139,7 @@ export function MaoDeObraSection({ levantamento }: { levantamento: Levantamento 
       </div>
 
       <ConfirmacaoEscopo
+        error={erroDe('scopeConfirmations.noLabor')}
         confirmado={semMaoDeObra}
         tituloPendente="Revisão obrigatória da mão de obra"
         tituloConfirmado="Sem mão de obra confirmado"
@@ -172,29 +148,6 @@ export function MaoDeObraSection({ levantamento }: { levantamento: Levantamento 
         rotulo="Confirmo que não haverá mão de obra"
         onChange={definirSemMaoDeObra}
       />
-
-      {!semMaoDeObra && faseSemCondicao && (
-        <AvisoPendencia>
-          Selecione obrigatoriamente a condição de trabalho em todas as fases: Sede, Em viagem
-          ou Offshore.
-        </AvisoPendencia>
-      )}
-      {!semMaoDeObra && faseSemVeiculo && (
-        <AvisoPendencia>
-          Selecione o veículo obrigatório em todas as fases para liberar o salvamento do
-          levantamento.
-        </AvisoPendencia>
-      )}
-      {!semMaoDeObra && faseSemDistancia && (
-        <AvisoPendencia>
-          Informe a distância diária entre hotel e obra nas fases em viagem.
-        </AvisoPendencia>
-      )}
-      {!semMaoDeObra && faseSemCombustivel && (
-        <AvisoPendencia>
-          O combustível do deslocamento hotel ↔ obra é obrigatório nas fases em viagem.
-        </AvisoPendencia>
-      )}
 
       {!semMaoDeObra && (
         <>

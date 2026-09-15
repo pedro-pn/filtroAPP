@@ -44,6 +44,7 @@ import {
 } from '../navegacao';
 import { parametrosDaPropostaComLevantamento } from '../proposta/levantamentoVinculado';
 import { useAutosaveServidor } from '../useAutosaveServidor';
+import { PendenciasDaSecao } from './PendenciasDaSecao';
 import type { PendenciasDoLevantamento } from '../proposta/prepararLevantamento';
 
 /**
@@ -547,10 +548,11 @@ export function CustosPage() {
       setMostrarConfirmacao(false);
 
       if (error instanceof ComercialValidationError) {
+        const issues = error.issues.filter(item => item.severity !== 'warning');
         const destino = primeiraSecaoPendente(
-          error.issues.map((item) => item.path || '').filter(Boolean)
+          issues.map((item) => item.path || '').filter(Boolean)
         );
-        aplicarIssuesDoServidor(error.issues, destino || secao);
+        aplicarIssuesDoServidor(issues, destino || secao);
         setFocarPendencia(true);
         if (destino) {
           trocarSecao(destino, false, rascunhoSalvoId || levantamentoAtualId);
@@ -562,9 +564,9 @@ export function CustosPage() {
         const prefixo = rascunhoSalvoId ? 'Rascunho salvo. ' : '';
         setRecado(
           prefixo +
-            (error.issues.length === 1
+            (issues.length === 1
               ? 'Há 1 pendência. Ela está marcada no campo.'
-              : `Há ${error.issues.length} pendências. Elas estão marcadas nos campos.`)
+              : `Há ${issues.length} pendências. Elas estão marcadas nos campos.`)
         );
       } else {
         setRecado(mensagemDeErro(error, 'Falha ao salvar o levantamento.'));
@@ -602,17 +604,18 @@ export function CustosPage() {
 
   /** Valida a conclusão mantendo os rótulos finais estáveis no resumo. */
   function concluirLevantamento(criarPropostaDepois: boolean) {
-    if (deveRevelarErrosAoAcionar(acao, secao, criarPropostaDepois)) {
+    const corrigindoPendencias = deveRevelarErrosAoAcionar(acao, secao, criarPropostaDepois);
+    if (corrigindoPendencias) {
       revelarErros(acao.kind === 'goto' ? acao.target : secao);
     }
 
     if (acao.kind === 'goto') {
       void persistirRascunho().then((idPersistido) => {
         if (!idPersistido) return;
-        trocarSecao(acao.target, !criarPropostaDepois, idPersistido);
-        if (criarPropostaDepois) {
+        trocarSecao(acao.target, !corrigindoPendencias, idPersistido);
+        if (corrigindoPendencias) {
           setRecado(
-            'Rascunho salvo. Corrija o primeiro campo destacado antes de criar a proposta.'
+            'Rascunho salvo. Corrija as pendências indicadas para concluir o levantamento.'
           );
           setFocarPendencia(true);
         }
@@ -642,7 +645,8 @@ export function CustosPage() {
           ? 'Informe o nome do levantamento antes de concluir.'
           : 'Revise a formação do preço no resumo antes de concluir o levantamento.'
       );
-      trocarSecao(destino, true);
+      trocarSecao(destino, false);
+      setFocarPendencia(true);
       return;
     }
 
@@ -920,6 +924,8 @@ export function CustosPage() {
               </button>
             ))}
           </nav>
+
+          <PendenciasDaSecao levantamento={levantamento} secao={secao} />
 
           {secao === 'premises' ? (
             <PremissasSection levantamento={levantamento} />

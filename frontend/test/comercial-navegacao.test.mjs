@@ -65,6 +65,54 @@ test('não tenta focar quando a seção não tem campo inválido', () => {
   assert.equal(focarPrimeiroCampoInvalido({ querySelector: () => null }), false);
 });
 
+test('abre a jornada fechada antes de focar o campo pendente', () => {
+  const detalhes = { tagName: 'DETAILS', open: false, parentElement: null };
+  const controle = {
+    parentElement: detalhes,
+    matches: () => true,
+    focus: () => assert.equal(detalhes.open, true),
+    scrollIntoView: () => {}
+  };
+  assert.equal(focarPrimeiroCampoInvalido({ querySelector: () => controle }), true);
+});
+
+test('expande fase minimizada e só depois foca o campo, preservando seu conteúdo', () => {
+  const anterior = globalThis.window;
+  const chamadas = [];
+  const quadros = [];
+  globalThis.window = { requestAnimationFrame: callback => quadros.push(callback) };
+  try {
+    const fase = { tagName: 'DIV', id: 'fase-1', hidden: true, parentElement: null };
+    const controle = {
+      parentElement: fase, matches: () => true,
+      focus: () => { assert.equal(fase.hidden, false); chamadas.push('foco'); },
+      scrollIntoView: () => chamadas.push('rolagem')
+    };
+    const botao = {
+      getAttribute: nome => nome === 'aria-controls' ? 'fase-1' : 'false',
+      click: () => { chamadas.push('abrir'); fase.hidden = false; }
+    };
+    focarPrimeiroCampoInvalido({ querySelector: () => controle, querySelectorAll: () => [botao] });
+    assert.deepEqual(chamadas, ['abrir']);
+    quadros[0]();
+    assert.deepEqual(chamadas, ['abrir', 'foco', 'rolagem']);
+  } finally {
+    globalThis.window = anterior;
+  }
+});
+
+test('pendência sem controle editável leva à explicação em vez de deixar o clique sem resposta', () => {
+  let focado = false;
+  const resumo = {
+    matches: () => false, querySelector: () => null,
+    focus: () => { focado = true; }, scrollIntoView: () => {}
+  };
+  assert.equal(focarPrimeiroCampoInvalido({
+    querySelector: seletor => seletor === '[data-custo-pendencias]' ? resumo : null
+  }), true);
+  assert.equal(focado, true);
+});
+
 test('o primeiro avanço preserva no endereço o id do rascunho recém-criado', () => {
   const atuais = new URLSearchParams('modo=new&secao=premises');
 

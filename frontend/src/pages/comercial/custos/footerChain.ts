@@ -192,6 +192,7 @@ export function deveRevelarErrosAoAcionar(
   return (
     acao.kind === 'save' ||
     acao.target === secaoAtual ||
+    (secaoAtual === 'summary' && acao.kind === 'goto') ||
     (tentandoCriarProposta && acao.kind === 'goto')
   );
 }

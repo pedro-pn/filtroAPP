@@ -133,6 +133,7 @@ export function useLevantamento(estimatorName: string, secaoAtual = 'premises') 
     // sobre o mesmo campo, mostrar a mensagem do cliente faria o usuário
     // corrigir o que a tela pediu e continuar sendo recusado pela API.
     for (const item of issuesDoServidor) {
+      if (item.severity === 'warning') continue;
       if (item.path && !mapa.has(item.path)) mapa.set(item.path, item.message);
     }
     for (const item of (validation.errors as Array<AnyRecord>) || []) {

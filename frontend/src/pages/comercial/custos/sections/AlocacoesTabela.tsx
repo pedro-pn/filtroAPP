@@ -52,10 +52,12 @@ function novaAlocacao(): AnyRecord {
 
 export function AlocacoesTabela({
   fase,
-  levantamento
+  levantamento,
+  caminho = 'laborContexts[0]'
 }: {
   fase: AnyRecord;
   levantamento: Levantamento;
+  caminho?: string;
 }) {
   const {
     updateCollection,
@@ -63,7 +65,8 @@ export function AlocacoesTabela({
     removeNested,
     addNested,
     resultadoDaFase,
-    erroSe
+    erroSe,
+    erroDe
   } = levantamento;
   const faseId = String(fase.id);
   const resumo = resultadoDaFase(faseId);
@@ -109,15 +112,20 @@ export function AlocacoesTabela({
               </tr>
             </thead>
             <tbody>
-              {alocacoes.map(alocacao => {
+              {alocacoes.map((alocacao, indice) => {
                 const id = String(alocacao.id);
                 const calculado = calculados.find(item => item.id === id) || {};
+                const erroCargo = erroDe(`${caminho}.assignments[${indice}].role`);
+                const erroQuantidade = erroDe(`${caminho}.assignments[${indice}].quantity`);
 
                 return (
                   <tr key={id}>
                     <td>
                       <select
                         aria-label="Cargo"
+                        aria-invalid={Boolean(erroCargo) || undefined}
+                        aria-describedby={erroCargo ? `${id}-cargo-erro` : undefined}
+                        className={erroCargo ? 'com-campo-invalido' : undefined}
                         value={String(alocacao.role || '')}
                         onChange={event => {
                           const cargo = event.target.value;
@@ -126,12 +134,14 @@ export function AlocacoesTabela({
                           editar(id, { role: cargo, monthlySalary: roleSalary(cargo) });
                         }}
                       >
+                        <option value="">Selecione o cargo...</option>
                         {(LEC_LABOR_ROLES as AnyRecord[]).map(cargo => (
                           <option key={String(cargo.role)} value={String(cargo.role)}>
                             {String(cargo.role)}
                           </option>
                         ))}
                       </select>
+                      {erroCargo && <small id={`${id}-cargo-erro`} className="field-error">{erroCargo}</small>}
                     </td>
 
                     <td>
@@ -152,6 +162,9 @@ export function AlocacoesTabela({
                       <input
                         type="number"
                         aria-label="Quantidade de pessoas"
+                        aria-invalid={Boolean(erroQuantidade) || undefined}
+                        aria-describedby={erroQuantidade ? `${id}-quantidade-erro` : undefined}
+                        className={erroQuantidade ? 'com-campo-invalido' : undefined}
                         value={Number(alocacao.quantity) || ''}
                         min={0}
                         onChange={event =>
@@ -160,6 +173,7 @@ export function AlocacoesTabela({
                           })
                         }
                       />
+                      {erroQuantidade && <small id={`${id}-quantidade-erro`} className="field-error">{erroQuantidade}</small>}
                     </td>
 
                     <td>
@@ -237,7 +251,7 @@ export function AlocacoesTabela({
             </small>
           </header>
           <div className="com-jornadas-lista">
-            {alocacoes.map(alocacao => {
+            {alocacoes.map((alocacao, indice) => {
               const id = String(alocacao.id);
               const calculado = calculados.find(item => item.id === id) || {};
               return (
@@ -247,6 +261,7 @@ export function AlocacoesTabela({
                   fase={fase}
                   calculado={calculado}
                   erroSe={erroSe}
+                  erroDe={campo => erroDe(`${caminho}.assignments[${indice}].workSchedule.${campo}`)}
                   onEditar={patch => editar(id, patch)}
                   onAplicarATodaEquipe={(jornada, turno) =>
                     updateCollection('laborContexts', faseId, {

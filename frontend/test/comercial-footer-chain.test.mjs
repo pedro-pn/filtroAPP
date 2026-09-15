@@ -230,6 +230,8 @@ test('abrir a próxima seção não revela erros antes de tentar preenchê-la', 
   assert.equal(deveRevelarErrosAoAcionar(irParaMaoDeObra, 'premises'), false);
   assert.equal(deveRevelarErrosAoAcionar(irParaMaoDeObra, 'labor'), true);
   assert.equal(deveRevelarErrosAoAcionar(irParaMaoDeObra, 'summary', true), true);
+  assert.equal(deveRevelarErrosAoAcionar(irParaMaoDeObra, 'summary', false), true,
+    'Salvar no resumo também deve revelar a pendência ao retornar à mão de obra');
 
   const salvar = footerAction(nadaPendente, podeSalvar, 'summary');
   assert.equal(deveRevelarErrosAoAcionar(salvar, 'summary'), true);

@@ -55,13 +55,15 @@ export function FaseCard({
   total: number;
   levantamento: Levantamento;
 }) {
-  const { draft, setDraft, updateCollection, removeCollection, erroSe } = levantamento;
+  const { draft, setDraft, updateCollection, removeCollection, erroSe, erroDe } = levantamento;
+  const caminho = `laborContexts[${indice}]`;
+  const erro = (campo: string) => erroDe(`${caminho}.${campo}`);
   const id = String(fase.id);
   const emViagem = fase.workCondition === 'travel';
   const semVeiculo = fase.vehicleType === 'none';
   const exigeDeslocamentoRodoviario = emViagem && !semVeiculo;
   const confirmada = fase.workConditionConfirmed === true;
-  const erroDoNome = erroSe(!String(fase.name || '').trim(), 'Campo obrigatório');
+  const erroDoNome = erro('name') || erroSe(!String(fase.name || '').trim(), 'Campo obrigatório');
   const [aberta, setAberta] = useState(true);
 
   function editar(patch: AnyRecord) {
@@ -118,8 +120,7 @@ export function FaseCard({
         </div>
       </header>
 
-      {aberta && (
-      <div id={`${id}-conteudo`} className="com-fase-conteudo">
+      <div id={`${id}-conteudo`} className="com-fase-conteudo" hidden={!aberta}>
       <div className="com-fase-paineis">
         <section className="com-fase-painel">
           <header>
@@ -138,7 +139,7 @@ export function FaseCard({
                 value={confirmada ? String(fase.workCondition || '') : ''}
                 emptyLabel="Selecione Sede, Em viagem ou Offshore"
                 options={CONDICOES}
-                error={erroSe(!(confirmada && fase.workCondition), 'Campo obrigatório')}
+                error={erro('workCondition') || erroSe(!(confirmada && fase.workCondition), 'Campo obrigatório')}
                 onChange={valor => {
                   // Offshore traz um calendário próprio de 21 dias — escolher
                   // a condição já preenche a escala, senão o usuário digitaria
@@ -162,7 +163,7 @@ export function FaseCard({
               value={String(fase.vehicleType || '')}
               emptyLabel="Selecione o veículo"
               options={VEICULOS}
-              error={erroSe(!fase.vehicleType, 'Campo obrigatório')}
+              error={erro('vehicleType') || erroSe(!fase.vehicleType, 'Campo obrigatório')}
               onChange={valor => editar(valor === 'none'
                 ? { vehicleType: valor, vehicleCountMode: 'automatic', vehicleCount: 0 }
                 : { vehicleType: valor })}
@@ -188,7 +189,7 @@ export function FaseCard({
               step={1}
               /* Só faz sentido em viagem, e só depois de confirmar a condição. */
               disabled={!confirmada || !exigeDeslocamentoRodoviario}
-              error={erroSe(
+              error={erro('hotelSiteDistanceKmPerDay') || erroSe(
                 exigeDeslocamentoRodoviario && numberValue(fase.hotelSiteDistanceKmPerDay) <= 0,
                 'Informe a distância diária entre hotel e obra'
               )}
@@ -198,6 +199,7 @@ export function FaseCard({
             {!semVeiculo && fase.vehicleCountMode === 'manual' && (
               <NumberField
                 label="Nº de veículos"
+                error={erro('vehicleCount')}
                 required
                 value={fase.vehicleCount || 0}
                 min={0}
@@ -228,6 +230,7 @@ export function FaseCard({
             />
             <NumberField
               label="Dias corridos"
+              error={erro('durationDays')}
               value={fase.durationDays}
               min={1}
               /* Offshore é limitado a 21 dias pelo próprio regime. */
@@ -236,6 +239,7 @@ export function FaseCard({
             />
             <NumberField
               label="Jornada normal (h/dia)"
+              error={erro('hoursPerDay')}
               value={fase.hoursPerDay}
               min={0}
               step={0.5}
@@ -243,6 +247,7 @@ export function FaseCard({
             />
             <NumberField
               label="HE 70% (h/dia)"
+              error={erro('weekdayExtra70HoursPerDay')}
               value={fase.weekdayExtra70HoursPerDay}
               min={0}
               step={0.5}
@@ -250,12 +255,14 @@ export function FaseCard({
             />
             <NumberField
               label="Sábados"
+              error={erro('saturdayCount')}
               value={fase.saturdayCount}
               min={0}
               onChange={valor => editar({ saturdayCount: valor })}
             />
             <NumberField
               label="HE sábado (h/dia)"
+              error={erro('saturdayHoursPerDay')}
               value={fase.saturdayHoursPerDay}
               min={0}
               step={0.5}
@@ -263,12 +270,14 @@ export function FaseCard({
             />
             <NumberField
               label="Domingos e feriados"
+              error={erro('sundayCount')}
               value={fase.sundayCount}
               min={0}
               onChange={valor => editar({ sundayCount: valor })}
             />
             <NumberField
               label="HE domingo/feriado (h/dia)"
+              error={erro('sundayHoursPerDay')}
               value={fase.sundayHoursPerDay}
               min={0}
               step={0.5}
@@ -278,11 +287,10 @@ export function FaseCard({
         </section>
       </div>
 
-      <AlocacoesTabela fase={fase} levantamento={levantamento} />
+      <AlocacoesTabela fase={fase} levantamento={levantamento} caminho={caminho} />
 
-      <DespesasFase fase={fase} levantamento={levantamento} />
+      <DespesasFase fase={fase} levantamento={levantamento} caminho={caminho} />
       </div>
-      )}
     </article>
   );
 }

@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Confirmação de escopo — "Confirmo que não haverá mão de obra".
  *
@@ -21,6 +23,7 @@ export function ConfirmacaoEscopo({
   descricaoPendente,
   descricaoConfirmada,
   rotulo,
+  error,
   onChange
 }: {
   confirmado: boolean;
@@ -29,17 +32,22 @@ export function ConfirmacaoEscopo({
   descricaoPendente: string;
   descricaoConfirmada: string;
   rotulo: string;
+  error?: string;
   onChange: (valor: boolean) => void;
 }) {
+  const errorId = useId();
   return (
-    <div className={`com-confirmacao${confirmado ? ' is-confirmada' : ''}`}>
+    <div className={`com-confirmacao${confirmado ? ' is-confirmada' : ''}${error ? ' com-campo-invalido' : ''}`}>
       <div>
         <strong>{confirmado ? tituloConfirmado : tituloPendente}</strong>
         <span>{confirmado ? descricaoConfirmada : descricaoPendente}</span>
+        {error && <small id={errorId} className="field-error">{error}</small>}
       </div>
       <label>
         <input
           type="checkbox"
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={error ? errorId : undefined}
           checked={confirmado}
           onChange={event => onChange(event.target.checked)}
         />

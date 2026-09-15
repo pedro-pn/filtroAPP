@@ -13,8 +13,25 @@ export function rolarParaInicioDoFormulario(
  * editável dentro dele, enquanto a rolagem mantém o grupo e a mensagem visíveis.
  */
 export function focarPrimeiroCampoInvalido(raiz: ParentNode | null): boolean {
-  const invalido = raiz?.querySelector<HTMLElement>('[aria-invalid="true"]');
+  const invalido = raiz?.querySelector<HTMLElement>('[aria-invalid="true"]')
+    ?? raiz?.querySelector<HTMLElement>('[data-custo-pendencias]');
   if (!invalido) return false;
+
+  // Jornadas usam <details>; fases minimizadas mantêm os campos em um bloco
+  // hidden. Abrir seus controles antes de focar evita rolar para um campo invisível.
+  let aguardarExpansao = false;
+  for (let pai = invalido.parentElement; pai; pai = pai.parentElement) {
+    if (pai.tagName === 'DETAILS') (pai as HTMLDetailsElement).open = true;
+    if (pai.hidden && pai.id) {
+      const id = pai.id;
+      const botao = [...(raiz?.querySelectorAll<HTMLButtonElement>('button[aria-controls]') ?? [])]
+        .find(item => item.getAttribute('aria-controls') === id);
+      if (botao?.getAttribute('aria-expanded') === 'false') {
+        botao.click();
+        aguardarExpansao = true;
+      }
+    }
+  }
 
   const seletorDeControle =
     'input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)';
@@ -24,8 +41,12 @@ export function focarPrimeiroCampoInvalido(raiz: ParentNode | null): boolean {
   const controle = controleEditavel ?? invalido;
   if (!controleEditavel) controle.tabIndex = -1;
 
-  controle.focus({ preventScroll: true });
-  invalido.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const focar = () => {
+    controle.focus({ preventScroll: true });
+    invalido.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  if (aguardarExpansao) window.requestAnimationFrame(focar);
+  else focar();
   return true;
 }
 

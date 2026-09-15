@@ -50,6 +50,8 @@ export function parametrosDasPendenciasDoLevantamento(
     base: levantamento.proposalCode,
     revisao: String(levantamento.revisionNumber || 0),
     id: levantamento.id,
-    secao: primeiraSecaoPendente(issues.map(item => item.path || '')) ?? 'summary'
+    secao: primeiraSecaoPendente(issues
+      .filter(item => item.severity !== 'warning')
+      .map(item => item.path || '')) ?? 'summary'
   });
 }

@@ -32,6 +32,7 @@ export function JornadaCard({
   fase,
   calculado,
   erroSe,
+  erroDe = () => undefined,
   onEditar,
   onAplicarATodaEquipe
 }: {
@@ -39,6 +40,7 @@ export function JornadaCard({
   fase: AnyRecord;
   calculado: AnyRecord;
   erroSe: (condicao: boolean, mensagem: string) => string | undefined;
+  erroDe?: (campo: string) => string | undefined;
   onEditar: (patch: AnyRecord) => void;
   onAplicarATodaEquipe: (jornada: JornadaDaEquipe, turno: string) => void;
 }) {
@@ -112,10 +114,13 @@ export function JornadaCard({
               required
               value={jornada.collaboratorName || ''}
               placeholder="Nome do colaborador"
-              error={erroSe(
-                !String(jornada.collaboratorName || '').trim(),
-                'Campo obrigatório'
-              )}
+              error={
+                erroDe('collaboratorName') ||
+                erroSe(
+                  !String(jornada.collaboratorName || '').trim(),
+                  'Campo obrigatório'
+                )
+              }
               onChange={(value) =>
                 salvarJornada({
                   ...jornada,
@@ -135,56 +140,76 @@ export function JornadaCard({
           />
         </div>
 
-        <div className="com-jornada-dias">
-          {jornada.days.map((dia) => (
-            <section key={dia.dayType} className="com-jornada-dia">
-              <strong>{ROTULOS[dia.dayType]}</strong>
-              <div className="com-form-grid">
-                <NumberField
-                  label="Dias trabalhados"
-                  value={dia.days}
-                  min={0}
-                  step={1}
-                  onChange={(value) => editarDia(dia.dayType, { days: value })}
-                />
-                <NumberField
-                  label="Horas normais / dia"
-                  value={dia.normalHoursPerDay}
-                  min={0}
-                  max={24}
-                  step={0.5}
-                  onChange={(value) =>
-                    editarDia(dia.dayType, { normalHoursPerDay: value })
-                  }
-                />
-                <NumberField
-                  label="Horas extras / dia"
-                  value={dia.extraHoursPerDay}
-                  min={0}
-                  max={24}
-                  step={0.5}
-                  onChange={(value) =>
-                    editarDia(dia.dayType, { extraHoursPerDay: value })
-                  }
-                />
-                <NumberField
-                  label="Percentual da HE (%)"
-                  required={dia.extraHoursPerDay > 0}
-                  value={dia.overtimePercent}
-                  min={0}
-                  max={300}
-                  step={1}
-                  error={erroSe(
-                    dia.extraHoursPerDay > 0 && dia.overtimePercent <= 0,
-                    'Informe o percentual da hora extra'
-                  )}
-                  onChange={(value) =>
-                    editarDia(dia.dayType, { overtimePercent: value })
-                  }
-                />
-              </div>
-            </section>
-          ))}
+        <div
+          className={`com-jornada-dias${erroDe('days') ? ' field-invalid-panel' : ''}`}
+          aria-invalid={Boolean(erroDe('days')) || undefined}
+        >
+          {erroDe('days') && <p className="field-error">{erroDe('days')}</p>}
+          {jornada.days.map((dia) => {
+            const diasSalvos = ((alocacao.workSchedule as AnyRecord)?.days ||
+              []) as AnyRecord[];
+            const indice = diasSalvos.findIndex(
+              (item) => item.dayType === dia.dayType
+            );
+            const erro = (campo: string) => erroDe(`days[${indice}].${campo}`);
+            return (
+              <section key={dia.dayType} className="com-jornada-dia">
+                <strong>{ROTULOS[dia.dayType]}</strong>
+                <div className="com-form-grid">
+                  <NumberField
+                    label="Dias trabalhados"
+                    error={erro('days')}
+                    value={dia.days}
+                    min={0}
+                    step={1}
+                    onChange={(value) =>
+                      editarDia(dia.dayType, { days: value })
+                    }
+                  />
+                  <NumberField
+                    label="Horas normais / dia"
+                    error={erro('normalHoursPerDay')}
+                    value={dia.normalHoursPerDay}
+                    min={0}
+                    max={24}
+                    step={0.5}
+                    onChange={(value) =>
+                      editarDia(dia.dayType, { normalHoursPerDay: value })
+                    }
+                  />
+                  <NumberField
+                    label="Horas extras / dia"
+                    error={erro('extraHoursPerDay')}
+                    value={dia.extraHoursPerDay}
+                    min={0}
+                    max={24}
+                    step={0.5}
+                    onChange={(value) =>
+                      editarDia(dia.dayType, { extraHoursPerDay: value })
+                    }
+                  />
+                  <NumberField
+                    label="Percentual da HE (%)"
+                    required={dia.extraHoursPerDay > 0}
+                    value={dia.overtimePercent}
+                    min={0}
+                    max={300}
+                    step={1}
+                    error={
+                      erro('overtimePercent') ||
+                      erroSe(
+                        dia.extraHoursPerDay > 0 && dia.overtimePercent <= 0,
+                        'Informe o percentual da hora extra'
+                      )
+                    }
+                    onChange={(value) =>
+                      editarDia(dia.dayType, { overtimePercent: value })
+                    }
+                  />
+                </div>
+              </section>
+            );
+          })}
         </div>
 
         <div className="com-jornada-acoes">

@@ -61,6 +61,7 @@ function levantamento() {
     removeNested: () => {},
     addNested: () => {},
     erroSe: () => undefined,
+    erroDe: () => undefined,
     resultadoDaFase: (id) =>
       result.contextResults.find((item) => item.id === id) || {}
   };

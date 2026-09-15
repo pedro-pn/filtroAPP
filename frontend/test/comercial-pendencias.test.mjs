@@ -220,6 +220,7 @@ test('"Sem veículo" é uma escolha obrigatória válida e não cobra custos rod
     ...draft,
     laborContexts: [{
       ...draft.laborContexts[0],
+      name: 'Equipe sem veículo',
       enabled: true,
       workCondition: 'travel',
       workConditionConfirmed: true,

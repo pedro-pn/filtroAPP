@@ -115,6 +115,14 @@ test('conflito não força a conclusão nem sobrescreve o levantamento de outro 
   assert.deepEqual(chamadas.map(item => item.method), ['get', 'put']);
 });
 
+test('avisos de mão de obra não desviam o usuário da verdadeira pendência em outra seção', () => {
+  const params = mod.parametrosDasPendenciasDoLevantamento(levantamento, [
+    { path: 'laborContexts[0].durationDays', message: 'A etapa não possui duração.', severity: 'warning' },
+    { path: 'commercial.representativeCommission.percent', message: 'Informe a comissão.', severity: 'error' }
+  ]);
+  assert.equal(params.get('secao'), 'summary');
+});
+
 test('falha ao carregar não grava um orçamento vazio', async () => {
   const chamadas = responder(() => assert.fail('Não deve gravar.'), { ...levantamento, payload: undefined });
   await assert.rejects(() => mod.prepararLevantamentoParaProposta(levantamento.id), /dados completos/);
