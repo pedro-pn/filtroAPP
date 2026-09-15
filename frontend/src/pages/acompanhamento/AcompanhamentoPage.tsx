@@ -12,6 +12,7 @@ import { SedeCostsBoard } from '../../components/projects/SedeCostsBoard';
 import { CostEngineManager } from '../../components/projects/CostEngineManager';
 import { getPontoPendencyCounts } from '../../api/acompanhamentoPonto';
 import { AcompanhamentoTutorial } from '../../components/AcompanhamentoTutorial';
+import { canViewProjectFinancials } from '../../../../shared/modules/acompanhamento-permissions.js';
 
 type Section = 'dashboard' | 'projetos' | 'sede' | 'custo';
 const SECTIONS: Section[] = ['dashboard', 'projetos', 'sede', 'custo'];
@@ -142,7 +143,7 @@ export function AcompanhamentoPage() {
             {section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} canManageProjectNotes={isManager} progressHistoryNoveltyUser={user} />
               : section === 'sede' ? <SedeCostsBoard />
               : section === 'custo' && isManager ? <CostEngineManager canManageCosts={isManager} />
-              : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} />}
+              : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} canViewFinancials={canViewProjectFinancials(user)} />}
           </section>
         </div>
       </main>

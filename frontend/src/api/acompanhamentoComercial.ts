@@ -218,6 +218,7 @@ export interface CreateMissionGroupRequest {
 }
 
 export interface DashboardRow {
+  canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
   code: string;
@@ -589,6 +590,7 @@ export interface ProgressHistoryPoint {
 }
 
 export interface ProjectCard {
+  canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
   code: string;
@@ -615,9 +617,9 @@ export interface ProjectCard {
   originalSalePrice?: number | null;
   additionalSalePrice?: number | null;
   budgetBreakdown?: BudgetBreakdown | null;
-  invoicedRevenue: number | null;
-  invoiceCount: number;
-  presumedProfitTaxes: PresumedProfitTaxEstimate | null;
+  invoicedRevenue?: number | null;
+  invoiceCount?: number;
+  presumedProfitTaxes?: PresumedProfitTaxEstimate | null;
   realizedCost: number;
   costConsumedPct: number | null;
   lastDay: { date: string | null; status: LastDayStatus };
@@ -797,6 +799,7 @@ export async function getMissionGroupInvoices(groupId: string) {
 }
 
 export interface ProjectDetail {
+  canViewProjectFinancials?: boolean;
   group?: {
     id: string;
     name: string;
@@ -840,8 +843,8 @@ export interface ProjectDetail {
     previsto: string | number | null;
     previstoOriginal?: string | number | null;
     previstoAdicional?: string | number | null;
-    realizado: string | number | null;
-    notas: number;
+    realizado?: string | number | null;
+    notas?: number;
   };
   budgetBreakdown?: BudgetBreakdown | null;
   maoDeObra: {
@@ -851,7 +854,7 @@ export interface ProjectDetail {
     periodStart: string | null;
     periodEnd: string | null;
   };
-  presumedProfitTaxes: PresumedProfitTaxEstimate | null;
+  presumedProfitTaxes?: PresumedProfitTaxEstimate | null;
   workedHours: WorkedHoursProgress;
   maioresGastos: Array<{ categoria: string; total: number }>;
   manualCosts?: ManualProjectCost[];

@@ -14,6 +14,7 @@ import { rolesForAccountType } from './accountRoleRules';
 import type { UserDeletionImpact, UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
+import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions, type AcompanhamentoExtraPermission } from '../../../../shared/modules/acompanhamento-permissions.js';
 
 type AccountFilter = 'all' | AccountType;
 type ModuleFilter = 'all' | string;
@@ -28,6 +29,7 @@ interface AccountFormState {
   collaboratorId: string;
   moduleRoles: ModuleRole[];
   reportEmissionPermissions: ReportEmissionPermission[];
+  acompanhamentoExtraPermissions: AcompanhamentoExtraPermission[];
 }
 
 interface ManualPasswordSetup {
@@ -44,7 +46,8 @@ const emptyForm: AccountFormState = {
   isActive: true,
   collaboratorId: '',
   moduleRoles: [],
-  reportEmissionPermissions: []
+  reportEmissionPermissions: [],
+  acompanhamentoExtraPermissions: []
 };
 
 const reportPermissionOptions: Array<{
@@ -84,7 +87,8 @@ function userToForm(user: InternalUserSummary): AccountFormState {
     isActive: user.isActive,
     collaboratorId: user.collaboratorId || '',
     moduleRoles: rolesForAccountType(accountType, user.moduleRoles || []),
-    reportEmissionPermissions: accountType === 'CLIENT' ? [] : user.reportEmissionPermissions || []
+    reportEmissionPermissions: accountType === 'CLIENT' ? [] : user.reportEmissionPermissions || [],
+    acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(user.acompanhamentoExtraPermissions, { accountType, moduleRoles: user.moduleRoles })
   };
 }
 
@@ -179,6 +183,7 @@ export function AdminAccountsPage() {
       accountType,
       collaboratorId: accountType === 'CLIENT' ? '' : current.collaboratorId,
       moduleRoles: rolesForAccountType(accountType, current.moduleRoles),
+      acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType, moduleRoles: current.moduleRoles }),
       reportEmissionPermissions: accountType === 'CLIENT' ? [] : current.reportEmissionPermissions
     }));
   }
@@ -196,7 +201,8 @@ export function AdminAccountsPage() {
       const nextRoles = hasRole ? current.moduleRoles.filter(item => item !== role) : [...current.moduleRoles.filter(item => !sameModuleRoles(role).includes(item)), role];
       return {
         ...current,
-        moduleRoles: rolesForAccountType(current.accountType, nextRoles)
+        moduleRoles: rolesForAccountType(current.accountType, nextRoles),
+        acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType: current.accountType, moduleRoles: nextRoles })
       };
     });
   }
@@ -228,6 +234,7 @@ export function AdminAccountsPage() {
           accountType: form.accountType,
           moduleRoles: rolesForAccountType(form.accountType, form.moduleRoles),
           reportEmissionPermissions: form.accountType === 'CLIENT' ? [] : form.reportEmissionPermissions,
+          acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(form.acompanhamentoExtraPermissions, form),
           isActive: form.isActive,
           collaboratorId: form.accountType === 'CLIENT' ? null : form.collaboratorId || null
         };
@@ -401,6 +408,26 @@ export function AdminAccountsPage() {
                     </label>
                   ))}
                 </div>
+              )}
+            </div>
+          ) : null}
+          {!isEditingClient && (form.accountType === 'ADMIN' || canReceiveAcompanhamentoExtraPermissions(form)) ? (
+            <div className="field-group field-group-wide">
+              <label>Permissões adicionais do Acompanhamento</label>
+              {form.accountType === 'ADMIN' ? (
+                <div className="form-hint">Administradores têm acesso automático aos impostos e faturamentos dos projetos.</div>
+              ) : (
+                <label className="admin-role-option">
+                  <input
+                    type="checkbox"
+                    checked={form.acompanhamentoExtraPermissions.includes(PROJECT_TAXES_AND_BILLING)}
+                    onChange={event => setForm(current => ({
+                      ...current,
+                      acompanhamentoExtraPermissions: event.target.checked ? [PROJECT_TAXES_AND_BILLING] : []
+                    }))}
+                  />
+                  <span>Visualizar impostos pagos e faturamentos realizados no projeto</span>
+                </label>
               )}
             </div>
           ) : null}

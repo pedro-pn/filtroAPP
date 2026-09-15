@@ -1,4 +1,6 @@
 import type { PublicModuleRole } from '../modules/registry';
+import type { AcompanhamentoExtraPermission } from '../../../shared/modules/acompanhamento-permissions.js';
+export type { AcompanhamentoExtraPermission } from '../../../shared/modules/acompanhamento-permissions.js';
 
 export type UserRole = 'COLLABORATOR' | 'MANAGER' | 'COORDINATOR' | 'CLIENT';
 export type AccountType = 'ADMIN' | 'INTERNAL' | 'CLIENT';
@@ -14,6 +16,7 @@ export interface AuthUser {
   accountType: AccountType;
   moduleRoles: ModuleRole[];
   reportEmissionPermissions: ReportEmissionPermission[];
+  acompanhamentoExtraPermissions?: AcompanhamentoExtraPermission[];
   isActive: boolean;
   clientCnpj?: string | null;
   privacyPolicyAcceptedAt?: string | null;
