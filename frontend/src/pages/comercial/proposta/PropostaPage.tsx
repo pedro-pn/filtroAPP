@@ -88,6 +88,7 @@ import {
   focarPrimeiroCampoInvalido,
   rolarParaInicioDoFormulario
 } from '../navegacao';
+import { useAutosaveServidor } from '../useAutosaveServidor';
 
 /**
  * Montagem da proposta — container das 7 etapas (`PROP-CTL-001..010`, `PROP-H-001..003`).
@@ -222,6 +223,7 @@ export function PropostaPage() {
   const [maiorVisitada, setMaiorVisitada] = useState(indice);
   const [tentouAvancar, setTentouAvancar] = useState(false);
   const [consultores, setConsultores] = useState<Consultor[]>([]);
+  const [consultoresCarregados, setConsultoresCarregados] = useState(false);
   const [podeEscolher, setPodeEscolher] = useState(false);
   const [recado, setRecado] = useState('');
   const [levantamentoVinculado, setLevantamentoVinculado] =
@@ -332,30 +334,56 @@ export function PropostaPage() {
     };
   }, [levantamentoId, propostaId, revisaoPronta, usarDadosDoLevantamento]);
 
+  const dadosDaEdicao = {
+    form,
+    itensEscopo,
+    blocos,
+    responsabilidades,
+    categorias,
+    servicosTecnicos,
+    complementoRelatorios,
+    precos,
+    incluirUnitario
+  };
+  const propostaProntaParaSalvar =
+    modo !== null &&
+    modelo !== null &&
+    consultoresCarregados &&
+    (!propostaId || Boolean(versaoCarregada)) &&
+    statusProposta === 'RASCUNHO' &&
+    revisaoPronta &&
+    (!levantamentoId || Boolean(levantamentoVinculado));
+  const identificacaoCompleta =
+    pendenciasDaEtapa('cliente', form, {
+      itens: itensEscopo,
+      responsabilidades,
+      errosTecnicos,
+      precos
+    }).length === 0;
+
   const rascunho = useRascunhoLocal({
     conta: user?.id || '',
     tela: 'proposta',
     modo: levantamentoId ? 'levantamento' : 'avulsa',
     codigo: levantamentoId,
-    dados: {
-      form,
-      itensEscopo,
-      blocos,
-      responsabilidades,
-      categorias,
-      servicosTecnicos,
-      complementoRelatorios,
-      precos,
-      incluirUnitario
-    },
+    dados: dadosDaEdicao,
     // A hidratação do servidor e a aplicação do levantamento vinculado são a
     // base inicial, não edições. O rascunho só começa a observar depois delas.
-    ativo:
-      (!propostaId || Boolean(versaoCarregada)) &&
-      statusProposta === 'RASCUNHO' &&
-      revisaoPronta &&
-      (!levantamentoId || Boolean(levantamentoVinculado)),
+    ativo: propostaProntaParaSalvar,
     rotulo: 'Proposta'
+  });
+
+  const autosave = useAutosaveServidor({
+    dados: dadosDaEdicao,
+    identidade: `proposta:${modo || 'inicio'}:${levantamentoId || 'avulsa'}:${
+      modo === 'revision' ? `${codigo}:${revisionNumber}` : 'nova'
+    }`,
+    ativo: propostaProntaParaSalvar,
+    // A API cria a proposta somente depois que os campos de identificação
+    // obrigatórios existem. Até lá, o rascunho local continua protegendo o
+    // preenchimento e o autosave fica pendente, pronto para a última resposta.
+    ocupado: salvando || !identificacaoCompleta,
+    salvar: async () => Boolean(await salvar(false, true))
   });
 
   const finalizacao = usePropostaFinalizacao({
@@ -392,6 +420,9 @@ export function PropostaPage() {
       .catch(() => {
         if (vivo)
           setRecado('Não foi possível carregar os consultores de vendas.');
+      })
+      .finally(() => {
+        if (vivo) setConsultoresCarregados(true);
       });
     return () => {
       vivo = false;
@@ -677,14 +708,19 @@ export function PropostaPage() {
    * abertura da tela. Ele **consome** — abrir o assistente e desistir não pode
    * gastar um número, porque o próximo sairia com um buraco no meio.
    */
-  async function salvar(forceOverwrite = false): Promise<string | null> {
+  async function salvar(
+    forceOverwrite = false,
+    automatico = false
+  ): Promise<string | null> {
     if (salvando) return null;
     if (propostaId && !versaoCarregada) {
       setRecado('Aguarde a proposta terminar de carregar antes de salvar.');
       return null;
     }
     setSalvando(true);
-    setRecado(propostaId ? 'Salvando...' : 'Salvando a proposta...');
+    if (!automatico)
+      setRecado(propostaId ? 'Salvando...' : 'Salvando a proposta...');
+    const snapshot = dadosDaEdicao;
 
     try {
       let codigoAtual = codigo;
@@ -705,11 +741,20 @@ export function PropostaPage() {
       // Gravada no servidor, o rascunho local não pode sobrar para reaparecer
       // depois como se fosse trabalho não salvo.
       rascunho.limparTudo();
-      if (!propostaId) trocarParametros({ id: salva.id });
+      if (!propostaId) {
+        // O conteúdo já é exatamente o que o POST devolveu. Marcar o id evita
+        // que o efeito de reabertura faça um GET e aplique esse snapshot por
+        // cima de uma edição digitada enquanto o autosave terminava.
+        idCarregado.current = salva.id;
+        trocarParametros({ id: salva.id });
+      }
       if (salva.updatedAt) setVersaoCarregada(salva.updatedAt);
       setStatusProposta(salva.status || 'RASCUNHO');
       setConflitoDeEdicao(null);
-      setRecado('');
+      if (!automatico) {
+        autosave.marcarSalvo(snapshot);
+        setRecado('');
+      }
       return salva.id;
     } catch (error) {
       if (error instanceof ComercialConcurrentWriteError) {
@@ -1126,6 +1171,15 @@ export function PropostaPage() {
               finalizacao.baixarDocumentos(documentos).catch(() => {});
             }}
           />
+
+          {autosave.rotulo && (
+            <p
+              className={`com-autosave com-autosave-proposta is-${autosave.estado}`}
+              role="status"
+            >
+              {autosave.rotulo}
+            </p>
+          )}
 
           <PropostaFooter
             primeiraEtapa={indice === 0}

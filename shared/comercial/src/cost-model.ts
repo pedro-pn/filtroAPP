@@ -197,7 +197,9 @@ export type PipeSegment = {
   description: string;
   quantity: number;
   lengthM: number;
+  lengthUnit?: "m" | "cm" | "mm";
   internalDiameterMm: number;
+  diameterUnit?: "in" | "mm";
   nominalDiameterIn?: number;
   schedule?: string;
   fillPercent: number;
@@ -1236,7 +1238,13 @@ function normalizePipeSegment(value: unknown, index: number): PipeSegment {
     description: textValue(source.description, `Trecho ${index + 1}`),
     quantity: nonNegative(source.quantity, 1),
     lengthM: nonNegative(source.lengthM),
+    ...(source.lengthUnit === undefined
+      ? {}
+      : { lengthUnit: enumValue(source.lengthUnit, ["m", "cm", "mm"] as const, "m") }),
     internalDiameterMm: nonNegative(source.internalDiameterMm),
+    ...(source.diameterUnit === undefined
+      ? {}
+      : { diameterUnit: enumValue(source.diameterUnit, ["in", "mm"] as const, "in") }),
     nominalDiameterIn: source.nominalDiameterIn === undefined ? undefined : nonNegative(source.nominalDiameterIn),
     schedule: textValue(source.schedule) || undefined,
     fillPercent: boundedPercent(source.fillPercent, 100),

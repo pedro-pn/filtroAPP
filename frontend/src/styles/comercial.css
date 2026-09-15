@@ -608,6 +608,26 @@
   font-size: 14px;
 }
 
+.com-root .com-autosave {
+  color: var(--com-texto-fraco);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.com-root .com-autosave.is-salvando,
+.com-root .com-autosave.is-pendente {
+  color: var(--com-acao);
+}
+
+.com-root .com-autosave.is-erro {
+  color: #b83232;
+}
+
+.com-root .com-autosave-proposta {
+  margin: 0 0 8px;
+  text-align: right;
+}
+
 /* --- Tira de seções ------------------------------------------------------ */
 
 .com-root .com-secoes {
@@ -704,6 +724,12 @@
 }
 
 .com-root .com-codigo-vinculado strong { font-size: 18px; }
+
+.com-root .com-codigo-vinculado .com-autosave {
+  max-width: 190px;
+  margin-top: 2px;
+  text-align: center;
+}
 
 @media (max-width: 700px) {
   .com-root .com-menu,
@@ -1888,6 +1914,24 @@
   /* Número tem largura própria: sem isto a coluna de quantidade fica do
      tamanho da coluna de descrição. */
   max-width: 110px;
+}
+
+.com-root .com-medida-com-unidade {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.com-root .com-medida-com-unidade input[type='number'] {
+  width: 92px;
+  min-width: 0;
+  max-width: none;
+}
+
+.com-root .com-medida-com-unidade select {
+  width: 64px;
+  min-width: 64px;
 }
 
 .com-root .com-table-wrap td input[type='checkbox'] {

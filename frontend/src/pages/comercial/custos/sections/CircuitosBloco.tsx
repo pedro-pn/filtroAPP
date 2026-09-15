@@ -2,6 +2,14 @@ import { useState } from 'react';
 
 import { number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
+import {
+  comprimentoEmMetros,
+  comprimentoParaExibicao,
+  diametroEmMilimetros,
+  diametroParaExibicao,
+  type UnidadeDeComprimento,
+  type UnidadeDeDiametro
+} from '../unidadesDeTubo';
 
 /**
  * Dimensionamento dos circuitos — bloco da seção Materiais e insumos.
@@ -17,9 +25,9 @@ import type { Levantamento } from '../useLevantamento';
  * calculado" da faixa — erra a quantidade de produto, que é custo real.
  *
  * O volume de tubo sai de `π × (d/2)² × comprimento × quantidade × %`, e o
- * diâmetro entra em milímetros enquanto o comprimento entra em metros. Quem
- * digita 100 no diâmetro está dizendo 10 cm, não 100 m — é o erro mais fácil
- * de cometer aqui, e por isso a unidade está no rótulo.
+ * motor sempre recebe diâmetro em milímetros e comprimento em metros. A tela
+ * converte a unidade escolhida antes de atualizar o rascunho, mantendo o
+ * cálculo canônico sem obrigar o orçamentista a converter medidas à mão.
  */
 
 type AnyRecord = Record<string, unknown>;
@@ -55,7 +63,9 @@ const NOVO = {
     description: 'Linha principal',
     quantity: 1,
     lengthM: 0,
+    lengthUnit: 'm',
     internalDiameterMm: 0,
+    diameterUnit: 'in',
     fillPercent: 100
   }),
   mangueira: (): AnyRecord => ({
@@ -123,8 +133,9 @@ export function CircuitosBloco({ levantamento }: { levantamento: Levantamento })
         <div>
           <h2>Dimensionamento dos circuitos</h2>
           <p>
-            O volume de cada circuito alimenta a dosagem dos produtos químicos. Diâmetro em
-            milímetros, comprimento em metros.
+            O volume de cada circuito alimenta a dosagem dos produtos químicos.
+            Escolha a unidade de comprimento e informe o diâmetro em polegadas ou
+            milímetros.
           </p>
         </div>
         <button type="button" className="com-btn-add" onClick={acrescentarCircuito}>
@@ -337,6 +348,7 @@ function SubTabela({
   onAdicionar: () => void;
 }) {
   const comGeometria = COM_GEOMETRIA.has(colecao);
+  const trechoDeTubo = colecao === 'pipeSegments';
   const comInclusao = colecao === 'equipmentVolumes';
 
   return (
@@ -350,12 +362,18 @@ function SubTabela({
           <table>
             <thead>
               <tr>
-                <th scope="col">Descrição</th>
+                <th scope="col">
+                  {trechoDeTubo ? 'Nome do sistema' : 'Descrição'}
+                </th>
                 <th scope="col">Qtd.</th>
                 {comGeometria ? (
                   <>
-                    <th scope="col">Comprimento (m)</th>
-                    <th scope="col">Ø interno (mm)</th>
+                    <th scope="col">
+                      {trechoDeTubo ? 'Comprimento' : 'Comprimento (m)'}
+                    </th>
+                    <th scope="col">
+                      {trechoDeTubo ? 'Ø interno' : 'Ø interno (mm)'}
+                    </th>
                     <th scope="col">Preenchimento (%)</th>
                   </>
                 ) : (
@@ -370,6 +388,12 @@ function SubTabela({
             <tbody>
               {itens.map(item => {
                 const itemId = String(item.id);
+                const unidadeDeComprimento = String(
+                  item.lengthUnit || 'm'
+                ) as UnidadeDeComprimento;
+                const unidadeDeDiametro = String(
+                  item.diameterUnit || 'in'
+                ) as UnidadeDeDiametro;
                 const editar = (patch: AnyRecord) =>
                   onEditar('volumeSystems', circuitoId, colecao, itemId, patch);
                 const numero = (campo: string) => (event: { target: { value: string } }) =>
@@ -381,7 +405,7 @@ function SubTabela({
                   <tr key={itemId}>
                     <td>
                       <input
-                        aria-label="Descrição"
+                        aria-label={trechoDeTubo ? 'Nome do sistema' : 'Descrição'}
                         value={String(item.description || '')}
                         onChange={event => editar({ description: event.target.value })}
                       />
@@ -400,24 +424,95 @@ function SubTabela({
                     {comGeometria ? (
                       <>
                         <td>
-                          <input
-                            type="number"
-                            aria-label="Comprimento em metros"
-                            min={0}
-                            step={0.01}
-                            value={Number(item.lengthM) || ''}
-                            onChange={numero('lengthM')}
-                          />
+                          {trechoDeTubo ? (
+                            <div className="com-medida-com-unidade">
+                              <input
+                                type="number"
+                                aria-label="Comprimento"
+                                min={0}
+                                step={unidadeDeComprimento === 'm' ? 0.01 : 1}
+                                value={
+                                  comprimentoParaExibicao(
+                                    Number(item.lengthM) || 0,
+                                    unidadeDeComprimento
+                                  ) || ''
+                                }
+                                onChange={event =>
+                                  editar({
+                                    lengthM: comprimentoEmMetros(
+                                      event.target.value === '' ? 0 : Number(event.target.value),
+                                      unidadeDeComprimento
+                                    )
+                                  })
+                                }
+                              />
+                              <select
+                                aria-label="Unidade do comprimento"
+                                value={unidadeDeComprimento}
+                                onChange={event =>
+                                  editar({ lengthUnit: event.target.value })
+                                }
+                              >
+                                <option value="m">m</option>
+                                <option value="cm">cm</option>
+                                <option value="mm">mm</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              aria-label="Comprimento em metros"
+                              min={0}
+                              step={0.01}
+                              value={Number(item.lengthM) || ''}
+                              onChange={numero('lengthM')}
+                            />
+                          )}
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            aria-label="Diâmetro interno em milímetros"
-                            min={0}
-                            step={0.1}
-                            value={Number(item.internalDiameterMm) || ''}
-                            onChange={numero('internalDiameterMm')}
-                          />
+                          {trechoDeTubo ? (
+                            <div className="com-medida-com-unidade">
+                              <input
+                                type="number"
+                                aria-label="Diâmetro interno"
+                                min={0}
+                                step={unidadeDeDiametro === 'in' ? 0.001 : 0.1}
+                                value={
+                                  diametroParaExibicao(
+                                    Number(item.internalDiameterMm) || 0,
+                                    unidadeDeDiametro
+                                  ) || ''
+                                }
+                                onChange={event =>
+                                  editar({
+                                    internalDiameterMm: diametroEmMilimetros(
+                                      event.target.value === '' ? 0 : Number(event.target.value),
+                                      unidadeDeDiametro
+                                    )
+                                  })
+                                }
+                              />
+                              <select
+                                aria-label="Unidade do diâmetro"
+                                value={unidadeDeDiametro}
+                                onChange={event =>
+                                  editar({ diameterUnit: event.target.value })
+                                }
+                              >
+                                <option value="in">pol.</option>
+                                <option value="mm">mm</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              aria-label="Diâmetro interno em milímetros"
+                              min={0}
+                              step={0.1}
+                              value={Number(item.internalDiameterMm) || ''}
+                              onChange={numero('internalDiameterMm')}
+                            />
+                          )}
                         </td>
                         <td>
                           <input

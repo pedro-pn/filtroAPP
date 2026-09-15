@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import {
   ComercialValidationError,
   atualizarLevantamento,
   criarLevantamento,
+  listarLevantamentos,
   mensagemDeErro,
   obterLevantamento,
   prepararRevisaoDaProposta,
-  reservarProximoNumero
+  reservarProximoNumero,
+  type LevantamentoSalvo
 } from '../../../api/comercial';
 import { moduleRoutePath } from '../../../modules/registry';
 import { ComercialChrome } from '../components/ComercialChrome';
@@ -41,6 +43,7 @@ import {
   rolarParaInicioDoFormulario
 } from '../navegacao';
 import { parametrosDaPropostaComLevantamento } from '../proposta/levantamentoVinculado';
+import { useAutosaveServidor } from '../useAutosaveServidor';
 
 /**
  * Levantamento de custos — container das cinco seções.
@@ -64,6 +67,11 @@ const SECOES: Array<{ value: CostSection; label: string }> = [
 ];
 
 type EstimateMode = 'new' | 'revision';
+
+const dataHora = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short'
+});
 
 /**
  * Mensagem legível de um erro de rede.
@@ -95,6 +103,9 @@ export function CustosPage() {
   const [recado, setRecado] = useState('');
   const [salvo, setSalvo] = useState<string | null>(null);
   const [focarPendencia, setFocarPendencia] = useState(false);
+  const [levantamentosRecentes, setLevantamentosRecentes] = useState<LevantamentoSalvo[]>([]);
+  const [carregandoRecentes, setCarregandoRecentes] = useState(false);
+  const [erroDosRecentes, setErroDosRecentes] = useState('');
 
   const levantamento = useLevantamento(user?.name || '', secao);
   const {
@@ -108,6 +119,32 @@ export function CustosPage() {
   const origemCarregada = useRef('');
   const atualCarregado = useRef('');
   const formularioRef = useRef<HTMLElement>(null);
+
+  const carregarLevantamentosRecentes = useCallback(async () => {
+    setCarregandoRecentes(true);
+    setErroDosRecentes('');
+    try {
+      const resposta = await listarLevantamentos({ pageSize: 100 });
+      setLevantamentosRecentes(
+        [...resposta.items]
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )
+          .slice(0, 8)
+      );
+    } catch (error) {
+      setErroDosRecentes(
+        mensagemDeErro(error, 'Não foi possível carregar os orçamentos salvos.')
+      );
+    } finally {
+      setCarregandoRecentes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (modo === null) void carregarLevantamentosRecentes();
+  }, [carregarLevantamentosRecentes, modo]);
 
   useEffect(() => {
     if (!focarPendencia) return;
@@ -200,6 +237,14 @@ export function CustosPage() {
    * trabalho. Modo, código e seção já vivem no endereço; o que faltava era o
    * conteúdo. A recuperação é **oferecida**, nunca aplicada em silêncio.
    */
+  const trabalhoProntoParaSalvar =
+    modo !== null &&
+    (levantamentoAtualId
+      ? Boolean(versaoDoRascunho)
+      : modo !== 'revision' ||
+        !levantamentoOrigemId ||
+        origemCarregada.current === levantamentoOrigemId);
+
   const rascunho = useRascunhoLocal({
     conta: user?.id || '',
     tela: 'custos',
@@ -209,14 +254,16 @@ export function CustosPage() {
     // Um registro com id ainda começa com o payload padrão enquanto o GET está
     // em voo. Ativar o rascunho antes da hidratação transformava a resposta do
     // servidor em falsa "alteração não salva".
-    ativo:
-      modo !== null &&
-      (levantamentoAtualId
-        ? Boolean(versaoDoRascunho)
-        : modo !== 'revision' ||
-          !levantamentoOrigemId ||
-          origemCarregada.current === levantamentoOrigemId),
+    ativo: trabalhoProntoParaSalvar,
     rotulo: `Custos ${base || '—'}`
+  });
+
+  const autosave = useAutosaveServidor({
+    dados: draft,
+    identidade: `custos:${modo || 'inicio'}:${base}:${revisionNumber}:${levantamentoOrigemId}`,
+    ativo: trabalhoProntoParaSalvar && salvo === null,
+    ocupado: salvando || salvandoRascunho,
+    salvar: async () => Boolean(await persistirRascunho(true))
   });
 
   // A cadeia do rodapé está completa: as quatro seções sabem dizer se pendem.
@@ -254,22 +301,23 @@ export function CustosPage() {
    * É o equivalente do "Salvar e continuar" da proposta: a validação integral
    * fica para a promoção a SALVO, mas o trabalho já não depende do navegador.
    */
-  async function persistirRascunho(): Promise<string | null> {
-    if (!modo || salvandoRascunho) return null;
+  async function persistirRascunho(automatico = false): Promise<string | null> {
+    if (!modo || salvandoRascunho || salvando) return null;
     if (levantamentoAtualId && !versaoDoRascunho) {
       setRecado('Aguarde o rascunho terminar de carregar antes de continuar.');
       return null;
     }
 
     setSalvandoRascunho(true);
-    setRecado('Salvando rascunho na sua conta...');
+    if (!automatico) setRecado('Salvando rascunho na sua conta...');
+    const snapshot = draft;
     const entrada = {
       proposalCode: base,
       revisionNumber: modo === 'revision' ? revisionNumber : 0,
       title: String(draft.title || 'Rascunho de levantamento'),
       mode: modo === 'revision' ? ('REVISAO' as const) : ('NOVA' as const),
       status: 'RASCUNHO' as const,
-      payload: draft
+      payload: snapshot
     };
 
     try {
@@ -287,7 +335,10 @@ export function CustosPage() {
         atualCarregado.current = gravado.id;
       }
       rascunho.limparAtual();
-      setRecado('Rascunho salvo na sua conta.');
+      if (!automatico) {
+        autosave.marcarSalvo(snapshot);
+        setRecado('Rascunho salvo na sua conta.');
+      }
       return gravado.id;
     } catch (error) {
       setRecado(mensagemDeErro(error, 'Não foi possível salvar o rascunho.'));
@@ -302,6 +353,17 @@ export function CustosPage() {
     proximos.set('modo', novoModo);
     if (numero) proximos.set('base', numero);
     proximos.set('secao', 'premises');
+    setParams(proximos, { replace: true });
+  }
+
+  function continuarLevantamento(levantamento: LevantamentoSalvo) {
+    const proximos = new URLSearchParams({
+      modo: levantamento.mode === 'REVISAO' ? 'revision' : 'new',
+      base: levantamento.proposalCode,
+      revisao: String(levantamento.revisionNumber || 0),
+      id: levantamento.id,
+      secao: levantamento.status === 'SALVO' ? 'summary' : 'premises'
+    });
     setParams(proximos, { replace: true });
   }
 
@@ -618,6 +680,57 @@ export function CustosPage() {
               </button>
             </div>
 
+            <section className="com-levantamentos-entrada" aria-live="polite">
+              <div className="com-levantamentos-cabecalho">
+                <div>
+                  <strong>Orçamentos salvos</strong>
+                  <span>Abra um levantamento recente e continue de onde parou.</span>
+                </div>
+                {!carregandoRecentes && (
+                  <button
+                    type="button"
+                    className="com-btn com-btn-fantasma"
+                    onClick={() => void carregarLevantamentosRecentes()}
+                  >
+                    Atualizar
+                  </button>
+                )}
+              </div>
+
+              {carregandoRecentes ? (
+                <p>Carregando orçamentos...</p>
+              ) : erroDosRecentes ? (
+                <p className="com-recado">{erroDosRecentes}</p>
+              ) : levantamentosRecentes.length === 0 ? (
+                <p>Nenhum orçamento salvo está disponível.</p>
+              ) : (
+                <div className="com-levantamentos-lista">
+                  {levantamentosRecentes.map(levantamento => (
+                    <button
+                      key={levantamento.id}
+                      type="button"
+                      onClick={() => continuarLevantamento(levantamento)}
+                    >
+                      <span>
+                        <strong>
+                          Proposta {levantamento.proposalCode}
+                          {levantamento.revisionNumber > 0
+                            ? ` · Rev ${levantamento.revisionNumber}`
+                            : ''}
+                        </strong>
+                        <small>
+                          {levantamento.title || 'Orçamento sem título'} ·{' '}
+                          {levantamento.status === 'SALVO' ? 'Concluído' : 'Rascunho'} ·{' '}
+                          Atualizado em {dataHora.format(new Date(levantamento.updatedAt))}
+                        </small>
+                      </span>
+                      <b>Continuar</b>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
             {recado && <p className="com-recado">{recado}</p>}
 
             {mostrarRevisao && (
@@ -806,6 +919,11 @@ export function CustosPage() {
             <div className="com-codigo-vinculado">
               <small>LEVANTAMENTO E PROPOSTA</small>
               <strong>{codigo}</strong>
+              {autosave.rotulo && (
+                <span className={`com-autosave is-${autosave.estado}`} role="status">
+                  {autosave.rotulo}
+                </span>
+              )}
             </div>
 
             <div className="com-rodape-acoes">
