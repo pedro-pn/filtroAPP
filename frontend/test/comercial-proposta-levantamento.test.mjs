@@ -115,6 +115,103 @@ test('o preço do levantamento entra na proposta como verba global editável', (
   );
 });
 
+test('o preço importado pode nascer no cenário ONSHORE do hidrojateamento', () => {
+  assert.deepEqual(
+    mod.itemDePrecoDoLevantamento(
+      {
+        title: 'Teste de pressão e limpeza química',
+        salePrice: '38139.33'
+      },
+      { local: 'ONSHORE' }
+    ),
+    {
+      description: 'Teste de pressão e limpeza química',
+      unit: 'VB',
+      quantity: '1',
+      unitValue: 'R$ 38.139,33',
+      value: 'R$ 38.139,33',
+      local: 'ONSHORE'
+    }
+  );
+});
+
+test('proposta salva só recebe o levantamento quando ainda está sem preço', () => {
+  assert.equal(
+    mod.precosPrecisamDoLevantamento([
+      {
+        description: 'Serviço especializado conforme escopo',
+        unit: 'VB',
+        quantity: '1',
+        unitValue: 'R$ 0,00',
+        value: 'R$ 0,00'
+      }
+    ]),
+    true
+  );
+  assert.equal(
+    mod.precosPrecisamDoLevantamento([
+      {
+        description: 'Descrição ajustada pelo comercial',
+        unit: 'VB',
+        quantity: '1',
+        unitValue: 'R$ 12.345,67',
+        value: 'R$ 12.345,67'
+      }
+    ]),
+    false
+  );
+});
+
+test('a descrição genérica recebe os serviços sem sobrescrever preço já negociado', () => {
+  assert.deepEqual(
+    mod.preencherPrecosAusentesDoLevantamento(
+      [
+        {
+          description: 'Serviço especializado conforme escopo',
+          unit: 'VB',
+          quantity: '1',
+          unitValue: 'R$ 12.345,67',
+          value: 'R$ 12.345,67'
+        }
+      ],
+      {
+        description: 'Teste de pressão e limpeza química',
+        unit: 'VB',
+        quantity: '1',
+        unitValue: 'R$ 38.139,33',
+        value: 'R$ 38.139,33',
+        local: 'ONSHORE'
+      }
+    ),
+    [
+      {
+        description: 'Teste de pressão e limpeza química',
+        unit: 'VB',
+        quantity: '1',
+        unitValue: 'R$ 12.345,67',
+        value: 'R$ 12.345,67',
+        local: 'ONSHORE'
+      }
+    ]
+  );
+});
+
+test('continuar proposta vinculada solicita o preenchimento dos campos ausentes', () => {
+  const pagina = readFileSync(
+    new URL('../src/pages/comercial/proposta/PropostaPage.tsx', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(
+    pagina,
+    /continuarPropostaDoLevantamento[\s\S]*?usarLevantamento: '1'/
+  );
+  assert.match(
+    pagina,
+    /preencherPrecosAusentesDoLevantamento\(atuais, importado\)/
+  );
+});
+
 test('o local da obra vem do destino principal orçado no levantamento', () => {
   assert.equal(
     mod.localDaObraDoLevantamento({

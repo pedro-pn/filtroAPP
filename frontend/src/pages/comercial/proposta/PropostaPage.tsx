@@ -73,7 +73,8 @@ import {
   formatarValorDoLevantamento,
   itemDePrecoDoLevantamento,
   localDaObraDoLevantamento,
-  parametrosDaPropostaComLevantamento
+  parametrosDaPropostaComLevantamento,
+  preencherPrecosAusentesDoLevantamento
 } from './levantamentoVinculado';
 import { ClienteStep } from './steps/ClienteStep';
 import { EscopoStep } from './steps/EscopoStep';
@@ -298,10 +299,12 @@ export function PropostaPage() {
         if (!vivo) return;
         setLevantamentoVinculado(levantamento);
 
+        const propostaPronta = !propostaId || Boolean(versaoCarregada);
         const deveAplicar =
           usarDadosDoLevantamento &&
-          !propostaId &&
+          propostaPronta &&
           revisaoPronta &&
+          modelo !== null &&
           levantamentoAplicado.current !== levantamento.id;
         if (!deveAplicar) return;
 
@@ -309,13 +312,24 @@ export function PropostaPage() {
         const localDaObra = localDaObraDoLevantamento(levantamento);
         setForm((atual) => ({
           ...atual,
-          title: levantamento.title || String(atual.title || ''),
-          ...(localDaObra ? { site: localDaObra } : {})
+          title: String(atual.title || '').trim()
+            ? atual.title
+            : levantamento.title || '',
+          ...(!String(atual.site || '').trim() && localDaObra
+            ? { site: localDaObra }
+            : {})
         }));
-        setPrecos([itemDePrecoDoLevantamento(levantamento)]);
+        setPrecos((atuais) => {
+          const importado = itemDePrecoDoLevantamento(levantamento, {
+            ...(modelo === 'hidrojateamento' ? { local: 'ONSHORE' } : {})
+          });
+          return propostaId
+            ? preencherPrecosAusentesDoLevantamento(atuais, importado)
+            : [importado];
+        });
         setRecado(
           `Levantamento ${levantamento.proposalCode} vinculado. ` +
-            'O local da obra e o preço de venda foram carregados para a proposta.'
+            'Os campos ausentes e o preço de venda foram carregados para a proposta.'
         );
       })
       .catch((error) => {
@@ -332,7 +346,14 @@ export function PropostaPage() {
     return () => {
       vivo = false;
     };
-  }, [levantamentoId, propostaId, revisaoPronta, usarDadosDoLevantamento]);
+  }, [
+    levantamentoId,
+    modelo,
+    propostaId,
+    revisaoPronta,
+    usarDadosDoLevantamento,
+    versaoCarregada
+  ]);
 
   const dadosDaEdicao = {
     form,
@@ -692,7 +713,8 @@ export function PropostaPage() {
       proposta: proposta.proposalCode,
       revisao: String(proposta.revisionNumber || 0),
       modo: proposta.revisionNumber > 0 ? 'revision' : 'new',
-      etapa: proposta.status === 'FALHA_INTEGRACAO' ? 'revisao' : 'cliente'
+      etapa: proposta.status === 'FALHA_INTEGRACAO' ? 'revisao' : 'cliente',
+      usarLevantamento: '1'
     });
     setParams(proximos, { replace: true });
   }
