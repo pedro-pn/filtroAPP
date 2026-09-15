@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 
 import {
   ComercialValidationError,
@@ -44,6 +44,7 @@ import {
 } from '../navegacao';
 import { parametrosDaPropostaComLevantamento } from '../proposta/levantamentoVinculado';
 import { useAutosaveServidor } from '../useAutosaveServidor';
+import type { PendenciasDoLevantamento } from '../proposta/prepararLevantamento';
 
 /**
  * Levantamento de custos — container das cinco seções.
@@ -82,6 +83,7 @@ const dataHora = new Intl.DateTimeFormat('pt-BR', {
  */
 export function CustosPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
 
@@ -119,6 +121,30 @@ export function CustosPage() {
   const origemCarregada = useRef('');
   const atualCarregado = useRef('');
   const formularioRef = useRef<HTMLElement>(null);
+  const pendenciasRecebidas = (location.state as {
+    pendenciasDoLevantamento?: PendenciasDoLevantamento;
+  } | null)?.pendenciasDoLevantamento;
+  const pendenciasApresentadas = useRef<PendenciasDoLevantamento | null>(null);
+
+  useEffect(() => {
+    if (
+      !pendenciasRecebidas ||
+      pendenciasRecebidas === pendenciasApresentadas.current ||
+      pendenciasRecebidas.levantamentoId !== levantamentoAtualId ||
+      !versaoDoRascunho
+    ) return;
+
+    pendenciasApresentadas.current = pendenciasRecebidas;
+    aplicarIssuesDoServidor(pendenciasRecebidas.issues, secao);
+    setRecado('O levantamento tem pendências. Corrija os campos destacados para continuar a criação da proposta.');
+    setFocarPendencia(true);
+  }, [
+    pendenciasRecebidas,
+    levantamentoAtualId,
+    versaoDoRascunho,
+    aplicarIssuesDoServidor,
+    secao
+  ]);
 
   const carregarLevantamentosRecentes = useCallback(async () => {
     setCarregandoRecentes(true);
@@ -525,9 +551,9 @@ export function CustosPage() {
           error.issues.map((item) => item.path || '').filter(Boolean)
         );
         aplicarIssuesDoServidor(error.issues, destino || secao);
+        setFocarPendencia(true);
         if (destino) {
           trocarSecao(destino, false, rascunhoSalvoId || levantamentoAtualId);
-          setFocarPendencia(true);
         } else if (rascunhoSalvoId && !levantamentoAtualId) {
           const proximos = new URLSearchParams(params);
           proximos.set('id', rascunhoSalvoId);

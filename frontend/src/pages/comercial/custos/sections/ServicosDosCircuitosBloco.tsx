@@ -38,6 +38,10 @@ export function ServicosDosCircuitosBloco({
   const circuitos = registros(draft.volumeSystems).filter(circuito => circuito.enabled !== false);
   const associacoes = registros(draft.circuitServices);
   const erroGeral = erroDe('circuitServices');
+  const temErroEmLinha = associacoes.some((_, indice) =>
+    erroDe(`circuitServices[${indice}].systemId`) ||
+    erroDe(`circuitServices[${indice}].serviceId`)
+  );
 
   function acrescentar() {
     setDraft(atual => ({
@@ -54,7 +58,11 @@ export function ServicosDosCircuitosBloco({
   }
 
   return (
-    <section className="com-painel">
+    <section
+      className={`com-painel${erroGeral ? ' com-campo-invalido' : ''}`}
+      aria-invalid={Boolean(erroGeral && !temErroEmLinha) || undefined}
+      aria-describedby={erroGeral ? 'com-servicos-circuitos-erro' : undefined}
+    >
       <div className="com-secao-titulo">
         <div>
           <h2>Serviços por circuito</h2>
@@ -73,7 +81,11 @@ export function ServicosDosCircuitosBloco({
         </button>
       </div>
 
-      {erroGeral && <AvisoPendencia>{erroGeral}</AvisoPendencia>}
+      {erroGeral && (
+        <div id="com-servicos-circuitos-erro">
+          <AvisoPendencia>{erroGeral}</AvisoPendencia>
+        </div>
+      )}
 
       {circuitos.length === 0 ? (
         <div className="com-vazio">
@@ -108,6 +120,8 @@ export function ServicosDosCircuitosBloco({
                       <select
                         aria-label={`Circuito do serviço ${indice + 1}`}
                         aria-invalid={Boolean(erroCircuito) || undefined}
+                        className={erroCircuito ? 'com-campo-invalido' : undefined}
+                        aria-describedby={erroCircuito ? `${id}-circuito-erro` : undefined}
                         value={String(associacao.systemId || '')}
                         onChange={event => editar({ systemId: event.target.value })}
                       >
@@ -118,12 +132,16 @@ export function ServicosDosCircuitosBloco({
                           </option>
                         ))}
                       </select>
-                      {erroCircuito && <small className="field-error">{erroCircuito}</small>}
+                      {erroCircuito && (
+                        <small id={`${id}-circuito-erro`} className="field-error">{erroCircuito}</small>
+                      )}
                     </td>
                     <td>
                       <select
                         aria-label={`Serviço do circuito ${indice + 1}`}
                         aria-invalid={Boolean(erroServico) || undefined}
+                        className={erroServico ? 'com-campo-invalido' : undefined}
+                        aria-describedby={erroServico ? `${id}-servico-erro` : undefined}
                         value={String(associacao.serviceId || '')}
                         onChange={event => editar({ serviceId: event.target.value })}
                       >
@@ -134,7 +152,9 @@ export function ServicosDosCircuitosBloco({
                           </option>
                         ))}
                       </select>
-                      {erroServico && <small className="field-error">{erroServico}</small>}
+                      {erroServico && (
+                        <small id={`${id}-servico-erro`} className="field-error">{erroServico}</small>
+                      )}
                     </td>
                     <td>
                       <span className="com-contagem">

@@ -23,6 +23,7 @@ const RAIZ_PARA_SECAO: Record<string, CostSection> = {
 
   materials: 'inputs',
   volumeSystems: 'inputs',
+  circuitServices: 'inputs',
   products: 'inputs',
   filters: 'inputs',
   effluent: 'inputs',

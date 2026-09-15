@@ -1,20 +1,23 @@
 import { useState } from 'react';
 
 import {
+  ComercialValidationError,
   listarLevantamentos,
   mensagemDeErro,
+  type ComercialIssue,
   type LevantamentoSalvo
 } from '../../../api/comercial';
 import { BotaoFecharDialogo } from '../components/FecharDialogo';
 import { LOGO_URL } from '../components/marca';
 import { MarcaDeOpcao } from '../components/MarcaDeOpcao';
 import { formatarValorDoLevantamento } from './levantamentoVinculado';
+import { prepararLevantamentoParaProposta } from './prepararLevantamento';
 
 /** Entrada da proposta: nova ou revisão de um número existente (PROP-CTL-001..005). */
 export function PropostaModeDialog({
   recado,
   onLevantamento,
-  onConcluirLevantamento,
+  onPendenciasDoLevantamento,
   onPropostaExistente,
   onNova,
   onRevisao,
@@ -22,7 +25,10 @@ export function PropostaModeDialog({
 }: {
   recado: string;
   onLevantamento: (levantamento: LevantamentoSalvo) => void;
-  onConcluirLevantamento: (levantamento: LevantamentoSalvo) => void;
+  onPendenciasDoLevantamento: (
+    levantamento: LevantamentoSalvo,
+    issues: ComercialIssue[]
+  ) => void;
   onPropostaExistente: (levantamento: LevantamentoSalvo) => void;
   onNova: () => void;
   onRevisao: (codigo: string) => Promise<boolean>;
@@ -36,6 +42,26 @@ export function PropostaModeDialog({
   const [carregandoLevantamentos, setCarregandoLevantamentos] = useState(false);
   const [levantamentos, setLevantamentos] = useState<LevantamentoSalvo[]>([]);
   const [erroDosLevantamentos, setErroDosLevantamentos] = useState('');
+  const [levantamentoEmAbertura, setLevantamentoEmAbertura] = useState('');
+
+  async function escolherLevantamento(item: LevantamentoSalvo) {
+    if (levantamentoEmAbertura) return;
+    setLevantamentoEmAbertura(item.id);
+    setErroDosLevantamentos('');
+    try {
+      onLevantamento(await prepararLevantamentoParaProposta(item.id));
+    } catch (error) {
+      if (error instanceof ComercialValidationError) {
+        onPendenciasDoLevantamento(item, error.issues);
+      } else {
+        setErroDosLevantamentos(
+          mensagemDeErro(error, 'Não foi possível abrir a proposta com este levantamento.')
+        );
+      }
+    } finally {
+      setLevantamentoEmAbertura('');
+    }
+  }
 
   async function abrirLevantamentos(forcar = false) {
     setMostrarLevantamentos(true);
@@ -91,7 +117,11 @@ export function PropostaModeDialog({
         </p>
 
         <div className="com-modo-opcoes com-modo-tres">
-          <button type="button" onClick={() => void abrirLevantamentos()}>
+          <button
+            type="button"
+            disabled={Boolean(levantamentoEmAbertura)}
+            onClick={() => void abrirLevantamentos()}
+          >
             <MarcaDeOpcao tipo="ok" />
             <strong>Usar levantamento salvo</strong>
             <span>
@@ -100,6 +130,7 @@ export function PropostaModeDialog({
           </button>
           <button
             type="button"
+            disabled={Boolean(levantamentoEmAbertura)}
             onClick={() => {
               setMostrarLevantamentos(false);
               onNova();
@@ -113,6 +144,7 @@ export function PropostaModeDialog({
           </button>
           <button
             type="button"
+            disabled={Boolean(levantamentoEmAbertura)}
             onClick={() => {
               setMostrarLevantamentos(false);
               setMostrarRevisao(true);
@@ -130,13 +162,15 @@ export function PropostaModeDialog({
               <div>
                 <strong>Levantamentos salvos</strong>
                 <span>
-                  Use um levantamento concluído ou abra um rascunho para
-                  revisar e concluir. Se já houver proposta, você continuará nela.
+                  Escolha o levantamento para carregar os dados, serviços e valores
+                  na proposta. Se houver pendências, os campos serão destacados.
+                  Se já houver proposta, você continuará nela.
                 </span>
               </div>
               {!carregandoLevantamentos && (
                 <button
                   type="button"
+                  disabled={Boolean(levantamentoEmAbertura)}
                   className="com-btn com-btn-fantasma"
                   onClick={() => {
                     void abrirLevantamentos(true);
@@ -150,7 +184,7 @@ export function PropostaModeDialog({
             {carregandoLevantamentos ? (
               <p>Carregando levantamentos...</p>
             ) : erroDosLevantamentos ? (
-              <p className="com-recado">{erroDosLevantamentos}</p>
+              <p className="com-recado" role="alert">{erroDosLevantamentos}</p>
             ) : levantamentos.length === 0 ? (
               <p>
                 Nenhum levantamento foi encontrado. Salve um orçamento para
@@ -176,10 +210,12 @@ export function PropostaModeDialog({
                     <button
                       key={item.id}
                       type="button"
-                      disabled={emProcessamento}
+                      disabled={emProcessamento || Boolean(levantamentoEmAbertura)}
                       onClick={() => {
-                        if (!proposta && rascunho) return onConcluirLevantamento(item);
-                        if (!proposta) return onLevantamento(item);
+                        if (!proposta) {
+                          void escolherLevantamento(item);
+                          return;
+                        }
                         if (proposta.status === 'FINALIZADA') {
                           void onRevisao(proposta.proposalCode);
                           return;
@@ -201,7 +237,7 @@ export function PropostaModeDialog({
                         </small>
                       </span>
                       <b>
-                        {!proposta && rascunho ? 'Revisar e concluir orçamento · ' : ''}
+                        {levantamentoEmAbertura === item.id ? 'Validando levantamento... · ' : ''}
                         {formatarValorDoLevantamento(item.salePrice) ||
                           'Preço a revisar'}
                       </b>

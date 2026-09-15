@@ -96,6 +96,7 @@ import {
   rolarParaInicioDoFormulario
 } from '../navegacao';
 import { useAutosaveServidor } from '../useAutosaveServidor';
+import { parametrosDasPendenciasDoLevantamento } from './prepararLevantamento';
 
 /**
  * Montagem da proposta — container das 7 etapas (`PROP-CTL-001..010`, `PROP-H-001..003`).
@@ -951,15 +952,11 @@ export function PropostaPage() {
           revisão com snapshot completo, já vem da proposta anterior. */}
       {modo === null && (
         <PropostaModeDialog
-          onConcluirLevantamento={levantamento => {
-            const proximos = new URLSearchParams({
-              modo: levantamento.mode === 'REVISAO' ? 'revision' : 'new',
-              base: levantamento.proposalCode,
-              revisao: String(levantamento.revisionNumber || 0),
-              id: levantamento.id,
-              secao: 'summary'
+          onPendenciasDoLevantamento={(levantamento, issues) => {
+            const proximos = parametrosDasPendenciasDoLevantamento(levantamento, issues);
+            navigate(`${moduleRoutePath('comercial', 'custos')}?${proximos}`, {
+              state: { pendenciasDoLevantamento: { levantamentoId: levantamento.id, issues } }
             });
-            navigate(`${moduleRoutePath('comercial', 'custos')}?${proximos}`);
           }}
           recado={recado}
           onLevantamento={iniciarComLevantamento}

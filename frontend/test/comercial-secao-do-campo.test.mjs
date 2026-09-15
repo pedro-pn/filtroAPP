@@ -41,6 +41,8 @@ test('caminhos reais da validação encontram sua seção', () => {
     ['laborContexts[3].assignments[2].people', 'labor'],
     ['materials[0].unitCost', 'inputs'],
     ['volumeSystems[1].volumeM3', 'inputs'],
+    ['circuitServices[0].serviceId', 'inputs'],
+    ['circuitServices[2].systemId', 'inputs'],
     ['products[0].dose', 'inputs'],
     ['filters[0].quantity', 'inputs'],
     ['logistics[2].calculationMode', 'logistics'],

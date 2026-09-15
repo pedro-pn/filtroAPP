@@ -70,7 +70,7 @@ test('finalização e escolha manual usam o mesmo endereço de importação', ()
   });
 });
 
-test('a escolha manual mostra rascunhos e pede sua conclusão antes de criar proposta', () => {
+test('a escolha manual valida o rascunho e abre a proposta, sem desvio só pelo status', () => {
   const dialogo = readFileSync(
     new URL(
       '../src/pages/comercial/proposta/PropostaModeDialog.tsx',
@@ -82,7 +82,9 @@ test('a escolha manual mostra rascunhos e pede sua conclusão antes de criar pro
   assert.doesNotMatch(dialogo, /status: 'SALVO'/);
   assert.match(dialogo, /setLevantamentos\(resposta\.items\)/);
   assert.match(dialogo, /Rascunho salvo/);
-  assert.match(dialogo, /if \(!proposta && rascunho\) return onConcluirLevantamento\(item\)/);
+  assert.doesNotMatch(dialogo, /onConcluirLevantamento/);
+  assert.match(dialogo, /onLevantamento\(await prepararLevantamentoParaProposta\(item.id\)\)/);
+  assert.match(dialogo, /error instanceof ComercialValidationError[\s\S]*?onPendenciasDoLevantamento\(item, error.issues\)/);
   assert.match(dialogo, /Continuar proposta/);
   assert.match(dialogo, /Tentar integrações novamente/);
 });
