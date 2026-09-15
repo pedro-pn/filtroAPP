@@ -1074,7 +1074,7 @@ export function ProjectDetailDashboard({
             })()}
           </div>
 
-          {data.presumedProfitTaxes ? (() => {
+          {data.canViewProjectFinancials && data.presumedProfitTaxes ? (() => {
             const taxes = data.presumedProfitTaxes;
             const expectedRevenue = toNum(data.faturamento.previsto);
             const expectedOriginalRevenue = toNum(data.faturamento.previstoOriginal);
@@ -1219,7 +1219,7 @@ export function ProjectDetailDashboard({
         </div>
       </div>
 
-      <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} />
+      {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} /> : null}
 
       {!isGroup ? (
         <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>

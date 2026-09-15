@@ -372,7 +372,7 @@ function Card({
         <span className="acp-pcard-strong">{card.collaboratorsCount}</span>
       </div>
 
-      {card.presumedProfitTaxes ? (
+      {card.canViewProjectFinancials && card.presumedProfitTaxes ? (
         <div className="acp-pcard-row">
           <span>
             IRPJ/CSLL fora da NF

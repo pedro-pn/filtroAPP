@@ -18,6 +18,10 @@ enum ReportType {
   RLI
 }
 
+enum AcompanhamentoExtraPermission {
+  VIEW_PROJECT_TAXES_AND_BILLING
+}
+
 enum ReportEmissionPermission {
   SITE_RDO
   MAINTENANCE
@@ -1897,6 +1901,7 @@ model User {
   role                                 UserRole
   accountType                          AccountType                         @default(INTERNAL)
   reportEmissionPermissions            ReportEmissionPermission[]          @default([])
+  acompanhamentoExtraPermissions       AcompanhamentoExtraPermission[]     @default([])
   isActive                             Boolean                             @default(true)
   clientCnpj                           String?
   privacyPolicyAcceptedAt              DateTime?

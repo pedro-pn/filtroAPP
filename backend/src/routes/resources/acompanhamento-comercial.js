@@ -39,6 +39,7 @@ import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAc
 import { projectSystemScopeInclude, projectSystemWithMeasurements, saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
 import { assertHistoricalProject } from '../../lib/reports/historical-services-store.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
 
 const router = Router();
 
@@ -225,7 +226,7 @@ router.get(
     const categoryCode = typeof req.query.category === 'string' && req.query.category ? req.query.category : null;
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
     const [rows, groups] = await Promise.all([listCommercialDashboard({ categoryCode, includeAdminOnlyCategories }), loadActiveMissionGroups()]);
-    res.json(groupDashboardRows(rows, groups));
+    res.json(projectFinancialsForUser(groupDashboardRows(rows, groups), req.auth.user));
   })
 );
 
@@ -237,7 +238,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
     const [cards, groups] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups()]);
-    res.json(groupProjectCards(cards, groups));
+    res.json(projectFinancialsForUser(groupProjectCards(cards, groups), req.auth.user));
   })
 );
 
@@ -416,7 +417,7 @@ router.get(
         includeCollaboratorCosts,
         includeAdminOnlyCategories
       });
-      res.json(detail);
+      res.json(projectFinancialsForUser(detail, req.auth.user));
     } catch (error) {
       return missionGroupErrorResponse(error, res);
     }
@@ -742,6 +743,7 @@ router.get(
   '/projetos/:projectId/faturamentos',
   requireAuth,
   requireAcompanhamentoAccess,
+  requireProjectFinancials,
   asyncHandler(async (req, res) => {
     const result = await getProjectInvoices(req.params.projectId);
     if (!result) return res.status(404).json({ error: 'Projeto não encontrado.' });
@@ -753,6 +755,7 @@ router.get(
   '/grupos-missoes/:groupId/faturamentos',
   requireAuth,
   requireAcompanhamentoAccess,
+  requireProjectFinancials,
   asyncHandler(async (req, res) => {
     try {
       res.json(await getMissionGroupInvoices(req.params.groupId));
@@ -774,7 +777,7 @@ router.get(
         includeCollaboratorCosts,
         includeAdminOnlyCategories
       });
-      res.json(detail);
+      res.json(projectFinancialsForUser(detail, req.auth.user));
     } catch (error) {
       res.status(404).json({ error: error.message });
     }

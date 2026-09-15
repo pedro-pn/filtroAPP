@@ -5,6 +5,7 @@ import { accountTypeForLegacyRole, serializeModuleRoles } from './module-roles.j
 import { notificationPreferences } from './notification-preferences.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from './privacy-consent.js';
 import { serializeReportEmissionPermissions } from './operational-reports/permissions.js';
+import { normalizeAcompanhamentoExtraPermissions } from '../../../shared/modules/acompanhamento-permissions.js';
 
 const SESSION_DAYS = 7;
 const REMEMBER_SESSION_DAYS = 30;
@@ -81,6 +82,10 @@ export function publicUser(user) {
     role: user.role,
     accountType: user.accountType || accountTypeForLegacyRole(user.role),
     moduleRoles: serializeModuleRoles(user),
+    acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(user.acompanhamentoExtraPermissions, {
+      accountType: user.accountType || accountTypeForLegacyRole(user.role),
+      moduleRoles: serializeModuleRoles(user)
+    }),
     reportEmissionPermissions: serializeReportEmissionPermissions(user),
     isActive: user.isActive,
     clientCnpj: user.clientCnpj || null,

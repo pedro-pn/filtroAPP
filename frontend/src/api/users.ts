@@ -1,5 +1,5 @@
 import { adminApiPath, apiClient } from './client';
-import type { AccountType, AuthUser, ModuleRole, ReportEmissionPermission } from '../types/auth';
+import type { AccountType, AcompanhamentoExtraPermission, AuthUser, ModuleRole, ReportEmissionPermission } from '../types/auth';
 import type { InternalUserSummary } from '../types/domain';
 
 export interface UserPayload {
@@ -11,6 +11,7 @@ export interface UserPayload {
   accountType?: AccountType;
   moduleRoles?: ModuleRole[];
   reportEmissionPermissions?: ReportEmissionPermission[];
+  acompanhamentoExtraPermissions?: AcompanhamentoExtraPermission[];
   isActive?: boolean;
   collaboratorId?: string | null;
 }
