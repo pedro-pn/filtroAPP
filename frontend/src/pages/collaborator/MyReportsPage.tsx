@@ -11,7 +11,6 @@ import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
@@ -37,7 +36,6 @@ export function MyReportsPage() {
   });
   // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
   const [search, setSearch] = usePersistentSearch(`my-reports-search:${user?.id || user?.username || 'anonymous'}:${tab}`);
-  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const pendingReportsQuery = useAccumulatedReportsPage({
@@ -45,7 +43,7 @@ export function MyReportsPage() {
     summary: true,
     projectActive: true,
     statuses: ['PENDING', 'RETURNED'],
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'pending');
@@ -54,7 +52,7 @@ export function MyReportsPage() {
     summary: true,
     projectActive: true,
     statuses: ['APPROVED', 'SIGNED'],
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'approved');
@@ -107,6 +105,7 @@ export function MyReportsPage() {
           <div className="admin-search-row collaborator-report-search-row">
             <SearchBar
               value={search}
+              loading={reportsQuery.isSearching}
               onChange={setSearch}
               placeholder={tab === 'pending' ? 'Buscar em pendentes' : 'Buscar em aprovados'}
             />
@@ -118,8 +117,8 @@ export function MyReportsPage() {
             />
           </div>
         </section>
-        {reportsQuery.isLoading ? <ReportListSkeleton /> : null}
-        {!reportsQuery.isLoading && !groups.length ? (
+        {reportsQuery.isLoadingInitial ? <ReportListSkeleton /> : null}
+        {!reportsQuery.isLoadingInitial && !groups.length ? (
           <div className="page-card placeholder-copy">
             {tab === 'pending' ? 'Nenhum relatório pendente encontrado.' : 'Nenhum relatório aprovado encontrado.'}
           </div>

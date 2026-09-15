@@ -17,7 +17,6 @@ import { useToast } from '../../components/ui/ToastContext';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportCounts } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
@@ -140,8 +139,6 @@ export function CoordinatorPage() {
   });
   // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
   const [search, setSearch] = usePersistentSearch(`coordinator-search:${user?.id || 'anonymous'}:${tab}`);
-  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
-  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
@@ -159,7 +156,7 @@ export function CoordinatorPage() {
     statuses: ['PENDING', 'RETURNED'],
     projectActive: true,
     createdByUserId: user?.id || '',
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -167,7 +164,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -175,7 +172,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -535,7 +532,7 @@ export function CoordinatorPage() {
   function renderArchivedTab() {
     const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
 
-    if (archivedProjectsQuery.isLoading || reportsQuery.isLoading) {
+    if (archivedProjectsQuery.isLoading || reportsQuery.isLoadingInitial) {
       return <div className="page-card placeholder-copy">Carregando projetos arquivados...</div>;
     }
 
@@ -625,7 +622,7 @@ export function CoordinatorPage() {
     if (tab === 'estatisticas') return renderEstatisticasTab();
     if (tab === 'dds') return <DdsThemeManager />;
 
-    if (reportsQuery.isLoading) return <ReportListSkeleton />;
+    if (reportsQuery.isLoadingInitial) return <ReportListSkeleton />;
 
     const drafts = (draftsQuery.data || []).filter(draft => draft.projectId || draft.payload?.projectId);
     const draftsBlock = tab === 'pending' && drafts.length ? (
@@ -862,6 +859,7 @@ export function CoordinatorPage() {
                 ariaLabel={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
                 placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
                 value={search}
+                loading={tab !== 'nps' && reportsQuery.isSearching}
                 onChange={setSearch}
               />
             </div>

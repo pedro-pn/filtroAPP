@@ -123,6 +123,7 @@ apiClient.interceptors.request.use(config => {
 apiClient.interceptors.response.use(
   response => response,
   error => {
+    if (axios.isCancel(error)) return Promise.reject(error);
     const status = axios.isAxiosError(error) ? error.response?.status : undefined;
 
     if (status === 401 && axios.isAxiosError(error)) {

@@ -67,7 +67,6 @@ import { useCollaboratorMutations } from '../../hooks/useCollaborators';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useProjectMutations } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportCounts, useReportMutations } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
@@ -1116,8 +1115,6 @@ export function GestorPage() {
   const [equipeSubTab, setEquipeSubTab] = useState<'colaboradores' | 'cargos' | 'dds'>('colaboradores');
   // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
   const [gestorSearch, setGestorSearch] = usePersistentSearch(`gestor-search:${user?.id || 'anonymous'}:${tab}`);
-  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
-  const debouncedGestorSearch = useDebouncedValue(gestorSearch, 300);
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
   const gestorUiPrefsStorageKey = `gestor-ui-prefs:${user?.id || 'anonymous'}`;
   const initialUiPrefs = useMemo(() => readGestorUiPrefs(gestorUiPrefsStorageKey), [gestorUiPrefsStorageKey]);
@@ -1184,7 +1181,7 @@ export function GestorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search: debouncedGestorSearch,
+    search: gestorSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'aprovados');
@@ -1192,7 +1189,7 @@ export function GestorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search: debouncedGestorSearch,
+    search: gestorSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'arquivados');
@@ -4134,7 +4131,7 @@ export function GestorPage() {
 
     return (
       <div className="admin-search-row">
-        <SearchBar value={gestorSearch} onChange={setGestorSearch} placeholder={label} ariaLabel={label} />
+        <SearchBar value={gestorSearch} loading={(tab === 'aprovados' || tab === 'arquivados') && reportListQuery.isSearching} onChange={setGestorSearch} placeholder={label} ariaLabel={label} />
       </div>
     );
   }

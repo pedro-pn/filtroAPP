@@ -8,6 +8,7 @@ import { ClientReviewAction, Prisma, ReportSignatureStatus, ReportStatus, Report
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import { resolveReportCounter, resolveReportManometers, resolveReportUnits } from '../../lib/report-equipment-resolve.js';
@@ -1560,7 +1561,7 @@ function applyReportReviewQueueFilter(where, reviewQueue) {
 
 function parseReportSearchTerm(query) {
   const term = String(query.search || '').trim();
-  return term.length >= 2 ? term.slice(0, 120) : '';
+  return term.slice(0, 120);
 }
 
 function parseReportSortDirection(query) {
@@ -1605,65 +1606,6 @@ function buildReportSearchWhere(term) {
     or.push({ sequenceNumber: numericTerm });
   }
   return { OR: or };
-}
-
-function normalizeReportSearchValue(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
-function compactReportSearchValue(value) {
-  return value.replace(/[^\p{L}\p{N}]+/gu, '');
-}
-
-function reportSearchTokens(term) {
-  return normalizeReportSearchValue(term)
-    .trim()
-    .split(/\s+/)
-    .map(token => token.trim())
-    .filter(Boolean);
-}
-
-function reportSearchParts(report) {
-  const serviceData = plainObject(report.specialConditions?.serviceData);
-  const manualUpload = plainObject(report.specialConditions?.[MANUAL_REPORT_UPLOAD_KEY]);
-  return [
-    report.reportType,
-    report.sequenceNumber,
-    report.status,
-    report.reportDate,
-    report.project?.code,
-    report.project?.name,
-    report.project?.clientName,
-    report.project?.clientCnpj,
-    report.createdBy?.name,
-    report.createdBy?.collaborator?.name,
-    report.overtimeReason,
-    report.dailyDescription,
-    report.reviewNotes,
-    ...Object.values(serviceData),
-    manualUpload.originalFileName,
-    ...(report.collaborators || []).map(item => item.collaborator?.name),
-    ...(report.services || []).flatMap(service => [
-      service.serviceType,
-      service.equipment?.code,
-      service.equipment?.name,
-      service.system,
-      service.material
-    ])
-  ];
-}
-
-function reportMatchesSearch(report, term) {
-  const tokens = reportSearchTokens(term);
-  if (!tokens.length) return true;
-  const searchable = normalizeReportSearchValue(reportSearchParts(report).join(' '));
-  const compactSearchable = compactReportSearchValue(searchable);
-  return tokens.every(token => (
-    searchable.includes(token) || compactSearchable.includes(compactReportSearchValue(token))
-  ));
 }
 
 export function approvedRdoHistoryWhere(projectId) {
@@ -5794,6 +5736,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   const reportSortDirection = parseReportSortDirection(req.query);
   const projectSortDirection = parseProjectSortDirection(req.query);
   const { where, searchTerm } = await buildReportListWhere(req.auth, req.query);
+  const matchesSearch = createReportSearchMatcher(searchTerm);
 
   const tGet0 = Date.now();
   const orderBy = reportSortDirection
@@ -5830,6 +5773,18 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     total = result.total;
     groups = result.groups;
     projectTotal = result.projectTotal;
+  } else if (searchTerm && canPaginateInDatabase) {
+    const candidates = await prisma.report.findMany({ where, select: reportSearchSelect, orderBy });
+    const matches = candidates.filter(matchesSearch);
+    total = matches.length;
+    groups = reportGroupTotalsFromItems(matches);
+    projectTotal = reportProjectTotalFromItems(matches);
+    const pageIds = matches.slice(pagination.skip, pagination.skip + pagination.take).map(item => item.id);
+    items = pageIds.length ? await prisma.report.findMany({
+      where: { ...where, id: { in: pageIds } },
+      ...reportListQueryShape,
+      orderBy
+    }) : [];
   } else {
     items = await prisma.report.findMany({
       where,
@@ -5837,7 +5792,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
       orderBy
     });
     if (searchTerm && req.auth.user.role !== 'CLIENT') {
-      items = items.filter(item => reportMatchesSearch(item, searchTerm));
+      items = items.filter(matchesSearch);
     }
     if (pagination && canPaginateInDatabase) {
       total = items.length;
@@ -5855,7 +5810,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
       : new Map(items.map(item => [item.id, item]));
     const visibleItems = items
       .filter(item => canClientSeeReport(item, byId))
-      .filter(item => reportMatchesSearch(item, searchTerm));
+      .filter(matchesSearch);
     if (pagination) {
       const pageItems = visibleItems.slice(pagination.skip, pagination.skip + pagination.take);
       const groups = reportGroupTotalsFromItems(visibleItems);
