@@ -14,6 +14,7 @@ import { formatarValorDoLevantamento } from './levantamentoVinculado';
 export function PropostaModeDialog({
   recado,
   onLevantamento,
+  onConcluirLevantamento,
   onPropostaExistente,
   onNova,
   onRevisao,
@@ -21,6 +22,7 @@ export function PropostaModeDialog({
 }: {
   recado: string;
   onLevantamento: (levantamento: LevantamentoSalvo) => void;
+  onConcluirLevantamento: (levantamento: LevantamentoSalvo) => void;
   onPropostaExistente: (levantamento: LevantamentoSalvo) => void;
   onNova: () => void;
   onRevisao: (codigo: string) => Promise<boolean>;
@@ -44,15 +46,9 @@ export function PropostaModeDialog({
     setErroDosLevantamentos('');
     try {
       const resposta = await listarLevantamentos({
-        status: 'SALVO',
         pageSize: 100
       });
-      // A regra também existe no servidor. O filtro local mantém a tela segura
-      // durante atualização gradual, caso ela converse por alguns minutos com
-      // uma instância antiga da API que ainda ignore o parâmetro `status`.
-      setLevantamentos(
-        resposta.items.filter((item) => item.status === 'SALVO')
-      );
+      setLevantamentos(resposta.items);
     } catch (error) {
       setErroDosLevantamentos(
         mensagemDeErro(
@@ -134,8 +130,8 @@ export function PropostaModeDialog({
               <div>
                 <strong>Levantamentos salvos</strong>
                 <span>
-                  Somente levantamentos concluídos. Se já houver proposta, você
-                  continuará nela.
+                  Use um levantamento concluído ou abra um rascunho para
+                  revisar e concluir. Se já houver proposta, você continuará nela.
                 </span>
               </div>
               {!carregandoLevantamentos && (
@@ -157,13 +153,14 @@ export function PropostaModeDialog({
               <p className="com-recado">{erroDosLevantamentos}</p>
             ) : levantamentos.length === 0 ? (
               <p>
-                Nenhum levantamento salvo está disponível. Salve o levantamento
-                de custos antes de iniciar a proposta.
+                Nenhum levantamento foi encontrado. Salve um orçamento para
+                encontrá-lo aqui e continuar a proposta.
               </p>
             ) : (
               <div className="com-levantamentos-lista">
                 {levantamentos.map((item) => {
                   const proposta = item.propostaVinculada;
+                  const rascunho = item.status !== 'SALVO';
                   const emProcessamento = proposta?.status === 'FINALIZANDO';
                   const rotulo =
                     proposta?.status === 'RASCUNHO'
@@ -181,6 +178,7 @@ export function PropostaModeDialog({
                       type="button"
                       disabled={emProcessamento}
                       onClick={() => {
+                        if (!proposta && rascunho) return onConcluirLevantamento(item);
                         if (!proposta) return onLevantamento(item);
                         if (proposta.status === 'FINALIZADA') {
                           void onRevisao(proposta.proposalCode);
@@ -197,12 +195,13 @@ export function PropostaModeDialog({
                             : ''}
                         </strong>
                         <small>
-                          Levantamento concluído ·{' '}
+                          {rascunho ? 'Rascunho salvo' : 'Levantamento concluído'} ·{' '}
                           {item.title || 'Levantamento sem título'}
                           {rotulo ? ` · ${rotulo}` : ''}
                         </small>
                       </span>
                       <b>
+                        {!proposta && rascunho ? 'Revisar e concluir orçamento · ' : ''}
                         {formatarValorDoLevantamento(item.salePrice) ||
                           'Preço a revisar'}
                       </b>

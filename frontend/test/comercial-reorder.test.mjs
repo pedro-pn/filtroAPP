@@ -222,8 +222,10 @@ test('responsabilidades permitem acrescentar linha e arrastar com efeito fantasm
     .transformRequest('/src/pages/comercial/proposta/steps/ResponsabilidadesStep.tsx')
     .then(r => r.code);
 
-  assert.match(fonte, /\+ Adicionar responsabilidade/);
+  assert.match(fonte, /\+ Adicionar nova linha/);
   assert.match(fonte, /linhaVazia/);
+  assert.match(fonte, /novaLinha,\s*\.\.\.atual/);
+  assert.match(fonte, /scrollIntoView/);
   assert.match(fonte, /com-responsabilidade-linha/);
   assert.match(fonte, /propsDaLinha/);
   assert.match(fonte, /propsDaAlca/);

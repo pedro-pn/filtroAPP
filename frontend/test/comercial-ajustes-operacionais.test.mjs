@@ -127,16 +127,22 @@ test('Incluir mão de obra reativa as fases preservadas sem duplicá-las', () =>
   assert.equal(estado.draft.laborContexts.length, 1);
 });
 
-test('produto oferece dimensionamento único para todos os circuitos', () => {
+test('produto oferece dimensionamento único para todos os circuitos com limpeza química', () => {
   const html = renderToStaticMarkup(
     createElement(ProdutosBloco, { levantamento: levantamento() })
   );
 
-  assert.match(html, /<option value="\*">Todos os circuitos<\/option>/);
+  assert.match(html, /<option value="\*">Todos com limpeza química<\/option>/);
 });
 
 test('produto excluído pode ser restaurado com todos os seus dados', () => {
   const estado = levantamento();
+  const circuitoDoProduto = estado.draft.products[0].systemId;
+  estado.draft.circuitServices = [{
+    id: 'servico-produto-restauravel',
+    systemId: circuitoDoProduto,
+    serviceId: 'limpeza_quimica'
+  }];
   estado.setDraft = atualizador => {
     estado.draft = atualizador(estado.draft);
   };

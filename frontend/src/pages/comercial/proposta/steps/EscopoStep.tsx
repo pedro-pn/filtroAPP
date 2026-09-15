@@ -221,11 +221,9 @@ export function EscopoStep({
             />
 
             <Area
-              label="Descrição completa do serviço"
-              required
+              label="Descrição completa do serviço (opcional)"
               value={item.description}
               hint='Na proposta comercial, o texto começará automaticamente por "Serviço especializado em mão de obra e execução técnica".'
-              error={erroDe(`escopo[${indice}].description`)}
               onChange={valor =>
                 onItens(atual =>
                   atual.map(c => (c.id === item.id ? { ...c, description: valor } : c))

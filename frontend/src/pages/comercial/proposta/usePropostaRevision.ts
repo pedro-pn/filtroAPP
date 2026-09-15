@@ -22,7 +22,11 @@ import {
   type ProximaRevisaoDaProposta,
   type VinculoCrmDaProposta
 } from '../../../api/comercial';
-import type { ItemDePreco, LinhaResponsabilidade } from './etapas';
+import {
+  recalcularItensDePreco,
+  type ItemDePreco,
+  type LinhaResponsabilidade
+} from './etapas';
 
 type AnyRecord = Record<string, unknown>;
 type SetParams = (params: URLSearchParams, options?: { replace?: boolean }) => void;
@@ -105,7 +109,7 @@ export function usePropostaRevision({
         setComplementoRelatorios(dados.technicalReports);
       }
       if (Array.isArray(dados.prices) && dados.prices.length) {
-        setPrecos(dados.prices as ItemDePreco[]);
+        setPrecos(recalcularItensDePreco(dados.prices as ItemDePreco[]));
       }
       if (typeof dados.includeUnitValue === 'boolean') {
         setIncluirUnitario(dados.includeUnitValue);

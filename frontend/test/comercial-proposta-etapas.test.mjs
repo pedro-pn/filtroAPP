@@ -114,14 +114,9 @@ test('as SEIS primeiras etapas travam; a última não tem o que travar', () => {
 // Etapas 2, 3 e 4
 // ---------------------------------------------------------------------------
 
-test('escopo: item pela metade não passa', () => {
-  // Um item sem descrição atravessa para o documento como uma seção 2.x
-  // numerada e vazia — o cliente vê o número e não vê o serviço.
+test('escopo: a descrição do serviço é opcional', () => {
   const itens = [{ title: 'Flushing', description: '' }];
-  const pendencias = mod.pendenciasDoEscopo('Limpeza química', itens);
-
-  assert.equal(pendencias.length, 1);
-  assert.equal(pendencias[0].campo, 'escopo[0].description');
+  assert.deepEqual(mod.pendenciasDoEscopo('Limpeza química', itens), []);
 });
 
 test('escopo: o endereço da pendência carrega o ÍNDICE do item', () => {
@@ -133,7 +128,7 @@ test('escopo: o endereço da pendência carrega o ÍNDICE do item', () => {
   ];
   const campos = mod.pendenciasDoEscopo('Título', itens).map(p => p.campo);
 
-  assert.deepEqual(campos, ['escopo[1].title', 'escopo[1].description']);
+  assert.deepEqual(campos, ['escopo[1].title']);
 });
 
 test('escopo: título da proposta é obrigatório junto com os itens', () => {
@@ -275,20 +270,75 @@ const precoCompleto = {
   value: 'R$ 38.000,00'
 };
 
+const formComercialCompleto = {
+  payment: '30 dias',
+  taxes: 'ISS incluso',
+  validity: '30',
+  overtimeRate: 'R$ 2.250,00',
+  standbyTeam: 'R$ 250,00',
+  standbyEquipment: 'R$ 1.000,00',
+  extraMobilization: 'R$ 4.500,00'
+};
+
 test('comercial: item de preço pela metade não conta', () => {
-  const form = { payment: '30 dias', taxes: 'ISS incluso', validity: '30' };
+  const form = formComercialCompleto;
 
   assert.deepEqual(mod.pendenciasDaComercial(form, [precoCompleto]), []);
 
-  for (const campo of ['description', 'unit', 'value']) {
+  for (const campo of ['description', 'quantity', 'unitValue']) {
     const pendencias = mod.pendenciasDaComercial(form, [{ ...precoCompleto, [campo]: '' }]);
     assert.equal(pendencias.length, 1, campo);
     assert.equal(pendencias[0].campo, 'precos');
   }
+
+  assert.deepEqual(
+    mod.pendenciasDaComercial(form, [{ ...precoCompleto, unit: '' }]),
+    [],
+    'unidade não é mais informada nem exigida'
+  );
+});
+
+test('comercial: valor total é quantidade × valor unitário', () => {
+  assert.match(mod.valorTotalDoItemDePreco('3', 'R$ 250,00'), /750,00/);
+  assert.match(mod.valorTotalDoItemDePreco('1,5', 'R$ 2.250,00'), /3\.375,00/);
+  assert.equal(mod.valorTotalDoItemDePreco('0', 'R$ 250,00'), '');
+
+  const recalculado = mod.recalcularItemDePreco({
+    ...precoCompleto,
+    quantity: '2',
+    unitValue: 'R$ 125,50',
+    value: 'R$ 999,00'
+  });
+  assert.match(recalculado.value, /251,00/);
+});
+
+test('comercial: os quatro adicionais são obrigatórios', () => {
+  for (const campo of mod.CAMPOS_STANDBY.map(item => item.campo)) {
+    const pendencias = mod.pendenciasDaComercial(
+      { ...formComercialCompleto, [campo]: '' },
+      [precoCompleto]
+    );
+    assert.equal(pendencias.length, 1, campo);
+    assert.equal(pendencias[0].campo, campo);
+  }
+});
+
+test('comercial: hora extra e stand-by de equipe têm os padrões solicitados', () => {
+  assert.deepEqual(mod.VALORES_PADRAO_STANDBY, {
+    overtimeRate: 'R$ 2.250,00',
+    standbyTeam: 'R$ 250,00'
+  });
+
+  const pagina = readFileSync(
+    new URL('../src/pages/comercial/proposta/PropostaPage.tsx', import.meta.url),
+    'utf8'
+  );
+  assert.match(pagina, /overtimeRate: VALORES_PADRAO_STANDBY\.overtimeRate/);
+  assert.match(pagina, /standbyTeam: VALORES_PADRAO_STANDBY\.standbyTeam/);
 });
 
 test('comercial: validade zero produz proposta vencida na emissão', () => {
-  const form = { payment: '30 dias', taxes: 'ISS incluso' };
+  const form = formComercialCompleto;
 
   for (const validade of ['0', '-5']) {
     const pendencias = mod.pendenciasDaComercial({ ...form, validity: validade }, [
@@ -304,8 +354,28 @@ test('comercial: validade zero produz proposta vencida na emissão', () => {
 });
 
 test('comercial: pagamento e impostos são obrigatórios', () => {
-  const pendencias = mod.pendenciasDaComercial({ validity: '30' }, [precoCompleto]);
+  const pendencias = mod.pendenciasDaComercial(
+    { ...formComercialCompleto, payment: '', taxes: '' },
+    [precoCompleto]
+  );
   assert.deepEqual(pendencias.map(p => p.campo).sort(), ['payment', 'taxes']);
+});
+
+test('a tabela comercial remove Unidade e calcula o total em campo somente leitura', () => {
+  const fonte = readFileSync(
+    new URL('../src/pages/comercial/proposta/steps/ComercialStep.tsx', import.meta.url),
+    'utf8'
+  );
+  const cabecalho = fonte.slice(fonte.indexOf('<thead>'), fonte.indexOf('</thead>'));
+
+  assert.doesNotMatch(cabecalho, /Unidade/);
+  assert.match(cabecalho, /Qtd\./);
+  assert.match(fonte, /recalcularItemDePreco/);
+  const campoTotal = fonte.slice(
+    fonte.indexOf('aria-label={`Valor total'),
+    fonte.indexOf('aria-label={`Valor total') + 300
+  );
+  assert.match(campoTotal, /readOnly/);
 });
 
 test('o rótulo do botão é o da referência, e a contagem vai à parte', () => {

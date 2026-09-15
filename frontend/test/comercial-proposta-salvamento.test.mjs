@@ -50,7 +50,7 @@ function conteudo(extra = {}) {
     blocos: [{ id: 'b1', type: 'table', title: 'Tabela', columns: ['a', 'b'], rows: [] }],
     categorias: ['Infraestrutura', 'Categoria criada na obra'],
     responsabilidades: [{ id: 'r1', item: 'Andaime', owner: 'Contratante', categoria: 'Infra' }],
-    precos: [{ description: 'Filtragem', unit: 'dia', quantity: '10', unitValue: '', value: 'R$ 100,00' }],
+    precos: [{ description: 'Filtragem', unit: 'dia', quantity: '10', unitValue: 'R$ 10,00', value: 'R$ 1,00' }],
     incluirUnitario: true,
     servicosTecnicos: [],
     complementoRelatorios: '',
@@ -148,6 +148,7 @@ test('o payload leva tudo que o gerador do documento espera', () => {
   assert.equal(payload.scopeBlocks.length, 1);
   assert.equal(payload.rows.length, 1);
   assert.equal(payload.prices.length, 1);
+  assert.equal(payload.prices[0].value.replace(/\s/g, ' '), 'R$ 100,00');
   assert.equal(payload.includeUnitValue, true);
   assert.deepEqual(payload.technicalServices, []);
   assert.equal(payload.technicalReports, '');

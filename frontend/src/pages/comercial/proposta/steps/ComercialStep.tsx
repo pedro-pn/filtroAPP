@@ -8,7 +8,14 @@ import {
 // O MESMO leitor de moeda do servidor e do gerador do documento. Um leitor
 // próprio aqui mostraria ao vendedor um total que o CRM não confirma.
 import { moeda, somarDinheiro } from '../../../../../../shared/comercial/dist/dinheiro.js';
-import { formatarDinheiro, type ItemDePreco } from '../etapas';
+import {
+  CAMPOS_STANDBY,
+  formatarDinheiro,
+  itemDePrecoCompleto,
+  quantidadeDoItemDePreco,
+  recalcularItemDePreco,
+  type ItemDePreco
+} from '../etapas';
 
 /**
  * Etapa 6 — Conteúdo da proposta comercial (`PROP-CTL-058..071`).
@@ -20,20 +27,12 @@ import { formatarDinheiro, type ItemDePreco } from '../etapas';
  * total. É decisão comercial — há proposta em que abrir o unitário convida a
  * negociação linha a linha.
  *
- * Os valores são **texto**, não número, e isso é da referência: eles são digitados
- * com máscara de moeda e vão para o documento como foram escritos. O cálculo do preço
- * mora no levantamento de custos, não aqui — esta tabela é o que se imprime.
+ * Os valores são guardados como texto monetário para preservar a máscara usada no
+ * documento. O total de cada linha, porém, é sempre recalculado a partir de quantidade
+ * × valor unitário para que a tela, o PDF e o CRM tenham o mesmo número.
  */
 
 type AnyRecord = Record<string, unknown>;
-
-/** Os quatro valores da tabela "Condições de Stand by e Mobilização Adicional". */
-const CAMPOS_STANDBY: Array<{ campo: string; label: string }> = [
-  { campo: 'overtimeRate', label: 'Homem/hora fora do horário previsto' },
-  { campo: 'standbyTeam', label: 'Stand-by de equipe (diária)' },
-  { campo: 'standbyEquipment', label: 'Stand-by de equipamentos (diária)' },
-  { campo: 'extraMobilization', label: 'Mobilização extra (por evento ida e volta)' }
-];
 
 /**
  * O cenário pré-selecionado.
@@ -74,13 +73,17 @@ export function ComercialStep({
   const cenarioInformado = String(form.priceScenario ?? '').trim().toUpperCase();
   const cenarioEscolhido =
     locais?.find(local => local === cenarioInformado) ?? PADRAO_DE_CENARIO;
-  const completos = precos.filter(
-    item => item.description.trim() && item.unit.trim() && item.value.trim()
-  ).length;
+  const completos = precos.filter(itemDePrecoCompleto).length;
 
   function editarPreco(indice: number, campo: keyof ItemDePreco, valor: string) {
     onPrecos(atual =>
-      atual.map((item, i) => (i === indice ? { ...item, [campo]: valor } : item))
+      atual.map((item, i) => {
+        if (i !== indice) return item;
+        const editado = { ...item, [campo]: valor };
+        return campo === 'quantity' || campo === 'unitValue'
+          ? recalcularItemDePreco(editado)
+          : editado;
+      })
     );
   }
 
@@ -109,7 +112,7 @@ export function ComercialStep({
 
       {mostrarErros && completos === 0 && (
         <AvisoPendencia>
-          Informe ao menos um item de preço com descrição, unidade e valor total.
+          Informe ao menos um item de preço com descrição, quantidade e valor unitário.
         </AvisoPendencia>
       )}
 
@@ -119,7 +122,6 @@ export function ComercialStep({
           local={local}
           precos={precos}
           onPrecos={onPrecos}
-          incluirUnitario={incluirUnitario}
           mostrarErros={mostrarErros}
           editarPreco={editarPreco}
         />
@@ -153,6 +155,8 @@ export function ComercialStep({
               inputMode="numeric"
               placeholder="R$ 0,00"
               value={String(form[campo] ?? '')}
+              required
+              error={erroDe(campo)}
               onChange={valor => editar({ [campo]: formatarDinheiro(valor) })}
             />
           ))}
@@ -267,14 +271,12 @@ function TabelaDePrecos({
   local,
   precos,
   onPrecos,
-  incluirUnitario,
   mostrarErros,
   editarPreco
 }: {
   local?: LocalOperacao;
   precos: ItemDePreco[];
   onPrecos: (atualizar: (atual: ItemDePreco[]) => ItemDePreco[]) => void;
-  incluirUnitario: boolean;
   mostrarErros: boolean;
   editarPreco: (indice: number, campo: keyof ItemDePreco, valor: string) => void;
 }) {
@@ -294,7 +296,7 @@ function TabelaDePrecos({
               ...atual,
               {
                 description: '',
-                unit: '',
+                unit: 'VB',
                 quantity: '1',
                 unitValue: '',
                 value: '',
@@ -316,13 +318,12 @@ function TabelaDePrecos({
                   Descrição<span className="survey-required-marker">*</span>
                 </th>
                 <th scope="col">
-                  Unidade<span className="survey-required-marker">*</span>
+                  Qtd.<span className="survey-required-marker">*</span>
                 </th>
-                <th scope="col">Qtd.</th>
-                {incluirUnitario && <th scope="col">Valor unitário</th>}
                 <th scope="col">
-                  Valor total<span className="survey-required-marker">*</span>
+                  Valor unitário<span className="survey-required-marker">*</span>
                 </th>
+                <th scope="col">Valor total</th>
                 <th scope="col">
                   <span className="com-sr">Ações</span>
                 </th>
@@ -330,10 +331,7 @@ function TabelaDePrecos({
             </thead>
             <tbody>
               {daTabela.map(({ item, indice }, ordem) => {
-                const incompleto =
-                  mostrarErros &&
-                  (item.description.trim() || item.value.trim()) &&
-                  !(item.description.trim() && item.unit.trim() && item.value.trim());
+                const incompleto = mostrarErros && !itemDePrecoCompleto(item);
                 const rotulo = `${ordem + 1}${local ? ` de ${local}` : ''}`;
 
                 return (
@@ -352,47 +350,42 @@ function TabelaDePrecos({
                     </td>
                     <td>
                       <input
-                        aria-label={`Unidade do item ${rotulo}`}
-                        className={
-                          incompleto && !item.unit.trim() ? 'com-campo-invalido' : undefined
-                        }
-                        value={item.unit}
-                        onChange={e => editarPreco(indice, 'unit', e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
                         inputMode="decimal"
                         aria-label={`Quantidade do item ${rotulo}`}
+                        className={
+                          incompleto && quantidadeDoItemDePreco(item.quantity) <= 0
+                            ? 'com-campo-invalido'
+                            : undefined
+                        }
                         value={item.quantity}
                         onChange={e => editarPreco(indice, 'quantity', e.target.value)}
                       />
                     </td>
-                    {incluirUnitario && (
-                      <td>
-                        <input
-                          inputMode="numeric"
-                          aria-label={`Valor unitário do item ${rotulo}`}
-                          placeholder="R$ 0,00"
-                          value={item.unitValue}
-                          onChange={e =>
-                            editarPreco(indice, 'unitValue', formatarDinheiro(e.target.value))
-                          }
-                        />
-                      </td>
-                    )}
                     <td>
                       <input
                         inputMode="numeric"
-                        aria-label={`Valor total do item ${rotulo}`}
+                        aria-label={`Valor unitário do item ${rotulo}`}
                         placeholder="R$ 0,00"
                         className={
-                          incompleto && !item.value.trim() ? 'com-campo-invalido' : undefined
+                          incompleto && !item.unitValue.trim()
+                            ? 'com-campo-invalido'
+                            : undefined
                         }
-                        value={item.value}
+                        value={item.unitValue}
                         onChange={e =>
-                          editarPreco(indice, 'value', formatarDinheiro(e.target.value))
+                          editarPreco(indice, 'unitValue', formatarDinheiro(e.target.value))
                         }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        aria-label={`Valor total do item ${rotulo}`}
+                        placeholder="R$ 0,00"
+                        value={item.value}
+                        readOnly
                       />
                     </td>
                     <td>

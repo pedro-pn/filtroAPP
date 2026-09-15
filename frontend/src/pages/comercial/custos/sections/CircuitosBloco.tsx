@@ -100,7 +100,7 @@ const NOVO = {
 const COM_GEOMETRIA = new Set(['pipeSegments', 'hoseSegments']);
 
 export function CircuitosBloco({ levantamento }: { levantamento: Levantamento }) {
-  const { draft, result, setDraft, updateCollection, removeCollection, updateNested, removeNested, addNested } =
+  const { draft, result, setDraft, updateCollection, updateNested, removeNested, addNested } =
     levantamento;
 
   const circuitos = registros(draft.volumeSystems);
@@ -216,7 +216,17 @@ export function CircuitosBloco({ levantamento }: { levantamento: Levantamento })
                       className="com-btn com-btn-perigo"
                       disabled={circuitos.length <= 1}
                       onClick={() => {
-                        removeCollection('volumeSystems', circuitoId);
+                        setDraft(atual => ({
+                          ...atual,
+                          volumeSystems: registros(atual.volumeSystems).filter(
+                            item => String(item.id) !== circuitoId
+                          ),
+                          circuitServices: Array.isArray(atual.circuitServices)
+                            ? registros(atual.circuitServices).filter(
+                                item => String(item.systemId) !== circuitoId
+                              )
+                            : atual.circuitServices
+                        }));
                         setCircuitosAbertos(atuais => {
                           const proximos = new Set(atuais);
                           proximos.delete(circuitoId);

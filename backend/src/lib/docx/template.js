@@ -37,6 +37,31 @@ export function safeText(value) {
   return String(value);
 }
 
+/**
+ * Mantém espaços significativos nas bordas dos fragmentos de texto do Word.
+ *
+ * Um parágrafo visualmente contínuo costuma estar dividido em vários `w:t`.
+ * Sem `xml:space="preserve"`, o Word elimina o espaço no começo/fim desses
+ * fragmentos e transforma, por exemplo, `35` + ` dia(s)` em `35dia(s)`.
+ */
+export function preserveWordTextSpaces(element) {
+  const textos =
+    element?.nodeName === 'w:t'
+      ? [element]
+      : Array.from(element?.getElementsByTagName?.('w:t') || []);
+
+  textos.forEach(texto => {
+    const conteudo = elementText(texto);
+    if (/^\s|\s$/u.test(conteudo)) {
+      texto.setAttributeNS(
+        'http://www.w3.org/XML/1998/namespace',
+        'xml:space',
+        'preserve'
+      );
+    }
+  });
+}
+
 export function replaceTokenInElement(element, token, replacement) {
   if (!token || token === replacement) return;
   const nodes = getTextNodes(element);
@@ -111,6 +136,7 @@ export function replacePlaceholders(element, values) {
     );
   });
   preserveWordTextLineBreaks(element);
+  preserveWordTextSpaces(element);
 }
 
 export function findFirstByText(root, tagName, token) {

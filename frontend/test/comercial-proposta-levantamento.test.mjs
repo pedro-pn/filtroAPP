@@ -5,6 +5,7 @@ import { createServer } from 'vite';
 
 let server;
 let mod;
+let motor;
 
 test.before(async () => {
   server = await createServer({
@@ -16,6 +17,9 @@ test.before(async () => {
   mod = await server.ssrLoadModule(
     '/src/pages/comercial/proposta/levantamentoVinculado.ts'
   );
+  motor = await server.ssrLoadModule(
+    '/../shared/comercial/dist/cost-model.js'
+  );
 });
 
 test.after(async () => {
@@ -26,6 +30,27 @@ test('o Decimal da API vira moeda brasileira sem ganhar ou perder centavos', () 
   assert.equal(mod.formatarValorDoLevantamento('38139.33'), 'R$ 38.139,33');
   assert.equal(mod.formatarValorDoLevantamento(100), 'R$ 100,00');
   assert.equal(mod.formatarValorDoLevantamento(null), '');
+});
+
+test('a mobilização adicional importa só a ida da equipe', () => {
+  const payload = motor.createDefaultCostEstimatePayload();
+  payload.logistics = payload.logistics.map(item => ({
+    ...item,
+    calculationMode: 'legacy',
+    calculationModeConfirmed: true,
+    basis: 'fixed',
+    quantity: 1,
+    contingencyPercent: 0,
+    unitCost:
+      item.direction === 'mobilization' && item.slotType === 'crew'
+        ? 1250
+        : item.slotType === 'equipment'
+          ? 9000
+          : 7000
+  }));
+
+  const valor = mod.valorDaMobilizacaoDeEquipeDoLevantamento({ payload });
+  assert.equal(valor, 'R$ 1.250,00');
 });
 
 test('finalização e escolha manual usam o mesmo endereço de importação', () => {
@@ -45,7 +70,7 @@ test('finalização e escolha manual usam o mesmo endereço de importação', ()
   });
 });
 
-test('a escolha manual pede apenas levantamentos concluídos ao servidor', () => {
+test('a escolha manual mostra rascunhos e pede sua conclusão antes de criar proposta', () => {
   const dialogo = readFileSync(
     new URL(
       '../src/pages/comercial/proposta/PropostaModeDialog.tsx',
@@ -54,12 +79,10 @@ test('a escolha manual pede apenas levantamentos concluídos ao servidor', () =>
     'utf8'
   );
 
-  assert.match(dialogo, /status: 'SALVO'/);
-  assert.match(
-    dialogo,
-    /resposta\.items\.filter\(\(?item\)? => item\.status === 'SALVO'\)/
-  );
-  assert.doesNotMatch(dialogo, /Rascunho salvo/);
+  assert.doesNotMatch(dialogo, /status: 'SALVO'/);
+  assert.match(dialogo, /setLevantamentos\(resposta\.items\)/);
+  assert.match(dialogo, /Rascunho salvo/);
+  assert.match(dialogo, /if \(!proposta && rascunho\) return onConcluirLevantamento\(item\)/);
   assert.match(dialogo, /Continuar proposta/);
   assert.match(dialogo, /Tentar integrações novamente/);
 });
@@ -189,7 +212,7 @@ test('a descrição genérica recebe os serviços sem sobrescrever preço já ne
         unit: 'VB',
         quantity: '1',
         unitValue: 'R$ 12.345,67',
-        value: 'R$ 12.345,67',
+        value: mod.formatarValorDoLevantamento('12345.67'),
         local: 'ONSHORE'
       }
     ]
@@ -210,6 +233,11 @@ test('continuar proposta vinculada solicita o preenchimento dos campos ausentes'
     pagina,
     /preencherPrecosAusentesDoLevantamento\(atuais, importado\)/
   );
+  assert.match(pagina, /servicosImportadosDoLevantamento\(levantamento\)/);
+  assert.match(pagina, /preencherEscopoAusenteDoLevantamento/);
+  assert.match(pagina, /preencherServicosTecnicosAusentesDoLevantamento/);
+  assert.match(pagina, /valorDaMobilizacaoDeEquipeDoLevantamento\(levantamento\)/);
+  assert.match(pagina, /extraMobilization: mobilizacaoDaEquipe/);
 });
 
 test('o local da obra vem do destino principal orçado no levantamento', () => {
@@ -242,4 +270,54 @@ test('levantamento antigo usa o primeiro destino com endereço', () => {
     'Usina Industrial — Betim/MG'
   );
   assert.equal(mod.localDaObraDoLevantamento({ payload: {} }), '');
+});
+
+test('serviços por circuito viram escopo e modelos técnicos da proposta', () => {
+  const importados = mod.servicosImportadosDoLevantamento({
+    payload: {
+      volumeSystems: [
+        { id: 'c1', name: 'Circuito 1', material: 'carbon_steel', enabled: true },
+        { id: 'c2', name: 'Circuito 2', material: 'stainless_steel', enabled: true },
+        { id: 'c3', name: 'Circuito 3', material: 'other', enabled: true }
+      ],
+      circuitServices: [
+        { id: 's1', systemId: 'c1', serviceId: 'filtragem_hidraulico_lubrificante' },
+        { id: 's2', systemId: 'c2', serviceId: 'limpeza_quimica' },
+        { id: 's3', systemId: 'c2', serviceId: 'flushing_primario' },
+        { id: 's4', systemId: 'c3', serviceId: 'flushing_primario' }
+      ]
+    }
+  });
+
+  assert.deepEqual(importados.escopo.map(item => item.title), [
+    'Filtragem de óleo hidráulico/lubrificante',
+    'Limpeza química',
+    'Flushing primário'
+  ]);
+  assert.match(importados.escopo[0].description, /Sistema contemplado: Circuito 1\./);
+  assert.match(importados.escopo[1].description, /Aço inoxidável/);
+  assert.match(importados.escopo[2].description, /Sistemas contemplados: Circuito 2, Circuito 3\./);
+  assert.deepEqual(importados.tecnicos.map(item => item.serviceId), [
+    'filtragem_hidraulico_lubrificante',
+    'limpeza_quimica',
+    'flushing_primario'
+  ]);
+  assert.equal(importados.tecnicos[1].parameters.material, 'Aço inoxidável');
+});
+
+test('escopo importado substitui apenas o cartão inicial ainda vazio', () => {
+  const importado = [{ id: 'e1', title: 'Limpeza química', description: 'Texto técnico' }];
+  assert.deepEqual(
+    mod.preencherEscopoAusenteDoLevantamento(
+      [{ id: 'escopo-inicial', title: 'Serviço 1', description: '' }],
+      importado
+    ),
+    importado
+  );
+
+  const editado = [{ id: 'e2', title: 'Escopo negociado', description: 'Não sobrescrever' }];
+  assert.deepEqual(
+    mod.preencherEscopoAusenteDoLevantamento(editado, importado),
+    editado
+  );
 });

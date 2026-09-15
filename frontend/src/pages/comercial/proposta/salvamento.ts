@@ -2,7 +2,11 @@ import type { ScopeBlock, ScopeServiceItem } from '../../../../../shared/comerci
 import type { TechnicalServiceSelection } from '../../../../../shared/comercial/dist/technical-services.js';
 import type { PropostaEntrada } from '../../../api/comercial';
 
-import type { ItemDePreco, LinhaResponsabilidade } from './etapas';
+import {
+  recalcularItensDePreco,
+  type ItemDePreco,
+  type LinhaResponsabilidade
+} from './etapas';
 
 /**
  * O que a tela manda ao servidor (tarefa da ligação da proposta).
@@ -101,7 +105,12 @@ export function dadosDaProposta(conteudo: ConteudoDaProposta): AnyRecord {
     // proposta salva traria a matriz sem os subtítulos que o vendedor criou.
     categorias: conteudo.categorias,
     rows: conteudo.responsabilidades,
-    prices: conteudo.precos,
+    prices: recalcularItensDePreco(conteudo.precos).map(item => ({
+      ...item,
+      // A unidade não é mais pedida na tela, mas permanece no payload por
+      // compatibilidade com propostas e modelos anteriores.
+      unit: String(item.unit || '').trim() || 'VB'
+    })),
     includeUnitValue: conteudo.incluirUnitario,
     technicalServices: conteudo.servicosTecnicos,
     technicalReports: conteudo.complementoRelatorios

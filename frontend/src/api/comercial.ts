@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import { apiClient } from './client';
+import { ApiClientError, apiClient } from './client';
 
 export interface ComercialStatus {
   module: string;
@@ -164,10 +164,10 @@ export async function listarLevantamentos(
 function traduzirErro(error: unknown): unknown {
   const conflito = interpretarConflitoDeEdicao(error);
   if (conflito) return conflito;
-  if (!axios.isAxiosError(error) || error.response?.status !== 422)
-    return error;
+  const resposta = respostaDoErro(error);
+  if (resposta?.status !== 422) return error;
 
-  const corpo = error.response.data as {
+  const corpo = resposta.data as {
     issues?: ComercialIssue[];
     message?: string;
   };
@@ -178,12 +178,19 @@ function traduzirErro(error: unknown): unknown {
   return issues.length ? new ComercialValidationError(issues) : error;
 }
 
+/** O interceptor mantém a mensagem legível e os detalhes de validação da API. */
+function respostaDoErro(error: unknown) {
+  if (error instanceof ApiClientError) return { status: error.status, data: error.data };
+  return axios.isAxiosError(error) ? error.response : undefined;
+}
+
 /** Mantida pura e exportada para provar o contrato HTTP no teste do frontend. */
 export function interpretarConflitoDeEdicao(
   error: unknown
 ): ComercialConcurrentWriteError | null {
-  if (!axios.isAxiosError(error) || error.response?.status !== 409) return null;
-  const corpo = error.response.data as {
+  const resposta = respostaDoErro(error);
+  if (resposta?.status !== 409) return null;
+  const corpo = resposta.data as {
     error?: string;
     code?: string;
     conflict?: Partial<ConflitoDeEdicao>;

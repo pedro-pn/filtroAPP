@@ -415,10 +415,14 @@ function limparEntreTitulos(doc, tituloInicial, tituloFinal) {
 }
 
 /**
- * O prazo já inclui a sua unidade ou condição ("10 dias", "de imediato").
- * Retira o "dias" fixo legado dos quatro modelos antes de preencher o campo.
+ * O prazo pode ser só a quantidade ("20") ou já trazer a unidade/condição
+ * ("10 dias", "de imediato"). O "dias" fixo do modelo só é retirado no
+ * segundo caso; quando o usuário informa apenas o número, ele deve sobreviver.
  */
-function ajustarPrevisaoDeAtendimento(doc) {
+function ajustarPrevisaoDeAtendimento(doc, valor) {
+  const apenasNumero = /^\d+(?:[.,]\d+)?$/u.test(String(valor || '').trim());
+  if (apenasNumero) return;
+
   for (const paragrafo of Array.from(doc.getElementsByTagName('w:p'))) {
     if (!elementText(paragrafo).includes('{{prev_atende}}')) continue;
     replaceTokenInElement(paragrafo, ' dias após', ' após');
@@ -661,7 +665,7 @@ export async function preencherProposta(dados, tipo) {
     const doc = new DOMParser().parseFromString(item.getData().toString('utf8'), 'text/xml');
 
     if (parte === 'word/document.xml') {
-      ajustarPrevisaoDeAtendimento(doc);
+      ajustarPrevisaoDeAtendimento(doc, dados.attendance);
       ajustarColunaDeValorUnitario(doc, dados.includeUnitValue);
       ajustarJornada(doc, String(dados.workday || '').trim(), modelo);
       if (tipo === 'technical') ajustarEscopoTecnico(doc, dados.technicalServices);

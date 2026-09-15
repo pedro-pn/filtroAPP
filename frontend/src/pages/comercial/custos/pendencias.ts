@@ -1,5 +1,6 @@
 import {
   HOTEL_SITE_COMMUTE_EXPENSE_CODE,
+  hasCompleteCircuitServices,
   hasMeaningfulInputs,
   hasMeaningfulLabor
 } from '../../../../../shared/comercial/dist/cost-model.js';
@@ -71,6 +72,7 @@ export function faltaMaoDeObra(draft: AnyRecord): boolean {
  */
 export function faltaInsumos(draft: AnyRecord): boolean {
   const confirmacoes = (draft.scopeConfirmations as AnyRecord) || {};
+  if (!hasCompleteCircuitServices(draft)) return true;
   if (confirmacoes.noInputs === true) return false;
   return !hasMeaningfulInputs(draft);
 }

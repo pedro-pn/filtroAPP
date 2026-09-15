@@ -5,11 +5,13 @@ const UNAUTHORIZED_EVENT = 'filtrovali:unauthorized';
 
 export class ApiClientError extends Error {
   status?: number;
+  data?: unknown;
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, data?: unknown) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -123,7 +125,8 @@ apiClient.interceptors.response.use(
     }
 
     const message = extractApiErrorMessage(error);
-    return Promise.reject(new ApiClientError(message || 'Falha na comunicação com a API.', status));
+    const data = axios.isAxiosError(error) ? error.response?.data : undefined;
+    return Promise.reject(new ApiClientError(message || 'Falha na comunicação com a API.', status, data));
   }
 );
 

@@ -8,6 +8,11 @@
  * while values above 3 are accepted as percentages for import compatibility.
  */
 
+import {
+  getTechnicalServiceDefinition,
+  type TechnicalServiceId,
+} from "./technical-services.js";
+
 export type CostRole = { role: string; salary: number; adjustment: number };
 export type LecLaborRole = {
   role: string;
@@ -241,6 +246,23 @@ export type VolumeSystem = {
   enabled: boolean;
 };
 
+/** Serviço contratado para um circuito dimensionado no levantamento. */
+export type CircuitServiceAssignment = {
+  id: string;
+  systemId: string;
+  /** Mantido como string para que rascunhos com uma seleção ainda vazia não sejam descartados. */
+  serviceId: string;
+};
+
+export function technicalServiceRequiresFilters(serviceId: unknown): boolean {
+  const id = String(serviceId || "");
+  return id.startsWith("flushing_") || id.startsWith("filtragem_");
+}
+
+export function technicalServiceRequiresChemicalProducts(serviceId: unknown): boolean {
+  return serviceId === "limpeza_quimica";
+}
+
 export type ProductRequirement = {
   id: string;
   systemId?: string;
@@ -410,6 +432,11 @@ export type CostEstimatePayloadV2 = {
   indirectCosts: IndirectCost[];
   materials: MaterialItem[];
   volumeSystems: VolumeSystem[];
+  /**
+   * Ausente em levantamentos antigos. Quando presente, a lista passa a definir
+   * quais insumos técnicos realmente se aplicam a cada circuito.
+   */
+  circuitServices?: CircuitServiceAssignment[];
   products: ProductRequirement[];
   /** Produtos removidos na tela e disponíveis para restauração no rascunho. */
   deletedProducts?: ProductRequirement[];
@@ -1301,6 +1328,15 @@ function normalizeVolumeSystem(value: unknown, index: number): VolumeSystem {
   };
 }
 
+function normalizeCircuitService(value: unknown, index: number): CircuitServiceAssignment {
+  const source = objectValue(value);
+  return {
+    id: importedId(source.id, "circuit-service", index),
+    systemId: textValue(source.systemId),
+    serviceId: textValue(source.serviceId),
+  };
+}
+
 function normalizeProduct(value: unknown, index: number): ProductRequirement {
   const source = objectValue(value);
   return {
@@ -1911,6 +1947,7 @@ export function createDefaultCostEstimatePayload(): CostEstimatePayloadV2 {
         enabled: true,
       },
     ],
+    circuitServices: [],
     products: [
       {
         id: "acido-citrico",
@@ -2184,6 +2221,9 @@ export function normalizeCostEstimatePayload(value: unknown): CostEstimatePayloa
   const importingLegacyIndirects = source.indirectCosts === undefined && source.indirects !== undefined;
   const materials = arrayValue(source.materials).map(normalizeMaterial);
   const volumeSystems = arrayValue(source.volumeSystems).map(normalizeVolumeSystem);
+  const circuitServices = Array.isArray(source.circuitServices)
+    ? source.circuitServices.map(normalizeCircuitService)
+    : undefined;
   const products = arrayValue(source.products).map(normalizeProduct);
   const deletedProducts = source.deletedProducts === undefined
     ? undefined
@@ -2274,6 +2314,7 @@ export function normalizeCostEstimatePayload(value: unknown): CostEstimatePayloa
     }),
     materials,
     volumeSystems,
+    ...(circuitServices === undefined ? {} : { circuitServices }),
     products,
     ...(deletedProducts === undefined ? {} : { deletedProducts }),
     filters,
@@ -3608,8 +3649,56 @@ function buildQqpFromResult(payload: CostEstimatePayloadV2, result: CostEstimate
   }));
 }
 
+type CircuitServiceState = {
+  configured: boolean;
+  assignments: CircuitServiceAssignment[];
+  chemicalSystemIds: Set<string>;
+  hasChemicalProducts: boolean;
+  hasFilters: boolean;
+};
+
+/**
+ * Levantamentos anteriores não possuíam `circuitServices`; nesses registros,
+ * produtos e filtros continuam com o comportamento histórico. Nos novos, só
+ * entram no custo os insumos exigidos pelos serviços ligados a circuitos ativos.
+ */
+function circuitServiceState(payload: CostEstimatePayloadV2): CircuitServiceState {
+  const configured = Array.isArray(payload.circuitServices);
+  const enabledSystemIds = new Set(
+    payload.volumeSystems.filter((system) => system.enabled).map((system) => system.id),
+  );
+  const assignments = (payload.circuitServices ?? []).filter((assignment) =>
+    enabledSystemIds.has(assignment.systemId)
+    && Boolean(getTechnicalServiceDefinition(assignment.serviceId as TechnicalServiceId)));
+  const chemicalSystemIds = new Set(
+    assignments
+      .filter((assignment) => technicalServiceRequiresChemicalProducts(assignment.serviceId))
+      .map((assignment) => assignment.systemId),
+  );
+  return {
+    configured,
+    assignments,
+    chemicalSystemIds,
+    hasChemicalProducts: chemicalSystemIds.size > 0,
+    hasFilters: assignments.some((assignment) =>
+      technicalServiceRequiresFilters(assignment.serviceId)),
+  };
+}
+
+function productAppliesToCircuitServices(
+  product: ProductRequirement,
+  services: CircuitServiceState,
+): boolean {
+  if (!services.configured) return true;
+  if (!services.hasChemicalProducts) return false;
+  return !product.systemId
+    || product.systemId === "*"
+    || services.chemicalSystemIds.has(product.systemId);
+}
+
 function calculateEstimateCore(input: CostEstimatePayloadV2): CostEstimateResultV2 {
   const payload = normalizeCostEstimatePayload(input);
+  const circuitServices = circuitServiceState(payload);
   const contexts = payload.scopeConfirmations.noLabor
     ? []
     : payload.laborContexts.filter((context) => context.enabled);
@@ -3633,14 +3722,20 @@ function calculateEstimateCore(input: CostEstimatePayloadV2): CostEstimateResult
   const volumeResults = payload.scopeConfirmations.noInputs
     ? []
     : payload.volumeSystems.filter((system) => system.enabled).map(calculateVolumeSystem);
+  const chemicalVolumeResults = circuitServices.configured
+    ? volumeResults.filter((system) => circuitServices.chemicalSystemIds.has(system.id))
+    : volumeResults;
   const productResults = payload.scopeConfirmations.noInputs
     ? []
-    : payload.products.filter((product) => product.included)
-      .map((product) => calculateProduct(product, volumeResults));
+    : payload.products.filter((product) =>
+      product.included && productAppliesToCircuitServices(product, circuitServices))
+      .map((product) => calculateProduct(product, chemicalVolumeResults));
   const productCost = productResults.reduce((sum, item) => sum + item.total, 0);
   const filterResults = payload.scopeConfirmations.noInputs
     ? []
-    : payload.filters.filter((filter) => filter.included).map(calculateFilter);
+    : payload.filters.filter((filter) =>
+      filter.included && (!circuitServices.configured || circuitServices.hasFilters))
+      .map(calculateFilter);
   const filterCost = filterResults.reduce((sum, item) => sum + item.total, 0);
   const totalVolumeLiters = volumeResults.reduce((sum, item) => sum + item.totalVolumeLiters, 0);
   const totalPhysicalVolumeLiters = volumeResults.reduce((sum, item) => sum + item.physicalVolumeLiters, 0);
@@ -3846,6 +3941,7 @@ function hasMeaningfulLaborPayload(payload: CostEstimatePayloadV2): boolean {
 }
 
 function hasMeaningfulInputsPayload(payload: CostEstimatePayloadV2): boolean {
+  const circuitServices = circuitServiceState(payload);
   if (payload.materials.some((item) =>
     item.included
     && item.quantity > 0
@@ -3856,9 +3952,11 @@ function hasMeaningfulInputsPayload(payload: CostEstimatePayloadV2): boolean {
   if (volumeResults.some((system) => system.physicalVolumeLiters > 0)) return true;
   if (payload.products.some((product) =>
     product.included
+    && productAppliesToCircuitServices(product, circuitServices)
     && product.doseMode === "manual"
     && product.manualQuantity > 0)) return true;
-  if (payload.filters.some((filter) => filter.included && filter.quantity > 0)) return true;
+  if ((!circuitServices.configured || circuitServices.hasFilters)
+    && payload.filters.some((filter) => filter.included && filter.quantity > 0)) return true;
   return payload.effluent.includeDisposalCost
     && volumeResults.some((system) => system.physicalVolumeLiters > 0);
 }
@@ -3869,6 +3967,20 @@ export function hasMeaningfulLabor(value: CostEstimatePayloadV2 | unknown): bool
 
 export function hasMeaningfulInputs(value: CostEstimatePayloadV2 | unknown): boolean {
   return hasMeaningfulInputsPayload(normalizeCostEstimatePayload(value));
+}
+
+/**
+ * Compatibilidade: levantamentos antigos, sem a coleção, já eram completos.
+ * Nos novos, todo circuito ativo precisa declarar ao menos um serviço válido.
+ */
+export function hasCompleteCircuitServices(value: CostEstimatePayloadV2 | unknown): boolean {
+  const payload = normalizeCostEstimatePayload(value);
+  if (!Array.isArray(payload.circuitServices)) return true;
+  const services = circuitServiceState(payload);
+  const assignedSystemIds = new Set(services.assignments.map((item) => item.systemId));
+  return payload.volumeSystems
+    .filter((system) => system.enabled)
+    .every((system) => assignedSystemIds.has(system.id));
 }
 
 function isCrewTransportWaived(
@@ -3928,6 +4040,7 @@ export function logisticsCrewCoverage(
 
 export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): CostEstimateValidation {
   const payload = normalizeCostEstimatePayload(value);
+  const circuitServices = circuitServiceState(payload);
   const errors: CostEstimateValidationIssue[] = [];
   const warnings: CostEstimateValidationIssue[] = [];
   const add = (severity: "error" | "warning", path: string, message: string) => {
@@ -4158,10 +4271,12 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
     });
   });
   const systemIds = new Set<string>();
+  const enabledSystemIds = new Set<string>();
   payload.volumeSystems.forEach((system, index) => {
     const path = `volumeSystems[${index}]`;
     if (systemIds.has(system.id)) add("error", `${path}.id`, "O identificador do sistema está duplicado.");
     systemIds.add(system.id);
+    if (system.enabled) enabledSystemIds.add(system.id);
     if (payload.scopeConfirmations.noInputs || !system.enabled) return;
     system.pipeSegments.forEach((segment, segmentIndex) => {
       const segmentPath = `${path}.pipeSegments[${segmentIndex}]`;
@@ -4176,8 +4291,50 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
       }
     });
   });
+  if (circuitServices.configured) {
+    const assignmentIds = new Set<string>();
+    const assignmentKeys = new Set<string>();
+    const assignedSystemIds = new Set<string>();
+    (payload.circuitServices ?? []).forEach((assignment, index) => {
+      const path = `circuitServices[${index}]`;
+      if (assignmentIds.has(assignment.id)) {
+        add("error", `${path}.id`, "O identificador da associação de serviço está duplicado.");
+      }
+      assignmentIds.add(assignment.id);
+      if (!assignment.systemId) {
+        add("error", `${path}.systemId`, "Selecione o circuito em que o serviço será realizado.");
+      } else if (!enabledSystemIds.has(assignment.systemId)) {
+        add("error", `${path}.systemId`, "O serviço está ligado a um circuito inexistente ou desativado.");
+      }
+      const definition = getTechnicalServiceDefinition(
+        assignment.serviceId as TechnicalServiceId,
+      );
+      if (!definition) {
+        add("error", `${path}.serviceId`, "Selecione o serviço que será realizado.");
+      }
+      const key = `${assignment.systemId}:${assignment.serviceId}`;
+      if (assignment.systemId && definition) {
+        if (assignmentKeys.has(key)) {
+          add("error", `${path}.serviceId`, "Este serviço já foi adicionado ao circuito selecionado.");
+        }
+        assignmentKeys.add(key);
+        if (enabledSystemIds.has(assignment.systemId)) assignedSystemIds.add(assignment.systemId);
+      }
+    });
+    const systemsWithoutService = payload.volumeSystems.filter((system) =>
+      system.enabled && !assignedSystemIds.has(system.id));
+    if (systemsWithoutService.length) {
+      add(
+        "error",
+        "circuitServices",
+        `Adicione ao menos um serviço para: ${systemsWithoutService.map((system) => system.name).join(", ")}.`,
+      );
+    }
+  }
   payload.products.forEach((product, index) => {
-    if (payload.scopeConfirmations.noInputs || !product.included) return;
+    if (payload.scopeConfirmations.noInputs
+      || !product.included
+      || !productAppliesToCircuitServices(product, circuitServices)) return;
     const path = `products[${index}]`;
     if (product.systemId && product.systemId !== "*" && !systemIds.has(product.systemId)) {
       add("error", `${path}.systemId`, "O produto está ligado a um sistema inexistente.");

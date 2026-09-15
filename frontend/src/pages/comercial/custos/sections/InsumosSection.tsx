@@ -1,11 +1,16 @@
 import { MoneyInput } from '../../components/Field';
-import { hasMeaningfulInputs } from '../../../../../../shared/comercial/dist/cost-model.js';
+import {
+  hasMeaningfulInputs,
+  technicalServiceRequiresChemicalProducts,
+  technicalServiceRequiresFilters
+} from '../../../../../../shared/comercial/dist/cost-model.js';
 import { AvisoPendencia, ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
 import { money, number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
 import { CircuitosBloco } from './CircuitosBloco';
 import { FiltrosTabela } from './FiltrosTabela';
 import { ProdutosBloco } from './ProdutosBloco';
+import { ServicosDosCircuitosBloco } from './ServicosDosCircuitosBloco';
 import { custoTotalMateriaisEInsumos } from '../totaisDasSecoes';
 
 /**
@@ -14,9 +19,8 @@ import { custoTotalMateriaisEInsumos } from '../totaisDasSecoes';
  * Cobre `CUSTO-CTL-138..228` (91 controles). Porte de `InputsSection`
  * (`app/custos/page.tsx:1039-1268`).
  *
- * A seção é composta por quatro blocos, como na referência: materiais de
- * entrada manual, circuitos de volume, produtos dosados sobre esse volume e
- * filtros. Cada um é um cartão próprio.
+ * A seção é composta por materiais manuais, circuitos de volume, serviços por
+ * circuito e pelos blocos condicionais de produtos químicos e filtros.
  *
  * Um detalhe do fluxo que vale registrar: **mexer em insumos desliga a
  * confirmação "sem insumos"**. Quem confirmou que não haveria insumos e depois
@@ -50,14 +54,30 @@ function novoMaterial(): AnyRecord {
 }
 
 export function InsumosSection({ levantamento }: { levantamento: Levantamento }) {
-  const { result } = levantamento;
+  const { draft, result } = levantamento;
+  const circuitosAtivos = new Set(
+    registros(draft.volumeSystems)
+      .filter(circuito => circuito.enabled !== false)
+      .map(circuito => String(circuito.id))
+  );
+  const servicosConfigurados = Array.isArray(draft.circuitServices);
+  const servicosAtivos = registros(draft.circuitServices).filter(servico =>
+    circuitosAtivos.has(String(servico.systemId || ''))
+  );
+  const exibirProdutosQuimicos = !servicosConfigurados || servicosAtivos.some(servico =>
+    technicalServiceRequiresChemicalProducts(servico.serviceId)
+  );
+  const exibirFiltros = !servicosConfigurados || servicosAtivos.some(servico =>
+    technicalServiceRequiresFilters(servico.serviceId)
+  );
 
   return (
     <>
       <MateriaisBloco levantamento={levantamento} />
       <CircuitosBloco levantamento={levantamento} />
-      <ProdutosBloco levantamento={levantamento} />
-      <FiltrosTabela levantamento={levantamento} />
+      <ServicosDosCircuitosBloco levantamento={levantamento} />
+      {exibirProdutosQuimicos && <ProdutosBloco levantamento={levantamento} />}
+      {exibirFiltros && <FiltrosTabela levantamento={levantamento} />}
       <div
         className="com-total-secao"
         aria-label="Custo total da aba Materiais e insumos"
@@ -110,8 +130,8 @@ function MateriaisBloco({ levantamento }: { levantamento: Levantamento }) {
         <div>
           <h2>Materiais e insumos</h2>
           <p>
-            Cadastre peças, filtros, consumíveis e itens manuais. Produtos químicos
-            dimensionados pelos circuitos aparecem no bloco seguinte.
+            Cadastre peças, consumíveis e itens manuais. Depois do dimensionamento,
+            associe os serviços aos circuitos para liberar filtros e produtos químicos.
           </p>
         </div>
         <button type="button" className="com-btn-add" onClick={acrescentarMaterial}>

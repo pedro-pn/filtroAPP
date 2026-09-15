@@ -1,4 +1,5 @@
 import { MoneyInput } from '../../components/Field';
+import { technicalServiceRequiresChemicalProducts } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { money, number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
 
@@ -69,10 +70,28 @@ function novoProduto(circuitoId?: string): AnyRecord {
 export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) {
   const { draft, result, setDraft, updateCollection } = levantamento;
 
-  const produtos = registros(draft.products);
-  const produtosExcluidos = registros(draft.deletedProducts);
+  const todosOsCircuitos = registros(draft.volumeSystems).filter(
+    circuito => circuito.enabled !== false
+  );
+  const servicosConfigurados = Array.isArray(draft.circuitServices);
+  const circuitosComLimpeza = new Set(
+    registros(draft.circuitServices)
+      .filter(servico => technicalServiceRequiresChemicalProducts(servico.serviceId))
+      .map(servico => String(servico.systemId || ''))
+  );
+  const circuitos = servicosConfigurados
+    ? todosOsCircuitos.filter(circuito => circuitosComLimpeza.has(String(circuito.id)))
+    : todosOsCircuitos;
+  const produtoAplicavel = (produto: AnyRecord) => {
+    const circuitoId = String(produto.systemId || '');
+    return !servicosConfigurados
+      || !circuitoId
+      || circuitoId === '*'
+      || circuitosComLimpeza.has(circuitoId);
+  };
+  const produtos = registros(draft.products).filter(produtoAplicavel);
+  const produtosExcluidos = registros(draft.deletedProducts).filter(produtoAplicavel);
   const calculados = registros(result.productResults);
-  const circuitos = registros(draft.volumeSystems);
 
   function acrescentar() {
     setDraft(atual => ({
@@ -108,15 +127,19 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
     setDraft(atual => {
       const ativos = registros(atual.products);
       const idsAtivos = new Set(ativos.map(item => String(item.id)));
-      const restaurados = registros(atual.deletedProducts).filter(
-        item => !idsAtivos.has(String(item.id))
+      const excluidos = registros(atual.deletedProducts);
+      const restaurados = excluidos.filter(
+        item => produtoAplicavel(item) && !idsAtivos.has(String(item.id))
       );
-      if (!restaurados.length && !registros(atual.deletedProducts).length) return atual;
+      if (!restaurados.length) return atual;
+      const idsRestaurados = new Set(restaurados.map(item => String(item.id)));
 
       return {
         ...atual,
         products: [...ativos, ...restaurados],
-        deletedProducts: [],
+        deletedProducts: excluidos.filter(
+          item => !idsRestaurados.has(String(item.id))
+        ),
         scopeConfirmations: {
           ...((atual.scopeConfirmations as AnyRecord) || {}),
           noInputs: false
@@ -129,7 +152,7 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
     <section className="com-painel">
       <div className="com-secao-titulo">
         <div>
-          <h2>Produtos dimensionados por volume</h2>
+          <h2>Produtos químicos</h2>
           <p>
             A regra de dosagem transforma o volume do circuito em quantidade de produto. A
             embalagem arredonda a compra para cima. Se a mesma dosagem valer para todos,
@@ -213,7 +236,11 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
                         }}
                       >
                         <option value="">Manual / sem circuito</option>
-                        <option value="*">Todos os circuitos</option>
+                        <option value="*">
+                          {servicosConfigurados
+                            ? 'Todos com limpeza química'
+                            : 'Todos os circuitos'}
+                        </option>
                         {circuitos.map(circuito => (
                           <option key={String(circuito.id)} value={String(circuito.id)}>
                             {String(circuito.name || 'Circuito')}

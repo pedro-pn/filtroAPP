@@ -43,6 +43,8 @@ import {
   indiceDePendencias,
   CATEGORIAS_RESPONSABILIDADE,
   matrizInicial,
+  recalcularItensDePreco,
+  VALORES_PADRAO_STANDBY,
   type ItemDePreco,
   type LinhaResponsabilidade,
   pendenciasDaEtapa,
@@ -74,7 +76,11 @@ import {
   itemDePrecoDoLevantamento,
   localDaObraDoLevantamento,
   parametrosDaPropostaComLevantamento,
-  preencherPrecosAusentesDoLevantamento
+  preencherEscopoAusenteDoLevantamento,
+  preencherPrecosAusentesDoLevantamento,
+  preencherServicosTecnicosAusentesDoLevantamento,
+  servicosImportadosDoLevantamento,
+  valorDaMobilizacaoDeEquipeDoLevantamento
 } from './levantamentoVinculado';
 import { ClienteStep } from './steps/ClienteStep';
 import { EscopoStep } from './steps/EscopoStep';
@@ -141,8 +147,8 @@ function formularioInicial(modelo: ModeloProposta = 'padrao'): AnyRecord {
     observations: TEXTO_OBSERVACOES_GERAIS,
     taxes: TEXTO_IMPOSTOS,
     // Os quatro da tabela de stand-by (T071d).
-    overtimeRate: '',
-    standbyTeam: '',
+    overtimeRate: VALORES_PADRAO_STANDBY.overtimeRate,
+    standbyTeam: VALORES_PADRAO_STANDBY.standbyTeam,
     standbyEquipment: '',
     extraMobilization: '',
     validity: '10'
@@ -205,7 +211,7 @@ export function PropostaPage() {
   >([]);
   const [complementoRelatorios, setComplementoRelatorios] = useState('');
   const [precos, setPrecos] = useState<ItemDePreco[]>(() => [
-    { description: '', unit: '', quantity: '1', unitValue: '', value: '' }
+    { description: '', unit: 'VB', quantity: '1', unitValue: '', value: '' }
   ]);
   const [incluirUnitario, setIncluirUnitario] = useState(true);
   const [documentoNaPrevia, setDocumentoNaPrevia] =
@@ -310,6 +316,8 @@ export function PropostaPage() {
 
         levantamentoAplicado.current = levantamento.id;
         const localDaObra = localDaObraDoLevantamento(levantamento);
+        const servicosImportados = servicosImportadosDoLevantamento(levantamento);
+        const mobilizacaoDaEquipe = valorDaMobilizacaoDeEquipeDoLevantamento(levantamento);
         setForm((atual) => ({
           ...atual,
           title: String(atual.title || '').trim()
@@ -317,6 +325,9 @@ export function PropostaPage() {
             : levantamento.title || '',
           ...(!String(atual.site || '').trim() && localDaObra
             ? { site: localDaObra }
+            : {}),
+          ...(!String(atual.extraMobilization || '').trim() && mobilizacaoDaEquipe
+            ? { extraMobilization: mobilizacaoDaEquipe }
             : {})
         }));
         setPrecos((atuais) => {
@@ -327,9 +338,18 @@ export function PropostaPage() {
             ? preencherPrecosAusentesDoLevantamento(atuais, importado)
             : [importado];
         });
+        setItensEscopo(atuais =>
+          preencherEscopoAusenteDoLevantamento(atuais, servicosImportados.escopo)
+        );
+        setServicosTecnicos(atuais =>
+          preencherServicosTecnicosAusentesDoLevantamento(
+            atuais,
+            servicosImportados.tecnicos
+          )
+        );
         setRecado(
           `Levantamento ${levantamento.proposalCode} vinculado. ` +
-            'Os campos ausentes e o preço de venda foram carregados para a proposta.'
+            'Os campos ausentes, os serviços e o preço de venda foram carregados para a proposta.'
         );
       })
       .catch((error) => {
@@ -931,6 +951,16 @@ export function PropostaPage() {
           revisão com snapshot completo, já vem da proposta anterior. */}
       {modo === null && (
         <PropostaModeDialog
+          onConcluirLevantamento={levantamento => {
+            const proximos = new URLSearchParams({
+              modo: levantamento.mode === 'REVISAO' ? 'revision' : 'new',
+              base: levantamento.proposalCode,
+              revisao: String(levantamento.revisionNumber || 0),
+              id: levantamento.id,
+              secao: 'summary'
+            });
+            navigate(`${moduleRoutePath('comercial', 'custos')}?${proximos}`);
+          }}
           recado={recado}
           onLevantamento={iniciarComLevantamento}
           onPropostaExistente={continuarPropostaDoLevantamento}
@@ -1010,7 +1040,12 @@ export function PropostaPage() {
                         }
                       | undefined;
                     if (!dados) return;
-                    if (dados.form) setForm(dados.form);
+                    if (dados.form) {
+                      setForm({
+                        ...formularioInicial(modelo ?? 'padrao'),
+                        ...dados.form
+                      });
+                    }
                     if (dados.itensEscopo?.length)
                       setItensEscopo(dados.itensEscopo);
                     if (dados.blocos) setBlocos(dados.blocos);
@@ -1041,7 +1076,9 @@ export function PropostaPage() {
                     if (typeof dados.complementoRelatorios === 'string') {
                       setComplementoRelatorios(dados.complementoRelatorios);
                     }
-                    if (dados.precos?.length) setPrecos(dados.precos);
+                    if (dados.precos?.length) {
+                      setPrecos(recalcularItensDePreco(dados.precos));
+                    }
                     if (typeof dados.incluirUnitario === 'boolean') {
                       setIncluirUnitario(dados.incluirUnitario);
                     }

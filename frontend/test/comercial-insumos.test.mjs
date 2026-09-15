@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createServer } from 'vite';
 
@@ -48,9 +49,20 @@ function material(extras = {}) {
   };
 }
 
+function comServicos(payload, serviceId, ids = payload.volumeSystems.map(item => item.id)) {
+  return {
+    ...payload,
+    circuitServices: ids.map((systemId, indice) => ({
+      id: `servico-${serviceId}-${indice + 1}`,
+      systemId,
+      serviceId
+    }))
+  };
+}
+
 function comMateriais(itens) {
   const base = motor.createDefaultCostEstimatePayload();
-  return { ...base, materials: itens };
+  return comServicos({ ...base, materials: itens }, 'teste_hidrostatico');
 }
 
 test('material incluído entra no custo', () => {
@@ -124,11 +136,19 @@ test('material APENAS excluído não conta como composição', () => {
 
 test('a confirmação "sem insumos" desliga a pendência mesmo sem itens', () => {
   const base = motor.createDefaultCostEstimatePayload();
-  const confirmado = {
+  const confirmado = comServicos({
     ...base,
     scopeConfirmations: { ...base.scopeConfirmations, noInputs: true }
-  };
+  }, 'teste_hidrostatico');
   assert.equal(faltaInsumos(confirmado), false);
+});
+
+test('confirmar sem insumos não dispensa definir o serviço de cada circuito', () => {
+  const base = motor.createDefaultCostEstimatePayload();
+  assert.equal(faltaInsumos({
+    ...base,
+    scopeConfirmations: { ...base.scopeConfirmations, noInputs: true }
+  }), true);
 });
 
 // ---------------------------------------------------------------------------
@@ -158,8 +178,12 @@ test('filtro incluído entra no custo; desmarcado, não', () => {
     included: incluido
   });
 
-  const dentro = motor.calculateEstimate({ ...base, filters: [filtro(true)] });
-  const fora = motor.calculateEstimate({ ...base, filters: [filtro(false)] });
+  const dentro = motor.calculateEstimate(
+    comServicos({ ...base, filters: [filtro(true)] }, 'flushing_primario')
+  );
+  const fora = motor.calculateEstimate(
+    comServicos({ ...base, filters: [filtro(false)] }, 'flushing_primario')
+  );
 
   assert.ok(Number(dentro.filterCost ?? dentro.inputCost) > 0);
   assert.ok(
@@ -189,6 +213,28 @@ test('filtro nasce DESMARCADO — não conta como composição sozinho', () => {
   assert.equal(faltaInsumos(emBranco), true);
 });
 
+test('filtro só entra quando há flushing ou filtragem em ao menos um circuito', () => {
+  const base = motor.createDefaultCostEstimatePayload();
+  const filtro = {
+    id: 'f1',
+    filterName: 'Elemento filtrante',
+    micronRating: '3 µm',
+    unit: 'un.',
+    quantity: 2,
+    unitCost: 100,
+    included: true
+  };
+  const semServicoAplicavel = motor.calculateEstimate(
+    comServicos({ ...base, filters: [filtro] }, 'teste_hidrostatico')
+  );
+  const comFlushing = motor.calculateEstimate(
+    comServicos({ ...base, filters: [filtro] }, 'flushing_primario')
+  );
+
+  assert.equal(Number(semServicoAplicavel.filterCost), 0);
+  assert.equal(Number(comFlushing.filterCost), 200);
+});
+
 // ---------------------------------------------------------------------------
 // Circuitos — o volume que doseia os químicos
 // ---------------------------------------------------------------------------
@@ -210,7 +256,7 @@ function circuito(extras = {}) {
 
 function comCircuito(c) {
   const base = motor.createDefaultCostEstimatePayload();
-  return { ...base, volumeSystems: [c] };
+  return comServicos({ ...base, volumeSystems: [c] }, 'teste_hidrostatico');
 }
 
 test('trecho de tubo gera volume pela geometria', () => {
@@ -384,7 +430,10 @@ function produto(extras = {}) {
 
 function comProduto(p, c = circuitoDe1000L()) {
   const base = motor.createDefaultCostEstimatePayload();
-  return { ...base, volumeSystems: [c], products: [p] };
+  return comServicos(
+    { ...base, volumeSystems: [c], products: [p] },
+    'limpeza_quimica'
+  );
 }
 
 test('produto dosado por % do volume gera necessidade proporcional', () => {
@@ -415,16 +464,16 @@ test('um produto pode ser dimensionado para todos os circuitos de uma vez', () =
   ];
   const base = motor.createDefaultCostEstimatePayload();
 
-  const todos = motor.calculateEstimate({
+  const todos = motor.calculateEstimate(comServicos({
     ...base,
     volumeSystems: circuitos,
     products: [produto({ systemId: '*', dose: 1 })]
-  });
-  const apenasPrimeiro = motor.calculateEstimate({
+  }, 'limpeza_quimica'));
+  const apenasPrimeiro = motor.calculateEstimate(comServicos({
     ...base,
     volumeSystems: circuitos,
     products: [produto({ systemId: 'c1', dose: 1 })]
-  });
+  }, 'limpeza_quimica'));
 
   assert.equal(Number(todos.productResults[0].sourceVolumeLiters), 600);
   assert.equal(
@@ -505,4 +554,78 @@ test('produto desmarcado não custa', () => {
 
 test('produto incluído desliga a pendência de insumos', () => {
   assert.equal(faltaInsumos(comProduto(produto())), false);
+});
+
+test('produto químico considera somente os circuitos com limpeza química', () => {
+  const base = motor.createDefaultCostEstimatePayload();
+  const circuitos = [
+    circuito({
+      id: 'c1',
+      manualVolumes: [{ id: 'v1', description: 'Volume 1', quantity: 1, volumeLiters: 100 }]
+    }),
+    circuito({
+      id: 'c2',
+      manualVolumes: [{ id: 'v2', description: 'Volume 2', quantity: 1, volumeLiters: 200 }]
+    })
+  ];
+  const resultado = motor.calculateEstimate({
+    ...base,
+    volumeSystems: circuitos,
+    circuitServices: [
+      { id: 's1', systemId: 'c1', serviceId: 'flushing_primario' },
+      { id: 's2', systemId: 'c2', serviceId: 'limpeza_quimica' }
+    ],
+    products: [produto({ systemId: '*', dose: 1 })]
+  });
+
+  assert.equal(Number(resultado.productResults[0].sourceVolumeLiters), 200);
+});
+
+test('todo circuito novo precisa ter ao menos um serviço válido', () => {
+  const base = motor.createDefaultCostEstimatePayload();
+  const validacao = motor.validateCostEstimate({
+    ...base,
+    volumeSystems: [circuito({ id: 'c1' })],
+    circuitServices: []
+  });
+
+  assert.ok(validacao.errors.some(item => item.path === 'circuitServices'));
+  assert.equal(motor.hasCompleteCircuitServices({
+    ...base,
+    volumeSystems: [circuito({ id: 'c1' })],
+    circuitServices: [{ id: 's1', systemId: 'c1', serviceId: 'teste_hidrostatico' }]
+  }), true);
+});
+
+test('levantamento antigo sem associações preserva o cálculo anterior', () => {
+  const base = motor.createDefaultCostEstimatePayload();
+  const { circuitServices: _ignorado, ...legado } = base;
+  const resultado = motor.calculateEstimate({
+    ...legado,
+    filters: [{
+      id: 'f-legado',
+      filterName: 'Filtro legado',
+      micronRating: '10 µm',
+      unit: 'un.',
+      quantity: 1,
+      unitCost: 75,
+      included: true
+    }]
+  });
+
+  assert.equal(Number(resultado.filterCost), 75);
+});
+
+test('a tela renderiza químicos e filtros somente quando o serviço exige', () => {
+  const secao = readFileSync(
+    new URL(
+      '../src/pages/comercial/custos/sections/InsumosSection.tsx',
+      import.meta.url
+    ),
+    'utf8'
+  );
+
+  assert.match(secao, /exibirProdutosQuimicos && <ProdutosBloco/);
+  assert.match(secao, /exibirFiltros && <FiltrosTabela/);
+  assert.match(secao, /<ServicosDosCircuitosBloco levantamento=\{levantamento\}/);
 });

@@ -262,7 +262,7 @@ export function CustosPage() {
     dados: draft,
     identidade: `custos:${modo || 'inicio'}:${base}:${revisionNumber}:${levantamentoOrigemId}`,
     ativo: trabalhoProntoParaSalvar && salvo === null,
-    ocupado: salvando || salvandoRascunho,
+    ocupado: salvando || salvandoRascunho || mostrarConfirmacao,
     salvar: async () => Boolean(await persistirRascunho(true))
   });
 
@@ -446,7 +446,7 @@ export function CustosPage() {
    * validou. O app já sabe o caminho; o que faltava era dizer.
    */
   async function salvar(criarPropostaDepois: boolean) {
-    if (salvando) return;
+    if (salvando || salvandoRascunho) return;
     if (levantamentoAtualId && !versaoDoRascunho) {
       setRecado('Aguarde o rascunho terminar de carregar antes de salvar.');
       return;
@@ -542,6 +542,12 @@ export function CustosPage() {
         );
       } else {
         setRecado(mensagemDeErro(error, 'Falha ao salvar o levantamento.'));
+        window.requestAnimationFrame(() =>
+          formularioRef.current?.parentElement?.querySelector('[role="alert"]')?.scrollIntoView({
+            block: 'center',
+            behavior: 'smooth'
+          })
+        );
       }
     } finally {
       setSalvando(false);
@@ -788,12 +794,12 @@ export function CustosPage() {
             <div className="com-modo-opcoes com-modo-tres">
               <button
                 type="button"
-                disabled={salvando}
+                disabled={salvando || salvandoRascunho}
                 onClick={() => void salvar(true)}
               >
                 <MarcaDeOpcao tipo="ok" />
                 <strong>
-                  {salvando ? 'Salvando...' : `Confirmar ${codigo}`}
+                  {salvando || salvandoRascunho ? 'Salvando...' : `Confirmar ${codigo}`}
                 </strong>
                 <span>Salvar e abrir a criação das propostas.</span>
               </button>
@@ -902,7 +908,7 @@ export function CustosPage() {
           )}
 
           {recado && (
-            <p className="com-recado com-recado-tela" role="status">
+            <p className="com-recado com-recado-tela" role="alert">
               {recado}
             </p>
           )}

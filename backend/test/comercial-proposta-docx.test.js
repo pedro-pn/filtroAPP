@@ -127,6 +127,31 @@ function textoDoDocx(bytes) {
   return { xml, texto: partes.join(' ') };
 }
 
+/**
+ * Aproxima a concatenação que o Word faz entre runs. Sem `xml:space=preserve`,
+ * espaços nas bordas de um `w:t` são descartados — justamente o defeito que
+ * `textoDoDocx`, ao inserir um espaço artificial entre todos os nós, esconderia.
+ */
+function textoVisualDoDocx(bytes) {
+  const zip = new AdmZip(bytes);
+  const doc = new DOMParser().parseFromString(
+    zip.getEntry('word/document.xml').getData().toString('utf8'),
+    'text/xml'
+  );
+  return Array.from(doc.getElementsByTagName('w:p'))
+    .map(paragrafo =>
+      Array.from(paragrafo.getElementsByTagName('w:t'))
+        .map(texto => {
+          const conteudo = texto.textContent || '';
+          return texto.getAttribute('xml:space') === 'preserve'
+            ? conteudo
+            : conteudo.trim();
+        })
+        .join('')
+    )
+    .join('\n');
+}
+
 function textoEntreTitulos(bytes, inicio, fim) {
   const zip = new AdmZip(bytes);
   const doc = new DOMParser().parseFromString(
@@ -284,12 +309,47 @@ test('a jornada editada na proposta substitui a jornada fixa do modelo', async (
 });
 
 test('a previsão de atendimento leva a unidade no valor, não no modelo', async () => {
-  const { texto } = textoDoDocx(
+  const texto = textoVisualDoDocx(
     await preencherProposta({ ...DADOS, attendance: 'De imediato' }, 'commercial')
   );
 
   assert.match(texto, /De imediato\s+após\s+o recebimento/);
   assert.doesNotMatch(texto, /De imediato dias/);
+});
+
+test('os prazos numéricos mantêm "dias" e os espaços dos itens 4.1, 5.1 e 5.2', async () => {
+  for (const modelo of ['padrao', 'hidrojateamento']) {
+    for (const tipo of ['commercial', 'technical']) {
+      const texto = textoVisualDoDocx(
+        await preencherProposta(
+          {
+            ...DADOS,
+            modelo,
+            attendance: '20',
+            permanence: '35',
+            integration: '2'
+          },
+          tipo
+        )
+      );
+
+      assert.match(
+        texto,
+        /20 dias após o recebimento/,
+        `${modelo}/${tipo}: item 4.1 perdeu "dias" ou algum espaço`
+      );
+      assert.match(
+        texto,
+        /permanência em obra \(dias corridos\) – 35 dia\(s\);/,
+        `${modelo}/${tipo}: item 5.1 ficou sem espaço`
+      );
+      assert.match(
+        texto,
+        /Prazo previsto para integração – 2 dia\(s\);/,
+        `${modelo}/${tipo}: item 5.2 ficou sem espaço`
+      );
+    }
+  }
 });
 
 test('o capítulo 7 técnico contém somente os escopos selecionados', async () => {

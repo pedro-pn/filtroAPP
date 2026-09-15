@@ -69,6 +69,13 @@ test('confirmar "sem insumos" desliga a pendência de insumos', () => {
   const draft = padrao();
   const confirmado = {
     ...draft,
+    circuitServices: draft.volumeSystems
+      .filter(circuito => circuito.enabled !== false)
+      .map((circuito, indice) => ({
+        id: `servico-${indice + 1}`,
+        systemId: circuito.id,
+        serviceId: 'teste_hidrostatico'
+      })),
     scopeConfirmations: { ...draft.scopeConfirmations, noInputs: true }
   };
   assert.equal(faltaInsumos(confirmado), false);

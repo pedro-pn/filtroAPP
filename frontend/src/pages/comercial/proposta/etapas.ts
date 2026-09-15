@@ -19,6 +19,10 @@ import {
   type LocalOperacao,
   type ModeloProposta
 } from '../../../../../shared/comercial/dist/modelo-documento.js';
+import {
+  lerDinheiro,
+  moeda
+} from '../../../../../shared/comercial/dist/dinheiro.js';
 
 export type EtapaProposta =
   | 'cliente'
@@ -139,9 +143,8 @@ export function pendenciasDoCliente(form: Formulario): PendenciaEtapa[] {
 /**
  * As pendências da etapa **Escopo comum** (`PROP-CTL-026..033`).
  *
- * A trava da referência: título da proposta, e **todo** item com título *e*
- * descrição. Um item pela metade atravessa para o documento como uma seção 2.x
- * numerada e vazia — o cliente vê o número e não vê o serviço.
+ * O título identifica o serviço no documento. A descrição é complementar e
+ * pode ficar vazia quando o próprio título já define o escopo contratado.
  */
 export function pendenciasDoEscopo(
   titulo: string,
@@ -156,12 +159,6 @@ export function pendenciasDoEscopo(
   itens.forEach((item, i) => {
     if (!String(item.title || '').trim()) {
       faltando.push({ campo: `escopo[${i}].title`, mensagem: 'Informe o título do serviço.' });
-    }
-    if (!String(item.description || '').trim()) {
-      faltando.push({
-        campo: `escopo[${i}].description`,
-        mensagem: 'Descreva o serviço.'
-      });
     }
   });
 
@@ -412,6 +409,60 @@ export type ItemDePreco = {
   local?: LocalOperacao;
 };
 
+export const CAMPOS_STANDBY = [
+  { campo: 'overtimeRate', label: 'Homem/hora fora do horário previsto' },
+  { campo: 'standbyTeam', label: 'Stand-by de equipe (diária)' },
+  { campo: 'standbyEquipment', label: 'Stand-by de equipamentos (diária)' },
+  { campo: 'extraMobilization', label: 'Mobilização extra (por evento ida e volta)' }
+] as const;
+
+export const VALORES_PADRAO_STANDBY = {
+  overtimeRate: 'R$ 2.250,00',
+  standbyTeam: 'R$ 250,00'
+} as const;
+
+export function quantidadeDoItemDePreco(valor: unknown): number {
+  const numero = Number(String(valor ?? '').trim().replace(',', '.'));
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+/** O total impresso é sempre quantidade × valor unitário, arredondado em centavos. */
+export function valorTotalDoItemDePreco(
+  quantidade: unknown,
+  valorUnitario: unknown
+): string {
+  if (!String(valorUnitario ?? '').trim()) return '';
+  const quantidadeNumerica = quantidadeDoItemDePreco(quantidade);
+  if (quantidadeNumerica <= 0) return '';
+  return moeda(
+    Math.round(quantidadeNumerica * lerDinheiro(valorUnitario) * 100) / 100
+  );
+}
+
+export function recalcularItemDePreco(item: ItemDePreco): ItemDePreco {
+  return {
+    ...item,
+    value: valorTotalDoItemDePreco(item.quantity, item.unitValue)
+  };
+}
+
+export function recalcularItensDePreco(itens: ItemDePreco[]): ItemDePreco[] {
+  return itens.map(item =>
+    String(item.unitValue || '').trim() && quantidadeDoItemDePreco(item.quantity) > 0
+      ? recalcularItemDePreco(item)
+      : item
+  );
+}
+
+export function itemDePrecoCompleto(item: ItemDePreco): boolean {
+  return Boolean(
+    String(item.description || '').trim()
+      && quantidadeDoItemDePreco(item.quantity) > 0
+      && String(item.unitValue || '').trim()
+      && valorTotalDoItemDePreco(item.quantity, item.unitValue)
+  );
+}
+
 /**
  * Máscara de moeda, portada de `formatMoneyInput` (`app/page.tsx:1747`).
  *
@@ -445,8 +496,9 @@ export function pendenciasDaTecnica(erros: string[]): PendenciaEtapa[] {
 /**
  * As pendências de **Conteúdo da proposta comercial** (`PROP-CTL-058..071`).
  *
- * A trava da referência: ao menos um preço com descrição + unidade + valor,
- * condição de pagamento, impostos e validade.
+ * Ao menos um preço precisa de descrição, quantidade e valor unitário; o total
+ * é derivado desses dois últimos. Os quatro adicionais comerciais também são
+ * obrigatórios porque seguem para a tabela do item 9.
  */
 export function pendenciasDaComercial(
   form: Formulario,
@@ -454,14 +506,12 @@ export function pendenciasDaComercial(
 ): PendenciaEtapa[] {
   const faltando: PendenciaEtapa[] = [];
 
-  const completos = precos.filter(
-    item => item.description.trim() && item.unit.trim() && item.value.trim()
-  ).length;
+  const completos = precos.filter(itemDePrecoCompleto).length;
 
   if (completos === 0) {
     faltando.push({
       campo: 'precos',
-      mensagem: 'Informe ao menos um item de preço com descrição, unidade e valor total.'
+      mensagem: 'Informe ao menos um item de preço com descrição, quantidade e valor unitário.'
     });
   }
 
@@ -472,6 +522,12 @@ export function pendenciasDaComercial(
 
   for (const [campo, mensagem] of obrigatorios) {
     if (!texto(form, campo)) faltando.push({ campo, mensagem });
+  }
+
+  for (const { campo, label } of CAMPOS_STANDBY) {
+    if (!texto(form, campo)) {
+      faltando.push({ campo, mensagem: `Informe ${label.toLocaleLowerCase('pt-BR')}.` });
+    }
   }
 
   const validade = Number(texto(form, 'validity'));

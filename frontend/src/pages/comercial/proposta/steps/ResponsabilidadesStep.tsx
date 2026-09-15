@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { EQUIPAMENTOS_E_FERRAMENTAS_PADRAO } from '../../../../../../shared/comercial/dist/modelo-documento.js';
 import { AvisoPendencia } from '../../custos/ConfirmacaoEscopo';
@@ -71,6 +71,8 @@ export function ResponsabilidadesStep({
   const [gerenciando, setGerenciando] = useState(false);
   const idsDasLinhas = useRef(new WeakMap<LinhaResponsabilidade, string>());
   const sequenciaDosIds = useRef(0);
+  const linhaParaFocar = useRef<LinhaResponsabilidade | null>(null);
+  const tabelaRef = useRef<HTMLDivElement>(null);
 
   function idDaLinha(linha: LinhaResponsabilidade): string {
     const existente = idsDasLinhas.current.get(linha);
@@ -78,6 +80,26 @@ export function ResponsabilidadesStep({
     const novo = `responsabilidade-${++sequenciaDosIds.current}`;
     idsDasLinhas.current.set(linha, novo);
     return novo;
+  }
+
+  useEffect(() => {
+    const novaLinha = linhaParaFocar.current;
+    if (!novaLinha) return;
+    const linhaId = idDaLinha(novaLinha);
+    const campo = tabelaRef.current?.querySelector<HTMLInputElement>(
+      `[data-responsabilidade-id="${linhaId}"] input`
+    );
+    campo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campo?.focus();
+    linhaParaFocar.current = null;
+  }, [linhas]);
+
+  function adicionarResponsabilidade() {
+    const novaLinha = linhaVazia();
+    linhaParaFocar.current = novaLinha;
+    // Entra no topo da matriz: com dezenas de linhas padrão, acrescentar no
+    // final fazia o clique parecer não ter funcionado.
+    onLinhas(atual => [novaLinha, ...atual]);
   }
 
   const reordenar = useReordenacao({
@@ -207,9 +229,9 @@ export function ResponsabilidadesStep({
         <button
           type="button"
           className="com-btn-add"
-          onClick={() => onLinhas(atual => [...atual, linhaVazia()])}
+          onClick={adicionarResponsabilidade}
         >
-          + Adicionar responsabilidade
+          + Adicionar nova linha
         </button>
       </div>
 
@@ -389,7 +411,7 @@ export function ResponsabilidadesStep({
       )}
 
       {linhas.length > 0 ? (
-        <div className="com-table-wrap">
+        <div className="com-table-wrap" ref={tabelaRef}>
           <table>
             <thead>
               <tr>
@@ -417,6 +439,7 @@ export function ResponsabilidadesStep({
                 return (
                   <tr
                     key={linhaId}
+                    data-responsabilidade-id={linhaId}
                     className={
                       reordenar.idArrastado === linhaId
                         ? 'com-responsabilidade-linha drag-placeholder'
