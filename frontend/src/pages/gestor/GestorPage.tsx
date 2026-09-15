@@ -58,6 +58,7 @@ import { CollaboratorJobRoleHistoryEditor } from './CollaboratorJobRoleHistoryEd
 import {
   manualReportFileId,
   manualReportUploadListLabel,
+  updateManualReportUploadFileType,
   type ManualReportUploadFileState
 } from './manualReportUploadFile';
 import { getCommercialPendencias, type CommercialPendencia } from '../../api/acompanhamentoComercial';
@@ -2180,13 +2181,10 @@ export function GestorPage() {
 
     try {
       const uploadFiles = await Promise.all(files.map(async file => {
-        const metadata = manualReportMetadataFromFileName(file.name, manualReportForm.reportType);
         return {
           id: manualReportFileId(),
           fileName: file.name,
           pdfDataUrl: await fileToDataUrl(file),
-          sequenceNumber: metadata.sequenceNumber,
-          reportDate: metadata.reportDate || baseDate,
           serviceEquipment,
           serviceSystem,
           ...emptyManualReportOperationalFields()
@@ -2194,7 +2192,14 @@ export function GestorPage() {
       }));
       setManualReportForm(current => ({
         ...current,
-        files: [...current.files, ...uploadFiles]
+        files: [...current.files, ...uploadFiles.map(file => {
+          const metadata = manualReportMetadataFromFileName(file.fileName, current.reportType);
+          return {
+            ...file,
+            sequenceNumber: metadata.sequenceNumber,
+            reportDate: metadata.reportDate || baseDate
+          };
+        })]
       }));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível ler os PDFs.', 'error');
@@ -2719,9 +2724,9 @@ export function GestorPage() {
                   reportType,
                   ...(reportType === 'RDO' ? {
                     serviceEquipment: '',
-                    serviceSystem: '',
-                    files: current.files.map(file => ({ ...file, serviceEquipment: '', serviceSystem: '' }))
-                  } : {})
+                    serviceSystem: ''
+                  } : {}),
+                  files: current.files.map(file => updateManualReportUploadFileType(file, current.reportType, reportType))
                 }));
               }}
             >
