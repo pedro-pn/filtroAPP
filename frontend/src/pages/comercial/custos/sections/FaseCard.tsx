@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import {
   LEC_CONTEXT_EXPENSES,
   offshoreWorkSchedule
@@ -60,6 +62,7 @@ export function FaseCard({
   const exigeDeslocamentoRodoviario = emViagem && !semVeiculo;
   const confirmada = fase.workConditionConfirmed === true;
   const erroDoNome = erroSe(!String(fase.name || '').trim(), 'Campo obrigatório');
+  const [aberta, setAberta] = useState(true);
 
   function editar(patch: AnyRecord) {
     updateCollection('laborContexts', id, patch);
@@ -90,6 +93,15 @@ export function FaseCard({
           </label>
         </div>
         <div className="com-fase-acoes">
+          <button
+            type="button"
+            className="com-btn com-btn-fantasma"
+            aria-expanded={aberta}
+            aria-controls={`${id}-conteudo`}
+            onClick={() => setAberta(valor => !valor)}
+          >
+            {aberta ? 'Minimizar' : 'Expandir'}
+          </button>
           <button type="button" className="com-btn com-btn-fantasma">
             Duplicar
           </button>
@@ -106,6 +118,8 @@ export function FaseCard({
         </div>
       </header>
 
+      {aberta && (
+      <div id={`${id}-conteudo`} className="com-fase-conteudo">
       <div className="com-fase-paineis">
         <section className="com-fase-painel">
           <header>
@@ -267,7 +281,8 @@ export function FaseCard({
       <AlocacoesTabela fase={fase} levantamento={levantamento} />
 
       <DespesasFase fase={fase} levantamento={levantamento} />
-
+      </div>
+      )}
     </article>
   );
 }

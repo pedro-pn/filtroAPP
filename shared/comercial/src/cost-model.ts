@@ -411,6 +411,8 @@ export type CostEstimatePayloadV2 = {
   materials: MaterialItem[];
   volumeSystems: VolumeSystem[];
   products: ProductRequirement[];
+  /** Produtos removidos na tela e disponíveis para restauração no rascunho. */
+  deletedProducts?: ProductRequirement[];
   filters: FilterRequirement[];
   effluent: EffluentSettings;
   logisticsDestinations: LogisticsDestination[];
@@ -665,7 +667,7 @@ export const LOGISTICS_TRAVEL_DEFAULTS = {
   gasolinePricePerLiter: 6.5,
   dieselPricePerLiter: 6.3,
   companyCarTollPerVehicleKm: 0.2,
-  companyTruckTollPerVehicleKm: 0.5,
+  companyTruckTollPerVehicleKm: 0.2,
 } as const;
 export const LEC_MONTHLY_BENEFITS = {
   lifeInsurance: 50,
@@ -2183,6 +2185,9 @@ export function normalizeCostEstimatePayload(value: unknown): CostEstimatePayloa
   const materials = arrayValue(source.materials).map(normalizeMaterial);
   const volumeSystems = arrayValue(source.volumeSystems).map(normalizeVolumeSystem);
   const products = arrayValue(source.products).map(normalizeProduct);
+  const deletedProducts = source.deletedProducts === undefined
+    ? undefined
+    : arrayValue(source.deletedProducts).map(normalizeProduct);
   const filters = arrayValue(source.filters).map(normalizeFilter);
   const effluent = normalizeEffluent(source.effluent);
   const normalizedLogistics = arrayValue(source.logistics).map(normalizeLogistics);
@@ -2270,6 +2275,7 @@ export function normalizeCostEstimatePayload(value: unknown): CostEstimatePayloa
     materials,
     volumeSystems,
     products,
+    ...(deletedProducts === undefined ? {} : { deletedProducts }),
     filters,
     effluent,
     logisticsDestinations,

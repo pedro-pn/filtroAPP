@@ -67,9 +67,10 @@ function novoProduto(circuitoId?: string): AnyRecord {
 }
 
 export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) {
-  const { draft, result, setDraft, updateCollection, removeCollection } = levantamento;
+  const { draft, result, setDraft, updateCollection } = levantamento;
 
   const produtos = registros(draft.products);
+  const produtosExcluidos = registros(draft.deletedProducts);
   const calculados = registros(result.productResults);
   const circuitos = registros(draft.volumeSystems);
 
@@ -84,6 +85,46 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
     }));
   }
 
+  function excluir(produtoId: string) {
+    setDraft(atual => {
+      const ativos = registros(atual.products);
+      const removido = ativos.find(item => String(item.id) === produtoId);
+      if (!removido) return atual;
+
+      return {
+        ...atual,
+        products: ativos.filter(item => String(item.id) !== produtoId),
+        deletedProducts: [
+          ...registros(atual.deletedProducts).filter(
+            item => String(item.id) !== produtoId
+          ),
+          removido
+        ]
+      };
+    });
+  }
+
+  function restaurarExcluidos() {
+    setDraft(atual => {
+      const ativos = registros(atual.products);
+      const idsAtivos = new Set(ativos.map(item => String(item.id)));
+      const restaurados = registros(atual.deletedProducts).filter(
+        item => !idsAtivos.has(String(item.id))
+      );
+      if (!restaurados.length && !registros(atual.deletedProducts).length) return atual;
+
+      return {
+        ...atual,
+        products: [...ativos, ...restaurados],
+        deletedProducts: [],
+        scopeConfirmations: {
+          ...((atual.scopeConfirmations as AnyRecord) || {}),
+          noInputs: false
+        }
+      };
+    });
+  }
+
   return (
     <section className="com-painel">
       <div className="com-secao-titulo">
@@ -95,9 +136,21 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
             selecione todos os circuitos e cadastre o produto uma única vez.
           </p>
         </div>
-        <button type="button" className="com-btn-add" onClick={acrescentar}>
-          + Adicionar produto
-        </button>
+        <div className="com-secao-acoes">
+          {produtosExcluidos.length > 0 && (
+            <button
+              type="button"
+              className="com-btn com-btn-fantasma"
+              aria-label="Restaurar linhas excluídas"
+              onClick={restaurarExcluidos}
+            >
+              Restaurar excluídos ({produtosExcluidos.length})
+            </button>
+          )}
+          <button type="button" className="com-btn-add" onClick={acrescentar}>
+            + Adicionar produto
+          </button>
+        </div>
       </div>
 
       {produtos.length > 0 ? (
@@ -299,7 +352,7 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
                         type="button"
                         className="com-remover"
                         aria-label={`Remover ${String(item.productName || 'produto')}`}
-                        onClick={() => removeCollection('products', id)}
+                        onClick={() => excluir(id)}
                       >
                         ×
                       </button>

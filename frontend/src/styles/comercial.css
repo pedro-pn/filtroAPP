@@ -199,6 +199,13 @@
   color: var(--com-texto-fraco);
 }
 
+.com-root .com-secao-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Cabeçalho de sub-bloco — usa `strong` + `span` em vez de `h2` + `p` porque
    não é um título de seção, é um rótulo dentro dela. Os dois são INLINE por
    padrão, então sem isto o subtítulo gruda no fim do título na mesma linha. */
@@ -1707,6 +1714,8 @@
 .com-root .com-fase-acoes { display: flex; gap: 7px; flex-wrap: wrap; }
 .com-root .com-fase-acoes .com-btn { padding: 8px 12px; font-size: 11px; }
 
+.com-root .com-fase-conteudo { min-width: 0; }
+
 /* Cenários de jornada por linha da equipe. */
 .com-root .com-jornadas {
   margin-top: 14px;
@@ -1927,6 +1936,11 @@
   width: 92px;
   min-width: 0;
   max-width: none;
+}
+
+.com-root .com-medida-com-unidade .com-medida-valor {
+  width: 112px;
+  min-width: 112px;
 }
 
 .com-root .com-medida-com-unidade select {

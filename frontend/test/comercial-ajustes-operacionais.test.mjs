@@ -127,6 +127,75 @@ test('produto oferece dimensionamento único para todos os circuitos', () => {
   assert.match(html, /<option value="\*">Todos os circuitos<\/option>/);
 });
 
+test('produto excluído pode ser restaurado com todos os seus dados', () => {
+  const estado = levantamento();
+  estado.setDraft = atualizador => {
+    estado.draft = atualizador(estado.draft);
+  };
+  const produtoOriginal = { ...estado.draft.products[0] };
+  let arvore = ProdutosBloco({ levantamento: estado });
+  const remover = encontrarElemento(
+    arvore,
+    no => no.type === 'button' && no.props?.['aria-label'] === `Remover ${produtoOriginal.productName}`
+  );
+
+  remover.props.onClick();
+
+  assert.equal(estado.draft.products.some(item => item.id === produtoOriginal.id), false);
+  assert.deepEqual(estado.draft.deletedProducts, [produtoOriginal]);
+  assert.deepEqual(
+    motor.normalizeCostEstimatePayload(estado.draft).deletedProducts,
+    [produtoOriginal],
+    'a lixeira deve sobreviver ao salvamento automático do rascunho'
+  );
+
+  arvore = ProdutosBloco({ levantamento: estado });
+  const restaurar = encontrarElemento(
+    arvore,
+    no => no.type === 'button' && no.props?.['aria-label'] === 'Restaurar linhas excluídas'
+  );
+  restaurar.props.onClick();
+
+  assert.deepEqual(
+    estado.draft.products.find(item => item.id === produtoOriginal.id),
+    produtoOriginal
+  );
+  assert.deepEqual(estado.draft.deletedProducts, []);
+  assert.equal(estado.draft.scopeConfirmations.noInputs, false);
+});
+
+test('fases de mão de obra oferecem controle para minimizar sem remover dados', () => {
+  const estado = levantamento();
+  const html = renderToStaticMarkup(
+    createElement(FaseCard, {
+      fase: estado.draft.laborContexts[0],
+      indice: 0,
+      total: 1,
+      levantamento: estado
+    })
+  );
+
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, />Minimizar<\/button>/);
+  assert.match(html, /id="pre-engenharia-conteudo"/);
+});
+
+test('pedágio da frota inicia preenchido com R$ 0,20 por km', () => {
+  const draft = motor.createDefaultCostEstimatePayload();
+  assert.ok(draft.logistics.length > 0);
+  assert.ok(draft.logistics.every(item => item.tollPerVehicleKm === 0.2));
+
+  const caminhao = motor.normalizeCostEstimatePayload({
+    ...draft,
+    logistics: [{
+      ...draft.logistics[0],
+      calculationMode: 'company_truck_driver',
+      tollPerVehicleKm: undefined
+    }]
+  });
+  assert.equal(caminhao.logistics[0].tollPerVehicleKm, 0.2);
+});
+
 test('veículo continua obrigatório, mas oferece a decisão explícita "Sem veículo"', () => {
   const estado = levantamento();
   const html = renderToStaticMarkup(

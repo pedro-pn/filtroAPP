@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibitionOptions';
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
+import { COMMON_INCH_DIAMETERS } from '../../constants/tubeDiameters';
 import { UploadField } from '../ui/UploadField';
 
 const etapasPorTipo: Record<string, string[]> = {
@@ -42,31 +43,6 @@ const PRESSURE_TESTED_EQUIPMENT_OPTIONS: Array<{ value: PressureTestedEquipment;
   { value: 'tubulacao', label: 'Tubulação' },
   { value: 'mangueira', label: 'Mangueiras' },
   { value: 'outro', label: 'Outro' }
-];
-
-const commonInchDiameters = [
-  '1/8',
-  '1/4',
-  '3/8',
-  '1/2',
-  '3/4',
-  '1',
-  '1 1/4',
-  '1 1/2',
-  '2',
-  '2 1/2',
-  '3',
-  '3 1/2',
-  '4',
-  '5',
-  '6',
-  '8',
-  '10',
-  '12',
-  '14',
-  '16',
-  '18',
-  '20'
 ];
 
 const unitCategoryLabels: Record<string, string> = {
@@ -423,10 +399,10 @@ function TubesBlock({
                     onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: event.target.value }) })}
                   >
                     <option value="">Selecionar...</option>
-                    {row.d && !commonInchDiameters.includes(row.d) ? (
+                    {row.d && !COMMON_INCH_DIAMETERS.includes(row.d as typeof COMMON_INCH_DIAMETERS[number]) ? (
                       <option value={row.d}>{row.d}</option>
                     ) : null}
-                    {commonInchDiameters.map(diameter => (
+                    {COMMON_INCH_DIAMETERS.map(diameter => (
                       <option key={diameter} value={diameter}>{diameter}</option>
                     ))}
                   </select>
@@ -452,7 +428,11 @@ function TubesBlock({
                       tubes: updateArrayItem(rows, index, {
                         ...row,
                         unit,
-                        d: unit === 'pol' && row.d && !commonInchDiameters.includes(row.d) ? '' : row.d
+                        d: unit === 'pol'
+                          && row.d
+                          && !COMMON_INCH_DIAMETERS.includes(row.d as typeof COMMON_INCH_DIAMETERS[number])
+                          ? ''
+                          : row.d
                       })
                     });
                   }}

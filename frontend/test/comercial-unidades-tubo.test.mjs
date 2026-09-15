@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 let server;
 let unidades;
 let motor;
+let diametros;
 
 test.before(async () => {
   server = await createServer({
@@ -18,6 +19,7 @@ test.before(async () => {
   unidades = await server.ssrLoadModule(
     '/src/pages/comercial/custos/unidadesDeTubo.ts'
   );
+  diametros = await server.ssrLoadModule('/src/constants/tubeDiameters.ts');
   motor = await server.ssrLoadModule('/../shared/comercial/dist/cost-model.js');
 });
 
@@ -37,6 +39,17 @@ test('diâmetro converte polegada para o milímetro usado pelo cálculo', () => 
   assert.equal(unidades.diametroEmMilimetros(1, 'in'), 25.4);
   assert.equal(unidades.diametroParaExibicao(25.4, 'in'), 1);
   assert.equal(unidades.diametroEmMilimetros(100, 'mm'), 100);
+});
+
+test('levantamento usa a mesma lista fixa de polegadas dos relatórios de limpeza química', () => {
+  assert.deepEqual([...diametros.COMMON_INCH_DIAMETERS], [
+    '1/8', '1/4', '3/8', '1/2', '3/4', '1', '1 1/4', '1 1/2', '2',
+    '2 1/2', '3', '3 1/2', '4', '5', '6', '8', '10', '12', '14', '16',
+    '18', '20'
+  ]);
+  assert.equal(diametros.inchDiameterToNumber('1 1/4'), 1.25);
+  assert.equal(diametros.commonInchDiameterLabel(1.25), '1 1/4');
+  assert.equal(diametros.commonInchDiameterLabel(1.1), '');
 });
 
 test('as unidades escolhidas sobrevivem à normalização do rascunho no servidor', () => {
@@ -76,4 +89,6 @@ test('trecho de tubo mostra nome do sistema e seletores com polegada como padrã
   assert.match(fonte, /<option value="cm">cm<\/option>/);
   assert.match(fonte, /<option value="mm">mm<\/option>/);
   assert.match(fonte, /<option value="in">pol\.<\/option>/);
+  assert.match(fonte, /COMMON_INCH_DIAMETERS\.map/);
+  assert.match(fonte, /Diâmetro interno em polegadas/);
 });

@@ -10,6 +10,7 @@ import {
   type PlannedSystemType
 } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
+import { COMMON_INCH_DIAMETERS } from '../../constants/tubeDiameters';
 import { HelpTip } from '../ui/HelpTip';
 import { useToast } from '../ui/ToastContext';
 
@@ -35,31 +36,6 @@ const SYSTEM_UNIT: Record<PlannedSystemType, PlannedMeasureUnit> = {
 };
 const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 const DIAMETER_UNIT_LABELS: Record<PlannedDiameterUnit, string> = { pol: 'pol', mm: 'mm' };
-const COMMON_INCH_DIAMETERS = [
-  '1/8',
-  '1/4',
-  '3/8',
-  '1/2',
-  '3/4',
-  '1',
-  '1 1/4',
-  '1 1/2',
-  '2',
-  '2 1/2',
-  '3',
-  '3 1/2',
-  '4',
-  '5',
-  '6',
-  '8',
-  '10',
-  '12',
-  '14',
-  '16',
-  '18',
-  '20'
-];
-
 // Tipos de sistema permitidos por serviço (alinhados ao que cada serviço registra no RDO).
 const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
   LIMPEZA_QUIMICA: ['TUBULACAO'],
@@ -411,7 +387,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 <div className="acp-sys-list">
                   {svc.systems.map(sys => {
                     const isTube = sys.systemType === 'TUBULACAO';
-                    const inchDiameters = sys.diameter && !COMMON_INCH_DIAMETERS.includes(sys.diameter)
+                    const inchDiameters = sys.diameter
+                      && !COMMON_INCH_DIAMETERS.includes(sys.diameter as typeof COMMON_INCH_DIAMETERS[number])
                       ? [sys.diameter, ...COMMON_INCH_DIAMETERS]
                       : COMMON_INCH_DIAMETERS;
                     return (

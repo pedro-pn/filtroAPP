@@ -1,5 +1,10 @@
 import { useState } from 'react';
 
+import {
+  COMMON_INCH_DIAMETERS,
+  commonInchDiameterLabel,
+  inchDiameterToNumber
+} from '../../../../constants/tubeDiameters';
 import { number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
 import {
@@ -392,8 +397,16 @@ function SubTabela({
                   item.lengthUnit || 'm'
                 ) as UnidadeDeComprimento;
                 const unidadeDeDiametro = String(
-                  item.diameterUnit || 'in'
+                  item.diameterUnit
+                    || (numberValue(item.internalDiameterMm) > 0 ? 'mm' : 'in')
                 ) as UnidadeDeDiametro;
+                const diametroEmPolegadas = diametroParaExibicao(
+                  Number(item.internalDiameterMm) || 0,
+                  'in'
+                );
+                const rotuloDoDiametroEmPolegadas = commonInchDiameterLabel(
+                  diametroEmPolegadas
+                );
                 const editar = (patch: AnyRecord) =>
                   onEditar('volumeSystems', circuitoId, colecao, itemId, patch);
                 const numero = (campo: string) => (event: { target: { value: string } }) =>
@@ -472,32 +485,64 @@ function SubTabela({
                         <td>
                           {trechoDeTubo ? (
                             <div className="com-medida-com-unidade">
-                              <input
-                                type="number"
-                                aria-label="Diâmetro interno"
-                                min={0}
-                                step={unidadeDeDiametro === 'in' ? 0.001 : 0.1}
-                                value={
-                                  diametroParaExibicao(
-                                    Number(item.internalDiameterMm) || 0,
-                                    unidadeDeDiametro
-                                  ) || ''
-                                }
-                                onChange={event =>
-                                  editar({
-                                    internalDiameterMm: diametroEmMilimetros(
-                                      event.target.value === '' ? 0 : Number(event.target.value),
-                                      unidadeDeDiametro
-                                    )
-                                  })
-                                }
-                              />
+                              {unidadeDeDiametro === 'in' ? (
+                                <select
+                                  className="com-medida-valor"
+                                  aria-label="Diâmetro interno em polegadas"
+                                  value={rotuloDoDiametroEmPolegadas}
+                                  onChange={event =>
+                                    editar({
+                                      internalDiameterMm: event.target.value
+                                        ? diametroEmMilimetros(
+                                            inchDiameterToNumber(event.target.value),
+                                            'in'
+                                          )
+                                        : 0
+                                    })
+                                  }
+                                >
+                                  <option value="">Selecionar...</option>
+                                  {COMMON_INCH_DIAMETERS.map(diametro => (
+                                    <option key={diametro} value={diametro}>
+                                      {diametro}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  type="number"
+                                  aria-label="Diâmetro interno em milímetros"
+                                  min={0}
+                                  step={0.1}
+                                  value={
+                                    diametroParaExibicao(
+                                      Number(item.internalDiameterMm) || 0,
+                                      'mm'
+                                    ) || ''
+                                  }
+                                  onChange={event =>
+                                    editar({
+                                      internalDiameterMm: diametroEmMilimetros(
+                                        event.target.value === '' ? 0 : Number(event.target.value),
+                                        'mm'
+                                      )
+                                    })
+                                  }
+                                />
+                              )}
                               <select
                                 aria-label="Unidade do diâmetro"
                                 value={unidadeDeDiametro}
-                                onChange={event =>
-                                  editar({ diameterUnit: event.target.value })
-                                }
+                                onChange={event => {
+                                  const novaUnidade = event.target.value as UnidadeDeDiametro;
+                                  editar({
+                                    diameterUnit: novaUnidade,
+                                    ...(novaUnidade === 'in'
+                                      && !rotuloDoDiametroEmPolegadas
+                                      ? { internalDiameterMm: 0 }
+                                      : {})
+                                  });
+                                }}
                               >
                                 <option value="in">pol.</option>
                                 <option value="mm">mm</option>
