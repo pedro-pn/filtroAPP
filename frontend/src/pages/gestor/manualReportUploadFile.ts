@@ -1,4 +1,6 @@
 import type { ManualReportOperationalFieldsValue } from '../../components/reports/ManualReportOperationalFields';
+import type { ReportType } from '../../types/domain';
+import { manualReportMetadataFromFileName } from '../../utils/reportFileName';
 
 export interface ManualReportUploadFileState extends ManualReportOperationalFieldsValue {
   id: string;
@@ -8,6 +10,25 @@ export interface ManualReportUploadFileState extends ManualReportOperationalFiel
   reportDate: string;
   serviceEquipment: string;
   serviceSystem: string;
+}
+
+export function updateManualReportUploadFileType(
+  file: ManualReportUploadFileState,
+  previousType: ReportType,
+  reportType: ReportType
+): ManualReportUploadFileState {
+  const previousNumber = manualReportMetadataFromFileName(file.fileName, previousType).sequenceNumber;
+  const nextNumber = manualReportMetadataFromFileName(file.fileName, reportType).sequenceNumber;
+  // Refresh inferred numbers while keeping numbers entered by the user.
+  const sequenceNumber = !file.sequenceNumber || file.sequenceNumber === previousNumber
+    ? nextNumber
+    : file.sequenceNumber;
+
+  return {
+    ...file,
+    sequenceNumber,
+    ...(reportType === 'RDO' ? { serviceEquipment: '', serviceSystem: '' } : {})
+  };
 }
 
 export function manualReportFileId() {
