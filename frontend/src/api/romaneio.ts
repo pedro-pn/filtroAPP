@@ -161,8 +161,8 @@ export async function listRomaneioProjects(active = true) {
   return data;
 }
 
-export async function listRomaneios(filters: { search?: string; projectId?: string } = {}) {
-  const { data } = await apiClient.get<Romaneio[]>(romaneioApiPath('/'), { params: filters });
+export async function listRomaneios(filters: { search?: string; projectId?: string } = {}, signal?: AbortSignal) {
+  const { data } = await apiClient.get<Romaneio[]>(romaneioApiPath('/'), { params: filters, signal });
   return data;
 }
 

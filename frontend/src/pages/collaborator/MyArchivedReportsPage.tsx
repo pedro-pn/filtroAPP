@@ -11,7 +11,6 @@ import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 
@@ -22,14 +21,13 @@ export function MyArchivedReportsPage() {
   const { user, logout } = useAuth();
   // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
   const [search, setSearch] = usePersistentSearch(`my-archived-search:${user?.id || user?.username || 'anonymous'}`);
-  const debouncedSearch = useDebouncedValue(search, 300);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const reportsQuery = useAccumulatedReportsPage({
     mine: true,
     summary: true,
     projectActive: false,
     statuses: ['APPROVED', 'SIGNED'],
-    search: debouncedSearch,
+    search,
     projectSort: 'asc',
     pageSize: REPORT_PAGE_SIZE
   });
@@ -71,11 +69,11 @@ export function MyArchivedReportsPage() {
       <main className="page-scroll">
         <section className="page-card">
           <div className="admin-search-row">
-            <SearchBar value={search} onChange={setSearch} placeholder="Buscar em arquivados" />
+            <SearchBar value={search} loading={reportsQuery.isSearching} onChange={setSearch} placeholder="Buscar em arquivados" />
           </div>
         </section>
-        {reportsQuery.isLoading ? <ReportListSkeleton /> : null}
-        {!reportsQuery.isLoading && !groups.length ? (
+        {reportsQuery.isLoadingInitial ? <ReportListSkeleton /> : null}
+        {!reportsQuery.isLoadingInitial && !groups.length ? (
           <div className="page-card placeholder-copy">
             {search.trim() ? 'Nenhum relatório arquivado encontrado.' : 'Nenhum relatório arquivado.'}
           </div>

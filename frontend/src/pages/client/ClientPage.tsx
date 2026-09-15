@@ -16,7 +16,6 @@ import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { currentPageScrollState, saveCurrentPageScroll } from '../../hooks/usePageScrollRestoration';
@@ -243,7 +242,6 @@ export function ClientPage() {
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
   const [clientSearch, setClientSearch] = usePersistentSearch(`client-search:${user?.id || user?.username || 'anonymous'}`);
-  const debouncedClientSearch = useDebouncedValue(clientSearch, 300);
   const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
@@ -253,7 +251,7 @@ export function ClientPage() {
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
   const reportsQuery = useAccumulatedReportsPage({
     summary: true,
-    search: debouncedClientSearch,
+    search: clientSearch,
     projectSort: clientSortDirection,
     pageSize: REPORT_PAGE_SIZE
   }, true, {
@@ -349,7 +347,7 @@ export function ClientPage() {
   }, [activeProjectId, activeTypeByProject, clientSortDirection, clientToggleStorageKey, clientTogglesLoaded, closedTypeByProject]);
 
   useEffect(() => {
-    if (!clientTogglesLoaded || reportsQuery.isLoading || archivedProjectsQuery.isLoading) return;
+    if (!clientTogglesLoaded || reportsQuery.isLoadingInitial || archivedProjectsQuery.isLoading) return;
     if (!clientProjects.length) {
       if (activeProjectId) setActiveProjectId('');
       return;
@@ -357,7 +355,7 @@ export function ClientPage() {
     if (!activeProjectId || !clientProjects.some(project => project.id === activeProjectId)) {
       setActiveProjectId(clientProjects[0].id);
     }
-  }, [activeProjectId, archivedProjectsQuery.isLoading, clientProjects, clientTogglesLoaded, reportsQuery.isLoading]);
+  }, [activeProjectId, archivedProjectsQuery.isLoading, clientProjects, clientTogglesLoaded, reportsQuery.isLoadingInitial]);
 
   const activeProject = clientProjects.find(project => project.id === activeProjectId) || clientProjects[0] || null;
   const activeTypes = useMemo(
@@ -431,7 +429,7 @@ export function ClientPage() {
       projectCount: new Set([...reports.map(report => report.project.id), ...surveyProjects.map(project => project.id)]).size
     };
   }, [reportPagination?.total, reports, surveyProjects]);
-  const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
+  const tutorialReady = !reportsQuery.isLoadingInitial && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
   const tutorialUserKey = clientTutorialUserKey(user);
   const tutorialLegacyUserKeys = useMemo(() => clientTutorialLegacyKeys(user), [user]);
 
@@ -976,8 +974,8 @@ export function ClientPage() {
           </div>
         </section>
 
-        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <ReportListSkeleton /> : null}
-        {!reportsQuery.isLoading && !archivedProjectsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
+        {reportsQuery.isLoadingInitial || archivedProjectsQuery.isLoading ? <ReportListSkeleton /> : null}
+        {!reportsQuery.isLoadingInitial && !archivedProjectsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}
 
@@ -987,6 +985,7 @@ export function ClientPage() {
               ariaLabel="Buscar relatórios"
               placeholder="Buscar relatórios"
               value={clientSearch}
+              loading={reportsQuery.isSearching}
               onChange={setClientSearch}
             />
           </div>
@@ -1146,7 +1145,7 @@ export function ClientPage() {
             ) : null}
             {renderLoadMoreReports()}
           </>
-        ) : !reportsQuery.isLoading && reportSummary.total ? (
+        ) : !reportsQuery.isLoadingInitial && reportSummary.total ? (
           <div className="page-card placeholder-copy">
             {clientSearch.trim() ? 'Nenhum relatório encontrado.' : TEXT.noReports}
           </div>

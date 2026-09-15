@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 
 function readPersistentSearch(key: string): string {
   if (typeof window === 'undefined') return '';
@@ -23,20 +23,26 @@ function writePersistentSearch(key: string, value: string) {
  * Estado de texto de busca persistido em `sessionStorage`, restaurado ao voltar — inclusive
  * depois de abrir um card e voltar, ou de alternar abas. Use uma `storageKey` que inclua a aba
  * para manter uma busca **independente por aba**: ao retornar, restaura exatamente a busca daquela
- * aba. Drop-in para `useState('')` (o setter é o próprio do `useState`, aceita valor ou updater).
+ * aba. Compatível com `useState('')`: o setter aceita um valor ou uma função de atualização.
  */
 export function usePersistentSearch(storageKey: string): [string, Dispatch<SetStateAction<string>>] {
-  const [value, setValue] = useState(() => readPersistentSearch(storageKey));
-  const loadedKeyRef = useRef(storageKey);
+  const [state, setState] = useState(() => ({ key: storageKey, value: readPersistentSearch(storageKey) }));
+  // Restore before children render, so no request uses another tab's search term.
+  let value = state.value;
+  if (state.key !== storageKey) {
+    value = readPersistentSearch(storageKey);
+    setState({ key: storageKey, value });
+  }
+  const setValue: Dispatch<SetStateAction<string>> = useCallback(next => {
+    setState(current => ({
+      key: storageKey,
+      value: typeof next === 'function'
+        ? next(current.key === storageKey ? current.value : readPersistentSearch(storageKey))
+        : next
+    }));
+  }, [storageKey]);
 
   useEffect(() => {
-    if (loadedKeyRef.current !== storageKey) {
-      // A chave mudou (ex.: troca de aba): carrega a busca dessa aba e NÃO persiste a anterior
-      // sob a nova chave (evita "vazar" o termo de uma aba para outra).
-      loadedKeyRef.current = storageKey;
-      setValue(readPersistentSearch(storageKey));
-      return;
-    }
     writePersistentSearch(storageKey, value);
   }, [storageKey, value]);
 

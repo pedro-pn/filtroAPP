@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createSearchMatcher } from '../../utils/search';
 
 export interface SearchComboboxOption {
   value: string;
@@ -75,9 +76,9 @@ export function SearchCombobox({
 
   const filtered = useMemo(() => {
     if (allowCustomValue && showAllOptions) return options;
-    const normalized = query.trim().toLocaleLowerCase('pt-BR');
-    if (!normalized || selected?.label === query) return options;
-    return options.filter(option => `${option.label} ${option.description || ''}`.toLocaleLowerCase('pt-BR').includes(normalized));
+    if (!query.trim() || selected?.label === query) return options;
+    const matches = createSearchMatcher(query);
+    return options.filter(option => matches([option.label, option.description]));
   }, [options, query, selected?.label, allowCustomValue, showAllOptions]);
 
   function choose(option: SearchComboboxOption) {

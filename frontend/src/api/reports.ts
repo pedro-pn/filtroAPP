@@ -92,7 +92,7 @@ export interface ReportPageFilters extends ReportFilters {
   summary?: boolean;
 }
 
-export async function listReports(filters?: ReportFilters) {
+export async function listReports(filters?: ReportFilters, signal?: AbortSignal) {
   const params = {
     ...(filters ?? {}),
     ...(filters?.statuses?.length ? { statuses: filters.statuses.join(',') } : {}),
@@ -102,7 +102,8 @@ export async function listReports(filters?: ReportFilters) {
     ...(filters?.reviewQueue !== undefined ? { reviewQueue: String(filters.reviewQueue) } : {})
   };
   const response = await apiClient.get<ReportSummary[]>(rdoApiPath('/reports'), {
-    params
+    params,
+    signal
   });
   return response.data;
 }
@@ -117,7 +118,7 @@ export async function createReport(payload: ReportPayload) {
   return response.data;
 }
 
-export async function listReportsPage(filters?: ReportPageFilters) {
+export async function listReportsPage(filters?: ReportPageFilters, signal?: AbortSignal) {
   const params = {
     ...(filters ?? {}),
     ...(filters?.statuses?.length ? { statuses: filters.statuses.join(',') } : {}),
@@ -127,7 +128,8 @@ export async function listReportsPage(filters?: ReportPageFilters) {
     ...(filters?.reviewQueue !== undefined ? { reviewQueue: String(filters.reviewQueue) } : {})
   };
   const response = await apiClient.get<PaginatedReports>(rdoApiPath('/reports'), {
-    params
+    params,
+    signal
   });
   return response.data;
 }

@@ -6,11 +6,12 @@ interface SearchBarProps {
   placeholder?: string;
   ariaLabel?: string;
   id?: string;
+  loading?: boolean;
   /** Contagem opcional "X de Y" exibida quando há texto digitado. */
   count?: { shown: number; total: number } | null;
 }
 
-export function SearchBar({ value, onChange, placeholder, ariaLabel, id, count }: SearchBarProps) {
+export function SearchBar({ value, onChange, placeholder, ariaLabel, id, count, loading = false }: SearchBarProps) {
   return (
     <div className="app-search">
       <div className="app-search-field">
@@ -21,13 +22,14 @@ export function SearchBar({ value, onChange, placeholder, ariaLabel, id, count }
           value={value}
           placeholder={placeholder}
           aria-label={ariaLabel || placeholder}
+          aria-busy={loading}
           onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
         />
         {value ? (
           <button type="button" className="app-search-clear" aria-label="Limpar busca" onClick={() => onChange('')}>×</button>
         ) : null}
       </div>
-      {count && value.trim() ? (
+      {loading ? <span className="app-search-count" role="status">Buscando…</span> : count && value.trim() ? (
         <span className="app-search-count">{count.shown} de {count.total}</span>
       ) : null}
     </div>

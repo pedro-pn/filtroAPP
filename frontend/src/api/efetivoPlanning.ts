@@ -295,8 +295,8 @@ export async function getPlanningOverview(date: DateOnly, jobRoleId?: string) {
 export async function getPlanningCalendar(startDate: DateOnly, endDate: DateOnly, jobRoleId?: string) {
   return (await apiClient.get<{ events: CalendarEvent[]; conflicts: PlanningConflict[] }>(`${base}/calendar`, { params: { startDate, endDate, jobRoleId } })).data;
 }
-export async function listPlanningCollaborators(params: { date: DateOnly; jobRoleId?: string; search?: string; includeInactive?: boolean }) {
-  return (await apiClient.get<PlanningCollaborator[]>(`${base}/collaborators`, { params })).data;
+export async function listPlanningCollaborators(params: { date: DateOnly; jobRoleId?: string; search?: string; includeInactive?: boolean }, signal?: AbortSignal) {
+  return (await apiClient.get<PlanningCollaborator[]>(`${base}/collaborators`, { params, signal })).data;
 }
 export async function createPlanningCollaborator(payload: CollaboratorInput) {
   return (await apiClient.post<PlanningCollaborator>(`${base}/collaborators`, payload)).data;
