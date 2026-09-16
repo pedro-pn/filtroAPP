@@ -4516,6 +4516,25 @@ function firstHistoryKeyPart(fields, names) {
   return historyKeyPart(value);
 }
 
+function oilVolumeHistoryKeyPart(fields) {
+  const displayValue = firstHistoryKeyPart(fields, [
+    'Volume de óleo',
+    'Volume de oleo',
+    'Volume de Ã³leo'
+  ]);
+  const rawValue = firstHistoryKeyPart(fields, ['volumeOleo']);
+  const value = displayValue || rawValue;
+  if (!value) return '';
+
+  const valueWithUnit = value.match(/^(.+?)\s*(ml|l)$/i);
+  if (valueWithUnit?.[1]?.trim()) {
+    return `${valueWithUnit[1].trim()} ${valueWithUnit[2].toLowerCase()}`;
+  }
+
+  const explicitUnit = firstHistoryKeyPart(fields, ['volumeOleoUnit', 'Unidade de volume de óleo']);
+  return `${value} ${explicitUnit || 'l'}`;
+}
+
 function serviceHistoryDisambiguatorParts(service) {
   const fields = service?.extraData || {};
   const type = String(service?.serviceType || '').trim().toLowerCase();
@@ -4528,7 +4547,7 @@ function serviceHistoryDisambiguatorParts(service) {
 
   if (type === 'filtragem' || type === 'flushing') {
     const oilType = firstHistoryKeyPart(fields, ['Tipo de óleo', 'Tipo de oleo', 'Tipo de Ã³leo', 'tipoOleo']);
-    const oilVolume = firstHistoryKeyPart(fields, ['Volume de óleo', 'Volume de oleo', 'Volume de Ã³leo', 'volumeOleo']);
+    const oilVolume = oilVolumeHistoryKeyPart(fields);
     if (oilType) parts.push(`oleo:${oilType}`);
     if (oilVolume) parts.push(`volume:${oilVolume}`);
     if (type === 'flushing') {
@@ -4916,7 +4935,25 @@ async function syncApprovedRcpReports(tx, report) {
       project: activeReportProjectWhere(),
       reportType: ReportType.RCPU
     },
-    select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, reportDate: true, specialConditions: true }
+    select: {
+      id: true,
+      projectId: true,
+      reportType: true,
+      sequenceNumber: true,
+      status: true,
+      reportDate: true,
+      specialConditions: true,
+      services: {
+        select: {
+          id: true,
+          serviceType: true,
+          equipmentId: true,
+          system: true,
+          material: true,
+          extraData: true
+        }
+      }
+    }
   });
 
   const existingByLinkKey = new Map();
@@ -4926,6 +4963,11 @@ async function syncApprovedRcpReports(tx, report) {
     const serviceId = String(special.serviceId || '').trim();
     if (linkKey) existingByLinkKey.set(linkKey, item);
     if (serviceId) existingByLinkKey.set(serviceId, item);
+    for (const service of item.services || []) {
+      for (const key of serviceHistoryKeys(service)) {
+        if (key) existingByLinkKey.set(key, item);
+      }
+    }
   });
 
   // Fetch all approved RDOs once for totalMinutes calculation.

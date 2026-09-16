@@ -87,3 +87,38 @@ test('buildReportServicePayload removes only UI markers from inherited upload fi
     }]
   }]);
 });
+
+test('buildReportServicePayload keeps a stable service key and persists the visible default oil-volume unit', async () => {
+  const { buildReportServicePayload } = await loadReportServicePayload();
+
+  const firstSave = buildReportServicePayload({
+    id: 'svc-new-flushing',
+    type: 'flushing',
+    data: {
+      equipmentId: 'LAMINADOR',
+      system: 'Linha de lubrificação',
+      tipoOleo: 'VG32',
+      volumeOleo: '400'
+    }
+  });
+
+  assert.equal(firstSave.extraData.__serviceLinkKey, 'svc-new-flushing');
+  assert.equal(firstSave.extraData.volumeOleoUnit, 'L');
+  assert.equal(firstSave.extraData['Volume de óleo'], '400 L');
+
+  const secondSave = buildReportServicePayload({
+    id: 'database-row-created-after-first-save',
+    type: 'flushing',
+    data: {
+      ...firstSave.extraData,
+      __uploads__: [{
+        label: 'Foto do laudo',
+        files: [{ fileName: 'laudo.jpg', mimeType: 'image/jpeg', storagePath: 'missao/laudo.jpg' }]
+      }]
+    }
+  });
+
+  assert.equal(secondSave.extraData.__serviceLinkKey, 'svc-new-flushing');
+  assert.equal(secondSave.extraData.volumeOleoUnit, 'L');
+  assert.equal(secondSave.extraData['Volume de óleo'], '400 L');
+});
