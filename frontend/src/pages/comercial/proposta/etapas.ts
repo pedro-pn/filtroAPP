@@ -1,15 +1,12 @@
 /**
- * As 7 etapas da proposta e a **trava de avanço** (tarefas T055 e T056).
+ * As 7 etapas da proposta, a navegação e as validações de preenchimento.
  *
  * Porte de `app/page.tsx:857-863` (o stepper) e do rodapé com o contador de
  * pendências. Módulo puro, sem React, pelo mesmo motivo da cadeia do rodapé de
  * custos: a regra é testável sozinha, e a tela não é.
  *
- * **A trava é diferente da tela de custos, e a diferença é deliberada.** Lá as abas
- * são livres e o rodapé apenas guia — porque o levantamento é uma calculadora e o
- * orçamentista vai e volta entre seções o tempo todo. Aqui a proposta é um documento
- * que se monta em ordem: não dá para avançar com a etapa incompleta, e o stepper só
- * deixa voltar para etapa já visitada (`index <= step`, na referência).
+ * As abas do rascunho são livres. O rodapé valida ao salvar e avançar, e a
+ * conclusão confere todas as etapas, inclusive as que o usuário pulou.
  */
 
 import {
@@ -46,6 +43,11 @@ export const ETAPAS: Array<{ value: EtapaProposta; label: string }> = [
 export function indiceDaEtapa(etapa: EtapaProposta): number {
   const indice = ETAPAS.findIndex(item => item.value === etapa);
   return indice < 0 ? 0 : indice;
+}
+
+/** Documentos emitidos só permitem acessar a revisão/integração. */
+export function podeAcessarEtapa(status: string, etapa: EtapaProposta): boolean {
+  return status === 'RASCUNHO' || etapa === 'revisao';
 }
 
 /** Uma pendência da etapa: o campo e o que falta nele. */
@@ -390,6 +392,16 @@ export function pendenciasDaEtapa(
   if (etapa === 'tecnica') return pendenciasDaTecnica(escopo.errosTecnicos || []);
   if (etapa === 'comercial') return pendenciasDaComercial(form, escopo.precos || []);
   return [];
+}
+
+/** Pendências de todo o documento, na ordem das abas e com o campo de destino. */
+export function pendenciasDaProposta(
+  form: Formulario,
+  escopo: Parameters<typeof pendenciasDaEtapa>[2] = {}
+): Array<PendenciaEtapa & { etapa: EtapaProposta }> {
+  return ETAPAS.flatMap(({ value: etapa }) =>
+    pendenciasDaEtapa(etapa, form, escopo).map(pendencia => ({ ...pendencia, etapa }))
+  );
 }
 
 export type ItemDePreco = {

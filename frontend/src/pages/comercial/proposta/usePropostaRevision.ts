@@ -55,7 +55,6 @@ export function usePropostaRevision({
   setComplementoRelatorios,
   setPrecos,
   setIncluirUnitario,
-  setMaiorVisitada,
   setTentouAvancar,
   setRecado
 }: {
@@ -75,7 +74,6 @@ export function usePropostaRevision({
   setComplementoRelatorios: Dispatch<SetStateAction<string>>;
   setPrecos: Dispatch<SetStateAction<ItemDePreco[]>>;
   setIncluirUnitario: Dispatch<SetStateAction<boolean>>;
-  setMaiorVisitada: Dispatch<SetStateAction<number>>;
   setTentouAvancar: Dispatch<SetStateAction<boolean>>;
   setRecado: Dispatch<SetStateAction<string>>;
 }) {
@@ -134,7 +132,6 @@ export function usePropostaRevision({
       const snapshot = revisao.snapshot ?? {};
       aplicarSnapshot(snapshot, revisao.sellerUserId);
       setVinculoCrm(revisao.crm);
-      setMaiorVisitada(0);
       setTentouAvancar(false);
       const chave = `${revisao.base_number}:${revisao.nextRevision}`;
       revisaoCarregada.current = chave;
@@ -169,7 +166,7 @@ export function usePropostaRevision({
             : ' Funil e card serão definidos na última etapa.')
       );
     },
-    [aplicarSnapshot, params, setMaiorVisitada, setParams, setRecado, setTentouAvancar]
+    [aplicarSnapshot, params, setParams, setRecado, setTentouAvancar]
   );
 
   useEffect(() => {

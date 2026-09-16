@@ -48,6 +48,8 @@ import {
   type ItemDePreco,
   type LinhaResponsabilidade,
   pendenciasDaEtapa,
+  pendenciasDaProposta,
+  podeAcessarEtapa,
   rotuloDoAvanco,
   type EtapaProposta
 } from './etapas';
@@ -105,10 +107,8 @@ import { parametrosDasPendenciasDoLevantamento } from './prepararLevantamento';
  * stepper, o rodapé com a trava e o rascunho local. Cada etapa vem em componente
  * próprio.
  *
- * **A trava é o oposto da tela de custos, e a diferença é deliberada.** Lá as abas são
- * livres porque o levantamento é uma calculadora e o orçamentista vai e volta o tempo
- * todo. Aqui a proposta é um documento montado em ordem: não se avança com a etapa
- * incompleta, e o stepper só volta para etapa já visitada.
+ * As abas são livres durante o rascunho. O rodapé valida a etapa ao salvar e
+ * avançar; antes de emitir, confere também todas as etapas que foram puladas.
  *
  * L3 desde já (T087): a etapa ativa vive no ENDEREÇO, e o conteúdo é guardado
  * localmente com oferta de recuperação.
@@ -228,7 +228,6 @@ export function PropostaPage() {
   const errosTecnicos = pendenciasTecnicas.map(
     (pendencia) => pendencia.message
   );
-  const [maiorVisitada, setMaiorVisitada] = useState(indice);
   const [tentouAvancar, setTentouAvancar] = useState(false);
   const [consultores, setConsultores] = useState<Consultor[]>([]);
   const [consultoresCarregados, setConsultoresCarregados] = useState(false);
@@ -242,7 +241,7 @@ export function PropostaPage() {
   const [statusProposta, setStatusProposta] = useState('RASCUNHO');
   const [pendenciaFinalizacao, setPendenciaFinalizacao] =
     useState<PendenciaDaFinalizacao | null>(null);
-  const [focarPendencia, setFocarPendencia] = useState(false);
+  const [etapaParaFocar, setEtapaParaFocar] = useState<EtapaProposta | null>(null);
   const [conflitoDeEdicao, setConflitoDeEdicao] =
     useState<ComercialConcurrentWriteError | null>(null);
   const formularioRef = useRef<HTMLDivElement>(null);
@@ -250,7 +249,7 @@ export function PropostaPage() {
   function encaminharPendenciaDaFinalizacao(pendencia: PendenciaDaFinalizacao) {
     setPendenciaFinalizacao(pendencia);
     setTentouAvancar(true);
-    setFocarPendencia(true);
+    setEtapaParaFocar(pendencia.etapa);
     if (etapa === pendencia.etapa) return;
 
     const proximos = new URLSearchParams(window.location.search);
@@ -280,7 +279,6 @@ export function PropostaPage() {
     setComplementoRelatorios,
     setPrecos,
     setIncluirUnitario,
-    setMaiorVisitada,
     setTentouAvancar,
     setRecado
   });
@@ -527,9 +525,6 @@ export function PropostaPage() {
           proposta: proposta.proposalCode,
           revisao: String(proposta.revisionNumber)
         });
-        // Reabrir uma proposta é chegar depois do começo: as etapas já visitadas
-        // continuam alcançáveis pelo stepper.
-        setMaiorVisitada(ETAPAS.length - 1);
       })
       .catch((error) => {
         if (vivo) {
@@ -546,29 +541,30 @@ export function PropostaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aplicarSnapshot, propostaId]);
 
-  useEffect(() => {
-    setMaiorVisitada((atual) => Math.max(atual, indice));
-  }, [indice]);
-
-  const pendencias = pendenciasDaEtapa(etapa, form, {
+  const pendenciasDoFormulario = pendenciasDaProposta(form, {
     itens: itensEscopo,
     responsabilidades,
     errosTecnicos,
     precos
   });
+  const pendencias = pendenciasDoFormulario.filter(
+    pendencia => pendencia.etapa === etapa
+  );
   const erros = indiceDePendencias(pendencias);
   const ultima = indice === ETAPAS.length - 1;
   const proximaEtapa = ultima ? null : ETAPAS[indice + 1];
   const codigoExibido = rotuloDaProposta(codigo, revisionNumber);
 
   useEffect(() => {
-    if (!focarPendencia) return;
+    // A navegação pode terminar depois da atualização de estado. Só procura o
+    // campo quando a aba de destino já estiver renderizada.
+    if (etapaParaFocar !== etapa) return;
     const quadro = window.requestAnimationFrame(() => {
       focarPrimeiroCampoInvalido(formularioRef.current);
-      setFocarPendencia(false);
+      setEtapaParaFocar(null);
     });
     return () => window.cancelAnimationFrame(quadro);
-  }, [etapa, focarPendencia, pendenciaFinalizacao, tentouAvancar]);
+  }, [etapa, etapaParaFocar, pendenciaFinalizacao, tentouAvancar]);
 
   function irPara(destino: EtapaProposta, rolar = false) {
     // O salvamento anterior pode ter acabado de acrescentar `id` e `proposta`
@@ -606,11 +602,19 @@ export function PropostaPage() {
     // usuário tenta avançar, não antes.
     setTentouAvancar(true);
     if (pendencias.length > 0) {
-      setFocarPendencia(true);
+      setEtapaParaFocar(etapa);
       return;
     }
 
     if (ultima) {
+      const pendencia =
+        statusProposta === 'RASCUNHO' ? pendenciasDoFormulario[0] : undefined;
+      if (pendencia) {
+        irPara(pendencia.etapa);
+        setTentouAvancar(true);
+        setEtapaParaFocar(pendencia.etapa);
+        return;
+      }
       await finalizacao.concluirFinalizacao();
       return;
     }
@@ -907,10 +911,12 @@ export function PropostaPage() {
         <>
           <nav className="com-stepper" aria-label="Etapas da proposta">
             {ETAPAS.map((item, i) => {
-              const somenteIntegracao = statusProposta !== 'RASCUNHO';
-              const alcancavel =
-                i <= maiorVisitada &&
-                (!somenteIntegracao || item.value === 'revisao');
+              const alcancavel = podeAcessarEtapa(statusProposta, item.value);
+              const concluida =
+                item.value !== 'revisao' &&
+                !pendenciasDoFormulario.some(
+                  pendencia => pendencia.etapa === item.value
+                );
               return (
                 <button
                   key={item.value}
@@ -918,19 +924,18 @@ export function PropostaPage() {
                   className={
                     i === indice
                       ? 'is-ativa'
-                      : i < maiorVisitada
+                      : concluida
                         ? 'is-concluida'
                         : undefined
                   }
                   aria-current={i === indice ? 'step' : undefined}
-                  /* Sem `disabled`: na referência o passo à frente fica cinza,
-                   não apagado. Ele informa onde se está — e um controle
-                   desabilitado parece defeito, não estado. O clique é que
-                   respeita a ordem. */
                   aria-disabled={!alcancavel || undefined}
+                  title={
+                    !alcancavel ? 'Proposta já emitida. Acesse Revisão.' : undefined
+                  }
                   onClick={() => alcancavel && irPara(item.value)}
                 >
-                  <b aria-hidden="true">{i < maiorVisitada ? '✓' : i + 1}</b>
+                  <b aria-hidden="true">{concluida ? '✓' : i + 1}</b>
                   <span>{item.label}</span>
                 </button>
               );

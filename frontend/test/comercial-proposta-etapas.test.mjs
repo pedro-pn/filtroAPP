@@ -4,11 +4,8 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 
 /**
- * As 7 etapas da proposta e a trava de avanço (tarefas T055, T056, T057).
- *
- * A trava aqui é o **oposto** da tela de custos, e a diferença é deliberada: lá as
- * abas são livres porque o levantamento é uma calculadora; aqui a proposta é um
- * documento montado em ordem, e etapa incompleta não avança.
+ * As 7 etapas da proposta: abas livres no rascunho, validação ao salvar/emitir
+ * e bloqueio de edição depois da emissão.
  */
 
 let server;
@@ -43,6 +40,52 @@ test('as 7 etapas estão na ordem da referência', () => {
     mod.ETAPAS.map(e => e.value),
     ['cliente', 'escopo', 'responsabilidades', 'prazos', 'tecnica', 'comercial', 'revisao']
   );
+});
+
+test('rascunhos novos, reabertos e revisões permitem acessar qualquer aba', () => {
+  for (const { value } of mod.ETAPAS) {
+    assert.equal(mod.podeAcessarEtapa('RASCUNHO', value), true, value);
+  }
+});
+
+test('propostas emitidas continuam restritas à revisão, inclusive após falha de integração', () => {
+  for (const status of ['FINALIZADA', 'FALHA_INTEGRACAO']) {
+    for (const { value } of mod.ETAPAS) {
+      assert.equal(mod.podeAcessarEtapa(status, value), value === 'revisao', `${status}: ${value}`);
+    }
+  }
+});
+
+test('a conclusão verifica as etapas puladas e preserva o endereço de cada campo', () => {
+  const dados = { itens: [{}], responsabilidades: [], errosTecnicos: ['x'], precos: [] };
+  const pendencias = mod.pendenciasDaProposta({}, dados);
+  assert.deepEqual(
+    [...new Set(pendencias.map(p => p.etapa))],
+    ['cliente', 'escopo', 'responsabilidades', 'prazos', 'tecnica', 'comercial']
+  );
+  for (const { value: etapa } of mod.ETAPAS) {
+    assert.deepEqual(
+      pendencias.filter(p => p.etapa === etapa).map(({ etapa: _, ...p }) => p),
+      mod.pendenciasDaEtapa(etapa, {}, dados)
+    );
+  }
+  assert.equal(mod.pendenciasDaProposta(completo, dados)[0].etapa, 'escopo');
+});
+
+test('a tela libera as abas sem validar o clique e confere todas antes de emitir', () => {
+  const pagina = readFileSync(
+    new URL('../src/pages/comercial/proposta/PropostaPage.tsx', import.meta.url), 'utf8'
+  );
+  assert.match(pagina, /const alcancavel = podeAcessarEtapa\(statusProposta, item.value\)/);
+  assert.match(pagina, /onClick=\{\(\) => alcancavel && irPara\(item.value\)\}/);
+  assert.doesNotMatch(pagina, /maiorVisitada|setMaiorVisitada/);
+  const conclusao = pagina.slice(pagina.indexOf('if (ultima) {'), pagina.indexOf('const id = await salvar();'));
+  assert.match(conclusao, /pendenciasDoFormulario\[0\]/);
+  assert.match(conclusao, /irPara\(pendencia.etapa\)/);
+  assert.match(conclusao, /setTentouAvancar\(true\)/);
+  assert.match(conclusao, /setEtapaParaFocar\(pendencia.etapa\)/);
+  assert.match(pagina, /if \(etapaParaFocar !== etapa\) return/);
+  assert.ok(conclusao.indexOf('return;') < conclusao.indexOf('finalizacao.concluirFinalizacao()'));
 });
 
 test('formulário completo não tem pendência', () => {
@@ -279,6 +322,31 @@ const formComercialCompleto = {
   standbyEquipment: 'R$ 1.000,00',
   extraMobilization: 'R$ 4.500,00'
 };
+
+test('a validação global libera o documento completo e detecta uma etapa que voltou a ficar incompleta', () => {
+  const form = {
+    ...completo,
+    ...formComercialCompleto,
+    title: 'Filtragem',
+    attendance: '10 dias',
+    mobilization: '2 dias',
+    permanence: '5 dias',
+    integration: '1 dia',
+    execution: '4 dias',
+    workday: '8h às 17h'
+  };
+  const dados = {
+    itens: [{ title: 'Filtragem' }],
+    responsabilidades: [{ item: 'Energia elétrica' }],
+    errosTecnicos: [],
+    precos: [precoCompleto]
+  };
+  assert.deepEqual(mod.pendenciasDaProposta(form, dados), []);
+  const pendencias = mod.pendenciasDaProposta({ ...form, execution: '' }, dados);
+  assert.equal(pendencias.length, 1);
+  assert.equal(pendencias[0].etapa, 'prazos');
+  assert.equal(pendencias[0].campo, 'execution');
+});
 
 test('comercial: item de preço pela metade não conta', () => {
   const form = formComercialCompleto;
