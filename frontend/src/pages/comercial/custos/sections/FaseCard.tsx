@@ -5,6 +5,7 @@ import {
   offshoreWorkSchedule
 } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { Field, NumberField, SelectField } from '../../components/Field';
+import { CabecalhoRetratil } from '../../components/CabecalhoRetratil';
 import {
   atualizarDataDeInicioDaFase,
   dataDeInicioDaFase
@@ -72,6 +73,17 @@ export function FaseCard({
 
   return (
     <article className="com-fase-card">
+      <header className="com-fase-card-topo com-cabecalho-retratil">
+        <CabecalhoRetratil
+          titulo={String(fase.name || `Fase ${indice + 1}`)}
+          indice={indice + 1}
+          aberto={aberta}
+          conteudoId={`${id}-conteudo`}
+          onAlternar={() => setAberta(valor => !valor)}
+        />
+      </header>
+
+      <div id={`${id}-conteudo`} className="com-fase-conteudo" hidden={!aberta}>
       <header className="com-fase-card-topo">
         <div className="com-fase-identidade">
           <span className="com-fase-indice">{indice + 1}</span>
@@ -95,15 +107,6 @@ export function FaseCard({
           </label>
         </div>
         <div className="com-fase-acoes">
-          <button
-            type="button"
-            className="com-btn com-btn-fantasma"
-            aria-expanded={aberta}
-            aria-controls={`${id}-conteudo`}
-            onClick={() => setAberta(valor => !valor)}
-          >
-            {aberta ? 'Minimizar' : 'Expandir'}
-          </button>
           <button type="button" className="com-btn com-btn-fantasma">
             Duplicar
           </button>
@@ -120,7 +123,6 @@ export function FaseCard({
         </div>
       </header>
 
-      <div id={`${id}-conteudo`} className="com-fase-conteudo" hidden={!aberta}>
       <div className="com-fase-paineis">
         <section className="com-fase-painel">
           <header>

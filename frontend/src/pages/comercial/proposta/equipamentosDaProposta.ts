@@ -63,12 +63,11 @@ function normalizar(valor: unknown): string {
     .toLocaleLowerCase('pt-BR');
 }
 
-/** Texto do equipamento sem a quantidade inicial, usado como identidade estável. */
+/** Texto do equipamento sem a quantidade inicial, usado para comparar a seleção. */
 export function descricaoDoEquipamento(valor: string): string {
   return String(valor || '')
     .trim()
-    .replace(/^\d+\s*[x×]\s*[—-]?\s*/u, '')
-    .replace(/^\d+\s+/u, '')
+    .replace(/^(?:\d+\s*[x×]\s*[—-]?\s*|\d+\s+)/u, '')
     .trim();
 }
 
@@ -89,6 +88,34 @@ export function equipamentoComQuantidade(valor: string, quantidade: number): str
   const inteira = Math.max(1, Math.trunc(Number(quantidade) || 1));
   const descricao = descricaoDoEquipamento(valor);
   return inteira === 1 ? `1 ${descricao}` : `${inteira} × ${descricao}`;
+}
+
+/** Altera só o nome nesta proposta, sem mudar a quantidade nem o catálogo. */
+export function renomearEquipamento(
+  selecionados: string[],
+  equipamento: string,
+  nome: string
+): { equipamentos: string[]; erro?: string } {
+  const indice = selecionados.findIndex(item => mesmoEquipamento(item, equipamento));
+  if (indice < 0) {
+    return { equipamentos: selecionados, erro: 'Este equipamento não está mais selecionado.' };
+  }
+  const descricao = nome.trim();
+  if (!descricao) {
+    return { equipamentos: selecionados, erro: 'Informe o nome do equipamento.' };
+  }
+
+  // O prefixo explícito protege nomes que começam com números (ex.: 20 000 psi).
+  const renomeado = equipamentoComQuantidade(
+    `1 ${descricao}`,
+    quantidadeDoEquipamento(selecionados[indice])
+  );
+  if (selecionados.some((item, i) => i !== indice && mesmoEquipamento(item, renomeado))) {
+    return { equipamentos: selecionados, erro: 'Já existe um equipamento selecionado com este nome.' };
+  }
+  return {
+    equipamentos: selecionados.map((item, i) => i === indice ? renomeado : item)
+  };
 }
 
 /** Equipamentos recomendados pelos títulos e descrições do capítulo 2. */

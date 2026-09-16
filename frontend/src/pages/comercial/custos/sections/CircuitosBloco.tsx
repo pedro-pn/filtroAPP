@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CabecalhoRetratil } from '../../components/CabecalhoRetratil';
 
 import {
   COMMON_INCH_DIAMETERS,
@@ -166,31 +167,16 @@ export function CircuitosBloco({ levantamento }: { levantamento: Levantamento })
 
             return (
               <article key={circuitoId} className="com-fase-card com-circuito-card">
-                <header className="com-fase-card-topo com-circuito-resumo">
-                  <button
-                    type="button"
-                    className="com-circuito-toggle"
-                    aria-expanded={aberto}
-                    aria-controls={`${circuitoId}-corpo`}
-                    onClick={() => alternarCircuito(circuitoId)}
-                  >
-                    <span className="com-fase-indice">{indice + 1}</span>
-                    <span>
-                      <small>Circuito</small>
-                      <strong>{String(circuito.name || `Circuito ${indice + 1}`)}</strong>
-                    </span>
-                    <span className="com-volume-badge">{number(volume)} L</span>
-                    <span className="com-circuito-seta" aria-hidden="true">
-                      {aberto ? '▴' : '▾'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="com-btn com-btn-fantasma"
-                    onClick={() => alternarCircuito(circuitoId)}
-                  >
-                    {aberto ? 'Minimizar' : 'Abrir para preencher'}
-                  </button>
+                <header className="com-fase-card-topo com-cabecalho-retratil">
+                  <CabecalhoRetratil
+                    titulo={String(circuito.name || `Circuito ${indice + 1}`)}
+                    descricao="Circuito"
+                    indice={indice + 1}
+                    resumo={<span className="com-volume-badge">{number(volume)} L</span>}
+                    aberto={aberto}
+                    conteudoId={`${circuitoId}-corpo`}
+                    onAlternar={() => alternarCircuito(circuitoId)}
+                  />
                 </header>
 
                 {aberto && (

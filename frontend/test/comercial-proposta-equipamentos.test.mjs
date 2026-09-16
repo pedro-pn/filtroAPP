@@ -9,6 +9,7 @@ let mod;
 let servicos;
 let EscopoStep;
 let ResponsabilidadesStep;
+let salvamento;
 
 test.before(async () => {
   server = await createServer({
@@ -20,6 +21,7 @@ test.before(async () => {
   mod = await server.ssrLoadModule(
     '/src/pages/comercial/proposta/equipamentosDaProposta.ts'
   );
+  salvamento = await server.ssrLoadModule('/src/pages/comercial/proposta/salvamento.ts');
   servicos = await server.ssrLoadModule(
     '/src/pages/comercial/proposta/servicosDaProposta.ts'
   );
@@ -81,6 +83,52 @@ test('equipamento sugerido aceita quantidade e mantém a identidade do catálogo
   assert.equal(mod.equipamentoComQuantidade(tresUnidades, 1), catalogo);
 });
 
+test('renomear preserva quantidade, ordem e demais equipamentos sem mudar o catálogo', () => {
+  const selecionados = ['3 × bomba pneumática', '1 unidade de limpeza química'];
+  const resultado = mod.renomearEquipamento(selecionados, selecionados[0], '  Bomba de apoio  ');
+  assert.equal(resultado.erro, undefined);
+  assert.deepEqual(resultado.equipamentos, ['3 × Bomba de apoio', selecionados[1]]);
+  assert.deepEqual(selecionados, ['3 × bomba pneumática', '1 unidade de limpeza química']);
+  assert.ok(mod.equipamentosSugeridosPeloEscopo([{ title: 'Limpeza química' }])
+    .includes('1 bomba pneumática'));
+  assert.equal(mod.equipamentoComQuantidade(resultado.equipamentos[0], 2), '2 × Bomba de apoio');
+});
+
+test('a edição rejeita nomes vazios, repetidos e equipamentos que não estão selecionados', () => {
+  const selecionados = ['2 × bomba pneumática', '1 centrífuga'];
+  for (const [original, nome] of [
+    [selecionados[0], '   '],
+    [selecionados[0], 'CENTRIFUGA'],
+    ['1 termovácuo', 'Bomba']
+  ]) {
+    const resultado = mod.renomearEquipamento(selecionados, original, nome);
+    assert.ok(resultado.erro);
+    assert.deepEqual(resultado.equipamentos, selecionados);
+  }
+  assert.equal(mod.renomearEquipamento(selecionados, selecionados[0], 'Bomba pneumática').erro, undefined);
+});
+
+test('nomes de equipamentos iniciados por números não perdem parte do nome ao alterar a quantidade', () => {
+  const resultado = mod.renomearEquipamento(['3 × hidrojato'], '1 hidrojato', '20 000 psi - Hidrojato');
+  assert.equal(resultado.equipamentos[0], '3 × 20 000 psi - Hidrojato');
+  assert.equal(mod.descricaoDoEquipamento(resultado.equipamentos[0]), '20 000 psi - Hidrojato');
+  assert.equal(mod.equipamentoComQuantidade(resultado.equipamentos[0], 1), '1 20 000 psi - Hidrojato');
+});
+
+test('o nome editado e a quantidade sobrevivem ao payload e à reabertura da proposta', () => {
+  const subitens = mod.renomearEquipamento(['2 × bomba pneumática'], '1 bomba pneumática', 'Bomba auxiliar').equipamentos;
+  const conteudo = {
+    form: {}, codigo: '99991', orcamentista: 'Teste', modelo: 'padrao',
+    itensEscopo: [], blocos: [], categorias: [], precos: [], incluirUnitario: true,
+    servicosTecnicos: [], complementoRelatorios: '',
+    responsabilidades: [{ item: 'Equipamentos', owner: 'Filtrovali', subitens }]
+  };
+  const entrada = salvamento.entradaDaProposta(conteudo, '');
+  const reaberto = salvamento.snapshotDaPropostaSalva(JSON.parse(JSON.stringify(entrada)));
+  assert.deepEqual(reaberto.rows[0].subitens, ['2 × Bomba auxiliar']);
+  assert.deepEqual(salvamento.dadosDaProposta(conteudo).rows[0].subitens, subitens);
+});
+
 test('a proposta oferece a lista pedida e preserva a opção de serviço livre', () => {
   assert.deepEqual([...servicos.SERVICOS_DA_PROPOSTA], [
     'Teste de pressão',
@@ -129,4 +177,6 @@ test('a tela mostra quantidade editável para cada equipamento selecionado', () 
 
   assert.match(html, /aria-label="Quantidade de bomba pneumática"/);
   assert.match(html, /type="number" min="1" step="1"[^>]*value="1"/);
+  assert.match(html, /class="com-equipamento-nome"[^>]*aria-label="Nome do equipamento: bomba pneumática"[^>]*value="bomba pneumática"/);
+  assert.doesNotMatch(html, />Editar nome<|>Salvar nome</);
 });

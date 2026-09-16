@@ -1789,31 +1789,58 @@
 }
 .com-root .com-jornada-acoes small { color: var(--com-texto-fraco); }
 
-/* Circuitos existentes começam recolhidos e mantêm nome/volume no resumo. */
-.com-root .com-circuito-resumo { align-items: center; margin-bottom: 0; }
-.com-root .com-circuito-toggle {
+/* O título inteiro abre/recolhe a seção; a seta acompanha o estado. */
+.com-root .com-cabecalho-retratil { margin-bottom: 0; }
+.com-root .com-cabecalho-retratil > h2 { width: 100%; margin: 0; }
+.com-root .com-cabecalho-toggle {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1 1 280px;
+  width: 100%;
   min-width: 0;
-  padding: 0;
+  padding: 6px 0;
   border: 0;
+  border-radius: 4px;
   background: transparent;
   color: var(--com-marca-forte);
+  font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.com-root .com-circuito-toggle > span:nth-child(2) {
+.com-root .com-cabecalho-toggle:hover { background: var(--com-acao-suave); }
+.com-root .com-cabecalho-toggle:focus-visible {
+  outline: 2px solid var(--com-acao);
+  outline-offset: 4px;
+}
+.com-root .com-cabecalho-texto {
   display: flex;
   flex: 1;
   flex-direction: column;
+  gap: 3px;
   min-width: 0;
 }
-.com-root .com-circuito-toggle small { color: var(--com-texto-fraco); font-size: 9px; }
-.com-root .com-circuito-toggle strong { overflow-wrap: anywhere; }
-.com-root .com-circuito-toggle .com-volume-badge { margin-left: auto; }
-.com-root .com-circuito-seta { font-size: 15px; }
+.com-root .com-cabecalho-texto small {
+  color: var(--com-texto-fraco);
+  font-size: 12px;
+  font-weight: 400;
+}
+.com-root .com-cabecalho-texto strong { overflow-wrap: anywhere; }
+.com-root .com-retratil-seta {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin: 0 6px 4px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.com-root .com-cabecalho-toggle[aria-expanded="true"] .com-retratil-seta {
+  transform: rotate(225deg);
+  margin-bottom: -4px;
+}
+.com-root .com-fase-conteudo { padding-top: 14px; }
+.com-root .com-retratil-acoes { justify-content: flex-end; margin: 12px 0; }
+/* Circuitos existentes começam recolhidos e mantêm nome/volume no resumo. */
 .com-root .com-circuito-corpo {
   margin-top: 14px;
   padding-top: 14px;
@@ -3815,6 +3842,28 @@
 .com-root .com-equipamento-quantidade input {
   width: 64px;
   min-width: 64px;
+}
+
+.com-root .com-equipamento-escolha .com-equipamento-nome {
+  width: 100%;
+  min-width: 0;
+  margin: -4px 0;
+  padding: 3px 4px;
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+}
+
+.com-root .com-equipamento-escolha .com-equipamento-nome:hover,
+.com-root .com-equipamento-escolha .com-equipamento-nome:focus {
+  border-color: var(--com-acao);
+  background: var(--com-superficie);
+}
+
+.com-root .com-equipamento-nome-erro {
+  grid-column: 1 / -1;
 }
 
 .com-root .com-responsabilidade-acoes {

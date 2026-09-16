@@ -179,7 +179,7 @@ test('produto excluído pode ser restaurado com todos os seus dados', () => {
   assert.equal(estado.draft.scopeConfirmations.noInputs, false);
 });
 
-test('fases de mão de obra oferecem controle para minimizar sem remover dados', () => {
+test('fases de mão de obra usam cabeçalho clicável com seta, sem botão escrito', () => {
   const estado = levantamento();
   const html = renderToStaticMarkup(
     createElement(FaseCard, {
@@ -191,7 +191,9 @@ test('fases de mão de obra oferecem controle para minimizar sem remover dados',
   );
 
   assert.match(html, /aria-expanded="true"/);
-  assert.match(html, />Minimizar<\/button>/);
+  assert.match(html, /class="com-cabecalho-toggle"/);
+  assert.match(html, /class="com-retratil-seta" aria-hidden="true"/);
+  assert.doesNotMatch(html, />Minimizar<|>Expandir</);
   assert.match(html, /id="pre-engenharia-conteudo"/);
 });
 
@@ -237,7 +239,9 @@ test('os circuitos existentes nascem minimizados e mantêm nome e volume no resu
 
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /aço carbono/i);
-  assert.match(html, /Abrir para preencher/);
+  assert.match(html, /class="com-cabecalho-toggle"/);
+  assert.match(html, /class="com-retratil-seta" aria-hidden="true"/);
+  assert.doesNotMatch(html, /Abrir para preencher|Minimizar/);
   assert.doesNotMatch(html, /Trechos de tubo/);
 });
 
@@ -246,11 +250,14 @@ test('mobilização e desmobilização podem ser minimizadas de forma independen
     createElement(LogisticaSection, { levantamento: levantamento() })
   );
 
-  assert.match(html, /<h2>Mobilização<\/h2>/);
-  assert.match(html, /<h2>Desmobilização<\/h2>/);
+  assert.match(html, /<strong>Mobilização<\/strong>/);
+  assert.match(html, /<strong>Desmobilização<\/strong>/);
   assert.match(html, /aria-controls="mobilizacao-conteudo"/);
   assert.match(html, /aria-controls="desmobilizacao-conteudo"/);
   assert.equal((html.match(/aria-expanded="true"/g) || []).length, 2);
+  assert.equal((html.match(/class="com-cabecalho-toggle"/g) || []).length, 2);
+  assert.equal((html.match(/class="com-retratil-seta"/g) || []).length, 2);
+  assert.doesNotMatch(html, />Minimizar<|>Expandir</);
 });
 
 test('a aba de mobilização e desmobilização se chama Logística', () => {

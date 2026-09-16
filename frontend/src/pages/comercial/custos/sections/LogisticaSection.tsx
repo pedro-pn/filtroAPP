@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { CabecalhoRetratil } from '../../components/CabecalhoRetratil';
 
 import {
   LOGISTICS_TRAVEL_DEFAULTS,
@@ -409,28 +410,24 @@ function BlocoDirecao({
 
   return (
     <section className="com-painel">
-      <div className="com-secao-titulo">
-        <div>
-          <h2>{titulo}</h2>
-          <p>{descricao}</p>
-        </div>
-        <div className="com-secao-acoes">
-          <button
-            type="button"
-            className="com-btn com-btn-fantasma"
-            aria-expanded={aberto}
-            aria-controls={corpoId}
-            onClick={() => setAberto(valor => !valor)}
-          >
-            {aberto ? 'Minimizar' : 'Expandir'}
-          </button>
+      <div className="com-secao-titulo com-cabecalho-retratil">
+        <h2>
+          <CabecalhoRetratil
+            titulo={titulo}
+            descricao={descricao}
+            aberto={aberto}
+            conteudoId={corpoId}
+            onAlternar={() => setAberto(valor => !valor)}
+          />
+        </h2>
+      </div>
+
+      <div id={corpoId} hidden={!aberto}>
+        <div className="com-secao-acoes com-retratil-acoes">
           <button type="button" className="com-btn-add" onClick={onAdicionar}>
             + Adicionar deslocamento
           </button>
         </div>
-      </div>
-
-      <div id={corpoId} hidden={!aberto}>
         {itens.length > 0 ? (
           <div className="com-fases">
             {itens.map(item => (

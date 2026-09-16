@@ -15,7 +15,8 @@ import {
   equipamentoComQuantidade,
   equipamentosSugeridosPeloEscopo,
   mesmoEquipamento,
-  quantidadeDoEquipamento
+  quantidadeDoEquipamento,
+  renomearEquipamento
 } from '../equipamentosDaProposta';
 import { useReordenacao } from '../useReordenacao';
 
@@ -66,6 +67,11 @@ export function ResponsabilidadesStep({
 }) {
   const [novaCategoria, setNovaCategoria] = useState('');
   const [novoEquipamento, setNovoEquipamento] = useState('');
+  const [edicaoEquipamento, setEdicaoEquipamento] = useState<{
+    equipamento: string;
+    nome: string;
+    erro?: string;
+  } | null>(null);
   const [recado, setRecado] = useState('');
   const [recadoEquipamentos, setRecadoEquipamentos] = useState('');
   const [gerenciando, setGerenciando] = useState(false);
@@ -165,6 +171,10 @@ export function ResponsabilidadesStep({
 
   function alternarEquipamento(equipamento: string, selecionado: boolean) {
     setRecadoEquipamentos('');
+    if (!selecionado && edicaoEquipamento &&
+        mesmoEquipamento(edicaoEquipamento.equipamento, equipamento)) {
+      setEdicaoEquipamento(null);
+    }
     definirEquipamentos(
       selecionado
         ? [...equipamentosSelecionados, equipamento]
@@ -180,6 +190,22 @@ export function ResponsabilidadesStep({
           : item
       )
     );
+  }
+
+  function salvarNomeDoEquipamento() {
+    if (!edicaoEquipamento) return;
+    const resultado = renomearEquipamento(
+      equipamentosSelecionados,
+      edicaoEquipamento.equipamento,
+      edicaoEquipamento.nome
+    );
+    if (resultado.erro) {
+      setEdicaoEquipamento({ ...edicaoEquipamento, erro: resultado.erro });
+      return;
+    }
+    definirEquipamentos(resultado.equipamentos);
+    setEdicaoEquipamento(null);
+    setRecadoEquipamentos('');
   }
 
   function adicionarEquipamento() {
@@ -280,23 +306,48 @@ export function ResponsabilidadesStep({
                 mesmoEquipamento(item, equipamento)
               );
               const descricao = descricaoDoEquipamento(equipamento);
+              const editando = Boolean(selecionado && edicaoEquipamento &&
+                mesmoEquipamento(edicaoEquipamento.equipamento, equipamento));
+              const Escolha = selecionado ? 'div' : 'label';
 
               return (
                 <div
                   key={descricao}
                   className={`com-equipamento-opcao${sugerido ? ' is-sugerido' : ''}`}
                 >
-                  <label className="com-equipamento-escolha">
+                  <Escolha className="com-equipamento-escolha">
                     <input
                       type="checkbox"
+                      aria-label={descricao}
                       checked={Boolean(selecionado)}
                       onChange={evento =>
                         alternarEquipamento(equipamento, evento.target.checked)
                       }
                     />
-                    <span>{descricao}</span>
+                    {selecionado ? (
+                      <input
+                        className="com-equipamento-nome"
+                        aria-label={`Nome do equipamento: ${descricao}`}
+                        title="Clique para alterar o nome do equipamento"
+                        value={editando ? edicaoEquipamento!.nome : descricao}
+                        aria-invalid={editando && Boolean(edicaoEquipamento?.erro) || undefined}
+                        aria-describedby={editando && edicaoEquipamento?.erro
+                          ? 'com-nome-equipamento-erro' : undefined}
+                        onChange={evento => setEdicaoEquipamento({
+                          equipamento: selecionado,
+                          nome: evento.target.value
+                        })}
+                        onBlur={salvarNomeDoEquipamento}
+                        onKeyDown={evento => {
+                          if (evento.key === 'Enter') {
+                            evento.preventDefault();
+                            evento.currentTarget.blur();
+                          }
+                        }}
+                      />
+                    ) : <span>{descricao}</span>}
                     {sugerido && <small>Sugerido pelo escopo</small>}
-                  </label>
+                  </Escolha>
 
                   {selecionado && (
                     <label className="com-equipamento-quantidade">
@@ -315,6 +366,12 @@ export function ResponsabilidadesStep({
                         }
                       />
                     </label>
+                  )}
+
+                  {editando && edicaoEquipamento?.erro && (
+                    <p id="com-nome-equipamento-erro" className="com-recado com-equipamento-nome-erro" role="alert">
+                      {edicaoEquipamento.erro}
+                    </p>
                   )}
                 </div>
               );
