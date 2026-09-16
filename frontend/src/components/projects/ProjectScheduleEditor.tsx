@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 
 import {
   getProjectRevisions,
@@ -125,6 +125,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   onDirtyChange?: (dirty: boolean) => void;
 }>(function ProjectScheduleEditor({ projectId, canManage = true, onDirtyChange }, ref) {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const showToast = useToast();
   const queryKey = ['commercial-revisions', projectId];
 
@@ -459,7 +460,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       {reconciliationBlocked ? (
         <button type="button" className="acp-reconciliation-shortcut" disabled>{reconciliationContent}</button>
       ) : (
-        <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)}>{reconciliationContent}</Link>
+        <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)} state={{ scheduleReturnSearch: location.search }}>{reconciliationContent}</Link>
       )}
       <div className="sec" style={{ marginTop: 4 }}>Avanço físico (RDO × previsto)</div>
       <ProjectProgressBreakdown projectId={projectId} />

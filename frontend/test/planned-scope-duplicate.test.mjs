@@ -24,11 +24,13 @@ const system = (key, patch = {}) => ({
 });
 function harness(initial, touched = initial.map(s => s.key)) {
   let state = initial;
+  let collapsedServices = new Set(initial.map(s => s.key));
   let seq = 0;
   const touchedWeights = { current: new Set(touched) };
   const context = {
     get services() { return state; },
     setServices: update => { state = update(state); },
+    setCollapsedServices: update => { collapsedServices = update(collapsedServices); },
     nextKey: () => `copy-${++seq}`, touchedWeights
   };
   const actions = runInNewContext(`${code}\n({${names.join(',')}});`, context);

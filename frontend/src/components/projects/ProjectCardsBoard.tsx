@@ -692,6 +692,7 @@ export function ProjectCardsBoard({
       const nextParams = new URLSearchParams(currentParams);
       nextParams.delete('project');
       nextParams.delete('group');
+      nextParams.delete('schedule');
       if (nextSelected?.kind === 'GROUP') {
         nextParams.set('section', 'projetos');
         nextParams.set('group', nextSelected.id);

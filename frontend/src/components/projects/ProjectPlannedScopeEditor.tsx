@@ -230,6 +230,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   const { data: roles } = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
 
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [collapsedServices, setCollapsedServices] = useState<Set<string>>(new Set());
   const [normalHours, setNormalHours] = useState<HoursRow[]>([]);
   const [overtime, setOvertime] = useState<HoursRow[]>([]);
   const [baseline, setBaseline] = useState('');
@@ -240,6 +241,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     if (!data) return;
     const next = fromScope(data);
     setServices(next.services);
+    setCollapsedServices(new Set(next.services.map(service => service.key)));
     setNormalHours(next.normalHours);
     setOvertime(next.overtime);
     setBaseline(normalize(next.services, next.normalHours, next.overtime));
@@ -383,9 +385,23 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     setServices(prev => prev.flatMap(s => s.key === key ? [s, copy] : [s]));
   }
 
+  function toggleService(key: string) {
+    setCollapsedServices(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   // Remove um serviço e deixa os não editados reabsorverem o que sobra.
   function removeService(key: string) {
     touchedWeights.current.delete(key);
+    setCollapsedServices(prev => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setServices(prev => rebalanceUntouched(prev.filter(s => s.key !== key), touchedWeights.current));
   }
 
@@ -469,8 +485,29 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               {!group.name.trim() ? <small>Sem escopo definido — os serviços existentes foram preservados.</small> : null}
             </div>
             <div className="acp-svc-list">
-          {group.services.map(svc => (
+          {group.services.map(svc => {
+            const collapsed = collapsedServices.has(svc.key);
+            const serviceLabel = SERVICE_TYPES.find(type => type.value === svc.serviceType)?.label ?? svc.serviceType;
+            return (
             <div className="acp-svc-card" key={svc.key}>
+              <button
+                type="button"
+                className="acp-svc-toggle"
+                aria-expanded={!collapsed}
+                aria-controls={`scope-service-${svc.key}`}
+                aria-label={`${collapsed ? 'Expandir' : 'Recolher'} serviço ${serviceLabel}`}
+                onClick={() => toggleService(svc.key)}
+              >
+                <svg className="acp-svc-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="m9 5 7 7-7 7" />
+                </svg>
+                <span className="acp-svc-summary">
+                  <strong>{serviceLabel}</strong>
+                  <span>Peso: {svc.weight || '0'}% · {svc.systems.length} {svc.systems.length === 1 ? 'sistema' : 'sistemas'}</span>
+                </span>
+                <span className="acp-svc-toggle-label" aria-hidden="true">{collapsed ? 'Expandir' : 'Recolher'}</span>
+              </button>
+              <div id={`scope-service-${svc.key}`} className="acp-svc-content" hidden={collapsed}>
               <div className="acp-svc-head">
                 <div className="field-group acp-svc-type-fg">
                   <label>Serviço <HelpTip icon help="Tipo de serviço vendido nesta obra (limpeza química, teste de pressão, flushing, filtragem)." /></label>
@@ -612,8 +649,10 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               <button type="button" className="mini-btn alt acp-add-sys" onClick={() => addSystem(svc.key)}>
                 + Adicionar sistema
               </button>
+              </div>
             </div>
-          ))}
+            );
+          })}
             </div>
             <button type="button" className="mini-btn acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</button>
           </section>)}
