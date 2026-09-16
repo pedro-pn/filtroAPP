@@ -4,6 +4,10 @@ import type {
   ScopeServiceItem
 } from '../../../../../shared/comercial/dist/scope-content.js';
 import {
+  scopeDescriptionParagraphs,
+  type ScopeDescriptionParagraph
+} from '../../../../../shared/comercial/dist/scope-descriptions.js';
+import {
   buildTechnicalReportsText,
   type TechnicalServiceSelection
 } from '../../../../../shared/comercial/dist/technical-services.js';
@@ -42,10 +46,13 @@ export const ORCAMENTO_DE_LINHAS_TECNICO = 22;
  * código de peça de 90 caracteres numa coluna de 20 arrebentaria a largura da
  * tabela no PDF, e ali não há barra de rolagem para salvar.
  */
-export function quebrarTexto(valor: string, caracteresPorLinha: number): string[] {
+export function quebrarTexto(
+  valor: string,
+  caracteresPorLinha: number
+): string[] {
   return String(valor || '—')
     .split(/\r?\n/)
-    .flatMap(paragrafo => {
+    .flatMap((paragrafo) => {
       const palavras = paragrafo.trim().split(/\s+/).filter(Boolean);
       if (!palavras.length) return [''];
 
@@ -61,7 +68,10 @@ export function quebrarTexto(valor: string, caracteresPorLinha: number): string[
           for (let i = 0; i < palavra.length; i += caracteresPorLinha) {
             linhas.push(palavra.slice(i, i + caracteresPorLinha));
           }
-        } else if (!linha || `${linha} ${palavra}`.length <= caracteresPorLinha) {
+        } else if (
+          !linha ||
+          `${linha} ${palavra}`.length <= caracteresPorLinha
+        ) {
           linha = linha ? `${linha} ${palavra}` : palavra;
         } else {
           linhas.push(linha);
@@ -94,7 +104,10 @@ export function paginarLinhasDaTabela(
   let restantes = ORCAMENTO_DE_LINHAS;
 
   // Quanto mais colunas, menos cabe em cada uma: a folha tem largura fixa.
-  const caracteresPorLinha = Math.max(8, Math.floor(72 / Math.max(2, quantidadeDeColunas)));
+  const caracteresPorLinha = Math.max(
+    8,
+    Math.floor(72 / Math.max(2, quantidadeDeColunas))
+  );
 
   const fecharPagina = () => {
     if (pagina.length) paginas.push(pagina);
@@ -107,7 +120,7 @@ export function paginarLinhasDaTabela(
       quebrarTexto(linha[i] || '—', caracteresPorLinha)
     );
     // A linha da tabela é tão alta quanto a célula mais alta dela.
-    const alturaDaLinha = Math.max(...celulas.map(celula => celula.length));
+    const alturaDaLinha = Math.max(...celulas.map((celula) => celula.length));
 
     if (
       pagina.length &&
@@ -164,7 +177,7 @@ export function paginasDoEscopo(blocos: ScopeBlock[]): PaginaDoEscopo[] {
   let numeroDaTabela = 0;
   let numeroDaFoto = 0;
 
-  return blocos.flatMap<PaginaDoEscopo>(bloco => {
+  return blocos.flatMap<PaginaDoEscopo>((bloco) => {
     if (bloco.type === 'photo') {
       numeroDaFoto += 1;
       return [
@@ -179,7 +192,9 @@ export function paginasDoEscopo(blocos: ScopeBlock[]): PaginaDoEscopo[] {
     }
 
     numeroDaTabela += 1;
-    const linhas = bloco.rows.length ? bloco.rows : [bloco.columns.map(() => '')];
+    const linhas = bloco.rows.length
+      ? bloco.rows
+      : [bloco.columns.map(() => '')];
     const pedacos = paginarLinhasDaTabela(linhas, bloco.columns.length);
 
     return pedacos.map((pedaco, i) => ({
@@ -196,13 +211,51 @@ export function paginasDoEscopo(blocos: ScopeBlock[]): PaginaDoEscopo[] {
 }
 
 /** "2.3 Flushing" — o cabeçalho que amarra a folha ao serviço de onde ela veio. */
-export function tituloDoItemDeEscopo(itens: ScopeServiceItem[], scopeItemId?: string) {
-  const indice = itens.findIndex(item => item.id === scopeItemId);
+export function tituloDoItemDeEscopo(
+  itens: ScopeServiceItem[],
+  scopeItemId?: string
+) {
+  const indice = itens.findIndex((item) => item.id === scopeItemId);
   const item = indice >= 0 ? itens[indice] : itens[0];
   if (!item) return '2.1 Conteúdo complementar do escopo';
 
-  const numero = Math.max(0, indice) + 1;
-  return `2.${numero} ${item.title || `Serviço ${numero}`}`;
+  const numero =
+    scopeDescriptionParagraphs(itens).find((p) => p.scopeItemId === item.id)
+      ?.number ?? '2.1';
+  return `${numero} ${item.title || `Serviço ${Math.max(0, indice) + 1}`}`;
+}
+
+/** A seção 2 pode ocupar várias folhas; textos extensos não podem ser cortados. */
+export function paginasDasDescricoes(paragrafos: ScopeDescriptionParagraph[]) {
+  type Trecho = ScopeDescriptionParagraph & { continuacao: boolean };
+  const paginas: Trecho[][] = [[]];
+  let restantes = 16; // A primeira folha compartilha espaço com os clientes (1.3).
+  for (const paragrafo of paragrafos) {
+    const linhas = quebrarTexto(
+      paragrafo.text,
+      paragrafo.level === 2 ? 65 : 70
+    );
+    let offset = 0;
+    while (offset < linhas.length) {
+      if (
+        restantes < 3 ||
+        (offset === 0 && linhas.length + 1 > restantes && linhas.length < 27)
+      ) {
+        paginas.push([]);
+        restantes = 28;
+      }
+      const quantidade = Math.min(linhas.length - offset, restantes - 1);
+      paginas[paginas.length - 1].push({
+        ...paragrafo,
+        key: `${paragrafo.key}-${offset}`,
+        text: linhas.slice(offset, offset + quantidade).join(' '),
+        continuacao: offset > 0
+      });
+      offset += quantidade;
+      restantes -= quantidade + 1;
+    }
+  }
+  return paginas;
 }
 
 /**
@@ -215,7 +268,13 @@ export function tituloDoItemDeEscopo(itens: ScopeServiceItem[], scopeItemId?: st
  */
 export type EntradaDaMatriz =
   | { tipo: 'categoria'; texto: string }
-  | { tipo: 'linha'; numero: number; item: string; nota: string; subitens: string[] };
+  | {
+      tipo: 'linha';
+      numero: number;
+      item: string;
+      nota: string;
+      subitens: string[];
+    };
 
 export type FolhaDaMatriz = {
   chave: string;
@@ -249,7 +308,9 @@ export function folhasDaMatriz(linhas: LinhaCrua[]): FolhaDaMatriz[] {
 
   for (const responsavel of ['Filtrovali', 'Contratante'] as const) {
     const doLado = ordenarLinhasDeResponsabilidade(
-      linhas.filter(linha => linha.owner === responsavel && linha.item.trim()),
+      linhas.filter(
+        (linha) => linha.owner === responsavel && linha.item.trim()
+      ),
       responsavel
     );
     if (!doLado.length) continue;
@@ -285,7 +346,11 @@ export function folhasDaMatriz(linhas: LinhaCrua[]): FolhaDaMatriz[] {
       // Uma categoria que abre no pé da folha ficaria órfã do primeiro item
       // dela. Empurra as duas juntas — a não ser que nem numa folha vazia caibam,
       // caso em que forçar a quebra entraria em laço.
-      if (entradas.length && custo > restantes && custo <= ORCAMENTO_DE_LINHAS_MATRIZ) {
+      if (
+        entradas.length &&
+        custo > restantes &&
+        custo <= ORCAMENTO_DE_LINHAS_MATRIZ
+      ) {
         fechar();
       }
 
@@ -293,10 +358,16 @@ export function folhasDaMatriz(linhas: LinhaCrua[]): FolhaDaMatriz[] {
         entradas.push({ tipo: 'categoria', texto: categoria });
         restantes -= 1;
         categoriaAberta = categoria;
-      } else if (categoria && !entradas.some(entrada => entrada.tipo === 'categoria')) {
+      } else if (
+        categoria &&
+        !entradas.some((entrada) => entrada.tipo === 'categoria')
+      ) {
         // A folha virou no meio de uma categoria: o subtítulo se repete, senão as
         // linhas da folha seguinte aparecem sob cabeçalho nenhum.
-        entradas.push({ tipo: 'categoria', texto: `${categoria} (continuação)` });
+        entradas.push({
+          tipo: 'categoria',
+          texto: `${categoria} (continuação)`
+        });
         restantes -= 1;
       }
 
@@ -327,10 +398,16 @@ export type PaginaTecnica = {
 
 function paginarTextoTecnico(valor: string): string[] {
   const linhas = quebrarTexto(valor || '—', 78);
-  const total = Math.max(1, Math.ceil(linhas.length / ORCAMENTO_DE_LINHAS_TECNICO));
+  const total = Math.max(
+    1,
+    Math.ceil(linhas.length / ORCAMENTO_DE_LINHAS_TECNICO)
+  );
   return Array.from({ length: total }, (_, i) =>
     linhas
-      .slice(i * ORCAMENTO_DE_LINHAS_TECNICO, (i + 1) * ORCAMENTO_DE_LINHAS_TECNICO)
+      .slice(
+        i * ORCAMENTO_DE_LINHAS_TECNICO,
+        (i + 1) * ORCAMENTO_DE_LINHAS_TECNICO
+      )
       .join('\n')
   );
 }

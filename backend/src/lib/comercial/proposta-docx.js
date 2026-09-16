@@ -8,11 +8,11 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import {
   categoriaCanonicaResponsabilidade,
-  descricaoComAberturaTecnica,
   ordenarLinhasDeResponsabilidade,
   tabelasDePrecoDoModelo,
   textoJornada
 } from '../../../../shared/comercial/dist/modelo-documento.js';
+import { scopeDescriptionParagraphs } from '../../../../shared/comercial/dist/scope-descriptions.js';
 import {
   REPORTS_NOTICE,
   TECHNICAL_REPORT_SENTENCES,
@@ -29,7 +29,6 @@ import {
   preserveWordTextLineBreaks,
   removeNode,
   repetirLinha,
-  repetirParagrafo,
   replacePlaceholders,
   replaceTokenInElement
 } from '../docx/template.js';
@@ -648,6 +647,22 @@ async function preencherBlocosDoEscopo(zip, doc, blocos, lerFoto) {
   removeNode(ancora);
 }
 
+function preencherDescricoesDoEscopo(doc, itens, tipo) {
+  const modelo = findFirstByText(doc, 'w:p', '{{servico}}');
+  if (!modelo) return;
+  const clones = scopeDescriptionParagraphs(itens, tipo === 'commercial').map(item => {
+    const clone = modelo.cloneNode(true);
+    // Mantém a lista multinível do modelo: 2.1, 2.2 e 2.2.1, 2.2.2...
+    // Cada texto é um w:p, nunca uma quebra de linha dentro do mesmo item.
+    const nivel = clone.getElementsByTagName('w:ilvl').item(0);
+    if (nivel) nivel.setAttribute('w:val', String(item.level));
+    replacePlaceholders(clone, { servico: nivel ? item.text : `${item.number} ${item.text}` });
+    return clone;
+  });
+  cloneBefore(modelo, clones);
+  removeNode(modelo);
+}
+
 export async function preencherProposta(dados, tipo) {
   const modelo = dados.modelo === 'hidrojateamento' ? 'hidrojateamento' : 'padrao';
   const arquivo = arquivoDoModelo(tipo, modelo);
@@ -702,13 +717,7 @@ export async function preencherProposta(dados, tipo) {
       totais.total_a = moeda(preencherPrecos(doc, precos, 'a'));
     }
 
-    const servicos = (Array.isArray(dados.scopeItems) ? dados.scopeItems : []).map(servico => {
-      const conteudo = [servico.title, servico.description].filter(Boolean).join(' — ');
-      return {
-        servico: tipo === 'commercial' ? descricaoComAberturaTecnica(conteudo) : conteudo
-      };
-    });
-    repetirParagrafo(doc, '{{servico}}', servicos);
+    preencherDescricoesDoEscopo(doc, dados.scopeItems, tipo);
     ajustarRelatorios(doc, dados.technicalServices);
     await preencherBlocosDoEscopo(
       zip,

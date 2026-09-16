@@ -2,6 +2,7 @@ import type {
   ScopeBlock,
   ScopeServiceItem
 } from '../../../../../shared/comercial/dist/scope-content.js';
+import { scopeDescriptionParagraphs } from '../../../../../shared/comercial/dist/scope-descriptions.js';
 import type { TechnicalServiceSelection } from '../../../../../shared/comercial/dist/technical-services.js';
 import {
   INDICE_COMERCIAL,
@@ -18,7 +19,6 @@ import {
   TEXTO_PROPRIEDADE_INTELECTUAL,
   SERVICOS_EXTRA_ESCOPO,
   TITULO_BLOCO_STANDBY,
-  descricaoComAberturaTecnica,
   fraseHoraExtra,
   observacoesTecnicasDoModelo,
   tabelasDePrecoDoModelo,
@@ -34,6 +34,7 @@ import type { ItemDePreco, LinhaResponsabilidade } from './etapas';
 import {
   folhasDaMatriz,
   paginasDoEscopo,
+  paginasDasDescricoes,
   paginasTecnicas,
   tituloDoItemDeEscopo,
   type EntradaDaMatriz
@@ -96,7 +97,13 @@ function caminhoDoVisual(src: string) {
   return `${BASE}/assets/Comercial/${src.split('/').pop()}`;
 }
 
-function Visual({ visual, largura }: { visual: ProposalVisualDefinition; largura: string }) {
+function Visual({
+  visual,
+  largura
+}: {
+  visual: ProposalVisualDefinition;
+  largura: string;
+}) {
   return (
     <img
       className="com-doc-visual"
@@ -108,10 +115,14 @@ function Visual({ visual, largura }: { visual: ProposalVisualDefinition; largura
   );
 }
 
-function FaixaDeVisuais({ visuais }: { visuais: readonly ProposalVisualDefinition[] }) {
+function FaixaDeVisuais({
+  visuais
+}: {
+  visuais: readonly ProposalVisualDefinition[];
+}) {
   return (
     <div className="com-doc-faixa">
-      {visuais.map(visual => (
+      {visuais.map((visual) => (
         <Visual key={visual.src} visual={visual} largura="100%" />
       ))}
     </div>
@@ -198,22 +209,32 @@ export function DocumentoPrevia({
 }) {
   const tecnico = tipo === 'technical';
   const indice = tecnico ? INDICE_TECNICO : INDICE_COMERCIAL;
-  const texto = (campo: string, padrao: string) => String(form[campo] ?? '').trim() || padrao;
+  const texto = (campo: string, padrao: string) =>
+    String(form[campo] ?? '').trim() || padrao;
 
   const data = String(form.date ?? '');
-  const responsabilidadesPreenchidas = responsabilidades.filter(linha => linha.item.trim());
+  const responsabilidadesPreenchidas = responsabilidades.filter((linha) =>
+    linha.item.trim()
+  );
 
   /* A numeração das folhas é CALCULADA, não fixa: cada tabela ou foto do escopo
      empurra tudo o que vem depois. É o mesmo cálculo que o PDF fará. */
   const folhasDoEscopo = paginasDoEscopo(blocos);
+  const folhasDasDescricoes = paginasDasDescricoes(
+    scopeDescriptionParagraphs(itensEscopo, !tecnico)
+  );
   const folhasDaResponsabilidade = folhasDaMatriz(responsabilidadesPreenchidas);
-  const folhasTecnicas = tecnico ? paginasTecnicas(servicosTecnicos, complementoRelatorios) : [];
+  const folhasTecnicas = tecnico
+    ? paginasTecnicas(servicosTecnicos, complementoRelatorios)
+    : [];
 
   /* A folha 3 é a institucional e a 4 abre com 1.3 e a seção 2 — o escopo
      começa na 5. Este número era 4 quando a institucional cabia numa folha só. */
-  const PRIMEIRA_FOLHA_DE_ESCOPO = 5;
-  const numeroDasResponsabilidades = PRIMEIRA_FOLHA_DE_ESCOPO + folhasDoEscopo.length;
-  const numeroDosPrazos = numeroDasResponsabilidades + Math.max(1, folhasDaResponsabilidade.length);
+  const PRIMEIRA_FOLHA_DE_ESCOPO = 4 + folhasDasDescricoes.length;
+  const numeroDasResponsabilidades =
+    PRIMEIRA_FOLHA_DE_ESCOPO + folhasDoEscopo.length;
+  const numeroDosPrazos =
+    numeroDasResponsabilidades + Math.max(1, folhasDaResponsabilidade.length);
   // A descrição de valores e o pagamento ocupam uma folha própria. Mantê-los
   // junto da jornada fazia o fim da página ser cortado na prévia fixa.
   const numeroDosValores = numeroDosPrazos + 1;
@@ -231,7 +252,9 @@ export function DocumentoPrevia({
       />
 
       <Pagina numero={2} data={data}>
-        <h2 className="com-doc-tipo">{tecnico ? 'Proposta Técnica' : 'Proposta Comercial'}</h2>
+        <h2 className="com-doc-tipo">
+          {tecnico ? 'Proposta Técnica' : 'Proposta Comercial'}
+        </h2>
 
         <div className="com-doc-meta">
           <p>
@@ -259,7 +282,7 @@ export function DocumentoPrevia({
 
         <h2 className="com-doc-indice-titulo">ÍNDICE</h2>
         <ol className="com-doc-indice">
-          {indice.map(item => (
+          {indice.map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ol>
@@ -271,8 +294,8 @@ export function DocumentoPrevia({
       <Pagina numero={3} data={data}>
         <h3>1. Filtrovali é a escolha certa para a sua obra</h3>
         <p>
-          São 21 anos de história e entregas de soluções industriais, com excelência, segurança,
-          qualidade e eficiência.
+          São 21 anos de história e entregas de soluções industriais, com
+          excelência, segurança, qualidade e eficiência.
         </p>
 
         <Visual visual={VISUAIS.metrics} largura="100%" />
@@ -282,12 +305,12 @@ export function DocumentoPrevia({
             direita. Uma coluna só viraria uma lista corrida. */}
         <div className="com-doc-servicos-duas-colunas">
           <ul>
-            {SERVICOS_INSTITUCIONAIS.slice(0, 4).map(servico => (
+            {SERVICOS_INSTITUCIONAIS.slice(0, 4).map((servico) => (
               <li key={servico}>{servico}</li>
             ))}
           </ul>
           <ul>
-            {SERVICOS_INSTITUCIONAIS.slice(4).map(servico => (
+            {SERVICOS_INSTITUCIONAIS.slice(4).map((servico) => (
               <li key={servico}>{servico}</li>
             ))}
           </ul>
@@ -299,49 +322,63 @@ export function DocumentoPrevia({
         <FaixaDeVisuais visuais={VISUAIS.equipmentGallery} />
       </Pagina>
 
-      <Pagina numero={4} data={data}>
-        <h3>1.3 Clientes que confiam e atestam a excelência da Filtrovali</h3>
-        <Visual visual={VISUAIS.clients} largura="86%" />
+      {folhasDasDescricoes.map((folha, pagina) => (
+        <Pagina numero={4 + pagina} data={data} key={`descricoes-${pagina}`}>
+          {pagina === 0 && (
+            <>
+              <h3>
+                1.3 Clientes que confiam e atestam a excelência da Filtrovali
+              </h3>
+              <Visual visual={VISUAIS.clients} largura="86%" />
+            </>
+          )}
 
-        <h3>2. Descrição dos serviços que serão executados</h3>
-        {itensEscopo.length > 0 ? (
-          itensEscopo.map((item, i) => (
-            <div className="com-doc-servico" key={item.id}>
-              <h4>
-                2.{i + 1} {item.title || `Serviço ${i + 1}`}
-              </h4>
-              {/* O texto de espera é instrução, não conteúdo: ele diz ONDE
-                  preencher, senão o usuário vê a página vazia e não sabe de
-                  qual etapa ela vem. */}
-              <p>
-                {item.description
-                  ? tecnico
-                    ? item.description
-                    : descricaoComAberturaTecnica(item.description)
-                  : 'Descreva este serviço na etapa Escopo.'}
-              </p>
-            </div>
-          ))
-        ) : (
-          <p>Descreva os serviços na etapa Escopo.</p>
-        )}
-      </Pagina>
+          <h3>
+            2. Descrição dos serviços que serão executados
+            {pagina > 0 ? ' (continuação)' : ''}
+          </h3>
+          {folha.map((item) => (
+            <p
+              className={`com-doc-paragrafo${item.level === 2 ? ' is-subitem' : ''}`}
+              key={item.key}
+            >
+              {!item.continuacao && (
+                <>
+                  <b>{item.number}</b>{' '}
+                </>
+              )}
+              {item.text}
+            </p>
+          ))}
+          {pagina === 0 &&
+            folhasDasDescricoes.length === 1 &&
+            folha.length === 0 && <p>Descreva os serviços na etapa Escopo.</p>}
+        </Pagina>
+      ))}
 
       {folhasDoEscopo.map((folha, i) => (
-        <Pagina numero={PRIMEIRA_FOLHA_DE_ESCOPO + i} data={data} key={folha.chave}>
+        <Pagina
+          numero={PRIMEIRA_FOLHA_DE_ESCOPO + i}
+          data={data}
+          key={folha.chave}
+        >
           <h3>{tituloDoItemDeEscopo(itensEscopo, folha.scopeItemId)}</h3>
 
           {folha.tipo === 'table' ? (
             <>
               <h4>
                 {folha.rotulo}
-                {folha.totalDePartes > 1 ? ` — parte ${folha.parte}/${folha.totalDePartes}` : ''}
+                {folha.totalDePartes > 1
+                  ? ` — parte ${folha.parte}/${folha.totalDePartes}`
+                  : ''}
               </h4>
               <table className="com-doc-tabela">
                 <thead>
                   <tr>
                     {folha.colunas.map((coluna, c) => (
-                      <th key={`${folha.chave}-h-${c}`}>{coluna || `Coluna ${c + 1}`}</th>
+                      <th key={`${folha.chave}-h-${c}`}>
+                        {coluna || `Coluna ${c + 1}`}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -349,7 +386,9 @@ export function DocumentoPrevia({
                   {folha.linhas.map((linha, l) => (
                     <tr key={`${folha.chave}-l-${l}`}>
                       {folha.colunas.map((_, c) => (
-                        <td key={`${folha.chave}-c-${l}-${c}`}>{linha[c] || '—'}</td>
+                        <td key={`${folha.chave}-c-${l}-${c}`}>
+                          {linha[c] || '—'}
+                        </td>
                       ))}
                     </tr>
                   ))}
@@ -358,7 +397,10 @@ export function DocumentoPrevia({
             </>
           ) : (
             <figure className="com-doc-foto">
-              <img src={folha.bloco.src} alt={folha.bloco.caption || folha.bloco.fileName} />
+              <img
+                src={folha.bloco.src}
+                alt={folha.bloco.caption || folha.bloco.fileName}
+              />
               <figcaption>
                 {folha.rotulo}
                 {folha.bloco.caption ? ` — ${folha.bloco.caption}` : ''}
@@ -370,23 +412,33 @@ export function DocumentoPrevia({
 
       {folhasDaResponsabilidade.length ? (
         folhasDaResponsabilidade.map((folha, i) => (
-          <Pagina key={folha.chave} numero={numeroDasResponsabilidades + i} data={data}>
+          <Pagina
+            key={folha.chave}
+            numero={numeroDasResponsabilidades + i}
+            data={data}
+          >
             {i === 0 && <h3>3. Matriz geral de responsabilidade</h3>}
-            <BlocoDeResponsabilidade titulo={folha.titulo} entradas={folha.entradas} />
+            <BlocoDeResponsabilidade
+              titulo={folha.titulo}
+              entradas={folha.entradas}
+            />
           </Pagina>
         ))
       ) : (
         <Pagina numero={numeroDasResponsabilidades} data={data}>
           <h3>3. Matriz geral de responsabilidade</h3>
-          <BlocoDeResponsabilidade titulo="Responsabilidade da Filtrovali" entradas={[]} />
+          <BlocoDeResponsabilidade
+            titulo="Responsabilidade da Filtrovali"
+            entradas={[]}
+          />
         </Pagina>
       )}
 
       <Pagina numero={numeroDosPrazos} data={data}>
         <h3>4. Previsão de atendimento</h3>
         <p>
-          {texto('attendance', 'A definir')} após o recebimento do pedido de compras ou assinatura
-          do contrato.
+          {texto('attendance', 'A definir')} após o recebimento do pedido de
+          compras ou assinatura do contrato.
         </p>
         <p>{NOTA_ATENDIMENTO_MONTADORA}</p>
         <p>{NOTA_ATENDIMENTO_REVALIDACAO}</p>
@@ -400,17 +452,25 @@ export function DocumentoPrevia({
             Prazo previsto de permanência em obra (dias corridos) –{' '}
             {texto('permanence', 'a definir')};
           </li>
-          <li>Prazo previsto para integração – {texto('integration', 'a definir')};</li>
+          <li>
+            Prazo previsto para integração – {texto('integration', 'a definir')}
+            ;
+          </li>
           <li>
             Prazo previsto de execução dos serviços (dias trabalhados/úteis) –{' '}
             {texto('execution', 'a definir')};
           </li>
-          <li>Prazo de deslocamento (Mob/desmob) – {texto('mobilization', 'a definir')}.</li>
+          <li>
+            Prazo de deslocamento (Mob/desmob) –{' '}
+            {texto('mobilization', 'a definir')}.
+          </li>
         </ul>
         <p className="com-doc-nota">{NOTA_PRAZO_DESLOCAMENTO}</p>
 
         <h3>6. Jornada de trabalho</h3>
-        <p className="com-doc-tecnico">{texto('workday', textoJornada(modelo))}</p>
+        <p className="com-doc-tecnico">
+          {texto('workday', textoJornada(modelo))}
+        </p>
       </Pagina>
 
       {!tecnico && (
@@ -420,8 +480,10 @@ export function DocumentoPrevia({
                 GERAL — são cenários alternativos de execução, não parcelas do
                 mesmo serviço. Somá-las apresentaria um total que o cliente não
                 vai pagar (T071f). */}
-          {(locaisDePreco ?? [undefined]).map(local => {
-            const daTabela = local ? precos.filter(item => item.local === local) : precos;
+          {(locaisDePreco ?? [undefined]).map((local) => {
+            const daTabela = local
+              ? precos.filter((item) => item.local === local)
+              : precos;
             return (
               <div key={local ?? 'unica'}>
                 {local && <h4 className="com-doc-local">{local}:</h4>}
@@ -454,7 +516,7 @@ export function DocumentoPrevia({
             );
           })}
 
-          {SERVICOS_EXTRA_ESCOPO.map(observacao => (
+          {SERVICOS_EXTRA_ESCOPO.map((observacao) => (
             <p className="com-doc-nota" key={observacao}>
               {observacao}
             </p>
@@ -469,7 +531,9 @@ export function DocumentoPrevia({
         <Pagina numero={numeroDosPrazos + i + 1} data={data} key={folha.chave}>
           <h3>
             {folha.titulo}
-            {folha.totalDePartes > 1 ? ` — ${folha.parte}/${folha.totalDePartes}` : ''}
+            {folha.totalDePartes > 1
+              ? ` — ${folha.parte}/${folha.totalDePartes}`
+              : ''}
           </h3>
           {/* `pre-wrap`: o texto técnico vem com quebras próprias, e colapsá-las
               transformaria a lista de etapas num parágrafo só. */}
@@ -483,9 +547,13 @@ export function DocumentoPrevia({
           <p>{texto('validity', '10')} dias após a emissão.</p>
 
           <h3>10. Observações</h3>
-          <p className="com-doc-tecnico">{observacoesTecnicasDoModelo(modelo)}</p>
+          <p className="com-doc-tecnico">
+            {observacoesTecnicasDoModelo(modelo)}
+          </p>
           {String(form.technicalObservations ?? '').trim() && (
-            <p className="com-doc-tecnico">{String(form.technicalObservations)}</p>
+            <p className="com-doc-tecnico">
+              {String(form.technicalObservations)}
+            </p>
           )}
         </Pagina>
       ) : (
@@ -524,7 +592,9 @@ export function DocumentoPrevia({
           </Pagina>
 
           <Pagina numero={numeroDoFechamentoComercial + 1} data={data}>
-            <p className="com-doc-tecnico">{texto('observations', TEXTO_OBSERVACOES_GERAIS)}</p>
+            <p className="com-doc-tecnico">
+              {texto('observations', TEXTO_OBSERVACOES_GERAIS)}
+            </p>
 
             <h3>10. Impostos</h3>
             <p className="com-doc-tecnico">{texto('taxes', TEXTO_IMPOSTOS)}</p>
@@ -540,7 +610,7 @@ export function DocumentoPrevia({
             <h3>13. Aceite e assinatura da proposta</h3>
             <p className="com-doc-tecnico">{TEXTO_ACEITE}</p>
             <div className="com-doc-assinatura">
-              {LINHAS_ASSINATURA.map(linha => (
+              {LINHAS_ASSINATURA.map((linha) => (
                 <p key={linha}>{linha}</p>
               ))}
             </div>

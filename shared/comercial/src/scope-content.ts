@@ -2,6 +2,9 @@ export type ScopeServiceItem = {
   id: string;
   title: string;
   description: string;
+  /** Texto integral, sem acrescentar título ou abertura ao imprimir. */
+  format?: "paragraph";
+  subitems?: string[];
 };
 
 export type ScopeTableBlock = {
@@ -34,6 +37,7 @@ export type ScopeServiceSection = ScopeServiceItem & {
 export const MAX_SCOPE_SERVICE_ITEMS = 20;
 export const MAX_SCOPE_SERVICE_TITLE_CHARACTERS = 160;
 export const MAX_SCOPE_SERVICE_DESCRIPTION_CHARACTERS = 12_000;
+export const MAX_SCOPE_SERVICE_SUBITEMS = 20;
 export const MAX_SCOPE_PHOTOS = 8;
 export const MAX_SCOPE_TABLES = 8;
 export const MAX_SCOPE_TABLE_COLUMNS = 6;
@@ -82,6 +86,12 @@ export function normalizeScopeServiceItems(value: unknown): ScopeServiceItem[] {
       id,
       title: title || `Serviço ${items.length + 1}`,
       description,
+      ...(record.format === "paragraph" ? { format: "paragraph" as const } : {}),
+      ...(Array.isArray(record.subitems) ? {
+        subitems: record.subitems.slice(0, MAX_SCOPE_SERVICE_SUBITEMS)
+          .filter((text): text is string => typeof text === "string")
+          .map(text => text.trim().slice(0, MAX_SCOPE_SERVICE_DESCRIPTION_CHARACTERS)),
+      } : {}),
     });
   }
   return items;

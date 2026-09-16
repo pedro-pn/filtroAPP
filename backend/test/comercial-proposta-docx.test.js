@@ -8,6 +8,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import { arquivoDoModelo, preencherProposta } from '../src/lib/comercial/proposta-docx.js';
+import { createScopeDescriptionItem, SCOPE_DESCRIPTION_TEMPLATES, scopeDescriptionParagraphs } from '../../shared/comercial/dist/scope-descriptions.js';
 
 const MODELOS = process.env.COMERCIAL_MODELOS_DIR
   ? process.env.COMERCIAL_MODELOS_DIR
@@ -599,6 +600,44 @@ test('os itens de escopo substituem o cardápio do documento', async () => {
 
   // A ressalva fixa do escopo não é item de lista e tem de sobreviver.
   assert.match(texto, /tubulações embarcadas/);
+});
+
+test('modelos de descrição geram parágrafos e subitens numerados nos quatro documentos', async () => {
+  const scopeItems = SCOPE_DESCRIPTION_TEMPLATES.map(t => createScopeDescriptionItem(t.id, t.id));
+  for (const modelo of ['padrao', 'hidrojateamento']) {
+    for (const tipo of ['commercial', 'technical']) {
+      const { xml } = textoDoDocx(await preencherProposta({ ...DADOS, modelo, scopeItems }, tipo));
+      const doc = new DOMParser().parseFromString(xml, 'text/xml');
+      const paragrafos = Array.from(doc.getElementsByTagName('w:p'));
+      let anterior = -1;
+      for (const item of scopeDescriptionParagraphs(scopeItems)) {
+        const encontrados = paragrafos.filter(p => p.textContent === item.text);
+        assert.equal(encontrados.length, 1, `${modelo}/${tipo}: ${item.number}`);
+        const p = encontrados[0];
+        assert.equal(p.getElementsByTagName('w:ilvl')[0].getAttribute('w:val'), String(item.level));
+        assert.equal(p.getElementsByTagName('w:numId')[0].getAttribute('w:val'), '2');
+        assert.ok(paragrafos.indexOf(p) > anterior);
+        anterior = paragrafos.indexOf(p);
+      }
+    }
+  }
+});
+
+test('editar, excluir, reordenar e colar parágrafos não cria itens fantasmas no DOCX', async () => {
+  const engenharia = createScopeDescriptionItem('eng', 'pre-engenharia');
+  engenharia.subitems.splice(1, 1);
+  engenharia.subitems[0] = 'Detalhe personalizado do cliente.';
+  const livre = { ...createScopeDescriptionItem('livre'), description: 'Primeiro texto livre.\n\nSegundo texto livre.' };
+  const scopeItems = [engenharia, createScopeDescriptionItem('vazio'), livre];
+  const { xml, texto } = textoDoDocx(await preencherProposta({ ...DADOS, scopeItems }, 'commercial'));
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const esperados = scopeDescriptionParagraphs(scopeItems);
+  const impressos = Array.from(doc.getElementsByTagName('w:p')).filter(p => esperados.some(e => e.text === p.textContent));
+  assert.deepEqual(impressos.map(p => p.textContent), esperados.map(e => e.text));
+  assert.deepEqual(impressos.map(p => p.getElementsByTagName('w:ilvl')[0].getAttribute('w:val')), ['1', '2', '2', '2', '2', '1', '1']);
+  assert.doesNotMatch(texto, /Levantamento de desenhos e elaboração de fluxogramas/);
+  assert.doesNotMatch(texto, /Serviço especializado em mão de obra e execução técnica — Primeiro texto livre/);
+  assert.ok(!impressos.some(p => p.getElementsByTagName('w:br').length));
 });
 
 test('o capítulo 3 imprime somente os equipamentos escolhidos na proposta', async () => {

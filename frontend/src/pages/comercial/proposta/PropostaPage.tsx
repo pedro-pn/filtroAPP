@@ -7,7 +7,6 @@ import {
   type TechnicalServiceSelection
 } from '../../../../../shared/comercial/dist/technical-services.js';
 import {
-  createScopeServiceItem,
   type ScopeBlock,
   type ScopeServiceItem
 } from '../../../../../shared/comercial/dist/scope-content.js';
@@ -190,11 +189,8 @@ export function PropostaPage() {
   const [form, setForm] = useState<AnyRecord>(() =>
     formularioInicial(modelo ?? 'padrao')
   );
-  // A proposta nasce com UM serviço. Zero serviços deixaria a etapa 2 sem nada
-  // para preencher, e a trava pediria um item que não existe na tela.
-  const [itensEscopo, setItensEscopo] = useState<ScopeServiceItem[]>(() => [
-    createScopeServiceItem('escopo-inicial', 0)
-  ]);
+  // O usuário escolhe modelos de texto ou importa os serviços do levantamento.
+  const [itensEscopo, setItensEscopo] = useState<ScopeServiceItem[]>([]);
   const [blocos, setBlocos] = useState<ScopeBlock[]>([]);
   // A proposta nasce com a matriz do modelo, não em branco: são ~35 obrigações
   // que se repetem em toda obra, e digitá-las de novo a cada proposta é como o

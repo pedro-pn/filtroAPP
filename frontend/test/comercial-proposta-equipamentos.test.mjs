@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
+import { SCOPE_DESCRIPTION_TEMPLATES } from '../../shared/comercial/dist/scope-descriptions.js';
 
 let server;
 let mod;
@@ -152,10 +153,11 @@ test('a proposta oferece a lista pedida e preserva a opção de serviço livre',
     onBlocos: () => {},
     erroDe: () => undefined
   }));
-  for (const servico of servicos.SERVICOS_DA_PROPOSTA) {
-    assert.match(html, new RegExp(`>${servico}<`));
+  for (const servico of SCOPE_DESCRIPTION_TEMPLATES) {
+    assert.ok(html.includes(`>${servico.title}</option>`));
   }
-  assert.match(html, />Outro serviço</);
+  assert.match(html, /Texto livre/);
+  assert.match(html, /Adicionar modelo/);
 });
 
 test('a tela mostra quantidade editável para cada equipamento selecionado', () => {
