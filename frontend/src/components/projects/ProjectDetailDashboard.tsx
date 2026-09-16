@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -606,7 +607,8 @@ export function ProjectDetailDashboard({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedScheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [progressHistoryNoveltyActive, setProgressHistoryNoveltyActive] = useState(true);
   const [weeklyTargetNoveltyActive, setWeeklyTargetNoveltyActive] = useState(true);
@@ -740,6 +742,11 @@ export function ProjectDetailDashboard({
   function closeSchedule() {
     setScheduleProject(null);
     setScheduleDirty(false);
+    if (searchParams.has('schedule')) setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.delete('schedule');
+      return next;
+    }, { replace: true });
   }
 
   function openManualCostForm() {
@@ -765,6 +772,13 @@ export function ProjectDetailDashboard({
   }
 
   const h = data.header;
+  const requestedScheduleId = searchParams.get('schedule');
+  const returnScheduleProject = canManage && requestedScheduleId
+    ? isGroup
+      ? data.group?.members.find(member => member.projectId === requestedScheduleId) ?? null
+      : requestedScheduleId === projectId ? { projectId: projectId!, code: h.code } : null
+    : null;
+  const scheduleProject = selectedScheduleProject ?? returnScheduleProject;
   const equipamentos = data.equipamentos ?? [];
   const effectiveScope = data.plannedScope ?? scope;
   const workedHours = data.workedHours ?? {

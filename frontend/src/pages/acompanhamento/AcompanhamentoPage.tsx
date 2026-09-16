@@ -49,12 +49,17 @@ export function AcompanhamentoPage() {
   const projectDetailFromUrl = searchParams.has('project') || searchParams.has('group');
   const section = parseSection(searchParams.get('section'), projectDetailFromUrl ? 'projetos' : 'dashboard');
   const reconciliationProject = section === 'projetos' && searchParams.get('reconcile') === '1' ? searchParams.get('project') : null;
-  const closeReconciliation = () => setSearchParams(current => {
-    const next = new URLSearchParams(current); next.delete('reconcile'); return next;
-  });
+  const closeReconciliation = () => {
+    const returnSearch = location.state?.scheduleReturnSearch;
+    const next = new URLSearchParams(typeof returnSearch === 'string' ? returnSearch : searchParams);
+    next.delete('reconcile');
+    if (reconciliationProject) next.set('schedule', reconciliationProject);
+    setSearchParams(next, { state: null });
+  };
   const setSection = useCallback((nextSection: Section) => {
     setSearchParams(currentParams => {
       const nextParams = new URLSearchParams(currentParams);
+      nextParams.delete('schedule');
       if (nextSection === 'dashboard') nextParams.delete('section');
       else nextParams.set('section', nextSection);
 
@@ -156,7 +161,7 @@ export function AcompanhamentoPage() {
       </main>
       <AcompanhamentoTutorial
         userKey={userKey}
-        ready={section === 'dashboard'}
+        ready={section === 'dashboard' && !searchParams.has('schedule')}
         goToSection={setSection}
         triggerRef={tutorialTrigger}
         groupingNoveltyEnabled={isManager}

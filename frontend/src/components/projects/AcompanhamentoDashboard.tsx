@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { getCommercialDashboard, getRealizedByCategory, type DashboardGroupRow, type DashboardItem, type DashboardRow } from '../../api/acompanhamentoComercial';
@@ -108,7 +109,8 @@ export function AcompanhamentoDashboard({ canManage = false, canViewFinancials =
   const [status, setStatus] = useState<'todos' | 'andamento' | 'arquivados'>('todos');
   const [category, setCategory] = useState('');
   const [metricKey, setMetricKey] = useState('custo');
-  const [managed, setManaged] = useState<DashboardRow | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedManaged, setManaged] = useState<DashboardRow | null>(null);
   const [managedDirty, setManagedDirty] = useState(false);
   const scheduleRef = useRef<ScheduleEditorHandle>(null);
 
@@ -124,6 +126,16 @@ export function AcompanhamentoDashboard({ canManage = false, canViewFinancials =
   });
 
   const rows = useMemo(() => data ?? [], [data]);
+  const managed = selectedManaged ?? rows.find((row): row is DashboardRow => !isGroupRow(row) && row.projectId === searchParams.get('schedule')) ?? null;
+  function closeSchedule() {
+    setManaged(null);
+    setManagedDirty(false);
+    if (searchParams.has('schedule')) setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.delete('schedule');
+      return next;
+    }, { replace: true });
+  }
   const financialsVisible = canViewFinancials && rows.every(row => row.canViewProjectFinancials === true);
   const metrics = METRICS.filter(metric => !metric.requiresFinancialPermission || financialsVisible);
   const metric = metrics.find(m => m.key === metricKey) ?? metrics[0];
@@ -319,18 +331,18 @@ export function AcompanhamentoDashboard({ canManage = false, canViewFinancials =
         </div>
       </div>
 
-      <Modal open={managed !== null} onClose={() => setManaged(null)} ariaLabelledBy="acp-manage-title" panelClassName="modal-card acp-manage-card">
+      <Modal open={managed !== null} onClose={closeSchedule} ariaLabelledBy="acp-manage-title" panelClassName="modal-card acp-manage-card">
         {managed ? (
           <div className="acp-manage">
             <div className="acp-manage-head">
               <div className="sec" id="acp-manage-title">Cronograma — {managed.code}{managed.name ? ` — ${managed.name}` : ''}</div>
-              <button className="mini-btn alt" type="button" onClick={() => setManaged(null)} aria-label="Fechar">✕</button>
+              <button className="mini-btn alt" type="button" onClick={closeSchedule} aria-label="Fechar">✕</button>
             </div>
             <div className="acp-manage-body">
               <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} onDirtyChange={setManagedDirty} />
             </div>
             <div className="acp-manage-foot">
-              <button type="button" className="mini-btn alt" onClick={() => setManaged(null)}>Cancelar</button>
+              <button type="button" className="mini-btn alt" onClick={closeSchedule}>Cancelar</button>
               {canManage ? <button type="button" className="mini-btn" disabled={!managedDirty} onClick={() => scheduleRef.current?.save()}>Salvar</button> : null}
             </div>
           </div>

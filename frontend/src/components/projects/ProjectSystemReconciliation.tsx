@@ -112,10 +112,13 @@ export function ProjectSystemReconciliation({ projectId, canManage, onBack }: {
   const selectable = visible.flatMap(({ report, items }) => items.filter(item => item.reconciliation.compatibleSystemIds.length).map(item => ({ report, item, key: rowKey(report, item) }))).slice(0, 200);
   const allSelected = selectable.length > 0 && selectable.every(entry => selected[entry.key]);
 
-  return <div className="page-card reconciliation-page">
+  return <div className="acp-det">
+    <div className="acp-det-bar">
+      <button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={onBack}>← Voltar</button>
+    </div>
+    <div className="page-card reconciliation-page">
     <div className="reconciliation-heading">
       <div><h2>Conciliação de sistemas</h2><p>{query.data ? `Missão ${query.data.project.code} · ${query.data.project.name}` : 'Carregando missão…'}</p></div>
-      <button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={onBack}>Voltar ao projeto</button>
     </div>
     <p>Vincule cada medição ao escopo salvo, individualmente ou selecionando várias linhas. A lista reúne históricos importados e serviços finalizados dos relatórios cadastrados no app.</p>
     <p>As identificações anteriores continuam válidas. Novos vínculos afetam somente as linhas selecionadas e preservam os nomes, quantidades e PDFs originais.</p>
@@ -163,5 +166,6 @@ export function ProjectSystemReconciliation({ projectId, canManage, onBack }: {
         </article>)}
       </section>)}
     <details className="reconciliation-progress"><summary>Conferir avanço do escopo</summary><ProjectProgressBreakdown projectId={projectId} /></details>
+    </div>
   </div>;
 }
