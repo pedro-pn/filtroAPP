@@ -122,3 +122,32 @@ test('buildReportServicePayload keeps a stable service key and persists the visi
   assert.equal(secondSave.extraData.volumeOleoUnit, 'L');
   assert.equal(secondSave.extraData['Volume de óleo'], '400 L');
 });
+
+test('buildReportServicePayload keeps the same service key for every derived report type after a re-save', async () => {
+  const { buildReportServicePayload } = await loadReportServicePayload();
+  const serviceTypes = ['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica', 'inibicao'];
+
+  for (const type of serviceTypes) {
+    const originalKey = `draft-${type}`;
+    const firstSave = buildReportServicePayload({
+      id: originalKey,
+      type,
+      data: {
+        equipmentId: 'EQ-1',
+        system: 'Sistema A',
+        tipoRelatorio: type === 'inibicao' ? ['RLI', 'RLF'] : undefined
+      }
+    });
+    const secondSave = buildReportServicePayload({
+      id: `database-row-${type}`,
+      type,
+      data: {
+        ...firstSave.extraData,
+        notes: 'Conteúdo adicionado na segunda gravação'
+      }
+    });
+
+    assert.equal(firstSave.extraData.__serviceLinkKey, originalKey, type);
+    assert.equal(secondSave.extraData.__serviceLinkKey, originalKey, type);
+  }
+});

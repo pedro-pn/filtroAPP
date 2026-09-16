@@ -4133,10 +4133,7 @@ async function syncApprovedRtpReports(tx, report) {
     if (special.parentRdoId !== report.id) {
       return;
     }
-    const linkKey = String(special.serviceLinkKey || special.serviceId || '').trim();
-    if (linkKey) {
-      existingByLinkKey.set(linkKey, item);
-    }
+    indexExistingDerivedReportLinkKeys(existingByLinkKey, item);
   });
 
   const allApprovedRdos = await tx.report.findMany({
@@ -4322,13 +4319,7 @@ async function syncApprovedRlqReports(tx, report) {
   });
 
   const existingByLinkKey = new Map();
-  existingRlqs.forEach(item => {
-    const special = item.specialConditions || {};
-    const linkKey = String(special.serviceLinkKey || '').trim();
-    const serviceId = String(special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
-    if (serviceId) existingByLinkKey.set(serviceId, item);
-  });
+  existingRlqs.forEach(item => indexExistingDerivedReportLinkKeys(existingByLinkKey, item));
 
   const allApprovedRdos = await tx.report.findMany({
     where: approvedRdoHistoryWhere(report.projectId),
@@ -4662,7 +4653,36 @@ function serviceWantsReportType(service, reportType) {
   return serviceSelectedReportTypes(service).includes(String(reportType).toUpperCase());
 }
 
-function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
+export function existingDerivedReportLinkKeys(report) {
+  const special = report?.specialConditions || {};
+  const serviceData = special.serviceData || {};
+  const keys = new Set();
+  [
+    special.serviceLinkKey,
+    special.serviceId,
+    serviceData.__ongoingKey,
+    serviceData.__serviceLinkKey,
+    serviceData.__sourceServiceId,
+    serviceData.serviceId
+  ].forEach(value => {
+    const key = String(value || '').trim();
+    if (key) keys.add(key);
+  });
+  for (const service of report?.services || []) {
+    for (const key of serviceHistoryKeys(service)) {
+      if (key) keys.add(key);
+    }
+  }
+  return Array.from(keys);
+}
+
+function indexExistingDerivedReportLinkKeys(existingByLinkKey, report) {
+  for (const key of existingDerivedReportLinkKeys(report)) {
+    existingByLinkKey.set(key, report);
+  }
+}
+
+export function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
   for (const key of serviceHistoryKeys(service)) {
     const existing = existingByLinkKey.get(key);
     if (existing) return existing;
@@ -4957,18 +4977,7 @@ async function syncApprovedRcpReports(tx, report) {
   });
 
   const existingByLinkKey = new Map();
-  existingRcps.forEach(item => {
-    const special = item.specialConditions || {};
-    const linkKey = String(special.serviceLinkKey || '').trim();
-    const serviceId = String(special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
-    if (serviceId) existingByLinkKey.set(serviceId, item);
-    for (const service of item.services || []) {
-      for (const key of serviceHistoryKeys(service)) {
-        if (key) existingByLinkKey.set(key, item);
-      }
-    }
-  });
+  existingRcps.forEach(item => indexExistingDerivedReportLinkKeys(existingByLinkKey, item));
 
   // Fetch all approved RDOs once for totalMinutes calculation.
   const allApprovedRdos = await tx.report.findMany({
@@ -5160,8 +5169,7 @@ async function syncApprovedRlmReports(tx, report) {
   existingRlms.forEach(item => {
     const special = item.specialConditions || {};
     if (special.parentRdoId !== report.id) return;
-    const linkKey = String(special.serviceLinkKey || special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
+    indexExistingDerivedReportLinkKeys(existingByLinkKey, item);
   });
 
   const allApprovedRdos = await tx.report.findMany({
@@ -5319,13 +5327,7 @@ async function syncApprovedInhibitionReports(tx, report, targetReportType) {
   });
 
   const existingByLinkKey = new Map();
-  existingReports.forEach(item => {
-    const special = item.specialConditions || {};
-    const linkKey = String(special.serviceLinkKey || '').trim();
-    const serviceId = String(special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
-    if (serviceId) existingByLinkKey.set(serviceId, item);
-  });
+  existingReports.forEach(item => indexExistingDerivedReportLinkKeys(existingByLinkKey, item));
 
   const allApprovedRdos = await tx.report.findMany({
     where: approvedRdoHistoryWhere(report.projectId),
