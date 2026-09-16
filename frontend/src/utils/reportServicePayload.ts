@@ -17,6 +17,7 @@ export const serviceTypeMap: Record<string, string> = {
 };
 
 interface ServiceDraftLike {
+  id?: string;
   type: string;
   data: Record<string, unknown>;
 }
@@ -182,6 +183,13 @@ export function buildReportServicePayload(
   const type = normalizeServiceType(service.type);
   const data = service.data || {};
   const extraData = commonExtraData(type, data, options);
+  const existingHistoryKey = getString(extraData.__ongoingKey)
+    || getString(extraData.__serviceLinkKey)
+    || getString(extraData.__sourceServiceId);
+  const serviceHistoryKey = existingHistoryKey || getString(service.id);
+  if (serviceHistoryKey && !getString(extraData.__serviceLinkKey)) {
+    extraData.__serviceLinkKey = serviceHistoryKey;
+  }
 
   if (type === 'limpeza') {
     const unitIds = ids(data.ulq);
@@ -214,6 +222,7 @@ export function buildReportServicePayload(
 
   if (type === 'flushing' || type === 'filtragem') {
     const unitIds = type === 'filtragem' ? ids(data.ufg) : ids(data.uf);
+    const volumeOleoUnit = getString(data.volumeOleoUnit) || 'L';
     const houveParticulas = getString(data.houveParticulas) || 'Não';
     const houveDesidratacao = getString(data.houveDesidratacao) || 'Não';
     const houveUmidade = getString(data.houveUmidade) || 'Não';
@@ -222,7 +231,8 @@ export function buildReportServicePayload(
     const hasUmidade = houveUmidade === 'Sim';
     const desidratacaoIds = hasDesidratacao ? singleId(data.desidratacaoUnit) : [];
     extraData['Tipo de óleo'] = getString(data.tipoOleo);
-    extraData['Volume de óleo'] = formatValueWithUnit(data.volumeOleo, data.volumeOleoUnit);
+    extraData.volumeOleoUnit = volumeOleoUnit;
+    extraData['Volume de óleo'] = formatValueWithUnit(data.volumeOleo, volumeOleoUnit);
     extraData['Houve contagem de partículas?'] = houveParticulas;
     extraData['Contador utilizado'] = hasParticulas ? getString(data.contadorUtilizado) : '';
     extraData['Contagem inicial NAS'] = hasParticulas ? getString(data.contagemInicialNas) : '';
