@@ -1,10 +1,11 @@
 import { FieldPanel, MoneyField, NumberField, SelectField } from '../../components/Field';
 import {
   LOGISTICS_RETURN_MIRROR_FIELDS,
-  LOGISTICS_TRAVEL_DEFAULTS
+  LOGISTICS_TRAVEL_DEFAULTS,
+  isLogisticsCalculationModeAllowed
 } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { money, numberValue } from '../formato';
-import { itemPrecisaAtencao, transporteDispensado } from '../logistica';
+import { transporteDispensado } from '../logistica';
 import type { Levantamento } from '../useLevantamento';
 
 /**
@@ -16,9 +17,8 @@ import type { Levantamento } from '../useLevantamento';
  * todos os campos sempre pediria dado que não se aplica — e é o caminho mais
  * curto para o usuário preencher qualquer coisa só para o aviso sumir.
  *
- * A marcação de pendência usa `itemPrecisaAtencao`, **a mesma função que o
- * rodapé-guia consulta**. Duas implementações da mesma regra divergiriam, e a
- * tela diria uma coisa enquanto o rodapé diz outra.
+ * Os erros são endereçados pelo índice original do item, usando a validação
+ * compartilhada e as respostas do servidor (não apenas presença de valores).
  */
 
 type AnyRecord = Record<string, unknown>;
@@ -63,24 +63,47 @@ export function LogisticaItem({
   item: AnyRecord;
   levantamento: Levantamento;
 }) {
-  const { draft, result, updateCollection, removeCollection, errosVisiveis, erroSe } =
+  const { draft, result, updateCollection, removeCollection, errosVisiveis, erroDe, errosPorCampo } =
     levantamento;
   const id = String(item.id);
   const confirmacoes = (draft.scopeConfirmations as AnyRecord) || {};
   const fases = registros(draft.laborContexts);
   const destinos = registros(draft.logisticsDestinations);
   const todosOsItens = registros(draft.logistics);
+  const caminho = `logistics[${todosOsItens.findIndex(candidato => candidato.id === item.id)}]`;
 
   const dispensado = transporteDispensado(item, confirmacoes);
   // A marcação do card segue a mesma regra do vermelho nos campos: só
   // depois que o usuário tenta avançar. Antes disso quem avisa é o rodapé.
   const pendente =
-    errosVisiveis && !dispensado && itemPrecisaAtencao(item, fases);
+    errosVisiveis && !dispensado && [...errosPorCampo.keys()].some(campo => campo.startsWith(`${caminho}.`));
+
+  function erroCampo(campo: string) {
+    if (dispensado || (item.included === false && campo !== 'included')) return undefined;
+    return erroDe(`${caminho}.${campo}`);
+  }
 
   const calculado =
     registros(result.logisticsResults).find(r => r.id === id) || {};
 
   const modo = String(item.calculationMode || '');
+  const dicaEquipamento = item.requiredSlot && item.slotType === 'equipment'
+    ? 'Se os equipamentos viajam com a equipe, marque “Equipe e equipamentos usam a mesma mobilização” acima.'
+    : undefined;
+  const modosDisponiveis = MODOS.filter(opcao => isLogisticsCalculationModeAllowed(
+    opcao.value, String(item.slotType || ''), item.requiredSlot === true
+  ));
+  // Preserva a escolha antiga, mas explica por que ela precisa ser corrigida.
+  // Nunca troca silenciosamente o transporte nem o custo de um orçamento salvo.
+  const opcoesModo = modosDisponiveis.map(opcao => ({ ...opcao, disabled: false }));
+  if (modo && !opcoesModo.some(opcao => opcao.value === modo)) {
+    opcoesModo.push({
+      value: modo,
+      label: modo === 'legacy' ? 'Cálculo manual (legado)'
+        : `${MODOS.find(opcao => opcao.value === modo)?.label || modo} — escolha incompatível com este item`,
+      disabled: modo !== 'legacy'
+    });
+  }
   const veiculoRodoviario =
     modo === 'company_crew_vehicle' ||
     modo === 'rental_crew_vehicle' ||
@@ -95,7 +118,14 @@ export function LogisticaItem({
     modo === 'company_crew_vehicle' || modo === 'rental_crew_vehicle';
 
   function editar(patch: AnyRecord) {
-    updateCollection('logistics', id, patch);
+    const editouEspelho = item.returnSetup === 'mirrored'
+      && patch.returnSetup === undefined
+      && LOGISTICS_RETURN_MIRROR_FIELDS.some(campo => campo in patch);
+    updateCollection('logistics', id, {
+      ...(editouEspelho ? item : {}),
+      ...patch,
+      ...(editouEspelho ? { returnSetup: 'custom', autoSyncedFromMobilization: false } : {})
+    });
   }
 
   function definirRetorno(valor: string) {
@@ -156,10 +186,13 @@ export function LogisticaItem({
           <label className="com-incluir">
             <input
               type="checkbox"
+              aria-invalid={Boolean(erroCampo('included')) || undefined}
+              aria-describedby={erroCampo('included') ? `${id}-incluir-erro` : undefined}
               checked={item.included !== false}
               onChange={event => editar({ included: event.target.checked })}
             />
             Incluir
+            {erroCampo('included') && <small id={`${id}-incluir-erro`} className="field-error">{erroCampo('included')}</small>}
           </label>
           <button
             type="button"
@@ -187,7 +220,7 @@ export function LogisticaItem({
             value={item.returnSetup === 'pending' ? '' : String(item.returnSetup || '')}
             emptyLabel="Escolha como será a desmobilização"
             options={RETORNOS}
-            error={erroSe(item.returnSetup === 'pending', 'Campo obrigatório')}
+            error={erroCampo('returnSetup')}
             onChange={definirRetorno}
           />
         )}
@@ -197,8 +230,11 @@ export function LogisticaItem({
           required
           value={item.calculationModeConfirmed ? modo : ''}
           emptyLabel="Selecione como este deslocamento é calculado"
-          options={MODOS}
-          error={erroSe(!(item.calculationModeConfirmed && modo), 'Campo obrigatório')}
+          options={opcoesModo}
+          error={erroCampo('calculationMode') && dicaEquipamento
+            ? `${erroCampo('calculationMode')} ${dicaEquipamento}`
+            : erroCampo('calculationMode')}
+          hint={dicaEquipamento}
           /* Mesmo padrão da condição de trabalho: o valor só aparece depois de
              confirmado, para forçar a escolha em vez de aceitar um padrão. */
           onChange={valor =>
@@ -215,10 +251,7 @@ export function LogisticaItem({
             value: String(destino.id),
             label: String(destino.name || 'Destino')
           }))}
-          error={erroSe(
-            !item.destinationId || !destinos.some(destino => destino.id === item.destinationId),
-            'Campo obrigatório'
-          )}
+          error={erroCampo('destinationId')}
           onChange={valor => editar({ destinationId: valor })}
         />
 
@@ -228,7 +261,7 @@ export function LogisticaItem({
           value={item.trips}
           min={0}
           step={1}
-          error={erroSe(numberValue(item.trips) <= 0, 'Informe ao menos uma viagem')}
+          error={erroCampo('trips')}
           onChange={valor => editar({ trips: valor })}
         />
       </div>
@@ -241,14 +274,14 @@ export function LogisticaItem({
             value={item.quantity}
             min={0}
             step={0.01}
-            error={erroSe(numberValue(item.quantity) <= 0, 'Campo obrigatório')}
+            error={erroCampo('quantity')}
             onChange={valor => editar({ quantity: valor })}
           />
           <MoneyField
             label="Custo unitário"
             required
             value={item.unitCost}
-            error={erroSe(numberValue(item.unitCost) <= 0, 'Campo obrigatório')}
+            error={erroCampo('unitCost')}
             onChange={valor => editar({ unitCost: valor })}
           />
         </div>
@@ -265,7 +298,7 @@ export function LogisticaItem({
               value: String(fase.id),
               label: String(fase.name || 'Fase')
             }))}
-            error={erroSe(!item.contextId, 'Campo obrigatório')}
+            error={erroCampo('contextId')}
             /* Sem fase não há equipe, e sem equipe não há quem transportar. */
             onChange={valor => editar({ contextId: valor })}
           />
@@ -275,10 +308,7 @@ export function LogisticaItem({
             required={modo === 'company_truck_driver'}
             value={String(item.travelerCountMode || 'automatic')}
             options={MODO_CONTAGEM}
-            error={erroSe(
-              modo === 'company_truck_driver' && item.travelerCountMode !== 'manual',
-              'Selecione a contagem manual para indicar o motorista'
-            )}
+            error={erroCampo('travelerCountMode') || (item.travelerCountMode !== 'manual' ? erroCampo('travelerAssignments') : undefined)}
             onChange={valor => editar({ travelerCountMode: valor })}
           />
 
@@ -286,13 +316,7 @@ export function LogisticaItem({
             <FieldPanel
               label="Viajantes por cargo"
               required
-              error={erroSe(
-                registros(item.travelerAssignments).reduce(
-                  (total, viajante) => total + numberValue(viajante.quantity),
-                  0
-                ) <= 0,
-                'Selecione ao menos um colaborador da fase'
-              )}
+              error={erroCampo('travelerAssignments')}
             >
               {alocacoes.length > 0 ? (
                 <div className="com-viajantes-cargos">
@@ -341,7 +365,7 @@ export function LogisticaItem({
             value={item.distanceKmPerVehicle}
             min={0}
             step={1}
-            error={erroSe(numberValue(item.distanceKmPerVehicle) <= 0, 'Campo obrigatório')}
+            error={erroCampo('distanceKmPerVehicle')}
             onChange={valor => editar({ distanceKmPerVehicle: valor })}
           />
 
@@ -352,12 +376,7 @@ export function LogisticaItem({
             min={0}
             step={1}
             hint="Define em quantos dias o trajeto é feito"
-            error={erroSe(
-              numberValue(item.dailyDistanceLimitKm) <= 0 ||
-                numberValue(item.dailyDistanceLimitKm) >
-                  LOGISTICS_TRAVEL_DEFAULTS.dailyDistanceLimitKm,
-              `Informe um valor entre 1 e ${LOGISTICS_TRAVEL_DEFAULTS.dailyDistanceLimitKm} km`
-            )}
+            error={erroCampo('dailyDistanceLimitKm')}
             onChange={valor => editar({ dailyDistanceLimitKm: valor })}
           />
 
@@ -365,6 +384,7 @@ export function LogisticaItem({
             label="Contagem de veículos"
             value={String(item.vehicleCountMode || 'automatic')}
             options={MODO_CONTAGEM}
+            error={item.vehicleCountMode !== 'manual' ? erroCampo('vehicleCount') : undefined}
             onChange={valor => editar({ vehicleCountMode: valor })}
           />
 
@@ -375,7 +395,7 @@ export function LogisticaItem({
               value={item.vehicleCount}
               min={0}
               step={1}
-              error={erroSe(numberValue(item.vehicleCount) <= 0, 'Campo obrigatório')}
+              error={erroCampo('vehicleCount')}
               onChange={valor => editar({ vehicleCount: valor })}
             />
           )}
@@ -388,12 +408,7 @@ export function LogisticaItem({
               min={1}
               max={LOGISTICS_TRAVEL_DEFAULTS.passengersPerCompanyCar}
               step={1}
-              error={erroSe(
-                numberValue(item.passengersPerVehicle) < 1 ||
-                  numberValue(item.passengersPerVehicle) >
-                    LOGISTICS_TRAVEL_DEFAULTS.passengersPerCompanyCar,
-                `Informe de 1 a ${LOGISTICS_TRAVEL_DEFAULTS.passengersPerCompanyCar} pessoas`
-              )}
+              error={erroCampo('passengersPerVehicle')}
               onChange={valor => editar({ passengersPerVehicle: valor })}
             />
           )}
@@ -405,12 +420,7 @@ export function LogisticaItem({
             min={0}
             max={10}
             step={0.5}
-            error={erroSe(
-              numberValue(item.travelHoursPerDay) <= 0 ||
-                numberValue(item.travelHoursPerDay) >
-                  LOGISTICS_TRAVEL_DEFAULTS.travelHoursPerDay,
-              `Informe um valor entre 1 e ${LOGISTICS_TRAVEL_DEFAULTS.travelHoursPerDay} horas`
-            )}
+            error={erroCampo('travelHoursPerDay')}
             onChange={valor => editar({ travelHoursPerDay: valor })}
           />
 
@@ -418,7 +428,7 @@ export function LogisticaItem({
             label="Hospedagem por pessoa/dia"
             required
             value={item.lodgingPerPersonDay}
-            error={erroSe(numberValue(item.lodgingPerPersonDay) <= 0, 'Campo obrigatório')}
+            error={erroCampo('lodgingPerPersonDay')}
             onChange={valor => editar({ lodgingPerPersonDay: valor })}
           />
 
@@ -428,7 +438,7 @@ export function LogisticaItem({
             value={item.fuelEfficiencyKmPerLiter}
             min={0}
             step={0.1}
-            error={erroSe(numberValue(item.fuelEfficiencyKmPerLiter) <= 0, 'Campo obrigatório')}
+            error={erroCampo('fuelEfficiencyKmPerLiter')}
             onChange={valor => editar({ fuelEfficiencyKmPerLiter: valor })}
           />
 
@@ -436,7 +446,7 @@ export function LogisticaItem({
             label="Combustível (R$/L)"
             required
             value={item.fuelPricePerLiter}
-            error={erroSe(numberValue(item.fuelPricePerLiter) <= 0, 'Campo obrigatório')}
+            error={erroCampo('fuelPricePerLiter') || (numberValue(item.fuelPricePerLiter) <= 0 ? erroCampo('fuelEfficiencyKmPerLiter') : undefined)}
             onChange={valor => editar({ fuelPricePerLiter: valor })}
           />
 
@@ -456,14 +466,14 @@ export function LogisticaItem({
             value={String(item.rentalUse || '')}
             emptyLabel="Selecione onde o carro será usado"
             options={USOS_DO_CARRO_ALUGADO}
-            error={erroSe(!item.rentalUse, 'Campo obrigatório')}
+            error={erroCampo('rentalUse')}
             onChange={valor => editar({ rentalUse: valor })}
           />
           <MoneyField
             label="Diária do carro alugado"
             required
             value={item.rentalDailyRate}
-            error={erroSe(numberValue(item.rentalDailyRate) <= 0, 'Campo obrigatório')}
+            error={erroCampo('rentalDailyRate')}
             onChange={valor => editar({ rentalDailyRate: valor })}
           />
           {item.direction === 'mobilization' &&
@@ -474,7 +484,7 @@ export function LogisticaItem({
                 value={item.rentalSiteDays}
                 min={0}
                 step={1}
-                error={erroSe(numberValue(item.rentalSiteDays) <= 0, 'Campo obrigatório')}
+                error={erroCampo('rentalSiteDays')}
                 onChange={valor => editar({ rentalSiteDays: valor })}
               />
             )}
@@ -490,17 +500,14 @@ export function LogisticaItem({
             min={0}
             max={24}
             step={0.5}
-            error={erroSe(
-              numberValue(item.travelHoursPerDay) <= 0 ||
-                numberValue(item.travelHoursPerDay) > 24,
-              'Informe um valor entre 1 e 24 horas'
-            )}
+            error={erroCampo('travelHoursPerDay')}
             onChange={valor => editar({ travelHoursPerDay: valor })}
           />
           <NumberField
             label="Dias corridos por viagem"
             required
             value={item.travelCalendarDaysPerTrip}
+            error={erroCampo('travelCalendarDaysPerTrip')}
             min={0}
             step={1}
             onChange={valor => editar({ travelCalendarDaysPerTrip: valor })}
@@ -509,14 +516,14 @@ export function LogisticaItem({
             label="Passagem por pessoa/viagem"
             required
             value={item.ticketPerPersonPerTrip}
-            error={erroSe(numberValue(item.ticketPerPersonPerTrip) <= 0, 'Campo obrigatório')}
+            error={erroCampo('ticketPerPersonPerTrip')}
             onChange={valor => editar({ ticketPerPersonPerTrip: valor })}
           />
           <MoneyField
             label="Alimentação por pessoa/dia"
             required
             value={item.mealPerPersonDay}
-            error={erroSe(numberValue(item.mealPerPersonDay) <= 0, 'Campo obrigatório')}
+            error={erroCampo('mealPerPersonDay')}
             onChange={valor => editar({ mealPerPersonDay: valor })}
           />
           {modo === 'bus_crew_transport' && (
@@ -526,7 +533,7 @@ export function LogisticaItem({
               value={String(item.busOvernightMode || '')}
               emptyLabel="Selecione como será o pernoite"
               options={PERNOITES_DE_ONIBUS}
-              error={erroSe(!item.busOvernightMode, 'Campo obrigatório')}
+              error={erroCampo('busOvernightMode')}
               onChange={valor => editar({ busOvernightMode: valor })}
             />
           )}
@@ -540,14 +547,14 @@ export function LogisticaItem({
                 value={item.lodgingNightsPerTrip}
                 min={0}
                 step={1}
-                error={erroSe(numberValue(item.lodgingNightsPerTrip) <= 0, 'Campo obrigatório')}
+                error={erroCampo('lodgingNightsPerTrip')}
                 onChange={valor => editar({ lodgingNightsPerTrip: valor })}
               />
               <MoneyField
                 label="Hospedagem por pessoa/dia"
                 required
                 value={item.lodgingPerPersonDay}
-                error={erroSe(numberValue(item.lodgingPerPersonDay) <= 0, 'Campo obrigatório')}
+                error={erroCampo('lodgingPerPersonDay')}
                 onChange={valor => editar({ lodgingPerPersonDay: valor })}
               />
             </>
@@ -561,7 +568,7 @@ export function LogisticaItem({
             label="Alimentação por pessoa/dia"
             required
             value={item.mealPerPersonDay}
-            error={erroSe(numberValue(item.mealPerPersonDay) <= 0, 'Campo obrigatório')}
+            error={erroCampo('mealPerPersonDay')}
             onChange={valor => editar({ mealPerPersonDay: valor })}
           />
         </div>
@@ -572,6 +579,7 @@ export function LogisticaItem({
           <NumberField
             label="Sábados em viagem"
             value={item.travelSaturdayDays}
+            error={erroCampo('travelSaturdayDays')}
             min={0}
             step={1}
             onChange={valor => editar({ travelSaturdayDays: valor })}
@@ -579,6 +587,7 @@ export function LogisticaItem({
           <NumberField
             label="Domingos e feriados em viagem"
             value={item.travelSundayDays}
+            error={erroCampo('travelSundayDays')}
             min={0}
             step={1}
             onChange={valor => editar({ travelSundayDays: valor })}

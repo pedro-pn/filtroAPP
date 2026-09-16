@@ -5,6 +5,12 @@ import type { Levantamento } from './useLevantamento';
 type Registro = Record<string, unknown>;
 
 function origemDaPendencia(caminho: string, draft: Registro): string {
+  const logistica = caminho.match(/^logistics\[(\d+)\]/);
+  if (logistica) {
+    const item = ((draft.logistics || []) as Registro[])[Number(logistica[1])];
+    const direcao = item?.direction === 'demobilization' ? 'Desmobilização' : 'Mobilização';
+    return `${direcao} · ${item?.description || `Deslocamento ${Number(logistica[1]) + 1}`}`;
+  }
   const indices = caminho.match(
     /^laborContexts\[(\d+)\](?:\.assignments\[(\d+)\])?/
   );

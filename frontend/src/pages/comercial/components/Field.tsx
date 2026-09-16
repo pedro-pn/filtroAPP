@@ -231,7 +231,7 @@ export function Area({
 }
 
 type SelectFieldProps = Omit<FieldProps, 'type' | 'placeholder' | 'inputMode'> & {
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; disabled?: boolean }>;
   /** Texto da opção vazia. Ausente = sem opção vazia. */
   emptyLabel?: string;
 };
@@ -268,7 +268,7 @@ export function SelectField({
       >
         {emptyLabel !== undefined && <option value="">{emptyLabel}</option>}
         {options.map(option => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}
           </option>
         ))}

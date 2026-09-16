@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { LOGISTICS_TRAVEL_DEFAULTS } from '../../../../../../shared/comercial/dist/cost-model.js';
+import {
+  LOGISTICS_TRAVEL_DEFAULTS,
+  normalizeCostEstimatePayload
+} from '../../../../../../shared/comercial/dist/cost-model.js';
 import { EnderecoInput } from '../../components/EnderecoField';
 import { AvisoPendencia, ConfirmacaoEscopo } from '../ConfirmacaoEscopo';
 import { DistanciaDoDestino } from './DistanciaDoDestino';
@@ -96,14 +99,24 @@ function novoItem(direcao: string, destinoId?: string): AnyRecord {
 }
 
 export function LogisticaSection({ levantamento }: { levantamento: Levantamento }) {
-  const { draft, result, setDraft, updateCollection, removeCollection, errosVisiveis } =
+  const { draft, result, setDraft, updateCollection, removeCollection, errosVisiveis, erroDe, errosPorCampo } =
     levantamento;
 
   const confirmacoes = (draft.scopeConfirmations as AnyRecord) || {};
   const semLogistica = confirmacoes.noLogistics === true;
   const transporteConjunto = confirmacoes.combinedCrewAndEquipmentTransport === true;
   const destinos = registros(draft.logisticsDestinations);
-  const itens = registros(draft.logistics);
+  // Exibe os mesmos valores que o motor valida e calcula, inclusive retornos
+  // espelhados. O índice das pendências continua sendo o do rascunho original.
+  const itensNormalizados = useMemo(
+    () => normalizeCostEstimatePayload(draft).logistics,
+    [draft]
+  );
+  const itens = registros(draft.logistics).map(item =>
+    item.returnSetup === 'mirrored' && item.autoSyncedFromMobilization === true
+      ? (itensNormalizados.find(normalizado => normalizado.id === item.id) as unknown as AnyRecord) || item
+      : item
+  );
   const fases = registros(draft.laborContexts);
 
   const visivel = (item: AnyRecord) =>
@@ -166,7 +179,12 @@ export function LogisticaSection({ levantamento }: { levantamento: Levantamento 
 
   // Contagem de itens pendentes, usando o MESMO predicado do rodapé.
   const pendentes = itens.filter(
-    item => !transporteDispensado(item, confirmacoes) && itemPrecisaAtencao(item, fases)
+    item => !transporteDispensado(item, confirmacoes) && (
+      itemPrecisaAtencao(item, fases)
+      || [...errosPorCampo.keys()].some(campo => campo.startsWith(
+        `logistics[${registros(draft.logistics).findIndex(original => original.id === item.id)}].`
+      ))
+    )
   ).length;
 
   const destinoSemNome = destinos.some(d => !String(d.name || '').trim());
@@ -194,6 +212,7 @@ export function LogisticaSection({ levantamento }: { levantamento: Levantamento 
           descricaoPendente="Se este serviço não tiver mobilização nem desmobilização, confirme explicitamente antes de finalizar."
           descricaoConfirmada="Deslocamentos ficam fora deste levantamento."
           rotulo="Confirmo que não haverá mobilização nem desmobilização"
+          error={erroDe('scopeConfirmations.noLogistics')}
           onChange={definirSemLogistica}
         />
 
@@ -409,23 +428,21 @@ function BlocoDirecao({
         </div>
       </div>
 
-      {aberto && (
-        <div id={corpoId}>
-          {itens.length > 0 ? (
-            <div className="com-fases">
-              {itens.map(item => (
-                <LogisticaItem
-                  key={String(item.id)}
-                  item={item}
-                  levantamento={levantamento}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="com-vazio">Nenhum deslocamento nesta direção.</div>
-          )}
-        </div>
-      )}
+      <div id={corpoId} hidden={!aberto}>
+        {itens.length > 0 ? (
+          <div className="com-fases">
+            {itens.map(item => (
+              <LogisticaItem
+                key={String(item.id)}
+                item={item}
+                levantamento={levantamento}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="com-vazio">Nenhum deslocamento nesta direção.</div>
+        )}
+      </div>
     </section>
   );
 }

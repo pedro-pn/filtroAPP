@@ -1,6 +1,7 @@
 import {
   LOGISTICS_TRAVEL_DEFAULTS,
   VEHICLE_RENTAL_CALENDAR_DAY_EXPENSE_CODE,
+  isLogisticsCalculationModeAllowed,
   logisticsCrewCoverage,
   normalizeCostEstimatePayload
 } from '../../../../../shared/comercial/dist/cost-model.js';
@@ -98,6 +99,9 @@ export function itemPrecisaAtencao(item: AnyRecord, fases: AnyRecord[] = []): bo
   }
 
   if (!item.calculationMode || !item.calculationModeConfirmed) return true;
+  if (!isLogisticsCalculationModeAllowed(
+    String(item.calculationMode), String(item.slotType || ''), item.requiredSlot === true
+  )) return true;
 
   // Custo adicional incluído precisa de descrição, quantidade e valor.
   if (
@@ -423,7 +427,9 @@ export function faltaLogistica(draft: AnyRecord, result: AnyRecord = {}): boolea
     return true;
   }
 
-  if (gruposPrecisamAtencao(logistica, fases)) return true;
+  if (gruposPrecisamAtencao(
+    logistica.filter(item => !transporteDispensado(item, confirmacoes)), fases
+  )) return true;
 
   // Cobertura da equipe: gente sem transporte, dos dois lados.
   //

@@ -321,6 +321,19 @@ export type LogisticsDestination = {
 
 export type LogisticsSlotType = "crew" | "equipment" | "additional";
 
+/** A tela e o salvamento devem oferecer/aceitar os mesmos modos por transporte. */
+export function isLogisticsCalculationModeAllowed(
+  mode: string,
+  slotType: string,
+  requiredSlot: boolean,
+): boolean {
+  if (!requiredSlot || (slotType !== "crew" && slotType !== "equipment")) return true;
+  const allowed = slotType === "equipment"
+    ? ["", "external_freight", "company_truck_driver", "legacy"]
+    : ["", "company_crew_vehicle", "rental_crew_vehicle", "bus_crew_transport", "air_crew_transport", "legacy"];
+  return allowed.includes(mode);
+}
+
 export type LogisticsItem = {
   id: string;
   destinationId?: string;
@@ -4431,19 +4444,12 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
     }
     if (item.requiredSlot
       && item.slotType === "crew"
-      && ![
-        "",
-        "company_crew_vehicle",
-        "rental_crew_vehicle",
-        "bus_crew_transport",
-        "air_crew_transport",
-        "legacy",
-      ].includes(item.calculationMode)) {
+      && !isLogisticsCalculationModeAllowed(item.calculationMode, item.slotType, item.requiredSlot)) {
       add("error", `${path}.calculationMode`, "Selecione carro da empresa, carro alugado, ônibus, avião ou cálculo manual para a equipe.");
     }
     if (item.requiredSlot
       && item.slotType === "equipment"
-      && !["", "external_freight", "company_truck_driver", "legacy"].includes(item.calculationMode)) {
+      && !isLogisticsCalculationModeAllowed(item.calculationMode, item.slotType, item.requiredSlot)) {
       add("error", `${path}.calculationMode`, "O item obrigatório do equipamento deve usar frete, caminhão próprio ou cálculo manual.");
     }
     const isCompanyCrewVehicle = item.calculationMode === "company_crew_vehicle";
@@ -4702,6 +4708,7 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
     .filter((item) => !payload.scopeConfirmations.noLogistics
       && item.included
       && !isCrewTransportWaived(item, payload.scopeConfirmations)
+      && !isEquipmentTransportCoveredByCrew(item, payload.scopeConfirmations)
       && item.contextId
       && (item.calculationMode === "company_crew_vehicle"
         || item.calculationMode === "rental_crew_vehicle"
