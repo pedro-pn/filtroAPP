@@ -13,7 +13,6 @@ import {
 import { listJobRoles } from '../../api/jobRoles';
 import { HelpTip } from '../ui/HelpTip';
 import { ProjectSystemInput } from './ProjectSystemInput';
-import { ProjectSystemAliases } from './ProjectSystemAliases';
 import { useToast } from '../ui/ToastContext';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
@@ -220,8 +219,9 @@ export interface ScopeEditorHandle { save: () => void }
 export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   projectId: string;
   onDirtyChange?: (dirty: boolean) => void;
+  onSavingChange?: (saving: boolean) => void;
   beforeOvertime?: ReactNode;
-}>(function ProjectPlannedScopeEditor({ projectId, onDirtyChange, beforeOvertime }, ref) {
+}>(function ProjectPlannedScopeEditor({ projectId, onDirtyChange, onSavingChange, beforeOvertime }, ref) {
   const queryClient = useQueryClient();
   const showToast = useToast();
   const queryKey = ['planned-scope', projectId];
@@ -273,11 +273,14 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-systems'] });
+      queryClient.invalidateQueries({ queryKey: ['system-reconciliation', projectId] });
     },
     onError: (error: Error) => showToast(
       (axios.isAxiosError<{ error?: string }>(error) ? error.response?.data?.error : null) || error.message || 'Não foi possível salvar o escopo previsto.', 'error'
     )
   });
+
+  useEffect(() => { onSavingChange?.(mutation.isPending); }, [mutation.isPending, onSavingChange]);
 
   function save() {
     const names = new Set<string>();
@@ -632,7 +635,6 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       ) : null}
 
       <p className="placeholder-copy">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
-      <ProjectSystemAliases projectId={projectId} />
       {beforeOvertime}
 
       <div className="sec" style={{ marginTop: 18 }}>Previsão de horas normais</div>

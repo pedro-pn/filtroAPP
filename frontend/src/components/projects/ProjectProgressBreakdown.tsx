@@ -69,7 +69,7 @@ export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
       </div>
       {data.pendingMeasurements?.length ? <details className="acp-progress-svc" open>
         <summary>Medições sem correspondência no escopo ({data.pendingMeasurements!.length})</summary>
-        <p>Não entram nas metas por sistema até a conferência de UG, nome e bitola. Associe nomes no cronograma ou medições em Serviços históricos.</p>
+        <p>Não entram nas metas por sistema até a conferência de UG, nome e bitola. Revise os vínculos na Conciliação de sistemas do Acompanhamento.</p>
         <ul>{data.pendingMeasurements!.map((item, index) => <li key={index}>
           {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
         </li>)}</ul>

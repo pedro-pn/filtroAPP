@@ -8,6 +8,7 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { AcompanhamentoDashboard } from '../../components/projects/AcompanhamentoDashboard';
 import { ProjectCardsBoard } from '../../components/projects/ProjectCardsBoard';
+import { ProjectSystemReconciliation } from '../../components/projects/ProjectSystemReconciliation';
 import { SedeCostsBoard } from '../../components/projects/SedeCostsBoard';
 import { CostEngineManager } from '../../components/projects/CostEngineManager';
 import { getPontoPendencyCounts } from '../../api/acompanhamentoPonto';
@@ -47,6 +48,10 @@ export function AcompanhamentoPage() {
   const pendencyTotal = pendencyCounts?.total ?? 0;
   const projectDetailFromUrl = searchParams.has('project') || searchParams.has('group');
   const section = parseSection(searchParams.get('section'), projectDetailFromUrl ? 'projetos' : 'dashboard');
+  const reconciliationProject = section === 'projetos' && searchParams.get('reconcile') === '1' ? searchParams.get('project') : null;
+  const closeReconciliation = () => setSearchParams(current => {
+    const next = new URLSearchParams(current); next.delete('reconcile'); return next;
+  });
   const setSection = useCallback((nextSection: Section) => {
     setSearchParams(currentParams => {
       const nextParams = new URLSearchParams(currentParams);
@@ -57,6 +62,7 @@ export function AcompanhamentoPage() {
         nextParams.delete('project');
         nextParams.delete('group');
         nextParams.delete('cards');
+        nextParams.delete('reconcile');
       }
       if (nextSection !== 'custo') nextParams.delete('cost');
       return nextParams;
@@ -140,7 +146,8 @@ export function AcompanhamentoPage() {
           </div>
 
           <section className="equip-content">
-            {section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} canManageProjectNotes={isManager} progressHistoryNoveltyUser={user} />
+            {reconciliationProject ? <ProjectSystemReconciliation key={reconciliationProject} projectId={reconciliationProject} canManage={isManager} onBack={closeReconciliation} />
+              : section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} canManageProjectNotes={isManager} progressHistoryNoveltyUser={user} />
               : section === 'sede' ? <SedeCostsBoard />
               : section === 'custo' && isManager ? <CostEngineManager canManageCosts={isManager} />
               : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} canViewFinancials={canViewProjectFinancials(user)} />}

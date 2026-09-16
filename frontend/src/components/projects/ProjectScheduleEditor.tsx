@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router';
 
 import {
   getProjectRevisions,
@@ -10,6 +11,7 @@ import {
   type ProjectSchedulePayload
 } from '../../api/acompanhamentoComercial';
 import { getActiveCollaborators } from '../../api/acompanhamentoPonto';
+import { systemReconciliationPath } from '../../api/systemReconciliation';
 import { useToast } from '../ui/ToastContext';
 import { HelpTip } from '../ui/HelpTip';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
@@ -142,6 +144,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const [manualLaborIdsEdit, setManualLaborIdsEdit] = useState<string[] | null>(null);
   const [manualLaborAddId, setManualLaborAddId] = useState('');
   const [scopeDirty, setScopeDirty] = useState(false);
+  const [scopeSaving, setScopeSaving] = useState(false);
   const scopeRef = useRef<ScopeEditorHandle>(null);
 
   const scheduleMutation = useMutation({
@@ -191,6 +194,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     || sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)
     || collaboratorIdListKey(manualLaborIdsValue) !== collaboratorIdListKey(baseManualLaborIds);
   const dirty = scheduleDirty || scopeDirty;
+  const reconciliationBlocked = dirty || scopeSaving || scheduleMutation.isPending;
 
   function setCollaboratorSleepMode(collaboratorId: string, mode: LaborSleepMode) {
     const next = { ...sleepModeValue };
@@ -362,6 +366,23 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     </>
   ) : null;
 
+  const reconciliationContent = <>
+    <span className="acp-reconciliation-icon" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" />
+      </svg>
+    </span>
+    <span className="acp-reconciliation-copy">
+      <strong>Conciliar sistemas</strong>
+      <span>{reconciliationBlocked
+        ? 'Salve as alterações do cronograma e do escopo antes de abrir a conciliação.'
+        : 'Vincule as medições dos relatórios aos sistemas previstos.'}</span>
+    </span>
+    <svg className="acp-reconciliation-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14m-6-6 6 6-6 6" />
+    </svg>
+  </>;
+
   return (
     <div className="det-section">
       <div className="det-row"><span className="det-label">Previsto (comercial)</span>
@@ -435,6 +456,11 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       </div>
 
       <div className="acp-scope-divider" />
+      {reconciliationBlocked ? (
+        <button type="button" className="acp-reconciliation-shortcut" disabled>{reconciliationContent}</button>
+      ) : (
+        <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)}>{reconciliationContent}</Link>
+      )}
       <div className="sec" style={{ marginTop: 4 }}>Avanço físico (RDO × previsto)</div>
       <ProjectProgressBreakdown projectId={projectId} />
 
@@ -443,6 +469,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         ref={scopeRef}
         projectId={projectId}
         onDirtyChange={setScopeDirty}
+        onSavingChange={setScopeSaving}
         beforeOvertime={collaboratorSleepSection}
       />
 

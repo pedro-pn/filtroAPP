@@ -1228,6 +1228,7 @@ model Report {
   maintenanceRecords         MaintenanceRecord[]
   chemicalCleanings          ChemicalCleaning[]
   operationalReviewAudits    OperationalReviewAudit[]
+  measurementLinks           ReportMeasurementLink[]
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])
@@ -1398,6 +1399,20 @@ model HistoricalServiceReport {
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId, reportDate])
+}
+
+// Vínculos de Acompanhamento separados do conteúdo e dos PDFs dos relatórios.
+model ReportMeasurementLink {
+  id                String   @id @default(cuid())
+  reportId          String
+  measurementKey    String
+  projectSystemId   String
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  report            Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, measurementKey])
 }
 
 model ReportService {
