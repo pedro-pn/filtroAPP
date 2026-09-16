@@ -38,6 +38,18 @@ function registros(valor: unknown): AnyRecord[] {
   return Array.isArray(valor) ? (valor as AnyRecord[]) : [];
 }
 
+/** Aplica a correção de classificação sem normalizar os demais campos em edição. */
+export function corrigirClassificacaoLogistica(draft: AnyRecord): AnyRecord {
+  const itens = registros(draft.logistics);
+  if (!itens.some(item => item.requiredSlot === true && item.slotType === 'equipment'
+    && MODOS_TRANSPORTE_EQUIPE.includes(String(item.calculationMode)))) return draft;
+  const normalizado = normalizeCostEstimatePayload(draft);
+  const reclassificado = normalizado.logistics.some((item, indice) =>
+    item.slotType !== itens[indice]?.slotType || item.requiredSlot !== itens[indice]?.requiredSlot
+  );
+  return reclassificado ? { ...draft, logistics: normalizado.logistics } : draft;
+}
+
 /**
  * O item de transporte de equipe está dispensado?
  *
@@ -92,7 +104,7 @@ export function itemPrecisaAtencao(item: AnyRecord, fases: AnyRecord[] = []): bo
   // retorno repete a ida ou é diferente.
   if (
     item.direction === 'demobilization' &&
-    item.requiredSlot &&
+    (item.requiredSlot || item.mobilizationSourceId) &&
     item.returnSetup === 'pending'
   ) {
     return true;
@@ -355,6 +367,7 @@ export function gruposPrecisamAtencao(
  * Porte de `missingRequiredLogisticsInfo` (`app/custos/page.tsx:111-134`).
  */
 export function faltaLogistica(draft: AnyRecord, result: AnyRecord = {}): boolean {
+  draft = corrigirClassificacaoLogistica(draft);
   // O motor sincroniza os campos de uma desmobilização espelhada durante a
   // normalização. Validar o rascunho cru aqui deixava a etapa travada porque
   // a tela mostrava os valores herdados da ida, mas o predicado ainda lia os
@@ -370,7 +383,7 @@ export function faltaLogistica(draft: AnyRecord, result: AnyRecord = {}): boolea
   const logistica = registros(draft.logistics).map(item => {
     const retornoEspelhado =
       item.direction === 'demobilization' &&
-      item.requiredSlot === true &&
+      (item.requiredSlot === true || Boolean(item.mobilizationSourceId)) &&
       item.autoSyncedFromMobilization === true &&
       item.returnSetup === 'mirrored';
     return retornoEspelhado

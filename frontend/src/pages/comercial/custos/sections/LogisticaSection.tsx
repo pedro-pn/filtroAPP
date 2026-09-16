@@ -113,7 +113,9 @@ export function LogisticaSection({ levantamento }: { levantamento: Levantamento 
     [draft]
   );
   const itens = registros(draft.logistics).map(item =>
-    item.returnSetup === 'mirrored' && item.autoSyncedFromMobilization === true
+    (item.returnSetup === 'mirrored' && item.autoSyncedFromMobilization === true)
+      || itensNormalizados.some(normalizado => normalizado.id === item.id
+        && (normalizado.slotType !== item.slotType || normalizado.requiredSlot !== item.requiredSlot))
       ? (itensNormalizados.find(normalizado => normalizado.id === item.id) as unknown as AnyRecord) || item
       : item
   );

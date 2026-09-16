@@ -137,7 +137,9 @@ export function LogisticaItem({
     const origem = todosOsItens.find(
       candidato =>
         candidato.direction === 'mobilization' &&
-        candidato.slotType === item.slotType &&
+        (item.mobilizationSourceId
+          ? candidato.id === item.mobilizationSourceId
+          : candidato.requiredSlot === true && candidato.slotType === item.slotType) &&
         candidato.destinationId === item.destinationId
     );
     const espelho: AnyRecord = {};
@@ -170,6 +172,11 @@ export function LogisticaItem({
     <article className={`com-fase-card${pendente ? ' com-item-pendente' : ''}`}>
       <header className="com-fase-card-topo">
         <div className="com-fase-identidade">
+          <span className="com-etiqueta">
+            {item.slotType === 'crew' ? 'Transporte de equipe'
+              : item.slotType === 'equipment' ? 'Transporte de equipamentos'
+                : 'Deslocamento adicional'}
+          </span>
           <label>
             <small>Descrição do deslocamento</small>
             <input
@@ -213,7 +220,7 @@ export function LogisticaItem({
       </header>
 
       <div className="com-form-grid">
-        {item.direction === 'demobilization' && item.requiredSlot === true && (
+        {item.direction === 'demobilization' && (item.requiredSlot === true || Boolean(item.mobilizationSourceId)) && (
           <SelectField
             label="Composição do retorno"
             required

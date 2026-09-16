@@ -340,6 +340,8 @@ export type LogisticsItem = {
   slotType: LogisticsSlotType;
   requiredSlot: boolean;
   autoSyncedFromMobilization: boolean;
+  /** Vínculo explícito para retornos de equipes adicionais, sem depender do slot obrigatório. */
+  mobilizationSourceId?: string;
   direction: LogisticsDirection;
   category: LogisticsCategory;
   description: string;
@@ -1485,7 +1487,8 @@ function normalizeLogistics(value: unknown, index: number): LogisticsItem {
     ["", "continuous", "hotel_stop"] as const,
     "",
   );
-  const returnSetup = direction === "demobilization" && requiredSlot
+  const mobilizationSourceId = textValue(source.mobilizationSourceId);
+  const returnSetup = direction === "demobilization" && (requiredSlot || mobilizationSourceId)
     ? enumValue(
         source.returnSetup,
         ["pending", "mirrored", "custom"] as const,
@@ -1503,6 +1506,7 @@ function normalizeLogistics(value: unknown, index: number): LogisticsItem {
     destinationId: textValue(source.destinationId) || undefined,
     slotType,
     requiredSlot,
+    ...(mobilizationSourceId ? { mobilizationSourceId } : {}),
     autoSyncedFromMobilization: booleanValue(
       source.autoSyncedFromMobilization,
       false,
@@ -1668,19 +1672,63 @@ function synchronizeLinkedDemobilizations(logistics: LogisticsItem[]): Logistics
   return logistics.map((item) => {
     if (
       item.direction !== "demobilization"
-      || !item.requiredSlot
+      || (!item.requiredSlot && !item.mobilizationSourceId)
       || !item.autoSyncedFromMobilization
       || item.returnSetup === "custom"
     ) return item;
     const mobilization = logistics.find((candidate) =>
       candidate.direction === "mobilization"
-      && candidate.requiredSlot
       && candidate.destinationId === item.destinationId
-      && candidate.slotType === item.slotType);
+      && (item.mobilizationSourceId
+        ? candidate.id === item.mobilizationSourceId
+        : candidate.requiredSlot && candidate.slotType === item.slotType));
     return mobilization
       ? copyMobilizationIntoDemobilization(mobilization, item)
       : item;
   });
+}
+
+/**
+ * A tela antiga permitia usar o slot de equipamentos para uma segunda equipe
+ * e cadastrar o frete em itens adicionais. Corrige somente o par inequívoco:
+ * dois slots de equipamentos usados para equipe e exatamente um transporte
+ * separado de equipamentos por sentido/destino. Nunca usa a descrição como
+ * critério, escolhe entre vários fretes, troca valores ou ativa transporte conjunto.
+ */
+function reclassifyLegacyLogisticsSlots(logistics: LogisticsItem[]): LogisticsItem[] {
+  const replacements = new Map<string, LogisticsItem>();
+  for (const destinationId of new Set(logistics.map((item) => item.destinationId))) {
+    const pairs = (["mobilization", "demobilization"] as const).map((direction) => {
+      const items = logistics.filter((item) => item.destinationId === destinationId && item.direction === direction);
+      const equipment = items.filter((item) => item.requiredSlot && item.slotType === "equipment");
+      const freight = items.filter((item) => !item.requiredSlot && item.slotType === "additional"
+        && item.included && item.calculationModeConfirmed
+        && ["external_freight", "company_truck_driver"].includes(item.calculationMode));
+      const crew = equipment[0];
+      if (equipment.length !== 1 || freight.length !== 1 || !crew.included || !crew.calculationModeConfirmed
+        || !["company_crew_vehicle", "rental_crew_vehicle", "bus_crew_transport", "air_crew_transport"].includes(crew.calculationMode)) {
+        return null;
+      }
+      return { crew, freight: freight[0] };
+    });
+    const [outbound, inbound] = pairs;
+    if (!outbound || !inbound) continue;
+    for (const pair of [outbound, inbound]) {
+      replacements.set(pair.crew.id, {
+        ...pair.crew,
+        slotType: "crew",
+        requiredSlot: false,
+        category: "personnel",
+        ...(pair === inbound ? { mobilizationSourceId: outbound.crew.id } : {}),
+      });
+      replacements.set(pair.freight.id, {
+        ...pair.freight,
+        slotType: "equipment",
+        requiredSlot: true,
+      });
+    }
+  }
+  return logistics.map((item) => replacements.get(item.id) || item);
 }
 
 function normalizeCommercialLine(value: unknown, index: number): CommercialLine {
@@ -2294,7 +2342,12 @@ export function normalizeCostEstimatePayload(value: unknown): CostEstimatePayloa
       distanceKmPerVehicle: destination.oneWayDistanceKm,
     };
   });
-  const logistics = synchronizeLinkedDemobilizations(destinationLogistics);
+  const synchronizedLogistics = synchronizeLinkedDemobilizations(destinationLogistics);
+  const confirmationsSource = objectValue(source.scopeConfirmations);
+  const logistics = confirmationsSource.combinedCrewAndEquipmentTransport === true
+    || confirmationsSource.noLogistics === true
+    ? synchronizedLogistics
+    : reclassifyLegacyLogisticsSlots(synchronizedLogistics);
   const scopeConfirmations = normalizeScopeConfirmations(source.scopeConfirmations, {
     laborContexts: contexts,
     materials,
@@ -4425,13 +4478,18 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
     }
     if (!item.included) return;
     if (item.direction === "demobilization"
-      && item.requiredSlot
+      && (item.requiredSlot || item.mobilizationSourceId)
       && item.returnSetup === "pending") {
       add(
         "error",
         `${path}.returnSetup`,
         "Confirme se a desmobilização repetirá a ida ou será preenchida separadamente.",
       );
+    }
+    if (item.mobilizationSourceId && item.returnSetup !== "custom"
+      && !payload.logistics.some((source) => source.id === item.mobilizationSourceId
+        && source.direction === "mobilization" && source.destinationId === item.destinationId)) {
+      add("error", `${path}.returnSetup`, "A mobilização vinculada não existe neste destino. Preencha o retorno separadamente.");
     }
     if (!item.destinationId || !destinationIds.has(item.destinationId)) {
       add("error", `${path}.destinationId`, "Selecione um destino válido para este transporte.");
