@@ -108,7 +108,7 @@ export async function updateHistoricalReport(client, { projectId, id, csv, revis
   }, { isolationLevel: 'Serializable' });
 }
 
-export async function linkHistoricalMeasurement(client, { projectId, id, itemIndex, projectSystemId, revision, userId }) {
+export async function linkHistoricalMeasurement(client, { projectId, id, itemIndex, projectSystemId, revision, userId, validateTarget }) {
   return client.$transaction(async tx => {
     await assertHistoricalProject(tx, projectId);
     const current = await tx.historicalServiceReport.findFirst({ where: { id, projectId } });
@@ -116,6 +116,7 @@ export async function linkHistoricalMeasurement(client, { projectId, id, itemInd
     if (projectSystemId && !await tx.projectServiceSystem.findFirst({ where: { id: projectSystemId, projectId } })) {
       throw historicalError('Selecione um sistema deste projeto.');
     }
+    if (validateTarget) await validateTarget(tx, current);
     const items = current.items.map((item, index) => {
       if (index !== itemIndex) return item;
       const { projectSystemId: _previous, ...original } = item;

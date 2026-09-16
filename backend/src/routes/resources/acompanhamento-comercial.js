@@ -39,9 +39,11 @@ import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAc
 import { projectSystemScopeInclude, projectSystemWithMeasurements, saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
 import { assertHistoricalProject } from '../../lib/reports/historical-services-store.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { createSystemReconciliationRouter } from './system-reconciliation.js';
 import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
 
 const router = Router();
+router.use('/projetos/:projectId/conciliacao', createSystemReconciliationRouter());
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB (arquivo real ~1 MB)
 const monthParamSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mês inválido. Use o formato YYYY-MM.');

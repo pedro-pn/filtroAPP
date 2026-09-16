@@ -17,9 +17,11 @@
 
 import prisma from '../prisma.js';
 import { loadHistoricalRealizedServices } from '../reports/historical-services-store.js';
-import { buildSystemProgress, diameterKey } from './system-progress.js';
+import { buildSystemProgress } from './system-progress.js';
+import { extractServiceMeasurements, realizedFromExtraData } from './realized-measurements.js';
+import { withNativeMeasurementLinks } from './native-measurement-links.js';
+export { realizedFromExtraData } from './realized-measurements.js';
 import { withScopeGroups } from './scope-groups.js';
-import { cleaningSystemQuantity, isSystemCleaning } from '../reports/cleaning-measurement.js';
 import { normalizeRdoServiceType } from './service-types.js';
 
 export { normalizeRdoServiceType } from './service-types.js';
@@ -76,24 +78,6 @@ export function selectRealizedSourceReportData(reports = [], collaborators = [])
   };
 }
 
-// Extrai o realizado comparável. Mantém a forma antiga de dois campos quando chamado sem tipo.
-export function realizedFromExtraData(extraData, serviceType) {
-  const data = extraData && typeof extraData === 'object' ? extraData : {};
-  const completeSystem = normalizeRdoServiceType(serviceType) === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);
-  let tubulacaoM = 0;
-  const tubes = !completeSystem && Array.isArray(data.tubes) ? data.tubes : [];
-  for (const tube of tubes) {
-    const c = num(tube?.c);
-    if (c === null) continue;
-    tubulacaoM += (tube?.lengthUnit === 'cm') ? c / 100 : c;
-  }
-  let oleoL = 0;
-  const vol = num(data.volumeOleo);
-  if (!completeSystem && vol !== null) oleoL += (data.volumeOleoUnit === 'mL') ? vol / 1000 : vol;
-
-  return { tubulacaoM, oleoL, ...(serviceType ? { sistemasUn: completeSystem ? cleaningSystemQuantity(data) ?? 0 : 0 } : {}) };
-}
-
 // Uma medição só pode alimentar uma meta. Conserva contexto para o detalhamento e a curva
 // semanal usarem exatamente o mesmo vínculo, sem alterar os relatórios originais.
 export function addRealizedService(byType, service, canonical = normalizeRdoServiceType(service.serviceType)) {
@@ -105,19 +89,7 @@ export function addRealizedService(byType, service, canonical = normalizeRdoServ
   acc.tubulacaoM += realized.tubulacaoM;
   acc.oleoL += realized.oleoL;
   acc.sistemasUn = (acc.sistemasUn ?? 0) + realized.sistemasUn;
-  const context = {
-    projectSystemId: data.__projectSystemId || null,
-    equipment: data.equipmentId || data['Equipamento(s)'] || '', system: service.system || data.system || data.Sistema || ''
-  };
-  const completeSystem = canonical === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);
-  for (const tube of !completeSystem && Array.isArray(data.tubes) ? data.tubes : []) {
-    const quantity = num(tube.c);
-    if (quantity == null || quantity <= 0) continue;
-    acc.measurements.push({ ...context, systemType: 'TUBULACAO', diameter: tube.d, diameterUnit: tube.unit || 'pol',
-      bitola: diameterKey(tube.d, tube.unit), quantity: tube.lengthUnit === 'cm' ? quantity / 100 : quantity });
-  }
-  if (realized.oleoL > 0) acc.measurements.push({ ...context, systemType: 'OLEO', bitola: '', quantity: realized.oleoL });
-  if (realized.sistemasUn > 0) acc.measurements.push({ ...context, systemType: 'SISTEMA', bitola: '', quantity: realized.sistemasUn });
+  acc.measurements.push(...(service.reconciledMeasurements ?? extractServiceMeasurements(service, canonical)));
   byType.set(canonical, acc);
 }
 
@@ -407,15 +379,16 @@ async function aggregateRealized(projectIds) {
   const [nativeServices, historicalServices] = await Promise.all([prisma.reportService.findMany({
     where: realizedReportWhere(projectIds),
     select: {
+      id: true,
       finalized: true,
       serviceType: true,
       system: true,
       extraData: true,
-      report: { select: { projectId: true, reportType: true, specialConditions: true } }
+      report: { select: { id: true, projectId: true, reportType: true, specialConditions: true, measurementLinks: true } }
     }
   }), loadHistoricalRealizedServices(prisma, projectIds)]);
 
-  for (const svc of [...nativeServices, ...historicalServices]) {
+  for (const svc of [...withNativeMeasurementLinks(nativeServices), ...historicalServices]) {
     if (!isServiceFinalized(svc)) continue; // só serviços finalizados entram no avanço
     if (!isRealizedSourceReport(svc.report)) continue;
     const canonical = normalizeRdoServiceType(svc.serviceType);
@@ -492,11 +465,12 @@ export async function computeProgressHistoryForProjects(projectIds) {
         }
       },
       select: {
+        id: true,
         finalized: true,
         serviceType: true,
         system: true,
         extraData: true,
-        report: { select: { projectId: true, reportType: true, reportDate: true, specialConditions: true } }
+        report: { select: { id: true, projectId: true, reportType: true, reportDate: true, specialConditions: true, measurementLinks: true } }
       }
     }),
     prisma.projectManualProgressHistory.findMany({
@@ -515,7 +489,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
 
   const projectById = new Map(projects.map(project => [project.id, project]));
   const servicesByProject = new Map();
-  for (const service of [...reportServices, ...historicalServices]) {
+  for (const service of [...withNativeMeasurementLinks(reportServices), ...historicalServices]) {
     const projectId = service.report?.projectId;
     if (!projectId) continue;
     if (!servicesByProject.has(projectId)) servicesByProject.set(projectId, []);
@@ -524,6 +498,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
       serviceType: service.serviceType,
       system: service.system,
       extraData: service.extraData,
+      reconciledMeasurements: service.reconciledMeasurements,
       reportDate: service.report?.reportDate,
       reportType: service.report?.reportType,
       specialConditions: service.report?.specialConditions

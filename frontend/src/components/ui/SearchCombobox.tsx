@@ -140,7 +140,7 @@ export function SearchCombobox({
         />
         <button type="button" tabIndex={-1} disabled={disabled} aria-label={toggleLabel || (open ? 'Fechar opções' : 'Abrir opções')}
           aria-expanded={open} aria-controls={listId} onMouseDown={event => event.preventDefault()}
-          onClick={() => { setActiveIndex(allowCustomValue ? -1 : 0); setShowAllOptions(true); setOpen(current => !current); }}>{variant === 'select' ? null : '⌄'}</button>
+          onClick={() => { setActiveIndex(allowCustomValue ? -1 : 0); setShowAllOptions(true); setOpen(current => !current); }} />
       </div>
       {open && !disabled ? (
         <div id={listId} className="app-combobox-list" role="listbox">

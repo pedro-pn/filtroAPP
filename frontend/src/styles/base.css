@@ -3067,6 +3067,50 @@ a {
 
 /* Escopo previsto (serviços vendidos + previsão de hora extra) no modal do cronograma */
 .acp-scope-divider { border-top: 1px solid var(--br); margin: 8px 0 2px; }
+.acp-reconciliation-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin: 10px 0 16px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--g) 28%, var(--wh));
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--g) 5%, var(--wh));
+  color: var(--g);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.acp-reconciliation-shortcut:hover {
+  border-color: var(--g);
+  background: color-mix(in srgb, var(--g) 9%, var(--wh));
+}
+.acp-reconciliation-shortcut:focus-visible {
+  outline: 3px solid var(--g);
+  outline-offset: 3px;
+}
+.acp-reconciliation-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: var(--rs);
+  background: color-mix(in srgb, var(--g) 10%, var(--wh));
+}
+.acp-reconciliation-copy { display: grid; gap: 3px; min-width: 0; }
+.acp-reconciliation-copy strong { font-size: 14px; font-weight: 600; }
+.acp-reconciliation-copy > span { color: var(--mu); font-size: 12px; line-height: 1.5; }
+.acp-reconciliation-arrow { flex-shrink: 0; margin-left: auto; }
+.acp-reconciliation-shortcut:disabled {
+  border-color: var(--br);
+  background: var(--bg);
+  color: var(--mu);
+  cursor: not-allowed;
+}
+.acp-reconciliation-shortcut:disabled .acp-reconciliation-icon { background: var(--wh); }
 .acp-scope .num-unit select { width: auto; flex: 0 0 auto; }
 
 /* Serviços previstos: cada serviço é um cartão com seus sistemas */
@@ -4325,7 +4369,7 @@ a {
 .det-inline-actions input:focus {
   outline: none;
   border-color: var(--g);
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .det-row span {
@@ -4959,7 +5003,7 @@ a {
   min-width: 0;
   flex: 1;
   border: 0;
-  background: transparent;
+  background-color: transparent;
   outline: 0;
   font-size: 13px;
 }
@@ -5078,7 +5122,7 @@ a {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: #fafafa;
+  background-color: #fafafa;
 }
 
 .cadd-btn {
@@ -5489,7 +5533,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .field-group textarea:focus {
   outline: none;
   border-color: var(--g);
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .password-input-wrap {
@@ -8579,8 +8623,9 @@ select {
   color: var(--tx);
 }
 
+/* Estilos locais devem usar background-color para preservar esta seta. */
 select,
-.app-combobox-select .app-combobox-control > button {
+.app-combobox-control > button {
   background-image:
     linear-gradient(45deg, transparent 50%, var(--mu) 50%),
     linear-gradient(135deg, var(--mu) 50%, transparent 50%);
@@ -8604,14 +8649,7 @@ select:disabled {
   opacity: 0.72;
 }
 
-.field-group select,
-.equip-dashboard-filters select,
-.nps-tab-toolbar select {
-  padding-right: 30px;
-}
-
 .num-unit select {
-  padding-right: 22px;
   background-position:
     calc(100% - 12px) 50%,
     calc(100% - 7px) 50%;
@@ -8825,7 +8863,7 @@ select:disabled {
   padding: 6px 10px;
   border: 1px solid var(--br);
   border-radius: var(--rs);
-  background: var(--wh);
+  background-color: var(--wh);
   font-size: 14px;
   font-weight: 600;
   color: var(--tx);
@@ -9305,7 +9343,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 7px 9px;
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .survey-dash-proj-row {
@@ -10245,7 +10283,7 @@ select:disabled {
   border-radius: var(--rs);
   padding: 5px 10px;
   font-size: 13px;
-  background: var(--wh);
+  background-color: var(--wh);
   color: var(--tx);
   min-width: 160px;
 }
@@ -10292,7 +10330,7 @@ select:disabled {
   border-radius: var(--rs);
   padding: 4px 8px;
   font-size: 13px;
-  background: var(--wh);
+  background-color: var(--wh);
   color: var(--tx);
 }
 
@@ -11871,7 +11909,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 11px 34px 11px 14px;
-  background: var(--wh);
+  background-color: var(--wh);
   color: var(--tx);
   font-size: 14px;
   font-weight: 600;
@@ -11904,7 +11942,7 @@ select:disabled {
   }
   .equip-nav-select {
     display: block;
-    background: var(--wh);
+    background-color: var(--wh);
   }
 }
 
@@ -12434,7 +12472,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: #fafafa;
+  background-color: #fafafa;
   color: var(--tx);
 }
 
@@ -12442,7 +12480,7 @@ select:disabled {
 .equip-dashboard-filters select:focus {
   outline: none;
   border-color: var(--g);
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .equip-table-wrap {
@@ -13165,7 +13203,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 7px 9px;
-  background: #fafafa;
+  background-color: #fafafa;
   color: var(--tx);
   font-size: 13px;
   min-width: 0;
@@ -13203,7 +13241,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 7px 9px;
-  background: #fafafa;
+  background-color: #fafafa;
   color: var(--tx);
   font-size: 13px;
   min-width: 0;
@@ -13221,7 +13259,7 @@ select:disabled {
 .equip-field-row select:focus {
   outline: none;
   border-color: var(--g);
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .equip-form-error {
@@ -13313,7 +13351,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: var(--wh);
+  background-color: var(--wh);
   color: var(--tx);
 }
 
@@ -13568,7 +13606,7 @@ select:disabled {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: #fafafa;
+  background-color: #fafafa;
   color: var(--tx);
 }
 
@@ -13576,7 +13614,7 @@ select:disabled {
 .equip-notif-inline input:focus {
   outline: none;
   border-color: var(--g);
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .equip-notif-list {
@@ -14457,7 +14495,7 @@ body.app-reorder-touching {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: var(--wh);
+  background-color: var(--wh);
 }
 
 .quality-table-wrap {
@@ -14987,19 +15025,27 @@ body.app-reorder-touching {
 
 .app-combobox-control input {
   min-width: 0;
-  padding-right: 42px;
+  padding-right: 30px;
   width: 100%;
 }
 
 .app-combobox-control > button {
-  background: transparent;
+  background-color: transparent;
   border: 0;
   color: var(--mu);
   cursor: pointer;
-  font-size: 18px;
   position: absolute;
-  right: 4px;
-  top: 2px;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 30px;
+  padding: 0;
+  border-radius: 0 var(--rs) var(--rs) 0;
+}
+
+.app-combobox-control > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .app-combobox-list {
@@ -15048,26 +15094,6 @@ body.app-reorder-touching {
 /* Sugestões editáveis com o mesmo campo e seta dos selects dos relatórios. */
 .app-combobox-select {
   min-width: 0;
-}
-
-.app-combobox-select .app-combobox-control input {
-  padding-right: 30px;
-}
-
-.app-combobox-select .app-combobox-control > button {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 30px;
-  padding: 0;
-  border-radius: 0 var(--rs) var(--rs) 0;
-  /* Não usar background shorthand: preserva a seta compartilhada com select. */
-  background-color: transparent;
-}
-
-.app-combobox-select .app-combobox-control > button:disabled {
-  cursor: not-allowed;
-  opacity: 0.72;
 }
 
 .app-combobox-select .app-combobox-list {
@@ -16174,4 +16200,13 @@ body.app-reorder-touching {
     grid-row: auto;
     justify-self: start;
   }
+}
+
+/* Reserva o espaço da seta após os ajustes de tamanho dos módulos. */
+select:not([multiple]) {
+  padding-right: 30px;
+}
+
+.num-unit select:not([multiple]) {
+  padding-right: 22px;
 }
