@@ -1,3 +1,10 @@
+export type ScopeTopic = {
+  id: string;
+  text: string;
+  templateId?: string;
+  children?: ScopeTopic[];
+};
+
 export type ScopeServiceItem = {
   id: string;
   title: string;
@@ -5,6 +12,7 @@ export type ScopeServiceItem = {
   /** Texto integral, sem acrescentar título ou abertura ao imprimir. */
   format?: "paragraph";
   subitems?: string[];
+  topics?: ScopeTopic[];
 };
 
 export type ScopeTableBlock = {
@@ -38,6 +46,9 @@ export const MAX_SCOPE_SERVICE_ITEMS = 20;
 export const MAX_SCOPE_SERVICE_TITLE_CHARACTERS = 160;
 export const MAX_SCOPE_SERVICE_DESCRIPTION_CHARACTERS = 12_000;
 export const MAX_SCOPE_SERVICE_SUBITEMS = 20;
+export const MAX_SCOPE_TOPICS = 100;
+// O modelo Word possui níveis de 0 (capítulo) a 8.
+export const MAX_SCOPE_TOPIC_DEPTH = 8;
 export const MAX_SCOPE_PHOTOS = 8;
 export const MAX_SCOPE_TABLES = 8;
 export const MAX_SCOPE_TABLE_COLUMNS = 6;
@@ -92,9 +103,37 @@ export function normalizeScopeServiceItems(value: unknown): ScopeServiceItem[] {
           .filter((text): text is string => typeof text === "string")
           .map(text => text.trim().slice(0, MAX_SCOPE_SERVICE_DESCRIPTION_CHARACTERS)),
       } : {}),
+      ...(Array.isArray(record.topics) ? { topics: normalizeScopeTopics(record.topics) } : {}),
     });
   }
   return items;
+}
+
+export function normalizeScopeTopics(value: unknown): ScopeTopic[] {
+  const usedIds = new Set<string>();
+  let count = 0;
+  function visit(nodes: unknown, depth: number): ScopeTopic[] {
+    if (!Array.isArray(nodes) || depth > MAX_SCOPE_TOPIC_DEPTH) return [];
+    const result: ScopeTopic[] = [];
+    for (const candidate of nodes) {
+      if (count >= MAX_SCOPE_TOPICS) break;
+      if (!candidate || typeof candidate !== "object") continue;
+      const record = candidate as Record<string, unknown>;
+      const id = cleanId(record.id);
+      if (!id || usedIds.has(id)) continue;
+      usedIds.add(id);
+      count += 1;
+      const templateId = cleanId(record.templateId);
+      result.push({
+        id,
+        text: String(record.text ?? "").trim().slice(0, MAX_SCOPE_SERVICE_DESCRIPTION_CHARACTERS),
+        ...(templateId ? { templateId } : {}),
+        ...(Array.isArray(record.children) ? { children: visit(record.children, depth + 1) } : {}),
+      });
+    }
+    return result;
+  }
+  return visit(value, 1);
 }
 
 export function normalizeScopeBlocks(value: unknown): ScopeBlock[] {

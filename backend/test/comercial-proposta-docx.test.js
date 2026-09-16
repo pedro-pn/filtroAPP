@@ -8,7 +8,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import { arquivoDoModelo, preencherProposta } from '../src/lib/comercial/proposta-docx.js';
-import { createScopeDescriptionItem, SCOPE_DESCRIPTION_TEMPLATES, scopeDescriptionParagraphs } from '../../shared/comercial/dist/scope-descriptions.js';
+import { createScopeDescriptionItem, createScopeTopic, SCOPE_DESCRIPTION_TEMPLATES, scopeDescriptionParagraphs } from '../../shared/comercial/dist/scope-descriptions.js';
 
 const MODELOS = process.env.COMERCIAL_MODELOS_DIR
   ? process.env.COMERCIAL_MODELOS_DIR
@@ -590,13 +590,14 @@ test('os itens de escopo substituem o cardápio do documento', async () => {
 
   assert.match(
     texto,
-    /Serviço especializado em mão de obra e execução técnica — Limpeza química — Circulação pressurizada\./
+    /Circulação pressurizada\./
   );
   assert.match(
     texto,
-    /Serviço especializado em mão de obra e execução técnica — Flushing primário — Regime turbulento\./
+    /Regime turbulento\./
   );
   assert.ok(!/visita técnica/i.test(texto), 'sobrou frase do cardápio que a proposta não escolheu');
+  assert.doesNotMatch(texto, /Serviço especializado em mão de obra e execução técnica —/);
 
   // A ressalva fixa do escopo não é item de lista e tem de sobreviver.
   assert.match(texto, /tubulações embarcadas/);
@@ -638,6 +639,29 @@ test('editar, excluir, reordenar e colar parágrafos não cria itens fantasmas n
   assert.doesNotMatch(texto, /Levantamento de desenhos e elaboração de fluxogramas/);
   assert.doesNotMatch(texto, /Serviço especializado em mão de obra e execução técnica — Primeiro texto livre/);
   assert.ok(!impressos.some(p => p.getElementsByTagName('w:br').length));
+});
+
+test('cada serviço exporta vários tópicos e subníveis, sem prefixos automáticos', async () => {
+  const scopeItems = [{
+    id: 's1', title: 'Serviço 1', description: 'Descrição antiga que não deve voltar', topics: [
+      { id: 'a', text: 'Texto livre do cliente.' },
+      { id: 'b', text: 'Segundo texto do mesmo serviço.', children: [
+        { id: 'b1', text: 'Detalhe editado.', children: [{ id: 'b11', text: 'Detalhe de terceiro nível.' }] }
+      ] }
+    ]
+  }, { id: 's2', title: 'Serviço 2', description: '', topics: [createScopeTopic('c', 'filtragem')] }];
+  const esperados = scopeDescriptionParagraphs(scopeItems);
+  assert.deepEqual(esperados.map(p => p.number), ['2.1', '2.2', '2.2.1', '2.2.1.1', '2.3']);
+  for (const modelo of ['padrao', 'hidrojateamento']) {
+    for (const tipo of ['commercial', 'technical']) {
+      const { xml, texto } = textoDoDocx(await preencherProposta({ ...DADOS, scopeItems, modelo }, tipo));
+      const doc = new DOMParser().parseFromString(xml, 'text/xml');
+      const paragrafos = Array.from(doc.getElementsByTagName('w:p')).filter(p => esperados.some(e => e.text === p.textContent));
+      assert.deepEqual(paragrafos.map(p => p.textContent), esperados.map(e => e.text));
+      assert.deepEqual(paragrafos.map(p => p.getElementsByTagName('w:ilvl')[0].getAttribute('w:val')), ['1', '1', '2', '3', '1']);
+      assert.doesNotMatch(texto, /Descrição antiga que não deve voltar|Serviço especializado em mão de obra e execução técnica —/);
+    }
+  }
 });
 
 test('o capítulo 3 imprime somente os equipamentos escolhidos na proposta', async () => {

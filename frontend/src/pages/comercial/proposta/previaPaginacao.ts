@@ -220,7 +220,7 @@ export function tituloDoItemDeEscopo(
   if (!item) return '2.1 Conteúdo complementar do escopo';
 
   const numero =
-    scopeDescriptionParagraphs(itens).find((p) => p.scopeItemId === item.id)
+    scopeDescriptionParagraphs(itens, { includeEmpty: true }).find((p) => p.scopeItemId === item.id)
       ?.number ?? '2.1';
   return `${numero} ${item.title || `Serviço ${Math.max(0, indice) + 1}`}`;
 }
@@ -233,7 +233,7 @@ export function paginasDasDescricoes(paragrafos: ScopeDescriptionParagraph[]) {
   for (const paragrafo of paragrafos) {
     const linhas = quebrarTexto(
       paragrafo.text,
-      paragrafo.level === 2 ? 65 : 70
+      70 - Math.min(paragrafo.level - 1, 4) * 5
     );
     let offset = 0;
     while (offset < linhas.length) {

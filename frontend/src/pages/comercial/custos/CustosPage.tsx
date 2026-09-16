@@ -657,6 +657,91 @@ export function CustosPage() {
     void salvar(false);
   }
 
+  function renderAcoesDoLevantamento(posicao: 'topo' | 'rodape') {
+    const Container = posicao === 'topo' ? 'div' : 'footer';
+    return (
+      <Container className={`com-rodape${posicao === 'topo' ? ' com-acoes-topo' : ''}`}
+        role="group" aria-label={`Ações do levantamento no ${posicao === 'topo' ? 'topo' : 'rodapé'}`}>
+        <button
+          type="button"
+          className="com-btn com-btn-fantasma"
+          onClick={() => navigate(moduleRoutePath('comercial', 'index'))}
+        >
+          Cancelar e voltar
+        </button>
+
+        <div className="com-codigo-vinculado">
+          <small>LEVANTAMENTO E PROPOSTA</small>
+          <strong>{codigo}</strong>
+          {autosave.rotulo && (
+            <span className={`com-autosave is-${autosave.estado}`} role="status">
+              {autosave.rotulo}
+            </span>
+          )}
+        </div>
+
+        <div className="com-rodape-acoes">
+          {secao === 'summary' ? (
+            <>
+              <button
+                type="button"
+                className="com-btn com-btn-fantasma"
+                disabled={salvando || salvandoRascunho || salvo !== null}
+                onClick={() => concluirLevantamento(false)}
+              >
+                {salvando
+                  ? 'Salvando...'
+                  : salvo
+                    ? 'Levantamento salvo'
+                    : 'Salvar'}
+              </button>
+              <button
+                type="button"
+                className="com-btn com-btn-primario"
+                disabled={salvando || salvandoRascunho}
+                onClick={() =>
+                  salvo
+                    ? void abrirPropostaDoLevantamentoSalvo(salvo)
+                    : concluirLevantamento(true)
+                }
+              >
+                {salvando
+                  ? 'Salvando...'
+                  : salvo
+                    ? 'Criar proposta com este levantamento'
+                    : 'Finalizar e criar proposta'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="com-btn com-btn-fantasma"
+                disabled={salvando || salvandoRascunho || salvo !== null}
+                onClick={() => void persistirRascunho()}
+              >
+                {salvandoRascunho
+                  ? 'Salvando rascunho...'
+                  : 'Salvar rascunho'}
+              </button>
+
+              <button
+                type="button"
+                className="com-btn com-btn-primario"
+                disabled={
+                  acao.disabled || salvo !== null || salvandoRascunho
+                }
+                onClick={() => concluirLevantamento(true)}
+              >
+                {salvo ? 'Levantamento salvo' : acao.label}
+              </button>
+            </>
+          )}
+        </div>
+      </Container>
+    );
+  }
+
   return (
     <ComercialChrome
       eyebrow="FILTROVALI / LEVANTAMENTO DE CUSTOS"
@@ -925,6 +1010,7 @@ export function CustosPage() {
             ))}
           </nav>
 
+          {renderAcoesDoLevantamento('topo')}
           <PendenciasDaSecao levantamento={levantamento} secao={secao} />
 
           {secao === 'premises' ? (
@@ -945,84 +1031,7 @@ export function CustosPage() {
             </p>
           )}
 
-          <footer className="com-rodape">
-            <button
-              type="button"
-              className="com-btn com-btn-fantasma"
-              onClick={() => navigate(moduleRoutePath('comercial', 'index'))}
-            >
-              Cancelar e voltar
-            </button>
-
-            <div className="com-codigo-vinculado">
-              <small>LEVANTAMENTO E PROPOSTA</small>
-              <strong>{codigo}</strong>
-              {autosave.rotulo && (
-                <span className={`com-autosave is-${autosave.estado}`} role="status">
-                  {autosave.rotulo}
-                </span>
-              )}
-            </div>
-
-            <div className="com-rodape-acoes">
-              {secao === 'summary' ? (
-                <>
-                  <button
-                    type="button"
-                    className="com-btn com-btn-fantasma"
-                    disabled={salvando || salvandoRascunho || salvo !== null}
-                    onClick={() => concluirLevantamento(false)}
-                  >
-                    {salvando
-                      ? 'Salvando...'
-                      : salvo
-                        ? 'Levantamento salvo'
-                        : 'Salvar'}
-                  </button>
-                  <button
-                    type="button"
-                    className="com-btn com-btn-primario"
-                    disabled={salvando || salvandoRascunho}
-                    onClick={() =>
-                      salvo
-                        ? void abrirPropostaDoLevantamentoSalvo(salvo)
-                        : concluirLevantamento(true)
-                    }
-                  >
-                    {salvando
-                      ? 'Salvando...'
-                      : salvo
-                        ? 'Criar proposta com este levantamento'
-                        : 'Finalizar e criar proposta'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="com-btn com-btn-fantasma"
-                    disabled={salvando || salvandoRascunho || salvo !== null}
-                    onClick={() => void persistirRascunho()}
-                  >
-                    {salvandoRascunho
-                      ? 'Salvando rascunho...'
-                      : 'Salvar rascunho'}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="com-btn com-btn-primario"
-                    disabled={
-                      acao.disabled || salvo !== null || salvandoRascunho
-                    }
-                    onClick={() => concluirLevantamento(true)}
-                  >
-                    {salvo ? 'Levantamento salvo' : acao.label}
-                  </button>
-                </>
-              )}
-            </div>
-          </footer>
+          {renderAcoesDoLevantamento('rodape')}
         </>
       )}
     </ComercialChrome>

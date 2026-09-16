@@ -1,5 +1,4 @@
-import { descricaoComAberturaTecnica } from "./modelo-documento.js";
-import { normalizeScopeServiceItems, type ScopeServiceItem } from "./scope-content.js";
+import { normalizeScopeServiceItems, type ScopeServiceItem, type ScopeTopic } from "./scope-content.js";
 
 const INTRO = "Serviço especializado em mão de obra e execução técnica na manutenção";
 
@@ -45,37 +44,77 @@ export function splitScopeParagraphs(text: string): string[] {
   return text.split(/\r\n|\r|\n/).map(part => part.trim()).filter(Boolean);
 }
 
+export function createScopeTopic(id: string, templateId?: string): ScopeTopic {
+  const template = SCOPE_DESCRIPTION_TEMPLATES.find(item => item.id === templateId);
+  return {
+    id,
+    text: template?.description ?? "",
+    ...(template ? { templateId: template.id } : {}),
+    ...(template?.subitems ? {
+      children: template.subitems.map((text, i) => ({ id: `${id}-sub-${i}`, text })),
+    } : {}),
+  };
+}
+
+/** Adapta dados antigos sem gravar por cima do rascunho só por abrir a aba. */
+export function scopeTopicsForItem(item: Pick<ScopeServiceItem, "id" | "description" | "topics" | "subitems">): ScopeTopic[] {
+  if (Array.isArray(item.topics)) return item.topics;
+  const texts = splitScopeParagraphs(item.description || "");
+  const topics: ScopeTopic[] = (texts.length ? texts : [""]).map((text, i) => ({
+    id: `${item.id}-topic-${i}`, text,
+  }));
+  if (item.subitems?.length) {
+    topics[topics.length - 1].children = item.subitems.flatMap(splitScopeParagraphs)
+      .map((text, i) => ({ id: `${item.id}-sub-${i}`, text }));
+  }
+  return topics;
+}
+
+export function scopeTopicsText(topics: ScopeTopic[]): string {
+  return topics.flatMap(topic => [topic.text, scopeTopicsText(topic.children ?? [])]).filter(Boolean).join("\n");
+}
+
+export function scopeItemWithTopics(item: ScopeServiceItem, topics: ScopeTopic[]): ScopeServiceItem {
+  return { ...item, topics, description: scopeTopicsText(topics), format: undefined, subitems: undefined };
+}
+
 export type ScopeDescriptionParagraph = {
   key: string;
   scopeItemId: string;
+  topicId: string;
   number: string;
-  level: 1 | 2;
+  level: number;
   text: string;
 };
 
 /** Uma única sequência para a prévia e o Word/PDF, inclusive textos colados. */
-export function scopeDescriptionParagraphs(value: unknown, commercial = false): ScopeDescriptionParagraph[] {
+export function scopeDescriptionParagraphs(value: unknown, { includeEmpty = false } = {}): ScopeDescriptionParagraph[] {
   const paragraphs: ScopeDescriptionParagraph[] = [];
   let number = 0;
   for (const item of normalizeScopeServiceItems(value)) {
-    const text = item.format === "paragraph"
-      ? item.description
-      : [item.title, item.description].filter(Boolean).join(" — ");
-    const parts = splitScopeParagraphs(text);
-    if (!parts.length) continue;
-    for (const [index, part] of parts.entries()) {
-      number += 1;
-      paragraphs.push({
-        key: `${item.id}-${index}`, scopeItemId: item.id, number: `2.${number}`, level: 1,
-        text: commercial && item.format !== "paragraph" ? descricaoComAberturaTecnica(part) : part,
-      });
+    function visit(topics: ScopeTopic[], prefix: string, start = 0): number {
+      let current = start;
+      for (const topic of topics) {
+        const parts = splitScopeParagraphs(topic.text);
+        if (!parts.length && includeEmpty) parts.push("");
+        // Um pai apagado não pode apagar seus filhos nem criar número fantasma.
+        if (!parts.length) {
+          current = visit(topic.children ?? [], prefix, current);
+          continue;
+        }
+        for (const [index, text] of parts.entries()) {
+          current += 1;
+          const number = `${prefix}.${current}`;
+          paragraphs.push({
+            key: `${item.id}-${topic.id}-${index}`, scopeItemId: item.id, topicId: topic.id,
+            number, level: number.split(".").length - 1, text,
+          });
+        }
+        visit(topic.children ?? [], `${prefix}.${current}`);
+      }
+      return current;
     }
-    (item.subitems ?? []).flatMap(splitScopeParagraphs).forEach((part, index) => {
-      paragraphs.push({
-        key: `${item.id}-sub-${index}`, scopeItemId: item.id,
-        number: `2.${number}.${index + 1}`, level: 2, text: part,
-      });
-    });
+    number = visit(scopeTopicsForItem(item), "2", number);
   }
   return paragraphs;
 }

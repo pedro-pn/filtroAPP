@@ -843,6 +843,48 @@ export function PropostaPage() {
     }
   }
 
+  function renderAcoesDaProposta(posicao: 'topo' | 'rodape') {
+    return (
+      <PropostaFooter
+        posicao={posicao}
+        onCancelar={() => navigate(moduleRoutePath('comercial', 'index'))}
+        onSalvarRascunho={statusProposta === 'RASCUNHO' ? () => void salvar() : undefined}
+        primeiraEtapa={indice === 0}
+        aviso={avisoDePendencias(pendencias)}
+        rotulo={
+          salvando
+            ? 'Salvando...'
+            : finalizacao.finalizando
+              ? ETAPAS_VISIVEIS_DA_FINALIZACAO[
+                  Math.max(0, finalizacao.etapaFinalizacao)
+                ].mensagem
+              : finalizacao.finalizada
+                ? 'Proposta finalizada'
+                : statusProposta === 'FALHA_INTEGRACAO'
+                  ? 'Tentar integrações novamente'
+                  : ultima && !finalizacao.integracaoDisponivel
+                    ? 'Gerar documentos sem Nectar'
+                    : gerandoPdf
+                      ? 'Gerando os documentos...'
+                      : rotuloDoAvanco(
+                          pendencias,
+                          ultima,
+                          proximaEtapa?.label
+                        )
+        }
+        ocupado={salvando || gerandoPdf || finalizacao.bloqueada}
+        onVoltar={() =>
+          statusProposta !== 'RASCUNHO'
+            ? navigate(moduleRoutePath('comercial', 'historico'))
+            : indice === 0
+              ? navigate(moduleRoutePath('comercial', 'index'))
+              : irPara(ETAPAS[indice - 1].value)
+        }
+        onAvancar={avancar}
+      />
+    );
+  }
+
   return (
     <ComercialChrome
       variante="proposta"
@@ -983,6 +1025,7 @@ export function PropostaPage() {
 
       <section className="com-workspace">
         <div ref={formularioRef} className="com-form-panel">
+          {modo !== null && modelo !== null && renderAcoesDaProposta('topo')}
           {levantamentoVinculado && modo !== null && (
             <section className="com-vinculo-levantamento" role="status">
               <div>
@@ -1238,40 +1281,7 @@ export function PropostaPage() {
             </p>
           )}
 
-          <PropostaFooter
-            primeiraEtapa={indice === 0}
-            aviso={avisoDePendencias(pendencias)}
-            rotulo={
-              salvando
-                ? 'Salvando...'
-                : finalizacao.finalizando
-                  ? ETAPAS_VISIVEIS_DA_FINALIZACAO[
-                      Math.max(0, finalizacao.etapaFinalizacao)
-                    ].mensagem
-                  : finalizacao.finalizada
-                    ? 'Proposta finalizada'
-                    : statusProposta === 'FALHA_INTEGRACAO'
-                      ? 'Tentar integrações novamente'
-                      : ultima && !finalizacao.integracaoDisponivel
-                        ? 'Gerar documentos sem Nectar'
-                        : gerandoPdf
-                          ? 'Gerando os documentos...'
-                          : rotuloDoAvanco(
-                              pendencias,
-                              ultima,
-                              proximaEtapa?.label
-                            )
-            }
-            ocupado={salvando || gerandoPdf || finalizacao.bloqueada}
-            onVoltar={() =>
-              statusProposta !== 'RASCUNHO'
-                ? navigate(moduleRoutePath('comercial', 'historico'))
-                : indice === 0
-                  ? navigate(moduleRoutePath('comercial', 'index'))
-                  : irPara(ETAPAS[indice - 1].value)
-            }
-            onAvancar={avancar}
-          />
+          {renderAcoesDaProposta('rodape')}
         </div>
 
         {/* A prévia é metade da tela na referência, e a razão dela é essa: o

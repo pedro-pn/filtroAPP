@@ -157,7 +157,7 @@ test('a proposta oferece a lista pedida e preserva a opção de serviço livre',
     assert.ok(html.includes(`>${servico.title}</option>`));
   }
   assert.match(html, /Texto livre/);
-  assert.match(html, /Adicionar modelo/);
+  assert.match(html, /Adicionar serviço/);
 });
 
 test('a tela mostra quantidade editável para cada equipamento selecionado', () => {
@@ -181,4 +181,37 @@ test('a tela mostra quantidade editável para cada equipamento selecionado', () 
   assert.match(html, /type="number" min="1" step="1"[^>]*value="1"/);
   assert.match(html, /class="com-equipamento-nome"[^>]*aria-label="Nome do equipamento: bomba pneumática"[^>]*value="bomba pneumática"/);
   assert.doesNotMatch(html, />Editar nome<|>Salvar nome</);
+});
+
+test('adicionar linha aparece junto das categorias e abaixo da matriz, inclusive vazia', () => {
+  for (const linhas of [[], [{
+    categoria: 'EQUIPAMENTOS E MATERIAIS', owner: 'Filtrovali',
+    item: 'Fornecimento de equipamentos necessários à execução, incluindo:',
+    note: '', subitens: ['1 bomba pneumática']
+  }]]) {
+    const html = renderToStaticMarkup(createElement(ResponsabilidadesStep, {
+      linhas, onLinhas() {}, servicos: [], categorias: ['EQUIPAMENTOS E MATERIAIS'],
+      onCategorias() {}, erroDe() {}, mostrarErros: false
+    }));
+    assert.equal((html.match(/\+ Adicionar nova linha/g) || []).length, 2);
+    assert.match(html, /class="com-matriz-acoes"><button[^>]*>Categorias \(1\)<\/button><button[^>]*>\+ Adicionar nova linha<\/button><\/div>/);
+    const inicioDaMatriz = linhas.length ? html.indexOf('<table>') : html.indexOf('Nenhuma responsabilidade cadastrada.');
+    const fimDaMatriz = linhas.length ? html.indexOf('</table>') : inicioDaMatriz;
+    assert.ok(html.indexOf('+ Adicionar nova linha') < inicioDaMatriz);
+    assert.ok(html.lastIndexOf('+ Adicionar nova linha') > fimDaMatriz);
+    if (linhas.length) {
+      assert.ok(html.indexOf('com-equipamentos-proposta') < html.indexOf('+ Adicionar nova linha'));
+    }
+  }
+});
+
+test('equipamentos usam os tópicos editados e subitens, sem descrição antiga removida', () => {
+  const sugeridos = mod.equipamentosSugeridosPeloEscopo([{
+    title: 'Serviço', description: 'Limpeza química anterior', topics: [
+      { id: 'a', text: 'Inspeção', children: [{ id: 'b', text: 'Flushing secundário' }] }
+    ]
+  }]);
+  assert.ok(sugeridos.includes('1 unidade de flushing secundário'));
+  assert.ok(!sugeridos.includes('1 unidade de limpeza química'));
+  assert.deepEqual(mod.equipamentosSugeridosPeloEscopo([{ title: 'Serviço', description: 'Limpeza química', topics: [] }]), []);
 });

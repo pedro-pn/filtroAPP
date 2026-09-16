@@ -221,7 +221,7 @@ export function DocumentoPrevia({
      empurra tudo o que vem depois. É o mesmo cálculo que o PDF fará. */
   const folhasDoEscopo = paginasDoEscopo(blocos);
   const folhasDasDescricoes = paginasDasDescricoes(
-    scopeDescriptionParagraphs(itensEscopo, !tecnico)
+    scopeDescriptionParagraphs(itensEscopo)
   );
   const folhasDaResponsabilidade = folhasDaMatriz(responsabilidadesPreenchidas);
   const folhasTecnicas = tecnico
@@ -339,7 +339,8 @@ export function DocumentoPrevia({
           </h3>
           {folha.map((item) => (
             <p
-              className={`com-doc-paragrafo${item.level === 2 ? ' is-subitem' : ''}`}
+              className={`com-doc-paragrafo${item.level > 1 ? ' is-subitem' : ''}`}
+              style={{ paddingLeft: Math.min(item.level - 1, 4) * 10 }}
               key={item.key}
             >
               {!item.continuacao && (

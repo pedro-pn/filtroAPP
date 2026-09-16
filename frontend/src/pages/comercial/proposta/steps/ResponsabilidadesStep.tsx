@@ -16,7 +16,8 @@ import {
   equipamentosSugeridosPeloEscopo,
   mesmoEquipamento,
   quantidadeDoEquipamento,
-  renomearEquipamento
+  renomearEquipamento,
+  type ServicoDoEscopo
 } from '../equipamentosDaProposta';
 import { useReordenacao } from '../useReordenacao';
 
@@ -51,7 +52,7 @@ export function ResponsabilidadesStep({
 }: {
   linhas: LinhaResponsabilidade[];
   onLinhas: (atualizar: (atual: LinhaResponsabilidade[]) => LinhaResponsabilidade[]) => void;
-  servicos: Array<{ title?: string; description?: string }>;
+  servicos: ServicoDoEscopo[];
   categorias: string[];
   onCategorias: (proximas: string[]) => void;
   /**
@@ -252,13 +253,6 @@ export function ResponsabilidadesStep({
           <h2>Matriz de responsabilidades</h2>
           <p>As obrigações serão agrupadas por Filtrovali e Contratante.</p>
         </div>
-        <button
-          type="button"
-          className="com-btn-add"
-          onClick={adicionarResponsabilidade}
-        >
-          + Adicionar nova linha
-        </button>
       </div>
 
       {linhaDosEquipamentos && (
@@ -410,14 +404,23 @@ export function ResponsabilidadesStep({
       )}
 
       <div className="com-categorias">
-        <button
-          type="button"
-          className="com-btn com-btn-fantasma"
-          aria-expanded={gerenciando}
-          onClick={() => setGerenciando(atual => !atual)}
-        >
-          {gerenciando ? 'Fechar categorias' : `Categorias (${categorias.length})`}
-        </button>
+        <div className="com-matriz-acoes">
+          <button
+            type="button"
+            className="com-btn com-btn-fantasma"
+            aria-expanded={gerenciando}
+            onClick={() => setGerenciando(atual => !atual)}
+          >
+            {gerenciando ? 'Fechar categorias' : `Categorias (${categorias.length})`}
+          </button>
+          <button
+            type="button"
+            className="com-btn-add"
+            onClick={adicionarResponsabilidade}
+          >
+            + Adicionar nova linha
+          </button>
+        </div>
 
         {gerenciando && (
           <div className="com-categorias-editor">
@@ -600,6 +603,15 @@ export function ResponsabilidadesStep({
       ) : (
         <div className="com-vazio">Nenhuma responsabilidade cadastrada.</div>
       )}
+      <div className="com-matriz-acoes com-matriz-acoes-rodape">
+        <button
+          type="button"
+          className="com-btn-add"
+          onClick={adicionarResponsabilidade}
+        >
+          + Adicionar nova linha
+        </button>
+      </div>
     </section>
   );
 }

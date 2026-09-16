@@ -1,6 +1,8 @@
 import { EQUIPAMENTOS_E_FERRAMENTAS_PADRAO } from '../../../../../shared/comercial/dist/modelo-documento.js';
+import type { ScopeTopic } from '../../../../../shared/comercial/dist/scope-content.js';
+import { scopeTopicsText } from '../../../../../shared/comercial/dist/scope-descriptions.js';
 
-type ServicoDoEscopo = { title?: string; description?: string };
+export type ServicoDoEscopo = { title?: string; description?: string; topics?: ScopeTopic[] };
 
 const EQUIPAMENTO = {
   limpezaQuimica: '1 unidade de limpeza química',
@@ -123,7 +125,8 @@ export function equipamentosSugeridosPeloEscopo(
   servicos: ServicoDoEscopo[]
 ): string[] {
   const texto = normalizar(
-    servicos.map(servico => `${servico.title || ''} ${servico.description || ''}`).join(' ')
+    servicos.map(servico => `${servico.title || ''} ${Array.isArray(servico.topics)
+      ? scopeTopicsText(servico.topics) : servico.description || ''}`).join(' ')
   );
   const sugeridos = new Set<string>();
 

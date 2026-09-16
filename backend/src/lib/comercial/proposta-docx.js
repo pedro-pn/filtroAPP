@@ -647,10 +647,10 @@ async function preencherBlocosDoEscopo(zip, doc, blocos, lerFoto) {
   removeNode(ancora);
 }
 
-function preencherDescricoesDoEscopo(doc, itens, tipo) {
+function preencherDescricoesDoEscopo(doc, itens) {
   const modelo = findFirstByText(doc, 'w:p', '{{servico}}');
   if (!modelo) return;
-  const clones = scopeDescriptionParagraphs(itens, tipo === 'commercial').map(item => {
+  const clones = scopeDescriptionParagraphs(itens).map(item => {
     const clone = modelo.cloneNode(true);
     // Mantém a lista multinível do modelo: 2.1, 2.2 e 2.2.1, 2.2.2...
     // Cada texto é um w:p, nunca uma quebra de linha dentro do mesmo item.
@@ -717,7 +717,7 @@ export async function preencherProposta(dados, tipo) {
       totais.total_a = moeda(preencherPrecos(doc, precos, 'a'));
     }
 
-    preencherDescricoesDoEscopo(doc, dados.scopeItems, tipo);
+    preencherDescricoesDoEscopo(doc, dados.scopeItems);
     ajustarRelatorios(doc, dados.technicalServices);
     await preencherBlocosDoEscopo(
       zip,

@@ -711,6 +711,7 @@
 
 .com-root .com-rodape-acoes {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -3010,6 +3011,20 @@
   box-shadow: 0 -8px 18px #1720330d;
 }
 
+.com-root .com-acoes-topo {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--com-borda);
+}
+
+.com-root .com-form-panel .com-rodape.com-acoes-topo {
+  position: static;
+  margin: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--com-borda);
+  border-radius: 10px 10px 0 0;
+  box-shadow: none;
+}
+
 .com-root .com-faltando {
   color: #bd5e28;
   font-size: 11px;
@@ -3401,17 +3416,34 @@
   margin-bottom: 4px;
 }
 
-.com-root .com-escopo-texto { grid-column: 1 / -1; }
-.com-root .com-escopo-subitens { margin: 12px 0; }
-.com-root .com-escopo-subitem {
+.com-root .com-escopo-topicos { margin: 16px 0; }
+.com-root .com-escopo-topicos > p { color: var(--com-texto-fraco); }
+.com-root .com-escopo-topico {
+  min-width: 0;
+  padding: 12px;
+  margin: 12px 0;
+  border: 1px solid var(--com-borda);
+  border-radius: var(--com-raio);
+}
+.com-root .com-escopo-topico-cabecalho,
+.com-root .com-escopo-topico-acoes {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  padding-left: 12px;
-  border-left: 2px solid var(--com-acao-suave);
   margin-bottom: 8px;
 }
-.com-root .com-escopo-subitem > :first-child { flex: 1; min-width: 0; }
+.com-root .com-escopo-topico-cabecalho { justify-content: space-between; }
+.com-root .com-escopo-topicos-filhos {
+  padding-left: 10px;
+  border-left: 2px solid var(--com-acao-suave);
+}
+.com-root .com-escopo-topicos-filhos .com-escopo-topico {
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--com-borda);
+  border-radius: 0;
+}
 .com-root .com-doc-paragrafo { overflow-wrap: anywhere; }
 .com-root .com-doc-paragrafo.is-subitem { padding-left: 12px; }
 
@@ -3922,6 +3954,19 @@
 
 .com-root .com-categorias {
   margin: 4px 0 14px;
+}
+
+.com-root .com-matriz-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.com-root .com-matriz-acoes-rodape {
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .com-root .com-categorias-editor {
