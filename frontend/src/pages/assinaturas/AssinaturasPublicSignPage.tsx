@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { ApiClientError } from '../../api/client';
 import { confirmPublicSignature, publicSignaturePage, publicSignaturePdf } from '../../api/assinaturas';
@@ -9,11 +9,10 @@ import { SIGNATURE_AVULSA_NOTICE_VERSION } from '../../constants/privacy';
 import { usePublicSignatureInvite } from '../../hooks/useAssinaturas';
 import { captureInviteFromFragment } from './utils/coordinates';
 import { formatSignatureDateTime } from './utils/datetime';
+import { SignatureDocumentPreview } from './components/SignatureDocumentPreview';
 
 export function AssinaturasPublicSignPage() {
   const [token] = useState(() => captureInviteFromFragment(window.location, window.history));
-  const [pageNumber, setPageNumber] = useState(1);
-  const [imageUrl, setImageUrl] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -21,17 +20,7 @@ export function AssinaturasPublicSignPage() {
   const [message, setMessage] = useState('');
   const inviteQuery = usePublicSignatureInvite(token, polling);
 
-  useEffect(() => {
-    if (!token || !inviteQuery.data || pageNumber > inviteQuery.data.document.pageCount) return;
-    let disposed = false;
-    let currentUrl = '';
-    publicSignaturePage(token, pageNumber).then(blob => {
-      if (disposed) return;
-      currentUrl = URL.createObjectURL(blob);
-      setImageUrl(currentUrl);
-    }).catch(() => setImageUrl(''));
-    return () => { disposed = true; if (currentUrl) URL.revokeObjectURL(currentUrl); };
-  }, [inviteQuery.data, pageNumber, token]);
+  const loadPage = useCallback((page: number, signal: AbortSignal) => publicSignaturePage(token, page, signal), [token]);
 
   useEffect(() => {
     const status = inviteQuery.data?.document.status;
@@ -86,11 +75,16 @@ export function AssinaturasPublicSignPage() {
         <p>Solicitado por {invite.document.requestedBy}</p>
         <p>{invite.document.progress.signed} de {invite.document.progress.total} assinaturas</p>
         <p>Link válido até {formatSignatureDateTime(invite.expiresAt)}</p>
-        <div className="signature-public-preview">
-          {imageUrl ? <img src={imageUrl} alt={`Página ${pageNumber}`} /> : <span>Carregando página...</span>}
-          {invite.fields.filter(field => field.pageNumber === pageNumber).map((field, index) => <div className="signature-public-field" key={index} style={{ left: `${field.x * 100}%`, top: `${field.y * 100}%`, width: `${field.width * 100}%`, height: `${field.height * 100}%` }}>Seu campo</div>)}
-        </div>
-        <div className="signature-public-navigation"><Button variant="secondary" disabled={pageNumber <= 1} onClick={() => setPageNumber(value => value - 1)}>Anterior</Button><span>{pageNumber}/{invite.document.pageCount}</span><Button variant="secondary" disabled={pageNumber >= invite.document.pageCount} onClick={() => setPageNumber(value => value + 1)}>Próxima</Button></div>
+        <p className="signature-editor-hint">{invite.document.pageCount} página(s) · Role para ler o documento completo.</p>
+        <SignatureDocumentPreview
+          key={invite.document.sourceDocumentHash}
+          pageCount={invite.document.pageCount}
+          loadPage={loadPage}
+          renderPage={({ imageUrl, pageNumber, onImageError }) => <div className="signature-public-preview">
+            <img src={imageUrl} alt={`Página ${pageNumber} do documento`} onError={onImageError} />
+            {invite.fields.filter(field => field.pageNumber === pageNumber).map((field, index) => <div className="signature-public-field" key={index} style={{ left: `${field.x * 100}%`, top: `${field.y * 100}%`, width: `${field.width * 100}%`, height: `${field.height * 100}%` }}>Seu campo</div>)}
+          </div>}
+        />
         {message ? <p className="signature-inline-warning">{message}</p> : null}
         {invite.document.status === 'FINALIZANDO' ? <p>Finalizando o PDF assinado...</p> : null}
         {invite.downloadAvailable ? <Button onClick={download}>Baixar PDF assinado</Button> : null}

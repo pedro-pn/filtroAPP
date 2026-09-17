@@ -15770,7 +15770,45 @@ body.app-reorder-touching {
   border-radius: var(--r);
   max-height: min(68vh, 900px);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px;
+}
+
+.signature-pdf-scroll:focus-visible {
+  outline: 2px solid var(--g);
+  outline-offset: 2px;
+}
+
+.signature-document-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.signature-preview-page {
+  margin: 0 auto;
+  max-width: 900px;
+  width: 100%;
+}
+
+.signature-preview-page-label {
+  color: var(--mu);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.signature-preview-placeholder {
+  align-items: center;
+  background: var(--wh);
+  color: var(--mu);
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.signature-preview-error {
+  padding: 16px;
+  text-align: center;
 }
 
 .signature-pdf-canvas,
@@ -15779,7 +15817,6 @@ body.app-reorder-touching {
   box-shadow: 0 4px 18px rgba(17, 24, 39, 0.16);
   margin: 0 auto;
   max-width: 900px;
-  min-height: 360px;
   position: relative;
   width: 100%;
 }
@@ -16159,8 +16196,7 @@ body.app-reorder-touching {
 }
 
 .signature-public-preview {
-  margin: 18px auto 12px;
-  min-height: 240px;
+  margin: 0 auto;
 }
 
 .signature-public-field {
@@ -16223,9 +16259,6 @@ body.app-reorder-touching {
     padding: 8px;
   }
 
-  .signature-pdf-canvas {
-    min-height: 260px;
-  }
 }
 
 @media (max-width: 520px) {

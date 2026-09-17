@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 
 import type { SignatureField, SignatureSigner } from '../../../api/assinaturas';
 import { clampNormalizedRect, normalizedToPercent } from '../utils/coordinates';
@@ -23,13 +23,15 @@ export function PdfPageCanvas({
   pageNumber,
   signers,
   fields,
-  onFieldsChange
+  onFieldsChange,
+  onImageError
 }: {
   imageUrl: string;
   pageNumber: number;
   signers: SignatureSigner[];
   fields: SignatureField[];
   onFieldsChange: (fields: SignatureField[]) => void;
+  onImageError: () => void;
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [interaction, setInteraction] = useState<Interaction | null>(null);
@@ -38,7 +40,7 @@ export function PdfPageCanvas({
 
   useEffect(() => setPendingPlacement(null), [pageNumber]);
 
-  function normalizedPointer(event: ReactPointerEvent) {
+  function normalizedPointer(event: ReactPointerEvent | ReactMouseEvent) {
     const bounds = canvasRef.current?.getBoundingClientRect();
     if (!bounds) return { x: 0, y: 0 };
     return {
@@ -87,7 +89,7 @@ export function PdfPageCanvas({
     setPendingPlacement(null);
   }
 
-  function requestField(event: ReactPointerEvent<HTMLDivElement>) {
+  function requestField(event: ReactMouseEvent<HTMLDivElement>) {
     if (interaction || event.target !== event.currentTarget || !signers.length) return;
     const point = normalizedPointer(event);
     if (signers.length === 1) {
@@ -116,16 +118,15 @@ export function PdfPageCanvas({
   }
 
   return (
-    <div className="signature-pdf-scroll">
       <div
         ref={canvasRef}
         className="signature-pdf-canvas"
-        onPointerDown={requestField}
+        onClick={requestField}
         onPointerMove={move}
         onPointerUp={() => setInteraction(null)}
         onPointerCancel={cancelInteraction}
       >
-        {imageUrl ? <img src={imageUrl} alt={`Página ${pageNumber} do documento`} draggable={false} /> : <div className="signature-page-loading">Carregando página...</div>}
+        <img src={imageUrl} alt={`Página ${pageNumber} do documento`} draggable={false} onError={onImageError} />
         {pageFields.map(({ field, index }) => {
           const signerIndex = Math.max(0, signers.findIndex(signer => signer.id === field.signerId));
           const signer = signers[signerIndex];
@@ -183,6 +184,5 @@ export function PdfPageCanvas({
           </div>
         ) : null}
       </div>
-    </div>
   );
 }

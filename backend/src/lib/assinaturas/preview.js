@@ -11,8 +11,10 @@ import { sourcePdfBuffer } from './document.js';
 import { signatureOperationLog } from './observability.js';
 
 const standardFontDataUrl = fileURLToPath(new URL('./standard_fonts/', import.meta.resolve('pdfjs-dist/package.json')));
-// Ignore previously cached previews that may contain missing system-font glyphs.
-const PREVIEW_VERSION = 'v2';
+const wasmUrl = fileURLToPath(new URL('./wasm/', import.meta.resolve('pdfjs-dist/package.json')));
+const cMapUrl = fileURLToPath(new URL('./cmaps/', import.meta.resolve('pdfjs-dist/package.json')));
+// Recria também as prévias em branco geradas sem os decodificadores de scans.
+const PREVIEW_VERSION = 'v3';
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -56,11 +58,15 @@ export async function renderPage(document, pageNumber, { rootDir = env.uploadDir
     // Use PDF.js font outlines instead of relying on fonts installed on the host.
     useSystemFonts: false,
     standardFontDataUrl,
+    // CCITT/JBIG2 e JPEG 2000 dependem destes assets, inclusive no Node.
+    wasmUrl,
+    cMapUrl,
+    cMapPacked: true,
     isEvalSupported: false,
     verbosity: pdfjsLib.VerbosityLevel.ERRORS
   });
-  const pdf = await loadingTask.promise;
   try {
+    const pdf = await loadingTask.promise;
     const page = await pdf.getPage(number);
     const initial = page.getViewport({ scale: env.assinaturasPreviewScale });
     const scale = initial.width > 1400
@@ -86,7 +92,6 @@ export async function renderPage(document, pageNumber, { rootDir = env.uploadDir
     }, { startedAt });
     return png;
   } finally {
-    await pdf.cleanup?.();
     await loadingTask.destroy?.();
   }
 }

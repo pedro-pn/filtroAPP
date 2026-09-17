@@ -180,8 +180,8 @@ export async function downloadSignaturePdf(id: string, final = false) {
   return response.data;
 }
 
-export async function downloadSignaturePage(id: string, pageNumber: number) {
-  const response = await apiClient.get<Blob>(assinaturaApiPath(`/documentos/${id}/paginas/${pageNumber}.png`), { responseType: 'blob' });
+export async function downloadSignaturePage(id: string, pageNumber: number, signal?: AbortSignal) {
+  const response = await apiClient.get<Blob>(assinaturaApiPath(`/documentos/${id}/paginas/${pageNumber}.png`), { responseType: 'blob', signal });
   return response.data;
 }
 
@@ -222,6 +222,6 @@ export async function publicSignaturePdf(token: string) {
   return (await publicRequest('/publico/pdf', token)).blob();
 }
 
-export async function publicSignaturePage(token: string, pageNumber: number) {
-  return (await publicRequest(`/publico/paginas/${pageNumber}.png`, token)).blob();
+export async function publicSignaturePage(token: string, pageNumber: number, signal?: AbortSignal) {
+  return (await publicRequest(`/publico/paginas/${pageNumber}.png`, token, { signal })).blob();
 }

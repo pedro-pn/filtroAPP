@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ApiClientError } from '../../../api/client';
 import { downloadSignaturePage, type SignatureDocument, type SignatureField } from '../../../api/assinaturas';
@@ -9,21 +9,19 @@ import { useAssinaturaMutations } from '../../../hooks/useAssinaturas';
 import { PdfPageCanvas } from './PdfPageCanvas';
 import { PublishDialog } from './PublishDialog';
 import { SignerList } from './SignerList';
+import { SignatureDocumentPreview } from './SignatureDocumentPreview';
 
 export function DocumentSetupView({
   document,
-  pageNumber,
-  onPageChange
+  initialPage
 }: {
   document: SignatureDocument;
-  pageNumber: number;
-  onPageChange: (page: number) => void;
+  initialPage: number;
 }) {
   const { user } = useAuth();
   const mutations = useAssinaturaMutations();
   const [fields, setFields] = useState<SignatureField[]>(document.fields || []);
   const [fieldsDirty, setFieldsDirty] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishIssues, setPublishIssues] = useState<string[]>([]);
   const [saveStatus, setSaveStatus] = useState<DraftSaveStatusValue>('idle');
@@ -32,23 +30,7 @@ export function DocumentSetupView({
     setFields(document.fields || []);
     setFieldsDirty(false);
   }, [document.fields]);
-  useEffect(() => {
-    if (pageNumber > document.pageCount) onPageChange(document.pageCount);
-  }, [document.pageCount, onPageChange, pageNumber]);
-  useEffect(() => {
-    let disposed = false;
-    let currentUrl = '';
-    setImageUrl('');
-    downloadSignaturePage(document.id, pageNumber).then(blob => {
-      if (disposed) return;
-      currentUrl = URL.createObjectURL(blob);
-      setImageUrl(currentUrl);
-    }).catch(() => {});
-    return () => {
-      disposed = true;
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
-    };
-  }, [document.id, pageNumber]);
+  const loadPage = useCallback((page: number, signal: AbortSignal) => downloadSignaturePage(document.id, page, signal), [document.id]);
 
   const missingFields = useMemo(() => document.signers
     .filter(signer => !fields.some(field => field.signerId === signer.id))
@@ -101,9 +83,7 @@ export function DocumentSetupView({
       />
       <section className="signature-editor-panel">
         <div className="signature-editor-toolbar">
-          <Button variant="secondary" disabled={pageNumber <= 1} onClick={() => onPageChange(pageNumber - 1)}>Anterior</Button>
-          <span>Página {pageNumber} de {document.pageCount}</span>
-          <Button variant="secondary" disabled={pageNumber >= document.pageCount} onClick={() => onPageChange(pageNumber + 1)}>Próxima</Button>
+          <span>{document.pageCount} página(s) · Role para percorrer o documento completo.</span>
         </div>
         {!document.signers.length
           ? <p className="signature-inline-warning">Adicione um assinante para posicionar o campo.</p>
@@ -111,12 +91,18 @@ export function DocumentSetupView({
             ? `Clique no documento para posicionar o campo de ${document.signers[0].name}.`
             : 'Clique no documento e escolha o assinante para posicionar o campo.'}</p>}
         {missingFields.length ? <p className="signature-inline-warning">{missingFields.length} assinante(s) ainda sem campo.</p> : null}
-        <PdfPageCanvas
-          imageUrl={imageUrl}
-          pageNumber={pageNumber}
-          signers={document.signers}
-          fields={fields}
-          onFieldsChange={next => { setFields(next); setFieldsDirty(true); setSaveStatus('idle'); }}
+        <SignatureDocumentPreview
+          key={document.id}
+          pageCount={document.pageCount}
+          initialPage={initialPage}
+          dimensions={document.pageDimensions}
+          loadPage={loadPage}
+          renderPage={page => <PdfPageCanvas
+            {...page}
+            signers={document.signers}
+            fields={fields}
+            onFieldsChange={next => { setFields(next); setFieldsDirty(true); setSaveStatus('idle'); }}
+          />}
         />
         <div className="signature-editor-actions">
           <DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} />
