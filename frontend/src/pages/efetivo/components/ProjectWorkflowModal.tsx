@@ -130,6 +130,7 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
     resolver: zodResolver(sharedSchemas.start),
     defaultValues: { leaderUserId: '', plannerUserId: '', plannedMobilizationDate: '' }
   });
+  const hasFormValidationError = Boolean((errors as Record<string, unknown>)['']);
   return (
     <form className="project-workflow-form" noValidate onSubmit={handleSubmit(onStart)}>
       <p>Inicie o handover sem precisar definir a equipe de campo.</p>
@@ -157,6 +158,7 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
           {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
         </div>
       </div>
+      {hasFormValidationError ? <p className="inline-error" role="alert">Os dados do formulário mudaram desde que a página foi carregada. Atualize a página e tente novamente.</p> : null}
       <div className="project-workflow-inline-actions"><Button type="submit" disabled={saving || !detail.permissions.canInitialize}>{saving ? 'Iniciando…' : 'Iniciar handover'}</Button></div>
     </form>
   );
