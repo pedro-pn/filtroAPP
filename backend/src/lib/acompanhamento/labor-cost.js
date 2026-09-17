@@ -539,7 +539,7 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
-async function getRoleParamsResolver() {
+export async function getRoleParamsResolver() {
   const [roles, models] = await Promise.all([
     prisma.jobRole.findMany({
       include: { costProfile: { include: { parameterSets: true } } }

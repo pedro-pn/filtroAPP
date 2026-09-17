@@ -747,6 +747,8 @@ export interface ProjectDetailCollaborator {
   horasRelatoriosPorData: Array<{
     data: string;
     horas: number;
+    /** Estimativa pelo custo/hora do cargo vigente na data; somente para gestores. */
+    custoEstimado?: number | null;
     /** Relatórios-fonte, preservados mesmo quando o grupo deduplica a jornada por data. */
     relatorios?: Array<{
       id: string;
@@ -759,6 +761,9 @@ export interface ProjectDetailCollaborator {
   }>;
   custo: number | null;
   custoHora: number | null;
+  /** Estimativa dos RDOs quando não há horas apropriadas pelo ponto. */
+  custoEstimadoRdo: number | null;
+  custoHoraEstimadoRdo: number | null;
   /** Parcela proporcional do custo apropriado correspondente às horas de deslocamento. */
   custoDeslocamento: number | null;
 }

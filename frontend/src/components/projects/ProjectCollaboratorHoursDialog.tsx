@@ -21,17 +21,20 @@ export function ProjectCollaboratorHoursDialog({
   collaborator,
   source = 'POINT',
   isGroup = false,
+  onSourceChange,
   onClose
 }: {
   collaborator: ProjectDetailCollaborator | null;
   source?: 'POINT' | 'REPORT';
   isGroup?: boolean;
+  onSourceChange?: (source: 'POINT' | 'REPORT') => void;
   onClose: () => void;
 }) {
   const days = collaborator?.diasApropriados ?? [];
   const reportDays = collaborator?.horasRelatoriosPorData ?? [];
   const fromReports = source === 'REPORT';
   const dayCount = fromReports ? reportDays.length : days.length;
+  const reportDaysWithoutPoint = reportDays.filter(reportDay => !days.some(day => day.data === reportDay.data));
 
   return (
     <Modal
@@ -52,6 +55,18 @@ export function ProjectCollaboratorHoursDialog({
         </div>
 
         <div className="acp-manage-body">
+          {onSourceChange && reportDays.length > 0 ? (
+            <div className="acp-collaborator-hours-sources" aria-label="Fonte das horas">
+              <button type="button" className="mini-btn alt" aria-pressed={!fromReports} onClick={() => onSourceChange('POINT')}>Ponto apropriado</button>
+              <button type="button" className="mini-btn alt" aria-pressed={fromReports} onClick={() => onSourceChange('REPORT')}>Todos os RDOs</button>
+            </div>
+          ) : null}
+          {!fromReports && reportDaysWithoutPoint.length > 0 ? (
+            <p className="acp-det-collab-audit-copy">
+              Há presença nos RDOs em {reportDaysWithoutPoint.map(day => fmtDate(day.data)).join(', ')} sem horas
+              do ponto apropriadas nesta missão. Consulte “Todos os RDOs” para ver a jornada completa.
+            </p>
+          ) : null}
           <div className="acp-collaborator-hours-summary" role="note">
             <span>{dayCount} dia{dayCount === 1 ? '' : 's'} considerado{dayCount === 1 ? '' : 's'}</span>
             <strong>{fmtHours(fromReports ? collaborator?.horas : collaborator?.horasApropriadas)}</strong>
@@ -60,7 +75,11 @@ export function ProjectCollaboratorHoursDialog({
           {fromReports ? (
             <>
               <p className="acp-det-collab-audit-copy">
-                Estas horas vêm dos relatórios de execução e não entram no custo apropriado.
+                Estas horas vêm dos relatórios de execução. Sem horas apropriadas pelo ponto, o custo é estimado
+                usando o custo/hora do cargo vigente em cada data, com encargos, benefícios e modalidade da obra.
+                A estimativa é identificada em roxo como RDO e não compõe os totais do ponto.
+                {collaborator?.custoEstimadoRdo == null && !(collaborator?.horasApropriadas && collaborator.horasApropriadas > 0)
+                  && ' O valor depende de parâmetros de custo disponíveis para todas as datas e de permissão para consultar custos.'}
                 {isGroup && ' Em cada data, a jornada considerada é a maior soma diária entre as missões mescladas. Todos os relatórios de origem aparecem abaixo.'}
               </p>
               {reportDays.length ? (

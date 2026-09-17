@@ -1420,6 +1420,7 @@ export function ProjectDetailDashboard({
               <div className="acp-det-collab-context" role="note">
                 <strong>Base da apropriação: ponto de {fmtDate(data.maoDeObra.periodStart)} a {fmtDate(data.maoDeObra.periodEnd)}</strong>
                 <span>O deslocamento já está incluído nas horas e no custo total; aparece separado apenas para detalhamento.</span>
+                <span>Horas em azul vêm dos RDOs. Valores em roxo com a indicação RDO são estimativas dessas jornadas, exibidas quando não há horas apropriadas pelo ponto.</span>
               </div>
 
               <div className="acp-table-wrap">
@@ -1429,13 +1430,13 @@ export function ProjectDetailDashboard({
                       <th>Nome</th>
                       <th>Cargo</th>
                       <th style={{ textAlign: 'right' }}>
-                        <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul como referência e não entra no custo. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>
+                        <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul e serve de base para o custo estimado do RDO. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>
                       </th>
                       <th style={{ textAlign: 'right' }}>
-                        <HelpTip help="Parcela do custo total do colaborador atribuída ao projeto no período do ponto.">Custo apropriado</HelpTip>
+                        <HelpTip help="Parcela do custo do colaborador atribuída ao projeto pelo ponto. Sem horas apropriadas, mostra em roxo a estimativa: horas dos relatórios × custo/hora do cargo vigente em cada data, com encargos, benefícios e modalidade da obra. A estimativa não compõe os totais do ponto.">Custo apropriado / RDO</HelpTip>
                       </th>
                       <th style={{ textAlign: 'right' }}>
-                        <HelpTip help="Custo apropriado dividido pelas horas apropriadas. Por isso este valor pode variar entre colaboradores com salários-base próximos.">Custo efetivo/h</HelpTip>
+                        <HelpTip help="Custo apropriado dividido pelas horas apropriadas. Para os valores em roxo, é o custo estimado dividido pela jornada dos relatórios.">Custo efetivo/h</HelpTip>
                       </th>
                       <th style={{ textAlign: 'right' }}>
                         <HelpTip help="Horas apropriadas em dias marcados como viagem. O valor abaixo é a parcela proporcional do custo apropriado e não representa um custo adicional.">Deslocamento</HelpTip>
@@ -1462,7 +1463,7 @@ export function ProjectDetailDashboard({
                               type="button"
                               className="acp-report-hours-fallback-trigger"
                               onClick={() => setHoursDetail({ collaborator: c, source: 'REPORT' })}
-                              title={`Conferir os RDOs de origem da jornada de ${c.name}; estas horas não entram no custo apropriado`}
+                              title={`Conferir os RDOs de origem da jornada e do custo estimado de ${c.name}`}
                               aria-label={`Conferir ${fmtHours(c.horas)} dos relatórios de ${c.name}`}
                             >
                               <span className="acp-report-hours-fallback-value">
@@ -1472,9 +1473,17 @@ export function ProjectDetailDashboard({
                             </button>
                           ) : fmtHours(c.horasApropriadas)}
                         </td>
-                        <td data-label="Custo apropriado" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{brl(c.custo)}</td>
+                        <td data-label="Custo apropriado / RDO" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {!(c.horasApropriadas && c.horasApropriadas > 0) && c.custoEstimadoRdo != null ? (
+                            <span className="acp-report-cost-estimate" title="Custo estimado a partir da jornada dos RDOs e dos parâmetros do cargo vigentes em cada data">
+                              {brl(c.custoEstimadoRdo)} <small>RDO</small>
+                            </span>
+                          ) : brl(c.custo)}
+                        </td>
                         <td data-label="Custo efetivo/h" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {c.custoHora != null ? `${brl(c.custoHora)}/h` : '—'}
+                          {!(c.horasApropriadas && c.horasApropriadas > 0) && c.custoHoraEstimadoRdo != null ? (
+                            <span className="acp-report-cost-estimate">{brl(c.custoHoraEstimadoRdo)}/h <small>RDO</small></span>
+                          ) : c.custoHora != null ? `${brl(c.custoHora)}/h` : '—'}
                         </td>
                         <td data-label="Deslocamento" style={{ textAlign: 'right' }}>
                           {c.horasDeslocamento > 0 ? (
@@ -1494,8 +1503,8 @@ export function ProjectDetailDashboard({
                 <summary className="acp-det-collabs-summary">Conferir jornada dos relatórios</summary>
                 <p className="acp-det-collab-audit-copy">
                   {isGroup
-                    ? 'Esta jornada vem dos RDOs e não é usada para calcular o custo. O total sem sobreposição considera, em cada data, a maior jornada lançada entre as missões mescladas.'
-                    : 'Esta jornada vem dos RDOs e não é usada para calcular o custo.'}
+                    ? 'Esta jornada vem dos RDOs e serve de base para a estimativa quando não há horas apropriadas pelo ponto. O total sem sobreposição considera, em cada data, a maior jornada lançada entre as missões mescladas.'
+                    : 'Esta jornada vem dos RDOs e serve de base para a estimativa quando não há horas apropriadas pelo ponto.'}
                 </p>
                 <div className="acp-table-wrap">
                   <table className="acp-table acp-det-collab-audit-table">
@@ -1548,6 +1557,7 @@ export function ProjectDetailDashboard({
         collaborator={hoursDetail?.collaborator ?? null}
         source={hoursDetail?.source}
         isGroup={isGroup}
+        onSourceChange={source => setHoursDetail(current => current ? { ...current, source } : null)}
         onClose={() => setHoursDetail(null)}
       />
 
