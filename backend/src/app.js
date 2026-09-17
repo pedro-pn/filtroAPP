@@ -76,6 +76,10 @@ app.use(cors({
 }));
 
 export function jsonBodyLimitForRequest(method, requestPath) {
+  const isProjectDocumentUpload = method === 'POST'
+    && /^\/api\/efetivo\/project-workflow\/[^/]+\/documents(?:\/[^/]+\/versions)?$/.test(requestPath);
+  if (isProjectDocumentUpload) return `${Math.ceil((env.projectDocumentMaxMb * 4) / 3) + 2}mb`;
+
   const isStandaloneSignatureUpload = method === 'POST'
     && requestPath === '/api/assinaturas/documentos';
   if (isStandaloneSignatureUpload) return '30mb';

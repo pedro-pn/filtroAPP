@@ -18,12 +18,13 @@ test('desmobilização é opcional e só é validada quando informada', () => {
   }).returnDate, undefined);
 });
 
-test('desmobilização da missão atualiza o campo canônico do projeto', async () => {
+test('programação oficial sincroniza mobilização e desmobilização no cronograma canônico do projeto', async () => {
   let update;
   await syncMissionDemobilization({ project: { update: async input => { update = input; } } }, {
-    id: 'p1', mobilizationDate: new Date('2026-01-01T00:00:00.000Z')
-  }, '2026-01-15');
+    id: 'p1', mobilizationDate: null
+  }, '2026-01-15', '2026-01-01');
   assert.equal(update.where.id, 'p1');
+  assert.equal(update.data.mobilizationDate.toISOString(), '2026-01-01T00:00:00.000Z');
   assert.equal(update.data.demobilizationDate.toISOString(), '2026-01-15T00:00:00.000Z');
 });
 

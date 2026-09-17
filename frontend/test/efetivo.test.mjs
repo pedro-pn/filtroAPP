@@ -23,6 +23,7 @@ test('efetivo is registered in the module registry', async () => {
   const { moduleDefinition, moduleRoutePath } = await loadModule('/src/modules/registry.ts');
 
   assert.equal(moduleDefinition('efetivo')?.title, 'Efetivo Operacional');
+  assert.ok(moduleDefinition('efetivo')?.hub?.roles?.includes('efetivo:commercial'));
   assert.equal(moduleRoutePath('efetivo', 'root'), '/efetivo');
 });
 

@@ -11,6 +11,7 @@ import {
 import { resolveSelectedMissionTeam, syncSelectedMissionTeam } from './mission-team.js';
 import { missionEndDate } from './mission-period.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
+import { assertProjectMobilizationAuthorized } from '../project-workflow/operational-gate.js';
 import {
   bumpPlanRevision,
   requireEditablePlan,
@@ -104,23 +105,29 @@ function missionData(payload, actorUserId, demands, responsible, stage, currentR
   };
 }
 
-export async function syncMissionDemobilization(tx, project, returnDate) {
-  if (returnDate === undefined) return;
+export async function syncMissionDemobilization(tx, project, returnDate, mobilizationDate = undefined) {
+  if (returnDate === undefined && mobilizationDate === undefined) return;
+  const effectiveMobilization = mobilizationDate === undefined
+    ? project.mobilizationDate
+    : mobilizationDate ? dateValue(mobilizationDate) : null;
   if (returnDate) {
-    if (!project.mobilizationDate) {
+    if (!effectiveMobilization) {
       throw planningError('Informe a mobilização no cronograma do Planejamento antes da desmobilização.', {
         code: 'PROJECT_MOBILIZATION_REQUIRED'
       });
     }
-    if (parseDateKey(returnDate) < parseDateKey(project.mobilizationDate)) {
+    if (parseDateKey(returnDate) < parseDateKey(effectiveMobilization)) {
       throw planningError('A desmobilização não pode ser anterior à mobilização registrada no cronograma.', {
         code: 'INVALID_PROJECT_DEMOBILIZATION'
       });
     }
   }
+  const data = {};
+  if (mobilizationDate !== undefined) data.mobilizationDate = effectiveMobilization;
+  if (returnDate !== undefined) data.demobilizationDate = returnDate ? dateValue(returnDate) : null;
   await tx.project.update({
     where: { id: project.id },
-    data: { demobilizationDate: returnDate ? dateValue(returnDate) : null }
+    data
   });
 }
 
@@ -183,6 +190,12 @@ export function missionMovePendencies(mission) {
   else if (covered < required) pendencies.push('completar a equipe');
   if (mission.scheduleStatus !== 'CONFIRMED') pendencies.push('confirmar a programação');
   return pendencies;
+}
+
+export function missionMoveRequiresMobilizationAuthorization(planKind, currentStage, targetStage) {
+  return planKind === 'OFFICIAL'
+    && currentStage !== targetStage
+    && ['MOBILIZATION', 'EXECUTION'].includes(targetStage);
 }
 
 async function validateDemandRoles(tx, demands) {
@@ -281,7 +294,7 @@ export async function createMission(payload, context = {}, dependencies = {}) {
       where: { id: payload.projectId, isActive: true, deletedAt: null, ...efetivoProjectWhere() }
     });
     if (!project) throw notFound('Projeto não encontrado ou inativo.');
-    if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, project, payload.returnDate);
+    if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, project, payload.returnDate, payload.mobilizationDate);
     const responsible = await resolveMissionResponsible(tx, payload);
     const team = Array.isArray(payload.collaboratorIds)
       ? await resolveSelectedMissionTeam(tx, payload, plan.id)
@@ -372,7 +385,7 @@ export async function updateMission(missionId, payload, context = {}, dependenci
     const plan = await requireEditablePlan(tx, existing.planId, { actorUserId: context.actorUserId });
     if (context.version && existing.version !== context.version) throw conflictError('A missão foi alterada por outra pessoa.', [], 'MISSION_VERSION_CONFLICT');
     if (payload.projectId !== existing.projectId) throw conflictError('O projeto da programação não pode ser substituído.', [], 'MISSION_PROJECT_IMMUTABLE');
-    if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, existing.project, payload.returnDate);
+    if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, existing.project, payload.returnDate, payload.mobilizationDate);
     const existingBounds = {
       startDate: parseDateKey(existing.mobilizationDate),
       endDate: missionEndDate(existing)
@@ -453,6 +466,18 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
     if (!existing || existing.deletedAt) throw notFound('Missão operacional não encontrada.');
     const plan = await requireEditablePlan(tx, existing.planId, { actorUserId: context.actorUserId });
     if (context.version && existing.version !== context.version) throw conflictError('A posição da missão ficou desatualizada.', [], 'MISSION_VERSION_CONFLICT');
+    if (plan.kind === 'OFFICIAL' && existing.stage !== payload.stage) {
+      const managedWorkflow = await tx.projectWorkflow.findUnique({
+        where: { projectId: existing.projectId },
+        select: { projectId: true }
+      });
+      if (managedWorkflow) {
+        throw planningError('A etapa desta obra é controlada pelo Kanban único de projetos.', {
+          statusCode: 409,
+          code: 'MISSION_STAGE_MANAGED_BY_PROJECT'
+        });
+      }
+    }
     const pendencies = missionMovePendencies(existing);
     if (pendencies.length) {
       throw planningError(`Complete os dados obrigatórios antes de mover a missão: ${pendencies.join(', ')}.`, {
@@ -460,10 +485,23 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
         issues: pendencies.map(message => ({ message }))
       });
     }
+    const entersOperationalMobilization = missionMoveRequiresMobilizationAuthorization(
+      plan.kind,
+      existing.stage,
+      payload.stage
+    );
+    if (entersOperationalMobilization) {
+      await assertProjectMobilizationAuthorized(tx, existing.projectId);
+    }
     const updatesDemobilization = payload.stage === 'FINISHED' && payload.returnDate !== undefined;
     if (updatesDemobilization) {
       validateMissionChronology({ ...existing, returnDate: payload.returnDate });
-      if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, existing.project, payload.returnDate);
+      if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(
+        tx,
+        existing.project,
+        payload.returnDate,
+        existing.project.mobilizationDate ? undefined : parseDateKey(existing.mobilizationDate)
+      );
     }
     const target = await tx.efetivoMissionPlan.findMany({
       where: { planId: plan.id, stage: payload.stage, deletedAt: null, id: { not: missionId } },

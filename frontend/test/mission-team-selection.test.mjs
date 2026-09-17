@@ -35,3 +35,10 @@ test('filtro da seleção permite ativos, inativos e todos sem perder a equipe s
   assert.deepEqual(team.filterCollaboratorsByActivity(people, 'ALL').map(person => person.id), ['c1', 'c2', 'c3']);
   assert.deepEqual(team.toggleMissionCollaborator(['c1'], 'c3', true), ['c1', 'c3']);
 });
+
+test('definição da equipe inicial reativa uma programação cancelada', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  assert.equal(team.missionTeamScheduleStatus('CANCELLED', true), 'CONFIRMED');
+  assert.equal(team.missionTeamScheduleStatus('CANCELLED', false), 'CANCELLED');
+  assert.equal(team.missionTeamScheduleStatus('DRAFT', false), 'CONFIRMED');
+});

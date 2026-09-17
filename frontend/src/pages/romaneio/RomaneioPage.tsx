@@ -148,7 +148,7 @@ export function RomaneioPage() {
   const [isDownloadingCatalogPdf, setIsDownloadingCatalogPdf] = useState(false);
   const [qrLabelSelection, setQrLabelSelection] = useState<QrLabelSelection | null>(null);
 
-  const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
+  const projectsQuery = useQuery({ queryKey: ['romaneio-projects', 'overview'], queryFn: () => listRomaneioProjects({ active: true }) });
   const romaneiosQuery = useQuery({
     queryKey: ['romaneios', { search, projectId }],
     queryFn: ({ signal }) => listRomaneios({ search: search || undefined, projectId: projectId || undefined }, signal),

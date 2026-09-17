@@ -10,7 +10,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { prefillDatesFromProject } from '../../../utils/missionPendencies';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
-import { selectedMissionCollaboratorIds } from '../../../utils/missionTeam';
+import { missionTeamScheduleStatus, selectedMissionCollaboratorIds } from '../../../utils/missionTeam';
 import { MissionTeamSelector } from './MissionTeamSelector';
 
 const schema = z.object({
@@ -51,7 +51,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-function initialValues(mission: PlanningMission | null, project: PendingMissionProject | null, planId?: string): FormValues & { planId?: string } {
+function initialValues(mission: PlanningMission | null, project: PendingMissionProject | null, planId?: string, initialTeamMode = false): FormValues & { planId?: string } {
   const suggested = project ? prefillDatesFromProject(project) : null;
   const mobilizationDate = mission?.mobilizationDate?.slice(0, 10) || suggested?.mobilizationDate || '';
   const executionEndDate = mission?.executionEndDate?.slice(0, 10) || suggested?.executionEndDate || '';
@@ -62,7 +62,7 @@ function initialValues(mission: PlanningMission | null, project: PendingMissionP
   return {
     planId,
     projectId: mission?.projectId || project?.id || '',
-    scheduleStatus: mission?.scheduleStatus === 'CANCELLED' ? 'CANCELLED' : 'CONFIRMED',
+    scheduleStatus: missionTeamScheduleStatus(mission?.scheduleStatus, initialTeamMode),
     headquartersResponsibleUserId: mission?.headquartersResponsibleUserId || '',
     mobilizationDate,
     executionStartDate: mission?.executionStartDate?.slice(0, 10) || suggested?.executionStartDate || '',
@@ -80,7 +80,7 @@ function initialValues(mission: PlanningMission | null, project: PendingMissionP
   };
 }
 
-export function MissionFormModal({ open, mission, project, planId, roles, rolesLoading, coordinators, coordinatorsLoading, saving, onClose, onSubmit }: {
+export function MissionFormModal({ open, mission, project, planId, roles, rolesLoading, coordinators, coordinatorsLoading, saving, initialTeamMode = false, onClose, onSubmit }: {
   open: boolean;
   mission: PlanningMission | null;
   project: PendingMissionProject | null;
@@ -90,6 +90,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
   coordinators: PlanningCoordinator[];
   coordinatorsLoading: boolean;
   saving: boolean;
+  initialTeamMode?: boolean;
   onClose: () => void;
   onSubmit: (payload: MissionInput) => void;
 }) {
@@ -97,12 +98,12 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
   const [confirmedInactiveCollaboratorIds, setConfirmedInactiveCollaboratorIds] = useState<string[]>([]);
   const [pendingInactiveSubmission, setPendingInactiveSubmission] = useState<MissionInput | null>(null);
   const individualPeriodBoundsRef = useRef({ startDate: '', endDate: '' });
-  const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initialValues(mission, project, planId) });
+  const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initialValues(mission, project, planId, initialTeamMode) });
   const [teamStartDate, executionEndDate, demobilizationDate, allocationPeriods] = useWatch({ control, name: ['mobilizationDate', 'executionEndDate', 'returnDate', 'allocationPeriods'] });
   const teamEndDate = demobilizationDate || executionEndDate || '';
   useEffect(() => {
     if (!open) return;
-    const values = initialValues(mission, project, planId);
+    const values = initialValues(mission, project, planId, initialTeamMode);
     reset(values);
     setConfirmedInactiveCollaboratorIds([]);
     setPendingInactiveSubmission(null);
@@ -113,7 +114,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     setConfirmedMissionOverlapCollaboratorIds(mission?.allocations
       .filter(allocation => allocation.allowMissionOverlap)
       .map(allocation => allocation.collaboratorId) || []);
-  }, [mission, open, planId, project, reset]);
+  }, [initialTeamMode, mission, open, planId, project, reset]);
   useEffect(() => {
     if (!open || !teamStartDate || !teamEndDate) return;
     const previous = individualPeriodBoundsRef.current;
@@ -150,17 +151,24 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     <>
     <Modal open={open} onClose={onClose} ariaLabelledBy="mission-form-title" panelClassName="modal-card efetivo-detail-modal efetivo-modal">
       <form className="efetivo-modal-layout" noValidate onSubmit={handleSubmit(submit)}>
-        <header className="efetivo-modal-header"><div><h3 id="mission-form-title">{mission ? 'Editar programação' : 'Completar programação da missão'}</h3><p>A missão permanece em Stand by até receber líder, datas, equipe e confirmação.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button></header>
+        <header className="efetivo-modal-header"><div><h3 id="mission-form-title">{initialTeamMode ? mission ? 'Editar equipe inicial' : 'Definir equipe inicial' : mission ? 'Editar programação' : 'Completar programação da missão'}</h3><p>{initialTeamMode ? 'A equipe definida aqui será vinculada ao primeiro ciclo da obra e poderá ser personalizada durante a execução.' : 'A missão permanece em Stand by até receber líder, datas, equipe e confirmação.'}</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button></header>
         <div className="efetivo-modal-body efetivo-form-grid">
           <input type="hidden" {...register('projectId')} />
           <div className="field-group efetivo-form-wide efetivo-mission-identity"><span className="efetivo-eyebrow">Projeto/missão</span><strong>{identity ? `${identity.code} · ${identity.name}` : 'Projeto não identificado'}</strong><span className="field-hint">{identity ? `${identity.clientName || 'Sem cliente'} · ${identity.location || 'Sem local'}` : 'Selecione a missão pela lista de projetos.'}</span>{errors.projectId ? <span className="field-error">{errors.projectId.message}</span> : null}</div>
           <p className="efetivo-form-wide efetivo-form-section-title">Liderança</p>
           <Controller name="headquartersResponsibleUserId" control={control} render={({ field }) => <SearchCombobox id="mission-leader-user" label="Vincular líder" required value={field.value} loading={coordinatorsLoading} disabled={saving} error={errors.headquartersResponsibleUserId?.message} emptyText="Nenhuma conta com colaborador e cargo vinculados." options={leaderAccounts.map(item => ({ value: item.id, label: item.collaborator?.name || item.name, description: `${item.collaborator?.role || ''} · conta ${item.name}` }))} onChange={field.onChange} />} />
           <p className="efetivo-form-wide efetivo-form-section-title">Programação</p>
-          <div className="field-group"><label htmlFor="mission-status">Situação da programação *</label><select id="mission-status" disabled={saving} {...register('scheduleStatus')}><option value="CONFIRMED">Confirmada</option><option value="CANCELLED">Cancelada</option></select></div>
+          {initialTeamMode ? (
+            <div className="field-group">
+              <span>Situação da programação</span>
+              <input type="hidden" {...register('scheduleStatus')} />
+              <strong>Confirmada</strong>
+              <span className="field-hint">Ao definir a equipe inicial, a programação passa a integrar a operação ativa da obra.</span>
+            </div>
+          ) : <div className="field-group"><label htmlFor="mission-status">Situação da programação *</label><select id="mission-status" disabled={saving} {...register('scheduleStatus')}><option value="CONFIRMED">Confirmada</option><option value="CANCELLED">Cancelada</option></select></div>}
           {([['mobilizationDate', 'Previsão de mobilização'], ['executionStartDate', 'Início da execução'], ['executionEndDate', 'Fim da execução']] as const).map(([name, label]) => <div className={`field-group ${errors[name] ? 'field-invalid' : ''}`} key={name}><label htmlFor={`mission-${name}`}>{label} *</label><input id={`mission-${name}`} type="date" disabled={saving} aria-invalid={Boolean(errors[name])} {...register(name)} />{errors[name] ? <span className="field-error">{errors[name]?.message}</span> : null}</div>)}
           <div className={`field-group ${errors.returnDate ? 'field-invalid' : ''}`}><label htmlFor="mission-returnDate">Desmobilização</label><input id="mission-returnDate" type="date" disabled={saving} aria-invalid={Boolean(errors.returnDate)} {...register('returnDate')} /><span className="field-hint">Opcional. Informe somente a data em que a desmobilização de fato ocorreu.</span>{errors.returnDate ? <span className="field-error">{errors.returnDate.message}</span> : null}</div>
-          <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds) => {
+          <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} allowIndividualPeriods={!initialTeamMode} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds) => {
             const periodsById = new Map((allocationPeriods || []).map(period => [period.collaboratorId, period]));
             const nextPeriods = ids.map(collaboratorId => periodsById.get(collaboratorId) || {
               collaboratorId,
@@ -173,7 +181,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
             setConfirmedInactiveCollaboratorIds(inactiveIds);
           }} />} />
         </div>
-        <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar programação'}</Button></footer>
+        <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Salvando…' : initialTeamMode ? 'Salvar equipe inicial' : 'Salvar programação'}</Button></footer>
       </form>
     </Modal>
     <ConfirmDialog open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"

@@ -25,6 +25,13 @@ import {
   resolveEffectiveChecklist
 } from '../../lib/equipamentos/equipment-checklist.js';
 import { normalizeSignatureValue } from '../../lib/signature-image.js';
+import { planningError } from '../../lib/efetivo/planning/errors.js';
+import {
+  assertProjectMobilizationAuthorized,
+  PROJECT_OPERATIONAL_GATE_INCLUDE,
+  PROJECT_OPERATIONAL_GATE_MISSION_QUERY,
+  projectOperationalMobilizationDecisionFromWorkflow
+} from '../../lib/efetivo/project-workflow/operational-gate.js';
 import { ensureRomaneioCatalogSynced } from '../../lib/romaneio-catalog.js';
 import { buildRomaneioCatalogPdf } from '../../lib/romaneio-catalog-pdf.js';
 import {
@@ -167,6 +174,11 @@ const returnItemsQuerySchema = z.object({
   }
 });
 
+const projectListQuerySchema = z.object({
+  active: z.enum(['true', 'false']).optional(),
+  type: z.enum(ROMANEIO_TYPES).optional()
+});
+
 const MANAGED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS', 'STOCK']);
 const romaneioProjectSelect = {
   id: true,
@@ -219,21 +231,22 @@ function archivedWithoutInboundRomaneioWhere(excludeRomaneioId = null) {
 }
 
 function romaneioProjectLookupWhereForUser(user, projectWhere = {}, {
-  allowArchivedWithoutInbound = false,
-  excludeInboundRomaneioId = null
+  allowInactive = false
 } = {}) {
-  if (!allowArchivedWithoutInbound) return romaneioProjectWhereForUser(user, projectWhere);
-  return {
-    ...baseRomaneioProjectWhereForUser(user, projectWhere),
-    OR: [
-      { isActive: true },
-      archivedWithoutInboundRomaneioWhere(excludeInboundRomaneioId)
-    ]
-  };
+  if (allowInactive) return baseRomaneioProjectWhereForUser(user, projectWhere);
+  return romaneioProjectWhereForUser(user, projectWhere);
 }
 
-function romaneioProjectListWhereForUser(user, activeParam) {
+export function romaneioProjectListWhereForUser(user, activeParam, type = null) {
   const where = baseRomaneioProjectWhereForUser(user);
+  if (type === 'OUTBOUND') {
+    where.OR = [
+      { isActive: true },
+      { workflow: { isNot: null } }
+    ];
+    return where;
+  }
+  if (type === 'INBOUND') return where;
   if (activeParam === 'true') {
     where.OR = [
       { isActive: true },
@@ -253,6 +266,13 @@ function romaneioProjectListWhereForUser(user, activeParam) {
     where.isActive = true;
   }
   return where;
+}
+
+export function romaneioProjectAvailableForType(project, type) {
+  if (type === 'INBOUND') return true;
+  if (type !== 'OUTBOUND') return true;
+  if (!project.workflow) return project.isActive === true;
+  return projectOperationalMobilizationDecisionFromWorkflow(project.workflow, project.id, project.efetivoMissionPlans?.[0]).allowed;
 }
 
 async function assertRomaneioProjectAccess(projectId, authUser, client = prisma, options = {}) {
@@ -533,8 +553,7 @@ export async function getReturnableRomaneioItemsForProject(projectId, authUser, 
     where: {
       projectId,
       project: romaneioProjectLookupWhereForUser(authUser, {}, {
-        allowArchivedWithoutInbound: true,
-        excludeInboundRomaneioId: excludeRomaneioId
+        allowInactive: true
       })
     },
     ...selectedFields(),
@@ -942,7 +961,7 @@ function stockMovementNoteForRomaneio(romaneio) {
   return `Movimentação automática do romaneio ${romaneioTypeLabel(romaneio.type).toLowerCase()} ${romaneio.id}.`;
 }
 
-async function createRomaneioStockMovements(tx, romaneio, authUser) {
+async function createRomaneioStockMovements(tx, romaneio, authUser, mobilizationDecision = null) {
   const stockItems = (romaneio.items || []).filter(item => item.catalogItem?.sourceType === 'STOCK');
   if (!stockItems.length) return [];
 
@@ -958,11 +977,28 @@ async function createRomaneioStockMovements(tx, romaneio, authUser) {
       notes: stockMovementNoteForRomaneio(romaneio),
       excludeFromProjectCost: romaneio.type === 'INBOUND' && item.isExtra,
       createdById: authUser.id,
-      romaneioId: romaneio.id
+      romaneioId: romaneio.id,
+      mobilizationDecision
     });
     movements.push(...created);
   }
   return movements;
+}
+
+export async function assertRomaneioMobilizationAuthorized(type, projectId, client = prisma) {
+  if (type !== 'OUTBOUND') return null;
+  const decision = await assertProjectMobilizationAuthorized(client, projectId);
+  if (decision.enforced) return decision;
+  const project = await client.project.findUnique({ where: { id: projectId }, select: { isActive: true } });
+  if (project?.isActive) return decision;
+  throw planningError(
+    'Esta obra antiga está concluída e não está disponível para romaneio de saída.',
+    {
+      statusCode: 409,
+      code: 'ROMANEIO_OUTBOUND_PROJECT_NOT_AVAILABLE',
+      issues: [{ message: 'Selecione uma obra não concluída ou autorizada para mobilização.' }]
+    }
+  );
 }
 
 async function reverseRomaneioStockMovements(tx, romaneioId, createdById) {
@@ -1011,22 +1047,31 @@ export function shouldCleanupFailedRomaneioCreate({ completed = false, filesPers
 }
 
 router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
-  const activeParam = req.query.active;
-  const where = romaneioProjectListWhereForUser(req.auth.user, activeParam);
+  const query = projectListQuerySchema.parse(req.query);
+  const where = romaneioProjectListWhereForUser(req.auth.user, query.active, query.type);
   const items = await prisma.project.findMany({
     where,
     select: {
       ...romaneioProjectSelect,
+      ...(query.type === 'OUTBOUND' ? {
+        workflow: { include: PROJECT_OPERATIONAL_GATE_INCLUDE },
+        efetivoMissionPlans: PROJECT_OPERATIONAL_GATE_MISSION_QUERY
+      } : {}),
       operator: {
         select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } }
       }
     },
     orderBy: [{ code: 'asc' }, { name: 'asc' }]
   });
-  res.json(items.map(item => ({
-    ...item,
-    operator: item.operator ? { ...item.operator, role: item.operator.jobRole?.name || '' } : null
-  })));
+  res.json(items
+    .filter(item => romaneioProjectAvailableForType(item, query.type))
+    .map(item => {
+      const { workflow: _workflow, efetivoMissionPlans: _efetivoMissionPlans, ...publicItem } = item;
+      return {
+        ...publicItem,
+        operator: item.operator ? { ...item.operator, role: item.operator.jobRole?.name || '' } : null
+      };
+    }));
 }));
 
 router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
@@ -1050,7 +1095,7 @@ router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (r
   const payload = normalizeDraftPayload(data);
   if (data.projectId) {
     const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user, prisma, {
-      allowArchivedWithoutInbound: data.payload?.romaneioType === 'INBOUND'
+      allowInactive: data.payload?.romaneioType === 'INBOUND'
     });
     if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   }
@@ -1089,7 +1134,7 @@ router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async
   const payload = normalizeDraftPayload(data);
   if (data.projectId) {
     const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user, prisma, {
-      allowArchivedWithoutInbound: data.payload?.romaneioType === 'INBOUND'
+      allowInactive: data.payload?.romaneioType === 'INBOUND'
     });
     if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   }
@@ -1252,8 +1297,7 @@ router.get('/return-items', requireAuth, requireRomaneioAccess, asyncHandler(asy
   const query = returnItemsQuerySchema.parse(req.query);
   const project = await resolveRomaneioProjectReference(query, req.auth.user, prisma, {
     createPending: false,
-    allowArchivedWithoutInbound: true,
-    excludeInboundRomaneioId: query.excludeRomaneioId || null
+    allowInactive: true
   });
   if (!project) {
     return res.json({ projectId: null, items: [] });
@@ -1387,11 +1431,12 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
   }
 
   const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, {
-    createPending: payload.type !== 'INBOUND',
-    allowArchivedWithoutInbound: payload.type === 'INBOUND'
+    createPending: false,
+    allowInactive: true
   });
   if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   const resolvedProjectId = project.id;
+  await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId);
 
   const availableReturnItems = payload.type === 'INBOUND'
     ? await getReturnableRomaneioItemsForProject(resolvedProjectId, req.auth.user)
@@ -1442,6 +1487,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
     files = await saveRomaneioPdf(preview);
     files.checklist = await saveRomaneioChecklistPdfFile(preview, checklistSnapshots);
     created = await prisma.$transaction(async tx => {
+      const mobilizationDecision = await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId, tx);
       const romaneio = await tx.romaneio.create({
         data: {
           projectId: resolvedProjectId,
@@ -1478,7 +1524,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
         },
         ...selectedFields()
       });
-      await createRomaneioStockMovements(tx, romaneio, req.auth.user);
+      await createRomaneioStockMovements(tx, romaneio, req.auth.user, mobilizationDecision);
       return romaneio;
     });
     filesPersisted = true;
@@ -1521,12 +1567,12 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
   });
 
   const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, {
-    createPending: payload.type !== 'INBOUND',
-    allowArchivedWithoutInbound: payload.type === 'INBOUND',
-    excludeInboundRomaneioId: existing.id
+    createPending: false,
+    allowInactive: true
   });
   if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   const resolvedProjectId = project.id;
+  await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId);
 
   const availableReturnItems = payload.type === 'INBOUND'
     ? await getReturnableRomaneioItemsForProject(resolvedProjectId, req.auth.user, {
@@ -1583,6 +1629,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     files = await saveRomaneioPdf(preview);
     files.checklist = await saveRomaneioChecklistPdfFile(preview, checklistSnapshots);
     const updated = await prisma.$transaction(async tx => {
+      const mobilizationDecision = await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId, tx);
       await reverseRomaneioStockMovements(tx, existing.id, req.auth.user.id);
       await tx.romaneioItem.deleteMany({ where: { romaneioId: existing.id } });
       await tx.romaneioChecklist.deleteMany({ where: { romaneioId: existing.id } });
@@ -1620,7 +1667,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
         },
         ...selectedFields()
       });
-      await createRomaneioStockMovements(tx, romaneio, req.auth.user);
+      await createRomaneioStockMovements(tx, romaneio, req.auth.user, mobilizationDecision);
       return romaneio;
     });
 

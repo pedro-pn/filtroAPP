@@ -67,27 +67,6 @@ test('situação de rascunho não pode mais ser escolhida nem filtrada na progra
   assert.match(schemas, /editableMissionScheduleStatusSchema = z\.enum\(\['CONFIRMED', 'CANCELLED'\]\)/);
 });
 
-test('kanban arrasta pelo card inteiro e limpa o estado de arraste ao soltar', () => {
-  const kanban = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionKanban.tsx', import.meta.url), 'utf8');
-  assert.match(kanban, /draggable=\{moveAllowed\}/);
-  assert.match(kanban, /missionPendencies\(mission\)\.length === 0/);
-  assert.match(kanban, /const \[draggingId, setDraggingId\]/);
-  assert.doesNotMatch(kanban, /drag-placeholder/);
-  assert.doesNotMatch(kanban, /efetivo-drag-handle/);
-});
-
-test('cada etapa tem cor apenas na bolinha, com colunas e cards em cor única', () => {
-  const css = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
-  const kanban = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionKanban.tsx', import.meta.url), 'utf8');
-  for (const stage of ['STANDBY', 'MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED']) {
-    assert.match(css, new RegExp(`\\[data-kanban-stage='${stage}'\\] \\{ --stage:`));
-  }
-  assert.match(kanban, /efetivo-stage-dot/);
-  assert.match(css, /\.efetivo-stage-dot \{[^}]*background: var\(--stage/);
-  assert.doesNotMatch(css, /--stage-soft/);
-  assert.doesNotMatch(css, /border-left: 4px solid var\(--stage/);
-});
-
 test('paridade de campos com o exemplo de referência', () => {
   const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
   const scenarioForm = read('../src/pages/efetivo/components/ScenarioFormModal.tsx');
@@ -103,12 +82,12 @@ test('paridade de campos com o exemplo de referência', () => {
   for (const label of ['posições planejadas', 'posições pendentes', 'Equipe completa e sem conflitos', 'Alocar disponíveis']) {
     assert.ok(missionsBoard.includes(label), `resumo ausente na aba Missões: ${label}`);
   }
-  const kanban = read('../src/pages/efetivo/components/MissionKanban.tsx');
-  for (const label of ['contratos no fluxo', 'LÍDER VINCULADO', 'Ver líder e equipe', 'Nenhuma missão nesta etapa']) {
-    assert.ok(kanban.includes(label), `elemento ausente no kanban: ${label}`);
+  const kanban = read('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx');
+  for (const label of ['Evolução dos projetos', 'Fluxo único', 'Programação operacional', 'Nenhum projeto nesta etapa']) {
+    assert.ok(kanban.includes(label), `elemento ausente no kanban único: ${label}`);
   }
-  const stages = read('../src/utils/missionKanban.ts');
-  assert.match(stages, /MISSION_STAGE_DESCRIPTIONS/);
+  const stages = read('../src/utils/projectWorkflow.ts');
+  assert.match(stages, /PROJECT_KANBAN_STAGES/);
   const css = read('../src/pages/efetivo/efetivo.css');
   assert.match(missionsBoard, /efetivo-action-row efetivo-mission-card-actions/);
   assert.match(css, /\.efetivo-mission-card-actions\s*\{[^}]*flex-wrap:\s*nowrap/);

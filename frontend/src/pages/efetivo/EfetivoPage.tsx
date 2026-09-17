@@ -2,25 +2,27 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 
-import { listPendingMissionProjects, listPlanningJobRoles, listPlanningMissions, type MissionScheduleStatus, type MissionStage } from '../../api/efetivoPlanning';
+import { listPendingMissionProjects, listPlanningJobRoles, listPlanningMissions, type MissionScheduleStatus } from '../../api/efetivoPlanning';
 import { useAuth } from '../../auth/AuthContext';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
 import { countMissionPendencies } from '../../utils/missionPendencies';
 import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSection } from '../../utils/planningNavigation';
+import { PROJECT_KANBAN_STAGES, type ProjectKanbanStage } from '../../utils/projectWorkflow';
 import { AbsencesBoard } from './components/AbsencesBoard';
 import { AdministrationBoard } from './components/AdministrationBoard';
 import { AvailabilityBoard } from './components/AvailabilityBoard';
 import { CollaboratorsBoard } from './components/CollaboratorsBoard';
-import { MissionKanban } from './components/MissionKanban';
 import { MissionsBoard } from './components/MissionsBoard';
 import { OperationalCalendar } from './components/OperationalCalendar';
 import { OverviewBoard } from './components/OverviewBoard';
 import { ProductivityBoard } from './components/ProductivityBoard';
+import { ProjectWorkflowBoard } from './components/ProjectWorkflowBoard';
 import { ScenariosBoard } from './components/ScenariosBoard';
 import { EfetivoPlanningNovelty } from './EfetivoPlanningNovelty';
 import { EfetivoTutorial } from './EfetivoTutorial';
+import { ProjectWorkflowNovelty } from './ProjectWorkflowNovelty';
 import './efetivo.css';
 
 const SECTIONS: Array<{ id: EfetivoPlanningSection; label: string; icon: string }> = [
@@ -29,7 +31,7 @@ const SECTIONS: Array<{ id: EfetivoPlanningSection; label: string; icon: string 
   { id: 'colaboradores', label: 'Colaboradores', icon: '♙' },
   { id: 'disponibilidade', label: 'Disponibilidade', icon: '◫' },
   { id: 'missoes', label: 'Missões', icon: '◆' },
-  { id: 'evolucao', label: 'Evolução das missões', icon: '⇥' },
+  { id: 'evolucao', label: 'Evolução', icon: '⇥' },
   { id: 'simulacoes', label: 'Simulações', icon: '◈' },
   { id: 'produtividade', label: 'Produtividade', icon: '▥' },
   { id: 'administracao', label: 'Administração', icon: '⚙' }
@@ -52,9 +54,13 @@ export function EfetivoPage() {
   const missionStatus = (['CONFIRMED', 'CANCELLED'].includes(searchParams.get('status') || '') ? searchParams.get('status') : undefined) as MissionScheduleStatus | undefined;
   const scenarioId = searchParams.get('cenario') || undefined;
   const selectedMissionId = searchParams.get('missao') || undefined;
+  const selectedWorkflowProjectId = searchParams.get('projeto') || undefined;
   const selectedCollaboratorId = searchParams.get('colaborador') || undefined;
   const selectedAbsenceId = searchParams.get('ausencia') || undefined;
-  const missionStage = (['STANDBY', 'MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(searchParams.get('etapa') || '') ? searchParams.get('etapa') : 'STANDBY') as MissionStage;
+  const workflowStage = (PROJECT_KANBAN_STAGES.includes(searchParams.get('faseProjeto') as ProjectKanbanStage) ? searchParams.get('faseProjeto') : 'HANDOVER') as ProjectKanbanStage;
+  const workflowSearch = searchParams.get('busca') || '';
+  const parsedWorkflowPage = Number(searchParams.get('pagina') || 1);
+  const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
   const adminTab = (['regras', 'feriados', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'atividade';
   const canManage = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('efetivo:manager'));
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
@@ -67,6 +73,14 @@ export function EfetivoPage() {
   }, [setSearchParams]);
   const setSection = useCallback((nextSection: EfetivoPlanningSection) => {
     setSearchParams(current => setPlanningSectionParams(current, nextSection), { replace: true });
+  }, [setSearchParams]);
+  const setWorkflowSearch = useCallback((value: string) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (value) next.set('busca', value); else next.delete('busca');
+      next.delete('pagina');
+      return next;
+    }, { replace: true });
   }, [setSearchParams]);
   // Atalhos entre painéis: troca de seção sem recarregar a página, preservando o parâmetro alvo.
   const goToSection = useCallback((nextSection: EfetivoPlanningSection, params: Record<string, string> = {}) => {
@@ -92,7 +106,7 @@ export function EfetivoPage() {
             {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={value => updateParam('search', value || undefined)} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
             {section === 'disponibilidade' ? <AvailabilityBoard date={date} jobRoleId={jobRoleId} /> : null}
             {section === 'missoes' ? <MissionsBoard canManage={canManage} status={missionStatus} search={search} selectedMissionId={selectedMissionId} onMissionSelect={value => updateParam('missao', value)} onSearchChange={value => updateParam('search', value || undefined)} onStatusChange={value => updateParam('status', value)} /> : null}
-            {section === 'evolucao' ? <MissionKanban canManage={canManage} mobileStage={missionStage} selectedMissionId={selectedMissionId} onMobileStageChange={value => updateParam('etapa', value === 'STANDBY' ? undefined : value)} onMissionSelect={value => updateParam('missao', value)} /> : null}
+            {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={setWorkflowSearch} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
             {section === 'simulacoes' ? <ScenariosBoard date={date} jobRoleId={jobRoleId} selectedScenarioId={scenarioId} canManage={canManage} onScenarioSelect={value => updateParam('cenario', value)} /> : null}
             {section === 'produtividade' ? <ProductivityBoard canManage={canManage} /> : null}
             {section === 'administracao' ? <AdministrationBoard canManage={canManage} tab={adminTab} onTabChange={value => updateParam('adminTab', value === 'regras' ? undefined : value)} /> : null}
@@ -101,6 +115,7 @@ export function EfetivoPage() {
       </main>
       <EfetivoTutorial userKey={user?.id || ''} ready={Boolean(user)} goToSection={setSection} triggerRef={tutorialTrigger} />
       <EfetivoPlanningNovelty userId={user?.id || ''} />
+      <ProjectWorkflowNovelty userId={user?.id || ''} enabled={section === 'evolucao'} />
     </Shell>
   );
 }

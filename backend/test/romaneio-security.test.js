@@ -7,6 +7,13 @@ import test from 'node:test';
 
 import AdmZip from 'adm-zip';
 
+import {
+  PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_RELEASES,
+  PROJECT_WORKFLOW_COMMERCIAL_FACTS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
+  PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
+} from '../../shared/schemas/project-workflow.js';
 import app from '../src/app.js';
 import { buildRomaneioDocx, buildRomaneioFileName } from '../src/lib/romaneio-docx.js';
 import { parseEquipmentRows, syncCatalogRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
@@ -75,6 +82,47 @@ function romaneioOnlyOperatorSession() {
       isActive: true,
       moduleRoles: [{ role: 'ROMANEIO_OPERATOR' }]
     }
+  };
+}
+
+function authorizedRomaneioWorkflow(projectId, overrides = {}) {
+  return {
+    projectId,
+    stage: 'READY_TO_MOBILIZE',
+    version: 2,
+    mobilizationAuthorizedAt: new Date('2026-09-09T12:00:00.000Z'),
+    mobilizationAuthorizationVersion: 2,
+    preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
+    preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
+    qsmsVerified: true,
+    qsmsVerificationNote: 'APR e requisitos específicos do cliente verificados.',
+    logisticsPlan: { lodgingRequired: false, freightRequired: false },
+    travelPlan: {
+      teamTransportDefined: true,
+      teamTransportDescription: 'Van própria.',
+      freightDefined: false
+    },
+    checklists: PROJECT_WORKFLOW_CHECKLISTS.map(item => ({ key: item.key, status: 'DONE' })),
+    commercialFacts: PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => ({
+      key: item.key,
+      status: 'CONFIRMED',
+      source: 'MANUAL',
+      occurredOn: new Date('2026-09-08T12:00:00.000Z'),
+      reference: item.evidence === 'reference' ? 'PO-123' : null,
+      note: item.evidence === 'note' ? 'Condição definida' : null
+    })),
+    documentationCategories: ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] })),
+    teamPreparation: { defined: true, members: [{ collaboratorId: 'collaborator-1', name: 'João', checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => ({ ...item, status: 'DONE' })) }] },
+    clientReleases: {
+      attendance: { date: '2026-09-15', confirmed: true },
+      items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({ ...item, requested: true, requestedAt: '2026-09-09', requestedTo: 'Portaria', completed: true, completedAt: '2026-09-10' }))
+    },
+    preparationResources: {
+      equipment: { defined: true, items: [{ id: 'equipment-1', name: 'Bomba 1', checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.EQUIPMENT.map(item => ({ ...item, status: 'DONE' })) }] },
+      materials: { defined: true, items: [{ id: 'material-1', name: 'Filtro', checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.MATERIAL.map(item => ({ ...item, status: 'DONE' })) }] }
+    },
+    issues: [],
+    ...overrides
   };
 }
 
@@ -602,6 +650,59 @@ test('Romaneio active project list keeps archived missions without inbound roman
   });
 });
 
+test('Romaneio de saída lista somente gerenciados autorizados e legados ativos', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalFindMany = prisma.project.findMany;
+  const calls = [];
+  prisma.project.findMany = async args => {
+    calls.push(args);
+    return [
+      { id: 'managed-ready', code: '1', name: 'Gerenciado liberado', isActive: true, managerOnly: false, operator: null, workflow: authorizedRomaneioWorkflow('managed-ready') },
+      { id: 'managed-blocked', code: '2', name: 'Gerenciado bloqueado', isActive: true, managerOnly: false, operator: null, workflow: authorizedRomaneioWorkflow('managed-blocked', { mobilizationAuthorizationVersion: 1 }) },
+      { id: 'legacy-active', code: '3', name: 'Legado ativo', isActive: true, managerOnly: false, operator: null, workflow: null },
+      { id: 'legacy-finished', code: '4', name: 'Legado concluído', isActive: false, managerOnly: false, operator: null, workflow: null }
+    ];
+  };
+  t.after(() => {
+    prisma.project.findMany = originalFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/projects?type=OUTBOUND');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.map(item => item.id), ['managed-ready', 'legacy-active']);
+  assert.deepEqual(calls[0].where, {
+    deletedAt: null,
+    managerOnly: false,
+    OR: [{ isActive: true }, { workflow: { isNot: null } }]
+  });
+  assert.ok(calls[0].select.workflow);
+  assert.equal(Object.hasOwn(response.json[0], 'workflow'), false);
+});
+
+test('Romaneio de entrada lista todas as obras acessíveis sem consultar o gate', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalFindMany = prisma.project.findMany;
+  const calls = [];
+  prisma.project.findMany = async args => {
+    calls.push(args);
+    return [
+      { id: 'active', code: '1', name: 'Ativa', isActive: true, managerOnly: false, operator: null },
+      { id: 'finished', code: '2', name: 'Concluída', isActive: false, managerOnly: false, operator: null }
+    ];
+  };
+  t.after(() => {
+    prisma.project.findMany = originalFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/projects?type=INBOUND');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.map(item => item.id), ['active', 'finished']);
+  assert.deepEqual(calls[0].where, { deletedAt: null, managerOnly: false });
+  assert.equal(calls[0].select.workflow, undefined);
+});
+
 test('Romaneio project list keeps manager-only projects visible to global managers', async t => {
   const originalFindUnique = prisma.userSession.findUnique;
   const originalFindMany = prisma.project.findMany;
@@ -878,37 +979,13 @@ test('Romaneio return-items endpoint lists available outbound balance by project
   assert.deepEqual(projectCalls[0].where, {
     code: { equals: '5797', mode: 'insensitive' },
     deletedAt: null,
-    managerOnly: false,
-    OR: [
-      { isActive: true },
-      {
-        isActive: false,
-        romaneios: {
-          none: {
-            type: 'INBOUND',
-            id: { not: 'entrada-edit' }
-          }
-        }
-      }
-    ]
+    managerOnly: false
   });
   assert.deepEqual(romaneioCalls[0].where, {
     projectId: 'project-1',
     project: {
       deletedAt: null,
-      managerOnly: false,
-      OR: [
-        { isActive: true },
-        {
-          isActive: false,
-          romaneios: {
-            none: {
-              type: 'INBOUND',
-              id: { not: 'entrada-edit' }
-            }
-          }
-        }
-      ]
+      managerOnly: false
     }
   });
 });

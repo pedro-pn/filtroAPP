@@ -48,7 +48,8 @@ function fakeClient({
   batches = [stockBatch()],
   movements = [stockMovement()],
   project = { id: 'project-1' },
-  serializeTransactions = false
+  serializeTransactions = false,
+  workflow = null
 } = {}) {
   const state = { item, batches: [...batches], movements: [...movements], project };
   let movementSeq = state.movements.length;
@@ -102,6 +103,7 @@ function fakeClient({
     project: {
       findFirst: async () => state.project
     },
+    projectWorkflow: { findUnique: async () => workflow },
     stockMovement: {
       create: async args => {
         movementSeq += 1;
@@ -235,4 +237,25 @@ test('USO_EM_PROJETO serialized concurrent exits do not leave negative balance',
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(results.filter(result => result.status === 'rejected').length, 1);
   assert.equal(client.batchBalance('batch-1').toString(), '2');
+});
+
+test('USO_EM_PROJETO não altera saldo quando o projeto gerenciado não está autorizado', async () => {
+  const client = fakeClient({
+    workflow: {
+      projectId: 'project-1', stage: 'PREPARATION', version: 1,
+      mobilizationAuthorizedAt: null, mobilizationAuthorizationVersion: null,
+      checklists: [], commercialFacts: [], issues: []
+    }
+  });
+  await assert.rejects(
+    createMovement(client, {
+      createdById: 'user-1',
+      data: {
+        reason: 'USO_EM_PROJETO', itemId: 'item-1', batchId: 'batch-1',
+        projectId: 'project-1', quantity: 1, date: '2026-07-09'
+      }
+    }),
+    error => error.code === 'PROJECT_MOBILIZATION_NOT_AUTHORIZED'
+  );
+  assert.equal(client.batchBalance('batch-1').toString(), '5');
 });

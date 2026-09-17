@@ -1,4 +1,4 @@
-import type { PlanningMission } from '../api/efetivoPlanning';
+import type { MissionScheduleStatus, PlanningMission } from '../api/efetivoPlanning';
 
 export type CollaboratorActivityFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
 
@@ -25,6 +25,11 @@ export function filterMissionTeamCollaborators<T extends MissionTeamCollaborator
 export function selectedMissionCollaboratorIds(mission: Pick<PlanningMission, 'allocations'> | null): string[] {
   if (!mission) return [];
   return [...new Set(mission.allocations.map(allocation => allocation.collaboratorId))];
+}
+
+export function missionTeamScheduleStatus(status: MissionScheduleStatus | null | undefined, initialTeamMode: boolean): 'CONFIRMED' | 'CANCELLED' {
+  if (initialTeamMode) return 'CONFIRMED';
+  return status === 'CANCELLED' ? 'CANCELLED' : 'CONFIRMED';
 }
 
 export function toggleMissionCollaborator(selectedIds: string[], collaboratorId: string, selected: boolean): string[] {

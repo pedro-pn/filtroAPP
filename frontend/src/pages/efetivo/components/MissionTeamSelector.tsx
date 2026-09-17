@@ -38,7 +38,7 @@ function selectedAllocationCollaborator(mission: PlanningMission | null, collabo
   return mission?.allocations.find(allocation => allocation.collaboratorId === collaboratorId)?.collaborator || null;
 }
 
-export function MissionTeamSelector({ mission, planId, roles, selectedIds, allocationPeriods, startDate, endDate, loading, disabled, error, onChange, onAllocationPeriodsChange }: {
+export function MissionTeamSelector({ mission, planId, roles, selectedIds, allocationPeriods, startDate, endDate, loading, disabled, allowIndividualPeriods = true, error, onChange, onAllocationPeriodsChange }: {
   mission: PlanningMission | null;
   planId?: string;
   roles: PlanningJobRole[];
@@ -48,6 +48,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
   endDate: string;
   loading: boolean;
   disabled: boolean;
+  allowIndividualPeriods?: boolean;
   error?: string;
   onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[]) => void;
   onAllocationPeriodsChange: (value: AllocationPeriodDraft[]) => void;
@@ -166,10 +167,11 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
         </div>
         {!validPeriod ? <span className="field-hint">Preencha a mobilização e o fim da execução para consultar os colaboradores.</span> : null}
         {roleSummary.length ? <div className="efetivo-team-summary" aria-label="Resumo da equipe por cargo">{roleSummary.map(([role, count]) => <span key={role}>{role} <strong>{count}</strong></span>)}</div> : null}
-        {selectedIds.length && mission ? <div className="efetivo-team-period-overview" aria-label="Ciclos de mobilização da equipe">
+        {selectedIds.length && mission && allowIndividualPeriods ? <div className="efetivo-team-period-overview" aria-label="Ciclos de mobilização da equipe">
           <div className="efetivo-team-period-heading"><strong>Ciclos de mobilização</strong><span>Salve a programação e use “Gerenciar equipe” na missão para adicionar pausas, retornos e datas individuais.</span></div>
         </div> : null}
-        {selectedIds.length && !mission ? <div className="efetivo-team-period-overview" aria-label="Mobilização e desmobilização por colaborador">
+        {selectedIds.length && !allowIndividualPeriods ? <div className="efetivo-team-period-overview" aria-label="Primeiro ciclo da equipe inicial"><div className="efetivo-team-period-heading"><strong>Primeiro ciclo da equipe</strong><span>Todos os colaboradores selecionados seguirão as datas gerais. Os ciclos individuais poderão ser personalizados quando a obra estiver em execução.</span></div></div> : null}
+        {selectedIds.length && !mission && allowIndividualPeriods ? <div className="efetivo-team-period-overview" aria-label="Mobilização e desmobilização por colaborador">
           <div className="efetivo-team-period-heading"><strong>Datas individuais da equipe</strong><span>As datas gerais são usadas como padrão. Ajuste somente quem entra ou sai em outro dia.</span></div>
           {selectedIds.map(collaboratorId => {
             const collaborator = options.find(item => item.id === collaboratorId);

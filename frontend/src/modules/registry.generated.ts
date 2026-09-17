@@ -574,7 +574,13 @@ export const moduleRegistry = [
       "enabled": true,
       "roles": [
         "efetivo:manager",
-        "efetivo:viewer"
+        "efetivo:viewer",
+        "efetivo:commercial",
+        "efetivo:operations",
+        "efetivo:assets",
+        "efetivo:supplies",
+        "efetivo:administrative",
+        "efetivo:qsms"
       ],
       "path": "/efetivo"
     },
@@ -592,7 +598,13 @@ export const moduleRegistry = [
         ],
         "allowedModuleRoles": [
           "efetivo:manager",
-          "efetivo:viewer"
+          "efetivo:viewer",
+          "efetivo:commercial",
+          "efetivo:operations",
+          "efetivo:assets",
+          "efetivo:supplies",
+          "efetivo:administrative",
+          "efetivo:qsms"
         ]
       }
     },
@@ -610,6 +622,60 @@ export const moduleRegistry = [
         "code": "EFETIVO_VIEWER",
         "public": "efetivo:viewer",
         "label": "Efetivo Operacional - Visualizador",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_COMMERCIAL",
+        "public": "efetivo:commercial",
+        "label": "Efetivo Operacional - Comercial",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_OPERATIONS",
+        "public": "efetivo:operations",
+        "label": "Efetivo Operacional - Operações",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_ASSETS",
+        "public": "efetivo:assets",
+        "label": "Efetivo Operacional - Ativos",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_SUPPLIES",
+        "public": "efetivo:supplies",
+        "label": "Efetivo Operacional - Suprimentos",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_ADMINISTRATIVE",
+        "public": "efetivo:administrative",
+        "label": "Efetivo Operacional - Administrativo/RH",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_QSMS",
+        "public": "efetivo:qsms",
+        "label": "Efetivo Operacional - QSMS",
         "accountTypes": [
           "ADMIN",
           "INTERNAL"
