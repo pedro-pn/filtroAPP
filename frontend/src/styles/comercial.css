@@ -4171,6 +4171,9 @@
 }
 
 /* Dimensionamento por equipamento: só exibe os tipos adicionados pelo usuário. */
+.com-root .com-circuito-remover,
+.com-root .com-circuito-adicionar { margin-top: 1rem; }
+
 .com-root .com-dimension-tabs,
 .com-root .com-dimension-options {
   display: flex;
@@ -4186,11 +4189,60 @@
 }
 
 .com-root .com-dimension-item {
+  container-type: inline-size;
   padding: 1rem;
   margin-block: 1rem;
   border: 1px solid var(--com-borda);
   border-radius: var(--com-raio);
   background: var(--com-superficie);
+}
+
+/* Proporções próprias: números curtos não precisam da largura do nome.
+   A quebra depende do espaço no cartão, não da grade genérica da página. */
+.com-root .com-dimension-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+.com-root .com-dimension-fields > .field-group { margin: 0; }
+.com-root .com-dimension-fields .com-dimension-label { font-size: 12px; }
+.com-root .com-dimension-fields input,
+.com-root .com-dimension-fields select { padding: 8px; }
+.com-root .com-dimension-fields .com-medida-com-unidade { min-width: 0; }
+.com-root .com-dimension-fields .com-medida-com-unidade > :first-child {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+}
+.com-root .com-dimension-fields .com-medida-com-unidade > :last-child {
+  flex: 0 0 3.5rem;
+  width: 3.5rem;
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+@container (min-width: 40rem) {
+  .com-root .com-dimension-fields {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 0.7fr) minmax(0, 0.9fr);
+  }
+  .com-root .com-dimension-fields--oil {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 0.9fr);
+  }
+  .com-root .com-dimension-fields--pipes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 52rem) {
+  .com-root .com-dimension-fields--pipes {
+    grid-template-columns: minmax(9rem, 1.6fr) minmax(7rem, 1.1fr) minmax(5rem, 0.65fr) minmax(8.75rem, 1.2fr) minmax(10rem, 1.35fr) minmax(7.25rem, 0.9fr);
+  }
+}
+
+@container (max-width: 28rem) {
+  .com-root .com-dimension-fields { grid-template-columns: minmax(0, 1fr); }
 }
 
 .com-root .com-dimension-label {

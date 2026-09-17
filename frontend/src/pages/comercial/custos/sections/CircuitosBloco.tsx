@@ -59,13 +59,6 @@ export function CircuitosBloco({
             dimensionamento alimenta os insumos e o escopo da proposta.
           </p>
         </div>
-        <button
-          type="button"
-          className="com-btn-add"
-          onClick={acrescentarCircuito}
-        >
-          + Adicionar circuito
-        </button>
       </div>
       <div className="com-fases">
         {circuitos.map((circuito, indice) => {
@@ -163,7 +156,7 @@ export function CircuitosBloco({
                   />
                   <button
                     type="button"
-                    className="com-btn com-btn-perigo"
+                    className="com-btn com-btn-perigo com-circuito-remover"
                     disabled={circuitos.length <= 1}
                     onClick={() =>
                       setDraft((atual) => ({
@@ -185,6 +178,13 @@ export function CircuitosBloco({
           );
         })}
       </div>
+      <button
+        type="button"
+        className="com-btn-add com-circuito-adicionar"
+        onClick={acrescentarCircuito}
+      >
+        + Adicionar circuito
+      </button>
     </section>
   );
 }
@@ -460,7 +460,7 @@ function Sistema({
       className="com-dimension-item"
       aria-label={String(item.description || 'Sistema sem nome')}
     >
-      <div className="com-form-grid">
+      <div className={`com-dimension-fields com-dimension-fields--${tipo}`}>
         <Campo label="Nome do sistema" error={erro('description')}>
           <input
             aria-label="Nome do sistema"

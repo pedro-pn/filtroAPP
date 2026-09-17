@@ -41,6 +41,26 @@ test('novos sistemas têm nomes vazios, metadados próprios e nenhuma seleção 
   }
 });
 
+test('os quatro tipos usam uma grade compacta própria, separada dos serviços', () => {
+  for (const [type, collection] of Object.entries({
+    pipes: 'pipeSegments', reservoirs: 'reservoirVolumes',
+    oil: 'manualVolumes', equipment: 'equipmentVolumes'
+  })) {
+    const draft = model.createDefaultCostEstimatePayload();
+    draft.volumeSystems[0][collection] = [helpers.novoSistemaDimensionado(type)];
+    const html = htmlFor(draft);
+    assert.ok(html.includes(`class="com-dimension-fields com-dimension-fields--${type}"`));
+    assert.match(html, /Serviços deste sistema/);
+  }
+});
+
+test('adicionar circuito fica depois da lista e remover tem espaçamento próprio', () => {
+  const html = htmlFor(model.createDefaultCostEstimatePayload());
+  assert.match(html, /class="com-btn com-btn-perigo com-circuito-remover"/);
+  assert.match(html, /<\/article><\/div><button[^>]*class="com-btn-add com-circuito-adicionar"/);
+  assert.equal((html.match(/\+ Adicionar circuito/g) || []).length, 1);
+});
+
 test('reservatório exibe material, nome, quantidade, volume e múltiplos serviços, sem checkbox Incluir', () => {
   const draft = model.createDefaultCostEstimatePayload();
   draft.volumeSystems[0].reservoirVolumes = [{ ...helpers.novoSistemaDimensionado('reservoirs'), serviceIds: ['', 'limpeza_quimica'] }];
