@@ -1,18 +1,21 @@
 import { forwardRef, type ReactNode, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import { ApiClientError } from '../../api/client';
 
 import {
   getPlannedScope,
   setPlannedScope,
+  resolvePlannedHours,
   type PlannedDiameterUnit,
   type PlannedMeasureUnit,
   type PlannedScope,
+  type PlannedScopeInput,
   type PlannedSystemType
 } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { HelpTip } from '../ui/HelpTip';
 import { ProjectSystemInput } from './ProjectSystemInput';
+import { PlannedHoursReview } from './PlannedHoursReview';
 import { useToast } from '../ui/ToastContext';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
@@ -98,6 +101,7 @@ interface ServiceRow {
 interface HoursRow {
   key: string;
   jobRoleId: string;
+  roleName?: string | null;
   hours: string;
 }
 
@@ -181,11 +185,13 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
     normalHours: (scope.normalHours ?? []).map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
+      roleName: o.roleName,
       hours: toStr(o.hours)
     })),
     overtime: (scope.overtime ?? []).map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
+      roleName: o.roleName,
       hours: toStr(o.hours)
     }))
   };
@@ -214,19 +220,21 @@ function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: Ho
 export interface ScopeEditorHandle { save: () => void }
 
 // Editor do escopo previsto (vendido): serviços com seus sistemas + previsão de horas.
-// Preenchimento manual — esses dados ainda não vêm do banco comercial. Sem botão próprio de salvar:
+// Horas comerciais automáticas ou cadastro manual. Sem botão próprio de salvar:
 // expõe save() via ref e reporta dirty; o modal do cronograma tem o único Salvar/Cancelar.
 export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   projectId: string;
   onDirtyChange?: (dirty: boolean) => void;
   onSavingChange?: (saving: boolean) => void;
   beforeOvertime?: ReactNode;
-}>(function ProjectPlannedScopeEditor({ projectId, onDirtyChange, onSavingChange, beforeOvertime }, ref) {
+  canManage?: boolean;
+  resolutionDisabled?: boolean;
+}>(function ProjectPlannedScopeEditor({ projectId, onDirtyChange, onSavingChange, beforeOvertime, canManage = true, resolutionDisabled = false }, ref) {
   const queryClient = useQueryClient();
   const showToast = useToast();
   const queryKey = ['planned-scope', projectId];
 
-  const { data, isLoading } = useQuery({ queryKey, queryFn: () => getPlannedScope(projectId) });
+  const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => getPlannedScope(projectId) });
   const { data: roles } = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
 
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -234,22 +242,30 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   const [normalHours, setNormalHours] = useState<HoursRow[]>([]);
   const [overtime, setOvertime] = useState<HoursRow[]>([]);
   const [baseline, setBaseline] = useState('');
+  const [loadedFingerprint, setLoadedFingerprint] = useState<string>();
+  const dirtyRef = useRef(false);
+  const forceLoadRef = useRef(false);
   // Serviços cujo peso o usuário já editou manualmente (ficam fixos no reequilíbrio).
   const touchedWeights = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || (dirtyRef.current && !forceLoadRef.current)) return;
+    forceLoadRef.current = false;
     const next = fromScope(data);
     setServices(next.services);
     setCollapsedServices(new Set(next.services.map(service => service.key)));
     setNormalHours(next.normalHours);
     setOvertime(next.overtime);
     setBaseline(normalize(next.services, next.normalHours, next.overtime));
+    setLoadedFingerprint(data.hoursPlan?.fingerprint);
     // Dados carregados já têm pesos definidos: trata como fixos (edição livre, sem "brigar").
     touchedWeights.current = new Set(next.services.map(s => s.key));
   }, [data]);
 
-  const dirty = useMemo(() => normalize(services, normalHours, overtime) !== baseline, [services, normalHours, overtime, baseline]);
+  const dirty = useMemo(() => baseline !== '' && normalize(services, normalHours, overtime) !== baseline, [services, normalHours, overtime, baseline]);
+  dirtyRef.current = dirty;
+  const staleHours = dirty && loadedFingerprint !== data?.hoursPlan?.fingerprint;
+  const commercialHours = data?.hoursPlan?.source === 'COMMERCIAL';
   const scopeGroups = useMemo(() => {
     const groups = new Map<string, { key: string; name: string; services: ServiceRow[] }>();
     for (const service of services) {
@@ -266,25 +282,45 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   const mutation = useMutation({
-    mutationFn: (payload: PlannedScope) => setPlannedScope(projectId, payload),
+    mutationFn: (payload: PlannedScopeInput) => setPlannedScope(projectId, payload),
     onSuccess: (saved) => {
       showToast('Escopo previsto salvo.');
+      forceLoadRef.current = true;
       queryClient.setQueryData(queryKey, saved);
       queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['project-cards'] });
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-systems'] });
       queryClient.invalidateQueries({ queryKey: ['system-reconciliation', projectId] });
     },
-    onError: (error: Error) => showToast(
-      (axios.isAxiosError<{ error?: string }>(error) ? error.response?.data?.error : null) || error.message || 'Não foi possível salvar o escopo previsto.', 'error'
-    )
+    onError: (error: Error) => {
+      if (error instanceof ApiClientError && error.status === 409) queryClient.invalidateQueries({ queryKey });
+      showToast(error.message || 'Não foi possível salvar o escopo previsto.', 'error');
+    }
   });
 
-  useEffect(() => { onSavingChange?.(mutation.isPending); }, [mutation.isPending, onSavingChange]);
+  const resolutionMutation = useMutation({
+    mutationFn: (choice: 'COMMERCIAL' | 'MANUAL') => resolvePlannedHours(projectId, choice, data!.hoursPlan!.fingerprint),
+    onSuccess: saved => {
+      forceLoadRef.current = true;
+      queryClient.setQueryData(queryKey, saved);
+      queryClient.invalidateQueries({ queryKey: ['project-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['project-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
+      showToast('Previsão de horas confirmada.');
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey });
+      showToast(error.message, 'error');
+    }
+  });
+
+  useEffect(() => { onSavingChange?.(mutation.isPending || resolutionMutation.isPending); }, [mutation.isPending, resolutionMutation.isPending, onSavingChange]);
 
   function save() {
+    if (!canManage || !data || staleHours || resolutionMutation.isPending) return;
     const names = new Set<string>();
     for (const group of scopeGroups) {
       const name = group.name.trim();
@@ -300,7 +336,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       showToast('Sistemas por unidade exigem equipamento/UG, nome do sistema e quantidade inteira positiva.');
       return;
     }
-    const payload: PlannedScope = {
+    const payload: PlannedScopeInput = {
+      hoursFingerprint: loadedFingerprint,
       services: services.map(s => ({
         scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
@@ -316,18 +353,24 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         }))
       })),
       normalHours: normalHours
-        .filter(o => o.jobRoleId || toNum(o.hours))
+        .filter(o => o.jobRoleId || toNum(o.hours) !== null)
         .map(o => ({
           jobRoleId: o.jobRoleId || null,
+          roleName: o.jobRoleId ? null : o.roleName,
           hours: toNum(o.hours) ?? 0
         })),
       overtime: overtime
-        .filter(o => o.jobRoleId || toNum(o.hours))
+        .filter(o => o.jobRoleId || toNum(o.hours) !== null)
         .map(o => ({
           jobRoleId: o.jobRoleId || null,
+          roleName: o.jobRoleId ? null : o.roleName,
           hours: toNum(o.hours) ?? 0
         }))
     };
+    if (commercialHours) {
+      delete payload.normalHours;
+      delete payload.overtime;
+    }
     mutation.mutate(payload);
   }
 
@@ -464,6 +507,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   }
 
   if (isLoading) return <div className="placeholder-copy">Carregando escopo…</div>;
+  if (isError || !data) return <div role="alert" className="acp-alert warn">Não foi possível carregar o escopo. Reabra o cronograma para tentar novamente.</div>;
 
   const weightSum = services.reduce((sum, s) => sum + (toNum(s.weight) ?? 0), 0);
 
@@ -676,9 +720,25 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       <p className="placeholder-copy">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
       {beforeOvertime}
 
+      {staleHours ? <div role="alert" className="acp-alert warn">
+        As horas ou a proposta mudaram durante a edição. Atualize antes de salvar.
+        <button type="button" className="mini-btn alt" onClick={() => {
+          const next = fromScope(data);
+          dirtyRef.current = false;
+          setServices(next.services); setNormalHours(next.normalHours); setOvertime(next.overtime);
+          setCollapsedServices(new Set(next.services.map(service => service.key)));
+          touchedWeights.current = new Set(next.services.map(service => service.key));
+          setBaseline(normalize(next.services, next.normalHours, next.overtime));
+          setLoadedFingerprint(data.hoursPlan?.fingerprint);
+        }}>Descartar alterações do escopo e atualizar</button>
+      </div> : null}
+      <PlannedHoursReview plan={data.hoursPlan} canManage={canManage}
+        disabled={dirty || resolutionDisabled || mutation.isPending || resolutionMutation.isPending}
+        onResolve={choice => resolutionMutation.mutate(choice)} />
+      <fieldset disabled={!canManage || commercialHours || staleHours || resolutionMutation.isPending} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="sec" style={{ marginTop: 18 }}>Previsão de horas normais</div>
       <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
-        Informe o total de horas normais previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.
+        {commercialHours ? 'Total de horas normais da equipe, fornecido pelo comercial.' : 'Informe o total de horas normais previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
       </p>
 
       {normalHours.length === 0 ? (
@@ -719,7 +779,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
 
       <div className="sec" style={{ marginTop: 18 }}>Previsão de hora extra</div>
       <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
-        Informe o total de horas extras previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.
+        {commercialHours ? 'Total comercial de horas extras e de fim de semana da equipe.' : 'Informe o total de horas extras previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
       </p>
 
       {overtime.length === 0 ? (
@@ -757,6 +817,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       >
         + Adicionar hora extra
       </button>
+      </fieldset>
     </div>
   );
 });

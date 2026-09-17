@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router';
 
 import {
   getProjectRevisions,
+  getPlannedScope,
   setProjectSchedule,
   type CommercialRevision,
   type LaborCollaborator,
@@ -17,6 +18,7 @@ import { HelpTip } from '../ui/HelpTip';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
+import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 
 export interface ScheduleEditorHandle { save: () => void }
 
@@ -130,6 +132,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const queryKey = ['commercial-revisions', projectId];
 
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => getProjectRevisions(projectId) });
+  const { data: plannedScope } = useQuery({ queryKey: ['planned-scope', projectId], queryFn: () => getPlannedScope(projectId), ...acompanhamentoRefreshQueryOptions });
   const activeCollaboratorsQuery = useQuery({
     queryKey: ['ponto-collaborators-active'],
     queryFn: getActiveCollaborators,
@@ -245,7 +248,11 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
 
   if (current == null || !currentRevision) {
-    return <div className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão.</div>;
+    return <>
+      <p className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão. A previsão manual permanece disponível.</p>
+      <ProjectPlannedScopeEditor ref={scopeRef} projectId={projectId} canManage={canManage}
+        onDirtyChange={setScopeDirty} onSavingChange={setScopeSaving} />
+    </>;
   }
 
   const leadDays = data?.mobilizationLeadDays ?? null;
@@ -386,6 +393,9 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
 
   return (
     <div className="det-section">
+      {plannedScope?.hoursPlan?.pending ? <div role="alert" className="acp-alert warn" style={{ marginBottom: 12 }}>
+        ⚠ Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
+      </div> : null}
       <div className="det-row"><span className="det-label">Previsto (comercial)</span>
         <span className="det-val acp-budget-value">
           <span>Venda {brl(plannedSalePrice)} · Custo {brl(plannedCost)} · Margem {pct(expectedMargin)}</span>
@@ -469,6 +479,8 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       <ProjectPlannedScopeEditor
         ref={scopeRef}
         projectId={projectId}
+        canManage={canManage}
+        resolutionDisabled={scheduleDirty || scheduleMutation.isPending}
         onDirtyChange={setScopeDirty}
         onSavingChange={setScopeSaving}
         beforeOvertime={collaboratorSleepSection}

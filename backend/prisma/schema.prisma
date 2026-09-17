@@ -951,6 +951,7 @@ model Project {
   demobilizationDate         DateTime? // data de desmobilização (manual); fecha a janela de alocação
   startDate                  DateTime? // início real da execução (manual, gestor/coordenador)
   manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão (fallback quando não há escopo)
+  plannedHoursResolution     Json? // decisão manual vinculada aos valores/revisões comerciais e às horas manuais conferidas
   createdAt                  DateTime                           @default(now())
   updatedAt                  DateTime                           @updatedAt
   deletedAt                  DateTime?

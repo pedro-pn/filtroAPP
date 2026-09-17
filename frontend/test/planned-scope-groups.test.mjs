@@ -30,6 +30,8 @@ test('scope groups restore legacy services, rename/move independently, duplicate
   const scopeGroups = () => [...new Set(state.map(service => service.scopeKey))].map(key => ({ key, name: state.find(service => service.scopeKey === key).scopeName }));
   const context = {
     get services() { return state; }, get scopeGroups() { return scopeGroups(); }, normalHours: [], overtime: [],
+    canManage: true, data: {}, staleHours: false, resolutionMutation: { isPending: false },
+    loadedFingerprint: 'reviewed-hours', commercialHours: false,
     setServices: update => { state = update(state); }, nextKey: () => `key-${++seq}`,
     touchedWeights: { current: new Set() }, showToast: message => messages.push(message), mutation: { mutate: payload => writes.push(payload) }
   };
@@ -71,6 +73,41 @@ test('scope groups restore legacy services, rename/move independently, duplicate
   actions.save();
   assert.equal(writes.length, 1);
   assert.match(messages.at(-1), /mesmo nome/);
+});
+
+async function saveHoursHarness(overrides = {}) {
+  const writes = [];
+  const context = {
+    canManage: true, data: {}, staleHours: false, resolutionMutation: { isPending: false },
+    loadedFingerprint: 'reviewed-hours', commercialHours: false, services: [], scopeGroups: [],
+    normalHours: [{ jobRoleId: '', roleName: 'Operador', hours: '77,5' }],
+    overtime: [{ jobRoleId: '', hours: '0' }, { jobRoleId: '', hours: '' }],
+    showToast: () => {}, mutation: { mutate: payload => writes.push(plain(payload)) },
+    ...overrides
+  };
+  const actions = await functionsFrom('../src/components/projects/ProjectPlannedScopeEditor.tsx', ['toNum', 'save'], context);
+  return { save: actions.save, writes };
+}
+
+test('scope save includes the reviewed version and manual rows, but never copies commercial hours into manual records', async () => {
+  const manual = await saveHoursHarness();
+  manual.save();
+  assert.deepEqual(manual.writes, [{
+    hoursFingerprint: 'reviewed-hours', services: [],
+    normalHours: [{ jobRoleId: null, roleName: 'Operador', hours: 77.5 }],
+    overtime: [{ jobRoleId: null, hours: 0 }]
+  }]);
+  const commercial = await saveHoursHarness({ commercialHours: true });
+  commercial.save();
+  assert.deepEqual(commercial.writes, [{ hoursFingerprint: 'reviewed-hours', services: [] }]);
+});
+
+test('scope save does not write without permission, loaded data or a current review, or while resolving hours', async () => {
+  for (const state of [{ canManage: false }, { data: undefined }, { staleHours: true }, { resolutionMutation: { isPending: true } }]) {
+    const harness = await saveHoursHarness(state);
+    harness.save();
+    assert.deepEqual(harness.writes, [], JSON.stringify(state));
+  }
 });
 
 test('scope hierarchy is rendered in planned scope and weekly pace, with an accessible local scroll area', async () => {
