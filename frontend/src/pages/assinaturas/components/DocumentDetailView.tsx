@@ -24,14 +24,12 @@ export function DocumentDetailView({
   tab,
   pageNumber,
   onTabChange,
-  onPageChange,
   onBack
 }: {
   document: SignatureDocument;
   tab: 'details' | 'setup' | 'audit';
   pageNumber: number;
   onTabChange: (tab: 'details' | 'setup' | 'audit') => void;
-  onPageChange: (page: number) => void;
   onBack: () => void;
 }) {
   const showToast = useToast();
@@ -91,7 +89,7 @@ export function DocumentDetailView({
         {document.status === 'AGUARDANDO_ASSINATURAS' ? <Button variant="secondary" title="Cancela o documento e revoga todos os convites pendentes; assinaturas concluídas são preservadas." onClick={() => setPendingAction('cancel')}>Cancelar rodada</Button> : null}
         <Button variant="secondary" disabled={document.status === 'FINALIZANDO'} title={document.status === 'FINALIZANDO' ? 'Aguarde a geração do PDF final.' : undefined} onClick={() => setPendingAction('delete')}>Excluir</Button>
       </div>
-      {activeTab === 'setup' ? <DocumentSetupView document={document} pageNumber={pageNumber} onPageChange={onPageChange} /> : activeTab === 'audit' ? <AuditTrail documentId={document.id} /> : (
+      {activeTab === 'setup' ? <DocumentSetupView key={document.id} document={document} initialPage={pageNumber} /> : activeTab === 'audit' ? <AuditTrail documentId={document.id} /> : (
         <>
           {document.status === 'FINALIZANDO' ? <p className="signature-inline-warning">O PDF assinado está sendo finalizado. Esta tela atualiza automaticamente.</p> : null}
           <div className="signature-detail-actions">
