@@ -13,7 +13,8 @@ import { listCommercialDashboard } from './access-import.js';
 import { computeAlerts } from './alerts.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
-import { laborCostByProject } from './labor-cost.js';
+import { getRoleParamsResolver, laborCostByProject } from './labor-cost.js';
+import { estimateReportLaborCostByDate, summarizeReportLaborCost } from './report-labor-cost.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
 import { buildWorkedHoursProgress } from './project-cards.js';
 import {
@@ -29,6 +30,7 @@ import {
   reportPersonTimeMetrics,
   reportWorkedMinutesByCollaborator
 } from './report-time.js';
+import { getAnnualCollaboratorCosts } from './settings.js';
 import { isSalaryCategory } from './salary.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
@@ -211,6 +213,28 @@ export function buildProjectReportHours(reports, collaboratorIdsByReport, projec
   return byCollaborator;
 }
 
+async function getReportLaborCostEstimates(project, hoursByCollaborator) {
+  if (!hoursByCollaborator.size) return new Map();
+  const [collaborators, roleParams, annualCosts] = await Promise.all([
+    prisma.collaborator.findMany({
+      where: { id: { in: [...hoursByCollaborator.keys()] } },
+      select: {
+        id: true,
+        jobRole: { select: { id: true, name: true } },
+        jobRoleHistory: {
+          select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } }
+        }
+      }
+    }),
+    getRoleParamsResolver(),
+    getAnnualCollaboratorCosts()
+  ]);
+  return new Map(collaborators.map(collaborator => [collaborator.id, estimateReportLaborCostByDate({
+    collaborator, roleParams, project, annualCosts,
+    workedMinutesByDate: hoursByCollaborator.get(collaborator.id).workedMinutesByDate
+  })]));
+}
+
 export function buildProjectDetailCollaborator({
   name = '',
   role = '',
@@ -220,6 +244,7 @@ export function buildProjectDetailCollaborator({
   workedMinutes = 0,
   workedMinutesByDate = new Map(),
   reportSourcesByDate = new Map(),
+  reportCostsByDate = new Map(),
   includeCollaboratorCosts = false
 } = {}) {
   const custo = allocation?.cost ?? null;
@@ -238,6 +263,8 @@ export function buildProjectDetailCollaborator({
     .map(([data, minutes]) => ({
       data,
       horas: minutes / 60,
+      ...(includeCollaboratorCosts && horasApropriadas <= 0
+        ? { custoEstimado: reportCostsByDate.get(data) ?? null } : {}),
       relatorios: reportSourcesByDate.get(data) || []
     }));
   const diasApropriados = projectId && rate
@@ -258,7 +285,8 @@ export function buildProjectDetailCollaborator({
     // Custo é dado sensível (salário): só para gestores.
     custo: includeCollaboratorCosts ? custo : null,
     custoHora: includeCollaboratorCosts ? custoHora : null,
-    custoDeslocamento: includeCollaboratorCosts ? custoDeslocamento : null
+    custoDeslocamento: includeCollaboratorCosts ? custoDeslocamento : null,
+    ...summarizeReportLaborCost(horasRelatoriosPorData)
   };
 }
 
@@ -346,7 +374,7 @@ export async function getProjectDetail(projectId, {
   ] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
-      select: { clientSegment: true, mobilizationDate: true, workdayHours: true, weekendWorkdayHours: true }
+      select: { clientSegment: true, mobilizationDate: true, workdayHours: true, weekendWorkdayHours: true, offshore: true, laborSleepModeByCollaborator: true }
     }),
     prisma.report.findMany({
       where: { projectId, deletedAt: null },
@@ -480,6 +508,11 @@ export async function getProjectDetail(projectId, {
   const hasAllocatedHours = collaboratorId => (
     Math.max(0, toNum(projectAllocation(collaboratorId)?.hours) ?? 0) > 0
   );
+  const reportCostEstimates = includeCollaboratorCosts
+    ? await getReportLaborCostEstimates(project, new Map(
+        [...reportHoursByCollaborator].filter(([id]) => !hasAllocatedHours(id))
+      ))
+    : new Map();
   const confirmedReportParticipantIds = new Set();
   for (const item of collaborators) {
     if (isConfirmedReportParticipant(reportById.get(item.reportId), hasAllocatedHours(item.collaboratorId))) {
@@ -505,6 +538,7 @@ export async function getProjectDetail(projectId, {
       allocation: alloc,
       projectId,
       ...reportHoursByCollaborator.get(collaboratorId),
+      reportCostsByDate: reportCostEstimates.get(collaboratorId),
       includeCollaboratorCosts
     }));
   };

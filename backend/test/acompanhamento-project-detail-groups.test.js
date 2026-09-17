@@ -123,6 +123,31 @@ test('grupo mantém RDOs das duas missões e considera somente a maior jornada p
   ]);
 });
 
+test('estimativa do grupo acompanha a maior jornada por data, sem somar sobreposição', () => {
+  const input = group().members.map((member, index) => ({
+    projectId: member.projectId, member,
+    detail: detail({ colaboradores: [{
+      name: 'Ana', role: 'Operador', horasApropriadas: null, custo: null,
+      horas: index ? 7 : 8, horasLancadas: index ? 7 : 8,
+      horasRelatoriosPorData: index ? [
+        { data: '2026-09-02', horas: 5, custoEstimado: 150 },
+        { data: '2026-09-04', horas: 2, custoEstimado: 40 }
+      ] : [{ data: '2026-09-02', horas: 8, custoEstimado: 160 }]
+    }] })
+  }));
+  for (const details of [input, [...input].reverse()]) {
+    const result = groupProjectDetails(group(), details).colaboradores[0];
+    assert.equal(result.horas, 10);
+    assert.equal(result.custoEstimadoRdo, 200);
+    assert.equal(result.custoHoraEstimadoRdo, 20);
+  }
+  input[0].detail.colaboradores[0].horasApropriadas = 8;
+  input[0].detail.colaboradores[0].custo = 250;
+  const withPoint = groupProjectDetails(group(), input).colaboradores[0];
+  assert.equal(withPoint.custo, 250);
+  assert.equal(withPoint.custoEstimadoRdo, null);
+});
+
 test('combineRecentDays mantém até 10 dias distintos nos grupos', () => {
   const recentDays = Array.from({ length: 12 }, (_, index) => {
     const day = String(index + 1).padStart(2, '0');

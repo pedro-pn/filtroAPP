@@ -119,6 +119,8 @@ test('buildProjectDetailCollaborator separa apropriação financeira da jornada 
     ],
     custo: 212.5,
     custoHora: 50,
+    custoEstimadoRdo: null,
+    custoHoraEstimadoRdo: null,
     custoDeslocamento: 75
   });
 });

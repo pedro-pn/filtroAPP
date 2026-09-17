@@ -4290,6 +4290,21 @@ a {
   letter-spacing: .05em;
   line-height: 1;
 }
+.acp-report-cost-estimate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: #7c3aed;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.acp-report-cost-estimate small {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+.acp-collaborator-hours-sources { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.acp-collaborator-hours-sources [aria-pressed="true"] { border-color: var(--bl); color: var(--bl); }
 .modal-card.acp-collaborator-hours-dialog {
   width: min(94vw, 900px);
   max-width: 900px;

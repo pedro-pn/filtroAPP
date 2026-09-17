@@ -15,6 +15,7 @@ import {
 import { sameClientName } from './client-identity.js';
 import { getActiveMissionGroup } from './mission-groups.js';
 import { combineProgressBreakdowns, progressContributionWeight } from './progress-groups.js';
+import { summarizeReportLaborCost } from './report-labor-cost.js';
 
 const DAY_STATUS_ORDER = {
   TRABALHADO: 0,
@@ -200,6 +201,13 @@ function combineCollaborators(details) {
         if (!day?.data) continue;
         const horas = toNumber(day.horas) ?? 0;
         const currentDay = existing.horasRelatoriosPorData.get(day.data) ?? { horas: 0, relatorios: new Map() };
+        // O custo acompanha a mesma missão escolhida para a maior jornada do dia.
+        if (horas > currentDay.horas) {
+          delete currentDay.custoEstimado;
+          if ('custoEstimado' in day) currentDay.custoEstimado = day.custoEstimado;
+        } else if (horas === currentDay.horas && day.custoEstimado != null) {
+          currentDay.custoEstimado = Math.max(currentDay.custoEstimado ?? 0, day.custoEstimado);
+        }
         currentDay.horas = Math.max(currentDay.horas, horas);
         for (const report of day.relatorios ?? []) {
           currentDay.relatorios.set(report.id, report);
@@ -222,6 +230,8 @@ function combineCollaborators(details) {
         .map(([data, day]) => ({
           data,
           horas: day.horas,
+          ...(!(item.horasApropriadas > 0) && 'custoEstimado' in day
+            ? { custoEstimado: day.custoEstimado } : {}),
           relatorios: [...day.relatorios.values()].sort((a, b) => (
             String(a.projetoCodigo || '').localeCompare(String(b.projetoCodigo || ''), 'pt-BR', { numeric: true })
             || String(a.tipo).localeCompare(String(b.tipo))
@@ -256,6 +266,7 @@ function combineCollaborators(details) {
         horasRelatoriosPorData,
         custo: item.custo,
         custoHora,
+        ...summarizeReportLaborCost(horasRelatoriosPorData),
         custoDeslocamento: item.custoDeslocamento
       };
     })
