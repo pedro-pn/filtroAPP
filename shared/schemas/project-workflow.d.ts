@@ -37,7 +37,7 @@ export function makeProjectWorkflowCommercialFactSchema(z: typeof import('zod').
   occurredOn?: string | null;
 }>;
 export function makeProjectWorkflowSchemas(z: typeof import('zod').z): {
-  start: import('zod').ZodType<{ leaderUserId: string; plannedMobilizationDate: string }>;
+  start: import('zod').ZodType<{ leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string }>;
   postJob: import('zod').ZodType<Record<string, unknown>>;
   patch: import('zod').ZodType<Record<string, unknown>>;
   list: import('zod').ZodType<{ search?: string; page: number }>;

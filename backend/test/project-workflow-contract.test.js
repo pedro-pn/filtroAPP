@@ -54,3 +54,27 @@ test('contrato valida o planejamento estruturado de insumos e logística', () =>
     lodgingRequestedAt: null, lodgingCompletedAt: null
   }).success, true);
 });
+
+test('contrato vincula líder e planejador e aceita exceções auditáveis de reserva', () => {
+  const { start, patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(start.safeParse({
+    leaderUserId: 'leader-1', plannerUserId: 'planner-1', plannedMobilizationDate: '2026-10-20'
+  }).success, true);
+  assert.equal(start.safeParse({
+    leaderUserId: 'leader-1', plannedMobilizationDate: '2026-10-20'
+  }).success, false);
+  assert.equal(patch.safeParse({
+    action: 'equipment_plan', version: 2, defined: true,
+    selections: [{
+      categoryId: 'category-1', equipmentIds: ['equipment-1'],
+      exceptions: [{ equipmentId: 'equipment-1', reason: 'Uso coordenado com o outro projeto.' }]
+    }]
+  }).success, true);
+  assert.equal(patch.safeParse({
+    action: 'equipment_plan', version: 2, defined: true,
+    selections: [{
+      categoryId: 'category-1', equipmentIds: ['equipment-1'],
+      exceptions: [{ equipmentId: 'equipment-2', reason: 'Equipamento fora da seleção.' }]
+    }]
+  }).success, false);
+});

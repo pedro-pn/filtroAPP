@@ -4,6 +4,7 @@ import app from './app.js';
 import env from './config/env.js';
 import { startMonthlyAllocationReportJob } from './lib/allocation-monthly-report.js';
 import { startCalibrationReminderJob } from './lib/calibration-reminders.js';
+import { startProjectWorkflowEmailAlertJob } from './lib/efetivo/project-workflow/email-alerts.js';
 import { startDataRetentionJob } from './lib/data-retention.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
 import { startOperationalAlertJob } from './lib/operations/alerts.js';
@@ -56,6 +57,7 @@ server.listen(env.port, () => {
   startSurveyReminderJob();
   startSignatureReminderJob();
   startCalibrationReminderJob();
+  startProjectWorkflowEmailAlertJob();
   startMonthlyAllocationReportJob();
   startLegacyZapSignReconciliationJob();
   startOmieSyncJob();

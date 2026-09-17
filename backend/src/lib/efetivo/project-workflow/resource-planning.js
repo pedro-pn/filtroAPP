@@ -14,6 +14,26 @@ function utcDate(value) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
+const RESERVATION_STAGES = ['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE'];
+
+function addDays(value, days) {
+  const date = utcDate(dateKey(value));
+  date.setUTCDate(date.getUTCDate() + Math.max(0, Number(days) || 0));
+  return dateKey(date);
+}
+
+function reservationEndDate(workflow) {
+  const demobilization = dateKey(workflow?.project?.demobilizationDate);
+  if (demobilization) return demobilization;
+  const start = dateKey(workflow?.commercialExpectedStartDate) || dateKey(workflow?.plannedMobilizationDate);
+  const duration = Math.max(1, Number(workflow?.commercialExpectedDurationDays) || 1);
+  return addDays(start, duration - 1);
+}
+
+function rangesOverlap(leftStart, leftEnd, rightStart, rightEnd) {
+  return leftStart <= rightEnd && rightStart <= leftEnd;
+}
+
 function calibrationState(equipment, category, targetDate) {
   const required = category.supportsCalibration || equipment.hasCalibration;
   if (!required) return { required: false, status: 'NOT_REQUIRED', expiresAt: null, valid: true };
@@ -82,27 +102,29 @@ export function equipmentAssignmentsAt(romaneios = [], targetDate) {
   return byEquipment;
 }
 
-export function buildEquipmentPlanningCatalog(categories = [], romaneios = [], targetDate, currentProjectId = null) {
+export function buildEquipmentPlanningCatalog(categories = [], romaneios = [], targetDate, currentProjectId = null, plannedReservations = []) {
   const assignments = equipmentAssignmentsAt(romaneios, targetDate);
   return categories.map(category => {
     const equipment = (category.equipment || []).map(item => {
       const currentAssignments = (assignments.get(item.id) || []).filter(assignment => assignment.projectId !== currentProjectId);
+      const reservationConflicts = plannedReservations.filter(reservation => reservation.equipmentId === item.id && reservation.projectId !== currentProjectId);
       const expectedBack = currentAssignments.length > 0 && currentAssignments.every(assignment => {
         const returnDate = dateKey(assignment.project?.demobilizationDate);
         return Boolean(returnDate && returnDate < targetDate);
       });
       const availabilityStatus = currentAssignments.length === 0
-        ? 'AVAILABLE'
+        ? reservationConflicts.length ? 'RESERVED' : 'AVAILABLE'
         : expectedBack ? 'EXPECTED_RETURN' : 'ALLOCATED';
       return {
         id: item.id,
         code: item.code,
         name: item.name,
         availabilityStatus,
-        availableAtMobilization: availabilityStatus !== 'ALLOCATED',
+        availableAtMobilization: !['ALLOCATED', 'RESERVED'].includes(availabilityStatus),
         assignments: currentAssignments.map(assignment => ({
           expectedReturnDate: dateKey(assignment.project?.demobilizationDate)
         })),
+        reservationConflicts,
         calibration: calibrationState(item, category, targetDate),
         maintenance: maintenanceState(item, category, targetDate)
       };
@@ -151,11 +173,19 @@ function publicEquipmentPlanning(workflow, categoryCatalog) {
     const storedIds = Array.isArray(plan.equipmentIds) ? plan.equipmentIds : [];
     const equipmentIds = storedIds.length ? storedIds : (category?.equipment || []).map(item => item.id);
     const activeIds = new Set((category?.equipment || []).map(item => item.id));
-    return { categoryId: plan.categoryId, equipmentIds: equipmentIds.filter(id => activeIds.has(id)) };
+    const exceptionReasons = plan.exceptionReasons && typeof plan.exceptionReasons === 'object' && !Array.isArray(plan.exceptionReasons)
+      ? plan.exceptionReasons
+      : {};
+    return { categoryId: plan.categoryId, equipmentIds: equipmentIds.filter(id => activeIds.has(id)), exceptionReasons };
   });
   const selectedIds = new Set(selections.map(item => item.categoryId));
   const equipmentIds = selections.flatMap(item => item.equipmentIds);
   const equipmentIdSet = new Set(equipmentIds);
+  const exceptionByEquipmentId = new Map(selections.flatMap(selection => Object.entries(selection.exceptionReasons || {})));
+  const withExceptions = category => ({
+    ...category,
+    equipment: category.equipment.map(item => ({ ...item, reservationExceptionReason: exceptionByEquipmentId.get(item.id) || null }))
+  });
   return {
     defined: workflow.equipmentPlanDefined ?? null,
     categoryIds: [...selectedIds],
@@ -164,10 +194,10 @@ function publicEquipmentPlanning(workflow, categoryCatalog) {
     categories: categoryCatalog
       .filter(category => selectedIds.has(category.id))
       .map(category => ({
-        ...category,
-        equipment: category.equipment.filter(item => equipmentIdSet.has(item.id))
+        ...withExceptions(category),
+        equipment: withExceptions(category).equipment.filter(item => equipmentIdSet.has(item.id))
       })),
-    catalog: categoryCatalog
+    catalog: categoryCatalog.map(withExceptions)
   };
 }
 
@@ -176,7 +206,9 @@ export function buildSupplyPlanning(workflow, catalog) {
   const storedItems = Array.isArray(workflow?.supplyPlan) ? workflow.supplyPlan : [];
   const items = storedItems.map(item => {
     const stockItem = item.stockItemId ? catalogById.get(item.stockItemId) : null;
-    const availableQuantity = stockItem?.balance ?? 0;
+    const physicalQuantity = stockItem?.balance ?? 0;
+    const reservedQuantity = stockItem?.reservedQuantity ?? 0;
+    const availableQuantity = stockItem?.availableQuantity ?? physicalQuantity;
     const requiredQuantity = Number(item.requiredQuantity || 0);
     const shortageQuantity = stockItem ? Math.max(0, requiredQuantity - availableQuantity) : requiredQuantity;
     const purchaseRequired = !stockItem || shortageQuantity > 0;
@@ -188,9 +220,13 @@ export function buildSupplyPlanning(workflow, catalog) {
       name: stockItem?.name || item.name,
       unitLabel: stockItem?.unitLabel || item.unitLabel,
       requiredQuantity,
+      physicalQuantity,
+      reservedQuantity,
       availableQuantity,
       shortageQuantity,
       purchaseRequired,
+      reservationConflicts: stockItem?.reservationConflicts || [],
+      reservationExceptionReason: item.reservationExceptionReason || null,
       requestedAt: dateKey(item.requestedAt),
       purchasedAt: dateKey(item.purchasedAt)
     };
@@ -309,7 +345,7 @@ async function loadTeamCatalog(database, targetDate, currentProjectId) {
   }));
 }
 
-async function loadEquipmentCatalog(database, targetDate, currentProjectId) {
+async function loadEquipmentCatalog(database, workflow, targetDate) {
   if (!database.equipmentCategory?.findMany) return [];
   const categories = await database.equipmentCategory.findMany({
     where: { isActive: true },
@@ -344,6 +380,7 @@ async function loadEquipmentCatalog(database, targetDate, currentProjectId) {
     orderBy: [{ order: 'asc' }, { name: 'asc' }]
   });
   const equipmentIds = categories.flatMap(category => category.equipment.map(item => item.id));
+  const currentProjectId = workflow.projectId;
   const romaneios = equipmentIds.length && database.romaneio?.findMany
     ? await database.romaneio.findMany({
       where: {
@@ -364,10 +401,44 @@ async function loadEquipmentCatalog(database, targetDate, currentProjectId) {
       orderBy: [{ romaneioDate: 'asc' }, { createdAt: 'asc' }]
     })
     : [];
-  return buildEquipmentPlanningCatalog(categories, romaneios, targetDate, currentProjectId);
+  const plannedWorkflows = equipmentIds.length && database.projectWorkflow?.findMany
+    ? await database.projectWorkflow.findMany({
+      where: {
+        projectId: { not: currentProjectId },
+        equipmentPlanDefined: true,
+        stage: { in: RESERVATION_STAGES }
+      },
+      select: {
+        projectId: true,
+        plannedMobilizationDate: true,
+        commercialExpectedStartDate: true,
+        commercialExpectedDurationDays: true,
+        project: { select: { code: true, name: true, demobilizationDate: true } },
+        equipmentCategoryPlans: { select: { equipmentIds: true } }
+      }
+    })
+    : [];
+  const currentProject = database.project?.findUnique
+    ? await database.project.findUnique({ where: { id: currentProjectId }, select: { demobilizationDate: true } })
+    : null;
+  const currentEndDate = reservationEndDate({ ...workflow, project: currentProject });
+  const plannedReservations = plannedWorkflows.flatMap(other => {
+    const startsOn = dateKey(other.plannedMobilizationDate);
+    const endsOn = reservationEndDate(other);
+    if (!startsOn || !endsOn || !rangesOverlap(targetDate, currentEndDate, startsOn, endsOn)) return [];
+    return other.equipmentCategoryPlans.flatMap(plan => (Array.isArray(plan.equipmentIds) ? plan.equipmentIds : []).map(equipmentId => ({
+      equipmentId,
+      projectId: other.projectId,
+      projectCode: other.project?.code || '',
+      projectName: other.project?.name || '',
+      startsOn,
+      endsOn
+    })));
+  });
+  return buildEquipmentPlanningCatalog(categories, romaneios, targetDate, currentProjectId, plannedReservations);
 }
 
-async function loadSupplyCatalog(database) {
+async function loadSupplyCatalog(database, currentProjectId) {
   if (!database.stockItem?.findMany) return [];
   const items = await database.stockItem.findMany({
     where: { isActive: true, type: { in: ['FILTRO', 'PRODUTO_QUIMICO'] } },
@@ -384,6 +455,36 @@ async function loadSupplyCatalog(database) {
   const balances = database.stockMovement?.groupBy
     ? await getItemBalances(database, items.map(item => item.id))
     : new Map();
+  const reservedWorkflows = database.projectWorkflow?.findMany
+    ? await database.projectWorkflow.findMany({
+      where: {
+        projectId: { not: currentProjectId },
+        supplyPlanDefined: true,
+        stage: { in: RESERVATION_STAGES }
+      },
+      select: {
+        projectId: true,
+        supplyPlan: true,
+        plannedMobilizationDate: true,
+        project: { select: { code: true, name: true } }
+      }
+    })
+    : [];
+  const reservationsByItem = new Map();
+  for (const reservedWorkflow of reservedWorkflows) {
+    for (const plannedItem of Array.isArray(reservedWorkflow.supplyPlan) ? reservedWorkflow.supplyPlan : []) {
+      if (!plannedItem.stockItemId) continue;
+      const reservations = reservationsByItem.get(plannedItem.stockItemId) || [];
+      reservations.push({
+        projectId: reservedWorkflow.projectId,
+        projectCode: reservedWorkflow.project?.code || '',
+        projectName: reservedWorkflow.project?.name || '',
+        quantity: Number(plannedItem.requiredQuantity || 0),
+        mobilizationDate: dateKey(reservedWorkflow.plannedMobilizationDate)
+      });
+      reservationsByItem.set(plannedItem.stockItemId, reservations);
+    }
+  }
   return items.map(item => ({
     id: item.id,
     type: item.type,
@@ -391,7 +492,10 @@ async function loadSupplyCatalog(database) {
     name: item.name,
     unitLabel: item.unitLabel,
     categoryName: item.category?.name || null,
-    balance: Number(balances.get(item.id) || 0)
+    balance: Number(balances.get(item.id) || 0),
+    reservedQuantity: (reservationsByItem.get(item.id) || []).reduce((total, reservation) => total + reservation.quantity, 0),
+    availableQuantity: Math.max(0, Number(balances.get(item.id) || 0) - (reservationsByItem.get(item.id) || []).reduce((total, reservation) => total + reservation.quantity, 0)),
+    reservationConflicts: reservationsByItem.get(item.id) || []
   }));
 }
 
@@ -401,8 +505,8 @@ export async function loadProjectWorkflowResourcePlanning(database, workflow) {
   if (!targetDate) return emptyProjectWorkflowResourcePlanning(workflow);
   const [teamCatalog, equipmentCatalog, supplyCatalog] = await Promise.all([
     loadTeamCatalog(database, targetDate, workflow.projectId),
-    loadEquipmentCatalog(database, targetDate, workflow.projectId),
-    loadSupplyCatalog(database)
+    loadEquipmentCatalog(database, workflow, targetDate),
+    loadSupplyCatalog(database, workflow.projectId)
   ]);
   return {
     targetDate,

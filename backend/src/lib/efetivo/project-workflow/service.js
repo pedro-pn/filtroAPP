@@ -127,7 +127,8 @@ const OPERATIONAL_MISSION_QUERY = {
   }
 };
 const WORKFLOW_INCLUDE = {
-  leader: { select: { id: true, name: true, isActive: true } },
+  leader: { select: { id: true, name: true, email: true, isActive: true } },
+  planner: { select: { id: true, name: true, email: true, isActive: true } },
   closedBy: { select: { id: true, name: true } },
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   teamMemberChecks: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: [{ collaboratorId: 'asc' }, { key: 'asc' }] },
@@ -294,7 +295,7 @@ export function canEditWorkflow(workflow, context) {
   return contextIsManager(context) || Boolean(
     contextIsOperational(context)
     && context.actorUserId
-    && workflow?.leaderUserId === context.actorUserId
+    && [workflow?.leaderUserId, workflow?.plannerUserId].includes(context.actorUserId)
   );
 }
 
@@ -377,6 +378,9 @@ function publicPreparationResources(workflow, resourcePlanning, context) {
       const equipmentIds = storedIds.length
         ? storedIds
         : (plan.category?.equipment || []).map(item => item.id);
+      const exceptionReasons = plan.exceptionReasons && typeof plan.exceptionReasons === 'object' && !Array.isArray(plan.exceptionReasons)
+        ? plan.exceptionReasons
+        : {};
       return equipmentIds.filter(id => !detailedEquipmentIds.has(id)).map(id => ({
         id,
         code: null,
@@ -386,6 +390,8 @@ function publicPreparationResources(workflow, resourcePlanning, context) {
         availabilityStatus: null,
         availableAtMobilization: null,
         assignments: [],
+        reservationConflicts: [],
+        reservationExceptionReason: exceptionReasons[id] || null,
         calibration: null,
         maintenance: null,
         checks: checksFor('EQUIPMENT', id)
@@ -478,7 +484,8 @@ function publicTravel(workflow, context) {
 function publicPermissions(workflow, context) {
   const manager = contextIsManager(context);
   const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
-  const canManage = Boolean(workflow && (manager || isLeader));
+  const isPlanner = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.plannerUserId === context.actorUserId);
+  const canManage = Boolean(workflow && (manager || isLeader || isPlanner));
   const finished = workflow?.stage === 'FINISHED';
   const planning = workflow?.stage === 'MOBILIZATION_PLANNING' && !finished;
   return {
@@ -487,6 +494,7 @@ function publicPermissions(workflow, context) {
     canReopen: canManage && finished,
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager && !finished),
+    canChangePlanner: Boolean(workflow && manager && !finished),
     canEditCommercial: false,
     canEditTeamPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))),
     canEditEquipmentPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:assets']))),
@@ -599,7 +607,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
       const hasPermission = workflow.stage === 'FINISHED' && stage === 'FINAL_MEASUREMENT'
         ? permissions.canReopen
         : permissions.canEdit;
-      const permissionIssues = hasPermission ? [] : ['Somente o gestor ou o Líder de Projetos pode alterar a etapa'];
+      const permissionIssues = hasPermission ? [] : ['Somente o gestor, o Líder de Projetos ou o Planejador pode alterar a etapa'];
       const transitionIssues = [...permissionIssues, ...gateIssues];
       return { stage, allowed: transitionIssues.length === 0, issues: transitionIssues };
     });
@@ -718,10 +726,10 @@ async function relatedPostJobs(database, project) {
   });
 }
 
-async function requireEligibleLeader(database, leaderUserId) {
-  const leader = await database.user.findFirst({
+async function requireEligibleWorkflowUser(database, userId, code) {
+  const user = await database.user.findFirst({
     where: {
-      id: leaderUserId,
+      id: userId,
       isActive: true,
       OR: [
         { accountType: 'ADMIN' },
@@ -730,8 +738,16 @@ async function requireEligibleLeader(database, leaderUserId) {
     },
     select: { id: true, name: true, isActive: true }
   });
-  if (!leader) throw planningError('Selecione uma conta ativa com acesso ao Efetivo.', { code: 'INVALID_PROJECT_WORKFLOW_LEADER' });
-  return leader;
+  if (!user) throw planningError('Selecione uma conta ativa com acesso ao Efetivo.', { code });
+  return user;
+}
+
+async function requireEligibleLeader(database, leaderUserId) {
+  return requireEligibleWorkflowUser(database, leaderUserId, 'INVALID_PROJECT_WORKFLOW_LEADER');
+}
+
+async function requireEligiblePlanner(database, plannerUserId) {
+  return requireEligibleWorkflowUser(database, plannerUserId, 'INVALID_PROJECT_WORKFLOW_PLANNER');
 }
 
 async function recordEvent(tx, projectId, actorUserId, action, data = null) {
@@ -762,7 +778,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         efetivoMissionPlans: OPERATIONAL_MISSION_QUERY,
         workflow: {
           include: {
-            leader: { select: { id: true, name: true, isActive: true } },
+            leader: { select: { id: true, name: true, email: true, isActive: true } },
+            planner: { select: { id: true, name: true, email: true, isActive: true } },
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
             teamMemberChecks: { select: { collaboratorId: true, key: true, status: true, source: true, sourceUpdatedAt: true } },
@@ -849,6 +866,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           projectId: workflow.projectId,
           stage: workflow.stage,
           leader: workflow.leader,
+          planner: workflow.planner,
           acceptedAt: workflow.acceptedAt,
           closedAt: workflow.closedAt,
           closedBy: workflow.closedBy,
@@ -895,7 +913,7 @@ export async function listProjectWorkflowLeaders(dependencies = {}) {
       isActive: true,
       OR: [{ accountType: 'ADMIN' }, { moduleRoles: { some: { module: 'EFETIVO', role: { in: ['EFETIVO_MANAGER', 'EFETIVO_VIEWER'] } } } }]
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, email: true },
     orderBy: { name: 'asc' }
   });
 }
@@ -944,12 +962,15 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
   await runPlanningTransaction(database, async tx => {
     const project = await findEligibleProject(tx, projectId);
     if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
+    const plannerUserId = payload.plannerUserId || payload.leaderUserId;
     await requireEligibleLeader(tx, payload.leaderUserId);
+    await requireEligiblePlanner(tx, plannerUserId);
     try {
       await tx.projectWorkflow.create({
         data: {
           projectId,
           leaderUserId: payload.leaderUserId,
+          plannerUserId,
           plannedMobilizationDate: utcDate(payload.plannedMobilizationDate)
         }
       });
@@ -959,6 +980,7 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
     }
     await recordEvent(tx, projectId, context.actorUserId, 'WORKFLOW_STARTED', {
       leaderUserId: payload.leaderUserId,
+      plannerUserId,
       plannedMobilizationDate: payload.plannedMobilizationDate
     });
   });
@@ -991,7 +1013,7 @@ async function loadWorkflowForMutation(tx, projectId, context) {
 
 function assertEditable(workflow, context) {
   if (!canEditWorkflow(workflow, context)) {
-    throw planningError('A alteração é restrita ao gestor do Efetivo ou ao Líder de Projetos designado.', {
+    throw planningError('A alteração é restrita ao gestor do Efetivo, ao Líder de Projetos ou ao Planejador designado.', {
       statusCode: 403,
       code: 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
     });
@@ -1057,6 +1079,13 @@ async function applySettings(tx, workflow, payload, context) {
     data.leaderUserId = payload.leaderUserId;
     data.acceptedAt = null;
     data.stage = 'HANDOVER';
+  }
+  if (payload.plannerUserId && payload.plannerUserId !== workflow.plannerUserId) {
+    if (!contextIsManager(context)) {
+      throw planningError('Somente o gestor do Efetivo pode trocar o Planejador.', { statusCode: 403, code: 'PROJECT_WORKFLOW_MANAGER_REQUIRED' });
+    }
+    await requireEligiblePlanner(tx, payload.plannerUserId);
+    data.plannerUserId = payload.plannerUserId;
   }
   if (Object.keys(data).length) await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
 }
@@ -1400,7 +1429,12 @@ async function applyEquipmentPlan(tx, workflow, payload) {
       });
     }
     await tx.projectWorkflowEquipmentCategoryPlan.createMany({
-      data: payload.selections.map(selection => ({ projectId: workflow.projectId, ...selection }))
+      data: payload.selections.map(selection => ({
+        projectId: workflow.projectId,
+        categoryId: selection.categoryId,
+        equipmentIds: selection.equipmentIds,
+        exceptionReasons: Object.fromEntries((selection.exceptions || []).map(item => [item.equipmentId, item.reason]))
+      }))
     });
   }
   await tx.projectWorkflow.update({
@@ -1435,7 +1469,8 @@ async function applySupplyPlan(tx, workflow, payload) {
       unitLabel: stockItem?.unitLabel || item.unitLabel,
       requiredQuantity: item.requiredQuantity,
       requestedAt: item.requestedAt || null,
-      purchasedAt: item.purchasedAt || null
+      purchasedAt: item.purchasedAt || null,
+      reservationExceptionReason: item.reservationExceptionReason || null
     };
   }) : [];
   await tx.projectWorkflow.update({
@@ -1748,7 +1783,13 @@ async function applyMeasurement(tx, workflow, payload, context) {
   });
 }
 
-async function applyMobilizationAuthorization(tx, workflow, now) {
+async function applyMobilizationAuthorization(tx, workflow, context, now) {
+  if (!contextIsManager(context) && workflow.leaderUserId !== context.actorUserId) {
+    throw planningError('Somente o gestor do Efetivo ou o Líder de Projetos pode autorizar a mobilização.', {
+      statusCode: 403,
+      code: 'PROJECT_WORKFLOW_AUTHORIZATION_FORBIDDEN'
+    });
+  }
   if (!['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage)) {
     throw planningError('A mobilização só pode ser autorizada nas etapas Pronto para mobilizar, Mobilização, Em execução ou Desmobilização.', {
       code: 'PROJECT_WORKFLOW_READY_STAGE_REQUIRED'
@@ -1898,7 +1939,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'demobilization') await applyDemobilization(tx, workflow, payload, context, dependencies);
     else if (payload.action === 'post_job') await applyPostJob(tx, workflow, payload, context, dependencies, now);
     else if (payload.action === 'measurement') await applyMeasurement(tx, workflow, payload, context);
-    else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
+    else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, context, now);
     const eventData = { ...payload };
     delete eventData.version;
     await recordEvent(tx, projectId, context.actorUserId, `WORKFLOW_${payload.action.toUpperCase()}`, eventData);

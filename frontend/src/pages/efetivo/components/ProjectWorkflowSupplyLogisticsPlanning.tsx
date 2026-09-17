@@ -12,7 +12,7 @@ import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
-type SupplyDraftItem = Pick<ProjectWorkflowSupplyPlanItem, 'id' | 'stockItemId' | 'type' | 'name' | 'unitLabel' | 'requiredQuantity' | 'requestedAt' | 'purchasedAt'>;
+type SupplyDraftItem = Pick<ProjectWorkflowSupplyPlanItem, 'id' | 'stockItemId' | 'type' | 'name' | 'unitLabel' | 'requiredQuantity' | 'requestedAt' | 'purchasedAt' | 'reservationExceptionReason'>;
 type LogisticsDraft = Omit<ProjectWorkflow['resourcePlanning']['logistics'], 'complete' | 'issues' | 'warnings'>;
 
 const SUPPLY_GROUPS: Array<{ type: ProjectWorkflowSupplyType; label: string }> = [
@@ -35,7 +35,8 @@ function supplyPayload(item: SupplyDraftItem) {
     unitLabel: item.unitLabel,
     requiredQuantity: item.requiredQuantity,
     requestedAt: item.requestedAt || null,
-    purchasedAt: item.purchasedAt || null
+    purchasedAt: item.purchasedAt || null,
+    reservationExceptionReason: item.reservationExceptionReason || null
   };
 }
 
@@ -68,7 +69,7 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
     const item = catalogById.get(stockItemId);
     if (!item) return;
     setDraft(current => selected
-      ? [...current, { id: `stock-${item.id}`, stockItemId: item.id, type: item.type, name: item.name, unitLabel: item.unitLabel, requiredQuantity: 1, requestedAt: null, purchasedAt: null }]
+      ? [...current, { id: `stock-${item.id}`, stockItemId: item.id, type: item.type, name: item.name, unitLabel: item.unitLabel, requiredQuantity: 1, requestedAt: null, purchasedAt: null, reservationExceptionReason: null }]
       : current.filter(entry => entry.stockItemId !== stockItemId));
   };
   const updateItem = (id: string, changes: Partial<SupplyDraftItem>) => {
@@ -86,7 +87,8 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
       unitLabel,
       requiredQuantity: customQuantity,
       requestedAt: null,
-      purchasedAt: null
+      purchasedAt: null,
+      reservationExceptionReason: null
     }]);
     setCustomName('');
     setCustomUnit('un');
@@ -130,9 +132,9 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
           </button>
           {expanded ? <div className="project-workflow-equipment-options">{catalog.length ? catalog.map(item => {
             const selected = selectedStockIds.has(item.id);
-            return <label className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${item.balance > 0 ? ' is-ready' : ' has-warning'}`} key={item.id}>
+            return <label className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${item.availableQuantity > 0 ? ' is-ready' : ' has-warning'}`} key={item.id}>
               <input type="checkbox" checked={selected} disabled={saving} onChange={event => toggleStockItem(item.id, event.target.checked)} />
-              <span><strong>{item.code} · {item.name}</strong><small>{item.categoryName || group.label}</small><small className={item.balance > 0 ? 'is-ready' : 'has-warning'}>Saldo atual: {item.balance} {item.unitLabel}</small></span>
+              <span><strong>{item.code} · {item.name}</strong><small>{item.categoryName || group.label}</small><small className={item.availableQuantity > 0 ? 'is-ready' : 'has-warning'}>Físico: {item.balance} · reservado: {item.reservedQuantity} · disponível: {item.availableQuantity} {item.unitLabel}</small>{item.reservationConflicts.length ? <small className="has-warning">Reservas: {item.reservationConflicts.map(reservation => `${reservation.projectCode} (${reservation.quantity})`).join(', ')}</small> : null}</span>
             </label>;
           }) : <p>Nenhum item ativo desta categoria foi encontrado no Estoque.</p>}</div> : null}
         </section>;
@@ -151,23 +153,23 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
 
       {draft.length ? <div className="project-workflow-supply-draft">{draft.map(item => {
         const stockItem = item.stockItemId ? catalogById.get(item.stockItemId) : null;
-        const shortage = stockItem ? Math.max(0, item.requiredQuantity - stockItem.balance) : item.requiredQuantity;
+        const shortage = stockItem ? Math.max(0, item.requiredQuantity - stockItem.availableQuantity) : item.requiredQuantity;
         const purchaseRequired = !stockItem || shortage > 0 || Boolean(item.requestedAt || item.purchasedAt);
         const invalidDates = Boolean(item.purchasedAt && (!item.requestedAt || item.purchasedAt < item.requestedAt));
         return <article className={purchaseRequired ? 'has-warning' : 'is-ready'} key={item.id}>
-          <header><div><strong>{stockItem?.code ? `${stockItem.code} · ` : ''}{item.name}</strong><span>{stockItem ? `Saldo atual: ${stockItem.balance} ${item.unitLabel}` : 'Não cadastrado no Estoque'}</span></div><Button type="button" variant="mini" disabled={saving} onClick={() => setDraft(current => current.filter(entry => entry.id !== item.id))}>Remover</Button></header>
+          <header><div><strong>{stockItem?.code ? `${stockItem.code} · ` : ''}{item.name}</strong><span>{stockItem ? `Físico: ${stockItem.balance} · reservado: ${stockItem.reservedQuantity} · disponível: ${stockItem.availableQuantity} ${item.unitLabel}` : 'Não cadastrado no Estoque'}</span></div><Button type="button" variant="mini" disabled={saving} onClick={() => setDraft(current => current.filter(entry => entry.id !== item.id))}>Remover</Button></header>
           <div className="project-workflow-supply-fields">
             <div className="field-group"><label htmlFor={`workflow-supply-quantity-${item.id}`}>Quantidade necessária</label><input id={`workflow-supply-quantity-${item.id}`} type="number" min="0.001" step="0.001" value={item.requiredQuantity} disabled={saving} onChange={event => updateItem(item.id, { requiredQuantity: Math.max(0, Number(event.target.value) || 0) })} /></div>
             <div className="field-group"><label>Unidade</label><input value={item.unitLabel} disabled={Boolean(stockItem) || saving} maxLength={30} onChange={event => updateItem(item.id, { unitLabel: event.target.value })} /></div>
           </div>
-          {purchaseRequired ? <div className="project-workflow-purchase-tracking"><p>⚠ {stockItem ? `Faltam ${shortage} ${item.unitLabel} no saldo atual.` : 'Este item precisa ser adquirido e cadastrado.'}</p><div><div className="field-group"><label htmlFor={`workflow-supply-requested-${item.id}`}>Data do pedido</label><input id={`workflow-supply-requested-${item.id}`} type="date" value={item.requestedAt || ''} disabled={saving} onChange={event => updateItem(item.id, { requestedAt: event.target.value || null, purchasedAt: event.target.value && item.purchasedAt && item.purchasedAt < event.target.value ? null : item.purchasedAt })} /></div><div className="field-group"><label htmlFor={`workflow-supply-purchased-${item.id}`}>Data da compra</label><input id={`workflow-supply-purchased-${item.id}`} type="date" min={item.requestedAt || undefined} value={item.purchasedAt || ''} disabled={saving || !item.requestedAt} onChange={event => updateItem(item.id, { purchasedAt: event.target.value || null })} /></div></div>{invalidDates ? <small>A compra deve ser registrada depois da solicitação.</small> : null}</div> : <p className="project-workflow-stock-ok">✓ Saldo suficiente para a quantidade planejada.</p>}
+          {purchaseRequired ? <div className="project-workflow-purchase-tracking"><p>⚠ {stockItem ? `Faltam ${shortage} ${item.unitLabel} após considerar as reservas existentes.` : 'Este item precisa ser adquirido e cadastrado.'}</p><div><div className="field-group"><label htmlFor={`workflow-supply-requested-${item.id}`}>Data do pedido</label><input id={`workflow-supply-requested-${item.id}`} type="date" value={item.requestedAt || ''} disabled={saving} onChange={event => updateItem(item.id, { requestedAt: event.target.value || null, purchasedAt: event.target.value && item.purchasedAt && item.purchasedAt < event.target.value ? null : item.purchasedAt })} /></div><div className="field-group"><label htmlFor={`workflow-supply-purchased-${item.id}`}>Data da compra</label><input id={`workflow-supply-purchased-${item.id}`} type="date" min={item.requestedAt || undefined} value={item.purchasedAt || ''} disabled={saving || !item.requestedAt} onChange={event => updateItem(item.id, { purchasedAt: event.target.value || null })} /></div></div>{stockItem?.reservationConflicts.length ? <div className="field-group"><label htmlFor={`workflow-supply-exception-${item.id}`}>Justificativa para manter a reserva</label><textarea id={`workflow-supply-exception-${item.id}`} rows={2} maxLength={1000} value={item.reservationExceptionReason || ''} disabled={saving} placeholder="Registre o motivo da exceção, se aplicável." onChange={event => updateItem(item.id, { reservationExceptionReason: event.target.value || null })} /></div> : null}{invalidDates ? <small>A compra deve ser registrada depois da solicitação.</small> : null}</div> : <p className="project-workflow-stock-ok">✓ Saldo disponível suficiente para a quantidade planejada.</p>}
         </article>;
       })}</div> : <p className="project-workflow-resource-empty">Selecione um item do Estoque ou adicione um insumo ainda não cadastrado.</p>}
       <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setDraft(persistedDraft); setExpandedTypes([]); }}>Cancelar</Button><Button type="button" disabled={saving || !draft.length || draft.some(item => item.requiredQuantity <= 0 || Boolean(item.purchasedAt && (!item.requestedAt || item.purchasedAt < item.requestedAt)))} onClick={confirm}>Confirmar insumos</Button></div>
     </div> : null}
     {!editing && planning.items.length ? <div className="project-workflow-supply-summary">{SUPPLY_GROUPS.map(group => {
       const items = planning.items.filter(item => item.type === group.type);
-      return items.length ? <details key={group.type}><summary><strong>{group.label}</strong><span>{items.length} item(ns)</span><span aria-hidden="true">⌄</span></summary><div>{items.map(item => <article className={item.purchaseRequired && !item.purchasedAt ? 'has-warning' : 'is-ready'} key={item.id}><strong>{item.code ? `${item.code} · ` : ''}{item.name}</strong><span>{item.requiredQuantity} {item.unitLabel} necessário(s) · {item.availableQuantity} em estoque</span>{item.purchaseRequired ? <small>{item.purchasedAt ? `Compra registrada em ${displayDateOnly(item.purchasedAt)}` : item.requestedAt ? `Pedido registrado em ${displayDateOnly(item.requestedAt)}` : `⚠ Compra necessária: ${item.shortageQuantity} ${item.unitLabel}`}</small> : <small>✓ Saldo suficiente</small>}</article>)}</div></details> : null;
+      return items.length ? <details key={group.type}><summary><strong>{group.label}</strong><span>{items.length} item(ns)</span><span aria-hidden="true">⌄</span></summary><div>{items.map(item => <article className={item.purchaseRequired && !item.purchasedAt ? 'has-warning' : 'is-ready'} key={item.id}><strong>{item.code ? `${item.code} · ` : ''}{item.name}</strong><span>{item.requiredQuantity} {item.unitLabel} necessário(s) · físico {item.physicalQuantity} · reservado {item.reservedQuantity} · disponível {item.availableQuantity}</span>{item.purchaseRequired ? <small>{item.purchasedAt ? `Compra registrada em ${displayDateOnly(item.purchasedAt)}` : item.requestedAt ? `Pedido registrado em ${displayDateOnly(item.requestedAt)}` : `⚠ Compra necessária: ${item.shortageQuantity} ${item.unitLabel}`}</small> : <small>✓ Saldo disponível suficiente</small>}{item.reservationConflicts.length ? <small>Reservas concorrentes: {item.reservationConflicts.map(reservation => reservation.projectCode).join(', ')}</small> : null}{item.reservationExceptionReason ? <small>Exceção registrada: {item.reservationExceptionReason}</small> : null}</article>)}</div></details> : null;
     })}</div> : null}
   </ProjectWorkflowCategory>;
 }

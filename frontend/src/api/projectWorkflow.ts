@@ -25,6 +25,7 @@ export interface ProjectWorkflowPermissions {
   canReopen: boolean;
   canAccept: boolean;
   canChangeLeader: boolean;
+  canChangePlanner: boolean;
   canEditCommercial: boolean;
   canEditTeamPlanning: boolean;
   canEditEquipmentPlanning: boolean;
@@ -212,13 +213,23 @@ export interface ProjectWorkflowEquipmentAssignment {
   expectedReturnDate: string | null;
 }
 
+export interface ProjectWorkflowEquipmentReservationConflict {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  startsOn: string;
+  endsOn: string;
+}
+
 export interface ProjectWorkflowEquipmentPlanningItem {
   id: string;
   code: string;
   name: string;
-  availabilityStatus: 'AVAILABLE' | 'EXPECTED_RETURN' | 'ALLOCATED';
+  availabilityStatus: 'AVAILABLE' | 'EXPECTED_RETURN' | 'ALLOCATED' | 'RESERVED';
   availableAtMobilization: boolean;
   assignments: ProjectWorkflowEquipmentAssignment[];
+  reservationConflicts: ProjectWorkflowEquipmentReservationConflict[];
+  reservationExceptionReason: string | null;
   calibration: {
     required: boolean;
     status: 'NOT_REQUIRED' | 'MISSING' | 'VALID' | 'EXPIRED';
@@ -273,6 +284,15 @@ export interface ProjectWorkflowSupplyCatalogItem {
   unitLabel: string;
   categoryName: string | null;
   balance: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  reservationConflicts: Array<{
+    projectId: string;
+    projectCode: string;
+    projectName: string;
+    quantity: number;
+    mobilizationDate: string | null;
+  }>;
 }
 
 export interface ProjectWorkflowSupplyPlanItem {
@@ -283,9 +303,13 @@ export interface ProjectWorkflowSupplyPlanItem {
   name: string;
   unitLabel: string;
   requiredQuantity: number;
+  physicalQuantity: number;
+  reservedQuantity: number;
   availableQuantity: number;
   shortageQuantity: number;
   purchaseRequired: boolean;
+  reservationConflicts: ProjectWorkflowSupplyCatalogItem['reservationConflicts'];
+  reservationExceptionReason: string | null;
   requestedAt: string | null;
   purchasedAt: string | null;
 }
@@ -334,7 +358,7 @@ export interface ProjectWorkflowResourcePlanning {
     defined: boolean | null;
     categoryIds: string[];
     equipmentIds: string[];
-    selections: Array<{ categoryId: string; equipmentIds: string[] }>;
+    selections: Array<{ categoryId: string; equipmentIds: string[]; exceptionReasons: Record<string, string> }>;
     categories: ProjectWorkflowEquipmentPlanningCategory[];
     catalog: ProjectWorkflowEquipmentPlanningCategory[];
   };
@@ -521,7 +545,9 @@ export interface ProjectWorkflow {
   projectId: string;
   stage: ProjectWorkflowStage;
   leaderUserId: string;
-  leader: { id: string; name: string; isActive: boolean };
+  leader: { id: string; name: string; email: string | null; isActive: boolean };
+  plannerUserId: string | null;
+  planner: { id: string; name: string; email: string | null; isActive: boolean } | null;
   acceptedAt: string | null;
   commercialExpectedMobilizationDate: string | null;
   commercialExpectedStartDate: string | null;
@@ -605,7 +631,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
   workflow: null | {
     projectId: string;
     stage: ProjectWorkflowStage;
-    leader: { id: string; name: string; isActive: boolean };
+    leader: { id: string; name: string; email: string | null; isActive: boolean };
+    planner: { id: string; name: string; email: string | null; isActive: boolean } | null;
     acceptedAt: string | null;
     closedAt: string | null;
     closedBy: { id: string; name: string } | null;
@@ -732,7 +759,7 @@ export interface ProjectExecutionDeviationInput {
 }
 
 export type ProjectWorkflowPatch =
-  | { action: 'settings'; version: number; leaderUserId?: string; plannedMobilizationDate?: string }
+  | { action: 'settings'; version: number; leaderUserId?: string; plannerUserId?: string; plannedMobilizationDate?: string }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
@@ -744,8 +771,8 @@ export type ProjectWorkflowPatch =
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
-  | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[] }> }
-  | { action: 'supply_plan'; version: number; defined: boolean; items: Array<{ id: string; stockItemId: string | null; type: ProjectWorkflowSupplyType; name: string; unitLabel: string; requiredQuantity: number; requestedAt: string | null; purchasedAt: string | null }> }
+  | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[]; exceptions: Array<{ equipmentId: string; reason: string }> }> }
+  | { action: 'supply_plan'; version: number; defined: boolean; items: Array<{ id: string; stockItemId: string | null; type: ProjectWorkflowSupplyType; name: string; unitLabel: string; requiredQuantity: number; requestedAt: string | null; purchasedAt: string | null; reservationExceptionReason?: string | null }> }
   | { action: 'logistics_plan'; version: number; vehicleRequired: boolean | null; vehicleQuantity: number | null; vehicleType: 'CARRO' | 'CAMINHAO' | null; freightRequired: boolean | null; lodgingRequired: boolean | null; lodgingPeopleCount: number | null; lodgingExpectedDate: string | null; lodgingRequested: boolean | null; lodgingRequestedAt: string | null; lodgingCompletedAt: string | null }
   | { action: 'documentation_category'; version: number; type: ProjectWorkflowDocumentationType; required: boolean }
   | { action: 'documentation_requirement_create'; version: number; type: ProjectWorkflowDocumentationType; name: string }
@@ -768,14 +795,14 @@ export async function listProjectWorkflows(search = '', page = 1) {
 }
 
 export async function listProjectWorkflowLeaders() {
-  return (await apiClient.get<Array<{ id: string; name: string }>>(`${base}/leaders`)).data;
+  return (await apiClient.get<Array<{ id: string; name: string; email: string | null }>>(`${base}/leaders`)).data;
 }
 
 export async function getProjectWorkflow(projectId: string) {
   return (await apiClient.get<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`)).data;
 }
 
-export async function startProjectWorkflow(projectId: string, input: { leaderUserId: string; plannedMobilizationDate: string }) {
+export async function startProjectWorkflow(projectId: string, input: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string }) {
   return (await apiClient.post<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`, input)).data;
 }
 

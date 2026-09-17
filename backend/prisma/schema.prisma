@@ -1026,6 +1026,7 @@ model ProjectWorkflow {
   projectId                          String                                 @id
   stage                              ProjectWorkflowStage                   @default(HANDOVER)
   leaderUserId                       String
+  plannerUserId                      String?
   acceptedAt                         DateTime?
   plannedMobilizationDate            DateTime                               @db.Date
   commercialExpectedMobilizationDate DateTime?                              @db.Date
@@ -1063,6 +1064,7 @@ model ProjectWorkflow {
   updatedAt                          DateTime                               @updatedAt
   project                            Project                                @relation(fields: [projectId], references: [id], onDelete: Restrict)
   leader                             User                                   @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  planner                            User?                                  @relation("ProjectWorkflowPlanner", fields: [plannerUserId], references: [id], onDelete: SetNull)
   closedBy                           User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   checklists                         ProjectWorkflowChecklist[]
   teamMemberChecks                   ProjectWorkflowTeamMemberCheck[]
@@ -1075,11 +1077,13 @@ model ProjectWorkflow {
   teamDemands                        ProjectWorkflowTeamDemand[]
   equipmentCategoryPlans             ProjectWorkflowEquipmentCategoryPlan[]
   events                             ProjectWorkflowEvent[]
+  emailNotifications                 ProjectWorkflowEmailNotification[]
   postJob                            ProjectWorkflowPostJob?
   measurement                        ProjectWorkflowMeasurement?
 
   @@index([stage, plannedMobilizationDate])
   @@index([leaderUserId])
+  @@index([plannerUserId])
   @@index([closedByUserId])
 }
 
@@ -1102,6 +1106,7 @@ model ProjectWorkflowEquipmentCategoryPlan {
   projectId    String
   categoryId   String
   equipmentIds Json              @default("[]")
+  exceptionReasons Json           @default("{}")
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   workflow     ProjectWorkflow   @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
@@ -1109,6 +1114,28 @@ model ProjectWorkflowEquipmentCategoryPlan {
 
   @@unique([projectId, categoryId])
   @@index([categoryId])
+}
+
+model ProjectWorkflowEmailNotification {
+  id                      String          @id @default(cuid())
+  projectId               String
+  milestone               String
+  plannedMobilizationDate DateTime        @db.Date
+  recipientUserId         String?
+  recipientEmail          String
+  status                  String          @default("PENDING")
+  attempts                Int             @default(0)
+  lastAttemptAt           DateTime?
+  sentAt                  DateTime?
+  error                   String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  workflow                ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  recipient               User?           @relation("ProjectWorkflowEmailNotificationRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, milestone, plannedMobilizationDate, recipientEmail])
+  @@index([status, lastAttemptAt])
+  @@index([recipientUserId])
 }
 
 model ProjectWorkflowDocumentationCategory {
@@ -2490,7 +2517,9 @@ model User {
   projectManualCosts                   ProjectManualCost[]                 @relation("ProjectManualCostCreator")
   projectManagementNotes               ProjectManagementNote[]             @relation("ProjectManagementNoteCreator")
   ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
+  plannedProjectWorkflows              ProjectWorkflow[]                    @relation("ProjectWorkflowPlanner")
   closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
+  projectWorkflowEmailNotifications    ProjectWorkflowEmailNotification[]   @relation("ProjectWorkflowEmailNotificationRecipient")
   updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
   updatedProjectWorkflowTeamChecks     ProjectWorkflowTeamMemberCheck[]     @relation("ProjectWorkflowTeamMemberCheckUpdater")
   updatedProjectWorkflowPreparationItemChecks ProjectWorkflowPreparationItemCheck[] @relation("ProjectWorkflowPreparationItemCheckUpdater")

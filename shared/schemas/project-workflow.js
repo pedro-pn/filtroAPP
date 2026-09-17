@@ -267,14 +267,16 @@ export function makeProjectWorkflowSchemas(z) {
   const note = z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.').nullable().optional();
   const start = z.object({
     leaderUserId: id,
+    plannerUserId: id,
     plannedMobilizationDate: dateOnly
   }).strict();
   const settings = z.object({
     action: z.literal('settings'),
     version,
     leaderUserId: id.optional(),
+    plannerUserId: id.optional(),
     plannedMobilizationDate: dateOnly.optional()
-  }).strict().refine(value => value.leaderUserId || value.plannedMobilizationDate, 'Informe ao menos uma alteração.');
+  }).strict().refine(value => value.leaderUserId || value.plannerUserId || value.plannedMobilizationDate, 'Informe ao menos uma alteração.');
   const checklist = z.object({
     action: z.literal('checklist'),
     version,
@@ -408,7 +410,11 @@ export function makeProjectWorkflowSchemas(z) {
     defined: z.boolean(),
     selections: z.array(z.object({
       categoryId: id,
-      equipmentIds: z.array(id).min(1, 'Selecione ao menos um equipamento da categoria.').max(500, 'Selecione no máximo 500 equipamentos por categoria.')
+      equipmentIds: z.array(id).min(1, 'Selecione ao menos um equipamento da categoria.').max(500, 'Selecione no máximo 500 equipamentos por categoria.'),
+      exceptions: z.array(z.object({
+        equipmentId: id,
+        reason: z.string().trim().min(3, 'Descreva a exceção com ao menos 3 caracteres.').max(1000, 'A justificativa deve ter no máximo 1000 caracteres.')
+      }).strict()).max(500).default([])
     }).strict()).max(100, 'Selecione no máximo 100 categorias.').default([])
   }).strict().superRefine((value, ctx) => {
     if (new Set(value.selections.map(item => item.categoryId)).size !== value.selections.length) {
@@ -418,6 +424,14 @@ export function makeProjectWorkflowSchemas(z) {
     if (new Set(equipmentIds).size !== equipmentIds.length) {
       ctx.addIssue({ code: 'custom', path: ['selections'], message: 'Cada equipamento deve aparecer uma única vez.' });
     }
+    value.selections.forEach((selection, selectionIndex) => {
+      const selectedIds = new Set(selection.equipmentIds);
+      selection.exceptions.forEach((exception, exceptionIndex) => {
+        if (!selectedIds.has(exception.equipmentId)) {
+          ctx.addIssue({ code: 'custom', path: ['selections', selectionIndex, 'exceptions', exceptionIndex, 'equipmentId'], message: 'A exceção deve pertencer a um equipamento selecionado.' });
+        }
+      });
+    });
     if (value.defined && value.selections.length === 0) {
       ctx.addIssue({ code: 'custom', path: ['selections'], message: 'Selecione ao menos uma categoria e um equipamento para confirmar o planejamento.' });
     }
@@ -434,7 +448,8 @@ export function makeProjectWorkflowSchemas(z) {
       unitLabel: z.string().trim().min(1, 'Informe a unidade.').max(30),
       requiredQuantity: z.coerce.number().finite().positive('Informe uma quantidade maior que zero.').max(999999999, 'A quantidade excede o limite permitido.'),
       requestedAt: dateOnly.nullable(),
-      purchasedAt: dateOnly.nullable()
+      purchasedAt: dateOnly.nullable(),
+      reservationExceptionReason: z.string().trim().min(3, 'Descreva a exceção com ao menos 3 caracteres.').max(1000, 'A justificativa deve ter no máximo 1000 caracteres.').nullable().optional()
     }).strict()).max(500, 'Selecione no máximo 500 insumos.').default([])
   }).strict().superRefine((value, ctx) => {
     if (new Set(value.items.map(item => item.id)).size !== value.items.length) {

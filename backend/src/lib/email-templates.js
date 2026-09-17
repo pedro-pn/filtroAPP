@@ -132,6 +132,68 @@ export function buildTestEmailTemplate({ host, port, user, timestamp }) {
   };
 }
 
+export function buildProjectWorkflowMilestoneEmailTemplate({
+  recipientName,
+  projectCode,
+  projectName,
+  clientName,
+  stageLabel,
+  plannedMobilizationDate,
+  milestones = [],
+  criticalIssues = [],
+  appUrl
+}) {
+  const safeRecipientName = escapeHtml(recipientName || 'responsável');
+  const safeProjectCode = escapeHtml(projectCode);
+  const safeProjectName = escapeHtml(projectName);
+  const safeClientName = escapeHtml(clientName);
+  const safeStageLabel = escapeHtml(stageLabel);
+  const safeMobilizationDate = escapeHtml(formatEmailDate(plannedMobilizationDate));
+  const safeAppUrl = escapeHtml(appUrl);
+  const safeMilestones = milestones.map(item => ({
+    label: escapeHtml(item.label),
+    description: escapeHtml(item.description)
+  }));
+  const safeIssues = criticalIssues.map(issue => escapeHtml(issue));
+  const milestoneSummary = milestones.map(item => item.label).join(', ');
+  const title = `Marco${milestones.length === 1 ? '' : 's'} ${safeMilestones.map(item => item.label).join(', ')} do projeto`;
+  const intro = `Olá, ${safeRecipientName}. O projeto ${safeProjectCode} - ${safeProjectName} atingiu um marco do planejamento e precisa de acompanhamento.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${safeClientName}</div>
+        <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
+        <div><strong>Etapa atual:</strong> ${safeStageLabel}</div>
+        <div><strong>Mobilização prevista:</strong> ${safeMobilizationDate}</div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#30503a;margin-bottom:8px">Ações deste aviso</div>
+      <ul style="font-size:14px;line-height:1.7;margin:0;padding-left:20px">${safeMilestones.map(item => `<li><strong>${item.label}:</strong> ${item.description}</li>`).join('')}</ul>
+    </div>
+    ${safeIssues.length ? `<div style="margin-top:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px"><strong style="color:#9a3412">Pendências críticas abertas</strong><ul style="font-size:13px;line-height:1.7;margin:8px 0 0;padding-left:20px">${safeIssues.map(issue => `<li>${issue}</li>`).join('')}</ul></div>` : ''}
+    ${safeAppUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0"><a href="${safeAppUrl}" style="display:inline-block;background:#30503a;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">Abrir gestão do projeto</a></p>` : ''}
+  `;
+  const footer = 'Aviso automático da Gestão de Projetos Filtrovali para o Líder e o Planejador vinculados ao projeto.';
+
+  return {
+    subject: `[Filtrovali] ${milestoneSummary} · ${projectCode} - ${projectName}`,
+    text: [
+      `Olá, ${recipientName || 'responsável'}.`,
+      '',
+      `O projeto ${projectCode} - ${projectName} atingiu: ${milestoneSummary}.`,
+      `Cliente: ${clientName}`,
+      `Etapa atual: ${stageLabel}`,
+      `Mobilização prevista: ${formatEmailDate(plannedMobilizationDate)}`,
+      '',
+      ...milestones.map(item => `${item.label}: ${item.description}`),
+      ...(criticalIssues.length ? ['', 'Pendências críticas:', ...criticalIssues.map(issue => `- ${issue}`)] : []),
+      appUrl ? ['', `Abrir projeto: ${appUrl}`] : []
+    ].flat().filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildDataSubjectRequestCreatedEmailTemplate({ protocol, typeLabel, requesterName, requesterEmail, identifier, details, appUrl }) {
   const safeProtocol = escapeHtml(protocol);
   const safeTypeLabel = escapeHtml(typeLabel);

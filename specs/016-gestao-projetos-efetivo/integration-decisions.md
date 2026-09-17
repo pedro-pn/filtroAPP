@@ -61,5 +61,12 @@ Decisões validadas em 11/09/2026 para orientar os próximos incrementos da Gest
 - Canal inicial: e-mail.
 - Marcos: D-90, D-30, D-15, D-7, D-1, vencimentos e pendências críticas.
 - Reagendamento recalcula os marcos sem duplicar mensagens.
-- Destinatários dependem da área responsável, do Líder do Projeto e da regra de escalonamento.
+- Primeira automação implementada: Líder e Planejador vinculados ao projeto, com deduplicação por endereço e histórico por marco/data. Destinatários por área e escalonamentos adicionais permanecem como evolução.
 - WhatsApp permanece registrado como evolução futura, sem dependência para a primeira automação.
+
+## Estado das reservas internas
+
+- Equipamentos selecionados e insumos confirmados nas etapas anteriores à mobilização constituem reservas internas do planejamento.
+- Conflitos de intervalo e falta de saldo aparecem como avisos e aceitam justificativa manual auditável.
+- A saída do workflow das etapas de planejamento libera a reserva lógica; Romaneios e Estoque continuam responsáveis pela movimentação física.
+- Nenhuma chamada ao Omie participa do cálculo atual.

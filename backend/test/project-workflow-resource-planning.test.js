@@ -84,6 +84,20 @@ test('catálogo antecipa disponibilidade, calibração e manutenção na mobiliz
   assert.equal(ownProjectCatalog[0].equipment[2].availabilityStatus, 'AVAILABLE');
 });
 
+test('reserva planejada de equipamento gera conflito sem impedir a seleção', () => {
+  const categories = [{
+    id: 'category-1', name: 'Bombas', order: 1, supportsCalibration: false, showInMaintenance: false,
+    equipment: [{ id: 'equipment-1', code: 'B-01', name: 'Bomba', hasCalibration: false, expiresAt: null, maintenanceRecords: [] }]
+  }];
+  const catalog = buildEquipmentPlanningCatalog(categories, [], '2026-10-20', 'project-a', [{
+    equipmentId: 'equipment-1', projectId: 'project-b', projectCode: 'P-002', projectName: 'Outra obra', startsOn: '2026-10-18', endsOn: '2026-10-25'
+  }]);
+  assert.equal(catalog[0].availableCount, 0);
+  assert.equal(catalog[0].equipment[0].availabilityStatus, 'RESERVED');
+  assert.equal(catalog[0].equipment[0].availableAtMobilization, false);
+  assert.equal(catalog[0].equipment[0].reservationConflicts[0].projectCode, 'P-002');
+});
+
 test('planejamento vazio mantém decisões de Sim e Não sem assumir resposta', () => {
   const planning = emptyProjectWorkflowResourcePlanning({
     teamPlanDefined: null,
@@ -123,6 +137,22 @@ test('insumos calculam falta de estoque sem transformar compra em bloqueio', () 
   assert.equal(planning.items[0].purchaseRequired, true);
   assert.equal(planning.items[1].purchaseRequired, true);
   assert.equal(planning.purchasePendingCount, 2);
+});
+
+test('reserva de estoque reduz o disponível e preserva o saldo físico', () => {
+  const planning = buildSupplyPlanning({
+    supplyPlanDefined: true,
+    supplyPlan: [{ id: 'stock-item-1', stockItemId: 'item-1', type: 'FILTRO', name: 'Filtro', unitLabel: 'un', requiredQuantity: 4 }]
+  }, [{
+    id: 'item-1', type: 'FILTRO', code: 'F-001', name: 'Filtro', unitLabel: 'un', balance: 10,
+    reservedQuantity: 7, availableQuantity: 3,
+    reservationConflicts: [{ projectId: 'project-b', projectCode: 'P-002', projectName: 'Outra obra', quantity: 7, mobilizationDate: '2026-10-10' }]
+  }]);
+  assert.equal(planning.items[0].physicalQuantity, 10);
+  assert.equal(planning.items[0].reservedQuantity, 7);
+  assert.equal(planning.items[0].availableQuantity, 3);
+  assert.equal(planning.items[0].shortageQuantity, 1);
+  assert.equal(planning.items[0].reservationConflicts[0].projectCode, 'P-002');
 });
 
 test('logística separa pendências de planejamento dos avisos de acompanhamento', () => {

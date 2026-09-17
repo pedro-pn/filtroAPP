@@ -232,7 +232,7 @@ function ProjectCard({
         </div>
         <div><dt>Participantes</dt><dd>{mission?.participantCount || 0}</dd></div>
       </dl>
-      {workflow ? <small>Líder do projeto: {workflow.leader.name}</small> : null}
+      {workflow ? <small>Líder do projeto: {workflow.leader.name}{workflow.planner ? ` · Planejador: ${workflow.planner.name}` : ' · Planejador não definido'}</small> : null}
       {responsibleName ? (
         <div className="efetivo-mission-owner">
           <i aria-hidden="true">{initials(responsibleName)}</i>
@@ -496,7 +496,7 @@ export function ProjectWorkflowBoard({
   };
 
   const start = useMutation({
-    mutationFn: (values: { leaderUserId: string; plannedMobilizationDate: string }) => startProjectWorkflow(selectedProjectId!, values),
+    mutationFn: (values: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string }) => startProjectWorkflow(selectedProjectId!, values),
     onSuccess: async data => {
       await refresh(data);
       toast('Handover iniciado.', 'success');
@@ -650,7 +650,7 @@ export function ProjectWorkflowBoard({
       if (project.workflow.stage === 'FINISHED') {
         onProjectSelect(project.id);
         if (!project.permissions.canReopen) {
-          toast('Movimentação bloqueada: somente o gestor ou o Líder de Projetos pode reabrir este projeto.', 'error');
+          toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Planejador pode reabrir este projeto.', 'error');
         } else if (target !== 'FINAL_MEASUREMENT') {
           toast('Movimentação bloqueada: um projeto encerrado volta primeiro para Documentação / medição.', 'error');
         } else {
@@ -660,7 +660,7 @@ export function ProjectWorkflowBoard({
       }
       if (!project.permissions.canEdit) {
         onProjectSelect(project.id);
-        toast('Movimentação bloqueada: somente o gestor ou o Líder de Projetos pode alterar esta etapa.', 'error');
+        toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Planejador pode alterar esta etapa.', 'error');
         return;
       }
       if (target === 'FINISHED') {

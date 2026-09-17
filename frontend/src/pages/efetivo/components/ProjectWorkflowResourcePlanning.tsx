@@ -12,7 +12,7 @@ import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 type TeamDraft = Array<{ jobRoleId: string; requiredCount: number }>;
-type EquipmentSelection = { categoryId: string; equipmentIds: string[] };
+type EquipmentSelection = { categoryId: string; equipmentIds: string[]; exceptionReasons: Record<string, string> };
 
 function choiceStatus(defined: boolean | null, completeLabel: string, pendingLabel: string) {
   if (defined === true) return completeLabel;
@@ -23,6 +23,7 @@ function choiceStatus(defined: boolean | null, completeLabel: string, pendingLab
 function availabilityLabel(item: ProjectWorkflowEquipmentPlanningItem) {
   if (item.availabilityStatus === 'AVAILABLE') return 'Disponível';
   if (item.availabilityStatus === 'EXPECTED_RETURN') return 'Retorno previsto antes da mobilização';
+  if (item.availabilityStatus === 'RESERVED') return 'Reservado para outra obra no período';
   return 'Indisponível na data';
 }
 
@@ -116,7 +117,8 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
   const planning = workflow.resourcePlanning.equipment;
   const persistedSelections = useMemo<EquipmentSelection[]>(() => planning.selections.map(selection => ({
     categoryId: selection.categoryId,
-    equipmentIds: [...selection.equipmentIds]
+    equipmentIds: [...selection.equipmentIds],
+    exceptionReasons: { ...selection.exceptionReasons }
   })), [planning.selections]);
   const [editing, setEditing] = useState(false);
   const [selections, setSelections] = useState<EquipmentSelection[]>(persistedSelections);
@@ -134,14 +136,19 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
       const categorySelection = current.find(selection => selection.categoryId === categoryId);
       if (selected) {
         if (categorySelection) return current.map(selection => selection.categoryId === categoryId ? { ...selection, equipmentIds: [...selection.equipmentIds, equipmentId] } : selection);
-        return [...current, { categoryId, equipmentIds: [equipmentId] }];
+        return [...current, { categoryId, equipmentIds: [equipmentId], exceptionReasons: {} }];
       }
       if (!categorySelection) return current;
       const equipmentIds = categorySelection.equipmentIds.filter(id => id !== equipmentId);
       return equipmentIds.length
-        ? current.map(selection => selection.categoryId === categoryId ? { ...selection, equipmentIds } : selection)
+        ? current.map(selection => selection.categoryId === categoryId ? { ...selection, equipmentIds, exceptionReasons: Object.fromEntries(Object.entries(selection.exceptionReasons).filter(([id]) => id !== equipmentId)) } : selection)
         : current.filter(selection => selection.categoryId !== categoryId);
     });
+  };
+  const updateExceptionReason = (categoryId: string, equipmentId: string, reason: string) => {
+    setSelections(current => current.map(selection => selection.categoryId === categoryId
+      ? { ...selection, exceptionReasons: { ...selection.exceptionReasons, [equipmentId]: reason } }
+      : selection));
   };
   const selectNo = () => {
     setEditing(false);
@@ -154,7 +161,18 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
   const confirm = () => {
     if (!completeSelection) return;
     setEditing(false);
-    onPatch({ action: 'equipment_plan', version: workflow.version, defined: true, selections });
+    onPatch({
+      action: 'equipment_plan',
+      version: workflow.version,
+      defined: true,
+      selections: selections.map(selection => ({
+        categoryId: selection.categoryId,
+        equipmentIds: selection.equipmentIds,
+        exceptions: Object.entries(selection.exceptionReasons)
+          .filter(([equipmentId, reason]) => selection.equipmentIds.includes(equipmentId) && reason.trim().length >= 3)
+          .map(([equipmentId, reason]) => ({ equipmentId, reason: reason.trim() }))
+      }))
+    });
   };
   return (
     <ProjectWorkflowCategory
@@ -181,10 +199,14 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
             {categoryExpanded ? <div className="project-workflow-equipment-options">{category.equipment.length ? category.equipment.map(item => {
               const selected = selectedEquipmentIds.has(item.id);
               const ready = item.availableAtMobilization && item.calibration.valid && item.maintenance.valid;
-              return <label className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${ready ? ' is-ready' : ' has-warning'}`} key={item.id}>
-                <input type="checkbox" checked={selected} disabled={saving} onChange={event => toggleEquipment(category.id, item.id, event.target.checked)} />
-                <span><strong>{item.code} · {item.name}</strong><small>{availabilityLabel(item)}</small><small className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</small>{item.maintenance.required ? <small className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</small> : null}</span>
-              </label>;
+              const exceptionReason = categorySelection?.exceptionReasons[item.id] || item.reservationExceptionReason || '';
+              return <article className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${ready ? ' is-ready' : ' has-warning'}`} key={item.id}>
+                <label>
+                  <input type="checkbox" checked={selected} disabled={saving} onChange={event => toggleEquipment(category.id, item.id, event.target.checked)} />
+                  <span><strong>{item.code} · {item.name}</strong><small>{availabilityLabel(item)}</small><small className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</small>{item.maintenance.required ? <small className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</small> : null}{item.reservationConflicts.length ? <small className="has-warning">Conflito: {item.reservationConflicts.map(conflict => `${conflict.projectCode} (${displayDateOnly(conflict.startsOn)} a ${displayDateOnly(conflict.endsOn)})`).join(', ')}</small> : null}</span>
+                </label>
+                {selected && !item.availableAtMobilization ? <div className="field-group project-workflow-reservation-exception"><label htmlFor={`workflow-equipment-exception-${item.id}`}>Justificativa para manter a reserva</label><textarea id={`workflow-equipment-exception-${item.id}`} rows={2} maxLength={1000} value={exceptionReason} disabled={saving} placeholder="Registre o motivo da exceção, se aplicável." onChange={event => updateExceptionReason(category.id, item.id, event.target.value)} /></div> : null}
+              </article>;
             }) : <p>Nenhum equipamento ativo cadastrado nesta categoria.</p>}</div> : null}
           </section>;
         })}</fieldset>
@@ -199,5 +221,5 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
 
 function EquipmentCategorySummary({ categories }: { categories: ProjectWorkflow['resourcePlanning']['equipment']['categories'] }) {
   if (!categories.length) return null;
-  return <div className="project-workflow-equipment-summary">{categories.map(category => <details key={category.id}><summary><strong>{category.name}</strong><span>{category.equipment.length} equipamento(s) selecionado(s)</span><span aria-hidden="true">⌄</span></summary>{category.equipment.length ? <div>{category.equipment.map(item => <article className={item.availableAtMobilization && item.calibration.valid && item.maintenance.valid ? 'is-ready' : 'has-warning'} key={item.id}><div><strong>{item.code} · {item.name}</strong><span>{availabilityLabel(item)}</span></div><ul><li className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</li>{item.maintenance.required ? <li className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</li> : null}</ul>{item.assignments.length ? <small>Em uso em outra obra{item.assignments.some(assignment => assignment.expectedReturnDate) ? ` · retorno(s): ${item.assignments.filter(assignment => assignment.expectedReturnDate).map(assignment => displayDateOnly(assignment.expectedReturnDate!)).join(', ')}` : ''}</small> : null}</article>)}</div> : <p>Nenhum equipamento selecionado.</p>}</details>)}</div>;
+  return <div className="project-workflow-equipment-summary">{categories.map(category => <details key={category.id}><summary><strong>{category.name}</strong><span>{category.equipment.length} equipamento(s) selecionado(s)</span><span aria-hidden="true">⌄</span></summary>{category.equipment.length ? <div>{category.equipment.map(item => <article className={item.availableAtMobilization && item.calibration.valid && item.maintenance.valid ? 'is-ready' : 'has-warning'} key={item.id}><div><strong>{item.code} · {item.name}</strong><span>{availabilityLabel(item)}</span></div><ul><li className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</li>{item.maintenance.required ? <li className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</li> : null}</ul>{item.assignments.length ? <small>Em uso em outra obra{item.assignments.some(assignment => assignment.expectedReturnDate) ? ` · retorno(s): ${item.assignments.filter(assignment => assignment.expectedReturnDate).map(assignment => displayDateOnly(assignment.expectedReturnDate!)).join(', ')}` : ''}</small> : null}{item.reservationConflicts.length ? <small>Reserva conflitante: {item.reservationConflicts.map(conflict => conflict.projectCode).join(', ')}</small> : null}{item.reservationExceptionReason ? <small>Exceção registrada: {item.reservationExceptionReason}</small> : null}</article>)}</div> : <p>Nenhum equipamento selecionado.</p>}</details>)}</div>;
 }

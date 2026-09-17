@@ -55,15 +55,16 @@ function fakeDatabase() {
     lastUserFindManyInput: null
   };
   const users = {
-    'manager-1': { id: 'manager-1', name: 'Gestora', isActive: true, accountType: 'ADMIN' },
-    'leader-1': { id: 'leader-1', name: 'Líder A', isActive: true, accountType: 'INTERNAL' },
-    'leader-2': { id: 'leader-2', name: 'Líder B', isActive: true, accountType: 'INTERNAL' },
+    'manager-1': { id: 'manager-1', name: 'Gestora', email: 'gestora@example.com', isActive: true, accountType: 'ADMIN' },
+    'leader-1': { id: 'leader-1', name: 'Líder A', email: 'lider.a@example.com', isActive: true, accountType: 'INTERNAL' },
+    'leader-2': { id: 'leader-2', name: 'Líder B', email: 'lider.b@example.com', isActive: true, accountType: 'INTERNAL' },
     'viewer-1': { id: 'viewer-1', name: 'Leitor', isActive: true, accountType: 'INTERNAL' },
     'commercial-1': { id: 'commercial-1', name: 'Comercial', isActive: true, accountType: 'INTERNAL' }
   };
   const withRelations = () => state.workflow ? {
     ...state.workflow,
     leader: users[state.workflow.leaderUserId],
+    planner: users[state.workflow.plannerUserId] || null,
     closedBy: users[state.workflow.closedByUserId] || null,
     checklists: state.checklists.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     teamMemberChecks: state.teamMemberChecks.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
@@ -125,7 +126,7 @@ function fakeDatabase() {
       findFirst: async input => users[input.where.id] && !['viewer-1', 'commercial-1'].includes(input.where.id) ? users[input.where.id] : null,
       findMany: async input => {
         state.lastUserFindManyInput = input;
-        return Object.values(users).filter(item => !['viewer-1', 'commercial-1'].includes(item.id)).map(({ id, name }) => ({ id, name }));
+        return Object.values(users).filter(item => !['viewer-1', 'commercial-1'].includes(item.id)).map(({ id, name, email }) => ({ id, name, email }));
       }
     },
     projectWorkflow: {
@@ -135,6 +136,7 @@ function fakeDatabase() {
           projectId: input.data.projectId,
           stage: 'HANDOVER',
           leaderUserId: input.data.leaderUserId,
+          plannerUserId: input.data.plannerUserId,
           acceptedAt: null,
           plannedMobilizationDate: input.data.plannedMobilizationDate,
           commercialExpectedMobilizationDate: null,
@@ -353,6 +355,7 @@ function fakeDatabase() {
 
 const manager = { actorUserId: 'manager-1', isManager: true, user: { id: 'manager-1', accountType: 'ADMIN' } };
 const leader = { actorUserId: 'leader-1', user: { id: 'leader-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
+const planner = { actorUserId: 'leader-2', user: { id: 'leader-2', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
 const viewer = { actorUserId: 'viewer-1', user: { id: 'viewer-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
 const commercial = { actorUserId: 'commercial-1', user: { id: 'commercial-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] } };
 const operations = { actorUserId: 'operations-1', user: { id: 'operations-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:operations'] } };
@@ -369,10 +372,37 @@ test('gestor inicia handover sem programação de equipe e sem presumir aceite',
   }, manager, { database, now: new Date('2026-09-09T12:00:00Z') });
   assert.equal(result.workflow.stage, 'HANDOVER');
   assert.equal(result.workflow.acceptedAt, null);
+  assert.equal(result.workflow.planner.id, 'leader-1');
   assert.equal(result.workflow.handoverGate.ready, true);
   assert.equal(result.workflow.handoverGate.issues.length, 0);
   assert.equal(result.workflow.checklists.filter(item => item.stage === 'HANDOVER').length, 0);
   assert.equal(state.events[0].action, 'WORKFLOW_STARTED');
+});
+
+test('planejador vinculado mantém o workflow sem assumir aceite ou autorização do Líder', async () => {
+  const { database, state } = fakeDatabase();
+  let result = await startProjectWorkflow('project-1', {
+    leaderUserId: 'leader-1',
+    plannerUserId: 'leader-2',
+    plannedMobilizationDate: '2027-02-15'
+  }, manager, { database });
+  assert.equal(result.workflow.leader.id, 'leader-1');
+  assert.equal(result.workflow.planner.id, 'leader-2');
+  result = await getProjectWorkflow('project-1', planner, { database });
+  assert.equal(result.workflow.permissions.canEdit, true);
+  assert.equal(result.workflow.permissions.canAccept, false);
+  assert.equal(result.workflow.permissions.canAuthorizeMobilization, false);
+
+  result = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: 1, plannedMobilizationDate: '2027-02-20'
+  }, planner, { database });
+  assert.equal(result.workflow.plannedMobilizationDate, '2027-02-20');
+
+  state.workflow.stage = 'READY_TO_MOBILIZE';
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 2 }, planner, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_AUTHORIZATION_FORBIDDEN'
+  );
 });
 
 test('somente o líder designado aceita o handover informativo', async () => {

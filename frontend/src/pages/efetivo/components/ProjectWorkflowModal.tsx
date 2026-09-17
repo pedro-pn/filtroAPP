@@ -57,7 +57,8 @@ import {
 } from '../../../api/projectDocuments';
 
 const sharedSchemas = makeProjectWorkflowSchemas(z);
-type StartValues = { leaderUserId: string; plannedMobilizationDate: string };
+type StartValues = { leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string };
+type WorkflowUserOption = { id: string; name: string; email: string | null };
 const checklistSchema = z.object({
   status: z.enum(['PENDING', 'DONE', 'NOT_APPLICABLE']),
   note: z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.')
@@ -121,13 +122,13 @@ function fieldClass(error?: unknown) {
 
 function StartWorkflowForm({ detail, leaders, saving, onStart }: {
   detail: ProjectWorkflowDetail;
-  leaders: Array<{ id: string; name: string }>;
+  leaders: WorkflowUserOption[];
   saving: boolean;
   onStart: (values: StartValues) => void;
 }) {
   const { register, handleSubmit, formState: { errors } } = useForm<StartValues>({
     resolver: zodResolver(sharedSchemas.start),
-    defaultValues: { leaderUserId: '', plannedMobilizationDate: '' }
+    defaultValues: { leaderUserId: '', plannerUserId: '', plannedMobilizationDate: '' }
   });
   return (
     <form className="project-workflow-form" noValidate onSubmit={handleSubmit(onStart)}>
@@ -140,6 +141,14 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
             {leaders.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>
           {errors.leaderUserId ? <span className="field-error">{errors.leaderUserId.message}</span> : null}
+        </div>
+        <div className={fieldClass(errors.plannerUserId)}>
+          <label htmlFor="workflow-start-planner">Planejador *</label>
+          <select id="workflow-start-planner" disabled={saving} aria-invalid={Boolean(errors.plannerUserId)} {...register('plannerUserId')}>
+            <option value="">Selecione</option>
+            {leaders.map(item => <option value={item.id} key={item.id}>{item.name}{item.email ? ` · ${item.email}` : ' · sem e-mail cadastrado'}</option>)}
+          </select>
+          {errors.plannerUserId ? <span className="field-error">{errors.plannerUserId.message}</span> : null}
         </div>
         <div className={fieldClass(errors.plannedMobilizationDate)}>
           <label htmlFor="workflow-start-date">Mobilização operacional prevista *</label>
@@ -155,21 +164,22 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
 
 function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   detail: ProjectWorkflowDetail;
-  leaders: Array<{ id: string; name: string }>;
+  leaders: WorkflowUserOption[];
   saving: boolean;
   onPatch: (payload: ProjectWorkflowPatch) => void;
 }) {
   const workflow = detail.workflow!;
   const schema = z.object({
     leaderUserId: z.string().min(1, 'Selecione o líder.'),
+    plannerUserId: z.string().min(1, 'Selecione o planejador.'),
     plannedMobilizationDate: z.string().min(1, 'Informe a previsão de mobilização.')
   });
   type Values = z.infer<typeof schema>;
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { leaderUserId: workflow.leaderUserId, plannedMobilizationDate: workflow.plannedMobilizationDate }
+    defaultValues: { leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate }
   });
-  useEffect(() => reset({ leaderUserId: workflow.leaderUserId, plannedMobilizationDate: workflow.plannedMobilizationDate }), [reset, workflow.leaderUserId, workflow.plannedMobilizationDate]);
+  useEffect(() => reset({ leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate }), [reset, workflow.leaderUserId, workflow.plannerUserId, workflow.plannedMobilizationDate]);
   return (
     <form className="project-workflow-form" noValidate onSubmit={handleSubmit(values => onPatch({ action: 'settings', version: workflow.version, ...values }))}>
       <div className="project-workflow-form-grid">
@@ -180,6 +190,15 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
           </select>
           {errors.leaderUserId ? <span className="field-error">{errors.leaderUserId.message}</span> : null}
           {!workflow.permissions.canChangeLeader ? <span className="field-hint">Somente o gestor pode trocar o líder.</span> : null}
+        </div>
+        <div className={fieldClass(errors.plannerUserId)}>
+          <label htmlFor="workflow-planner">Planejador *</label>
+          <select id="workflow-planner" disabled={saving || !workflow.permissions.canChangePlanner} aria-invalid={Boolean(errors.plannerUserId)} {...register('plannerUserId')}>
+            <option value="">Selecione</option>
+            {leaders.map(item => <option value={item.id} key={item.id}>{item.name}{item.email ? ` · ${item.email}` : ' · sem e-mail cadastrado'}</option>)}
+          </select>
+          {errors.plannerUserId ? <span className="field-error">{errors.plannerUserId.message}</span> : null}
+          {!workflow.permissions.canChangePlanner ? <span className="field-hint">Somente o gestor pode trocar o planejador.</span> : null}
         </div>
         <div className={fieldClass(errors.plannedMobilizationDate)}>
           <label htmlFor="workflow-date">Mobilização operacional prevista *</label>
@@ -417,7 +436,7 @@ function IssueEditor({ issue, version, saving, canEdit, onPatch }: {
 
 export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission, onOpenTeamProgramming }: {
   detail: ProjectWorkflowDetail | null;
-  leaders: Array<{ id: string; name: string }>;
+  leaders: WorkflowUserOption[];
   loading: boolean;
   error: boolean;
   saving: boolean;
@@ -495,7 +514,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
             </>
           ) : (
             <>
-              <section className="project-workflow-status-block"><div><span>Etapa atual</span><strong>{WORKFLOW_STAGE_LABELS[workflow.stage]}</strong></div><div><span>Líder</span><strong>{workflow.leader.name}</strong></div><div><span>Mobilização prevista</span><strong>{displayDateOnly(workflow.plannedMobilizationDate)}</strong></div><div><span>Próximo marco</span><strong>{nextMilestoneText}</strong></div></section>
+              <section className="project-workflow-status-block"><div><span>Etapa atual</span><strong>{WORKFLOW_STAGE_LABELS[workflow.stage]}</strong></div><div><span>Líder</span><strong>{workflow.leader.name}</strong><small>{workflow.leader.email || 'Sem e-mail cadastrado'}</small></div><div><span>Planejador</span><strong>{workflow.planner?.name || 'Não definido'}</strong><small>{workflow.planner?.email || 'Sem e-mail cadastrado'}</small></div><div><span>Mobilização prevista</span><strong>{displayDateOnly(workflow.plannedMobilizationDate)}</strong></div><div><span>Próximo marco</span><strong>{nextMilestoneText}</strong></div></section>
               {workflow.stage === 'FINISHED' ? <section className="project-workflow-closed-banner" data-project-workflow-closed><strong>🏁 Missão encerrada</strong><span>{workflow.closedAt ? `Encerrada em ${new Date(workflow.closedAt).toLocaleString('pt-BR')}` : 'Encerramento registrado'}{workflow.closedBy ? ` por ${workflow.closedBy.name}` : ''}.</span></section> : null}
               {workflow.stage !== 'FINISHED' && workflow.milestones.dueMilestones.length ? <section className="project-workflow-milestones" aria-label="Marcos de mobilização atingidos"><strong>Atenção aos prazos</strong><span>{workflow.milestones.dueMilestones.map(key => key.replace('D', 'D-')).join(' · ')} já atingido(s); execute agora as verificações pendentes.</span></section> : null}
               {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? <section className="project-workflow-deadline-risk is-attention"><strong>🟡 D-7 atingido</strong><span>{workflow.mobilizationGate.blockers.length} bloqueio(s) ainda precisam ser resolvidos.</span></section> : null}
