@@ -23,7 +23,7 @@ export function isRdoDraftPayload(payload) {
 }
 
 export function rdoDraftItems(items) {
-  return items.filter(item => isRdoDraftPayload(item.payload));
+  return items.filter(item => !item.project?.deletedAt && isRdoDraftPayload(item.payload));
 }
 
 function normalizeDraftPayload(data) {

@@ -36,11 +36,11 @@ const groupInclude = {
 const visibleGroupInclude = {
   members: {
     ...groupInclude.members,
-    where: { project: { managerOnly: false } }
+    where: { project: { managerOnly: false, deletedAt: null } }
   }
 };
 
-const visibleGroupWhere = { members: { some: { project: { managerOnly: false } } } };
+const visibleGroupWhere = { members: { some: { project: { managerOnly: false, deletedAt: null } } } };
 
 export class MissionGroupError extends Error {
   constructor(code, message) {

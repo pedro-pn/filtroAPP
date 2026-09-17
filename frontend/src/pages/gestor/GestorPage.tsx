@@ -1889,7 +1889,7 @@ export function GestorPage() {
   }
 
   async function handleProjectRemove(project: Project) {
-    if (!window.confirm('Excluir este projeto? Se houver relatórios associados, o projeto será ocultado e os relatórios permanecerão preservados.')) return;
+    if (!window.confirm('Excluir este projeto de todos os módulos? O histórico e os documentos vinculados serão preservados.')) return;
 
     try {
       await projectMutations.removeProject.mutateAsync(project.id);

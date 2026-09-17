@@ -28,6 +28,11 @@ function createFakeDb({ projects = [], groups = [], members = [], reports = [], 
     return state.projects.find(project => project.id === id) ?? null;
   }
 
+  function matchesProject(project, where = {}) {
+    return (where.managerOnly !== false || !project?.managerOnly)
+      && (where.deletedAt !== null || project?.deletedAt == null);
+  }
+
   function hydrateGroup(group, include) {
     return {
       ...group,
@@ -38,7 +43,7 @@ function createFakeDb({ projects = [], groups = [], members = [], reports = [], 
           ...member,
           project: projectFor(member.projectId)
         }))
-        .filter(member => include?.members?.where?.project?.managerOnly !== false || !member.project?.managerOnly)
+        .filter(member => matchesProject(member.project, include?.members?.where?.project))
     };
   }
 
@@ -70,7 +75,7 @@ function createFakeDb({ projects = [], groups = [], members = [], reports = [], 
     acompanhamentoMissionGroup: {
       findMany: async ({ where = {}, include } = {}) => state.groups
         .filter(group => !where.status || group.status === where.status)
-        .filter(group => !where.members?.some || state.members.some(member => member.groupId === group.id && !projectFor(member.projectId)?.managerOnly))
+        .filter(group => !where.members?.some || state.members.some(member => member.groupId === group.id && matchesProject(projectFor(member.projectId), where.members.some.project)))
         .map(group => hydrateGroup(group, include)),
       create: async ({ data }) => {
         const now = new Date('2026-07-16T12:00:00.000Z');
@@ -198,6 +203,23 @@ test('projeto que passa a Somente gestor desaparece das leituras de agrupamentos
   assert.deepEqual(await listMissionGroups({ db }), []);
   assert.deepEqual(await loadActiveMissionGroups({ db }), []);
   await assert.rejects(getActiveMissionGroup({ groupId: created.id, db }), error => error.code === 'GROUP_NOT_FOUND');
+});
+
+test('exclusão retira membros e grupos das consultas sem apagar o histórico', async () => {
+  const db = createFakeDb({ projects });
+  const group = await createMissionGroup({ projectIds: ['p1', 'p2'], db });
+  db.state.projects[1].deletedAt = new Date();
+  for (const result of [
+    (await listMissionGroups({ db }))[0],
+    (await loadActiveMissionGroups({ db }))[0],
+    await getActiveMissionGroup({ groupId: group.id, db })
+  ]) assert.deepEqual(result.members.map(member => member.projectId), ['p1']);
+  assert.equal(db.state.members.length, 2);
+
+  db.state.projects[0].deletedAt = new Date();
+  assert.deepEqual(await listMissionGroups({ db }), []);
+  assert.deepEqual(await loadActiveMissionGroups({ db }), []);
+  await assert.rejects(getActiveMissionGroup({ groupId: group.id, db }), error => error.code === 'GROUP_NOT_FOUND');
 });
 
 test('dissolveMissionGroup clears activeProjectId and preserves historical members', async () => {

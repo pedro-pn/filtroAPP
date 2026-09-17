@@ -681,6 +681,7 @@ async function relatedPostJobs(database, project) {
   const rows = await database.projectWorkflowPostJob.findMany({
     where: {
       projectId: { not: project.id },
+      workflow: { project: { deletedAt: null } },
       OR: matches
     },
     select: {

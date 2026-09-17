@@ -145,6 +145,7 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
     }),
     cachedCollaboratorsWithCurrentJobRole(),
     prisma.satisfactionSurvey.findMany({
+      where: { project: { deletedAt: null } },
       include: { project: true },
       orderBy: { createdAt: 'desc' }
     }),

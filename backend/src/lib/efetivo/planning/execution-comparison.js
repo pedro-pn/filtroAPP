@@ -68,7 +68,7 @@ export function buildMissionExecutionComparison(mission, reports = [], progress 
 export async function getMissionExecutionComparison(missionId, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const mission = await database.efetivoMissionPlan.findFirst({
-    where: { id: missionId, deletedAt: null, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+    where: { id: missionId, deletedAt: null, project: { deletedAt: null }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
     include: {
       allocations: {
         where: { deletedAt: null },

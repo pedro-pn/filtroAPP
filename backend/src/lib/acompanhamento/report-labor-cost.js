@@ -7,6 +7,8 @@ export function estimateReportLaborCostByDate({
   collaborator, roleParams, project = {}, annualCosts = {}, workedMinutesByDate = new Map()
 }) {
   const costs = new Map();
+  // Exclusão manual em Custos → Ponto; cargo e histórico de ponto não são critérios.
+  if (collaborator?.rdoCostSimulationExcluded === true) return costs;
   for (const [date, minutes] of workedMinutesByDate) {
     if (!(minutes > 0)) continue;
     const role = collaboratorRoleAtDate(collaborator, date)?.roleName;

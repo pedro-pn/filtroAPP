@@ -176,50 +176,28 @@ export async function removeProjectById(projectId, prismaClient = prisma, option
     });
     const reportIds = reports.map(report => report.id);
 
-    if (reportIds.length > 0) {
-      if (options.userId) {
-        for (const reportId of reportIds) {
-          await invalidateUnsignedInternalSignatureRound(tx, {
-            reportId,
-            userId: options.userId,
-            evidence: options.evidence || null,
-            description: 'Rodada de assinatura invalidada por exclusao do projeto.',
-            invalidateSignedRound: true
-          });
-        }
+    if (options.userId) {
+      for (const reportId of reportIds) {
+        await invalidateUnsignedInternalSignatureRound(tx, {
+          reportId,
+          userId: options.userId,
+          evidence: options.evidence || null,
+          description: 'Rodada de assinatura invalidada por exclusao do projeto.',
+          invalidateSignedRound: true
+        });
       }
-      await tx.project.update({
-        where: { id: projectId },
-        data: {
-          isActive: false,
-          deletedAt: new Date()
-        }
-      });
-      await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
-      return;
     }
 
-    const romaneioCount = await tx.romaneio.count({ where: { projectId } });
-    if (romaneioCount > 0) {
-      await tx.project.update({
-        where: { id: projectId },
-        data: {
-          isActive: false,
-          deletedAt: new Date()
-        }
-      });
-      await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
-      return;
-    }
-
-    await tx.reportDraft.updateMany({
-      where: { projectId },
-      data: { projectId: null }
+    // Outros módulos mantêm vínculos históricos, inclusive missões já removidas.
+    // Preservar o cadastro evita violações de FK e a recriação por integrações.
+    await tx.project.update({
+      where: { id: projectId },
+      data: {
+        isActive: false,
+        deletedAt: new Date()
+      }
     });
-    await tx.satisfactionSurvey.deleteMany({ where: { projectId } });
-    await tx.projectReportSeq.deleteMany({ where: { projectId } });
-
-    await tx.project.delete({ where: { id: projectId } });
+    await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
   });
 }
 

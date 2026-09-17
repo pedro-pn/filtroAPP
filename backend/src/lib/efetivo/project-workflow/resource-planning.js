@@ -316,6 +316,7 @@ async function loadTeamCatalog(database, targetDate, currentProjectId) {
       where: {
         planId: plan.id,
         deletedAt: null,
+        project: { deletedAt: null },
         scheduleStatus: 'CONFIRMED',
         mobilizationDate: { lte: date },
         ...missionEndsOnOrAfter(date)
@@ -405,6 +406,7 @@ async function loadEquipmentCatalog(database, workflow, targetDate) {
     ? await database.projectWorkflow.findMany({
       where: {
         projectId: { not: currentProjectId },
+        project: { deletedAt: null },
         equipmentPlanDefined: true,
         stage: { in: RESERVATION_STAGES }
       },
@@ -459,6 +461,7 @@ async function loadSupplyCatalog(database, currentProjectId) {
     ? await database.projectWorkflow.findMany({
       where: {
         projectId: { not: currentProjectId },
+        project: { deletedAt: null },
         supplyPlanDefined: true,
         stage: { in: RESERVATION_STAGES }
       },

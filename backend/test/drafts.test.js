@@ -145,6 +145,15 @@ test('RDO draft filtering keeps legacy untagged drafts visible', () => {
   assert.deepEqual(rdoDraftItems(items).map(item => item.id), ['legacy', 'rdo']);
 });
 
+test('rascunhos de projeto excluído somem sem ocultar projetos arquivados ou rascunhos sem projeto', () => {
+  const items = [
+    { id: 'excluded', project: { deletedAt: new Date() }, payload: { __module: 'rdo' } },
+    { id: 'archived', project: { deletedAt: null, isActive: false }, payload: { __module: 'rdo' } },
+    { id: 'unassigned', project: null, payload: {} }
+  ];
+  assert.deepEqual(rdoDraftItems(items).map(item => item.id), ['archived', 'unassigned']);
+});
+
 test('RDO draft payload check only excludes romaneio drafts', () => {
   assert.equal(isRdoDraftPayload({ projectId: 'project-1' }), true);
   assert.equal(isRdoDraftPayload({ __module: 'rdo' }), true);

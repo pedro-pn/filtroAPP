@@ -96,6 +96,11 @@ export const externalEmployeeIgnoreSchema = z.object({
   ignored: z.boolean()
 }).strict();
 
+export const rdoSimulationExclusionSchema = z.object({
+  collaboratorId: z.string().trim().min(1).max(200),
+  excluded: z.boolean()
+}).strict();
+
 export const projectTagLinkSchema = z.object({
   rawTag: z.string().trim().min(1).max(500),
   projectId: z.string().trim().min(1).max(200)
@@ -168,6 +173,47 @@ export function createPontoMaisIntegrationRouter({
 } = {}) {
   const routes = Router();
   const integration = { ...defaultPontoMaisIntegration, ...services };
+
+  routes.get(
+    '/rdo-simulation-exclusions',
+    authenticate,
+    authorizeManager,
+    asyncHandler(async (_req, res) => {
+      // Inclui quem nunca teve ponto e inativos com participação em RDOs antigos.
+      res.json(await db.collaborator.findMany({
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true, code: true, name: true, isActive: true,
+          jobRole: { select: { name: true } },
+          rdoCostSimulationExcluded: true
+        }
+      }));
+    })
+  );
+
+  routes.post(
+    '/rdo-simulation-exclusions',
+    authenticate,
+    authorizeManager,
+    asyncHandler(async (req, res) => {
+      const parsed = rdoSimulationExclusionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Preferência de simulação inválida.', code: 'INVALID_PREFERENCE' });
+      }
+      try {
+        return res.json(await db.collaborator.update({
+          where: { id: parsed.data.collaboratorId },
+          data: { rdoCostSimulationExcluded: parsed.data.excluded },
+          select: { id: true, rdoCostSimulationExcluded: true }
+        }));
+      } catch (error) {
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Colaborador não encontrado.', code: 'COLLABORATOR_NOT_FOUND' });
+        }
+        throw error;
+      }
+    })
+  );
 
   routes.post(
     '/sync',
@@ -262,6 +308,7 @@ export function createPontoMaisIntegrationRouter({
     authorizeManager,
     asyncHandler(async (_req, res) => {
       const projects = await db.project.findMany({
+        where: { deletedAt: null },
         orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
         select: { id: true, code: true, name: true, isActive: true, deletedAt: true }
       });

@@ -23,7 +23,9 @@ function clientFor(workflows, sentLogs = []) {
   const upserts = [];
   return {
     upserts,
-    projectWorkflow: { findMany: async () => workflows },
+    projectWorkflow: {
+      findMany: async ({ where }) => workflows.filter(item => where.project?.deletedAt !== null || !item.project.deletedAt)
+    },
     projectWorkflowEmailNotification: {
       findMany: async () => sentLogs,
       upsert: async input => {
@@ -37,6 +39,19 @@ function clientFor(workflows, sentLogs = []) {
 test('janela do job usa o horário de São Paulo', () => {
   assert.equal(isProjectWorkflowAlertWindow(new Date('2026-09-17T10:30:00.000Z')), true);
   assert.equal(isProjectWorkflowAlertWindow(new Date('2026-09-17T13:30:00.000Z')), false);
+});
+
+test('projeto excluído não gera alertas nem novos registros de envio', async () => {
+  const client = clientFor([workflow({ project: { code: '5817', name: 'Excluído', deletedAt: new Date() } })]);
+  const messages = [];
+  await processProjectWorkflowEmailAlerts({
+    client,
+    mailer: async message => messages.push(message),
+    now: new Date('2026-09-17T12:00:00.000Z'),
+    missingMailerConfig: []
+  });
+  assert.deepEqual(messages, []);
+  assert.deepEqual(client.upserts, []);
 });
 
 test('alerta envia para líder e planejador e registra cada marco sem duplicar destinatários', async () => {
@@ -89,4 +104,3 @@ test('marco já enviado para a data vigente não gera novo e-mail', async () => 
   assert.equal(messages.filter(message => message.to === 'lider@example.com').length, 0);
   assert.equal(messages.filter(message => message.to === 'planejador@example.com').length, 1);
 });
-

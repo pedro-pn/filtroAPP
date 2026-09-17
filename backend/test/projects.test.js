@@ -432,146 +432,39 @@ test('removeProjectById preserves projects with reports before hiding the projec
   ]);
 });
 
-test('removeProjectById clears dependent records before deleting projects without reports', async () => {
-  const calls = [];
-  const tx = {
-    report: {
-      findMany: async args => {
-        calls.push(['report.findMany', args]);
-        return [];
-      },
-      deleteMany: async args => {
-        calls.push(['report.deleteMany', args]);
-      }
-    },
-    reportDraft: {
-      updateMany: async args => {
-        calls.push(['reportDraft.updateMany', args]);
-      }
-    },
-    satisfactionSurvey: {
-      deleteMany: async args => {
-        calls.push(['satisfactionSurvey.deleteMany', args]);
-      }
-    },
-    projectReportSeq: {
-      deleteMany: async args => {
-        calls.push(['projectReportSeq.deleteMany', args]);
-      }
-    },
-    reportAttachment: {
-      deleteMany: async args => {
-        calls.push(['reportAttachment.deleteMany', args]);
-      }
-    },
-    clientReportReview: {
-      deleteMany: async args => {
-        calls.push(['clientReportReview.deleteMany', args]);
-      }
-    },
-    reportCollaborator: {
-      deleteMany: async args => {
-        calls.push(['reportCollaborator.deleteMany', args]);
-      }
-    },
-    reportService: {
-      deleteMany: async args => {
-        calls.push(['reportService.deleteMany', args]);
-      }
-    },
-    romaneio: {
-      count: async args => {
-        calls.push(['romaneio.count', args]);
-        return 0;
-      }
-    },
-    project: {
-      delete: async args => {
-        calls.push(['project.delete', args]);
-      }
-    }
-  };
-  const prismaClient = {
-    $transaction: async callback => callback(tx)
-  };
-
-  await removeProjectById('project-1', prismaClient);
-
-  assert.deepEqual(calls, [
-    ['report.findMany', { where: { projectId: 'project-1' }, select: { id: true } }],
-    ['romaneio.count', { where: { projectId: 'project-1' } }],
-    ['reportDraft.updateMany', { where: { projectId: 'project-1' }, data: { projectId: null } }],
-    ['satisfactionSurvey.deleteMany', { where: { projectId: 'project-1' } }],
-    ['projectReportSeq.deleteMany', { where: { projectId: 'project-1' } }],
-    ['project.delete', { where: { id: 'project-1' } }]
-  ]);
-});
-
-test('DELETE /projects/:id uses removeProjectById cleanup for projects with romaneios and no reports', async t => {
+test('DELETE /projects/:id oculta projeto sem RDO, inclusive da lista de arquivados', async t => {
   stubAuthenticatedManager(t);
-  const calls = [];
-  const originalTransaction = prisma.$transaction;
+  const project = { id: 'project-5817', code: '5817', name: 'Granservices', isActive: true, deletedAt: null };
+  const originals = { transaction: prisma.$transaction, findMany: prisma.project.findMany };
   const tx = {
-    report: {
-      findMany: async args => {
-        calls.push(['report.findMany', args]);
-        return [];
-      },
-      update: async args => {
-        calls.push(['report.update', args]);
-      }
-    },
-    romaneio: {
-      count: async args => {
-        calls.push(['romaneio.count', args]);
-        return 1;
-      }
-    },
+    report: { findMany: async () => [] },
     project: {
-      update: async args => {
-        calls.push(['project.update', args]);
+      update: async ({ where, data }) => {
+        assert.equal(where.id, project.id);
+        Object.assign(project, data);
+        return project;
       },
-      delete: async args => {
-        calls.push(['project.delete', args]);
-        throw new Error('project should be soft-deleted when romaneios still reference it');
-      }
+      delete: async () => { throw new Error('Foreign key constraint violated: EfetivoMissionPlan_projectId_fkey'); }
     }
   };
   prisma.$transaction = async callback => callback(tx);
+  prisma.project.findMany = async ({ where }) => {
+    assert.equal(where.deletedAt, null);
+    return project.deletedAt === where.deletedAt && (where.isActive === undefined || where.isActive === project.isActive)
+      ? [project] : [];
+  };
   t.after(() => {
-    prisma.$transaction = originalTransaction;
+    prisma.$transaction = originals.transaction;
+    prisma.project.findMany = originals.findMany;
   });
 
-  const response = await dispatchApp('DELETE', '/api/projects/project-1');
-
+  assert.equal((await dispatchApp('GET', '/api/projects?active=true')).json.length, 1);
+  const response = await dispatchApp('DELETE', `/api/projects/${project.id}`);
   assert.equal(response.statusCode, 204);
-  assert.deepEqual(calls.slice(0, 3), [
-    ['report.findMany', { where: { projectId: 'project-1' }, select: { id: true } }],
-    ['romaneio.count', { where: { projectId: 'project-1' } }],
-    ['project.update', {
-      where: { id: 'project-1' },
-      data: {
-        isActive: false,
-        deletedAt: calls[2][1].data.deletedAt
-      }
-    }]
-  ]);
-  assert.ok(calls[2][1].data.deletedAt instanceof Date);
-  assert.equal(calls.some(([name]) => name === 'project.delete'), false);
-  assert.deepEqual(calls[3], ['report.findMany', {
-    where: {
-      projectId: 'project-1',
-      zapsignSignedAt: null,
-      OR: [
-        { zapsignDocToken: { not: null } },
-        { zapsignSignerToken: { not: null } },
-        { zapsignRequestedAt: { not: null } },
-        { zapsignDocUrl: { not: null } }
-      ]
-    },
-    select: {
-      id: true,
-      specialConditions: true
-    }
-  }]);
+  assert.equal(project.isActive, false);
+  assert.ok(project.deletedAt instanceof Date);
+  for (const filter of ['', '?active=true', '?active=false']) {
+    assert.deepEqual((await dispatchApp('GET', `/api/projects${filter}`)).json, []);
+  }
+  assert.equal((await dispatchApp('DELETE', `/api/projects/${project.id}`)).statusCode, 204);
 });

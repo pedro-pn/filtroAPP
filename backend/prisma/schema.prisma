@@ -551,6 +551,7 @@ model Collaborator {
   signatureNoticeAcceptedAt      DateTime?
   signatureNoticeVersion         String?
   isActive                       Boolean                          @default(true)
+  rdoCostSimulationExcluded      Boolean                          @default(false)
   createdAt                      DateTime                         @default(now())
   updatedAt                      DateTime                         @updatedAt
   projectsLed                    Project[]                        @relation("ProjectOperator")

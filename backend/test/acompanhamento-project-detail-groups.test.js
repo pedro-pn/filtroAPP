@@ -123,6 +123,25 @@ test('grupo mantém RDOs das duas missões e considera somente a maior jornada p
   ]);
 });
 
+test('grupo mantém sem valor o colaborador excluído manualmente da estimativa', () => {
+  const input = group().members.map(member => ({
+    projectId: member.projectId, member,
+    detail: detail({ colaboradores: [{
+      name: 'Coordenador sem ponto', role: 'Coordenador', horas: 8, horasLancadas: 8,
+      horasApropriadas: null, custo: null, custoHora: null,
+      custoEstimadoRdo: null, custoHoraEstimadoRdo: null,
+      horasRelatoriosPorData: [{ data: '2026-09-02', horas: 8, custoEstimado: null }]
+    }] })
+  }));
+  const collaborator = groupProjectDetails(group(), input).colaboradores[0];
+  assert.equal(collaborator.horas, 8);
+  assert.equal(collaborator.custo, null);
+  assert.equal(collaborator.custoHora, null);
+  assert.equal(collaborator.custoEstimadoRdo, null);
+  assert.equal(collaborator.custoHoraEstimadoRdo, null);
+  assert.equal(collaborator.horasRelatoriosPorData[0].custoEstimado, null);
+});
+
 test('estimativa do grupo acompanha a maior jornada por data, sem somar sobreposição', () => {
   const input = group().members.map((member, index) => ({
     projectId: member.projectId, member,
