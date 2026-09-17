@@ -1,7 +1,7 @@
 /*
  * Escopo previsto do projeto (módulo Acompanhamento) — quantitativo de serviços vendidos,
- * previsão de horas normais e previsão de hora extra. Hoje é preenchido manualmente no cronograma;
- * idealmente viria do banco comercial, que ainda não carrega esses campos.
+ * previsão de horas normais e extras. As horas vêm das propostas selecionadas,
+ * com cadastro manual como fallback e conferência de divergências no cronograma.
  *
  * A edição é "substituição total": o front envia o conjunto completo de serviços e de horas; o backend
  * reescreve as linhas do projeto numa transação (mesmo modelo de UX do cronograma — salvar tudo).
@@ -11,6 +11,7 @@ import prisma from '../prisma.js';
 import { resolvePlannedSystem } from './project-systems.js';
 import { normalizeRdoServiceType } from './avanco.js';
 import { assertDistinctScopeMeasurements } from './scope-groups.js';
+import { loadPlannedHours, plannedHoursConflict } from './planned-hours.js';
 
 // Tipos de serviço conhecidos (rótulos no front). Texto livre também é aceito.
 export const PLANNED_SERVICE_TYPES = ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'];
@@ -31,25 +32,20 @@ export async function getPlannedScope(projectId) {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) throw new Error('Projeto não encontrado.');
 
-  const [services, normalHours, overtime] = await Promise.all([
+  const [services, hoursByProject] = await Promise.all([
     prisma.projectPlannedService.findMany({
       where: { projectId },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
       include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
     }),
-    prisma.projectPlannedNormalHours.findMany({
-      where: { projectId },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-      include: { jobRole: { select: { id: true, name: true } } }
-    }),
-    prisma.projectPlannedOvertime.findMany({
-      where: { projectId },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-      include: { jobRole: { select: { id: true, name: true } } }
-    })
+    loadPlannedHours([projectId])
   ]);
+  const hours = hoursByProject.get(projectId);
+  if (!hours) throw new Error('Projeto não encontrado.');
+  const { normalHours, overtime, hoursPlan } = hours;
 
   return {
+    hoursPlan,
     services: services.map(s => ({
       id: s.id,
       serviceType: s.serviceType,
@@ -86,7 +82,7 @@ export async function getPlannedScope(projectId) {
 }
 
 // Substitui todo o escopo previsto do projeto pelos conjuntos informados (já validados pela rota).
-export async function setPlannedScope(projectId, { services = [], normalHours = [], overtime = [] } = {}) {
+export async function setPlannedScope(projectId, { services = [], normalHours, overtime, hoursFingerprint } = {}) {
   assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
   const modes = new Map();
   for (const service of services) for (const row of service.systems ?? []) {
@@ -105,18 +101,25 @@ export async function setPlannedScope(projectId, { services = [], normalHours = 
 
   // Resolve o rótulo do cargo a partir do jobRoleId (snapshot em roleName), para as horas não
   // dependerem de o cargo continuar existindo depois.
-  const roleIds = [...new Set([...normalHours, ...overtime].map(o => o.jobRoleId).filter(Boolean))];
+  const roleIds = [...new Set([...(normalHours ?? []), ...(overtime ?? [])].map(o => o.jobRoleId).filter(Boolean))];
   const roles = roleIds.length
     ? await prisma.jobRole.findMany({ where: { id: { in: roleIds } }, select: { id: true, name: true } })
     : [];
   const roleNameById = new Map(roles.map(r => [r.id, r.name]));
 
   await prisma.$transaction(async (tx) => {
+    const hours = (await loadPlannedHours([projectId], tx)).get(projectId);
+    if (!hours) throw new Error('Projeto não encontrado.');
+    if (hoursFingerprint && hours.hoursPlan.fingerprint !== hoursFingerprint) throw plannedHoursConflict();
+    const editingHours = normalHours !== undefined || overtime !== undefined;
+    if (editingHours && hours.hoursPlan.source === 'COMMERCIAL') {
+      throw plannedHoursConflict('As horas são fornecidas pelo comercial. Atualize o cronograma antes de salvar.');
+    }
     const resolvedSystems = new Map();
     // Apaga os serviços (cascata derruba os sistemas) e as horas, depois recria tudo.
     await tx.projectPlannedService.deleteMany({ where: { projectId } });
-    await tx.projectPlannedNormalHours.deleteMany({ where: { projectId } });
-    await tx.projectPlannedOvertime.deleteMany({ where: { projectId } });
+    if (normalHours !== undefined) await tx.projectPlannedNormalHours.deleteMany({ where: { projectId } });
+    if (overtime !== undefined) await tx.projectPlannedOvertime.deleteMany({ where: { projectId } });
 
     for (const [index, s] of services.entries()) {
       const systems = [];
@@ -145,7 +148,7 @@ export async function setPlannedScope(projectId, { services = [], normalHours = 
       });
     }
 
-    if (normalHours.length) {
+    if (normalHours?.length) {
       await tx.projectPlannedNormalHours.createMany({
         data: normalHours.map((o, index) => {
           const jobRoleId = o.jobRoleId && roleNameById.has(o.jobRoleId) ? o.jobRoleId : null;
@@ -161,7 +164,7 @@ export async function setPlannedScope(projectId, { services = [], normalHours = 
       });
     }
 
-    if (overtime.length) {
+    if (overtime?.length) {
       await tx.projectPlannedOvertime.createMany({
         data: overtime.map((o, index) => {
           const jobRoleId = o.jobRoleId && roleNameById.has(o.jobRoleId) ? o.jobRoleId : null;
@@ -176,7 +179,7 @@ export async function setPlannedScope(projectId, { services = [], normalHours = 
         })
       });
     }
-  }, { timeout: 30000 });
+  }, { timeout: 30000, isolationLevel: 'Serializable' });
 
   return getPlannedScope(projectId);
 }

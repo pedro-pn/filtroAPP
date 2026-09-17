@@ -18,6 +18,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { importCommercialAccess, listCommercialDashboard, listCommercialPendencias, listProjectRevisions, removeProjectAdditionalProposal, setProjectAdditionalProposalRevision, setProjectBudgetRevision, setProjectSchedule } from '../../lib/acompanhamento/access-import.js';
 import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acompanhamento/manual-costs.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
+import { resolvePlannedHoursDecision } from '../../lib/acompanhamento/planned-hours.js';
 import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
@@ -671,8 +672,9 @@ const plannedHoursSchema = z.object({
 
 const plannedScopeSchema = z.object({
   services: z.array(plannedServiceSchema).max(50).default([]),
-  normalHours: z.array(plannedHoursSchema).max(50).default([]),
-  overtime: z.array(plannedHoursSchema).max(50).default([])
+  normalHours: z.array(plannedHoursSchema).max(50).optional(),
+  overtime: z.array(plannedHoursSchema).max(50).optional(),
+  hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional()
 });
 
 router.get(
@@ -700,10 +702,21 @@ router.put(
       statisticsProjectsCache.clear();
       res.json(scope);
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(error.code === 'P2034' ? 409 : error.status ?? 400).json({ error: error.code === 'P2034' ? 'Os dados mudaram. Atualize o cronograma e tente novamente.' : error.message });
     }
   })
 );
+
+router.post('/projetos/:projectId/horas-previstas/resolver', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const data = z.object({ choice: z.enum(['COMMERCIAL', 'MANUAL']), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.body);
+  try {
+    await resolvePlannedHoursDecision(req.params.projectId, data, req.auth.user.id);
+    statisticsProjectsCache.clear();
+    res.json(await getPlannedScope(req.params.projectId));
+  } catch (error) {
+    res.status(error.code === 'P2034' ? 409 : error.status ?? 400).json({ error: error.code === 'P2034' ? 'Os dados mudaram. Atualize o cronograma e tente novamente.' : error.message });
+  }
+}));
 
 router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   await assertHistoricalProject(prisma, req.params.projectId);

@@ -480,15 +480,37 @@ export interface PlannedScope {
   services: PlannedService[];
   normalHours: PlannedOvertime[];
   overtime: PlannedOvertime[];
+  hoursPlan?: PlannedHoursPlan;
 }
+
+export interface PlannedHoursPlan {
+  source: 'COMMERCIAL' | 'MANUAL' | 'NONE';
+  pending: boolean;
+  thresholdPct: number;
+  manual: { normal: number; overtime: number; total: number } | null;
+  commercial: { normal: number; overtime: number; total: number } | null;
+  differences: Array<{ kind: 'normal' | 'overtime' | 'total'; hours: number; percent: number | null; significant: boolean }>;
+  issues: string[];
+  decision: 'COMMERCIAL' | 'MANUAL' | null;
+  resolvedAt: string | null;
+  fingerprint: string;
+  proposals: Array<{ codBd: number; codProp?: number; nRev?: number; status: string }>;
+}
+
+export type PlannedScopeInput = Pick<PlannedScope, 'services'> & Partial<Pick<PlannedScope, 'normalHours' | 'overtime'>> & { hoursFingerprint?: string };
 
 export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
   const { data } = await apiClient.get<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`);
   return data;
 }
 
-export async function setPlannedScope(projectId: string, payload: PlannedScope): Promise<PlannedScope> {
+export async function setPlannedScope(projectId: string, payload: PlannedScopeInput): Promise<PlannedScope> {
   const { data } = await apiClient.put<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`, payload);
+  return data;
+}
+
+export async function resolvePlannedHours(projectId: string, choice: 'COMMERCIAL' | 'MANUAL', fingerprint: string): Promise<PlannedScope> {
+  const { data } = await apiClient.post<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/horas-previstas/resolver`, { choice, fingerprint });
   return data;
 }
 

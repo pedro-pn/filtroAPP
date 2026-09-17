@@ -11,6 +11,7 @@
 
 import { listCommercialDashboard } from './access-import.js';
 import { computeAlerts } from './alerts.js';
+import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
 import { getRoleParamsResolver, laborCostByProject } from './labor-cost.js';
@@ -368,8 +369,7 @@ export async function getProjectDetail(projectId, {
     equipmentByProject,
     stockCosts,
     manualCostsByProject,
-    plannedNormalHours,
-    plannedOvertime,
+    hoursByProject,
     progressHistoryByProject,
     projectProgress
   ] = await Promise.all([
@@ -415,14 +415,7 @@ export async function getProjectDetail(projectId, {
     getEquipmentUsageByProject([projectId]),
     getStockConsumptionCostByProject([projectId]),
     getManualProjectCostsByProject([projectId], { includeEntries: true }),
-    prisma.projectPlannedNormalHours.findMany({
-      where: { projectId },
-      select: { hours: true, roleName: true, jobRole: { select: { name: true } } }
-    }),
-    prisma.projectPlannedOvertime.findMany({
-      where: { projectId },
-      select: { hours: true, roleName: true, jobRole: { select: { name: true } } }
-    }),
+    loadPlannedHours([projectId]),
     computeProgressHistoryForProjects([projectId]),
     computeProjectProgress(projectId)
   ]);
@@ -602,6 +595,9 @@ export async function getProjectDetail(projectId, {
     planned: plannedWorkedDays,
     pct: plannedWorkedDays ? Math.round((workedDays / plannedWorkedDays) * 100) : null
   };
+  const hours = hoursByProject.get(projectId);
+  const plannedNormalHours = hours?.normalHours ?? [];
+  const plannedOvertime = hours?.overtime ?? [];
   const plannedNormalHoursTotal = plannedNormalHours.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
   const plannedOvertimeHoursTotal = plannedOvertime.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
   const workedHours = buildWorkedHoursProgress({
@@ -628,7 +624,7 @@ export async function getProjectDetail(projectId, {
     referenceDate: projectReferenceDate
   });
 
-  const alerts = computeAlerts({
+  const alerts = [...plannedHoursAlerts(hours?.hoursPlan), ...computeAlerts({
     startDate: row.startDate ?? null,
     plannedDays,
     gasto: gasto + (maoDeObra.custo ?? 0), // realizado total = compras Omie + mão de obra
@@ -637,7 +633,7 @@ export async function getProjectDetail(projectId, {
     lastDayStatus: ultimosDias.length ? ultimosDias[ultimosDias.length - 1].status : null,
     progressPct: avancoPct,
     now: projectReferenceDate
-  });
+  })];
 
   return {
     header: {
