@@ -1,6 +1,7 @@
 import { MoneyInput } from '../../components/Field';
 import {
   hasMeaningfulInputs,
+  normalizeCostEstimatePayload,
   technicalServiceRequiresChemicalProducts,
   technicalServiceRequiresFilters
 } from '../../../../../../shared/comercial/dist/cost-model.js';
@@ -10,7 +11,6 @@ import type { Levantamento } from '../useLevantamento';
 import { CircuitosBloco } from './CircuitosBloco';
 import { FiltrosTabela } from './FiltrosTabela';
 import { ProdutosBloco } from './ProdutosBloco';
-import { ServicosDosCircuitosBloco } from './ServicosDosCircuitosBloco';
 import { custoTotalMateriaisEInsumos } from '../totaisDasSecoes';
 
 /**
@@ -60,8 +60,9 @@ export function InsumosSection({ levantamento }: { levantamento: Levantamento })
       .filter(circuito => circuito.enabled !== false)
       .map(circuito => String(circuito.id))
   );
-  const servicosConfigurados = Array.isArray(draft.circuitServices);
-  const servicosAtivos = registros(draft.circuitServices).filter(servico =>
+  const normalizado = normalizeCostEstimatePayload(draft);
+  const servicosConfigurados = Array.isArray(normalizado.circuitServices);
+  const servicosAtivos = registros(normalizado.circuitServices).filter(servico =>
     circuitosAtivos.has(String(servico.systemId || ''))
   );
   const exibirProdutosQuimicos = !servicosConfigurados || servicosAtivos.some(servico =>
@@ -75,7 +76,6 @@ export function InsumosSection({ levantamento }: { levantamento: Levantamento })
     <>
       <MateriaisBloco levantamento={levantamento} />
       <CircuitosBloco levantamento={levantamento} />
-      <ServicosDosCircuitosBloco levantamento={levantamento} />
       {exibirProdutosQuimicos && <ProdutosBloco levantamento={levantamento} />}
       {exibirFiltros && <FiltrosTabela levantamento={levantamento} />}
       <div
@@ -130,8 +130,8 @@ function MateriaisBloco({ levantamento }: { levantamento: Levantamento }) {
         <div>
           <h2>Materiais e insumos</h2>
           <p>
-            Cadastre peças, consumíveis e itens manuais. Depois do dimensionamento,
-            associe os serviços aos circuitos para liberar filtros e produtos químicos.
+            Cadastre peças, consumíveis e itens manuais. No dimensionamento,
+            selecione os serviços de cada sistema para liberar filtros e produtos químicos.
           </p>
         </div>
         <button type="button" className="com-btn-add" onClick={acrescentarMaterial}>

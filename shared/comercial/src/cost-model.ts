@@ -12,6 +12,7 @@ import {
   getTechnicalServiceDefinition,
   type TechnicalServiceId,
 } from "./technical-services.js";
+import { dimensioningItems, dimensioningServiceAllowed, OIL_TYPES, type DimensioningFields, type DimensioningType } from './dimensioning.js';
 
 export type CostRole = { role: string; salary: number; adjustment: number };
 export type LecLaborRole = {
@@ -197,7 +198,7 @@ export type MaterialItem = {
   included: boolean;
 };
 
-export type PipeSegment = {
+export type PipeSegment = DimensioningFields & {
   id: string;
   description: string;
   quantity: number;
@@ -210,14 +211,14 @@ export type PipeSegment = {
   fillPercent: number;
 };
 
-export type ManualVolumeItem = {
+export type ManualVolumeItem = DimensioningFields & {
   id: string;
   description: string;
   quantity: number;
   volumeLiters: number;
 };
 
-export type EquipmentVolumeItem = {
+export type EquipmentVolumeItem = DimensioningFields & {
   id: string;
   description: string;
   quantity: number;
@@ -241,6 +242,8 @@ export type VolumeSystem = {
   pipeSegments: PipeSegment[];
   hoseSegments: HoseSegment[];
   equipmentVolumes: EquipmentVolumeItem[];
+  reservoirVolumes?: EquipmentVolumeItem[];
+  servicesByItem?: boolean;
   manualVolumes: ManualVolumeItem[];
   cycles: number;
   enabled: boolean;
@@ -252,6 +255,8 @@ export type CircuitServiceAssignment = {
   systemId: string;
   /** Mantido como string para que rascunhos com uma seleção ainda vazia não sejam descartados. */
   serviceId: string;
+  itemId?: string;
+  itemType?: DimensioningType;
 };
 
 export function technicalServiceRequiresFilters(serviceId: unknown): boolean {
@@ -548,6 +553,8 @@ export type VolumeSystemResult = {
   hoseSegments: HoseSegmentResult[];
   equipmentVolumes: EquipmentVolumeResult[];
   manualVolumes: ManualVolumeResult[];
+  reservoirVolumes?: EquipmentVolumeResult[];
+  reservoirVolumeLiters?: number;
 };
 
 export type ProductResult = ProductRequirement & {
@@ -1275,11 +1282,21 @@ function normalizeMaterial(value: unknown, index: number): MaterialItem {
   };
 }
 
+function normalizeDimensioningFields(source: Record<string, unknown>): DimensioningFields {
+  return {
+    ...(Array.isArray(source.serviceIds) ? { serviceIds: source.serviceIds.map(id => textValue(id)) } : {}),
+    ...(source.material === undefined ? {} : { material: enumValue(source.material, ['carbon_steel', 'stainless_steel', 'other'] as const, 'other') }),
+    ...(source.oilType === undefined ? {} : { oilType: textValue(source.oilType) }),
+    ...(source.oilBrandViscosity === undefined ? {} : { oilBrandViscosity: textValue(source.oilBrandViscosity) }),
+  };
+}
+
 function normalizePipeSegment(value: unknown, index: number): PipeSegment {
   const source = objectValue(value);
   return {
+    ...normalizeDimensioningFields(source),
     id: importedId(source.id, "pipe", index),
-    description: textValue(source.description, `Trecho ${index + 1}`),
+    description: textValue(source.description),
     quantity: nonNegative(source.quantity, 1),
     lengthM: nonNegative(source.lengthM),
     ...(source.lengthUnit === undefined
@@ -1298,8 +1315,9 @@ function normalizePipeSegment(value: unknown, index: number): PipeSegment {
 function normalizeManualVolume(value: unknown, index: number): ManualVolumeItem {
   const source = objectValue(value);
   return {
+    ...normalizeDimensioningFields(source),
     id: importedId(source.id, "volume", index),
-    description: textValue(source.description, `Volume adicional ${index + 1}`),
+    description: textValue(source.description),
     quantity: nonNegative(source.quantity, 1),
     volumeLiters: nonNegative(source.volumeLiters),
   };
@@ -1308,8 +1326,9 @@ function normalizeManualVolume(value: unknown, index: number): ManualVolumeItem 
 function normalizeEquipmentVolume(value: unknown, index: number): EquipmentVolumeItem {
   const source = objectValue(value);
   return {
+    ...normalizeDimensioningFields(source),
     id: importedId(source.id, "equipment-volume", index),
-    description: textValue(source.description, `Equipamento ${index + 1}`),
+    description: textValue(source.description),
     quantity: nonNegative(source.quantity, 1),
     volumeLiters: nonNegative(source.volumeLiters),
     included: booleanValue(source.included, true),
@@ -1332,11 +1351,13 @@ function normalizeVolumeSystem(value: unknown, index: number): VolumeSystem {
   const source = objectValue(value);
   return {
     id: importedId(source.id, "system", index),
-    name: textValue(source.name, `Sistema ${index + 1}`),
+    name: textValue(source.name),
     material: enumValue(source.material, ["carbon_steel", "stainless_steel", "other"] as const, "carbon_steel"),
     pipeSegments: arrayValue(source.pipeSegments).map(normalizePipeSegment),
     hoseSegments: arrayValue(source.hoseSegments).map(normalizeHoseSegment),
     equipmentVolumes: arrayValue(source.equipmentVolumes).map(normalizeEquipmentVolume),
+    ...(source.reservoirVolumes === undefined ? {} : { reservoirVolumes: arrayValue(source.reservoirVolumes).map(normalizeEquipmentVolume) }),
+    ...(source.servicesByItem === true ? { servicesByItem: true } : {}),
     manualVolumes: arrayValue(source.manualVolumes).map(normalizeManualVolume),
     cycles: Math.max(1, nonNegative(source.cycles, 1)),
     enabled: booleanValue(source.enabled, true),
@@ -1350,6 +1371,18 @@ function normalizeCircuitService(value: unknown, index: number): CircuitServiceA
     systemId: textValue(source.systemId),
     serviceId: textValue(source.serviceId),
   };
+}
+
+/** Associações derivadas no servidor: não confiar numa segunda lista enviada pelo cliente. */
+function itemServiceAssignments(systems: VolumeSystem[]): CircuitServiceAssignment[] {
+  return systems.filter(system => system.servicesByItem).flatMap(system =>
+    dimensioningItems(system).filter(({ item }) => item.included !== false).flatMap(({ type, item }) =>
+      (item.serviceIds || []).map((serviceId, index) => ({
+        id: `${system.id}:${type}:${item.id}:${index}`,
+        systemId: system.id, itemId: item.id, itemType: type, serviceId,
+      })),
+    ),
+  );
 }
 
 function normalizeProduct(value: unknown, index: number): ProductRequirement {
@@ -1987,22 +2020,13 @@ export function createDefaultCostEstimatePayload(): CostEstimatePayloadV2 {
     volumeSystems: [
       {
         id: "carbono",
-        name: "Sistema em aço carbono",
+        name: "",
         material: "carbon_steel",
+        servicesByItem: true,
         pipeSegments: [],
         hoseSegments: [],
         equipmentVolumes: [],
-        manualVolumes: [],
-        cycles: 1,
-        enabled: true,
-      },
-      {
-        id: "inox",
-        name: "Sistema em aço inox",
-        material: "stainless_steel",
-        pipeSegments: [],
-        hoseSegments: [],
-        equipmentVolumes: [],
+        reservoirVolumes: [],
         manualVolumes: [],
         cycles: 1,
         enabled: true,
@@ -2282,8 +2306,12 @@ export function normalizeCostEstimatePayload(value: unknown): CostEstimatePayloa
   const importingLegacyIndirects = source.indirectCosts === undefined && source.indirects !== undefined;
   const materials = arrayValue(source.materials).map(normalizeMaterial);
   const volumeSystems = arrayValue(source.volumeSystems).map(normalizeVolumeSystem);
-  const circuitServices = Array.isArray(source.circuitServices)
-    ? source.circuitServices.map(normalizeCircuitService)
+  const itemSystemIds = new Set(volumeSystems.filter(system => system.servicesByItem).map(system => system.id));
+  const circuitServices = Array.isArray(source.circuitServices) || itemSystemIds.size
+    ? [
+      ...arrayValue(source.circuitServices).map(normalizeCircuitService).filter(service => !itemSystemIds.has(service.systemId)),
+      ...itemServiceAssignments(volumeSystems),
+    ]
     : undefined;
   const products = arrayValue(source.products).map(normalizeProduct);
   const deletedProducts = source.deletedProducts === undefined
@@ -2986,6 +3014,10 @@ function calculateVolumeSystem(system: VolumeSystem): VolumeSystemResult {
     ...item,
     totalVolumeLiters: roundMeasure(item.quantity * item.volumeLiters),
   }));
+  const reservoirVolumes = (system.reservoirVolumes || []).filter(item => item.included).map<EquipmentVolumeResult>(item => ({
+    ...item, totalVolumeLiters: roundMeasure(item.quantity * item.volumeLiters),
+  }));
+  const reservoirVolumeLiters = reservoirVolumes.reduce((sum, item) => sum + item.totalVolumeLiters, 0);
   const pipeVolumeLitersTotal = pipeSegments.reduce((sum, item) => sum + item.volumeLiters, 0);
   const hoseVolumeLiters = hoseSegments.reduce((sum, item) => sum + item.volumeLiters, 0);
   const equipmentVolumeLiters = equipmentVolumes.reduce((sum, item) => sum + item.totalVolumeLiters, 0);
@@ -2993,7 +3025,7 @@ function calculateVolumeSystem(system: VolumeSystem): VolumeSystemResult {
   const physicalVolumeLiters = pipeVolumeLitersTotal
     + hoseVolumeLiters
     + equipmentVolumeLiters
-    + manualVolumeLiters;
+    + manualVolumeLiters + reservoirVolumeLiters;
   return {
     id: system.id,
     name: system.name,
@@ -3009,6 +3041,7 @@ function calculateVolumeSystem(system: VolumeSystem): VolumeSystemResult {
     hoseSegments,
     equipmentVolumes,
     manualVolumes,
+    ...(system.reservoirVolumes === undefined ? {} : { reservoirVolumes, reservoirVolumeLiters: roundMeasure(reservoirVolumeLiters) }),
   };
 }
 
@@ -3735,6 +3768,7 @@ function circuitServiceState(payload: CostEstimatePayloadV2): CircuitServiceStat
   );
   const assignments = (payload.circuitServices ?? []).filter((assignment) =>
     enabledSystemIds.has(assignment.systemId)
+    && (!assignment.itemType || dimensioningServiceAllowed(assignment.itemType, assignment.serviceId))
     && Boolean(getTechnicalServiceDefinition(assignment.serviceId as TechnicalServiceId)));
   const chemicalSystemIds = new Set(
     assignments
@@ -3789,7 +3823,16 @@ function calculateEstimateCore(input: CostEstimatePayloadV2): CostEstimateResult
     ? []
     : payload.volumeSystems.filter((system) => system.enabled).map(calculateVolumeSystem);
   const chemicalVolumeResults = circuitServices.configured
-    ? volumeResults.filter((system) => circuitServices.chemicalSystemIds.has(system.id))
+    ? payload.volumeSystems.filter(system => system.enabled && circuitServices.chemicalSystemIds.has(system.id)).map(system => {
+      if (!system.servicesByItem) return calculateVolumeSystem(system);
+      const chemical = (item: DimensioningFields) => item.serviceIds?.includes('limpeza_quimica');
+      return calculateVolumeSystem({ ...system,
+        pipeSegments: system.pipeSegments.filter(chemical),
+        equipmentVolumes: system.equipmentVolumes.filter(chemical),
+        reservoirVolumes: (system.reservoirVolumes || []).filter(chemical),
+        manualVolumes: [], hoseSegments: [],
+      });
+    })
     : volumeResults;
   const productResults = payload.scopeConfirmations.noInputs
     ? []
@@ -4046,7 +4089,13 @@ export function hasCompleteCircuitServices(value: CostEstimatePayloadV2 | unknow
   const assignedSystemIds = new Set(services.assignments.map((item) => item.systemId));
   return payload.volumeSystems
     .filter((system) => system.enabled)
-    .every((system) => assignedSystemIds.has(system.id));
+    .every((system) => {
+      if (!system.servicesByItem) return assignedSystemIds.has(system.id);
+      const items = dimensioningItems(system).filter(({ item }) => item.included !== false);
+      if (!items.length && payload.scopeConfirmations.noInputs) return true;
+      return items.length > 0 && items.every(({ type, item }) =>
+        (item.serviceIds?.length || 0) > 0 && item.serviceIds!.every(service => dimensioningServiceAllowed(type, service)));
+    });
 }
 
 function isCrewTransportWaived(
@@ -4343,7 +4392,27 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
     if (systemIds.has(system.id)) add("error", `${path}.id`, "O identificador do sistema está duplicado.");
     systemIds.add(system.id);
     if (system.enabled) enabledSystemIds.add(system.id);
-    if (payload.scopeConfirmations.noInputs || !system.enabled) return;
+    if (!system.enabled) return;
+    if (system.servicesByItem && (!payload.scopeConfirmations.noInputs || dimensioningItems(system).some(({ item }) => item.included !== false))) {
+      const items = dimensioningItems(system).filter(({ item }) => item.included !== false);
+      if (!system.name.trim()) add('error', `${path}.name`, 'Informe o nome do equipamento do cliente.');
+      if (!items.length) add('error', `${path}.items`, 'Adicione um tipo de equipamento e seus sistemas.');
+      items.forEach(({ type, collection, item, index: itemIndex }) => {
+        const itemPath = `${path}.${collection}[${itemIndex}]`;
+        if (!item.description.trim()) add('error', `${itemPath}.description`, 'Informe o nome do sistema.');
+        if (!item.serviceIds?.length) add('error', `${itemPath}.serviceIds`, 'Adicione ao menos um serviço para este sistema.');
+        if (item.serviceIds?.some(service => !dimensioningServiceAllowed(type, service))) {
+          add('error', `${itemPath}.serviceIds`, 'Selecione somente serviços compatíveis com este tipo de equipamento.');
+        }
+        if (new Set(item.serviceIds).size !== item.serviceIds?.length && item.serviceIds?.length) {
+          add('error', `${itemPath}.serviceIds`, 'Não repita o mesmo serviço neste sistema.');
+        }
+        if (type === 'oil' && !OIL_TYPES.includes(item.oilType as typeof OIL_TYPES[number])) {
+          add('error', `${itemPath}.oilType`, 'Selecione o tipo de óleo.');
+        }
+      });
+    }
+    if (payload.scopeConfirmations.noInputs) return;
     system.pipeSegments.forEach((segment, segmentIndex) => {
       const segmentPath = `${path}.pipeSegments[${segmentIndex}]`;
       if (segment.lengthM > 0 && segment.internalDiameterMm <= 0) {
@@ -4378,7 +4447,7 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
       if (!definition) {
         add("error", `${path}.serviceId`, "Selecione o serviço que será realizado.");
       }
-      const key = `${assignment.systemId}:${assignment.serviceId}`;
+      const key = `${assignment.systemId}:${assignment.itemType || ''}:${assignment.itemId || ''}:${assignment.serviceId}`;
       if (assignment.systemId && definition) {
         if (assignmentKeys.has(key)) {
           add("error", `${path}.serviceId`, "Este serviço já foi adicionado ao circuito selecionado.");
@@ -4388,7 +4457,7 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
       }
     });
     const systemsWithoutService = payload.volumeSystems.filter((system) =>
-      system.enabled && !assignedSystemIds.has(system.id));
+      system.enabled && !system.servicesByItem && !assignedSystemIds.has(system.id));
     if (systemsWithoutService.length) {
       add(
         "error",

@@ -4169,3 +4169,80 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+/* Dimensionamento por equipamento: só exibe os tipos adicionados pelo usuário. */
+.com-root .com-dimension-tabs,
+.com-root .com-dimension-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-block: 1rem;
+}
+
+.com-root .com-dimension-tabs [aria-selected="true"] {
+  background: var(--com-acao);
+  color: var(--com-superficie);
+  border-color: var(--com-acao);
+}
+
+.com-root .com-dimension-item {
+  padding: 1rem;
+  margin-block: 1rem;
+  border: 1px solid var(--com-borda);
+  border-radius: var(--com-raio);
+  background: var(--com-superficie);
+}
+
+.com-root .com-dimension-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.com-root .com-dimension-services {
+  border: 1px solid var(--com-borda);
+  border-radius: var(--com-raio);
+  margin: 1rem 0;
+  padding: 0.75rem;
+  min-width: 0;
+}
+
+.com-root .com-dimension-services legend {
+  font-weight: 600;
+  padding-inline: 0.35rem;
+}
+
+.com-root .com-dimension-service-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.com-root .com-dimension-service-row select {
+  min-width: 0;
+  flex: 1;
+}
+
+.com-root .com-dimension-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 1.5rem;
+  border: 1px solid var(--com-borda);
+  border-radius: var(--com-raio);
+  color: var(--com-texto);
+  background: var(--com-superficie);
+}
+
+.com-root .com-dimension-dialog::backdrop {
+  background: color-mix(in srgb, var(--com-texto) 45%, transparent);
+}
+
+.com-root .com-dimension-options .com-btn {
+  flex: 1 1 11rem;
+}

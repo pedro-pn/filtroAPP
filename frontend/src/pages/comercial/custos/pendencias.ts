@@ -41,6 +41,7 @@ export function faltaInsumos(draft: AnyRecord): boolean {
   const confirmacoes = (draft.scopeConfirmations as AnyRecord) || {};
   if (!hasCompleteCircuitServices(draft)) return true;
   if (confirmacoes.noInputs === true) return false;
+  if (validateCostEstimate(draft).errors.some(item => item.path?.startsWith('volumeSystems'))) return true;
   return !hasMeaningfulInputs(draft);
 }
 

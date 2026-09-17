@@ -1,4 +1,14 @@
 import { calculateEstimate } from '../../../../shared/comercial/dist/cost-model.js';
+import { SYSTEM_MATERIALS } from '../../../../shared/comercial/dist/dimensioning.js';
+import { getTechnicalServiceDefinition } from '../../../../shared/comercial/dist/technical-services.js';
+
+const dadosDoSistema = item => [
+  SYSTEM_MATERIALS.find(material => material.value === item.material)?.label ?? '',
+  (Array.isArray(item.serviceIds) ? item.serviceIds : [])
+    .map(id => getTechnicalServiceDefinition(id)?.title).filter(Boolean).join(', '),
+  item.oilType ?? '',
+  item.oilBrandViscosity ?? ''
+];
 
 /**
  * A planilha de custos anexada à finalização (tarefas T076a e T076b).
@@ -259,7 +269,7 @@ function linhasEsquema2(payload, result, estimate) {
   linhas.push(
     [],
     ['TUBULAÇÕES E VOLUMES'],
-    ['SISTEMA', 'TIPO', 'TAG / TRECHO', 'QTD.', 'COMPRIMENTO (M)', 'DIÂMETRO INTERNO (MM)', 'PREENCHIMENTO (%)', 'CICLOS', 'VOLUME (L)']
+    ['CIRCUITO', 'TIPO', 'NOME DO SISTEMA', 'QTD.', 'COMPRIMENTO (M)', 'DIÂMETRO INTERNO (MM)', 'PREENCHIMENTO (%)', 'CICLOS', 'VOLUME (L)', 'MATERIAL', 'SERVIÇOS', 'TIPO DE ÓLEO', 'MARCA / VISCOSIDADE']
   );
 
   const volumeResults = records(result.volumeResults);
@@ -280,22 +290,29 @@ function linhasEsquema2(payload, result, estimate) {
           ((quantidade * Math.PI * (diametro / 1000) ** 2) / 4) * comprimento * 1000 * preenchimento / 100;
         linhas.push([
           system.name, rotulo, trecho.description ?? trecho.tag, quantidade, comprimento,
-          diametro, preenchimento, '', calculado.volumeLiters ?? litros
+          diametro, preenchimento, '', calculado.volumeLiters ?? litros,
+          ...dadosDoSistema(trecho)
         ]);
       }
     }
 
-    const equipmentResults = records(systemResult.equipmentVolumes);
-    for (const equipamento of records(system.equipmentVolumes)) {
-      if (equipamento.included === false) continue;
-      const calculado =
-        equipmentResults.find(entry => String(entry.id || '') === String(equipamento.id || '')) || {};
-      linhas.push([
-        system.name, 'Máquina / reservatório', equipamento.description, equipamento.quantity ?? 1,
-        '', '', '', '',
-        calculado.totalVolumeLiters ??
-          numero(equipamento.quantity ?? 1) * numero(equipamento.volumeLiters)
-      ]);
+    for (const [chave, rotulo] of [
+      ['equipmentVolumes', system.servicesByItem ? 'Equipamento avulso' : 'Máquina / reservatório'],
+      ['reservoirVolumes', 'Reservatório']
+    ]) {
+      const calculados = records(systemResult[chave]);
+      for (const equipamento of records(system[chave])) {
+        if (equipamento.included === false) continue;
+        const calculado =
+          calculados.find(entry => String(entry.id || '') === String(equipamento.id || '')) || {};
+        linhas.push([
+          system.name, rotulo, equipamento.description, equipamento.quantity ?? 1,
+          '', '', '', '',
+          calculado.totalVolumeLiters ??
+            numero(equipamento.quantity ?? 1) * numero(equipamento.volumeLiters),
+          ...dadosDoSistema(equipamento)
+        ]);
+      }
     }
 
     const manualVolumeResults = records(systemResult.manualVolumes);
@@ -303,16 +320,17 @@ function linhasEsquema2(payload, result, estimate) {
       const calculado =
         manualVolumeResults.find(entry => String(entry.id || '') === String(adicional.id || '')) || {};
       linhas.push([
-        system.name, 'Outro volume', adicional.description ?? 'Volume adicional',
+        system.name, system.servicesByItem ? 'Volume de óleo' : 'Outro volume', adicional.description ?? '',
         adicional.quantity ?? 1, '', '', '', '',
         calculado.totalVolumeLiters ??
-          numero(adicional.quantity ?? 1) * numero(adicional.volumeLiters)
+          numero(adicional.quantity ?? 1) * numero(adicional.volumeLiters),
+        ...dadosDoSistema(adicional)
       ]);
     }
 
     linhas.push([
       system.name, 'Total', 'TOTAL DO SISTEMA (COM CICLOS)', '', '', '', '',
-      system.cycles, systemResult.totalVolumeLiters ?? ''
+      system.cycles, systemResult.totalVolumeLiters ?? '', '', '', '', ''
     ]);
   }
 

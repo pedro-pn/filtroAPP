@@ -52,6 +52,8 @@ function material(extras = {}) {
 function comServicos(payload, serviceId, ids = payload.volumeSystems.map(item => item.id)) {
   return {
     ...payload,
+    // Fixtures deste arquivo cobrem o contrato anterior, de serviço por circuito.
+    volumeSystems: payload.volumeSystems.map(item => ({ ...item, servicesByItem: false })),
     circuitServices: ids.map((systemId, indice) => ({
       id: `servico-${serviceId}-${indice + 1}`,
       systemId,
@@ -143,8 +145,9 @@ test('a confirmação "sem insumos" desliga a pendência mesmo sem itens', () =>
   assert.equal(faltaInsumos(confirmado), false);
 });
 
-test('confirmar sem insumos não dispensa definir o serviço de cada circuito', () => {
+test('no contrato anterior, confirmar sem insumos não dispensa definir o serviço de cada circuito', () => {
   const base = motor.createDefaultCostEstimatePayload();
+  base.volumeSystems.forEach(system => { delete system.servicesByItem; });
   assert.equal(faltaInsumos({
     ...base,
     scopeConfirmations: { ...base.scopeConfirmations, noInputs: true }
@@ -599,6 +602,7 @@ test('todo circuito novo precisa ter ao menos um serviço válido', () => {
 
 test('levantamento antigo sem associações preserva o cálculo anterior', () => {
   const base = motor.createDefaultCostEstimatePayload();
+  base.volumeSystems.forEach(system => { delete system.servicesByItem; });
   const { circuitServices: _ignorado, ...legado } = base;
   const resultado = motor.calculateEstimate({
     ...legado,
@@ -627,5 +631,6 @@ test('a tela renderiza químicos e filtros somente quando o serviço exige', () 
 
   assert.match(secao, /exibirProdutosQuimicos && <ProdutosBloco/);
   assert.match(secao, /exibirFiltros && <FiltrosTabela/);
-  assert.match(secao, /<ServicosDosCircuitosBloco levantamento=\{levantamento\}/);
+  assert.match(secao, /<CircuitosBloco levantamento=\{levantamento\}/);
+  assert.doesNotMatch(secao, /<ServicosDosCircuitosBloco/);
 });

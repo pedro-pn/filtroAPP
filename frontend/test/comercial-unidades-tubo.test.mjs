@@ -84,8 +84,9 @@ test('trecho de tubo mostra nome do sistema e seletores com polegada como padrã
   );
 
   assert.match(fonte, /Nome do sistema/);
-  assert.match(fonte, /lengthUnit: 'm'/);
-  assert.match(fonte, /diameterUnit: 'in'/);
+  const defaults = readFileSync(new URL('../src/pages/comercial/custos/dimensionamento.ts', import.meta.url), 'utf8');
+  assert.match(defaults, /lengthUnit: 'm'/);
+  assert.match(defaults, /diameterUnit: 'in'/);
   assert.match(fonte, /<option value="cm">cm<\/option>/);
   assert.match(fonte, /<option value="mm">mm<\/option>/);
   assert.match(fonte, /<option value="in">pol\.<\/option>/);

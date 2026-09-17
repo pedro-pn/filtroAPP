@@ -1,5 +1,5 @@
 import { MoneyInput } from '../../components/Field';
-import { technicalServiceRequiresChemicalProducts } from '../../../../../../shared/comercial/dist/cost-model.js';
+import { normalizeCostEstimatePayload, technicalServiceRequiresChemicalProducts } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { money, number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
 
@@ -73,9 +73,10 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
   const todosOsCircuitos = registros(draft.volumeSystems).filter(
     circuito => circuito.enabled !== false
   );
-  const servicosConfigurados = Array.isArray(draft.circuitServices);
+  const normalizado = normalizeCostEstimatePayload(draft);
+  const servicosConfigurados = Array.isArray(normalizado.circuitServices);
   const circuitosComLimpeza = new Set(
-    registros(draft.circuitServices)
+    registros(normalizado.circuitServices)
       .filter(servico => technicalServiceRequiresChemicalProducts(servico.serviceId))
       .map(servico => String(servico.systemId || ''))
   );
@@ -154,8 +155,8 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
         <div>
           <h2>Produtos químicos</h2>
           <p>
-            A regra de dosagem transforma o volume do circuito em quantidade de produto. A
-            embalagem arredonda a compra para cima. Se a mesma dosagem valer para todos,
+            A dosagem considera somente o volume dos sistemas com limpeza química em cada
+            circuito. A embalagem arredonda a compra para cima. Se a mesma dosagem valer para todos,
             selecione todos os circuitos e cadastre o produto uma única vez.
           </p>
         </div>

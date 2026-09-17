@@ -1,5 +1,6 @@
 import type { LevantamentoSalvo } from '../../../api/comercial';
-import { calculateEstimate } from '../../../../../shared/comercial/dist/cost-model.js';
+import { calculateEstimate, normalizeCostEstimatePayload } from '../../../../../shared/comercial/dist/cost-model.js';
+import { dimensioningItems, dimensioningServiceAllowed } from '../../../../../shared/comercial/dist/dimensioning.js';
 import type { ScopeServiceItem } from '../../../../../shared/comercial/dist/scope-content.js';
 import {
   createTechnicalServiceSelection,
@@ -27,6 +28,7 @@ type CircuitoDoLevantamento = {
   id: string;
   name: string;
   material: string;
+  oilType?: string;
 };
 
 type GrupoDeServico = {
@@ -42,8 +44,9 @@ export type ServicosImportadosDoLevantamento = {
 function gruposDeServicosDoLevantamento(
   levantamento: Pick<LevantamentoComPayload, 'payload'>
 ): GrupoDeServico[] {
-  const circuitosBrutos = levantamento.payload?.volumeSystems;
-  const associacoes = levantamento.payload?.circuitServices;
+  const payload = normalizeCostEstimatePayload(levantamento.payload || {});
+  const circuitosBrutos = payload.volumeSystems;
+  const associacoes = payload.circuitServices;
   if (!Array.isArray(circuitosBrutos) || !Array.isArray(associacoes)) return [];
 
   const circuitos = new Map<string, CircuitoDoLevantamento>();
@@ -65,8 +68,19 @@ function gruposDeServicosDoLevantamento(
     if (!candidato || typeof candidato !== 'object') return;
     const registro = candidato as Record<string, unknown>;
     const serviceId = String(registro.serviceId || '') as TechnicalServiceId;
-    const circuito = circuitos.get(String(registro.systemId || ''));
+    let circuito = circuitos.get(String(registro.systemId || ''));
     if (!circuito || !getTechnicalServiceDefinition(serviceId)) return;
+
+    if (registro.itemId) {
+      const system = payload.volumeSystems.find(item => item.id === registro.systemId);
+      const dimensionado = system && dimensioningItems(system).find(item => item.item.id === registro.itemId && item.type === registro.itemType);
+      if (!dimensionado || !dimensioningServiceAllowed(dimensionado.type, serviceId)) return;
+      const linha = dimensionado.item;
+      const detalhes = [linha.oilType, linha.oilBrandViscosity].filter(Boolean).join(' — ');
+      circuito = { id: `${circuito.id}:${registro.itemType}:${linha.id}`,
+        name: `${circuito.name} — ${linha.description || 'Sistema'}${detalhes ? ` (${detalhes})` : ''}`,
+        material: linha.material || 'other', oilType: linha.oilType };
+    }
 
     const grupo = grupos.get(serviceId) ?? { serviceId, circuitos: [] };
     if (!grupo.circuitos.some(item => item.id === circuito.id)) grupo.circuitos.push(circuito);
@@ -118,6 +132,11 @@ export function servicosImportadosDoLevantamento(
           material.otherMaterial
         );
       }
+    }
+    const tiposDeOleo = [...new Set(grupo.circuitos.map(circuito => circuito.oilType).filter(Boolean))];
+    if (getTechnicalServiceDefinition(grupo.serviceId)?.asksOilType && tiposDeOleo.length === 1
+      && (tiposDeOleo[0] === 'Óleo hidráulico' || tiposDeOleo[0] === 'Óleo lubrificante')) {
+      selecao = updateTechnicalServiceParameter(selecao, 'oilType', tiposDeOleo[0]);
     }
     return selecao;
   });

@@ -139,6 +139,10 @@ test('produto oferece dimensionamento único para todos os circuitos com limpeza
 test('produto excluído pode ser restaurado com todos os seus dados', () => {
   const estado = levantamento();
   const circuitoDoProduto = estado.draft.products[0].systemId;
+  estado.draft.volumeSystems[0].equipmentVolumes = [{
+    id: 'sistema-quimico', description: 'Sistema químico', quantity: 1,
+    volumeLiters: 100, included: true, serviceIds: ['limpeza_quimica']
+  }];
   estado.draft.circuitServices = [{
     id: 'servico-produto-restauravel',
     systemId: circuitoDoProduto,
@@ -231,14 +235,17 @@ test('veículo continua obrigatório, mas oferece a decisão explícita "Sem ve�
   assert.match(html, /Percentual da HE/);
 });
 
-test('os circuitos existentes nascem minimizados e mantêm nome e volume no resumo', () => {
+test('o circuito inicial vem aberto, vazio e com cabeçalho retrátil', () => {
   const estado = levantamento();
   const html = renderToStaticMarkup(
     createElement(CircuitosBloco, { levantamento: estado })
   );
 
-  assert.match(html, /aria-expanded="false"/);
-  assert.match(html, /aço carbono/i);
+  assert.equal(estado.draft.volumeSystems.length, 1);
+  assert.equal(estado.draft.volumeSystems[0].name, '');
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /Digite o nome do equipamento do cliente/);
+  assert.match(html, /Adicionar serviços/);
   assert.match(html, /class="com-cabecalho-toggle"/);
   assert.match(html, /class="com-retratil-seta" aria-hidden="true"/);
   assert.doesNotMatch(html, /Abrir para preencher|Minimizar/);
