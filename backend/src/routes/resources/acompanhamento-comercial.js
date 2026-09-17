@@ -39,7 +39,7 @@ import prisma from '../../lib/prisma.js';
 import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 import { projectSystemScopeInclude, projectSystemWithMeasurements, saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
 import { assertHistoricalProject } from '../../lib/reports/historical-services-store.js';
-import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { createSystemReconciliationRouter } from './system-reconciliation.js';
 import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
 
@@ -197,6 +197,7 @@ router.post(
         importedByUserId: null,
         source: 'SCRIPT'
       });
+      clearProjectDerivedCaches();
       return res.status(summary.skippedDuplicate ? 200 : 201).json(summary);
     } catch (error) {
       return res.status(422).json({ error: `Falha ao importar o banco Access: ${error.message}` });
@@ -350,6 +351,7 @@ router.patch(
         acompanhamentoReviewedAt: true
       }
     });
+    clearProjectDerivedCaches();
     res.json({
       projectId: updated.id,
       archived: !updated.isActive || Boolean(updated.acompanhamentoArchivedAt),
@@ -532,6 +534,7 @@ router.post(
     const { codBd } = revisionSchema.parse(req.body);
     try {
       const budget = await setProjectBudgetRevision(req.params.projectId, codBd);
+      clearProjectDerivedCaches();
       res.json(budget);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -549,6 +552,7 @@ router.post(
       const selection = await setProjectAdditionalProposalRevision(req.params.projectId, codBd, {
         selectedByUserId: req.auth?.user?.id ?? null
       });
+      clearProjectDerivedCaches();
       res.json(selection);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -564,6 +568,7 @@ router.delete(
     const codProp = proposalCodeParamSchema.parse(req.params.codProp);
     try {
       const result = await removeProjectAdditionalProposal(req.params.projectId, codProp);
+      clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -602,6 +607,7 @@ router.patch(
     const data = scheduleSchema.parse(req.body);
     try {
       await setProjectSchedule(req.params.projectId, data);
+      clearProjectDerivedCaches();
       res.json({ ok: true });
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -619,6 +625,7 @@ router.post(
       const cost = await createManualProjectCost(req.params.projectId, data, {
         userId: req.auth?.user?.id ?? null
       });
+      clearProjectDerivedCaches();
       res.status(201).json(cost);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -633,6 +640,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     try {
       const result = await deleteManualProjectCost(req.params.projectId, req.params.costId);
+      clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
       res.status(404).json({ error: error.message });
@@ -699,7 +707,7 @@ router.put(
     const data = plannedScopeSchema.parse(req.body);
     try {
       const scope = await setPlannedScope(req.params.projectId, data);
-      statisticsProjectsCache.clear();
+      clearProjectDerivedCaches();
       res.json(scope);
     } catch (error) {
       res.status(error.code === 'P2034' ? 409 : error.status ?? 400).json({ error: error.code === 'P2034' ? 'Os dados mudaram. Atualize o cronograma e tente novamente.' : error.message });
@@ -711,7 +719,7 @@ router.post('/projetos/:projectId/horas-previstas/resolver', requireAuth, requir
   const data = z.object({ choice: z.enum(['COMMERCIAL', 'MANUAL']), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.body);
   try {
     await resolvePlannedHoursDecision(req.params.projectId, data, req.auth.user.id);
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res.json(await getPlannedScope(req.params.projectId));
   } catch (error) {
     res.status(error.code === 'P2034' ? 409 : error.status ?? 400).json({ error: error.code === 'P2034' ? 'Os dados mudaram. Atualize o cronograma e tente novamente.' : error.message });
@@ -734,7 +742,7 @@ router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompa
   }).parse(req.body);
   await assertHistoricalProject(prisma, req.params.projectId);
   const item = await saveSystemAlias(prisma, { ...data, ...req.params });
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(item);
 }));
 

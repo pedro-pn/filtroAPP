@@ -12,6 +12,7 @@ Este repositório agora tem o esqueleto inicial de produção:
 
 - PostgreSQL isolado na rede interna Docker
 - Backend sem porta exposta diretamente ao host
+- Worker de jobs recorrentes separado do processo HTTP
 - Nginx como único serviço exposto em `80/443`
 - Volumes nomeados para banco, relatórios, assets e certificados
 - Frontend React compilado no build da imagem do nginx
@@ -106,7 +107,7 @@ env-file usado pelo Compose.
    migrations automaticamente, então ele não deve subir antes do preflight dos índices:
 
 ```bash
-docker compose --env-file backend/.env.production -f docker-compose.prod.yml build backend nginx
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml build backend nginx worker
 ```
 
 5. Subir somente o Postgres:
@@ -129,11 +130,24 @@ arquivo via Prisma. Depois que os índices existirem, as migrations com
 `CREATE INDEX IF NOT EXISTS` passam a ser no-op para esses índices e não seguram
 writes de produção durante o deploy.
 
-7. Subir backend e Nginx. Neste momento o `CMD` do backend roda
+O compose inicia os jobs recorrentes no serviço `worker` e define
+`BACKGROUND_JOBS_IN_API=false` no backend, evitando que pós-processamentos,
+sincronizações e lembretes disputem o event loop HTTP. Os pools são limitados a
+8 conexões no backend e 2 no worker por padrão; ajuste
+`BACKEND_DATABASE_CONNECTION_LIMIT` e `WORKER_DATABASE_CONNECTION_LIMIT` apenas
+depois de observar `dbPool.waiting` nos logs de operações lentas.
+
+O PostgreSQL inicia com `pg_stat_statements`, `track_io_timing` e log de
+statements acima de 1 s habilitados. A migration cria a extensão; depois do
+deploy, confirme com `SELECT * FROM pg_extension WHERE extname = 'pg_stat_statements'`
+e use a view apenas para diagnóstico, resetando seus
+contadores somente em uma janela de medição planejada.
+
+7. Subir backend, worker e Nginx. Neste momento o `CMD` do backend roda
    `npx prisma migrate deploy` automaticamente e inicia a API:
 
 ```bash
-docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend nginx
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend nginx worker
 ```
 
 Para deploys futuros que não adicionem índices grandes, o fluxo normal pode voltar a

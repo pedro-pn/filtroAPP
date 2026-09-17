@@ -63,9 +63,11 @@ export function EfetivoPage() {
   const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
   const adminTab = (['regras', 'feriados', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'atividade';
   const canManage = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('efetivo:manager'));
-  const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
-  const missions = useQuery({ queryKey: ['efetivo-planning-missions', 'official', 'all'], queryFn: () => listPlanningMissions() });
-  const pendingProjects = useQuery({ queryKey: ['efetivo-planning-missions-pending', 'official'], queryFn: () => listPendingMissionProjects() });
+  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'simulacoes'].includes(section);
+  const needsMissionSummary = section === 'missoes';
+  const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles, enabled: needsPositionFilters });
+  const missions = useQuery({ queryKey: ['efetivo-planning-missions', 'official', 'all'], queryFn: () => listPlanningMissions(), enabled: needsMissionSummary });
+  const pendingProjects = useQuery({ queryKey: ['efetivo-planning-missions-pending', 'official'], queryFn: () => listPendingMissionProjects(), enabled: needsMissionSummary });
   const missionPendencyCount = countMissionPendencies(missions.data || [], pendingProjects.data || []);
 
   const updateParam = useCallback((key: string, value?: string, replace = true) => {
@@ -90,8 +92,6 @@ export function EfetivoPage() {
       return next;
     }, { replace: false });
   }, [setSearchParams]);
-  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'simulacoes'].includes(section);
-
   return (
     <Shell>
       <TopBar title="Efetivo Operacional" subtitle="Capacidade, missões, pessoas e produtividade" actions={<button className="topbar-chip" type="button" onClick={() => tutorialTrigger.current?.()}>Ver tutorial</button>} />

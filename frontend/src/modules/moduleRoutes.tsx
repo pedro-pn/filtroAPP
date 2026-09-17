@@ -1,20 +1,23 @@
+/* eslint-disable react-refresh/only-export-components -- route-level lazy components intentionally share this route registry */
+import { lazy } from 'react';
 import { Route } from 'react-router';
 
 import { RoleRoute } from '../auth/RoleRoute';
-import { AcompanhamentoPage } from '../pages/acompanhamento/AcompanhamentoPage';
-import { AdminAccountsPage } from '../pages/admin/AdminAccountsPage';
-import { AdminTokensPage } from '../pages/admin/AdminTokensPage';
-import { EpiPage } from '../pages/epi/EpiPage';
-import { EquipamentosPage } from '../pages/equipamentos/EquipamentosPage';
-import { EstoquePage } from '../pages/estoque/EstoquePage';
-import { PrivacyRequestsPage } from '../pages/privacy/PrivacyRequestsPage';
-import { QualidadePage } from '../pages/qualidade/QualidadePage';
-import { NewRomaneioPage } from '../pages/romaneio/NewRomaneioPage';
-import { RomaneioPage } from '../pages/romaneio/RomaneioPage';
 import { moduleRouteAccess, moduleRoutePath } from './registry';
-import { EfetivoPage } from '../pages/efetivo/EfetivoPage';
-import { AssinaturasPage } from '../pages/assinaturas/AssinaturasPage';
 // module:scaffold import
+
+const AcompanhamentoPage = lazy(() => import('../pages/acompanhamento/AcompanhamentoPage').then(module => ({ default: module.AcompanhamentoPage })));
+const AdminAccountsPage = lazy(() => import('../pages/admin/AdminAccountsPage').then(module => ({ default: module.AdminAccountsPage })));
+const AdminTokensPage = lazy(() => import('../pages/admin/AdminTokensPage').then(module => ({ default: module.AdminTokensPage })));
+const EpiPage = lazy(() => import('../pages/epi/EpiPage').then(module => ({ default: module.EpiPage })));
+const EquipamentosPage = lazy(() => import('../pages/equipamentos/EquipamentosPage').then(module => ({ default: module.EquipamentosPage })));
+const EstoquePage = lazy(() => import('../pages/estoque/EstoquePage').then(module => ({ default: module.EstoquePage })));
+const PrivacyRequestsPage = lazy(() => import('../pages/privacy/PrivacyRequestsPage').then(module => ({ default: module.PrivacyRequestsPage })));
+const QualidadePage = lazy(() => import('../pages/qualidade/QualidadePage').then(module => ({ default: module.QualidadePage })));
+const NewRomaneioPage = lazy(() => import('../pages/romaneio/NewRomaneioPage').then(module => ({ default: module.NewRomaneioPage })));
+const RomaneioPage = lazy(() => import('../pages/romaneio/RomaneioPage').then(module => ({ default: module.RomaneioPage })));
+const EfetivoPage = lazy(() => import('../pages/efetivo/EfetivoPage').then(module => ({ default: module.EfetivoPage })));
+const AssinaturasPage = lazy(() => import('../pages/assinaturas/AssinaturasPage').then(module => ({ default: module.AssinaturasPage })));
 
 const ADMIN_ACCOUNTS_ACCESS = moduleRouteAccess('admin', 'accounts');
 const PRIVACY_ACCESS = moduleRouteAccess('privacy');
