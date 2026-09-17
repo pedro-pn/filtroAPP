@@ -75,6 +75,7 @@ export function CircuitosBloco({
                   'description',
                   'serviceIds',
                   'oilType',
+                  'material',
                   'internalDiameterMm'
                 ].some((field) =>
                   erroDe(`${path}.${type.collection}[${index}].${field}`)
@@ -277,7 +278,7 @@ function SistemasDoCircuito({
   );
   const tipoComErro = tipos.find((type) =>
     registros(circuito[type.collection]).some((_, index) =>
-      ['description', 'serviceIds', 'oilType', 'internalDiameterMm'].some(
+      ['description', 'serviceIds', 'oilType', 'material', 'internalDiameterMm'].some(
         (field) => erroDe(`${path}.${type.collection}[${index}].${field}`)
       )
     )
@@ -471,9 +472,10 @@ function Sistema({
           />
         </Campo>
         {tipo !== 'oil' && (
-          <Campo label="Material">
+          <Campo label="Material" error={erro('material')}>
             <select
               aria-label="Material"
+              aria-invalid={Boolean(erro('material')) || undefined}
               value={String(item.material || 'other')}
               onChange={(event) => editar({ material: event.target.value })}
             >

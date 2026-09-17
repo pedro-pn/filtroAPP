@@ -4298,3 +4298,14 @@
 .com-root .com-dimension-options .com-btn {
   flex: 1 1 11rem;
 }
+
+.com-root .com-volume-quimico {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--com-borda);
+  border-radius: var(--com-raio);
+  background: var(--com-superficie);
+}
+.com-root .com-volume-quimico summary { cursor: pointer; font-weight: 600; }
+.com-root .com-volume-quimico p { margin-block: 0.75rem; }
+.com-root .com-volume-quimico h3 { margin-block: 1rem 0.5rem; }

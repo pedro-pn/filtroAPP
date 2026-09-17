@@ -2,6 +2,8 @@ import { MoneyInput } from '../../components/Field';
 import { normalizeCostEstimatePayload, technicalServiceRequiresChemicalProducts } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { money, number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
+import type { ChemicalVolumeResult } from '../../../../../../shared/comercial/dist/chemical-cleaning.js';
+import { VolumeQuimicoResumo } from './VolumeQuimicoResumo';
 
 /**
  * Produtos dimensionados por volume — o último bloco de Materiais e insumos.
@@ -155,8 +157,8 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
         <div>
           <h2>Produtos químicos</h2>
           <p>
-            A dosagem considera somente o volume dos sistemas com limpeza química em cada
-            circuito. A embalagem arredonda a compra para cima. Se a mesma dosagem valer para todos,
+            A dosagem considera os sistemas com limpeza química, incluindo os reservatórios
+            das bombas e mangueiras calculados pela LEC. A embalagem arredonda a compra para cima. Se a mesma dosagem valer para todos,
             selecione todos os circuitos e cadastre o produto uma única vez.
           </p>
         </div>
@@ -176,6 +178,8 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
           </button>
         </div>
       </div>
+
+      <VolumeQuimicoResumo volumes={result.chemicalVolumeResults as ChemicalVolumeResult[] | undefined} />
 
       {produtos.length > 0 ? (
         <div className="com-table-wrap com-table-wrap-produtos-volume">

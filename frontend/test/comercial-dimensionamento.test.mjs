@@ -92,6 +92,31 @@ test('químicos e filtros respondem às linhas, sem depender de associações an
   assert.doesNotMatch(html, /Serviços por circuito/);
 });
 
+test('produtos mostram memória LEC com bomba, mangueiras e total para dosagem', () => {
+  const draft = model.createDefaultCostEstimatePayload();
+  draft.volumeSystems[0].name = 'Prensa';
+  draft.volumeSystems[0].pipeSegments = [{ ...helpers.novoSistemaDimensionado('pipes'),
+    description: 'Linha', lengthM: 50, internalDiameterMm: 50.8, serviceIds: ['limpeza_quimica'] }];
+  const html = renderToStaticMarkup(createElement(InsumosSection, { levantamento: state(draft) }));
+  assert.match(html, /Volume para dosagem química: 271,29 L/);
+  assert.match(html, /memória de cálculo LEC/);
+  assert.match(html, /Reservatórios das bombas \(L\)/);
+  assert.match(html, /<td>120 L<\/td>/);
+  assert.match(html, /<td>50 m<\/td><td>1<\/td>/);
+  assert.match(html, /Mangueiras \(L\)/);
+});
+
+test('material incompatível destaca a seleção do tubo para limpeza química', () => {
+  const draft = model.createDefaultCostEstimatePayload();
+  draft.volumeSystems[0].pipeSegments = [{ ...helpers.novoSistemaDimensionado('pipes'), material: 'other',
+    description: 'Linha', lengthM: 50, internalDiameterMm: 50.8, serviceIds: ['limpeza_quimica'] }];
+  const levantamento = state(draft);
+  levantamento.erroDe = path => path.endsWith('.material') ? 'Defina o material da bomba.' : undefined;
+  const html = renderToStaticMarkup(createElement(CircuitosBloco, { levantamento }));
+  assert.match(html, /aria-label="Material" aria-invalid="true"/);
+  assert.match(html, /Defina o material da bomba/);
+});
+
 test('importação na proposta usa nome/material de cada linha e os detalhes do óleo', () => {
   const draft = model.createDefaultCostEstimatePayload();
   const system = draft.volumeSystems[0]; system.name = 'Prensa';

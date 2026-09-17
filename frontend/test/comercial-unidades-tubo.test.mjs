@@ -44,12 +44,16 @@ test('diâmetro converte polegada para o milímetro usado pelo cálculo', () => 
 test('levantamento usa a mesma lista fixa de polegadas dos relatórios de limpeza química', () => {
   assert.deepEqual([...diametros.COMMON_INCH_DIAMETERS], [
     '1/8', '1/4', '3/8', '1/2', '3/4', '1', '1 1/4', '1 1/2', '2',
-    '2 1/2', '3', '3 1/2', '4', '5', '6', '8', '10', '12', '14', '16',
-    '18', '20'
+    '2 1/2', '3', '3 1/2', '4', '5', '6', '7', '8', '9', '10', '11', '12',
+    '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24'
   ]);
   assert.equal(diametros.inchDiameterToNumber('1 1/4'), 1.25);
   assert.equal(diametros.commonInchDiameterLabel(1.25), '1 1/4');
   assert.equal(diametros.commonInchDiameterLabel(1.1), '');
+  for (const inches of [7, 9, 11, 13, 15, 17, 19, 21, 22, 23, 24]) {
+    assert.equal(diametros.commonInchDiameterLabel(inches), String(inches));
+    assert.ok(Math.abs(unidades.diametroEmMilimetros(inches, 'in') - inches * 25.4) < 1e-6);
+  }
 });
 
 test('as unidades escolhidas sobrevivem à normalização do rascunho no servidor', () => {

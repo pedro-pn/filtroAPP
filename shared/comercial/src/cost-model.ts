@@ -13,6 +13,7 @@ import {
   type TechnicalServiceId,
 } from "./technical-services.js";
 import { dimensioningItems, dimensioningServiceAllowed, OIL_TYPES, type DimensioningFields, type DimensioningType } from './dimensioning.js';
+import { calculateChemicalCleaningVolume, type ChemicalVolumeResult } from './chemical-cleaning.js';
 
 export type CostRole = { role: string; salary: number; adjustment: number };
 export type LecLaborRole = {
@@ -627,6 +628,7 @@ export type CostEstimateResultV2 = {
   indirectResults: IndirectCostResult[];
   materialResults: MaterialResult[];
   volumeResults: VolumeSystemResult[];
+  chemicalVolumeResults?: ChemicalVolumeResult[];
   productResults: ProductResult[];
   filterResults: FilterResult[];
   logisticsResults: LogisticsResult[];
@@ -3059,7 +3061,7 @@ function quantityForProduct(product: ProductRequirement, sourceVolumeLiters: num
   return product.unit.toLowerCase().startsWith("l") ? kilograms / product.densityKgPerL : kilograms;
 }
 
-function calculateProduct(product: ProductRequirement, volumes: VolumeSystemResult[]): ProductResult {
+function calculateProduct(product: ProductRequirement, volumes: Array<Pick<VolumeSystemResult, 'id' | 'totalVolumeLiters'>>): ProductResult {
   const selectedVolumes = product.systemId && product.systemId !== "*"
     ? volumes.filter((system) => system.id === product.systemId)
     : volumes;
@@ -3822,23 +3824,15 @@ function calculateEstimateCore(input: CostEstimatePayloadV2): CostEstimateResult
   const volumeResults = payload.scopeConfirmations.noInputs
     ? []
     : payload.volumeSystems.filter((system) => system.enabled).map(calculateVolumeSystem);
-  const chemicalVolumeResults = circuitServices.configured
-    ? payload.volumeSystems.filter(system => system.enabled && circuitServices.chemicalSystemIds.has(system.id)).map(system => {
-      if (!system.servicesByItem) return calculateVolumeSystem(system);
-      const chemical = (item: DimensioningFields) => item.serviceIds?.includes('limpeza_quimica');
-      return calculateVolumeSystem({ ...system,
-        pipeSegments: system.pipeSegments.filter(chemical),
-        equipmentVolumes: system.equipmentVolumes.filter(chemical),
-        reservoirVolumes: (system.reservoirVolumes || []).filter(chemical),
-        manualVolumes: [], hoseSegments: [],
-      });
-    })
-    : volumeResults;
+  const chemicalVolumeResults = payload.scopeConfirmations.noInputs || !circuitServices.configured
+    ? []
+    : payload.volumeSystems.filter(system => system.enabled && circuitServices.chemicalSystemIds.has(system.id))
+      .map(calculateChemicalCleaningVolume);
   const productResults = payload.scopeConfirmations.noInputs
     ? []
     : payload.products.filter((product) =>
       product.included && productAppliesToCircuitServices(product, circuitServices))
-      .map((product) => calculateProduct(product, chemicalVolumeResults));
+      .map((product) => calculateProduct(product, circuitServices.configured ? chemicalVolumeResults : volumeResults));
   const productCost = productResults.reduce((sum, item) => sum + item.total, 0);
   const filterResults = payload.scopeConfirmations.noInputs
     ? []
@@ -3966,6 +3960,7 @@ function calculateEstimateCore(input: CostEstimatePayloadV2): CostEstimateResult
     indirectResults,
     materialResults,
     volumeResults,
+    ...(chemicalVolumeResults.length ? { chemicalVolumeResults } : {}),
     productResults,
     filterResults,
     logisticsResults,
@@ -4415,6 +4410,11 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
     if (payload.scopeConfirmations.noInputs) return;
     system.pipeSegments.forEach((segment, segmentIndex) => {
       const segmentPath = `${path}.pipeSegments[${segmentIndex}]`;
+      const chemical = system.servicesByItem ? segment.serviceIds?.includes('limpeza_quimica')
+        : circuitServices.chemicalSystemIds.has(system.id);
+      if (chemical && !['carbon_steel', 'stainless_steel'].includes(segment.material ?? system.material)) {
+        add('error', `${segmentPath}.material`, 'Selecione aço carbono ou aço inox para dimensionar a bomba de limpeza química.');
+      }
       if (segment.lengthM > 0 && segment.internalDiameterMm <= 0) {
         add("error", `${segmentPath}.internalDiameterMm`, "Informe o diâmetro interno para calcular o volume.");
       }

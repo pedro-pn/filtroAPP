@@ -3,7 +3,8 @@
  *
  * Esta é a lista canônica que já era exibida nos relatórios de limpeza
  * química. Mantê-la compartilhada evita que levantamento, planejamento e RDO
- * ofereçam medidas diferentes para o mesmo tubo.
+ * ofereçam medidas diferentes para o mesmo tubo. Ampliada com todas as medidas
+ * de CUSTO.Produtos!B57:B85/B115:B143 da LEC v1.3, preservando as já oferecidas.
  */
 export const COMMON_INCH_DIAMETERS = [
   '1/8',
@@ -21,13 +22,24 @@ export const COMMON_INCH_DIAMETERS = [
   '4',
   '5',
   '6',
+  '7',
   '8',
+  '9',
   '10',
+  '11',
   '12',
+  '13',
   '14',
+  '15',
   '16',
+  '17',
   '18',
-  '20'
+  '19',
+  '20',
+  '21',
+  '22',
+  '23',
+  '24'
 ] as const;
 
 export function inchDiameterToNumber(value: string): number {

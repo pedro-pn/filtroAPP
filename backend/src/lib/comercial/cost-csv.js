@@ -334,6 +334,23 @@ function linhasEsquema2(payload, result, estimate) {
     ]);
   }
 
+  const volumesQuimicos = records(result.chemicalVolumeResults);
+  if (volumesQuimicos.length) {
+    linhas.push([], ['VOLUME PARA DOSAGEM QUÍMICA — LEC v1.3'],
+      ['CIRCUITO', 'MATERIAL', 'BOMBA / RESERVATÓRIO (L)', 'COMPRIMENTO (M)', 'SISTEMAS ATÉ 50 M',
+        'TUBULAÇÃO (L)', 'RESERVATÓRIOS DAS BOMBAS (L)', 'MANGUEIRAS (L)', 'OUTROS VOLUMES (L)', 'CICLOS', 'VOLUME PARA DOSAGEM (L)']);
+    for (const volume of volumesQuimicos) {
+      for (const group of records(volume.groups)) {
+        linhas.push([volume.name, SYSTEM_MATERIALS.find(item => item.value === group.material)?.label ?? '',
+          group.reservoirLitersPerSystem, group.lengthM, group.systemCount, group.pipeVolumeLiters,
+          group.reservoirVolumeLiters, group.hoseVolumeLiters, '', volume.cycles,
+          numero(group.totalVolumeLiters) * numero(volume.cycles)]);
+      }
+      linhas.push([volume.name, 'TOTAL DO CIRCUITO', '', '', '', volume.pipeVolumeLiters,
+        volume.reservoirVolumeLiters, volume.hoseVolumeLiters, volume.otherVolumeLiters, volume.cycles, volume.totalVolumeLiters]);
+    }
+  }
+
   linhas.push(
     [],
     ['PRODUTOS / CONSUMÍVEIS CALCULADOS'],
