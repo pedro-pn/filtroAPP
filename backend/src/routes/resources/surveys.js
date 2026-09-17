@@ -61,9 +61,9 @@ function requireManagerOrCoordinator(req, res, next) {
   next();
 }
 
-// Coordinators cannot see surveys from manager-only projects.
+// Projetos excluídos não aparecem; coordenadores também não veem Somente gestor.
 function managerOnlyProjectFilter(role) {
-  return role === 'MANAGER' ? {} : { project: { managerOnly: false } };
+  return { project: { deletedAt: null, ...(role === 'MANAGER' ? {} : { managerOnly: false }) } };
 }
 
 export function safeQuestion(question, index = 0) {

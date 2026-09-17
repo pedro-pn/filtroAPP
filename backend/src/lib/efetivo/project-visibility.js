@@ -4,6 +4,7 @@ const sedeProjectCodes = [...new Set([...SEDE_OMIE_CODES, ...SEDE_OPERATIONAL_CO
 
 export function efetivoProjectWhere() {
   return {
+    deletedAt: null,
     managerOnly: false,
     code: { notIn: sedeProjectCodes }
   };

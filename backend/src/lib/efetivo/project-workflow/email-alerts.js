@@ -119,7 +119,7 @@ export async function processProjectWorkflowEmailAlerts({
 
   const today = localDateKey(now);
   const workflows = await client.projectWorkflow.findMany({
-    where: { stage: { in: ALERT_STAGES } },
+    where: { stage: { in: ALERT_STAGES }, project: { deletedAt: null } },
     select: {
       projectId: true,
       stage: true,

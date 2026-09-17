@@ -220,6 +220,7 @@ async function getReportLaborCostEstimates(project, hoursByCollaborator) {
       where: { id: { in: [...hoursByCollaborator.keys()] } },
       select: {
         id: true,
+        rdoCostSimulationExcluded: true,
         jobRole: { select: { id: true, name: true } },
         jobRoleHistory: {
           select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } }

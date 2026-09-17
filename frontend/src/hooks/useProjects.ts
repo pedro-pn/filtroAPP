@@ -37,7 +37,8 @@ export function useProjectMutations() {
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => removeProject(id),
-    onSuccess: invalidateProjects
+    // A exclusão afeta também Efetivo, Acompanhamento e seletores de outros módulos.
+    onSuccess: () => queryClient.invalidateQueries()
   });
 
   return {

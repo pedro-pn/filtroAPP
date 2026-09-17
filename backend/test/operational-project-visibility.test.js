@@ -8,6 +8,7 @@ import { listPendingMissionProjects, listPlanningProjects, loadPlanningProjectio
 import prisma from '../src/lib/prisma.js';
 
 function assertEfetivoVisibility(where) {
+  assert.equal(where.deletedAt, null, 'Projetos excluídos devem ficar fora de todas as telas do Efetivo');
   assert.equal(where.managerOnly, false, 'Somente gestor deve ficar fora do Efetivo');
   assert.deepEqual([...where.code.notIn].sort(), ['5000', '5002', '5003', '5004']);
 }

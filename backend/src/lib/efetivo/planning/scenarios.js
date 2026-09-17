@@ -17,7 +17,7 @@ async function clonePlanGraph(tx, sourcePlanId, planData) {
     where: { id: sourcePlanId },
     include: {
       missions: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, project: { deletedAt: null } },
         include: {
           cycles: true,
           demands: true,
@@ -188,7 +188,7 @@ export function plannedHireCapacityOn(plannedHires = [], date) {
 
 async function validateScenarioGraph(tx, scenario) {
   const missions = await tx.efetivoMissionPlan.findMany({
-    where: { planId: scenario.id, deletedAt: null },
+    where: { planId: scenario.id, deletedAt: null, project: { deletedAt: null } },
     include: {
       cycles: true,
       demands: true,

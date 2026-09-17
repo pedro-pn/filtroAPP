@@ -117,6 +117,27 @@ export interface PontoMaisExternalEmployee {
   ignored: boolean;
 }
 
+export interface RdoSimulationCollaborator {
+  id: string;
+  code: string;
+  name: string;
+  jobRole: { name: string };
+  isActive: boolean;
+  rdoCostSimulationExcluded: boolean;
+}
+
+export async function getRdoSimulationCollaborators(): Promise<RdoSimulationCollaborator[]> {
+  const { data } = await apiClient.get<RdoSimulationCollaborator[]>('/acompanhamento/ponto/rdo-simulation-exclusions');
+  return data;
+}
+
+export async function setRdoSimulationExcluded(payload: { collaboratorId: string; excluded: boolean }) {
+  const { data } = await apiClient.post<Pick<RdoSimulationCollaborator, 'id' | 'rdoCostSimulationExcluded'>>(
+    '/acompanhamento/ponto/rdo-simulation-exclusions', payload
+  );
+  return data;
+}
+
 export function pontoMaisSyncTriggerLabel(trigger: string): string {
   if (trigger === 'AUTOMATIC_BOOTSTRAP') return 'Carga histórica automática';
   if (trigger === 'AUTOMATIC_DAILY') return 'Atualização diária automática';
