@@ -1,10 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const sharedWorkspaceRoot = decodeURIComponent(new URL('../shared', import.meta.url).pathname);
+
 export default defineConfig(() => {
   return {
     base: '/',
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'watch-shared-workspace',
+        configureServer(server) {
+          server.watcher.add(sharedWorkspaceRoot);
+        }
+      }
+    ],
     build: {
       // Preserve the browser targets used before the Vite 8 migration.
       target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14']
