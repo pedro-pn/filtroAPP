@@ -15,7 +15,11 @@ export const missionStageSchema = z.enum(['STANDBY', 'MOBILIZATION', 'EXECUTION'
 
 export const datePositionQuerySchema = z.object({
   date: dateOnlySchema,
+  returnDate: dateOnlySchema.optional(),
   jobRoleId: idSchema.optional()
+}).refine(value => !value.returnDate || value.returnDate >= value.date, {
+  path: ['returnDate'],
+  message: 'A data de retorno não pode ser anterior à data de posição.'
 });
 
 export const intervalQuerySchema = z.object({
@@ -174,7 +178,12 @@ export const initialHireSchema = z.object({
 export const scenarioInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   objective: z.string().trim().max(1000).nullable().optional(),
+  simulationPositionDate: dateOnlySchema.optional(),
+  simulationReturnDate: dateOnlySchema.optional(),
   initialHire: initialHireSchema.nullable().optional()
+}).refine(value => !value.simulationPositionDate || !value.simulationReturnDate || value.simulationReturnDate >= value.simulationPositionDate, {
+  path: ['simulationReturnDate'],
+  message: 'A data de retorno não pode ser anterior à data de posição.'
 });
 
 export const plannedHireInputSchema = z.object({

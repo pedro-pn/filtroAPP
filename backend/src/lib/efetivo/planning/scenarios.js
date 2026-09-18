@@ -1,7 +1,7 @@
 import { recordEfetivoAudit } from './audit.js';
 import { collaboratorIsEmployedForPeriod } from './conflicts.js';
 import { parseDateKey, periodsOverlap } from './date-only.js';
-import { conflictDescriptor, conflictError, notFound } from './errors.js';
+import { conflictDescriptor, conflictError, notFound, planningError } from './errors.js';
 import { allocationPeriods, maximumConcurrentAllocationCount } from './allocation-period.js';
 import { normalizeMissionDemands, validateMissionChronology } from './mission-planning.js';
 import { getActiveOfficialPlan, lockOfficialPlanningState, lockPlan, resolvePlanningDatabase, runPlanningTransaction } from './plan-context.js';
@@ -110,6 +110,8 @@ export async function createScenario(payload, context = {}, dependencies = {}) {
       status: 'DRAFT',
       name: payload.name.trim(),
       objective: String(payload.objective || '').trim() || null,
+      simulationPositionDate: payload.simulationPositionDate ? utcDate(payload.simulationPositionDate) : null,
+      simulationReturnDate: payload.simulationReturnDate ? utcDate(payload.simulationReturnDate) : null,
       revision: 1,
       basePlanId: official.id,
       baseOfficialRevision: official.revision,
@@ -166,12 +168,15 @@ export async function compareScenario(scenarioId, filters, dependencies = {}) {
   const scenario = await database.efetivoPlan.findUnique({ where: { id: scenarioId } });
   if (!scenario || scenario.kind !== 'SCENARIO') throw notFound('Cenário não encontrado.');
   const official = await getActiveOfficialPlan(database, { create: true });
+  const simulationDate = filters.date || (scenario.simulationPositionDate ? parseDateKey(scenario.simulationPositionDate) : null);
+  const simulationReturnDate = filters.returnDate || (scenario.simulationReturnDate ? parseDateKey(scenario.simulationReturnDate) : null);
+  if (!simulationDate) throw planningError('Informe a data de posição da simulação.');
   const [officialOverview, scenarioOverview, calendarState] = await Promise.all([
-    getPlanningOverview({ date: filters.date, jobRoleId: filters.jobRoleId, planId: official.id }, { database }),
-    getPlanningOverview({ date: filters.date, jobRoleId: filters.jobRoleId, planId: scenario.id }, { database }),
+    getPlanningOverview({ date: simulationDate, returnDate: simulationReturnDate, jobRoleId: filters.jobRoleId, planId: official.id }, { database }),
+    getPlanningOverview({ date: simulationDate, returnDate: simulationReturnDate, jobRoleId: filters.jobRoleId, planId: scenario.id }, { database }),
     database.workforceCalendarState.findUnique({ where: { id: 'global' } })
   ]);
-  const projectedCapacity = plannedHireCapacityOn(scenarioOverview.plannedHires, filters.date);
+  const projectedCapacity = plannedHireCapacityOn(scenarioOverview.plannedHires, simulationReturnDate || simulationDate);
   return {
     official: officialOverview,
     scenario: { ...scenarioOverview, projectedHireCapacity: projectedCapacity },
@@ -261,6 +266,8 @@ export async function applyScenario(scenarioId, context = {}, dependencies = {})
     await tx.efetivoPlan.update({ where: { id: official.id }, data: { status: 'SUPERSEDED', supersededAt: new Date() } });
     const newOfficial = await clonePlanGraph(tx, scenario.id, {
       kind: 'OFFICIAL', status: 'ACTIVE', name: 'Planejamento oficial', revision: official.revision + 1,
+      simulationPositionDate: scenario.simulationPositionDate,
+      simulationReturnDate: scenario.simulationReturnDate,
       basePlanId: official.id, baseOfficialRevision: official.revision,
       baseCalendarRevision: calendarState?.revision || 1,
       createdByUserId: context.actorUserId || null

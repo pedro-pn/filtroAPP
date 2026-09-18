@@ -4,6 +4,7 @@ import { allocationPeriods, missionCycles } from './allocation-period.js';
 import { missionEndsOnOrAfter } from './mission-period.js';
 import { resolvePlanningDatabase, getActiveOfficialPlan } from './plan-context.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
+import { jobRoleFamilyKey } from '../../collaborators/job-role-service.js';
 
 function utcDate(value) {
   return new Date(`${parseDateKey(value)}T00:00:00.000Z`);
@@ -14,6 +15,13 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
   const startDate = parseDateKey(filters.startDate);
   const endDate = parseDateKey(filters.endDate);
   const plan = await getActiveOfficialPlan(database, { create: true });
+  const catalogRoles = filters.jobRoleId && database.jobRole?.findMany
+    ? await database.jobRole.findMany({ select: { id: true, name: true }, where: { isActive: true } })
+    : [];
+  const selectedRole = catalogRoles.find(role => role.id === filters.jobRoleId);
+  const roleIds = selectedRole
+    ? catalogRoles.filter(role => jobRoleFamilyKey(role.name) === jobRoleFamilyKey(selectedRole.name)).map(role => role.id)
+    : filters.jobRoleId ? [filters.jobRoleId] : null;
   const [missions, absences] = await Promise.all([
     database.efetivoMissionPlan.findMany({
       where: {
@@ -23,7 +31,7 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
         scheduleStatus: 'CONFIRMED',
         mobilizationDate: { lte: utcDate(endDate) },
         ...missionEndsOnOrAfter(utcDate(startDate)),
-        ...(filters.jobRoleId ? { demands: { some: { jobRoleId: filters.jobRoleId } } } : {})
+        ...(roleIds ? { demands: { some: { jobRoleId: { in: roleIds } } } } : {})
       },
       include: {
         project: { select: { id: true, code: true, name: true, clientName: true, location: true } },
@@ -44,7 +52,7 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
         type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
         startDate: { lte: utcDate(endDate) },
         endDate: { gte: utcDate(startDate) },
-        ...(filters.jobRoleId ? { collaborator: { jobRoleId: filters.jobRoleId } } : {})
+        ...(roleIds ? { collaborator: { jobRoleId: { in: roleIds } } } : {})
       },
       include: { collaborator: { select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } } }
     })

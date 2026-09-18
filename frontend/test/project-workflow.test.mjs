@@ -291,6 +291,12 @@ test('análise inicial usa datas do CRM, contato estruturado e pendência sem ca
   assert.match(intake, /Início estimado/);
   assert.match(intake, /analysis_contact/);
   assert.match(intake, /Nome do contato/);
+  assert.match(intake, /Telefone do contato/);
+  assert.match(intake, /PHONE_COUNTRIES/);
+  assert.match(intake, /phoneCountryFlag/);
+  assert.match(intake, /project-workflow-country-trigger/);
+  assert.match(intake, /handleCountryKeyDown/);
+  assert.match(intake, /closeOnOutsidePointer/);
   assert.match(intake, /Data do contato/);
   assert.match(intake, /workflow\.analysisClientContactMade \?\? false/);
   assert.match(intake, /Enquanto estiver em “Não”, permanece pendente/);

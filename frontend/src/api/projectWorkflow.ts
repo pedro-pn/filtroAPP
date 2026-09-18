@@ -201,6 +201,7 @@ export interface ProjectWorkflowRolePlanningOption {
   order: number;
   activeCount: number;
   availableCount: number;
+  roleIds?: string[];
 }
 
 export interface ProjectWorkflowTeamDemand {
@@ -570,6 +571,7 @@ export interface ProjectWorkflow {
   commercialSourceUpdatedAt: string | null;
   analysisClientContactMade: boolean | null;
   analysisClientContactName: string | null;
+  analysisClientContactPhone: string | null;
   analysisClientContactDate: string | null;
   isCritical: boolean | null;
   preparationLeadTimeDays: number;
@@ -770,7 +772,7 @@ export interface ProjectExecutionDeviationInput {
   status: ProjectExecutionDeviationStatus;
 }
 
-export type ProjectWorkflowPatch =
+export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | null } & (
   | { action: 'settings'; version: number; leaderUserId?: string; plannerUserId?: string; plannedMobilizationDate?: string | null }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
@@ -781,7 +783,7 @@ export type ProjectWorkflowPatch =
   | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportDescription?: string | null; freightDefined?: boolean | null; freightType?: 'OWN' | 'THIRD_PARTY' | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
-  | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
+  | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactPhone?: string | null; contactDate?: string | null }
   | { action: 'analysis_criticality'; version: number; isCritical: boolean; preparationLeadTimeDays?: number }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
   | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[]; exceptions: Array<{ equipmentId: string; reason: string }> }> }
@@ -797,7 +799,8 @@ export type ProjectWorkflowPatch =
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }
-  | { action: 'authorize_mobilization'; version: number };
+  | { action: 'authorize_mobilization'; version: number }
+);
 
 const base = '/efetivo/project-workflow';
 

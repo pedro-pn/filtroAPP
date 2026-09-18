@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   applyPlanningScenario,
@@ -15,6 +15,7 @@ import { Button } from '../../../components/ui/Button';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
+import { groupJobRoles } from '../../../utils/jobRoleDisplay';
 import { MissionsBoard } from './MissionsBoard';
 import { ScenarioComparison } from './ScenarioComparison';
 import { ScenarioFormModal } from './ScenarioFormModal';
@@ -25,6 +26,12 @@ const statusLabel = {
   DISCARDED: 'Descartado',
   SUPERSEDED: 'Superado'
 } as const;
+
+function defaultReturnDate(date: string) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + 89);
+  return value.toISOString().slice(0, 10);
+}
 
 export function ScenariosBoard({
   date,
@@ -52,6 +59,8 @@ export function ScenariosBoard({
   const [hireRole, setHireRole] = useState('');
   const [hireQuantity, setHireQuantity] = useState(1);
   const [hireDate, setHireDate] = useState(date);
+  const [simulationDate, setSimulationDate] = useState(date);
+  const [returnDate, setReturnDate] = useState(() => defaultReturnDate(date));
   const scenarios = useQuery({
     queryKey: ['efetivo-planning-scenarios'],
     queryFn: listPlanningScenarios
@@ -63,16 +72,21 @@ export function ScenariosBoard({
   const selected = scenarios.data?.find(
     (item) => item.id === selectedScenarioId
   );
+  useEffect(() => {
+    setSimulationDate(selected?.simulationPositionDate?.slice(0, 10) || date);
+    setReturnDate(selected?.simulationReturnDate?.slice(0, 10) || defaultReturnDate(selected?.simulationPositionDate?.slice(0, 10) || date));
+  }, [date, selected?.id]);
   const comparison = useQuery({
     queryKey: [
       'efetivo-scenario-comparison',
       selectedScenarioId,
-      date,
+      simulationDate,
+      returnDate,
       jobRoleId || 'all'
     ],
     queryFn: () =>
-      comparePlanningScenario(selectedScenarioId!, date, jobRoleId),
-    enabled: Boolean(selectedScenarioId)
+      comparePlanningScenario(selectedScenarioId!, simulationDate, returnDate, jobRoleId),
+    enabled: Boolean(selectedScenarioId && returnDate >= simulationDate)
   });
   const refresh = async () => {
     await Promise.all([
@@ -214,8 +228,8 @@ export function ScenariosBoard({
                   onChange={(event) => setHireRole(event.target.value)}
                 >
                   <option value="">Selecione</option>
-                  {(roles.data || [])
-                    .filter((item) => item.isOperational)
+                  {groupJobRoles((roles.data || [])
+                    .filter((item) => item.isOperational))
                     .map((role) => (
                       <option value={role.id} key={role.id}>
                         {role.name}
@@ -280,6 +294,8 @@ export function ScenariosBoard({
         open={createOpen}
         saving={create.isPending}
         roles={roles.data || []}
+        defaultPositionDate={date}
+        defaultReturnDate={defaultReturnDate(date)}
         defaultAvailableFrom={date}
         onClose={() => setCreateOpen(false)}
         onSubmit={(payload) => create.mutate(payload)}

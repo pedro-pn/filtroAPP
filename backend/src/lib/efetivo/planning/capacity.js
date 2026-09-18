@@ -1,6 +1,7 @@
 import { addCalendarDays, parseDateKey } from './date-only.js';
 import { businessDatesInclusive, holidayDateSet, isBusinessDay } from './business-days.js';
 import { allocationPeriods, missionCoversDate } from './allocation-period.js';
+import { jobRoleFamilyKey, jobRoleFamilyName } from '../../collaborators/job-role-service.js';
 
 function collaboratorRoleId(collaborator) {
   return collaborator.jobRoleId || null;
@@ -65,6 +66,17 @@ function demandByRoleOn(missions, date) {
   return totals;
 }
 
+function roleGroups(roles) {
+  const groups = new Map();
+  for (const role of roles) {
+    const key = jobRoleFamilyKey(role.name);
+    const group = groups.get(key) || { role, roles: [] };
+    group.roles.push(role);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 export function calculateDailyCapacity({
   date,
   collaborators = [],
@@ -74,6 +86,7 @@ export function calculateDailyCapacity({
 }) {
   const dateKey = parseDateKey(date);
   const roles = jobRoles.filter(role => role.isActive !== false && role.isOperational !== false);
+  const groups = roleGroups(roles);
   const absenceIndex = indexAbsencesByCollaborator(absences);
   const missionIndex = indexMissionsByCollaborator(missions);
   const demandTotals = demandByRoleOn(missions, dateKey);
@@ -94,16 +107,18 @@ export function calculateDailyCapacity({
     });
   }
 
-  const byRole = roles.map(role => {
-    const people = statuses.filter(item => item.jobRoleId === role.id);
+  const byRole = groups.map(group => {
+    const roleIds = group.roles.map(role => role.id);
+    const people = statuses.filter(item => roleIds.includes(item.jobRoleId));
     const allocated = people.filter(item => item.status === 'ALLOCATED').length;
     const unavailable = people.filter(item => item.status === 'UNAVAILABLE').length;
     const free = people.filter(item => item.status === 'FREE').length;
-    const demand = demandTotals.get(role.id) || 0;
+    const demand = roleIds.reduce((sum, roleId) => sum + (demandTotals.get(roleId) || 0), 0);
     return {
-      jobRoleId: role.id,
-      jobRoleName: role.name,
-      calendarColor: role.calendarColor || '#64748B',
+      jobRoleId: group.role.id,
+      jobRoleIds: roleIds,
+      jobRoleName: jobRoleFamilyName(group.role.name),
+      calendarColor: group.role.calendarColor || '#64748B',
       active: people.length,
       allocated,
       unavailable,
@@ -129,6 +144,7 @@ export function calculateDailyCapacity({
 
 export function calculateUtilization90Days({
   date,
+  endDate: requestedEndDate,
   collaborators = [],
   jobRoles = [],
   missions = [],
@@ -136,7 +152,7 @@ export function calculateUtilization90Days({
   holidays = []
 }) {
   const startDate = parseDateKey(date);
-  const endDate = addCalendarDays(startDate, 89);
+  const endDate = requestedEndDate ? parseDateKey(requestedEndDate) : addCalendarDays(startDate, 89);
   const holidaySet = holidayDateSet(holidays);
   const roles = jobRoles.filter(role => role.isActive !== false && role.isOperational !== false);
   const absenceIndex = indexAbsencesByCollaborator(absences);
@@ -144,20 +160,23 @@ export function calculateUtilization90Days({
   const businessDates = businessDatesInclusive(startDate, endDate, holidaySet);
   const available = new Set();
   const committed = new Set();
-  const availableByRole = new Map(roles.map(role => [role.id, new Set()]));
-  const committedByRole = new Map(roles.map(role => [role.id, new Set()]));
+  const groups = roleGroups(roles);
+  const roleGroupById = new Map(groups.flatMap(group => group.roles.map(role => [role.id, group])));
+  const availableByRole = new Map(groups.map(group => [group.role.id, new Set()]));
+  const committedByRole = new Map(groups.map(group => [group.role.id, new Set()]));
 
   for (const collaborator of collaborators) {
     const jobRoleId = collaboratorRoleId(collaborator);
-    if (!availableByRole.has(jobRoleId)) continue;
+    const group = roleGroupById.get(jobRoleId);
+    if (!group) continue;
     for (const day of businessDates) {
       if (!isCollaboratorActiveOn(collaborator, day) || recordOn(absenceIndex, collaborator.id, day)) continue;
       const key = `${collaborator.id}|${day}`;
       available.add(key);
-      availableByRole.get(jobRoleId).add(key);
+      availableByRole.get(group.role.id).add(key);
       if (recordOn(missionIndex, collaborator.id, day)) {
         committed.add(key);
-        committedByRole.get(jobRoleId).add(key);
+        committedByRole.get(group.role.id).add(key);
       }
     }
   }
@@ -169,12 +188,13 @@ export function calculateUtilization90Days({
     availablePersonDays: available.size,
     committedPersonDays: committed.size,
     rate: ratio(committed.size, available.size),
-    byRole: roles.map(role => ({
-      jobRoleId: role.id,
-      jobRoleName: role.name,
-      availablePersonDays: availableByRole.get(role.id).size,
-      committedPersonDays: committedByRole.get(role.id).size,
-      rate: ratio(committedByRole.get(role.id).size, availableByRole.get(role.id).size)
+    byRole: groups.map(group => ({
+      jobRoleId: group.role.id,
+      jobRoleIds: group.roles.map(role => role.id),
+      jobRoleName: jobRoleFamilyName(group.role.name),
+      availablePersonDays: availableByRole.get(group.role.id).size,
+      committedPersonDays: committedByRole.get(group.role.id).size,
+      rate: ratio(committedByRole.get(group.role.id).size, availableByRole.get(group.role.id).size)
     }))
   };
 }

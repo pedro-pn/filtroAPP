@@ -1001,6 +1001,8 @@ model EfetivoPlan {
   status               EfetivoPlanStatus
   name                 String
   objective            String?
+  simulationPositionDate DateTime?
+  simulationReturnDate   DateTime?
   revision             Int                  @default(1)
   basePlanId           String?
   baseOfficialRevision Int?
@@ -1048,6 +1050,7 @@ model ProjectWorkflow {
   commercialSourceUpdatedAt          DateTime?
   analysisClientContactMade          Boolean?
   analysisClientContactName          String?
+  analysisClientContactPhone         String?
   analysisClientContactDate          DateTime?                              @db.Date
   teamPlanDefined                    Boolean?
   equipmentPlanDefined               Boolean?

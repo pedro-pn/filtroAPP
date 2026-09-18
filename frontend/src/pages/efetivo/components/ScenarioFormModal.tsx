@@ -6,28 +6,34 @@ import { z } from 'zod';
 import type { PlanningJobRole, ScenarioInput } from '../../../api/efetivoPlanning';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
+import { groupJobRoles } from '../../../utils/jobRoleDisplay';
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Informe o nome do cenário.').max(120),
   objective: z.string().max(1000),
+  simulationPositionDate: z.string().min(1, 'Informe a data de posição.'),
+  simulationReturnDate: z.string().min(1, 'Informe a data de retorno.'),
   hireJobRoleId: z.string(),
   hireQuantity: z.number().int().min(0, 'Use um inteiro não negativo.').max(1000),
   hireAvailableFrom: z.string()
 }).refine(value => !value.hireQuantity || Boolean(value.hireJobRoleId), { path: ['hireJobRoleId'], message: 'Selecione a função da contratação.' })
-  .refine(value => !value.hireQuantity || /^\d{4}-\d{2}-\d{2}$/.test(value.hireAvailableFrom), { path: ['hireAvailableFrom'], message: 'Informe a partir de quando estará disponível.' });
+  .refine(value => !value.hireQuantity || /^\d{4}-\d{2}-\d{2}$/.test(value.hireAvailableFrom), { path: ['hireAvailableFrom'], message: 'Informe a partir de quando estará disponível.' })
+  .refine(value => value.simulationReturnDate >= value.simulationPositionDate, { path: ['simulationReturnDate'], message: 'A data de retorno não pode ser anterior à posição.' });
 
 type Values = z.infer<typeof schema>;
 
-export function ScenarioFormModal({ open, saving, roles, defaultAvailableFrom, onClose, onSubmit }: {
+export function ScenarioFormModal({ open, saving, roles, defaultPositionDate, defaultReturnDate, defaultAvailableFrom, onClose, onSubmit }: {
   open: boolean;
   saving: boolean;
   roles: PlanningJobRole[];
+  defaultPositionDate: string;
+  defaultReturnDate: string;
   defaultAvailableFrom: string;
   onClose: () => void;
   onSubmit: (payload: ScenarioInput) => void;
 }) {
-  const operationalRoles = roles.filter(role => role.isOperational);
-  const defaults: Values = { name: '', objective: '', hireJobRoleId: '', hireQuantity: 0, hireAvailableFrom: defaultAvailableFrom };
+  const operationalRoles = groupJobRoles(roles.filter(role => role.isOperational));
+  const defaults: Values = { name: '', objective: '', simulationPositionDate: defaultPositionDate, simulationReturnDate: defaultReturnDate, hireJobRoleId: '', hireQuantity: 0, hireAvailableFrom: defaultAvailableFrom };
   const { register, handleSubmit, reset, formState: { errors } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
   useEffect(() => { if (open) reset(defaults); }, [defaultAvailableFrom, open, reset]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -38,6 +44,8 @@ export function ScenarioFormModal({ open, saving, roles, defaultAvailableFrom, o
         onSubmit={handleSubmit(values => onSubmit({
           name: values.name.trim(),
           objective: values.objective.trim() || null,
+          simulationPositionDate: values.simulationPositionDate,
+          simulationReturnDate: values.simulationReturnDate,
           initialHire: values.hireQuantity > 0
             ? { jobRoleId: values.hireJobRoleId, quantity: values.hireQuantity, availableFrom: values.hireAvailableFrom }
             : null
@@ -47,6 +55,9 @@ export function ScenarioFormModal({ open, saving, roles, defaultAvailableFrom, o
         <div className="efetivo-modal-body efetivo-form-grid">
           <div className={`field-group efetivo-form-wide ${errors.name ? 'field-invalid' : ''}`}><label htmlFor="scenario-name">Nome do cenário *</label><input id="scenario-name" placeholder="Ex.: Pico de outubro" aria-invalid={Boolean(errors.name)} disabled={saving} {...register('name')} />{errors.name ? <span className="field-error" role="alert">{errors.name.message}</span> : null}</div>
           <div className={`field-group efetivo-form-wide ${errors.objective ? 'field-invalid' : ''}`}><label htmlFor="scenario-objective">Objetivo da simulação</label><textarea id="scenario-objective" rows={3} aria-invalid={Boolean(errors.objective)} disabled={saving} {...register('objective')} />{errors.objective ? <span className="field-error" role="alert">{errors.objective.message}</span> : null}</div>
+          <p className="efetivo-form-wide efetivo-form-section-title">Período da simulação</p>
+          <div className={`field-group ${errors.simulationPositionDate ? 'field-invalid' : ''}`}><label htmlFor="scenario-position-date">Data de posição *</label><input id="scenario-position-date" type="date" aria-invalid={Boolean(errors.simulationPositionDate)} disabled={saving} {...register('simulationPositionDate')} />{errors.simulationPositionDate ? <span className="field-error" role="alert">{errors.simulationPositionDate.message}</span> : null}</div>
+          <div className={`field-group ${errors.simulationReturnDate ? 'field-invalid' : ''}`}><label htmlFor="scenario-return-date">Data de retorno *</label><input id="scenario-return-date" type="date" min={defaultPositionDate} aria-invalid={Boolean(errors.simulationReturnDate)} disabled={saving} {...register('simulationReturnDate')} />{errors.simulationReturnDate ? <span className="field-error" role="alert">{errors.simulationReturnDate.message}</span> : null}</div>
           <p className="efetivo-form-wide efetivo-form-section-title">Contratação hipotética</p>
           <div className={`field-group ${errors.hireJobRoleId ? 'field-invalid' : ''}`}><label htmlFor="scenario-hire-function">Função</label><select id="scenario-hire-function" aria-invalid={Boolean(errors.hireJobRoleId)} disabled={saving} {...register('hireJobRoleId')}><option value="">Sem contratação</option>{operationalRoles.map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select>{errors.hireJobRoleId ? <span className="field-error" role="alert">{errors.hireJobRoleId.message}</span> : null}</div>
           <div className="field-group"><label htmlFor="scenario-hire-count">Quantidade</label><input id="scenario-hire-count" type="number" min="0" disabled={saving} {...register('hireQuantity', { valueAsNumber: true })} /></div>

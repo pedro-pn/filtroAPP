@@ -5,6 +5,7 @@ import {
 import { getItemBalances } from '../../estoque/stock-balance.js';
 import { calculateDailyCapacity } from '../planning/capacity.js';
 import { missionEndsOnOrAfter } from '../planning/mission-period.js';
+import { groupJobRoles } from '../../../../../shared/job-role-display.js';
 
 function dateKey(value) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10) || null;
@@ -141,21 +142,27 @@ export function buildEquipmentPlanningCatalog(categories = [], romaneios = [], t
 }
 
 function publicTeamPlanning(workflow, roleCatalog) {
-  const availabilityByRole = new Map(roleCatalog.map(role => [role.id, role]));
-  const demands = (workflow.teamDemands || []).map(item => {
-    const role = availabilityByRole.get(item.jobRoleId);
+  const demandsByRole = new Map();
+  for (const item of workflow.teamDemands || []) {
+    const role = roleCatalog.find(candidate => (candidate.roleIds || [candidate.id]).includes(item.jobRoleId));
     const availableCount = role?.availableCount || 0;
     const requiredCount = Number(item.requiredCount || 0);
-    return {
+    const key = role?.id || item.jobRoleId;
+    const current = demandsByRole.get(key);
+    if (current) current.requiredCount += requiredCount;
+    else demandsByRole.set(key, {
       id: item.id,
-      jobRoleId: item.jobRoleId,
-      jobRoleName: item.jobRole?.name || role?.name || 'Cargo indisponível',
+      jobRoleId: role?.id || item.jobRoleId,
+      jobRoleName: role?.name || item.jobRole?.name || 'Cargo indisponível',
       calendarColor: item.jobRole?.calendarColor || role?.calendarColor || '#64748B',
       requiredCount,
-      availableCount,
-      hiringNeed: Math.max(0, requiredCount - availableCount)
-    };
-  });
+      availableCount
+    });
+  }
+  const demands = [...demandsByRole.values()].map(item => ({
+    ...item,
+    hiringNeed: Math.max(0, item.requiredCount - item.availableCount)
+  }));
   return {
     defined: workflow.teamPlanDefined ?? null,
     demands,
@@ -336,9 +343,10 @@ async function loadTeamCatalog(database, targetDate, currentProjectId) {
     absences
   });
   const byRole = new Map(capacity.byRole.map(item => [item.jobRoleId, item]));
-  return roles.map(role => ({
+  return groupJobRoles(roles).map(role => ({
     id: role.id,
     name: role.name,
+    roleIds: role.roleIds,
     calendarColor: role.calendarColor,
     order: role.order,
     activeCount: byRole.get(role.id)?.active || 0,

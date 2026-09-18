@@ -15,6 +15,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { AVAILABILITY_STATUSES, buildMissionAvailabilityColumns, type AvailabilityStatus } from '../../../utils/collaboratorAvailability';
 import { allocationOverlapsPeriod } from '../../../utils/missionAllocationPeriod';
+import { groupJobRoles } from '../../../utils/jobRoleDisplay';
 import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, toggleMissionCollaborator, type CollaboratorActivityFilter } from '../../../utils/missionTeam';
 
 const COLUMN_META: Record<AvailabilityStatus, { label: string; description: string }> = {
@@ -106,6 +107,8 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
   [absences.data, endDate, mission?.id, missions.data, options, startDate, validPeriod]);
   const operationalRoleIds = useMemo(() => new Set(roles.filter(role => role.isOperational).map(role => role.id)), [roles]);
+  const groupedOperationalRoles = useMemo(() => groupJobRoles(roles.filter(role => role.isOperational)), [roles]);
+  const selectedRoleIds = useMemo(() => new Set(groupedOperationalRoles.find(role => role.id === roleFilter)?.familyRoleIds || []), [groupedOperationalRoles, roleFilter]);
   const selectedPeople = options.filter(collaborator => selectedIds.includes(collaborator.id));
   const roleSummary = [...selectedPeople.reduce((summary, collaborator) => {
     const label = collaborator.role || 'Cargo não informado';
@@ -197,7 +200,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
             <div className="efetivo-team-dialog-toolbar">
               <label className="field-group" htmlFor="mission-team-activity"><span>Situação cadastral</span><select id="mission-team-activity" value={activityFilter} onChange={event => setActivityFilter(event.target.value as CollaboratorActivityFilter)}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option><option value="ALL">Todos</option></select></label>
               <label className="field-group" htmlFor="mission-team-search"><span>Buscar por nome ou cargo</span><input id="mission-team-search" type="search" value={search} placeholder="Ex.: mantenedor ou nome" onChange={event => setSearch(event.target.value)} /></label>
-              <label className="field-group" htmlFor="mission-team-role-filter"><span>Filtrar por cargo</span><select id="mission-team-role-filter" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="">Todos os cargos</option>{roles.filter(role => role.isOperational).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></label>
+              <label className="field-group" htmlFor="mission-team-role-filter"><span>Filtrar por cargo</span><select id="mission-team-role-filter" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="">Todos os cargos</option>{groupedOperationalRoles.map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></label>
               <strong>{draftIds.length} selecionado(s)</strong>
             </div>
             {!validPeriod ? <div className="efetivo-team-period-empty"><strong>Informe o período da missão</strong><span>Preencha a mobilização e o fim da execução para calcular quais colaboradores estarão disponíveis.</span></div>
@@ -219,7 +222,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
                   {activityFilter !== 'INACTIVE' ? <section className="efetivo-availability-kanban efetivo-team-availability-kanban" aria-label="Disponibilidade dos colaboradores para a missão">
                     {AVAILABILITY_STATUSES.map(status => {
                       const entries = columns[status].filter(entry => (
-                        (!roleFilter || entry.collaborator.jobRoleId === roleFilter)
+                        (!roleFilter || selectedRoleIds.has(entry.collaborator.jobRoleId || ''))
                         && filterMissionTeamCollaborators([entry.collaborator], search).length > 0
                       ));
                       return (

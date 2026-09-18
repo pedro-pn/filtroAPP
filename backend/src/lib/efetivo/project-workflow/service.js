@@ -301,6 +301,22 @@ export function canEditWorkflow(workflow, context) {
   );
 }
 
+function validateCorrectionStage(workflow, payload, context) {
+  if (!payload.correctionStage) return null;
+  if (payload.action === 'stage' || payload.action === 'accept' || payload.action === 'authorize_mobilization') {
+    throw planningError('A correção não pode alterar a etapa do Kanban.', { statusCode: 400, code: 'PROJECT_WORKFLOW_CORRECTION_ACTION_FORBIDDEN' });
+  }
+  if (workflow.stage === 'FINISHED' || !canEditWorkflow(workflow, context)) {
+    throw planningError('Somente projetos ativos podem receber correções pelo Líder ou Planejador.', { statusCode: 403, code: 'PROJECT_WORKFLOW_CORRECTION_FORBIDDEN' });
+  }
+  const currentIndex = PROJECT_WORKFLOW_STAGES.indexOf(workflow.stage);
+  const correctionIndex = PROJECT_WORKFLOW_STAGES.indexOf(payload.correctionStage);
+  if (correctionIndex < 0 || correctionIndex >= currentIndex) {
+    throw planningError('A correção deve apontar para uma etapa já concluída.', { statusCode: 409, code: 'PROJECT_WORKFLOW_CORRECTION_STAGE_INVALID' });
+  }
+  return payload.correctionStage;
+}
+
 function checklistIsAvailable(workflow, definition) {
   if (definition?.stage == null || definition.stage === workflow?.stage) return true;
   return definition?.stage === 'PREPARATION' && workflow?.stage === 'READY_TO_MOBILIZE';
@@ -1361,6 +1377,7 @@ async function applyAnalysisContact(tx, workflow, payload) {
     data: {
       analysisClientContactMade: payload.made,
       analysisClientContactName: payload.made ? payload.contactName : null,
+      analysisClientContactPhone: payload.made ? payload.contactPhone : null,
       analysisClientContactDate: payload.made && payload.contactDate ? utcDate(payload.contactDate) : null
     }
   });
@@ -1910,6 +1927,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
   const now = dependencies.now || new Date();
   await runPlanningTransaction(database, async tx => {
     const workflow = await loadWorkflowForMutation(tx, projectId, context);
+    const correctionStage = validateCorrectionStage(workflow, payload, context);
+    const workflowForMutation = correctionStage ? { ...workflow, stage: correctionStage } : workflow;
     const reopening = workflow.stage === 'FINISHED' && payload.action === 'stage' && payload.stage === 'FINAL_MEASUREMENT';
     if (workflow.stage === 'FINISHED' && !reopening) {
       throw planningError('O projeto está encerrado. Reabra-o para alterar os dados.', {
@@ -1917,68 +1936,68 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
         code: 'PROJECT_WORKFLOW_FINISHED_READ_ONLY'
       });
     }
-    if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
+    if (payload.action === 'checklist') assertChecklistEditable(workflowForMutation, payload.key, context);
     else if (payload.action === 'team_member_check') {
       const definition = PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.find(item => item.key === payload.key);
-      assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+      assertPreparationAreaEditable(workflowForMutation, definition?.areaRoles || [], context);
     } else if (payload.action === 'preparation_item_check') {
       const definition = PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[payload.itemType]?.find(item => item.key === payload.key);
-      assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+      assertPreparationAreaEditable(workflowForMutation, definition?.areaRoles || [], context);
     } else if (payload.action === 'client_attendance') {
-      assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+      assertPreparationAreaEditable(workflowForMutation, ['efetivo:operations'], context);
     } else if (payload.action === 'client_release') {
       const definition = PROJECT_WORKFLOW_CLIENT_RELEASES.find(item => item.key === payload.key);
-      assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+      assertPreparationAreaEditable(workflowForMutation, definition?.areaRoles || [], context);
     } else if (payload.action === 'pre_job') {
-      assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+      assertPreparationAreaEditable(workflowForMutation, ['efetivo:operations'], context);
     } else if (payload.action === 'qsms') {
-      assertPreparationAreaEditable(workflow, ['efetivo:qsms'], context);
+      assertPreparationAreaEditable(workflowForMutation, ['efetivo:qsms'], context);
     } else if (payload.action === 'travel') {
       const lodgingFields = ['lodgingRequestedDate', 'lodgingConfirmedDate'];
       const logisticsFields = ['teamTransportDefined', 'teamTransportDescription', 'freightDefined', 'freightType', 'freightDepartureDate', 'freightDepartureTime'];
       if (lodgingFields.some(field => Object.hasOwn(payload, field))) {
-        assertPreparationAreaEditable(workflow, ['efetivo:administrative'], context);
+        assertPreparationAreaEditable(workflowForMutation, ['efetivo:administrative'], context);
       }
       if (logisticsFields.some(field => Object.hasOwn(payload, field))) {
-        assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+        assertPreparationAreaEditable(workflowForMutation, ['efetivo:operations'], context);
       }
     }
     else if (['team_plan', 'equipment_plan', 'supply_plan', 'logistics_plan'].includes(payload.action)) {
-      assertResourcePlanningEditable(workflow, payload.action, context);
+      assertResourcePlanningEditable(workflowForMutation, payload.action, context);
     } else {
-      if (payload.action === 'analysis_criticality') assertInitialAnalysisStage(workflow);
+      if (payload.action === 'analysis_criticality') assertInitialAnalysisStage(workflowForMutation);
       assertEditable(workflow, context);
     }
     if (workflow.version !== payload.version) {
       throw conflictError('A gestão foi atualizada por outra pessoa. Recarregue os dados.', [], 'PROJECT_WORKFLOW_VERSION_CONFLICT');
     }
     await reserveVersion(tx, workflow, payload.version);
-    if (payload.action === 'settings') await applySettings(tx, workflow, payload, context);
-    else if (payload.action === 'checklist') await applyChecklist(tx, workflow, payload, context);
-    else if (payload.action === 'team_member_check') await applyTeamMemberCheck(tx, workflow, payload, context);
-    else if (payload.action === 'preparation_item_check') await applyPreparationItemCheck(tx, workflow, payload, context);
-    else if (payload.action === 'client_attendance') await applyClientAttendance(tx, workflow, payload, context, now);
-    else if (payload.action === 'client_release') await applyClientRelease(tx, workflow, payload, context);
-    else if (payload.action === 'pre_job') await applyPreJob(tx, workflow, payload);
-    else if (payload.action === 'qsms') await applyQsms(tx, workflow, payload);
-    else if (payload.action === 'travel') await applyTravel(tx, workflow, payload);
-    else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
-    else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
-    else if (payload.action === 'analysis_criticality') await applyAnalysisCriticality(tx, workflow, payload);
-    else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflow, payload);
-    else if (payload.action === 'equipment_plan') await applyEquipmentPlan(tx, workflow, payload);
-    else if (payload.action === 'supply_plan') await applySupplyPlan(tx, workflow, payload);
-    else if (payload.action === 'logistics_plan') await applyLogisticsPlan(tx, workflow, payload);
-    else if (payload.action === 'documentation_category') await applyDocumentationCategory(tx, workflow, payload, context);
-    else if (payload.action === 'documentation_requirement_create') await applyDocumentationRequirementCreate(tx, workflow, payload, context);
-    else if (payload.action === 'documentation_requirement_update') await applyDocumentationRequirementUpdate(tx, workflow, payload, context);
-    else if (payload.action === 'documentation_requirement_archive') await applyDocumentationRequirementArchive(tx, workflow, payload, context, now);
-    else if (payload.action === 'issue') await applyIssue(tx, workflow, payload);
+    if (payload.action === 'settings') await applySettings(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'checklist') await applyChecklist(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'team_member_check') await applyTeamMemberCheck(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'preparation_item_check') await applyPreparationItemCheck(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'client_attendance') await applyClientAttendance(tx, workflowForMutation, payload, context, now);
+    else if (payload.action === 'client_release') await applyClientRelease(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'pre_job') await applyPreJob(tx, workflowForMutation, payload);
+    else if (payload.action === 'qsms') await applyQsms(tx, workflowForMutation, payload);
+    else if (payload.action === 'travel') await applyTravel(tx, workflowForMutation, payload);
+    else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflowForMutation, payload);
+    else if (payload.action === 'analysis_criticality') await applyAnalysisCriticality(tx, workflowForMutation, payload);
+    else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflowForMutation, payload);
+    else if (payload.action === 'equipment_plan') await applyEquipmentPlan(tx, workflowForMutation, payload);
+    else if (payload.action === 'supply_plan') await applySupplyPlan(tx, workflowForMutation, payload);
+    else if (payload.action === 'logistics_plan') await applyLogisticsPlan(tx, workflowForMutation, payload);
+    else if (payload.action === 'documentation_category') await applyDocumentationCategory(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'documentation_requirement_create') await applyDocumentationRequirementCreate(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'documentation_requirement_update') await applyDocumentationRequirementUpdate(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'documentation_requirement_archive') await applyDocumentationRequirementArchive(tx, workflowForMutation, payload, context, now);
+    else if (payload.action === 'issue') await applyIssue(tx, workflowForMutation, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
-    else if (payload.action === 'demobilization') await applyDemobilization(tx, workflow, payload, context, dependencies);
-    else if (payload.action === 'post_job') await applyPostJob(tx, workflow, payload, context, dependencies, now);
-    else if (payload.action === 'measurement') await applyMeasurement(tx, workflow, payload, context);
+    else if (payload.action === 'demobilization') await applyDemobilization(tx, workflowForMutation, payload, context, dependencies);
+    else if (payload.action === 'post_job') await applyPostJob(tx, workflowForMutation, payload, context, dependencies, now);
+    else if (payload.action === 'measurement') await applyMeasurement(tx, workflowForMutation, payload, context);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, context, now);
     const eventData = { ...payload };
     delete eventData.version;

@@ -143,6 +143,7 @@ function fakeDatabase() {
           commercialExpectedStartDate: null,
           analysisClientContactMade: null,
           analysisClientContactName: null,
+          analysisClientContactPhone: null,
           analysisClientContactDate: null,
           isCritical: null,
           preparationLeadTimeDays: 15,
@@ -491,6 +492,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
   state.workflow.acceptedAt = new Date();
   state.workflow.analysisClientContactMade = true;
   state.workflow.analysisClientContactName = 'Marina';
+  state.workflow.analysisClientContactPhone = '(11) 99999-9999';
   state.workflow.analysisClientContactDate = new Date('2026-09-10T00:00:00Z');
   state.workflow.isCritical = false;
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').map(item => ({ id: item.key, projectId: 'project-1', key: item.key, status: 'DONE' })));
@@ -639,10 +641,11 @@ test('Líder registra o contato inicial com nome e data sem editar as datas do C
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
   state.workflow.stage = 'INITIAL_ANALYSIS';
   let detail = await updateProjectWorkflow('project-1', {
-    action: 'analysis_contact', version: 1, made: true, contactName: 'Marina Souza', contactDate: '2026-09-11'
+    action: 'analysis_contact', version: 1, made: true, contactName: 'Marina Souza', contactPhone: '(11) 99999-9999', contactDate: '2026-09-11'
   }, leader, { database });
   assert.equal(detail.workflow.analysisClientContactMade, true);
   assert.equal(detail.workflow.analysisClientContactName, 'Marina Souza');
+  assert.equal(detail.workflow.analysisClientContactPhone, '(11) 99999-9999');
   assert.equal(detail.workflow.analysisClientContactDate, '2026-09-11');
   assert.equal(state.events.at(-1).action, 'WORKFLOW_ANALYSIS_CONTACT');
   detail = await updateProjectWorkflow('project-1', {
@@ -650,6 +653,7 @@ test('Líder registra o contato inicial com nome e data sem editar as datas do C
   }, leader, { database });
   assert.equal(detail.workflow.analysisClientContactMade, false);
   assert.equal(detail.workflow.analysisClientContactName, null);
+  assert.equal(detail.workflow.analysisClientContactPhone, null);
   assert.equal(detail.workflow.analysisClientContactDate, null);
 });
 
