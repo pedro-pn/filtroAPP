@@ -227,7 +227,7 @@ test('lista única inclui RDO finalizado, exclui derivados/em andamento e manté
   assert.equal(beforeProgress.current.progressPct, 37.9);
 });
 
-test('lote misto salva só linhas escolhidas, sem alterar RDO/PDF/aliases; também reflete na curva histórica', async () => {
+test('lote misto salva só linhas escolhidas, sem alterar RDO/PDF/aliases; preserva a curva quando o total não muda', async () => {
   const { state, client } = fixture(); addNative(state);
   state.planned[0].systems[0].quantity = 40;
   const original = structuredClone(state.native[0]), aliases = structuredClone(state.systems), before = progress(state);
@@ -244,8 +244,8 @@ test('lote misto salva só linhas escolhidas, sem alterar RDO/PDF/aliases; tamb�
   const afterRows = nativeReportMeasurements(state.native[0]).filter(row => row.service.finalized);
   assert.equal(afterRows[0].measurement.projectSystemId, 'b');
   assert.equal(afterRows[1].measurement.projectSystemId, null);
-  assert.notDeepEqual(progress(state).current, before.current);
-  assert.notDeepEqual(progress(state).history, before.history);
+  assert.deepEqual(progress(state).current, before.current);
+  assert.deepEqual(progress(state).history, before.history);
   await assert.rejects(linkReconciledMeasurements(client, input), error => error.statusCode === 409);
   const fresh = (await getSystemReconciliation(client, 'p')).reports.find(report => report.id === 'n1');
   await linkReconciledMeasurements(client, { ...input, projectSystemId: null, measurements: [selected(fresh)] });

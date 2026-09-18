@@ -291,7 +291,7 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
   assert.equal(result.header.code, '1001 + 1002');
   assert.equal(result.header.clientName, 'Cliente A');
   assert.equal(result.header.proposalCode, 'PROP-1 + PROP-2');
-  assert.deepEqual(result.group.members.map(member => member.progressPct), [50, 50]);
+  assert.deepEqual(result.group.members.map(member => member.progressPct), [25, 75]);
   assert.equal(result.header.lastRdoDate, '2026-07-12T00:00:00.000Z');
   assert.deepEqual(result.diasCorridos, { elapsed: 10, planned: 30, pct: 33 });
   assert.deepEqual(result.diasTrabalhados, { worked: 7, planned: 20, pct: 35 });
