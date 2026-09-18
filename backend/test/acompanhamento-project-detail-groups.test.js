@@ -291,6 +291,7 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
   assert.equal(result.header.code, '1001 + 1002');
   assert.equal(result.header.clientName, 'Cliente A');
   assert.equal(result.header.proposalCode, 'PROP-1 + PROP-2');
+  assert.deepEqual(result.group.members.map(member => member.progressPct), [50, 50]);
   assert.equal(result.header.lastRdoDate, '2026-07-12T00:00:00.000Z');
   assert.deepEqual(result.diasCorridos, { elapsed: 10, planned: 30, pct: 33 });
   assert.deepEqual(result.diasTrabalhados, { worked: 7, planned: 20, pct: 35 });
@@ -353,6 +354,18 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
   assert.deepEqual(result.plannedScope.overtime, [{ jobRoleId: null, roleName: 'Supervisor', collaboratorCount: 1, hours: 4 }]);
   assert.equal(result.footer.startDate, '2026-07-01T00:00:00.000Z');
   assert.equal(result.footer.expectedEndDate, '2026-07-22T00:00:00.000Z');
+});
+
+test('groupProjectDetails exposes each mission progress for completed schedule highlighting', () => {
+  const g = group();
+  const result = groupProjectDetails(g, g.members.map((member, index) => ({
+    projectId: member.projectId,
+    member,
+    detail: detail({ avancoPct: index === 0 ? 100 : 99.9 }),
+    progress: { hasScope: false, progressPct: index === 0 ? 100 : 99.9, progressMethod: 'RDO', services: [] }
+  })));
+
+  assert.deepEqual(result.group.members.map(member => member.progressPct), [100, 99.9]);
 });
 
 test('groupProjectDetails compares grouped client by CNPJ and recalculates physical scope progress', () => {

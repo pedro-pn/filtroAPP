@@ -288,7 +288,7 @@ function Card({
           {card.members.map(member => (
             <span
               key={member.projectId}
-              className="acp-group-member"
+              className={`acp-group-member${member.progressPct != null && member.progressPct >= 100 ? ' is-complete' : ''}`}
               title={`${member.code} · ${member.name || member.clientName || 'Missão'}`}
             >
               <strong>{member.code}</strong>
