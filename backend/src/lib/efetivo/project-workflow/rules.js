@@ -4,8 +4,31 @@ import {
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS,
-  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
+  PROJECT_WORKFLOW_STAGES
 } from '../../../../../shared/schemas/project-workflow.js';
+
+// Eventos que colocam o projeto numa etapa: o início da gestão abre o Handover, o aceite abre a
+// Análise inicial e as demais mudanças registram a etapa de destino em `data.stage`.
+export const PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS = ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE'];
+const STAGE_ENTRY_BY_ACTION = { WORKFLOW_STARTED: 'HANDOVER', WORKFLOW_ACCEPT: 'INITIAL_ANALYSIS' };
+
+// Datas reais de cada etapa, reconstruídas do histórico em ordem cronológica. Quando o fluxo volta
+// e reabre uma etapa, vale a última entrada: a conclusão anterior deixa de valer.
+export function projectWorkflowStageTimeline(events = []) {
+  const timeline = {};
+  let active = null;
+  const ordered = [...events].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
+  for (const event of ordered) {
+    const stage = STAGE_ENTRY_BY_ACTION[event.action] || (event.action === 'WORKFLOW_STAGE' ? event.data?.stage : null);
+    if (!PROJECT_WORKFLOW_STAGES.includes(stage) || stage === active) continue;
+    const at = new Date(event.createdAt).toISOString();
+    if (active) timeline[active] = { ...timeline[active], completedAt: at };
+    timeline[stage] = { enteredAt: at, completedAt: null };
+    active = stage;
+  }
+  return timeline;
+}
 
 function answeredChecklistKeys(workflow, stage) {
   const answered = new Set((workflow.checklists || [])
@@ -391,9 +414,10 @@ export function projectWorkflowDocumentationReadiness(workflow, milestones, toda
       reason: item.status === 'PENDING' ? 'Solicitação pendente' : item.status === 'REQUESTED' ? 'Confirmação pendente' : 'Datas de acompanhamento incompletas'
     })));
   }
+  const preparationLeadTimeDays = milestones?.preparationLeadTimeDays || 15;
   const urgentByDate = blockers.length > 0
     && milestones?.daysUntilMobilization != null
-    && milestones.daysUntilMobilization <= 15;
+    && milestones.daysUntilMobilization <= preparationLeadTimeDays;
   const status = blockers.length === 0
     ? 'OK'
     : urgentByDate ? 'CRITICAL' : 'IN_PROGRESS';
@@ -401,7 +425,7 @@ export function projectWorkflowDocumentationReadiness(workflow, milestones, toda
     status,
     completed,
     total: categories.length,
-    blockers: blockers.map(item => ({ ...item, reason: urgentByDate ? `${item.reason} a até 15 dias da mobilização` : item.reason }))
+    blockers: blockers.map(item => ({ ...item, reason: urgentByDate ? `${item.reason} a até ${preparationLeadTimeDays} dias da mobilização` : item.reason }))
   };
 }
 
@@ -697,6 +721,11 @@ export function analysisGateIssues(workflow) {
   } else {
     if (!workflow.analysisClientContactName?.trim()) issues.push('Informar o nome do contato inicial com o cliente');
     if (!workflow.analysisClientContactDate) issues.push('Informar a data do contato inicial com o cliente');
+  }
+  if (workflow.isCritical == null) {
+    issues.push('Informar se a obra é crítica');
+  } else if (workflow.isCritical && (!Number.isInteger(workflow.preparationLeadTimeDays) || workflow.preparationLeadTimeDays < 15)) {
+    issues.push('Informar a antecedência de preparação da obra crítica');
   }
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item.answer]));
   const issueByQuestion = new Map((workflow.issues || []).map(item => [item.sourceQuestion, item]));

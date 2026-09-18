@@ -111,7 +111,9 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
   return <ProjectWorkflowCategory
     title="Materiais e insumos"
     description="Selecione filtros e produtos químicos do Estoque e acompanhe eventuais compras."
-    status={choiceStatus(planning.defined, `${planning.items.length} insumo(s) planejado(s)${planning.purchasePendingCount ? ` · ${planning.purchasePendingCount} compra(s) pendente(s)` : ''}`, 'Pendente · insumos ainda não definidos')}
+    area="Suprimentos"
+    tone={planning.purchasePendingCount ? 'warn' : undefined}
+    status={choiceStatus(planning.defined, planning.purchasePendingCount ? `${planning.purchasePendingCount} compra(s) pendente(s)` : `${planning.items.length} insumo(s)`, 'Insumos não definidos')}
     complete={planning.defined === true && planning.items.length > 0}
     className="project-workflow-resource-card"
     data-project-workflow-supply-plan
@@ -204,7 +206,9 @@ export function ProjectWorkflowLogisticsPlanningCard({ workflow, saving, onPatch
   return <ProjectWorkflowCategory
     title="Logística preliminar"
     description="Informe as necessidades de veículo, frete e hospedagem. Cada alteração é salva automaticamente."
-    status={planning.complete ? planning.warnings.length ? `Planejamento informado · ${planning.warnings.length} aviso(s)` : 'Planejamento informado' : `${planning.issues.length} pendência(s)`}
+    area="Logística"
+    tone={planning.complete && planning.warnings.length ? 'warn' : undefined}
+    status={planning.complete ? planning.warnings.length ? `${planning.warnings.length} aviso(s)` : 'Concluído' : `${planning.issues.length} pendência(s)`}
     complete={planning.complete}
     className="project-workflow-resource-card project-workflow-logistics-card"
     data-project-workflow-logistics-plan

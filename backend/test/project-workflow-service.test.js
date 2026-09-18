@@ -144,6 +144,8 @@ function fakeDatabase() {
           analysisClientContactMade: null,
           analysisClientContactName: null,
           analysisClientContactDate: null,
+          isCritical: null,
+          preparationLeadTimeDays: 15,
           teamPlanDefined: null,
           equipmentPlanDefined: null,
           supplyPlanDefined: null,
@@ -330,7 +332,10 @@ function fakeDatabase() {
         const event = { id: `event-${state.events.length + 1}`, createdAt: new Date(), ...input.data };
         state.events.push(event);
         return event;
-      }
+      },
+      findMany: async input => state.events
+        .filter(event => event.projectId === input.where.projectId && input.where.action.in.includes(event.action))
+        .sort((left, right) => left.createdAt - right.createdAt)
     },
     projectWorkflowPostJob: {
       upsert: async input => {
@@ -379,6 +384,36 @@ test('gestor inicia handover sem programação de equipe e sem presumir aceite',
   assert.equal(state.events[0].action, 'WORKFLOW_STARTED');
 });
 
+test('gestor inicia handover sem mobilização prevista e configura antecedência de obra crítica', async () => {
+  const { database, state } = fakeDatabase();
+  let result = await startProjectWorkflow('project-1', {
+    leaderUserId: 'leader-1',
+    plannerUserId: 'leader-2'
+  }, manager, { database, now: new Date('2026-09-09T12:00:00Z') });
+  assert.equal(result.workflow.plannedMobilizationDate, null);
+  assert.deepEqual(result.workflow.milestones.items, []);
+
+  state.workflow.stage = 'INITIAL_ANALYSIS';
+  result = await updateProjectWorkflow('project-1', {
+    action: 'analysis_criticality', version: 1, isCritical: true, preparationLeadTimeDays: 45
+  }, leader, { database, now: new Date('2026-09-09T12:00:00Z') });
+  assert.equal(result.workflow.isCritical, true);
+  assert.equal(result.workflow.preparationLeadTimeDays, 45);
+  assert.equal(result.workflow.milestones.preparationLeadTimeDays, 45);
+
+  result = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: result.workflow.version, plannedMobilizationDate: '2026-10-29'
+  }, leader, { database, now: new Date('2026-09-09T12:00:00Z') });
+  assert.equal(result.workflow.plannedMobilizationDate, '2026-10-29');
+  assert.equal(result.workflow.milestones.preparationDate, '2026-09-14');
+
+  result = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: result.workflow.version, plannedMobilizationDate: null
+  }, leader, { database, now: new Date('2026-09-09T12:00:00Z') });
+  assert.equal(result.workflow.plannedMobilizationDate, null);
+  assert.deepEqual(result.workflow.milestones.items, []);
+});
+
 test('planejador vinculado mantém o workflow sem assumir aceite ou autorização do Líder', async () => {
   const { database, state } = fakeDatabase();
   let result = await startProjectWorkflow('project-1', {
@@ -415,6 +450,10 @@ test('somente o líder designado aceita o handover informativo', async () => {
   const result = await updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, leader, { database, now: new Date('2026-09-10T10:00:00Z') });
   assert.equal(result.workflow.stage, 'INITIAL_ANALYSIS');
   assert.equal(result.workflow.acceptedAt.toISOString(), '2026-09-10T10:00:00.000Z');
+  const { HANDOVER, INITIAL_ANALYSIS } = result.workflow.stageTimeline;
+  assert.ok(HANDOVER.enteredAt, 'início da gestão abre o Handover');
+  assert.equal(HANDOVER.completedAt, INITIAL_ANALYSIS.enteredAt, 'o aceite conclui o Handover e abre a análise');
+  assert.equal(INITIAL_ANALYSIS.completedAt, null);
 });
 
 test('pendência só aparece enquanto o item crítico correspondente está em Sim', async () => {
@@ -453,6 +492,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
   state.workflow.analysisClientContactMade = true;
   state.workflow.analysisClientContactName = 'Marina';
   state.workflow.analysisClientContactDate = new Date('2026-09-10T00:00:00Z');
+  state.workflow.isCritical = false;
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').map(item => ({ id: item.key, projectId: 'project-1', key: item.key, status: 'DONE' })));
   state.answers.push(...PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ id: item.key, projectId: 'project-1', key: item.key, answer: item.key === 'SPECIAL_EQUIPMENT' })));
   state.issues.push({ id: 'issue-1', projectId: 'project-1', sourceQuestion: 'SPECIAL_EQUIPMENT', description: 'Equipamento', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null, criticality: 'HIGH', status: 'OPEN' });
@@ -776,7 +816,7 @@ function makeStateReadyForMobilization(state) {
     reference: item.evidence === 'reference' ? 'REF-1' : null,
     note: item.evidence === 'note' ? 'Condição definida' : null
   })));
-  state.documentationCategories.push(...['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map((type, index) => ({
+  state.documentationCategories.push(...['DOCUMENT', 'EXAM', 'TRAINING', 'QUALITY', 'CERTIFICATION'].map((type, index) => ({
     id: `documentation-category-${index + 1}`,
     projectId: 'project-1',
     type,

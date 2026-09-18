@@ -52,6 +52,7 @@ export function ProjectWorkflowHandoverSignals({ detail, documents }: {
     <ProjectWorkflowCategory
       title="Informações do handover"
       description="Dados de consulta recebidos do Comercial e dos anexos do projeto. Eles não são pendências do planejador."
+      area="Comercial"
       status="Consulta"
       className="project-workflow-handover-signals"
       data-project-workflow-handover-signals
@@ -74,7 +75,9 @@ export function ProjectWorkflowCommercialSignals({ workflow }: { workflow: Proje
     <ProjectWorkflowCategory
       title="Liberação comercial e contratual"
       description="Sinalização de acompanhamento preenchida automaticamente pelo CRM. Nenhum item desta área gera pendência ou bloqueia o planejamento."
-      status={workflow.commercialReadiness.status === 'RELEASED' ? '🟢 Sinais completos' : `${workflow.commercialReadiness.resolvedCount}/${workflow.commercialReadiness.totalCount} recebidos`}
+      area="Comercial"
+      progress={{ completed: workflow.commercialReadiness.resolvedCount, total: workflow.commercialReadiness.totalCount }}
+      status={workflow.commercialReadiness.status === 'RELEASED' ? 'Sinais completos' : `${workflow.commercialReadiness.totalCount - workflow.commercialReadiness.resolvedCount} a receber`}
       complete={workflow.commercialReadiness.status === 'RELEASED'}
       className="project-workflow-commercial"
       data-project-workflow-commercial
@@ -127,6 +130,7 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
     <ProjectWorkflowCategory
       title="Datas e contato inicial"
       description="As datas são recebidas do CRM. O contato operacional é registrado pelo Líder de Projetos e salvo automaticamente."
+      area="Análise"
       status={contactStatus}
       complete={Boolean(contactMade && contactName.trim() && contactDate)}
       className="project-workflow-initial-analysis"
@@ -143,6 +147,57 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
           <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><input id="analysis-client-contact-date" type="date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onChange={event => { const value = event.target.value; setContactDate(value); saveContact(contactName, value); }} /></div>
         </div> : null}
         {contactMade === true && (!contactName.trim() || !contactDate) ? <small>Preencha nome e data para registrar o contato.</small> : null}
+      </article>
+    </ProjectWorkflowCategory>
+  );
+}
+
+export function ProjectWorkflowCriticalityDecision({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: PatchHandler;
+}) {
+  const [isCritical, setIsCritical] = useState<boolean | null>(workflow.isCritical);
+  const [preparationLeadTimeDays, setPreparationLeadTimeDays] = useState(String(workflow.preparationLeadTimeDays || 15));
+  useEffect(() => {
+    setIsCritical(workflow.isCritical);
+    setPreparationLeadTimeDays(String(workflow.preparationLeadTimeDays || 15));
+  }, [workflow.isCritical, workflow.preparationLeadTimeDays]);
+  const parsedPreparationLeadTimeDays = Number(preparationLeadTimeDays);
+  const validPreparationLeadTime = Number.isInteger(parsedPreparationLeadTimeDays) && parsedPreparationLeadTimeDays >= 15;
+  const complete = isCritical === false || (isCritical === true && validPreparationLeadTime);
+  const chooseCriticality = (value: boolean) => {
+    const days = value && validPreparationLeadTime ? parsedPreparationLeadTimeDays : 15;
+    setIsCritical(value);
+    setPreparationLeadTimeDays(String(days));
+    if (value === workflow.isCritical && days === workflow.preparationLeadTimeDays) return;
+    onPatch({ action: 'analysis_criticality', version: workflow.version, isCritical: value, preparationLeadTimeDays: value ? days : undefined });
+  };
+  const savePreparationLeadTime = () => {
+    if (isCritical !== true || !validPreparationLeadTime || parsedPreparationLeadTimeDays === workflow.preparationLeadTimeDays) return;
+    onPatch({ action: 'analysis_criticality', version: workflow.version, isCritical: true, preparationLeadTimeDays: parsedPreparationLeadTimeDays });
+  };
+  return (
+    <ProjectWorkflowCategory
+      title="Classificação final da análise"
+      description="Confirme se a obra é crítica antes de avançar para o planejamento."
+      area="Análise"
+      status={isCritical == null ? 'Decisão pendente' : isCritical ? `Crítica · D-${preparationLeadTimeDays}` : 'Não crítica · D-15'}
+      complete={complete}
+      className="project-workflow-initial-analysis"
+      data-project-workflow-criticality
+    >
+      <article className="project-workflow-analysis-contact project-workflow-analysis-criticality">
+        <header><div><strong>Esta obra é crítica?</strong><p>Obras não críticas usam preparação em D-15. Para uma obra crítica, aumente livremente a antecedência da preparação.</p></div><ProjectWorkflowBooleanChoice value={isCritical} label="Esta obra é crítica?" disabled={saving || !workflow.permissions.canEdit} onSelect={chooseCriticality} /></header>
+        {isCritical === true ? <div className="project-workflow-analysis-criticality-fields">
+          <div className={`field-group ${preparationLeadTimeDays && !validPreparationLeadTime ? 'field-invalid' : ''}`}>
+            <label htmlFor="analysis-preparation-lead-time">Iniciar preparação em D-</label>
+            <input id="analysis-preparation-lead-time" type="number" min="15" step="1" inputMode="numeric" value={preparationLeadTimeDays} disabled={saving || !workflow.permissions.canEdit} aria-invalid={!validPreparationLeadTime} onChange={event => setPreparationLeadTimeDays(event.target.value)} />
+            <small>Informe 15 dias ou mais; não há limite máximo.</small>
+            {!validPreparationLeadTime ? <span className="field-error">Informe um número inteiro igual ou maior que 15.</span> : null}
+          </div>
+          <Button type="button" variant="secondary" disabled={saving || !workflow.permissions.canEdit || !validPreparationLeadTime || parsedPreparationLeadTimeDays === workflow.preparationLeadTimeDays} onClick={savePreparationLeadTime}>Salvar antecedência</Button>
+        </div> : null}
       </article>
     </ProjectWorkflowCategory>
   );
@@ -220,9 +275,9 @@ function DocumentationTypeCard({ category, workflow, saving, onPatch }: {
   };
   return (
     <article className={`project-workflow-documentation-type is-${category.required === true ? 'required' : category.required === false ? 'not-required' : 'unanswered'}`}>
-      <header><div><h5>{category.label}</h5><p>É necessário {category.label.toLocaleLowerCase('pt-BR')} para o projeto?</p></div><ProjectWorkflowBooleanChoice value={category.required} label={`Necessidade de ${category.label.toLocaleLowerCase('pt-BR')}`} disabled={saving || !workflow.permissions.canEdit} onSelect={required => onPatch({ action: 'documentation_category', version: workflow.version, type: category.type, required })} /></header>
+      <header><div><h5>{category.label}</h5><p>{category.description}</p></div><ProjectWorkflowBooleanChoice value={category.required} label={`Necessidade de ${category.label.toLocaleLowerCase('pt-BR')}`} disabled={saving || !workflow.permissions.canEdit} onSelect={required => onPatch({ action: 'documentation_category', version: workflow.version, type: category.type, required })} /></header>
       {category.required === true ? <div className="project-workflow-documentation-items">
-        <div className="project-workflow-documentation-add"><div className="field-group"><label htmlFor={`documentation-add-${category.type}`}>{category.nameLabel}</label><input id={`documentation-add-${category.type}`} value={newName} disabled={saving || !workflow.permissions.canEdit} placeholder={`Ex.: ${category.type === 'EXAM' ? 'Audiometria' : category.type === 'TRAINING' ? 'NR-35' : category.type === 'CERTIFICATION' ? 'Certificado de operador' : 'Cadastro no portal do cliente'}`} onChange={event => setNewName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); create(); } }} /></div><Button type="button" variant="mini" disabled={saving || !workflow.permissions.canEdit || !newName.trim()} onClick={create}>Adicionar</Button></div>
+        <div className="project-workflow-documentation-add"><div className="field-group"><label htmlFor={`documentation-add-${category.type}`}>{category.nameLabel}</label><input id={`documentation-add-${category.type}`} value={newName} disabled={saving || !workflow.permissions.canEdit} placeholder={`Ex.: ${category.type === 'EXAM' ? 'Audiometria' : category.type === 'TRAINING' ? 'APR específica' : category.type === 'QUALITY' ? 'RCPU' : category.type === 'CERTIFICATION' ? 'Calibração de equipamento' : 'Instrução de trabalho'}`} onChange={event => setNewName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); create(); } }} /></div><Button type="button" variant="mini" disabled={saving || !workflow.permissions.canEdit || !newName.trim()} onClick={create}>Adicionar</Button></div>
         {activeRequirements.length ? activeRequirements.map(item => <DocumentationRequirementEditor item={item} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={item.id} />) : <p className="project-workflow-category-note">Adicione cada {category.singularLabel} que precisa ser acompanhado.</p>}
       </div> : null}
     </article>
@@ -239,7 +294,9 @@ export function ProjectWorkflowDocumentationTracking({ workflow, saving, onPatch
     <ProjectWorkflowCategory
       title="Documentação antecipada"
       description="Defina os tipos necessários e acompanhe cada solicitação até a confirmação. Alterações são salvas automaticamente e registradas no histórico."
-      status={`${status} · ${workflow.documentationReadiness.completed}/${workflow.documentationReadiness.total}`}
+      area="Administrativo"
+      progress={workflow.documentationReadiness}
+      status={status}
       complete={workflow.documentationReadiness.status === 'OK'}
       className={`project-workflow-documentation is-${workflow.documentationReadiness.status.toLowerCase()}`}
       data-project-workflow-documentation-tracking
