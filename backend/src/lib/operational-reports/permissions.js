@@ -24,13 +24,34 @@ const INTERNAL_RDO_ROLES = new Set([
   "rdo:collaborator",
 ]);
 
-export function normalizeReportEmissionPermissions(
-  value,
+function hasInternalRdoModuleRole(moduleRoles) {
+  return (Array.isArray(moduleRoles) ? moduleRoles : []).some((item) =>
+    INTERNAL_RDO_ROLES.has(typeof item === "string" ? item : item?.role),
+  );
+}
+
+// Papéis internos do RDO (gestor, coordenador, colaborador) sempre incluem a
+// emissão de RDO de obra, independentemente do que foi salvo na conta.
+export function impliedReportEmissionPermissions(
+  moduleRoles,
   accountType = "INTERNAL",
 ) {
   if (accountType === "CLIENT") return [];
+  return hasInternalRdoModuleRole(moduleRoles)
+    ? [ReportEmissionPermissions.SITE_RDO]
+    : [];
+}
+
+export function normalizeReportEmissionPermissions(
+  value,
+  accountType = "INTERNAL",
+  moduleRoles = [],
+) {
+  if (accountType === "CLIENT") return [];
   const requested = Array.isArray(value) ? value : [];
-  const normalized = new Set();
+  const normalized = new Set(
+    impliedReportEmissionPermissions(moduleRoles, accountType),
+  );
   for (const raw of requested) {
     const permission = String(raw || "")
       .trim()
@@ -59,6 +80,7 @@ export function serializeReportEmissionPermissions(user) {
   return normalizeReportEmissionPermissions(
     user?.reportEmissionPermissions || [],
     user?.accountType,
+    user?.moduleRoles,
   );
 }
 
@@ -93,10 +115,8 @@ export function assertReportTypeEmissionPermission(user, reportType) {
 
 export function existingUserEmissionPermissionBackfill(user) {
   if (!user || user.accountType === "CLIENT") return [];
-  const roles = Array.isArray(user.moduleRoles) ? user.moduleRoles : [];
   const hasInternalRdoRole =
-    roles.some((item) =>
-      INTERNAL_RDO_ROLES.has(typeof item === "string" ? item : item?.role),
-    ) || ["MANAGER", "COORDINATOR", "COLLABORATOR"].includes(user.role);
+    hasInternalRdoModuleRole(user.moduleRoles) ||
+    ["MANAGER", "COORDINATOR", "COLLABORATOR"].includes(user.role);
   return hasInternalRdoRole ? [ReportEmissionPermissions.SITE_RDO] : [];
 }
