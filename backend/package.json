@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "prisma": "^7.10.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "overrides": {
     "deepmerge-ts": "8.0.1",
