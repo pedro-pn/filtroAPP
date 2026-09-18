@@ -158,7 +158,7 @@ export function ProjectDocumentsCategory({ projectId, users }: { projectId: stri
     try { downloadBlob(await fetchProjectDocumentFile(url), name); } catch (error) { toast((error as Error).message, 'error'); } finally { setDownloading(false); }
   };
 
-  return <ProjectWorkflowCategory title="Documentos do projeto" description="Propostas, contratos, desenhos, certificados e demais arquivos com histórico por versão." status={query.isLoading ? 'Carregando…' : blockerCount ? `🔴 ${blockerCount} bloqueio(s)` : `${query.data?.documents.length || 0} documento(s)`} complete={ready} data-project-documents>
+  return <ProjectWorkflowCategory title="Documentos do projeto" description="Propostas, contratos, desenhos, certificados e demais arquivos com histórico por versão." area="Documentação" tone={blockerCount ? 'crit' : undefined} status={query.isLoading ? 'Carregando…' : blockerCount ? `${blockerCount} bloqueio(s)` : `${query.data?.documents.length || 0} documento(s)`} complete={ready} data-project-documents>
     {query.isLoading ? <p className="placeholder-copy">Carregando documentos do projeto…</p> : query.isError || !query.data ? <div className="placeholder-copy"><p>Não foi possível carregar os documentos deste projeto.</p><Button variant="secondary" onClick={() => void query.refetch()}>Tentar novamente</Button></div> : <>
       <div className="project-documents-toolbar">
         <label><input type="checkbox" checked={includeArchived} onChange={event => setIncludeArchived(event.target.checked)} /> Mostrar arquivados</label>

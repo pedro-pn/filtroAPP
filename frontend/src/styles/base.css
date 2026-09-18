@@ -3818,10 +3818,11 @@ a {
   max-width: min(260px, 90vw); white-space: normal; text-align: left;
   background: var(--wh); color: var(--tx); border: 1px solid var(--br); border-radius: var(--rs);
   box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; font-weight: 400; line-height: 1.45;
-  pointer-events: none;
+  overflow-y: auto; pointer-events: none;
 }
 .help-tip-portal.above { transform: translate(-50%, -100%); }
 .help-tip-portal.below { transform: translate(-50%, 0); }
+.help-tip-portal.is-interactive { pointer-events: auto; }
 
 /* Dashboard detalhado do projeto */
 .acp-det { width: 100%; display: flex; flex-direction: column; gap: 12px; }

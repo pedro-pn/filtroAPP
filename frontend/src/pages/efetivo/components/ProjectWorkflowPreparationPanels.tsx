@@ -9,10 +9,19 @@ import { Button } from '../../../components/ui/Button';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
+import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
+import { initialsOf } from '../../../utils/projectWorkflowPresentation';
 
 function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS') {
   return workflow.preparationReadiness.sections.find(section => section.key === key)
     || { completed: 0, total: 0, percentage: 0 };
+}
+
+// Rótulo curto para o cabeçalho da frente; a contagem completa aparece no índice da etapa.
+function preparationStatusLabel(progress: { completed: number; total: number }) {
+  if (!progress.total) return 'Sem itens';
+  if (progress.completed >= progress.total) return 'Concluído';
+  return `${progress.total - progress.completed} pendente${progress.total - progress.completed === 1 ? '' : 's'}`;
 }
 
 function PreparationChecks({ workflow, itemType, itemId, checks, saving, onPatch }: {
@@ -40,6 +49,7 @@ function PreparationChecks({ workflow, itemType, itemId, checks, saving, onPatch
               status: event.target.checked ? 'DONE' : 'PENDING'
             })}
           />
+          <span className="project-workflow-check-box" aria-hidden="true"><ProjectWorkflowIcon name="check" /></span>
           <span>{check.label}</span>
         </label>
       ))}
@@ -87,7 +97,9 @@ export function ProjectWorkflowEquipmentPreparation({ workflow, saving, onPatch 
     <ProjectWorkflowCategory
       title="Equipamentos reservados"
       description="Condições previstas para a mobilização e conferências de preparação por equipamento."
-      status={items.length ? `${progress.completed}/${progress.total}` : 'Pendente'}
+      area="Ativos"
+      progress={progress}
+      status={items.length ? preparationStatusLabel(progress) : 'Sem equipamentos'}
       complete={complete}
       className="project-workflow-preparation-resources"
       data-project-workflow-preparation-equipment
@@ -127,7 +139,9 @@ export function ProjectWorkflowPreJobPanel({ workflow, saving, onPatch }: {
     <ProjectWorkflowCategory
       title="Pré-job"
       description="Registre as datas de agendamento e realização. Cada alteração é salva automaticamente."
-      status={`${progress.completed}/${progress.total}`}
+      area="Operações"
+      progress={progress}
+      status={preparationStatusLabel(progress)}
       complete={complete}
       data-project-workflow-pre-job
     >
@@ -184,6 +198,7 @@ export function ProjectWorkflowQsmsPanel({ workflow, saving, onPatch }: {
     <ProjectWorkflowCategory
       title="QSMS"
       description="Confirme a verificação e registre o que foi verificado para o projeto."
+      area="QSMS"
       status={status}
       complete={complete}
       data-project-workflow-qsms
@@ -239,7 +254,9 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
     <ProjectWorkflowCategory
       title="Viagem e logística"
       description="Confirme hospedagem, transporte da equipe e frete para a saída."
-      status={`${progress.completed}/${progress.total}`}
+      area="Logística"
+      progress={progress}
+      status={preparationStatusLabel(progress)}
       complete={complete}
       data-project-workflow-travel
     >
@@ -347,7 +364,9 @@ export function ProjectWorkflowMaterialsPreparation({ workflow, saving, onPatch 
     <ProjectWorkflowCategory
       title="Materiais e insumos programados"
       description="Saldo atual do estoque e separação individual do que foi definido no planejamento D-30."
-      status={items.length ? `${progress.completed}/${progress.total}` : 'Pendente'}
+      area="Suprimentos"
+      progress={progress}
+      status={items.length ? preparationStatusLabel(progress) : 'Sem materiais'}
       complete={complete}
       className="project-workflow-preparation-resources"
       data-project-workflow-preparation-materials
@@ -361,8 +380,10 @@ export function ProjectWorkflowMaterialsPreparation({ workflow, saving, onPatch 
                 <span>{item.checks.filter(check => check.status === 'DONE').length}/{item.checks.length}</span>
               </header>
               <div className="project-workflow-preparation-stock">
-                <span>Programado: <strong>{item.requiredQuantity} {item.unitLabel}</strong></span>
-                <span>Estoque atual: <strong>{item.availableQuantity} {item.unitLabel}</strong></span>
+                <div className={`project-workflow-stock-meter${item.stockItemId && !item.availableInStock ? ' is-short' : ''}`} aria-hidden="true">
+                  <i style={{ width: `${item.requiredQuantity > 0 ? Math.min(100, Math.round((item.availableQuantity / item.requiredQuantity) * 100)) : 100}%` }} />
+                </div>
+                <span><strong>{item.availableQuantity}</strong> de <strong>{item.requiredQuantity} {item.unitLabel}</strong> em estoque</span>
                 {!item.stockItemId
                   ? <strong className="has-warning">Não cadastrado no estoque</strong>
                   : item.availableInStock
@@ -392,7 +413,10 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
     <ProjectWorkflowCategory
       title="Equipe definitiva"
       description="Acompanhe a preparação individual de cada colaborador selecionado."
-      status={members.length ? `${progress.completed}/${progress.total}` : 'Pendente'}
+      area="Operações"
+      icon="users"
+      progress={progress}
+      status={members.length ? preparationStatusLabel(progress) : 'Equipe não definida'}
       complete={complete}
       initiallyOpen
       className="project-workflow-definitive-team"
@@ -412,7 +436,7 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
           <div className="project-workflow-team-members">
             {members.map(member => (
               <article className="project-workflow-team-member" key={member.collaboratorId}>
-                <header><div><strong>{member.name}</strong><span>{member.role}</span></div><span>{member.checks.filter(check => check.status === 'DONE').length}/{member.checks.length}</span></header>
+                <header><span className="project-workflow-avatar is-large" aria-hidden="true">{initialsOf(member.name)}</span><div><strong>{member.name}</strong><span>{member.role}</span></div><span className={member.checks.every(check => check.status === 'DONE') ? 'is-complete' : undefined}>{member.checks.filter(check => check.status === 'DONE').length}/{member.checks.length}</span></header>
                 <div className="project-workflow-team-member-checks">
                   {member.checks.map(check => (
                     <label className={`project-workflow-member-check${check.status === 'DONE' ? ' is-done' : ''}`} key={check.key}>
@@ -428,6 +452,7 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
                           status: event.target.checked ? 'DONE' : 'PENDING'
                         })}
                       />
+                      <span className="project-workflow-check-box" aria-hidden="true"><ProjectWorkflowIcon name="check" /></span>
                       <span>{check.label}</span>
                       {check.source === 'EXTERNAL' ? <small>Sincronizado</small> : null}
                     </label>
@@ -547,7 +572,9 @@ export function ProjectWorkflowClientReleasesPanel({ workflow, saving, onPatch }
     <ProjectWorkflowCategory
       title="Cliente e liberações"
       description="Confirme o atendimento e acompanhe as solicitações enviadas ao cliente."
-      status={`${progress.completed}/${progress.total}`}
+      area="Administrativo"
+      progress={progress}
+      status={preparationStatusLabel(progress)}
       complete={complete}
       className="project-workflow-client-releases"
       data-project-workflow-client-releases

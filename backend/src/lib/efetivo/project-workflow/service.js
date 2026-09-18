@@ -33,7 +33,9 @@ import {
   projectWorkflowPlanningReadiness,
   projectWorkflowPostJobReadiness,
   projectWorkflowPreparationReadiness,
-  projectWorkflowTransitionIssues
+  projectWorkflowStageTimeline,
+  projectWorkflowTransitionIssues,
+  PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS
 } from './rules.js';
 import { synchronizePostJobQualityRecord } from './post-job-quality.js';
 import { projectDocumentReadiness, projectDocumentRequirements } from './documents.js';
@@ -541,7 +543,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const documentState = projectDocumentGateState(documents);
   const workflowWithDocuments = { ...workflow, ...documentState };
   const today = todayKey(now);
-  const milestones = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today);
+  const milestones = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today, workflow.preparationLeadTimeDays);
   const checklistByKey = new Map((workflow.checklists || []).map(item => [item.key, item]));
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item]));
   const checklists = PROJECT_WORKFLOW_CHECKLISTS.map(definition => ({
@@ -839,7 +841,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const workflowWithDocuments = workflow ? { ...workflow, ...documentState } : null;
       const issues = workflow ? activeProjectWorkflowIssues(workflow) : [];
       const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflowWithDocuments) : null;
-      const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)) : null;
+      const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now), workflow.preparationLeadTimeDays) : null;
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
       const mission = operationalMissionSummary(project);
       const teamPreparation = workflow ? publicTeamPreparation(workflow, mission, context) : null;
@@ -872,6 +874,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           closedAt: workflow.closedAt,
           closedBy: workflow.closedBy,
           plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
+          isCritical: workflow.isCritical,
+          preparationLeadTimeDays: workflow.preparationLeadTimeDays,
           fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
           demobilizationDate: dateKey(project.demobilizationDate),
           version: workflow.version,
@@ -928,6 +932,26 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
   const resourcePlanning = ['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE'].includes(project.workflow?.stage)
     ? await loadProjectWorkflowResourcePlanning(database, project.workflow)
     : emptyProjectWorkflowResourcePlanning(project.workflow || {});
+  // Consulta própria, sem o limite dos 50 eventos recentes: uma obra longa acumula eventos de
+  // preenchimento que empurrariam as mudanças de etapa antigas para fora da lista.
+  const stageEvents = project.workflow
+    ? await database.projectWorkflowEvent.findMany({
+      where: { projectId: project.id, action: { in: PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS } },
+      select: { action: true, data: true, createdAt: true },
+      orderBy: { createdAt: 'asc' }
+    })
+    : [];
+  const workflow = decorateWorkflow(
+    project.workflow,
+    context,
+    dependencies.now || new Date(),
+    project.demobilizationDate,
+    services,
+    history,
+    project.documents || [],
+    resourcePlanning,
+    operationalMissionSummary(project)
+  );
   return {
     project: {
       id: project.id,
@@ -940,17 +964,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
     },
-    workflow: decorateWorkflow(
-      project.workflow,
-      context,
-      dependencies.now || new Date(),
-      project.demobilizationDate,
-      services,
-      history,
-      project.documents || [],
-      resourcePlanning,
-      operationalMissionSummary(project)
-    ),
+    workflow: workflow ? { ...workflow, stageTimeline: projectWorkflowStageTimeline(stageEvents) } : null,
     permissions: publicPermissions(project.workflow, context)
   };
 }
@@ -972,7 +986,7 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
           projectId,
           leaderUserId: payload.leaderUserId,
           plannerUserId,
-          plannedMobilizationDate: utcDate(payload.plannedMobilizationDate)
+          plannedMobilizationDate: payload.plannedMobilizationDate ? utcDate(payload.plannedMobilizationDate) : null
         }
       });
     } catch (error) {
@@ -1071,7 +1085,9 @@ async function reserveVersion(tx, workflow, version) {
 
 async function applySettings(tx, workflow, payload, context) {
   const data = {};
-  if (payload.plannedMobilizationDate) data.plannedMobilizationDate = utcDate(payload.plannedMobilizationDate);
+  if (Object.hasOwn(payload, 'plannedMobilizationDate')) {
+    data.plannedMobilizationDate = payload.plannedMobilizationDate ? utcDate(payload.plannedMobilizationDate) : null;
+  }
   if (payload.leaderUserId && payload.leaderUserId !== workflow.leaderUserId) {
     if (!contextIsManager(context)) {
       throw planningError('Somente o gestor do Efetivo pode trocar o Líder de Projetos.', { statusCode: 403, code: 'PROJECT_WORKFLOW_MANAGER_REQUIRED' });
@@ -1350,11 +1366,30 @@ async function applyAnalysisContact(tx, workflow, payload) {
   });
 }
 
+async function applyAnalysisCriticality(tx, workflow, payload) {
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: {
+      isCritical: payload.isCritical,
+      preparationLeadTimeDays: payload.isCritical ? payload.preparationLeadTimeDays : 15
+    }
+  });
+}
+
 function assertPlanningStage(workflow) {
   if (workflow.stage !== 'MOBILIZATION_PLANNING') {
     throw planningError('A definição estruturada de recursos pertence ao Planejamento da mobilização.', {
       statusCode: 409,
       code: 'PROJECT_WORKFLOW_RESOURCE_PLANNING_STAGE_REQUIRED'
+    });
+  }
+}
+
+function assertInitialAnalysisStage(workflow) {
+  if (workflow.stage !== 'INITIAL_ANALYSIS') {
+    throw planningError('A classificação da obra pertence à Análise inicial.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_INITIAL_ANALYSIS_STAGE_REQUIRED'
     });
   }
 }
@@ -1910,7 +1945,10 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     }
     else if (['team_plan', 'equipment_plan', 'supply_plan', 'logistics_plan'].includes(payload.action)) {
       assertResourcePlanningEditable(workflow, payload.action, context);
-    } else assertEditable(workflow, context);
+    } else {
+      if (payload.action === 'analysis_criticality') assertInitialAnalysisStage(workflow);
+      assertEditable(workflow, context);
+    }
     if (workflow.version !== payload.version) {
       throw conflictError('A gestão foi atualizada por outra pessoa. Recarregue os dados.', [], 'PROJECT_WORKFLOW_VERSION_CONFLICT');
     }
@@ -1926,6 +1964,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'travel') await applyTravel(tx, workflow, payload);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
+    else if (payload.action === 'analysis_criticality') await applyAnalysisCriticality(tx, workflow, payload);
     else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflow, payload);
     else if (payload.action === 'equipment_plan') await applyEquipmentPlan(tx, workflow, payload);
     else if (payload.action === 'supply_plan') await applySupplyPlan(tx, workflow, payload);

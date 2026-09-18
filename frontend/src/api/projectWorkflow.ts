@@ -11,7 +11,7 @@ export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
 export type ProjectWorkflowCommercialFactSource = 'MANUAL' | 'CRM';
-export type ProjectWorkflowDocumentationType = 'DOCUMENT' | 'EXAM' | 'TRAINING' | 'CERTIFICATION';
+export type ProjectWorkflowDocumentationType = 'DOCUMENT' | 'EXAM' | 'TRAINING' | 'QUALITY' | 'CERTIFICATION';
 export type ProjectWorkflowDocumentationStatus = 'PENDING' | 'REQUESTED' | 'CONFIRMED';
 export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
 export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
@@ -76,6 +76,9 @@ export interface ProjectWorkflowMilestones {
   nextMilestone: { key: string; label: string; days: number; date: string; due: boolean } | null;
   d30Date: string | null;
   d30Due: boolean;
+  preparationLeadTimeDays: number;
+  preparationDate: string | null;
+  preparationDue: boolean;
 }
 
 export interface ProjectWorkflowChecklist {
@@ -175,6 +178,7 @@ export interface ProjectWorkflowDocumentationCategory {
   id: string | null;
   type: ProjectWorkflowDocumentationType;
   label: string;
+  description: string;
   singularLabel: string;
   nameLabel: string;
   required: boolean | null;
@@ -541,9 +545,13 @@ export interface ProjectWorkflowTransitionOption {
   issues: string[];
 }
 
+// Datas reais de cada etapa, reconstruídas no backend a partir do histórico de mudanças.
+export type ProjectWorkflowStageTimeline = Partial<Record<ProjectWorkflowStage, { enteredAt: string; completedAt: string | null }>>;
+
 export interface ProjectWorkflow {
   projectId: string;
   stage: ProjectWorkflowStage;
+  stageTimeline: ProjectWorkflowStageTimeline;
   leaderUserId: string;
   leader: { id: string; name: string; email: string | null; isActive: boolean };
   plannerUserId: string | null;
@@ -563,6 +571,8 @@ export interface ProjectWorkflow {
   analysisClientContactMade: boolean | null;
   analysisClientContactName: string | null;
   analysisClientContactDate: string | null;
+  isCritical: boolean | null;
+  preparationLeadTimeDays: number;
   preJob: {
     scheduledDate: string | null;
     completedDate: string | null;
@@ -592,7 +602,7 @@ export interface ProjectWorkflow {
   supplyPlanDefined: boolean | null;
   closedAt: string | null;
   closedBy: { id: string; name: string } | null;
-  plannedMobilizationDate: string;
+  plannedMobilizationDate: string | null;
   fieldCompletionDate: string | null;
   demobilizationDate: string | null;
   version: number;
@@ -636,7 +646,9 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     acceptedAt: string | null;
     closedAt: string | null;
     closedBy: { id: string; name: string } | null;
-    plannedMobilizationDate: string;
+    plannedMobilizationDate: string | null;
+    isCritical: boolean | null;
+    preparationLeadTimeDays: number;
     fieldCompletionDate: string | null;
     demobilizationDate: string | null;
     version: number;
@@ -759,7 +771,7 @@ export interface ProjectExecutionDeviationInput {
 }
 
 export type ProjectWorkflowPatch =
-  | { action: 'settings'; version: number; leaderUserId?: string; plannerUserId?: string; plannedMobilizationDate?: string }
+  | { action: 'settings'; version: number; leaderUserId?: string; plannerUserId?: string; plannedMobilizationDate?: string | null }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
@@ -770,6 +782,7 @@ export type ProjectWorkflowPatch =
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportDescription?: string | null; freightDefined?: boolean | null; freightType?: 'OWN' | 'THIRD_PARTY' | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
+  | { action: 'analysis_criticality'; version: number; isCritical: boolean; preparationLeadTimeDays?: number }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
   | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[]; exceptions: Array<{ equipmentId: string; reason: string }> }> }
   | { action: 'supply_plan'; version: number; defined: boolean; items: Array<{ id: string; stockItemId: string | null; type: ProjectWorkflowSupplyType; name: string; unitLabel: string; requiredQuantity: number; requestedAt: string | null; purchasedAt: string | null; reservationExceptionReason?: string | null }> }
@@ -802,7 +815,7 @@ export async function getProjectWorkflow(projectId: string) {
   return (await apiClient.get<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`)).data;
 }
 
-export async function startProjectWorkflow(projectId: string, input: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string }) {
+export async function startProjectWorkflow(projectId: string, input: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }) {
   return (await apiClient.post<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`, input)).data;
 }
 

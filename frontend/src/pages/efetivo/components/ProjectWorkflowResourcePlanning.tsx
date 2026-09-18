@@ -17,7 +17,7 @@ type EquipmentSelection = { categoryId: string; equipmentIds: string[]; exceptio
 function choiceStatus(defined: boolean | null, completeLabel: string, pendingLabel: string) {
   if (defined === true) return completeLabel;
   if (defined === false) return pendingLabel;
-  return 'Pendente · selecione Sim ou Não';
+  return 'Pendente';
 }
 
 function availabilityLabel(item: ProjectWorkflowEquipmentPlanningItem) {
@@ -86,7 +86,9 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
     <ProjectWorkflowCategory
       title="Equipe"
       description="Defina os cargos e a quantidade necessária para a obra."
-      status={choiceStatus(planning.defined, `${planning.demands.length} cargo(s) planejado(s)`, 'Pendente · equipe ainda não definida')}
+      area="Operações"
+      icon="users"
+      status={choiceStatus(planning.defined, `${planning.demands.length} cargo(s)`, 'Equipe não definida')}
       complete={planning.defined === true && planning.demands.length > 0}
       className="project-workflow-resource-card"
       data-project-workflow-team-plan
@@ -178,7 +180,8 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
     <ProjectWorkflowCategory
       title="Equipamentos"
       description={`Consulte disponibilidade, calibração e manutenção para ${workflow.resourcePlanning.targetDate ? displayDateOnly(workflow.resourcePlanning.targetDate) : 'a mobilização prevista'}.`}
-      status={choiceStatus(planning.defined, `${planning.equipmentIds.length} equipamento(s) em ${planning.categoryIds.length} categoria(s)`, 'Pendente · equipamentos ainda não definidos')}
+      area="Ativos"
+      status={choiceStatus(planning.defined, `${planning.equipmentIds.length} equipamento(s)`, 'Equipamentos não definidos')}
       complete={planning.defined === true && planning.equipmentIds.length > 0}
       className="project-workflow-resource-card"
       data-project-workflow-equipment-plan

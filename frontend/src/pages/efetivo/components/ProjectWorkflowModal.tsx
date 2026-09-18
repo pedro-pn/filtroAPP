@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,19 +13,26 @@ import type {
   ProjectWorkflowIssue,
   ProjectWorkflowPatch,
   ProjectWorkflow,
+  ProjectWorkflowStage,
   ProjectOperationalMissionSummary
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
+import { PortalTip } from '../../../components/ui/PortalTip';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import {
   canManageProjectTeamCycles,
+  WORKFLOW_STAGES,
   WORKFLOW_STAGE_LABELS
 } from '../../../utils/projectWorkflow';
 import { ProjectExecutionDashboard } from './ProjectExecutionDashboard';
 import { ProjectCloseoutPanel } from './ProjectCloseoutPanel';
 import { ProjectPostJobPanel } from './ProjectPostJobPanel';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
+import { ProjectWorkflowStageRail } from './ProjectWorkflowStageRail';
+import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
+import { initialsOf } from '../../../utils/projectWorkflowPresentation';
+import { useStageSectionRegistry } from '../../../utils/projectWorkflowStageSections';
 import {
   ProjectWorkflowClientReleasesPanel,
   ProjectWorkflowDefinitiveTeam,
@@ -47,6 +54,7 @@ import {
 import { ProjectDocumentsCategory } from './ProjectDocumentsCategory';
 import {
   ProjectWorkflowCommercialSignals,
+  ProjectWorkflowCriticalityDecision,
   ProjectWorkflowDocumentationTracking,
   ProjectWorkflowHandoverSignals,
   ProjectWorkflowInitialAnalysisData
@@ -57,7 +65,7 @@ import {
 } from '../../../api/projectDocuments';
 
 const sharedSchemas = makeProjectWorkflowSchemas(z);
-type StartValues = { leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string };
+type StartValues = { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string };
 type WorkflowUserOption = { id: string; name: string; email: string | null };
 const checklistSchema = z.object({
   status: z.enum(['PENDING', 'DONE', 'NOT_APPLICABLE']),
@@ -81,6 +89,85 @@ const issueSchema = z.object({
 });
 type IssueValues = z.infer<typeof issueSchema>;
 type LegacyMissionValues = { stage: ProjectOperationalMissionSummary['stage']; returnDate: string };
+
+const WORKFLOW_STAGE_DESCRIPTIONS: Record<ProjectWorkflowStage, string> = {
+  HANDOVER: 'Responsáveis, informações comerciais e dados recebidos para iniciar a gestão.',
+  INITIAL_ANALYSIS: 'Entendimento da obra, documentação antecipada, pendências e criticidade.',
+  WAITING_PLANNING: 'Acompanhamento dos itens antecipados enquanto o marco D-30 não chega.',
+  MOBILIZATION_PLANNING: 'Previsões de equipe, equipamentos, suprimentos e logística.',
+  PREPARATION: 'Confirmações definitivas das frentes responsáveis antes da mobilização.',
+  READY_TO_MOBILIZE: 'Conferência do gate e autorização final para mobilizar.',
+  MOBILIZATION: 'Acompanhamento da liberação e do início da mobilização operacional.',
+  EXECUTION: 'Avanço da obra, RDOs, relatórios técnicos, desvios e ciclos da equipe.',
+  DEMOBILIZATION: 'Conclusão de campo, retorno da equipe e devolução dos ativos.',
+  POST_JOB: 'Feedbacks, aprendizados e fechamento técnico da obra.',
+  FINAL_MEASUREMENT: 'Documentação final, medição, valores e gate de encerramento.',
+  FINISHED: 'Consulta do fechamento e reabertura justificada quando necessária.'
+};
+
+type WorkflowStageFlag = {
+  tone: 'complete' | 'current' | 'pending' | 'waiting';
+  label: string;
+  tooltip: string;
+  items: string[];
+};
+
+function workflowStageFlag(workflow: ProjectWorkflow, stage: ProjectWorkflowStage, stageIssues: string[]): WorkflowStageFlag {
+  const stageIndex = WORKFLOW_STAGES.indexOf(stage);
+  const currentIndex = WORKFLOW_STAGES.indexOf(workflow.stage);
+  if (stageIndex > currentIndex) return { tone: 'waiting', label: 'Aguardando', tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: aguardando a conclusão das etapas anteriores.`, items: ['Aguardando a conclusão das etapas anteriores.'] };
+  if (workflow.stage === 'FINISHED') return { tone: 'complete', label: 'Concluída', tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: projeto encerrado.`, items: ['Projeto encerrado.'] };
+  if (stageIssues.length) {
+    const visibleIssues = stageIssues.slice(0, 4).join(' • ');
+    const remaining = stageIssues.length > 4 ? ` • e mais ${stageIssues.length - 4}` : '';
+    const items = stageIssues.length > 8 ? [...stageIssues.slice(0, 8), `E mais ${stageIssues.length - 8} pendência(s).`] : stageIssues;
+    return {
+      tone: 'pending',
+      label: `${stageIssues.length} pendência${stageIssues.length === 1 ? '' : 's'}`,
+      tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: ${visibleIssues}${remaining}`,
+      items
+    };
+  }
+  if (stageIndex < currentIndex) return { tone: 'complete', label: 'Concluída', tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: etapa concluída sem pendências registradas.`, items: ['Etapa concluída sem pendências registradas.'] };
+  return { tone: 'current', label: 'Em dia', tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: etapa atual sem pendências para avançar.`, items: ['Nenhuma pendência para avançar.'] };
+}
+
+function workflowStagePendingItems(workflow: ProjectWorkflow, stage: ProjectWorkflowStage, currentIssues: string[]) {
+  if (stage === workflow.stage) return currentIssues;
+  if (WORKFLOW_STAGES.indexOf(stage) > WORKFLOW_STAGES.indexOf(workflow.stage)) return [];
+  const readinessIssue = (label: string, completed: number, total: number) => {
+    const pending = total - completed;
+    return pending > 0 ? [`${label}: ${pending} ${pending === 1 ? 'item pendente' : 'itens pendentes'}`] : [];
+  };
+  if (stage === 'HANDOVER') return workflow.handoverGate.issues;
+  if (stage === 'INITIAL_ANALYSIS' || stage === 'WAITING_PLANNING') {
+    return [
+      ...readinessIssue('Documentação antecipada', workflow.documentationReadiness.completed, workflow.documentationReadiness.total),
+      ...readinessIssue('Itens críticos', workflow.criticalAnswers.filter(item => item.answer !== null).length, workflow.criticalAnswers.length),
+      ...(workflow.issues.some(item => item.status !== 'RESOLVED') ? [`Pendências abertas: ${workflow.issues.filter(item => item.status !== 'RESOLVED').length}`] : []),
+      ...(workflow.isCritical == null ? ['Classificação de criticidade não informada'] : [])
+    ];
+  }
+  if (stage === 'MOBILIZATION_PLANNING') return readinessIssue('Planejamento D-30', workflow.planningReadiness.completed, workflow.planningReadiness.total);
+  if (stage === 'PREPARATION') return readinessIssue('Preparação', workflow.preparationReadiness.completed, workflow.preparationReadiness.total);
+  if (stage === 'READY_TO_MOBILIZE' || stage === 'MOBILIZATION' || stage === 'EXECUTION') return workflow.mobilizationGate.blockers.map(item => `${item.label}: ${item.reason}`);
+  if (stage === 'DEMOBILIZATION') return [
+    ...readinessIssue('Desmobilização', workflow.demobilizationReadiness.completed, workflow.demobilizationReadiness.total),
+    ...(!workflow.fieldCompletionDate ? ['Data de conclusão de campo não informada'] : []),
+    ...(!workflow.demobilizationDate ? ['Data de desmobilização não informada'] : [])
+  ];
+  if (stage === 'POST_JOB') return readinessIssue('Pós-job', workflow.postJobReadiness.completed, workflow.postJobReadiness.total);
+  if (stage === 'FINAL_MEASUREMENT') return workflow.closureGate.blockers.map(item => `${item.label}: ${item.reason}`);
+  return [];
+}
+
+function stageTabId(stage: ProjectWorkflowStage) {
+  return `project-workflow-tab-${stage.toLowerCase().replaceAll('_', '-')}`;
+}
+
+function stagePanelId(stage: ProjectWorkflowStage) {
+  return `project-workflow-panel-${stage.toLowerCase().replaceAll('_', '-')}`;
+}
 
 const LEGACY_MISSION_STAGE_LABELS: Record<ProjectOperationalMissionSummary['stage'], string> = {
   STANDBY: 'Stand by',
@@ -116,6 +203,33 @@ function LegacyMissionStageForm({ mission, saving, canManage, onMove }: {
   );
 }
 
+// Rótulo curto do estado da seção: o índice da etapa já carrega a contagem completa.
+function sectionStatusLabel(completed: number, total: number) {
+  if (!total) return 'Sem itens';
+  if (completed >= total) return 'Concluído';
+  return `${total - completed} pendente${total - completed === 1 ? '' : 's'}`;
+}
+
+type StageReadiness = { completed: number; total: number; percentage: number };
+
+// documentationReadiness não traz percentual pronto; a etapa o calcula para a barra do cabeçalho.
+function documentationStageReadiness(workflow: ProjectWorkflow): StageReadiness {
+  const { completed, total } = workflow.documentationReadiness;
+  return { completed, total, percentage: total ? Math.round((completed / total) * 100) : 0 };
+}
+
+// Marco e prontidão que a etapa mostra no próprio cabeçalho, no lugar da antiga categoria externa.
+function stageHeadingReadiness(workflow: ProjectWorkflow, stage: ProjectWorkflowStage): { marker: string | null; readiness: StageReadiness | null } {
+  if (stage === 'MOBILIZATION_PLANNING') return { marker: 'D-30', readiness: workflow.planningReadiness };
+  if (stage === 'PREPARATION' || stage === 'READY_TO_MOBILIZE') return { marker: `D-${workflow.preparationLeadTimeDays}`, readiness: workflow.preparationReadiness };
+  if (stage === 'WAITING_PLANNING') return { marker: 'D-30', readiness: documentationStageReadiness(workflow) };
+  if (stage === 'INITIAL_ANALYSIS') return { marker: null, readiness: documentationStageReadiness(workflow) };
+  if (stage === 'DEMOBILIZATION') return { marker: null, readiness: workflow.demobilizationReadiness };
+  if (stage === 'POST_JOB') return { marker: null, readiness: workflow.postJobReadiness };
+  if (stage === 'FINAL_MEASUREMENT') return { marker: null, readiness: workflow.closeoutReadiness };
+  return { marker: null, readiness: null };
+}
+
 function fieldClass(error?: unknown) {
   return `field-group ${error ? 'field-invalid' : ''}`;
 }
@@ -128,7 +242,7 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
 }) {
   const { register, handleSubmit, formState: { errors } } = useForm<StartValues>({
     resolver: zodResolver(sharedSchemas.start),
-    defaultValues: { leaderUserId: '', plannerUserId: '', plannedMobilizationDate: '' }
+    defaultValues: { leaderUserId: '', plannerUserId: '', plannedMobilizationDate: undefined }
   });
   const hasFormValidationError = Boolean((errors as Record<string, unknown>)['']);
   return (
@@ -152,9 +266,9 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
           {errors.plannerUserId ? <span className="field-error">{errors.plannerUserId.message}</span> : null}
         </div>
         <div className={fieldClass(errors.plannedMobilizationDate)}>
-          <label htmlFor="workflow-start-date">Mobilização operacional prevista *</label>
-          <input id="workflow-start-date" type="date" disabled={saving} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate')} />
-          <span className="field-hint">Data do planejamento usada nos marcos D-90, D-30 e D-15.</span>
+          <label htmlFor="workflow-start-date">Mobilização operacional prevista</label>
+          <input id="workflow-start-date" type="date" disabled={saving} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate', { setValueAs: value => value || undefined })} />
+          <span className="field-hint">Opcional. Quando informada, ativa os marcos D-90, D-30 e de preparação.</span>
           {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
         </div>
       </div>
@@ -174,16 +288,16 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   const schema = z.object({
     leaderUserId: z.string().min(1, 'Selecione o líder.'),
     plannerUserId: z.string().min(1, 'Selecione o planejador.'),
-    plannedMobilizationDate: z.string().min(1, 'Informe a previsão de mobilização.')
+    plannedMobilizationDate: z.string()
   });
   type Values = z.infer<typeof schema>;
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate }
+    defaultValues: { leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate || '' }
   });
-  useEffect(() => reset({ leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate }), [reset, workflow.leaderUserId, workflow.plannerUserId, workflow.plannedMobilizationDate]);
+  useEffect(() => reset({ leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate || '' }), [reset, workflow.leaderUserId, workflow.plannerUserId, workflow.plannedMobilizationDate]);
   return (
-    <form className="project-workflow-form" noValidate onSubmit={handleSubmit(values => onPatch({ action: 'settings', version: workflow.version, ...values }))}>
+    <form className="project-workflow-form" noValidate onSubmit={handleSubmit(values => onPatch({ action: 'settings', version: workflow.version, ...values, plannedMobilizationDate: values.plannedMobilizationDate || null }))}>
       <div className="project-workflow-form-grid">
         <div className={fieldClass(errors.leaderUserId)}>
           <label htmlFor="workflow-leader">Líder de Projetos *</label>
@@ -203,9 +317,9 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
           {!workflow.permissions.canChangePlanner ? <span className="field-hint">Somente o gestor pode trocar o planejador.</span> : null}
         </div>
         <div className={fieldClass(errors.plannedMobilizationDate)}>
-          <label htmlFor="workflow-date">Mobilização operacional prevista *</label>
+          <label htmlFor="workflow-date">Mobilização operacional prevista</label>
           <input id="workflow-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate')} />
-          <span className="field-hint">Independente da previsão comercial recebida do CRM.</span>
+          <span className="field-hint">Opcional e independente da previsão comercial recebida do CRM.</span>
           {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
         </div>
       </div>
@@ -283,6 +397,12 @@ function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }
   );
 }
 
+const CHECKLIST_STATES: Array<[ProjectWorkflowChecklistStatus, string]> = [
+  ['PENDING', 'Pendente'],
+  ['DONE', 'Concluído'],
+  ['NOT_APPLICABLE', 'Não se aplica']
+];
+
 function ChecklistEditor({ item, version, saving, canEdit, onPatch }: {
   item: ProjectWorkflowChecklist;
   version: number;
@@ -290,7 +410,7 @@ function ChecklistEditor({ item, version, saving, canEdit, onPatch }: {
   canEdit: boolean;
   onPatch: (payload: ProjectWorkflowPatch) => void;
 }) {
-  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<ChecklistValues>({
+  const { register, handleSubmit, reset, watch, formState: { errors, isDirty } } = useForm<ChecklistValues>({
     resolver: zodResolver(checklistSchema),
     defaultValues: { status: item.status, note: item.note || '' }
   });
@@ -300,22 +420,47 @@ function ChecklistEditor({ item, version, saving, canEdit, onPatch }: {
     }));
   const statusField = register('status', { onChange: () => { queueMicrotask(() => void save()); } });
   const noteField = register('note');
+  const status = watch('status');
+  const note = watch('note');
+  const notApplicable = status === 'NOT_APPLICABLE';
+  const stateClass = status === 'DONE' ? 'is-done' : notApplicable ? 'is-not-applicable' : 'is-pending';
   return (
-    <form className="project-workflow-check-item" noValidate onSubmit={event => { event.preventDefault(); void save(); }}>
+    <form className={`project-workflow-check-item ${stateClass}`} noValidate onSubmit={event => { event.preventDefault(); void save(); }}>
       <span>{item.label}</span>
       <div className="project-workflow-check-controls">
-        <div className={fieldClass(errors.status)}><label className="sr-only" htmlFor={`workflow-status-${item.key}`}>Situação</label><select id={`workflow-status-${item.key}`} disabled={saving || !canEdit} {...statusField}><option value="PENDING">Pendente</option><option value="DONE">Concluído</option><option value="NOT_APPLICABLE">Não se aplica</option></select></div>
-        <div className={fieldClass(errors.note)}><label className="sr-only" htmlFor={`workflow-note-${item.key}`}>Observação</label><input id={`workflow-note-${item.key}`} placeholder="Observação ou evidência" disabled={saving || !canEdit} aria-invalid={Boolean(errors.note)} {...noteField} onBlur={event => { noteField.onBlur(event); if (isDirty) void save(); }} />{errors.note ? <span className="field-error">{errors.note.message}</span> : null}</div>
+        <div className={`project-workflow-check-states${errors.status ? ' has-error' : ''}`} role="radiogroup" aria-label={`Situação de ${item.label}`}>
+          {CHECKLIST_STATES.map(([value, label]) => (
+            <label className={status === value ? 'is-selected' : undefined} key={value}>
+              <input type="radio" value={value} disabled={saving || !canEdit} {...statusField} />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className={fieldClass(errors.note)}>
+          <label className={notApplicable ? 'project-workflow-check-note-label' : 'sr-only'} htmlFor={`workflow-note-${item.key}`}>{notApplicable ? 'Justificativa obrigatória' : 'Observação'}</label>
+          <input
+            id={`workflow-note-${item.key}`}
+            className={notApplicable && !note?.trim() ? 'is-required-empty' : undefined}
+            placeholder={notApplicable ? 'Por que este item não se aplica?' : 'Observação ou evidência'}
+            disabled={saving || !canEdit}
+            aria-required={notApplicable}
+            aria-invalid={Boolean(errors.note)}
+            {...noteField}
+            onBlur={event => { noteField.onBlur(event); if (isDirty) void save(); }}
+          />
+          {errors.note ? <span className="field-error">{errors.note.message}</span> : null}
+        </div>
         {canEdit ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
       </div>
     </form>
   );
 }
 
-function WorkflowChecklistSection({ title, description, status, items, version, saving, onPatch, className = '' }: {
+function WorkflowChecklistSection({ title, description, status, area, items, version, saving, onPatch, className = '' }: {
   title: string;
   description?: string;
   status?: ReactNode;
+  area?: string;
   items: ProjectWorkflowChecklist[];
   version: number;
   saving: boolean;
@@ -323,8 +468,9 @@ function WorkflowChecklistSection({ title, description, status, items, version, 
   className?: string;
 }) {
   const completed = items.filter(item => item.status !== 'PENDING').length;
+  const complete = items.length > 0 && completed === items.length;
   return (
-    <ProjectWorkflowCategory title={title} description={description} status={status ?? `${completed}/${items.length}`} complete={items.length > 0 && completed === items.length} className={className}>
+    <ProjectWorkflowCategory title={title} description={description} area={area} progress={{ completed, total: items.length }} status={status ?? sectionStatusLabel(completed, items.length)} complete={complete} className={className}>
       {items.map(item => <ChecklistEditor item={item} version={version} saving={saving} canEdit={item.canEdit} onPatch={onPatch} key={item.key} />)}
     </ProjectWorkflowCategory>
   );
@@ -333,14 +479,21 @@ function WorkflowChecklistSection({ title, description, status, items, version, 
 function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
   const authorization = workflow.mobilizationAuthorization;
   const statusLabel = authorization.status === 'AUTHORIZED'
-    ? '🔒 Autorizado para mobilização'
-    : authorization.status === 'SUSPENDED' ? '🔴 Autorização suspensa'
-      : workflow.mobilizationGate.ready ? '🟢 Pronto para autorizar' : '🔴 Bloqueado';
+    ? 'Autorizado'
+    : authorization.status === 'SUSPENDED' ? 'Autorização suspensa'
+      : workflow.mobilizationGate.ready ? 'Pronto para autorizar' : `${workflow.mobilizationGate.blockers.length} bloqueio(s)`;
   return (
     <ProjectWorkflowCategory
       title="Gate de mobilização"
       description="As nove frentes e o pré-job precisam permanecer liberados na mesma versão."
+      area="Autorização"
+      group="Liberação"
+      progress={{
+        completed: workflow.mobilizationGate.fronts.filter(front => front.status === 'READY').length + (workflow.mobilizationGate.preJob.status === 'READY' ? 1 : 0),
+        total: workflow.mobilizationGate.fronts.length + 1
+      }}
       status={statusLabel}
+      tone={authorization.status === 'AUTHORIZED' ? 'ok' : workflow.mobilizationGate.ready ? 'warn' : 'crit'}
       complete={authorization.status === 'AUTHORIZED'}
       className={`project-workflow-gate-panel is-${authorization.status.toLowerCase()}`}
       data-project-workflow-gate
@@ -357,7 +510,7 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
   );
 }
 
-function transitionLabel(current: ProjectWorkflow['stage'], target: ProjectWorkflow['stage']) {
+function transitionLabel(current: ProjectWorkflow['stage'], target: ProjectWorkflow['stage'], preparationLeadTimeDays = 15) {
   if (current === 'FINISHED' && target === 'FINAL_MEASUREMENT') return 'Reabrir em documentação e medição';
   if (current === 'MOBILIZATION' && target === 'READY_TO_MOBILIZE') return 'Voltar para pronto para mobilizar';
   if (current === 'EXECUTION' && target === 'MOBILIZATION') return 'Voltar para mobilização';
@@ -371,7 +524,7 @@ function transitionLabel(current: ProjectWorkflow['stage'], target: ProjectWorkf
   if (target === 'MOBILIZATION') return 'Iniciar mobilização';
   if (target === 'EXECUTION') return 'Iniciar execução';
   if (target === 'READY_TO_MOBILIZE') return 'Autorizar mobilização';
-  if (target === 'PREPARATION') return current === 'READY_TO_MOBILIZE' ? 'Voltar para preparação' : 'Iniciar preparação D-15';
+  if (target === 'PREPARATION') return current === 'READY_TO_MOBILIZE' ? 'Voltar para preparação' : `Iniciar preparação D-${preparationLeadTimeDays}`;
   if (target === 'MOBILIZATION_PLANNING') return current === 'PREPARATION' ? 'Voltar ao planejamento' : 'Iniciar planejamento';
   if (target === 'WAITING_PLANNING') return 'Aguardar planejamento';
   return 'Voltar para análise';
@@ -390,6 +543,7 @@ function ReopenProjectForm({ workflow, saving, onPatch }: {
     <ProjectWorkflowCategory
       title="Reabrir projeto"
       description="A obra voltará para Documentação / medição e a justificativa ficará registrada no histórico."
+      area="Encerramento"
       status="Justificativa obrigatória"
       className="project-workflow-reopen"
       data-project-workflow-reopen
@@ -436,6 +590,271 @@ function IssueEditor({ issue, version, saving, canEdit, onPatch }: {
   );
 }
 
+const STAGE_SECTION_GROUPS: Record<ProjectWorkflowStage, string> = {
+  HANDOVER: 'Handover',
+  INITIAL_ANALYSIS: 'Análise',
+  WAITING_PLANNING: 'Acompanhamento',
+  MOBILIZATION_PLANNING: 'Frentes do D-30',
+  PREPARATION: 'Frentes de preparação',
+  READY_TO_MOBILIZE: 'Frentes de preparação',
+  MOBILIZATION: 'Mobilização',
+  EXECUTION: 'Execução',
+  DEMOBILIZATION: 'Desmobilização',
+  POST_JOB: 'Pós-job',
+  FINAL_MEASUREMENT: 'Documentação e medição',
+  FINISHED: 'Encerramento'
+};
+
+const READINESS_RING_RADIUS = 21;
+const READINESS_RING_LENGTH = 2 * Math.PI * READINESS_RING_RADIUS;
+
+function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, documents, onPatch, onOpenTeamProgramming, onShowBlockers }: {
+  detail: ProjectWorkflowDetail;
+  leaders: WorkflowUserOption[];
+  workflow: ProjectWorkflow;
+  activeStage: ProjectWorkflowStage;
+  saving: boolean;
+  documents: Awaited<ReturnType<typeof listProjectDocuments>>['documents'];
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+  onOpenTeamProgramming: () => void;
+  onShowBlockers: () => void;
+}) {
+  const activeStageIndex = WORKFLOW_STAGES.indexOf(activeStage);
+  const currentStageIndex = WORKFLOW_STAGES.indexOf(workflow.stage);
+  const isFutureStage = activeStageIndex > currentStageIndex;
+  const isCurrentStage = activeStage === workflow.stage;
+  const stageSaving = saving || !isCurrentStage;
+  const initialTeam = detail.project.operationalMission || null;
+  const mainRef = useRef<HTMLDivElement>(null);
+  const { sections, Provider: StageSectionProvider } = useStageSectionRegistry();
+  const { marker, readiness } = stageHeadingReadiness(workflow, activeStage);
+  const demobilizationSections = [
+    ['DEMOBILIZATION_FIELD', 'Conclusão de campo', 'Operações'],
+    ['DEMOBILIZATION_LOGISTICS', 'Logística de retorno', 'Logística'],
+    ['DEMOBILIZATION_ASSETS', 'Retorno de ativos', 'Ativos']
+  ] as const;
+  const postJobSections = [
+    ['POST_JOB_FEEDBACK', 'Reunião e feedbacks', 'Operações'],
+    ['POST_JOB_LEARNING', 'Aprendizados e melhorias', 'Qualidade']
+  ] as const;
+  const closeoutSections = [
+    ['CLOSEOUT_DOCUMENTATION', 'Documentação', 'Administrativo'],
+    ['CLOSEOUT_MEASUREMENT', 'Medição', 'Comercial']
+  ] as const;
+  const finalCloseoutChecklists = workflow.checklists.filter(item => item.section === 'FINAL_CLOSEOUT');
+  const openIssues = workflow.issues.filter(item => item.status !== 'RESOLVED');
+  const answeredCriticals = workflow.criticalAnswers.filter(item => item.answer !== null).length;
+
+  const renderCriticalItems = () => (
+    <ProjectWorkflowCategory
+      title="Itens críticos"
+      description="Respostas que definem se a obra entra no fluxo crítico."
+      area="Análise"
+      progress={{ completed: answeredCriticals, total: workflow.criticalAnswers.length }}
+      status={sectionStatusLabel(answeredCriticals, workflow.criticalAnswers.length)}
+      complete={workflow.criticalAnswers.every(item => item.answer !== null)}
+    >
+      {workflow.criticalAnswers.map(item => <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><ProjectWorkflowBooleanChoice value={item.answer} label={item.label} disabled={saving || !workflow.permissions.canEdit} onSelect={answer => { if (item.answer !== answer) onPatch({ action: 'critical', version: workflow.version, key: item.key, answer }); }} /></article>)}
+    </ProjectWorkflowCategory>
+  );
+  const renderAnalysisMonitoring = () => (
+    <>
+      <ProjectWorkflowDocumentationTracking workflow={workflow} saving={saving} onPatch={onPatch} />
+      {renderCriticalItems()}
+      {workflow.issues.length ? <ProjectWorkflowCategory
+        title="Pendências"
+        description="Itens levantados na análise que precisam ser resolvidos antes da mobilização."
+        area="Análise"
+        progress={{ completed: workflow.issues.length - openIssues.length, total: workflow.issues.length }}
+        status={openIssues.length ? `${openIssues.length} aberta${openIssues.length === 1 ? '' : 's'}` : 'Concluído'}
+        tone={openIssues.length ? 'crit' : 'ok'}
+        complete={!openIssues.length}
+      >{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={issue.id} />)}</ProjectWorkflowCategory> : null}
+    </>
+  );
+  const renderPreparation = () => (
+    <>
+      <ProjectWorkflowDefinitiveTeam workflow={workflow} saving={stageSaving} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} />
+      <ProjectWorkflowClientReleasesPanel workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      <ProjectWorkflowEquipmentPreparation workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      <ProjectWorkflowMaterialsPreparation workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      <ProjectWorkflowPreJobPanel workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      <ProjectWorkflowTravelPanel workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      <ProjectWorkflowQsmsPanel workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      <MobilizationGate workflow={workflow} />
+    </>
+  );
+  const renderPostJob = () => (
+    <>
+      <ProjectWorkflowCategory
+        title="Pós-job / fechamento técnico"
+        description="Registre a experiência da obra e alimente a base histórica da Filtrovali."
+        area="Operações"
+        progress={workflow.postJobReadiness}
+        status={sectionStatusLabel(workflow.postJobReadiness.completed, workflow.postJobReadiness.total)}
+        complete={workflow.postJobReadiness.percentage === 100}
+      >
+        <ProjectPostJobPanel workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      </ProjectWorkflowCategory>
+      <div className="project-workflow-planning-grid">{postJobSections.map(([section, title, area]) => <WorkflowChecklistSection title={title} area={area} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={stageSaving} onPatch={onPatch} key={section} />)}</div>
+    </>
+  );
+  const renderCloseout = () => (
+    <>
+      <ProjectWorkflowCategory
+        title="Documentação / medição"
+        description="Consolide os documentos técnicos, a medição e os valores de fechamento da obra."
+        area="Administrativo"
+        progress={workflow.closeoutReadiness}
+        status={sectionStatusLabel(workflow.closeoutReadiness.completed, workflow.closeoutReadiness.total)}
+        complete={workflow.closeoutReadiness.percentage === 100}
+      >
+        <ProjectCloseoutPanel workflow={workflow} saving={stageSaving} onPatch={onPatch} />
+      </ProjectWorkflowCategory>
+      <div className="project-workflow-planning-grid">{closeoutSections.map(([section, title, area]) => <WorkflowChecklistSection title={title} area={area} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={stageSaving} onPatch={onPatch} key={section} />)}</div>
+      <ProjectWorkflowCategory
+        title="Gate de encerramento"
+        description="Valida escopo, documentos, medição, pós-job, ativos e pendências antes de encerrar."
+        area="Encerramento"
+        group="Liberação"
+        status={workflow.closureGate.ready ? 'Pronto para encerrar' : `${workflow.closureGate.blockers.length} bloqueio(s)`}
+        tone={workflow.closureGate.ready ? 'ok' : 'crit'}
+        complete={workflow.closureGate.ready}
+        className={`project-workflow-closure-gate ${workflow.closureGate.ready ? 'is-ready' : 'is-blocked'}`}
+        data-project-workflow-closure-gate
+      >
+        <WorkflowChecklistSection title="Checklist final de encerramento" area="Encerramento" items={finalCloseoutChecklists} version={workflow.version} saving={stageSaving} onPatch={onPatch} />
+        {workflow.closureGate.blockers.length ? <details open><summary>Motivos do bloqueio</summary><ul>{workflow.closureGate.blockers.map(item => <li key={item.key}><strong>{item.label}:</strong> {item.reason}</li>)}</ul></details> : <p className="project-workflow-category-note">Todos os requisitos foram concluídos. O Líder ou gestor pode encerrar o projeto.</p>}
+      </ProjectWorkflowCategory>
+    </>
+  );
+
+  let stageContent: ReactNode;
+  if (isFutureStage) {
+    stageContent = <section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="lock" /><strong>Esta etapa ainda não foi iniciada.</strong><p>Conclua a etapa atual para liberar os controles de {WORKFLOW_STAGE_LABELS[activeStage].toLocaleLowerCase('pt-BR')}.</p></section>;
+  } else if (activeStage === 'HANDOVER') {
+    stageContent = <><WorkflowSettingsForm detail={detail} leaders={leaders} saving={saving} onPatch={onPatch} /><ProjectWorkflowCommercialSignals workflow={workflow} /><ProjectDocumentsCategory projectId={workflow.projectId} users={leaders} /><ProjectWorkflowHandoverSignals detail={detail} documents={documents} /></>;
+  } else if (activeStage === 'INITIAL_ANALYSIS') {
+    stageContent = <><ProjectWorkflowInitialAnalysisData workflow={workflow} saving={stageSaving} onPatch={onPatch} /><WorkflowChecklistSection title="Entendimento da análise inicial" area="Análise" items={workflow.checklists.filter(item => item.section === 'INITIAL_ANALYSIS')} version={workflow.version} saving={stageSaving} onPatch={onPatch} />{renderAnalysisMonitoring()}<ProjectWorkflowCriticalityDecision workflow={workflow} saving={stageSaving} onPatch={onPatch} /></>;
+  } else if (activeStage === 'WAITING_PLANNING') {
+    stageContent = <>{renderAnalysisMonitoring()}</>;
+  } else if (activeStage === 'MOBILIZATION_PLANNING') {
+    stageContent = <><ProjectWorkflowTeamPlanningCard workflow={workflow} saving={stageSaving} onPatch={onPatch} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={onPatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={stageSaving} onPatch={onPatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={stageSaving} onPatch={onPatch} /></>;
+  } else if (activeStage === 'PREPARATION' || activeStage === 'READY_TO_MOBILIZE') {
+    stageContent = renderPreparation();
+  } else if (activeStage === 'MOBILIZATION') {
+    stageContent = <MobilizationGate workflow={workflow} />;
+  } else if (activeStage === 'EXECUTION') {
+    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Avanço, RDOs, relatórios técnicos e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} readOnly={!isCurrentStage} /></ProjectWorkflowCategory>{isCurrentStage && canManageProjectTeamCycles(workflow.stage) && initialTeam ? <Button type="button" variant="mini" className="project-workflow-planning-link" onClick={onOpenTeamProgramming}>Equipe e ciclos</Button> : null}</>;
+  } else if (activeStage === 'DEMOBILIZATION') {
+    stageContent = <><ProjectWorkflowCategory
+      title="Datas da desmobilização"
+      description="Conclusão do campo, retorno da equipe e entrega dos ativos."
+      area="Operações"
+      status={workflow.fieldCompletionDate && workflow.demobilizationDate ? 'Concluído' : 'Datas pendentes'}
+      complete={Boolean(workflow.fieldCompletionDate && workflow.demobilizationDate)}
+    ><DemobilizationDatesForm workflow={workflow} project={detail.project} mission={detail.project.operationalMission} saving={stageSaving} onPatch={onPatch} /></ProjectWorkflowCategory><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title, area]) => <WorkflowChecklistSection title={title} area={area} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={stageSaving} onPatch={onPatch} key={section} />)}</div></>;
+  } else if (activeStage === 'POST_JOB') {
+    stageContent = renderPostJob();
+  } else if (activeStage === 'FINAL_MEASUREMENT') {
+    stageContent = renderCloseout();
+  } else {
+    stageContent = <>{renderPostJob()}{renderCloseout()}{workflow.permissions.canReopen ? <ReopenProjectForm workflow={workflow} saving={saving} onPatch={onPatch} /> : null}</>;
+  }
+
+  const gateBlockers = ['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(activeStage)
+    ? workflow.mobilizationGate.blockers
+    : activeStage === 'FINAL_MEASUREMENT' ? workflow.closureGate.blockers : [];
+  const railGate = isCurrentStage && workflow.stage !== 'FINISHED' && gateBlockers.length
+    ? {
+        title: `${gateBlockers.length} bloqueio${gateBlockers.length === 1 ? '' : 's'} para ${activeStage === 'FINAL_MEASUREMENT' ? 'encerrar' : 'mobilizar'}`,
+        items: [...new Set(gateBlockers.map(item => item.label))].slice(0, 6)
+      }
+    : null;
+  const readinessTone = readiness ? readiness.percentage === 100 ? 'is-ok' : readiness.completed > 0 ? 'is-warn' : 'is-idle' : '';
+  const deadlineAlert = isCurrentStage && workflow.stage !== 'FINISHED'
+    ? workflow.mobilizationGate.deadlineStatus === 'RISK'
+      ? { tone: 'is-crit', title: 'Risco de mobilização.', text: `D-1 atingido com ${workflow.mobilizationGate.blockers.length} bloqueio(s).` }
+      : workflow.mobilizationGate.deadlineStatus === 'ATTENTION'
+        ? { tone: 'is-warn', title: 'D-7 atingido.', text: `${workflow.mobilizationGate.blockers.length} bloqueio(s) ainda precisam ser resolvidos.` }
+        : workflow.milestones.dueMilestones.length
+          ? { tone: 'is-warn', title: 'Atenção aos prazos.', text: `${workflow.milestones.dueMilestones.map(key => key.replace('D', 'D-')).join(' · ')} já atingido(s); execute agora as verificações pendentes.` }
+          : null
+    : null;
+
+  return (
+    <section className="project-workflow-stage-panel" id={stagePanelId(activeStage)} role="tabpanel" aria-labelledby={stageTabId(activeStage)} tabIndex={0}>
+      <StageSectionProvider>
+        <ProjectWorkflowStageRail sections={sections} scrollRef={mainRef} blockers={railGate} defaultGroup={STAGE_SECTION_GROUPS[activeStage]} />
+        <div className="project-workflow-stage-main" ref={mainRef}>
+          <header
+            className="project-workflow-stage-heading"
+            data-project-workflow-d30={activeStage === 'MOBILIZATION_PLANNING' || undefined}
+            data-project-workflow-d15={activeStage === 'PREPARATION' || activeStage === 'READY_TO_MOBILIZE' || undefined}
+            data-project-workflow-demobilization={activeStage === 'DEMOBILIZATION' || undefined}
+            data-project-workflow-post-job={activeStage === 'POST_JOB' || undefined}
+            data-project-workflow-closeout={activeStage === 'FINAL_MEASUREMENT' || undefined}
+          >
+            <div>
+              <span>{isCurrentStage ? 'Etapa atual' : isFutureStage ? 'Próxima etapa · ainda não iniciada' : 'Etapa anterior · consulta'} · {activeStageIndex + 1} de {WORKFLOW_STAGES.length}</span>
+              <h4>{WORKFLOW_STAGE_LABELS[activeStage]}{marker ? <em className="project-workflow-stage-marker">{marker}</em> : null}</h4>
+              <p>{WORKFLOW_STAGE_DESCRIPTIONS[activeStage]}</p>
+            </div>
+            {readiness && !isFutureStage ? <div className={`project-workflow-stage-readiness ${readinessTone}`}>
+              <span className="project-workflow-stage-readiness-ring">
+                <svg viewBox="0 0 52 52" aria-hidden="true">
+                  <circle className="is-track" cx="26" cy="26" r={READINESS_RING_RADIUS} />
+                  <circle className="is-value" cx="26" cy="26" r={READINESS_RING_RADIUS} strokeDasharray={READINESS_RING_LENGTH} strokeDashoffset={READINESS_RING_LENGTH * (1 - readiness.percentage / 100)} />
+                </svg>
+                <b>{readiness.percentage}%</b>
+              </span>
+              <span><strong>{readiness.completed} de {readiness.total}</strong><small>itens concluídos</small></span>
+            </div> : null}
+          </header>
+          {isCurrentStage && workflow.stage === 'FINISHED' ? <section className="project-workflow-callout is-ok" data-project-workflow-closed><ProjectWorkflowIcon name="flag" /><p><strong>Missão encerrada.</strong> {workflow.closedAt ? `Encerrada em ${new Date(workflow.closedAt).toLocaleString('pt-BR')}` : 'Encerramento registrado'}{workflow.closedBy ? ` por ${workflow.closedBy.name}` : ''}.</p></section> : null}
+          {activeStage === 'WAITING_PLANNING' && !isFutureStage ? <section className="project-workflow-callout is-info"><ProjectWorkflowIcon name="clock" /><p><strong>Aguardando D-30.</strong> A análise foi concluída{workflow.milestones.d30Date ? `; o planejamento abre em ${displayDateOnly(workflow.milestones.d30Date)}` : ''}. Itens críticos e documentação seguem monitorados aqui.</p></section> : null}
+          {deadlineAlert ? <section className={`project-workflow-callout ${deadlineAlert.tone}`} role="status"><ProjectWorkflowIcon name="alert" /><p><strong>{deadlineAlert.title}</strong> {deadlineAlert.text}</p>{gateBlockers.length ? <Button type="button" variant="secondary" className="is-small" onClick={onShowBlockers}>Ver bloqueios</Button> : null}</section> : null}
+          {stageContent}
+        </div>
+      </StageSectionProvider>
+    </section>
+  );
+}
+
+// "dd/mm" de uma data-chave (AAAA-MM-DD) sem passar por fuso, ou de um instante ISO no fuso local.
+function shortDate(value: string) {
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  if (key) return `${key.slice(8, 10)}/${key.slice(5, 7)}`;
+  return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+type StageDate = { text: string; kind: 'real' | 'since' | 'planned'; title: string };
+
+// Data exibida sob cada etapa: conclusão real nas anteriores, abertura real na atual e início
+// previsto (calculado da mobilização prevista) nas futuras que têm marco.
+function workflowStageDate(workflow: ProjectWorkflow, stage: ProjectWorkflowStage): StageDate | null {
+  const stageIndex = WORKFLOW_STAGES.indexOf(stage);
+  const currentIndex = WORKFLOW_STAGES.indexOf(workflow.stage);
+  const entry = workflow.stageTimeline?.[stage];
+  if (stageIndex < currentIndex) {
+    return entry?.completedAt
+      ? { text: shortDate(entry.completedAt), kind: 'real', title: `Concluída em ${new Date(entry.completedAt).toLocaleDateString('pt-BR')}` }
+      : null;
+  }
+  if (stageIndex === currentIndex) {
+    return entry?.enteredAt
+      ? { text: `desde ${shortDate(entry.enteredAt)}`, kind: 'since', title: `Etapa aberta em ${new Date(entry.enteredAt).toLocaleDateString('pt-BR')}` }
+      : null;
+  }
+  const planned = stage === 'MOBILIZATION_PLANNING' ? { marker: 'D-30', date: workflow.milestones.d30Date }
+    : stage === 'PREPARATION' ? { marker: `D-${workflow.preparationLeadTimeDays}`, date: workflow.milestones.preparationDate }
+      : stage === 'MOBILIZATION' ? { marker: 'D-0', date: workflow.plannedMobilizationDate }
+        : null;
+  return planned?.date
+    ? { text: `${planned.marker} · ${shortDate(planned.date)}`, kind: 'planned', title: `Início previsto em ${displayDateOnly(planned.date)}, calculado a partir da mobilização prevista` }
+    : null;
+}
+
 export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission, onOpenTeamProgramming }: {
   detail: ProjectWorkflowDetail | null;
   leaders: WorkflowUserOption[];
@@ -455,24 +874,20 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     queryFn: () => listProjectDocuments(projectId),
     enabled: Boolean(projectId && detail?.workflow)
   });
+  const [activeStage, setActiveStage] = useState<ProjectWorkflowStage>(detail?.workflow?.stage || 'HANDOVER');
+  const [blockersOpen, setBlockersOpen] = useState(false);
+  useEffect(() => {
+    if (!detail?.workflow?.stage) return;
+    setActiveStage(detail.workflow.stage);
+  }, [detail?.project.id, detail?.workflow?.stage]);
+  const hasWorkflow = Boolean(detail?.workflow);
+  // Em telas estreitas a linha do tempo rola na horizontal: mantém a etapa aberta à vista.
+  useEffect(() => {
+    if (!hasWorkflow) return;
+    document.getElementById(stageTabId(activeStage))?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [activeStage, hasWorkflow]);
   if (typeof document === 'undefined' || (!detail && !loading && !error)) return null;
   const workflow = detail?.workflow || null;
-  const initialTeam = detail?.project.operationalMission || null;
-  const stageChecklists = workflow?.checklists.filter(item => item.section === workflow.stage) || [];
-  const demobilizationSections = [
-    ['DEMOBILIZATION_FIELD', 'Conclusão de campo'],
-    ['DEMOBILIZATION_LOGISTICS', 'Logística de retorno'],
-    ['DEMOBILIZATION_ASSETS', 'Retorno de ativos']
-  ] as const;
-  const postJobSections = [
-    ['POST_JOB_FEEDBACK', 'Reunião e feedbacks'],
-    ['POST_JOB_LEARNING', 'Aprendizados e melhorias']
-  ] as const;
-  const closeoutSections = [
-    ['CLOSEOUT_DOCUMENTATION', 'Documentação'],
-    ['CLOSEOUT_MEASUREMENT', 'Medição']
-  ] as const;
-  const finalCloseoutChecklists = workflow?.checklists.filter(item => item.section === 'FINAL_CLOSEOUT') || [];
   const transitionOptions = workflow?.transitionOptions || [];
   const nextMilestoneText = !workflow
     ? '—'
@@ -502,11 +917,81 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     : (workflow?.permissions.canEdit
         ? [...new Set(transitionOptions.filter(item => !item.allowed).flatMap(item => item.issues))]
         : workflow ? [`Aguardando ${workflow.leader.name} ou o gestor alterar a etapa`] : []);
+  const isCurrentStageSelected = Boolean(workflow && activeStage === workflow.stage);
+  const moveTabFocus = (event: KeyboardEvent<HTMLButtonElement>, stage: ProjectWorkflowStage) => {
+    const index = WORKFLOW_STAGES.indexOf(stage);
+    let nextIndex: number;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % WORKFLOW_STAGES.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + WORKFLOW_STAGES.length) % WORKFLOW_STAGES.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = WORKFLOW_STAGES.length - 1;
+    else return;
+    event.preventDefault();
+    const nextStage = WORKFLOW_STAGES[nextIndex];
+    setActiveStage(nextStage);
+    requestAnimationFrame(() => document.getElementById(stageTabId(nextStage))?.focus());
+  };
+  const footerTone = !workflow ? 'is-idle'
+    : !isCurrentStageSelected ? 'is-idle'
+      : workflow.stage === 'FINISHED' || (footerIssues.length === 0) ? 'is-ok' : 'is-crit';
+  const showBlockers = isCurrentStageSelected && footerIssues.length > 0;
   const content = (
     <Modal open onClose={onClose} closeOnEscape={!saving} ariaLabelledBy="project-workflow-title" panelClassName="modal-card efetivo-modal project-workflow-modal">
       <div className="efetivo-modal-layout">
-        <header className="efetivo-modal-header"><div><h3 id="project-workflow-title">{detail ? `${detail.project.code} · ${detail.project.name}` : 'Gestão do projeto'}</h3><p>{detail ? `${detail.project.clientName} · ${detail.project.location || 'Local não informado'}` : 'Carregando dados do projeto…'}</p></div><button className="icon-button" type="button" disabled={saving} aria-label="Fechar" onClick={onClose}>×</button></header>
-        <div className="efetivo-modal-body project-workflow-modal-body">
+        <header className="efetivo-modal-header project-workflow-header">
+          <div className="project-workflow-header-id">
+            {detail ? <span className="project-workflow-code">{detail.project.code}</span> : null}
+            <div>
+              <h3 id="project-workflow-title">{detail ? detail.project.name : 'Gestão do projeto'}</h3>
+              <p>{detail ? `${detail.project.clientName} · ${detail.project.location || 'Local não informado'}` : 'Carregando dados do projeto…'}</p>
+            </div>
+          </div>
+          {workflow ? <dl className="project-workflow-meta" aria-label="Resumo fixo do projeto">
+            <div><dt>Líder</dt><dd title={workflow.leader.email || 'Sem e-mail cadastrado'}><span className="project-workflow-avatar" aria-hidden="true">{initialsOf(workflow.leader.name)}</span>{workflow.leader.name}</dd></div>
+            <div><dt>Planejador</dt><dd title={workflow.planner?.email || 'Sem e-mail cadastrado'}>{workflow.planner ? <span className="project-workflow-avatar" aria-hidden="true">{initialsOf(workflow.planner.name)}</span> : null}{workflow.planner?.name || 'Não definido'}</dd></div>
+            <div><dt>Mobilização</dt><dd className="is-numeric">{workflow.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}</dd></div>
+            <div><dt>Próximo marco</dt><dd className={workflow.milestones.dueMilestones.length ? 'is-due' : undefined}><ProjectWorkflowIcon name="clock" />{nextMilestoneText}</dd></div>
+          </dl> : null}
+          <button className="project-workflow-icon-button" type="button" disabled={saving} aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
+        </header>
+        {workflow ? <div className="project-workflow-fixed-top">
+          <div className="project-workflow-stage-tabs-scroll">
+            <div className="project-workflow-stage-tabs" role="tablist" aria-label="Etapas do planejamento">
+              {WORKFLOW_STAGES.map(stage => {
+                const stageIssues = workflowStagePendingItems(workflow, stage, footerIssues);
+                const flag = workflowStageFlag(workflow, stage, stageIssues);
+                const position = workflow.stage === 'FINISHED' || WORKFLOW_STAGES.indexOf(stage) < WORKFLOW_STAGES.indexOf(workflow.stage) ? 'is-done'
+                  : stage === workflow.stage ? 'is-now' : 'is-next';
+                const date = workflowStageDate(workflow, stage);
+                return <PortalTip
+                  key={stage}
+                  triggerClassName="project-workflow-stage-tab-tip"
+                  triggerTabIndex={-1}
+                  balloonClassName="project-workflow-stage-tip-balloon"
+                  preferredPlacement="below"
+                  interactive
+                  content={<div className={`project-workflow-stage-tip is-${flag.tone}`}><header><strong>{WORKFLOW_STAGE_LABELS[stage]}</strong><span>{flag.label}</span></header><ul>{flag.items.map((item, index) => <li key={`${stage}-${index}`}><i aria-hidden="true" /><span>{item}</span></li>)}</ul>{date ? <p className="project-workflow-stage-tip-date">{date.title}</p> : null}</div>}
+                >
+                  <button className={`project-workflow-stage-tab is-${flag.tone} ${position}`} id={stageTabId(stage)} type="button" role="tab" aria-label={flag.tooltip} aria-selected={activeStage === stage} aria-controls={stagePanelId(stage)} tabIndex={activeStage === stage ? 0 : -1} onClick={() => setActiveStage(stage)} onKeyDown={event => moveTabFocus(event, stage)}>
+                    <span className="project-workflow-stage-node" aria-hidden="true">
+                      {position === 'is-done' ? <ProjectWorkflowIcon name="check" /> : null}
+                      {flag.tone === 'pending' && stageIssues.length ? <b>{stageIssues.length > 99 ? '99+' : stageIssues.length}</b> : null}
+                    </span>
+                    <span className="project-workflow-stage-flag sr-only">{flag.label}</span>
+                    <span className="project-workflow-stage-tab-label">{WORKFLOW_STAGE_LABELS[stage]}</span>
+                    <span className={`project-workflow-stage-date${date ? ` is-${date.kind}` : ''}`}>{date?.text || '\u00a0'}</span>
+                  </button>
+                </PortalTip>;
+              })}
+            </div>
+          </div>
+          <p className="project-workflow-stage-legend" aria-hidden="true">
+            <span><b className="is-real">dd/mm</b>concluída em</span>
+            <span><b className="is-since">desde dd/mm</b>etapa atual aberta em</span>
+            <span><b className="is-planned">D-x · dd/mm</b>início previsto pela mobilização</span>
+          </p>
+        </div> : null}
+        <div className={`efetivo-modal-body project-workflow-modal-body${workflow ? ' has-stage-layout' : ''}`}>
           {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy">Carregando gestão do projeto…</p> : !workflow ? (
             <>
               {detail.project.operationalMission ? <LegacyMissionStageForm mission={detail.project.operationalMission} saving={saving} canManage={detail.permissions.canInitialize} onMove={onMoveLegacyMission} /> : null}
@@ -514,55 +999,40 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
                 ? <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
                 : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>}
             </>
-          ) : (
-            <>
-              <section className="project-workflow-status-block"><div><span>Etapa atual</span><strong>{WORKFLOW_STAGE_LABELS[workflow.stage]}</strong></div><div><span>Líder</span><strong>{workflow.leader.name}</strong><small>{workflow.leader.email || 'Sem e-mail cadastrado'}</small></div><div><span>Planejador</span><strong>{workflow.planner?.name || 'Não definido'}</strong><small>{workflow.planner?.email || 'Sem e-mail cadastrado'}</small></div><div><span>Mobilização prevista</span><strong>{displayDateOnly(workflow.plannedMobilizationDate)}</strong></div><div><span>Próximo marco</span><strong>{nextMilestoneText}</strong></div></section>
-              {workflow.stage === 'FINISHED' ? <section className="project-workflow-closed-banner" data-project-workflow-closed><strong>🏁 Missão encerrada</strong><span>{workflow.closedAt ? `Encerrada em ${new Date(workflow.closedAt).toLocaleString('pt-BR')}` : 'Encerramento registrado'}{workflow.closedBy ? ` por ${workflow.closedBy.name}` : ''}.</span></section> : null}
-              {workflow.stage !== 'FINISHED' && workflow.milestones.dueMilestones.length ? <section className="project-workflow-milestones" aria-label="Marcos de mobilização atingidos"><strong>Atenção aos prazos</strong><span>{workflow.milestones.dueMilestones.map(key => key.replace('D', 'D-')).join(' · ')} já atingido(s); execute agora as verificações pendentes.</span></section> : null}
-              {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? <section className="project-workflow-deadline-risk is-attention"><strong>🟡 D-7 atingido</strong><span>{workflow.mobilizationGate.blockers.length} bloqueio(s) ainda precisam ser resolvidos.</span></section> : null}
-              {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'RISK' ? <section className="project-workflow-deadline-risk is-risk"><strong>🔴 Risco de mobilização</strong><span>D-1 atingido com {workflow.mobilizationGate.blockers.length} bloqueio(s).</span></section> : null}
-              <WorkflowSettingsForm detail={detail} leaders={leaders} saving={saving} onPatch={onPatch} />
-              <ProjectWorkflowCommercialSignals workflow={workflow} />
-              <ProjectDocumentsCategory projectId={workflow.projectId} users={leaders} />
-              {workflow.stage === 'HANDOVER' ? <ProjectWorkflowHandoverSignals detail={detail} documents={projectDocuments.data?.documents || []} /> : null}
-              {workflow.stage === 'INITIAL_ANALYSIS' ? <><ProjectWorkflowInitialAnalysisData workflow={workflow} saving={saving} onPatch={onPatch} /><WorkflowChecklistSection title="Entendimento da análise inicial" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /></> : null}
-              {workflow.stage === 'WAITING_PLANNING' ? <ProjectWorkflowCategory title="🕐 Aguardando D-30" description="A análise foi concluída. O sistema continua acompanhando itens críticos e documentação até o início do planejamento." status={workflow.milestones.d30Date ? displayDateOnly(workflow.milestones.d30Date) : 'Data não definida'} className="project-workflow-waiting"><p className="project-workflow-category-note">Itens críticos e documentação continuam monitorados nesta etapa.</p></ProjectWorkflowCategory> : null}
-              <ProjectWorkflowDocumentationTracking workflow={workflow} saving={saving} onPatch={onPatch} />
-              {workflow.stage === 'MOBILIZATION_PLANNING' ? <ProjectWorkflowCategory title="Planejamento da mobilização · D-30" description="Previsões organizadas por área responsável." status={`${workflow.planningReadiness.completed}/${workflow.planningReadiness.total} · ${workflow.planningReadiness.percentage}%`} complete={workflow.planningReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d30><div className="project-workflow-planning-grid"><ProjectWorkflowTeamPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={saving} onPatch={onPatch} /></div></ProjectWorkflowCategory> : null}
-              {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <ProjectWorkflowCategory title="Preparação para mobilização · D-15" description="Confirmações definitivas por frente responsável." status={`${workflow.preparationReadiness.completed}/${workflow.preparationReadiness.total} · ${workflow.preparationReadiness.percentage}%`} complete={workflow.preparationReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d15><div className="project-workflow-planning-grid"><ProjectWorkflowDefinitiveTeam workflow={workflow} saving={saving} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} /><ProjectWorkflowClientReleasesPanel workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowEquipmentPreparation workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowMaterialsPreparation workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowPreJobPanel workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowTravelPanel workflow={workflow} saving={saving} onPatch={onPatch} /><ProjectWorkflowQsmsPanel workflow={workflow} saving={saving} onPatch={onPatch} /></div></ProjectWorkflowCategory> : null}
-              {['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}
-              {workflow.stage === 'EXECUTION' ? <ProjectWorkflowCategory title="Dashboard de execução" description="Avanço, RDOs, relatórios técnicos e desvios da obra." status="Acompanhamento ativo"><ProjectExecutionDashboard projectId={workflow.projectId} /></ProjectWorkflowCategory> : null}
-              {workflow.stage === 'DEMOBILIZATION' ? <ProjectWorkflowCategory title="Desmobilização" description="Conclusão do campo, retorno da equipe e entrega dos ativos." status={`${workflow.demobilizationReadiness.completed}/${workflow.demobilizationReadiness.total} · ${workflow.demobilizationReadiness.percentage}%`} complete={workflow.demobilizationReadiness.percentage === 100 && Boolean(workflow.fieldCompletionDate && workflow.demobilizationDate)} className="project-workflow-planning" data-project-workflow-demobilization><DemobilizationDatesForm workflow={workflow} project={detail.project} mission={detail.project.operationalMission} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
-              {['POST_JOB', 'FINISHED'].includes(workflow.stage) ? <ProjectWorkflowCategory title="Pós-job / fechamento técnico" description="Registre a experiência da obra e alimente a base histórica da Filtrovali." status={`${workflow.postJobReadiness.completed}/${workflow.postJobReadiness.total} · ${workflow.postJobReadiness.percentage}%`} complete={workflow.postJobReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-post-job><ProjectPostJobPanel workflow={workflow} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{postJobSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
-              {['FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) ? <ProjectWorkflowCategory title="Documentação / medição" description="Consolide os documentos técnicos, a medição e os valores de fechamento da obra." status={`${workflow.closeoutReadiness.completed}/${workflow.closeoutReadiness.total} · ${workflow.closeoutReadiness.percentage}%`} complete={workflow.closeoutReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-closeout><ProjectCloseoutPanel workflow={workflow} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{closeoutSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
-              {['FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) ? <ProjectWorkflowCategory title="Gate de encerramento" description="Valida escopo, documentos, medição, pós-job, ativos e pendências antes de encerrar." status={workflow.closureGate.ready ? '🟢 Pronto para encerrar' : `🔴 ${workflow.closureGate.blockers.length} bloqueio(s)`} complete={workflow.closureGate.ready} className={`project-workflow-closure-gate ${workflow.closureGate.ready ? 'is-ready' : 'is-blocked'}`} data-project-workflow-closure-gate><WorkflowChecklistSection title="Checklist final de encerramento" items={finalCloseoutChecklists} version={workflow.version} saving={saving} onPatch={onPatch} />{workflow.closureGate.blockers.length ? <details open><summary>Motivos do bloqueio</summary><ul>{workflow.closureGate.blockers.map(item => <li key={item.key}><strong>{item.label}:</strong> {item.reason}</li>)}</ul></details> : <p className="project-workflow-category-note">Todos os requisitos foram concluídos. O Líder ou gestor pode encerrar o projeto.</p>}</ProjectWorkflowCategory> : null}
-              {workflow.stage !== 'HANDOVER' ? <ProjectWorkflowCategory title="Itens críticos" status={`${workflow.criticalAnswers.filter(item => item.answer !== null).length}/${workflow.criticalAnswers.length}`} complete={workflow.criticalAnswers.every(item => item.answer !== null)}>{workflow.criticalAnswers.map(item => <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><ProjectWorkflowBooleanChoice value={item.answer} label={item.label} disabled={saving || !workflow.permissions.canEdit} onSelect={answer => { if (item.answer !== answer) onPatch({ action: 'critical', version: workflow.version, key: item.key, answer }); }} /></article>)}</ProjectWorkflowCategory> : null}
-              {workflow.issues.length ? <ProjectWorkflowCategory title="Pendências" status={`${workflow.issues.filter(item => item.status !== 'RESOLVED').length} abertas`} complete={workflow.issues.every(item => item.status === 'RESOLVED')}>{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={issue.id} />)}</ProjectWorkflowCategory> : null}
-              {canManageProjectTeamCycles(workflow.stage) && initialTeam ? <Button type="button" variant="mini" className="project-workflow-planning-link" onClick={onOpenTeamProgramming}>Equipe e ciclos</Button> : null}
-              {workflow.stage === 'FINISHED' && workflow.permissions.canReopen ? <ReopenProjectForm workflow={workflow} saving={saving} onPatch={onPatch} /> : null}
-            </>
-          )}
+          ) : <WorkflowStagePanel detail={detail} leaders={leaders} workflow={workflow} activeStage={activeStage} saving={saving} documents={projectDocuments.data?.documents || []} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} onShowBlockers={() => setBlockersOpen(true)} />}
         </div>
         <footer className="efetivo-modal-footer project-workflow-modal-footer">
           <div className="project-workflow-footer-status" aria-live="polite">
-            {workflow ? <>
+            {workflow ? <span className={`project-workflow-footer-icon ${footerTone}`} aria-hidden="true"><ProjectWorkflowIcon name={footerTone === 'is-crit' ? 'lock' : footerTone === 'is-ok' ? 'check' : 'clock'} /></span> : null}
+            <div>
+            {workflow ? !isCurrentStageSelected ? <>
+              <strong>Visualizando {WORKFLOW_STAGE_LABELS[activeStage]}</strong>
+              <span>A etapa atual é {WORKFLOW_STAGE_LABELS[workflow.stage]}. Dados contínuos ainda podem ser atualizados; volte à etapa atual para usar as ações de avanço.</span>
+            </> : <>
               <strong>{workflow.stage === 'HANDOVER' ? 'Gate do handover' : workflow.stage === 'DEMOBILIZATION' ? 'Desmobilização' : workflow.stage === 'POST_JOB' ? 'Pós-job' : workflow.stage === 'FINAL_MEASUREMENT' ? 'Gate de encerramento' : workflow.stage === 'FINISHED' ? 'Encerramento' : ['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? 'Gate de mobilização' : 'Avanço do projeto'}</strong>
               {!['DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) && workflow.mobilizationAuthorization.status === 'AUTHORIZED'
                 ? <span>Autorização vigente na versão {workflow.mobilizationAuthorization.authorizedVersion}.</span>
                 : footerIssues.length
-                  ? <span>{footerIssues.length} bloqueio(s): {footerIssues.slice(0, 3).join(' · ')}{footerIssues.length > 3 ? ` · e mais ${footerIssues.length - 3}` : ''}</span>
+                  ? <span>{footerIssues.length} bloqueio{footerIssues.length === 1 ? '' : 's'} · {footerIssues[0]}{footerIssues.length > 1 ? ` e mais ${footerIssues.length - 1}` : ''}</span>
                   : workflow.stage === 'DEMOBILIZATION' ? <span>Desmobilização concluída. O projeto pode avançar para Pós-job.</span>
                   : workflow.stage === 'POST_JOB' ? <span>Pós-job concluído. O projeto pode avançar para Documentação / medição.</span>
                   : workflow.stage === 'FINAL_MEASUREMENT' ? <span>Os {workflow.closureGate.total} controles e validações foram concluídos. O projeto pode ser encerrado.</span>
                   : workflow.stage === 'FINISHED' ? <span>Projeto encerrado em modo de consulta. Use a reabertura justificada para corrigir dados.</span>
                   : <span>Requisitos concluídos. Confirme a próxima etapa.</span>}
             </> : null}
+            </div>
+            {showBlockers ? <button type="button" className="project-workflow-link" aria-expanded={blockersOpen} onClick={() => setBlockersOpen(open => !open)}>Ver bloqueios</button> : null}
+            {showBlockers && blockersOpen ? <div className="project-workflow-blockers" role="dialog" aria-label="Bloqueios para avançar">
+              <header><strong>O que impede o avanço</strong><button type="button" className="project-workflow-icon-button" aria-label="Fechar lista de bloqueios" onClick={() => setBlockersOpen(false)}><ProjectWorkflowIcon name="x" /></button></header>
+              <ul>{footerIssues.map(item => <li key={item}><ProjectWorkflowIcon name="alert" /><span>{item}</span></li>)}</ul>
+            </div> : null}
           </div>
           <div className="project-workflow-footer-actions">
-            <Button variant="secondary" disabled={saving} onClick={onClose}>Fechar</Button>
-            {workflow?.stage === 'HANDOVER' && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}
-            {workflow?.stage !== 'HANDOVER' && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'].includes(option.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{transitionLabel(workflow.stage, option.stage)}</Button>) : null}
-            {workflow && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage) && workflow.permissions.canAuthorizeMobilization && (workflow.stage === 'DEMOBILIZATION' ? workflow.mobilizationAuthorization.authorizedVersion !== workflow.version : workflow.mobilizationAuthorization.status !== 'AUTHORIZED') ? <Button disabled={saving || !workflow.mobilizationGate.ready} onClick={() => onPatch({ action: 'authorize_mobilization', version: workflow.version })}>{workflow.stage === 'DEMOBILIZATION' ? 'Revalidar retorno à execução' : 'Revalidar autorização'}</Button> : null}
+            <Button variant="secondary" className="is-ghost" disabled={saving} onClick={onClose}>Fechar</Button>
+            {workflow && !isCurrentStageSelected ? <Button disabled={saving} onClick={() => setActiveStage(workflow.stage)}>Ir para a etapa atual</Button> : null}
+            {workflow?.stage === 'HANDOVER' && isCurrentStageSelected && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}
+            {workflow?.stage !== 'HANDOVER' && isCurrentStageSelected && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={WORKFLOW_STAGES.indexOf(option.stage) > WORKFLOW_STAGES.indexOf(workflow.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{option.allowed ? null : <ProjectWorkflowIcon name="lock" />}{transitionLabel(workflow.stage, option.stage, workflow.preparationLeadTimeDays)}</Button>) : null}
+            {workflow && isCurrentStageSelected && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage) && workflow.permissions.canAuthorizeMobilization && (workflow.stage === 'DEMOBILIZATION' ? workflow.mobilizationAuthorization.authorizedVersion !== workflow.version : workflow.mobilizationAuthorization.status !== 'AUTHORIZED') ? <Button disabled={saving || !workflow.mobilizationGate.ready} onClick={() => onPatch({ action: 'authorize_mobilization', version: workflow.version })}>{workflow.stage === 'DEMOBILIZATION' ? 'Revalidar retorno à execução' : 'Revalidar autorização'}</Button> : null}
           </div>
         </footer>
       </div>

@@ -31,6 +31,7 @@ import {
   projectWorkflowPlanningReadiness,
   projectWorkflowPostJobReadiness,
   projectWorkflowPreparationReadiness,
+  projectWorkflowStageTimeline,
   projectWorkflowTransitionIssues
 } from '../src/lib/efetivo/project-workflow/rules.js';
 
@@ -140,6 +141,8 @@ test('análise exige todas as respostas e encaminhamento para cada resposta posi
   const workflow = {
     checklists: completed('INITIAL_ANALYSIS'),
     analysisClientContactMade: false,
+    isCritical: false,
+    preparationLeadTimeDays: 15,
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(question => ({ key: question.key, answer: question.key === 'SPECIAL_EQUIPMENT' })),
     issues: [{ sourceQuestion: 'SPECIAL_EQUIPMENT', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null }]
   };
@@ -153,6 +156,11 @@ test('análise exige todas as respostas e encaminhamento para cada resposta posi
   assert.deepEqual(analysisGateIssues(workflow), ['Informar o nome do contato inicial com o cliente', 'Informar a data do contato inicial com o cliente']);
   workflow.analysisClientContactName = 'Marina';
   workflow.analysisClientContactDate = '2026-09-10';
+  assert.deepEqual(analysisGateIssues(workflow), []);
+  workflow.isCritical = null;
+  assert.deepEqual(analysisGateIssues(workflow), ['Informar se a obra é crítica']);
+  workflow.isCritical = true;
+  workflow.preparationLeadTimeDays = 45;
   assert.deepEqual(analysisGateIssues(workflow), []);
 });
 
@@ -177,22 +185,27 @@ test('marco D-30 usa datas civis e projetos curtos ficam imediatamente vencidos'
   const distant = projectWorkflowMilestones('2027-02-15', '2026-09-08');
   assert.deepEqual(distant.dueMilestones, []);
   assert.equal(distant.nextMilestone.key, 'D90');
+  const critical = projectWorkflowMilestones('2026-10-29', '2026-09-09', 45);
+  assert.equal(critical.preparationLeadTimeDays, 45);
+  assert.equal(critical.preparationDate, '2026-09-14');
+  assert.equal(critical.nextMilestone.key, 'D45');
   assert.deepEqual(projectWorkflowMilestones(null, '2026-09-09').items, []);
 });
 
-test('documentação usa quatro decisões por tipo e acompanha itens nomeados com datas', () => {
+test('documentação usa cinco decisões por tipo e acompanha itens nomeados com datas', () => {
   const milestones = projectWorkflowMilestones('2026-09-20', '2026-09-09');
   let readiness = projectWorkflowDocumentationReadiness({ documentationCategories: [] }, milestones, '2026-09-09');
   assert.equal(readiness.status, 'CRITICAL');
-  assert.equal(readiness.total, 4);
+  assert.equal(readiness.total, 5);
   const documentationCategories = [
     { type: 'DOCUMENT', required: false, requirements: [] },
     { type: 'EXAM', required: true, requirements: [{ id: 'exam-1', name: 'Audiometria', status: 'REQUESTED', requestedAt: '2026-09-08', confirmedAt: null }] },
     { type: 'TRAINING', required: false, requirements: [] },
+    { type: 'QUALITY', required: false, requirements: [] },
     { type: 'CERTIFICATION', required: false, requirements: [] }
   ];
   readiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, '2026-09-09');
-  assert.equal(readiness.completed, 3);
+  assert.equal(readiness.completed, 4);
   assert.match(readiness.blockers[0].label, /Audiometria/);
   documentationCategories[1].requirements[0] = { ...documentationCategories[1].requirements[0], status: 'CONFIRMED', confirmedAt: '2026-09-09' };
   readiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, '2026-09-09');
@@ -233,7 +246,7 @@ function readyMobilizationWorkflow(overrides = {}) {
   const readinessChecklists = PROJECT_WORKFLOW_CHECKLISTS
     .filter(item => item.section.startsWith('D15_'))
     .map(item => ({ key: item.key, status: 'DONE' }));
-  const documentationCategories = ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] }));
+  const documentationCategories = ['DOCUMENT', 'EXAM', 'TRAINING', 'QUALITY', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] }));
   const teamPreparation = {
     defined: true,
     members: [{
@@ -564,4 +577,34 @@ test('Encerramento consolida os dez controles finais e dependências estruturada
   assert.match(projectWorkflowTransitionIssues(workflow, 'FINISHED').join(' '), /data de aprovação/i);
   assert.equal(allowedProjectWorkflowTransition('FINAL_MEASUREMENT', 'FINISHED'), true);
   assert.equal(allowedProjectWorkflowTransition('FINISHED', 'FINAL_MEASUREMENT'), true);
+});
+
+test('linha do tempo das etapas usa as datas reais registradas no histórico', () => {
+  const at = day => new Date(`2026-09-${day}T12:00:00.000Z`);
+  const timeline = projectWorkflowStageTimeline([
+    { action: 'WORKFLOW_STAGE', data: { stage: 'PREPARATION' }, createdAt: at('11') },
+    { action: 'WORKFLOW_STARTED', data: {}, createdAt: at('01') },
+    { action: 'WORKFLOW_CHECKLIST', data: { key: 'X' }, createdAt: at('02') },
+    { action: 'WORKFLOW_ACCEPT', data: {}, createdAt: at('03') },
+    { action: 'WORKFLOW_STAGE', data: { stage: 'MOBILIZATION_PLANNING' }, createdAt: at('05') }
+  ]);
+  assert.deepEqual(timeline, {
+    HANDOVER: { enteredAt: at('01').toISOString(), completedAt: at('03').toISOString() },
+    INITIAL_ANALYSIS: { enteredAt: at('03').toISOString(), completedAt: at('05').toISOString() },
+    MOBILIZATION_PLANNING: { enteredAt: at('05').toISOString(), completedAt: at('11').toISOString() },
+    PREPARATION: { enteredAt: at('11').toISOString(), completedAt: null }
+  });
+  assert.equal(timeline.WAITING_PLANNING, undefined, 'etapa pulada não recebe data');
+});
+
+test('etapa reaberta por retorno do fluxo vale pela última entrada', () => {
+  const at = day => new Date(`2026-09-${day}T12:00:00.000Z`);
+  const timeline = projectWorkflowStageTimeline([
+    { action: 'WORKFLOW_STAGE', data: { stage: 'MOBILIZATION_PLANNING' }, createdAt: at('05') },
+    { action: 'WORKFLOW_STAGE', data: { stage: 'PREPARATION' }, createdAt: at('11') },
+    { action: 'WORKFLOW_STAGE', data: { stage: 'MOBILIZATION_PLANNING' }, createdAt: at('13') },
+    { action: 'WORKFLOW_STAGE', data: { stage: 'UNKNOWN' }, createdAt: at('14') }
+  ]);
+  assert.deepEqual(timeline.MOBILIZATION_PLANNING, { enteredAt: at('13').toISOString(), completedAt: null });
+  assert.deepEqual(timeline.PREPARATION, { enteredAt: at('11').toISOString(), completedAt: at('13').toISOString() });
 });

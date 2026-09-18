@@ -200,13 +200,14 @@ export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
   }
 ];
 
-export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES = ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'];
+export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES = ['DOCUMENT', 'EXAM', 'TRAINING', 'QUALITY', 'CERTIFICATION'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES = ['PENDING', 'REQUESTED', 'CONFIRMED'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS = [
-  { type: 'DOCUMENT', label: 'Documentos e cadastros adicionais', singularLabel: 'documento ou cadastro adicional', nameLabel: 'Nome do documento ou cadastro adicional' },
-  { type: 'EXAM', label: 'Exames adicionais', singularLabel: 'exame adicional', nameLabel: 'Nome do exame adicional' },
-  { type: 'TRAINING', label: 'Treinamentos adicionais', singularLabel: 'treinamento adicional', nameLabel: 'Nome do treinamento adicional' },
-  { type: 'CERTIFICATION', label: 'Certificações adicionais', singularLabel: 'certificação adicional', nameLabel: 'Nome da certificação adicional' }
+  { type: 'DOCUMENT', label: 'Documentos técnicos', description: 'É necessário algum documento de engenharia? Ex.: instrução de trabalho', singularLabel: 'documento técnico', nameLabel: 'Nome do documento técnico' },
+  { type: 'EXAM', label: 'Exames adicionais', description: 'É necessário algum exame adicional para o projeto?', singularLabel: 'exame adicional', nameLabel: 'Nome do exame adicional' },
+  { type: 'TRAINING', label: 'Documentos de segurança', description: 'É necessária alguma documentação de segurança específica? Ex.: NRs, APRs', singularLabel: 'documento de segurança', nameLabel: 'Nome do documento de segurança' },
+  { type: 'QUALITY', label: 'Documentos de qualidade', description: 'É necessário algum documento de qualidade diferente do usual? Ex.: RDO, RCPUs, RTPs', singularLabel: 'documento de qualidade', nameLabel: 'Nome do documento de qualidade' },
+  { type: 'CERTIFICATION', label: 'Certificações adicionais', description: 'Quais certificações serão necessárias para o projeto? Ex.: calibração de equipamentos, planos de manutenção, checklists', singularLabel: 'certificação adicional', nameLabel: 'Nome da certificação adicional' }
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_STATUSES = ['PENDING', 'DONE', 'NOT_APPLICABLE'];
@@ -268,15 +269,15 @@ export function makeProjectWorkflowSchemas(z) {
   const start = z.object({
     leaderUserId: id,
     plannerUserId: id,
-    plannedMobilizationDate: dateOnly
+    plannedMobilizationDate: dateOnly.optional()
   }).strict();
   const settings = z.object({
     action: z.literal('settings'),
     version,
     leaderUserId: id.optional(),
     plannerUserId: id.optional(),
-    plannedMobilizationDate: dateOnly.optional()
-  }).strict().refine(value => value.leaderUserId || value.plannerUserId || value.plannedMobilizationDate, 'Informe ao menos uma alteração.');
+    plannedMobilizationDate: dateOnly.nullable().optional()
+  }).strict().refine(value => value.leaderUserId || value.plannerUserId || Object.hasOwn(value, 'plannedMobilizationDate'), 'Informe ao menos uma alteração.');
   const checklist = z.object({
     action: z.literal('checklist'),
     version,
@@ -387,6 +388,16 @@ export function makeProjectWorkflowSchemas(z) {
     if (!value.made) return;
     if (!value.contactName?.trim()) ctx.addIssue({ code: 'custom', path: ['contactName'], message: 'Informe o nome do contato.' });
     if (!value.contactDate) ctx.addIssue({ code: 'custom', path: ['contactDate'], message: 'Informe a data do contato.' });
+  });
+  const analysisCriticality = z.object({
+    action: z.literal('analysis_criticality'),
+    version,
+    isCritical: z.boolean(),
+    preparationLeadTimeDays: z.coerce.number().int('Informe um número inteiro de dias.').min(15, 'A preparação deve começar com ao menos 15 dias de antecedência.').optional()
+  }).strict().superRefine((value, ctx) => {
+    if (value.isCritical && value.preparationLeadTimeDays == null) {
+      ctx.addIssue({ code: 'custom', path: ['preparationLeadTimeDays'], message: 'Informe a antecedência de preparação da obra crítica.' });
+    }
   });
   const teamPlan = z.object({
     action: z.literal('team_plan'),
@@ -623,7 +634,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisCriticality, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)
@@ -631,20 +642,48 @@ export function makeProjectWorkflowSchemas(z) {
   };
 }
 
-export function projectWorkflowMilestones(plannedMobilizationDate, today) {
-  const empty = { daysUntilMobilization: null, items: [], dueMilestones: [], nextMilestone: null, d30Date: null, d30Due: false };
+export function projectWorkflowMilestones(plannedMobilizationDate, today, preparationLeadTimeDays = 15) {
+  const normalizedPreparationDays = Number.isInteger(Number(preparationLeadTimeDays)) && Number(preparationLeadTimeDays) >= 15
+    ? Number(preparationLeadTimeDays)
+    : 15;
+  const empty = {
+    daysUntilMobilization: null,
+    items: [],
+    dueMilestones: [],
+    nextMilestone: null,
+    d30Date: null,
+    d30Due: false,
+    preparationLeadTimeDays: normalizedPreparationDays,
+    preparationDate: null,
+    preparationDue: false
+  };
   if (!plannedMobilizationDate) return empty;
   const start = Date.parse(`${today}T00:00:00.000Z`);
   const mobilization = Date.parse(`${plannedMobilizationDate}T00:00:00.000Z`);
   if (!Number.isFinite(start) || !Number.isFinite(mobilization)) return empty;
   const dayMs = 86_400_000;
   const daysUntilMobilization = Math.round((mobilization - start) / dayMs);
-  const items = [90, 30, 15, 7, 1].map(days => {
-    const date = new Date(mobilization - days * dayMs).toISOString().slice(0, 10);
-    return { key: `D${days}`, label: `D-${days}`, days, date, due: today >= date };
-  });
+  const items = [...new Set([90, 30, normalizedPreparationDays, 7, 1])]
+    .sort((left, right) => right - left)
+    .flatMap(days => {
+      const date = new Date(mobilization - days * dayMs);
+      if (Number.isNaN(date.getTime())) return [];
+      const dateKey = date.toISOString().slice(0, 10);
+      return [{ key: `D${days}`, label: `D-${days}`, days, date: dateKey, due: today >= dateKey }];
+    });
   const dueMilestones = items.filter(item => item.due).map(item => item.key);
   const nextMilestone = items.find(item => !item.due) || null;
   const d30 = items.find(item => item.key === 'D30');
-  return { daysUntilMobilization, items, dueMilestones, nextMilestone, d30Date: d30.date, d30Due: d30.due };
+  const preparation = items.find(item => item.days === normalizedPreparationDays);
+  return {
+    daysUntilMobilization,
+    items,
+    dueMilestones,
+    nextMilestone,
+    d30Date: d30?.date || null,
+    d30Due: d30?.due || false,
+    preparationLeadTimeDays: normalizedPreparationDays,
+    preparationDate: preparation?.date || null,
+    preparationDue: preparation?.due || false
+  };
 }

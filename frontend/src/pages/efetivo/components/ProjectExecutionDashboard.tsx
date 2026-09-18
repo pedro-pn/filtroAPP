@@ -182,16 +182,17 @@ function Deviations({ projectId, data }: { projectId: string; data: Awaited<Retu
   );
 }
 
-export function ProjectExecutionDashboard({ projectId }: { projectId: string }) {
+export function ProjectExecutionDashboard({ projectId, readOnly = false }: { projectId: string; readOnly?: boolean }) {
   const query = useQuery({ queryKey: ['project-execution', projectId], queryFn: () => getProjectExecutionDashboard(projectId) });
   if (query.isLoading) return <section className="project-execution-dashboard placeholder-copy">Carregando painel de execução…</section>;
   if (query.isError || !query.data) return <section className="project-execution-dashboard placeholder-copy"><p>Não foi possível carregar o painel de execução.</p><Button variant="secondary" onClick={() => void query.refetch()}>Tentar novamente</Button></section>;
+  const dashboard = readOnly ? { ...query.data, permissions: { ...query.data.permissions, canEdit: false } } : query.data;
   return (
     <section className="project-execution-dashboard" data-project-execution-dashboard>
       <header><div><h4>Dashboard de execução</h4><p>Avanço, diário, documentos técnicos e desvios consolidados no projeto.</p></div></header>
-      <ExecutionOverview data={query.data} />
-      <ReportTargets projectId={projectId} data={query.data} />
-      <Deviations projectId={projectId} data={query.data} />
+      <ExecutionOverview data={dashboard} />
+      <ReportTargets projectId={projectId} data={dashboard} />
+      <Deviations projectId={projectId} data={dashboard} />
     </section>
   );
 }

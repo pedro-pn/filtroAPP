@@ -218,6 +218,33 @@ test('detalhe mostra prontidão comercial e mantém ações de avanço no rodap�
   assert.match(registry, /efetivo:commercial/);
 });
 
+test('diálogo de planejamento separa as etapas em abas com resumo fixo e flags explicativas', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /project-workflow-fixed-top/);
+  assert.match(modal, /role="tablist" aria-label="Etapas do planejamento"/);
+  assert.match(modal, /WORKFLOW_STAGES\.map\(stage =>/);
+  assert.match(modal, /role="tabpanel"/);
+  assert.match(modal, /project-workflow-stage-flag/);
+  assert.match(modal, /workflowStagePendingItems/);
+  assert.match(modal, /Documentação antecipada.*documentationReadiness/);
+  assert.match(modal, /<PortalTip/);
+  assert.match(modal, /balloonClassName="project-workflow-stage-tip-balloon"/);
+  assert.match(modal, /preferredPlacement="below"/);
+  assert.match(modal, /preferredPlacement="below"[\s\S]*interactive/);
+  assert.match(modal, /flag\.items\.map/);
+  assert.match(modal, /aria-label=\{flag\.tooltip\}/);
+  assert.match(modal, /Esta etapa ainda não foi iniciada/);
+  assert.match(modal, /Ir para a etapa atual/);
+  assert.match(styles, /\.project-workflow-fixed-top \{/);
+  assert.match(styles, /\.project-workflow-stage-tabs-scroll \{[^}]*overflow-x: auto/);
+  assert.match(styles, /\.project-workflow-modal-body \{[^}]*flex: 1 1 auto[^}]*min-height: 0/);
+  assert.match(styles, /\.project-workflow-stage-tip li \+ li \{[^}]*border-top/);
+  assert.match(styles, /\.project-workflow-stage-tip-balloon \{[^}]*overflow-y: auto/);
+  assert.match(styles, /\.project-workflow-category-content \{[^}]*background:/);
+  assert.match(styles, /\.project-workflow-check-item \{[^}]*border-left:/);
+});
+
 test('documentação antecipada, D-30 e papéis de área aparecem nas superfícies da gestão', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
@@ -230,11 +257,12 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(intake, /Data da solicitação/);
   assert.match(intake, /Data da confirmação/);
   assert.match(intake, /Histórico/);
-  assert.match(intake, /É necessário \{category\.label\.toLocaleLowerCase\('pt-BR'\)\} para o projeto\?/);
+  assert.match(intake, /\{category\.description\}/);
   assert.match(intake, /documentation_requirement_update/);
-  assert.match(sharedSchema, /Documentos e cadastros adicionais/);
+  assert.match(sharedSchema, /Documentos técnicos/);
   assert.match(sharedSchema, /Exames adicionais/);
-  assert.match(sharedSchema, /Treinamentos adicionais/);
+  assert.match(sharedSchema, /Documentos de segurança/);
+  assert.match(sharedSchema, /Documentos de qualidade/);
   assert.match(sharedSchema, /Certificações adicionais/);
   assert.match(modal, /Salvamento automático/);
   assert.doesNotMatch(modal, />Salvar</);
@@ -245,6 +273,7 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(board, /Prazos atingidos:/);
   assert.match(administration, /EFETIVO_ADMINISTRATIVE/);
   assert.match(styles, /project-workflow-planning-grid/);
+  assert.match(styles, /\.project-workflow-documentation-types \{[^}]*align-items: start/);
   assert.match(styles, /\.project-workflow-documentation-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.project-workflow-documentation-fields select \{[^}]*max-width: 100%[^}]*min-width: 0[^}]*width: 100%/);
   assert.match(registry, /efetivo:operations/);
@@ -265,10 +294,14 @@ test('análise inicial usa datas do CRM, contato estruturado e pendência sem ca
   assert.match(intake, /Data do contato/);
   assert.match(intake, /workflow\.analysisClientContactMade \?\? false/);
   assert.match(intake, /Enquanto estiver em “Não”, permanece pendente/);
+  assert.match(intake, /Classificação final da análise/);
+  assert.match(intake, /analysis_criticality/);
+  assert.match(intake, /não há limite máximo/);
+  assert.match(modal, /ProjectWorkflowCriticalityDecision/);
   assert.doesNotMatch(schema, /ANALYSIS_TECHNICAL_PROPOSAL|ANALYSIS_COMMERCIAL_PROPOSAL|ANALYSIS_SCOPE|ANALYSIS_ASSUMPTIONS|ANALYSIS_DATES|ANALYSIS_CLIENT_CONTACT/);
   assert.doesNotMatch(modal, /issue-area-|errors\.area|register\('area'\)/);
   assert.match(styles, /\.project-workflow-check-item \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(styles, /\.project-workflow-check-controls \{[^}]*grid-template-columns: minmax\(130px, \.6fr\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.project-workflow-check-controls \{[^}]*grid-template-columns: auto minmax\(0, 1fr\)/);
 });
 
 test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
