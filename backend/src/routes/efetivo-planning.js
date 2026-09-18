@@ -109,7 +109,16 @@ const absenceListQuerySchema = z.object({
   startDate: dateOnlySchema.optional(),
   endDate: dateOnlySchema.optional()
 });
-const scenarioCompareSchema = datePositionQuerySchema.partial();
+const scenarioCompareSchema = z
+  .object({
+    date: dateOnlySchema.optional(),
+    returnDate: dateOnlySchema.optional(),
+    jobRoleId: idSchema.optional(),
+  })
+  .refine((value) => !value.date || !value.returnDate || value.returnDate >= value.date, {
+    path: ['returnDate'],
+    message: 'A data de retorno deve ser igual ou posterior à data de posição',
+  });
 const holidayListSchema = z.object({ startDate: dateOnlySchema.optional(), endDate: dateOnlySchema.optional() });
 const activitySchema = z.object({ cursor: z.string().datetime().optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
 const eligibleCollaboratorsQuerySchema = z.object({
