@@ -4,31 +4,63 @@ import { createPortal } from 'react-dom';
 // Tooltip genérico renderizado em portal (posição fixa + clamp na viewport), para nunca ser cortado
 // por overflow de containers/modais nem pela borda da tela (importante no mobile). Aceita conteúdo
 // arbitrário no balão. O gatilho é `children`.
-export function PortalTip({ children, content, triggerClassName, ariaLabel }: {
+export function PortalTip({ children, content, triggerClassName, balloonClassName, ariaLabel, triggerTabIndex = 0, preferredPlacement = 'auto', interactive = false }: {
   children: ReactNode;
   content: ReactNode;
   triggerClassName?: string;
+  balloonClassName?: string;
   ariaLabel?: string;
+  triggerTabIndex?: number;
+  preferredPlacement?: 'auto' | 'above' | 'below';
+  interactive?: boolean;
 }) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const balloonRef = useRef<HTMLDivElement>(null);
+  const hideTimerRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; placement: 'above' | 'below' } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'above' | 'below'; maxHeight: number } | null>(null);
 
   const position = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const placement: 'above' | 'below' = r.top > 150 ? 'above' : 'below';
+    const placement: 'above' | 'below' = preferredPlacement === 'auto'
+      ? (r.top > 150 ? 'above' : 'below')
+      : preferredPlacement;
+    const top = placement === 'above' ? r.top - 8 : r.bottom + 8;
     setPos({
-      top: placement === 'above' ? r.top - 8 : r.bottom + 8,
+      top,
       left: r.left + r.width / 2,
-      placement
+      placement,
+      maxHeight: placement === 'above'
+        ? Math.max(0, r.top - 16)
+        : Math.max(0, window.innerHeight - top - 8)
     });
-  }, []);
+  }, [preferredPlacement]);
 
-  const show = useCallback(() => { position(); setOpen(true); }, [position]);
-  const hide = useCallback(() => setOpen(false), []);
+  const cancelHide = useCallback(() => {
+    if (hideTimerRef.current === null) return;
+    window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = null;
+  }, []);
+  const show = useCallback(() => {
+    cancelHide();
+    position();
+    setOpen(true);
+  }, [cancelHide, position]);
+  const hide = useCallback(() => {
+    cancelHide();
+    if (!interactive) {
+      setOpen(false);
+      return;
+    }
+    hideTimerRef.current = window.setTimeout(() => {
+      setOpen(false);
+      hideTimerRef.current = null;
+    }, 120);
+  }, [cancelHide, interactive]);
+
+  useEffect(() => () => cancelHide(), [cancelHide]);
 
   useEffect(() => {
     if (!open) return;
@@ -58,7 +90,7 @@ export function PortalTip({ children, content, triggerClassName, ariaLabel }: {
       <span
         ref={triggerRef}
         className={triggerClassName}
-        tabIndex={0}
+        tabIndex={triggerTabIndex}
         aria-label={ariaLabel}
         onMouseEnter={show}
         onMouseLeave={hide}
@@ -71,9 +103,11 @@ export function PortalTip({ children, content, triggerClassName, ariaLabel }: {
         ? createPortal(
           <div
             ref={balloonRef}
-            className={`help-tip-portal ${pos.placement}`}
-            style={{ top: pos.top, left: pos.left }}
+            className={['help-tip-portal', pos.placement, interactive ? 'is-interactive' : '', balloonClassName].filter(Boolean).join(' ')}
+            style={{ top: pos.top, left: pos.left, maxHeight: pos.maxHeight }}
             role="tooltip"
+            onMouseEnter={interactive ? cancelHide : undefined}
+            onMouseLeave={interactive ? hide : undefined}
           >
             {content}
           </div>,

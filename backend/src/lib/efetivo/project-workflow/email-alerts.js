@@ -124,6 +124,7 @@ export async function processProjectWorkflowEmailAlerts({
       projectId: true,
       stage: true,
       plannedMobilizationDate: true,
+      preparationLeadTimeDays: true,
       project: { select: { code: true, name: true, clientName: true } },
       leader: { select: { id: true, name: true, email: true, isActive: true } },
       planner: { select: { id: true, name: true, email: true, isActive: true } },
@@ -136,7 +137,7 @@ export async function processProjectWorkflowEmailAlerts({
   });
 
   const candidates = workflows.map(workflow => {
-    const due = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today).items.filter(item => item.due);
+    const due = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today, workflow.preparationLeadTimeDays).items.filter(item => item.due);
     return { workflow, due, recipients: alertRecipients(workflow) };
   }).filter(item => item.due.length && item.recipients.length);
 
@@ -164,7 +165,10 @@ export async function processProjectWorkflowEmailAlerts({
       const milestones = pendingMilestones.map(item => ({
         key: item.key,
         label: item.label,
-        description: MILESTONE_DESCRIPTIONS[item.key] || 'Revisar o planejamento do projeto.'
+        description: MILESTONE_DESCRIPTIONS[item.key]
+          || (item.days === workflow.preparationLeadTimeDays
+            ? 'Confirmar equipe, liberações do cliente, recursos, pré-job, viagem e QSMS.'
+            : 'Revisar o planejamento do projeto.')
       }));
       const template = buildProjectWorkflowMilestoneEmailTemplate({
         recipientName: recipient.name,

@@ -298,6 +298,7 @@ enum ProjectWorkflowDocumentationType {
   DOCUMENT
   EXAM
   TRAINING
+  QUALITY
   CERTIFICATION
 }
 
@@ -1030,7 +1031,9 @@ model ProjectWorkflow {
   leaderUserId                       String
   plannerUserId                      String?
   acceptedAt                         DateTime?
-  plannedMobilizationDate            DateTime                               @db.Date
+  plannedMobilizationDate            DateTime?                              @db.Date
+  isCritical                         Boolean?
+  preparationLeadTimeDays            Int                                    @default(15)
   commercialExpectedMobilizationDate DateTime?                              @db.Date
   commercialExpectedStartDate        DateTime?                              @db.Date
   commercialExpectedDurationDays     Int?

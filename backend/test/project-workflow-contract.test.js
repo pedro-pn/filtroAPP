@@ -61,7 +61,22 @@ test('contrato vincula líder e planejador e aceita exceções auditáveis de re
     leaderUserId: 'leader-1', plannerUserId: 'planner-1', plannedMobilizationDate: '2026-10-20'
   }).success, true);
   assert.equal(start.safeParse({
+    leaderUserId: 'leader-1', plannerUserId: 'planner-1'
+  }).success, true);
+  assert.equal(start.safeParse({
     leaderUserId: 'leader-1', plannedMobilizationDate: '2026-10-20'
+  }).success, false);
+  assert.equal(patch.safeParse({
+    action: 'settings', version: 1, plannedMobilizationDate: null
+  }).success, true);
+  assert.equal(patch.safeParse({
+    action: 'analysis_criticality', version: 1, isCritical: false
+  }).success, true);
+  assert.equal(patch.safeParse({
+    action: 'analysis_criticality', version: 1, isCritical: true, preparationLeadTimeDays: 45
+  }).success, true);
+  assert.equal(patch.safeParse({
+    action: 'analysis_criticality', version: 1, isCritical: true, preparationLeadTimeDays: 14
   }).success, false);
   assert.equal(patch.safeParse({
     action: 'equipment_plan', version: 2, defined: true,

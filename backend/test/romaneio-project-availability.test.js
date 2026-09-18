@@ -46,7 +46,7 @@ function authorizedWorkflow(overrides = {}) {
       reference: item.evidence === 'reference' ? 'PO-123' : null,
       note: item.evidence === 'note' ? 'Condição definida' : null
     })),
-    documentationCategories: ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] })),
+    documentationCategories: ['DOCUMENT', 'EXAM', 'TRAINING', 'QUALITY', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] })),
     teamPreparation: { defined: true, members: [{ collaboratorId: 'collaborator-1', name: 'João', checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => ({ ...item, status: 'DONE' })) }] },
     clientReleases: {
       attendance: { date: '2026-09-15', confirmed: true },

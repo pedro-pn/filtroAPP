@@ -8,11 +8,12 @@ export const PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS: Readonly<{
   MATERIAL: ReadonlyArray<{ key: 'SEPARATED'; label: string; areaRoles: string[] }>;
 }>;
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS: ReadonlyArray<{ key: string; label: string; area: string; issueDescription: string; createsIssue?: boolean }>;
-export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES: readonly ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'];
+export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES: readonly ['DOCUMENT', 'EXAM', 'TRAINING', 'QUALITY', 'CERTIFICATION'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES: readonly ['PENDING', 'REQUESTED', 'CONFIRMED'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS: ReadonlyArray<{
   type: (typeof PROJECT_WORKFLOW_DOCUMENTATION_TYPES)[number];
   label: string;
+  description: string;
   singularLabel: string;
   nameLabel: string;
 }>;
@@ -37,16 +38,19 @@ export function makeProjectWorkflowCommercialFactSchema(z: typeof import('zod').
   occurredOn?: string | null;
 }>;
 export function makeProjectWorkflowSchemas(z: typeof import('zod').z): {
-  start: import('zod').ZodType<{ leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string }>;
+  start: import('zod').ZodType<{ leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }>;
   postJob: import('zod').ZodType<Record<string, unknown>>;
   patch: import('zod').ZodType<Record<string, unknown>>;
   list: import('zod').ZodType<{ search?: string; page: number }>;
 };
-export function projectWorkflowMilestones(plannedMobilizationDate: string | null, today: string): {
+export function projectWorkflowMilestones(plannedMobilizationDate: string | null, today: string, preparationLeadTimeDays?: number): {
   daysUntilMobilization: number | null;
   items: Array<{ key: string; label: string; days: number; date: string; due: boolean }>;
   dueMilestones: string[];
   nextMilestone: { key: string; label: string; days: number; date: string; due: boolean } | null;
   d30Date: string | null;
   d30Due: boolean;
+  preparationLeadTimeDays: number;
+  preparationDate: string | null;
+  preparationDue: boolean;
 };

@@ -268,7 +268,7 @@ function ProjectCard({
         ) : null}
         {['PREPARATION', 'READY_TO_MOBILIZE'].includes(workflow.stage) ? (
           <small className="project-workflow-preparation-badge">
-            D-15: {workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%
+            D-{workflow.preparationLeadTimeDays}: {workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%
           </small>
         ) : null}
         {workflow.stage === 'EXECUTION' ? <small className="project-workflow-execution-badge">Acompanhamento operacional ativo</small> : null}
@@ -496,7 +496,7 @@ export function ProjectWorkflowBoard({
   };
 
   const start = useMutation({
-    mutationFn: (values: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate: string }) => startProjectWorkflow(selectedProjectId!, values),
+    mutationFn: (values: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }) => startProjectWorkflow(selectedProjectId!, values),
     onSuccess: async data => {
       await refresh(data);
       toast('Handover iniciado.', 'success');
