@@ -264,6 +264,7 @@ export function makeProjectWorkflowCommercialFactSchema(z) {
 export function makeProjectWorkflowSchemas(z) {
   const id = z.string().trim().min(1, 'Informe o registro.').max(100);
   const version = z.coerce.number().int().min(1, 'A versão deve ser positiva.');
+  const correctionStage = z.enum(PROJECT_WORKFLOW_STAGES).nullable().optional();
   const dateOnly = dateOnlySchema(z);
   const note = z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.').nullable().optional();
   const start = z.object({
@@ -274,6 +275,7 @@ export function makeProjectWorkflowSchemas(z) {
   const settings = z.object({
     action: z.literal('settings'),
     version,
+    correctionStage,
     leaderUserId: id.optional(),
     plannerUserId: id.optional(),
     plannedMobilizationDate: dateOnly.nullable().optional()
@@ -281,6 +283,7 @@ export function makeProjectWorkflowSchemas(z) {
   const checklist = z.object({
     action: z.literal('checklist'),
     version,
+    correctionStage,
     key: z.enum(PROJECT_WORKFLOW_CHECKLISTS.map(item => item.key)),
     status: z.enum(PROJECT_WORKFLOW_CHECKLIST_STATUSES),
     note
@@ -291,6 +294,7 @@ export function makeProjectWorkflowSchemas(z) {
   const teamMemberCheck = z.object({
     action: z.literal('team_member_check'),
     version,
+    correctionStage,
     collaboratorId: id,
     key: z.enum(PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => item.key)),
     status: z.enum(['PENDING', 'DONE'])
@@ -298,6 +302,7 @@ export function makeProjectWorkflowSchemas(z) {
   const preparationItemCheck = z.object({
     action: z.literal('preparation_item_check'),
     version,
+    correctionStage,
     itemType: z.enum(['EQUIPMENT', 'MATERIAL']),
     itemId: z.string().trim().min(1).max(120),
     key: z.enum([...new Set(Object.values(PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS).flatMap(items => items.map(item => item.key)))]),
@@ -310,11 +315,13 @@ export function makeProjectWorkflowSchemas(z) {
   const clientAttendance = z.object({
     action: z.literal('client_attendance'),
     version,
+    correctionStage,
     attendanceDate: dateOnly
   }).strict();
   const clientRelease = z.object({
     action: z.literal('client_release'),
     version,
+    correctionStage,
     key: z.enum(PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS),
     requested: z.boolean(),
     requestedAt: dateOnly.nullable(),
@@ -332,6 +339,7 @@ export function makeProjectWorkflowSchemas(z) {
   const preJob = z.object({
     action: z.literal('pre_job'),
     version,
+    correctionStage,
     scheduledDate: dateOnly.nullable().optional(),
     completedDate: dateOnly.nullable().optional()
   }).strict().superRefine((value, ctx) => {
@@ -345,6 +353,7 @@ export function makeProjectWorkflowSchemas(z) {
   const qsms = z.object({
     action: z.literal('qsms'),
     version,
+    correctionStage,
     verified: z.boolean().nullable().optional(),
     verificationNote: z.string().trim().max(2000, 'O registro deve ter no máximo 2000 caracteres.').nullable().optional()
   }).strict().superRefine((value, ctx) => {
@@ -355,6 +364,7 @@ export function makeProjectWorkflowSchemas(z) {
   const travel = z.object({
     action: z.literal('travel'),
     version,
+    correctionStage,
     lodgingRequestedDate: dateOnly.nullable().optional(),
     lodgingConfirmedDate: dateOnly.nullable().optional(),
     teamTransportDefined: z.boolean().nullable().optional(),
@@ -375,23 +385,28 @@ export function makeProjectWorkflowSchemas(z) {
   const critical = z.object({
     action: z.literal('critical'),
     version,
+    correctionStage,
     key: z.enum(PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => item.key)),
     answer: z.boolean()
   }).strict();
   const analysisContact = z.object({
     action: z.literal('analysis_contact'),
     version,
+    correctionStage,
     made: z.boolean(),
     contactName: z.string().trim().max(160, 'O nome do contato deve ter no máximo 160 caracteres.').nullable().optional(),
+    contactPhone: z.string().trim().max(40, 'O telefone do contato deve ter no máximo 40 caracteres.').nullable().optional(),
     contactDate: dateOnly.nullable().optional()
   }).strict().superRefine((value, ctx) => {
     if (!value.made) return;
     if (!value.contactName?.trim()) ctx.addIssue({ code: 'custom', path: ['contactName'], message: 'Informe o nome do contato.' });
+    if (!value.contactPhone?.trim()) ctx.addIssue({ code: 'custom', path: ['contactPhone'], message: 'Informe o telefone do contato.' });
     if (!value.contactDate) ctx.addIssue({ code: 'custom', path: ['contactDate'], message: 'Informe a data do contato.' });
   });
   const analysisCriticality = z.object({
     action: z.literal('analysis_criticality'),
     version,
+    correctionStage,
     isCritical: z.boolean(),
     preparationLeadTimeDays: z.coerce.number().int('Informe um número inteiro de dias.').min(15, 'A preparação deve começar com ao menos 15 dias de antecedência.').optional()
   }).strict().superRefine((value, ctx) => {
@@ -402,6 +417,7 @@ export function makeProjectWorkflowSchemas(z) {
   const teamPlan = z.object({
     action: z.literal('team_plan'),
     version,
+    correctionStage,
     defined: z.boolean(),
     demands: z.array(z.object({
       jobRoleId: id,
@@ -418,6 +434,7 @@ export function makeProjectWorkflowSchemas(z) {
   const equipmentPlan = z.object({
     action: z.literal('equipment_plan'),
     version,
+    correctionStage,
     defined: z.boolean(),
     selections: z.array(z.object({
       categoryId: id,
@@ -450,6 +467,7 @@ export function makeProjectWorkflowSchemas(z) {
   const supplyPlan = z.object({
     action: z.literal('supply_plan'),
     version,
+    correctionStage,
     defined: z.boolean(),
     items: z.array(z.object({
       id: z.string().trim().min(1, 'Informe o insumo.').max(120),
@@ -485,6 +503,7 @@ export function makeProjectWorkflowSchemas(z) {
   const logisticsPlan = z.object({
     action: z.literal('logistics_plan'),
     version,
+    correctionStage,
     vehicleRequired: z.boolean().nullable(),
     vehicleQuantity: z.coerce.number().int().min(1, 'Informe ao menos um veículo.').max(100, 'A quantidade deve ser de no máximo 100 veículos.').nullable(),
     vehicleType: z.enum(['CARRO', 'CAMINHAO']).nullable(),
@@ -503,18 +522,21 @@ export function makeProjectWorkflowSchemas(z) {
   const documentationCategory = z.object({
     action: z.literal('documentation_category'),
     version,
+    correctionStage,
     type: z.enum(PROJECT_WORKFLOW_DOCUMENTATION_TYPES),
     required: z.boolean()
   }).strict();
   const documentationRequirementCreate = z.object({
     action: z.literal('documentation_requirement_create'),
     version,
+    correctionStage,
     type: z.enum(PROJECT_WORKFLOW_DOCUMENTATION_TYPES),
     name: z.string().trim().min(1, 'Informe o nome.').max(240, 'O nome deve ter no máximo 240 caracteres.')
   }).strict();
   const documentationRequirementUpdate = z.object({
     action: z.literal('documentation_requirement_update'),
     version,
+    correctionStage,
     requirementId: id,
     name: z.string().trim().min(1, 'Informe o nome.').max(240, 'O nome deve ter no máximo 240 caracteres.').optional(),
     status: z.enum(PROJECT_WORKFLOW_DOCUMENTATION_STATUSES).optional(),
@@ -531,12 +553,14 @@ export function makeProjectWorkflowSchemas(z) {
   const documentationRequirementArchive = z.object({
     action: z.literal('documentation_requirement_archive'),
     version,
+    correctionStage,
     requirementId: id,
     archived: z.boolean()
   }).strict();
   const issue = z.object({
     action: z.literal('issue'),
     version,
+    correctionStage,
     issueId: id,
     description: z.string().trim().min(1, 'Informe a pendência.').max(500),
     ownerName: z.string().trim().max(160).nullable(),
@@ -555,6 +579,7 @@ export function makeProjectWorkflowSchemas(z) {
   const demobilization = z.object({
     action: z.literal('demobilization'),
     version,
+    correctionStage,
     mobilizationDate: dateOnly.nullable().optional(),
     fieldCompletionDate: dateOnly.nullable().optional(),
     returnDate: dateOnly.nullable().optional()
@@ -574,6 +599,7 @@ export function makeProjectWorkflowSchemas(z) {
   const postJob = z.object({
     action: z.literal('post_job'),
     version,
+    correctionStage,
     meetingDate: dateOnly.nullable().optional(),
     fieldLeaderFeedback: postJobText,
     teamFeedback: postJobText,
@@ -601,6 +627,7 @@ export function makeProjectWorkflowSchemas(z) {
   const measurement = z.object({
     action: z.literal('measurement'),
     version,
+    correctionStage,
     quantitiesSummary: measurementText,
     additionalServicesNote: measurementText,
     evidenceNote: measurementText,

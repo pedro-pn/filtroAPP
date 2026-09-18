@@ -109,7 +109,7 @@ const absenceListQuerySchema = z.object({
   startDate: dateOnlySchema.optional(),
   endDate: dateOnlySchema.optional()
 });
-const scenarioCompareSchema = datePositionQuerySchema;
+const scenarioCompareSchema = datePositionQuerySchema.partial();
 const holidayListSchema = z.object({ startDate: dateOnlySchema.optional(), endDate: dateOnlySchema.optional() });
 const activitySchema = z.object({ cursor: z.string().datetime().optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
 const eligibleCollaboratorsQuerySchema = z.object({

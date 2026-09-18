@@ -720,6 +720,7 @@ export function analysisGateIssues(workflow) {
     issues.push('Realizar e confirmar o contato inicial com o cliente');
   } else {
     if (!workflow.analysisClientContactName?.trim()) issues.push('Informar o nome do contato inicial com o cliente');
+    if (!workflow.analysisClientContactPhone?.trim()) issues.push('Informar o telefone do contato inicial com o cliente');
     if (!workflow.analysisClientContactDate) issues.push('Informar a data do contato inicial com o cliente');
   }
   if (workflow.isCritical == null) {

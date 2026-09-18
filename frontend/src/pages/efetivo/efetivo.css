@@ -2143,6 +2143,9 @@
 .project-workflow-modal .secondary-button { background: var(--pw-surface); border-color: var(--pw-border); box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); }
 .project-workflow-modal .secondary-button:hover:not(:disabled) { background: var(--pw-surface-2); border-color: var(--pw-faint); }
 .project-workflow-modal .secondary-button:disabled { box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: .7; }
+.project-workflow-modal .project-workflow-correction-button { background: var(--pw-correction-bg, #fff4e5); border-color: var(--pw-correction-border, #e2a85a); color: var(--pw-correction-text, #8a4b08); }
+.project-workflow-modal .project-workflow-correction-button:hover:not(:disabled) { background: var(--pw-correction-bg-hover, #ffe8c7); border-color: var(--pw-correction-border-hover, #cc8122); color: var(--pw-correction-text, #8a4b08); }
+.project-workflow-modal .project-workflow-correction-button.is-active { background: var(--pw-correction-text, #8a4b08); border-color: var(--pw-correction-text, #8a4b08); color: var(--wh); }
 .project-workflow-modal .secondary-button.is-ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--pw-muted); }
 .project-workflow-modal .secondary-button.is-ghost:hover:not(:disabled) { background: var(--pw-surface-3); color: var(--pw-ink); }
 .project-workflow-modal .secondary-button.is-small { border-radius: 8px; font-size: 12.5px; min-height: 32px; padding: 5px 12px; }
@@ -2318,6 +2321,20 @@
 .project-workflow-analysis-contact-fields { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
 .project-workflow-analysis-dates .field-group,
 .project-workflow-analysis-contact-fields .field-group { margin: 0; min-width: 0; }
+.project-workflow-phone-control { display: grid; gap: 6px; grid-template-columns: 92px minmax(0, 1.35fr); }
+.project-workflow-phone-control select,
+.project-workflow-phone-control input { box-sizing: border-box; min-width: 0; width: 100%; }
+.project-workflow-country-picker { position: relative; }
+.project-workflow-country-trigger { align-items: center; background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); display: flex; font-size: 13px; gap: 5px; justify-content: center; min-height: 36px; padding: 7px 8px; transition: border-color .15s, box-shadow .15s; width: 100%; }
+.project-workflow-country-trigger:hover:not(:disabled) { border-color: var(--pw-faint); }
+.project-workflow-country-trigger:focus-visible { border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.project-workflow-country-trigger:disabled { background: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
+.project-workflow-country-trigger span:last-child { color: var(--pw-muted, var(--mu)); font-size: 10px; }
+.project-workflow-country-list { background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-md, 0 8px 24px rgba(0, 0, 0, .18)); max-height: 280px; min-width: 260px; overflow-y: auto; position: fixed; z-index: 1200; }
+.project-workflow-country-option { align-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--br); display: grid; gap: 8px; grid-template-columns: 24px minmax(0, 1fr) auto; padding: 8px 10px; text-align: left; width: 100%; }
+.project-workflow-country-option:last-child { border-bottom: 0; }
+.project-workflow-country-option:hover,
+.project-workflow-country-option[aria-selected="true"] { background: var(--bg); }
 .project-workflow-analysis-dates input,
 .project-workflow-analysis-contact-fields input { box-sizing: border-box; max-width: 100%; min-width: 0; width: 100%; }
 .project-workflow-analysis-dates input[readonly] { background: var(--bg); color: var(--tx); }

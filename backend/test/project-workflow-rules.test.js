@@ -45,7 +45,7 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_RESPONSIBILITIES', status: 'NOT_APPLICABLE' }).success, false);
   assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_RESPONSIBILITIES', status: 'NOT_APPLICABLE', note: 'Responsabilidades já definidas no contrato.' }).success, true);
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true }).success, false);
-  assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true, contactName: 'Marina', contactDate: '2026-09-10' }).success, true);
+  assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true, contactName: 'Marina', contactPhone: '(11) 99999-9999', contactDate: '2026-09-10' }).success, true);
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: false }).success, true);
   assert.equal(patch.safeParse({ action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'DONE' }).success, true);
   assert.equal(patch.safeParse({ action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'NOT_APPLICABLE' }).success, false);
@@ -153,8 +153,9 @@ test('análise exige todas as respostas e encaminhamento para cada resposta posi
   workflow.issues[0] = { ...workflow.issues[0], ownerName: 'Leandro', requiredLeadTimeDays: 45, dueDate: new Date('2026-09-20T00:00:00Z') };
   assert.deepEqual(analysisGateIssues(workflow), ['Realizar e confirmar o contato inicial com o cliente']);
   workflow.analysisClientContactMade = true;
-  assert.deepEqual(analysisGateIssues(workflow), ['Informar o nome do contato inicial com o cliente', 'Informar a data do contato inicial com o cliente']);
+  assert.deepEqual(analysisGateIssues(workflow), ['Informar o nome do contato inicial com o cliente', 'Informar o telefone do contato inicial com o cliente', 'Informar a data do contato inicial com o cliente']);
   workflow.analysisClientContactName = 'Marina';
+  workflow.analysisClientContactPhone = '(11) 99999-9999';
   workflow.analysisClientContactDate = '2026-09-10';
   assert.deepEqual(analysisGateIssues(workflow), []);
   workflow.isCritical = null;

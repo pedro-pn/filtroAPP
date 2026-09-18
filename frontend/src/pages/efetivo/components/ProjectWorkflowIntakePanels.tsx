@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { DEFAULT_PHONE_COUNTRY, PHONE_COUNTRIES, formatPhoneLocal, formatPhoneValue, parsePhoneValue, phoneCountryFlag, phoneDigits, type PhoneCountry } from '../../../utils/phoneCountries';
 
 import type { ProjectDocument } from '../../../api/projectDocuments';
 import type {
@@ -102,37 +103,99 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
 }) {
   const [contactMade, setContactMade] = useState<boolean>(workflow.analysisClientContactMade ?? false);
   const [contactName, setContactName] = useState(workflow.analysisClientContactName || '');
+  const [contactCountry, setContactCountry] = useState<PhoneCountry>(parsePhoneValue(workflow.analysisClientContactPhone || '').country || DEFAULT_PHONE_COUNTRY);
+  const [contactPhone, setContactPhone] = useState(parsePhoneValue(workflow.analysisClientContactPhone || '').local);
   const [contactDate, setContactDate] = useState(workflow.analysisClientContactDate || '');
+  const [countryListOpen, setCountryListOpen] = useState(false);
+  const [countryListPosition, setCountryListPosition] = useState({ top: 0, left: 0, width: 280 });
+  const countryTriggerRef = useRef<HTMLButtonElement>(null);
+  const countryListRef = useRef<HTMLDivElement>(null);
+  const countrySearchRef = useRef<{ value: string; timeout: ReturnType<typeof setTimeout> | null }>({ value: '', timeout: null });
   useEffect(() => {
     setContactMade(workflow.analysisClientContactMade ?? false);
     setContactName(workflow.analysisClientContactName || '');
+    const parsedPhone = parsePhoneValue(workflow.analysisClientContactPhone || '');
+    setContactCountry(parsedPhone.country);
+    setContactPhone(parsedPhone.local);
     setContactDate(workflow.analysisClientContactDate || '');
-  }, [workflow.analysisClientContactDate, workflow.analysisClientContactMade, workflow.analysisClientContactName]);
-  const saveContact = (name = contactName, date = contactDate) => {
+  }, [workflow.analysisClientContactDate, workflow.analysisClientContactMade, workflow.analysisClientContactName, workflow.analysisClientContactPhone]);
+  useEffect(() => {
+    if (!countryListOpen) return undefined;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !countryTriggerRef.current?.contains(target) && !countryListRef.current?.contains(target)) setCountryListOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCountryListOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [countryListOpen]);
+  const saveContact = (name = contactName, phone = contactPhone, country = contactCountry, date = contactDate) => {
     const normalizedName = name.trim();
-    if (contactMade !== true || !normalizedName || !date) return;
-    if (normalizedName === workflow.analysisClientContactName && date === workflow.analysisClientContactDate) return;
-    onPatch({ action: 'analysis_contact', version: workflow.version, made: true, contactName: normalizedName, contactDate: date });
+    const normalizedPhone = formatPhoneValue(country, phone);
+    if (contactMade !== true || !normalizedName || !normalizedPhone || !date) return;
+    if (normalizedName === workflow.analysisClientContactName && normalizedPhone === workflow.analysisClientContactPhone && date === workflow.analysisClientContactDate) return;
+    onPatch({ action: 'analysis_contact', version: workflow.version, made: true, contactName: normalizedName, contactPhone: normalizedPhone, contactDate: date });
   };
   const chooseContact = (made: boolean) => {
     setContactMade(made);
     if (made) return;
     setContactName('');
+    setContactCountry(DEFAULT_PHONE_COUNTRY);
+    setContactPhone('');
     setContactDate('');
     if (workflow.analysisClientContactMade !== false) {
-      onPatch({ action: 'analysis_contact', version: workflow.version, made: false, contactName: null, contactDate: null });
+      onPatch({ action: 'analysis_contact', version: workflow.version, made: false, contactName: null, contactPhone: null, contactDate: null });
     }
   };
   const contactStatus = contactMade
-    ? contactName.trim() && contactDate ? 'Contato registrado' : 'Complete o contato'
+    ? contactName.trim() && contactPhone.trim() && contactDate ? 'Contato registrado' : 'Complete o contato'
     : 'Contato pendente';
+  const toggleCountryList = () => {
+    if (countryListOpen) {
+      setCountryListOpen(false);
+      return;
+    }
+    const rect = countryTriggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const listHeight = Math.min(280, window.innerHeight - 16);
+    const top = rect.bottom + 4 + listHeight <= window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - listHeight - 4);
+    setCountryListPosition({ top, left: rect.left, width: Math.max(rect.width, 280) });
+    setCountryListOpen(true);
+  };
+  const handleCountryKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Escape') {
+      setCountryListOpen(false);
+      countrySearchRef.current.value = '';
+      return;
+    }
+    if (event.key.length !== 1 || !/[\p{L}\d]/u.test(event.key)) return;
+    event.preventDefault();
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const search = `${countrySearchRef.current.value}${event.key}`;
+    const country = PHONE_COUNTRIES.find(item => normalize(item.name).startsWith(normalize(search)));
+    if (country) {
+      setContactCountry(country);
+      document.getElementById(`analysis-phone-country-${country.iso}`)?.scrollIntoView({ block: 'nearest' });
+    } else {
+      countrySearchRef.current.value = event.key;
+    }
+    countrySearchRef.current.value = search;
+    if (countrySearchRef.current.timeout) clearTimeout(countrySearchRef.current.timeout);
+    countrySearchRef.current.timeout = setTimeout(() => { countrySearchRef.current.value = ''; }, 800);
+  };
   return (
     <ProjectWorkflowCategory
       title="Datas e contato inicial"
       description="As datas são recebidas do CRM. O contato operacional é registrado pelo Líder de Projetos e salvo automaticamente."
       area="Análise"
       status={contactStatus}
-      complete={Boolean(contactMade && contactName.trim() && contactDate)}
+      complete={Boolean(contactMade && contactName.trim() && contactPhone.trim() && contactDate)}
       className="project-workflow-initial-analysis"
       data-project-workflow-initial-analysis
     >
@@ -141,12 +204,13 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
         <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><input id="analysis-commercial-start-date" type="date" value={workflow.commercialExpectedStartDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedStartDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
       </div>
       <article className="project-workflow-analysis-contact">
-        <header><div><strong>Contato inicial com o cliente realizado?</strong><p>Esta confirmação exige “Sim”, nome e data. Enquanto estiver em “Não”, permanece pendente.</p></div><ProjectWorkflowBooleanChoice value={contactMade} label="Contato inicial com o cliente realizado?" disabled={saving || !workflow.permissions.canEdit} onSelect={chooseContact} /></header>
+        <header><div><strong>Contato inicial com o cliente realizado?</strong><p>Esta confirmação exige “Sim”, nome, telefone e data. Enquanto estiver em “Não”, permanece pendente.</p></div><ProjectWorkflowBooleanChoice value={contactMade} label="Contato inicial com o cliente realizado?" disabled={saving || !workflow.permissions.canEdit} onSelect={chooseContact} /></header>
         {contactMade === true ? <div className="project-workflow-analysis-contact-fields">
           <div className="field-group"><label htmlFor="analysis-client-contact-name">Nome do contato *</label><input id="analysis-client-contact-name" value={contactName} maxLength={160} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactName(event.target.value)} onBlur={() => saveContact()} /></div>
-          <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><input id="analysis-client-contact-date" type="date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onChange={event => { const value = event.target.value; setContactDate(value); saveContact(contactName, value); }} /></div>
+          <div className="field-group project-workflow-phone-field"><label htmlFor="analysis-client-contact-phone">Telefone do contato *</label><div className="project-workflow-phone-control"><div className="project-workflow-country-picker"><button ref={countryTriggerRef} type="button" className="project-workflow-country-trigger" aria-label={`País do telefone: ${contactCountry.name}`} aria-expanded={countryListOpen} aria-haspopup="listbox" disabled={saving || !workflow.permissions.canEdit} onClick={toggleCountryList} onKeyDown={handleCountryKeyDown}><span aria-hidden="true">{phoneCountryFlag(contactCountry.iso)}</span><span>+{contactCountry.callingCode}</span><span aria-hidden="true">▾</span></button>{countryListOpen ? <div ref={countryListRef} className="project-workflow-country-list" role="listbox" aria-label="País do telefone" style={{ top: countryListPosition.top, left: countryListPosition.left, width: countryListPosition.width }}>{PHONE_COUNTRIES.map(country => <button id={`analysis-phone-country-${country.iso}`} type="button" role="option" aria-selected={country.iso === contactCountry.iso} className="project-workflow-country-option" key={`${country.iso}-${country.callingCode}`} onClick={() => { setContactCountry(country); setCountryListOpen(false); saveContact(contactName, contactPhone, country); }}><span aria-hidden="true">{phoneCountryFlag(country.iso)}</span><span>{country.name}</span><span>+{country.callingCode}</span></button>)}</div> : null}</div><input id="analysis-client-contact-phone" type="tel" inputMode="tel" value={contactPhone} placeholder={contactCountry.iso === 'BR' ? 'DDD 00000-0000' : 'Número de telefone'} maxLength={contactCountry.iso === 'BR' ? 13 : 30} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactPhone(formatPhoneLocal(contactCountry, event.target.value))} onBlur={() => saveContact()} /></div></div>
+          <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><input id="analysis-client-contact-date" type="date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onChange={event => { const value = event.target.value; setContactDate(value); saveContact(contactName, contactPhone, contactCountry, value); }} /></div>
         </div> : null}
-        {contactMade === true && (!contactName.trim() || !contactDate) ? <small>Preencha nome e data para registrar o contato.</small> : null}
+        {contactMade === true && (!contactName.trim() || !phoneDigits(contactPhone) || !contactDate) ? <small>Preencha nome, telefone e data para registrar o contato.</small> : null}
       </article>
     </ProjectWorkflowCategory>
   );

@@ -49,7 +49,30 @@ test('função normalizada ambígua permanece pendente sem contaminar capacidade
   assert.equal(daily.statuses.length, 0);
   assert.equal(daily.totals.active, 0);
   assert.equal(utilization.availablePersonDays, 0);
-  assert.deepEqual(utilization.byRole.map(item => item.availablePersonDays), [0, 0]);
+  assert.deepEqual(utilization.byRole.map(item => item.availablePersonDays), [0]);
+});
+
+test('capacidade consolida níveis romanos na mesma família de cargo', () => {
+  const result = calculateDailyCapacity({
+    date: '2026-08-21',
+    jobRoles: [
+      { id: 'r1', name: 'Assistente de Operações I', isActive: true, isOperational: true },
+      { id: 'r2', name: 'Assistente de Operações II', isActive: true, isOperational: true }
+    ],
+    collaborators: [
+      { id: 'c1', name: 'Ana', jobRoleId: 'r1', admissionDate: '2026-01-01', isActive: true },
+      { id: 'c2', name: 'Bia', jobRoleId: 'r2', admissionDate: '2026-01-01', isActive: true }
+    ],
+    missions: [{ id: 'm1', scheduleStatus: 'CONFIRMED', mobilizationDate: '2026-08-21', returnDate: '2026-08-21', demands: [
+      { jobRoleId: 'r1', requiredCount: 1 }, { jobRoleId: 'r2', requiredCount: 1 }
+    ], allocations: [{ collaboratorId: 'c1' }]}],
+    absences: [],
+    holidays: []
+  });
+  assert.equal(result.byRole.length, 1);
+  assert.equal(result.byRole[0].jobRoleName, 'Assistente de Operações');
+  assert.deepEqual(result.byRole[0].jobRoleIds, ['r1', 'r2']);
+  assert.deepEqual({ active: result.byRole[0].active, allocated: result.byRole[0].allocated, demand: result.byRole[0].demand }, { active: 2, allocated: 1, demand: 2 });
 });
 
 test('capacidade considera somente o período individual do colaborador na missão', () => {

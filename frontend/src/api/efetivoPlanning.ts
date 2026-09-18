@@ -39,6 +39,9 @@ export interface PlanningJobRole {
   calendarColor: string;
   continuousWorkLimitDays: number | null;
   order?: number;
+  familyKey?: string;
+  familyName?: string;
+  familyRoleIds?: string[];
 }
 
 export interface PlanningCoordinator {
@@ -62,6 +65,7 @@ export interface RoleCapacity {
   projectedFree?: number;
   projectedDeficit?: number;
   projectedUtilization90d?: number | null;
+  jobRoleIds?: string[];
 }
 
 export interface MissionDemand {
@@ -180,6 +184,7 @@ export interface ContinuousStayAlert {
 
 export interface PlanningOverview {
   date: DateOnly;
+  returnDate?: DateOnly;
   plan: { id: string; revision: number; calendarRevision: number };
   totals: RoleCapacity;
   byRole: RoleCapacity[];
@@ -251,6 +256,8 @@ export interface PlanningScenario {
   status: 'DRAFT' | 'APPLIED' | 'DISCARDED' | 'SUPERSEDED';
   name: string;
   objective: string | null;
+  simulationPositionDate: string | null;
+  simulationReturnDate: string | null;
   revision: number;
   baseOfficialRevision: number;
   appliedPlanId: string | null;
@@ -382,13 +389,15 @@ export async function listPlanningScenarios() {
 export interface ScenarioInput {
   name: string;
   objective?: string | null;
+  simulationPositionDate: string;
+  simulationReturnDate: string;
   initialHire?: { jobRoleId: string; quantity: number; availableFrom: string } | null;
 }
 export async function createPlanningScenario(payload: ScenarioInput) {
   return (await apiClient.post<PlanningScenario>(`${base}/scenarios`, payload)).data;
 }
-export async function comparePlanningScenario(id: string, date: string, jobRoleId?: string) {
-  return (await apiClient.get<{ official: PlanningOverview; scenario: PlanningOverview & { projectedHireCapacity: number }; isStale: boolean }>(`${base}/scenarios/${encodeURIComponent(id)}/compare`, { params: { date, jobRoleId } })).data;
+export async function comparePlanningScenario(id: string, date: string, returnDate?: string, jobRoleId?: string) {
+  return (await apiClient.get<{ official: PlanningOverview; scenario: PlanningOverview & { projectedHireCapacity: number }; isStale: boolean }>(`${base}/scenarios/${encodeURIComponent(id)}/compare`, { params: { date, returnDate, jobRoleId } })).data;
 }
 export async function savePlanningScenarioHire(id: string, payload: { jobRoleId: string; quantity: number; availableFrom: string }) {
   return (await apiClient.post(`${base}/scenarios/${encodeURIComponent(id)}/hires`, payload)).data;

@@ -8,6 +8,7 @@ import { loadCorporateCalendar } from '../../calendar/corporate-calendar.js';
 import { missionEndsOnOrAfter } from './mission-period.js';
 import { missionCycles } from './allocation-period.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
+import { jobRoleFamilyKey, jobRoleFamilyName } from '../../collaborators/job-role-service.js';
 
 const missionReadInclude = {
   project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true } },
@@ -24,6 +25,11 @@ const missionReadInclude = {
 
 function utcDate(value) {
   return new Date(`${parseDateKey(value)}T00:00:00.000Z`);
+}
+
+function roleIdsForFamily(jobRoles, roleName) {
+  const familyKey = jobRoleFamilyKey(roleName);
+  return jobRoles.filter(role => jobRoleFamilyKey(role.name) === familyKey).map(role => role.id);
 }
 
 export async function listPlanningProjects(filters = {}, dependencies = {}) {
@@ -49,11 +55,22 @@ export async function listPlanningProjects(filters = {}, dependencies = {}) {
 
 export async function listPlanningJobRoles(dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
-  return database.jobRole.findMany({
+  const roles = await database.jobRole.findMany({
     where: { isActive: true },
     select: { id: true, name: true, isOperational: true, calendarColor: true, continuousWorkLimitDays: true, order: true },
     orderBy: [{ order: 'asc' }, { name: 'asc' }]
   });
+  const roleIdsByFamily = new Map();
+  for (const role of roles) {
+    const key = jobRoleFamilyKey(role.name);
+    roleIdsByFamily.set(key, [...(roleIdsByFamily.get(key) || []), role.id]);
+  }
+  return roles.map(role => ({
+    ...role,
+    familyKey: jobRoleFamilyKey(role.name),
+    familyName: jobRoleFamilyName(role.name),
+    familyRoleIds: roleIdsByFamily.get(jobRoleFamilyKey(role.name)) || [role.id]
+  }));
 }
 
 export async function listPlanningCoordinators(dependencies = {}) {
@@ -81,10 +98,10 @@ export async function listPlanningCoordinators(dependencies = {}) {
   }));
 }
 
-export async function loadPlanningProjection({ date, planId = null }, dependencies = {}) {
+export async function loadPlanningProjection({ date, returnDate = null, planId = null }, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const startDate = parseDateKey(date);
-  const endDate = addCalendarDays(startDate, 89);
+  const endDate = returnDate && parseDateKey(returnDate) >= startDate ? parseDateKey(returnDate) : addCalendarDays(startDate, 89);
   const plan = planId
     ? await database.efetivoPlan.findUnique({ where: { id: planId } })
     : await getActiveOfficialPlan(database, { create: true });
@@ -120,25 +137,31 @@ export async function loadPlanningProjection({ date, planId = null }, dependenci
     name: item.name,
     source: item.source
   }));
-  return { plan, collaborators, jobRoles, missions, absences, holidays, calendarRevision: calendar.revision, targetSetting, plannedHires };
+  return { plan, collaborators, jobRoles, missions, absences, holidays, calendarRevision: calendar.revision, targetSetting, plannedHires, returnDate: endDate };
 }
 
 export async function getPlanningOverview(filters, dependencies = {}) {
   const date = parseDateKey(filters.date);
-  const projection = await loadPlanningProjection({ date, planId: filters.planId }, dependencies);
+  const projection = await loadPlanningProjection({ date, returnDate: filters.returnDate, planId: filters.planId }, dependencies);
   const daily = calculateDailyCapacity({ date, ...projection });
-  const utilization = calculateUtilization90Days({ date, ...projection });
+  const utilization = calculateUtilization90Days({ date, endDate: projection.returnDate, ...projection });
   const utilizationByRole = new Map(utilization.byRole.map(item => [item.jobRoleId, item]));
-  const utilizationEnd = addCalendarDays(date, 89);
+  const utilizationEnd = utilization.endDate;
   const holidaySet = holidayDateSet(projection.holidays);
   const plannedPersonDaysByRole = new Map();
   const plannedPeopleByRole = new Map();
+  const representativeByRoleId = new Map();
+  for (const role of projection.jobRoles) {
+    const familyRoles = roleIdsForFamily(projection.jobRoles, role.name);
+    representativeByRoleId.set(role.id, familyRoles[0] || role.id);
+  }
   for (const hire of projection.plannedHires) {
+    const representativeId = representativeByRoleId.get(hire.jobRoleId) || hire.jobRoleId;
     const availableFrom = parseDateKey(hire.availableFrom);
-    if (availableFrom <= date) plannedPeopleByRole.set(hire.jobRoleId, (plannedPeopleByRole.get(hire.jobRoleId) || 0) + hire.quantity);
+    if (availableFrom <= date) plannedPeopleByRole.set(representativeId, (plannedPeopleByRole.get(representativeId) || 0) + hire.quantity);
     const capacityStart = availableFrom > date ? availableFrom : date;
     if (capacityStart <= utilizationEnd) {
-      plannedPersonDaysByRole.set(hire.jobRoleId, (plannedPersonDaysByRole.get(hire.jobRoleId) || 0)
+      plannedPersonDaysByRole.set(representativeId, (plannedPersonDaysByRole.get(representativeId) || 0)
         + businessDatesInclusive(capacityStart, utilizationEnd, holidaySet).length * hire.quantity);
     }
   }
@@ -157,7 +180,7 @@ export async function getPlanningOverview(filters, dependencies = {}) {
         ? (roleUtilization?.committedPersonDays || 0) / projectedDenominator * 100 : null
     };
   })
-    .filter(item => !filters.jobRoleId || item.jobRoleId === filters.jobRoleId);
+    .filter(item => !filters.jobRoleId || item.jobRoleIds.includes(filters.jobRoleId));
   const statusById = new Map(daily.statuses.map(item => [item.collaborator.id, item]));
   const upcomingMobilizations = projection.missions
     .filter(mission => mission.scheduleStatus === 'CONFIRMED')
@@ -173,6 +196,7 @@ export async function getPlanningOverview(filters, dependencies = {}) {
     .slice(0, 8);
   return {
     date,
+    returnDate: utilization.endDate,
     plan: { id: projection.plan.id, revision: projection.plan.revision, calendarRevision: projection.calendarRevision },
     totals: filters.jobRoleId
       ? byRole.reduce((sum, item) => ({
@@ -248,7 +272,7 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
   }
   // Use the exact team rate per person through the same public projection to avoid a second query.
   for (const collaborator of projection.collaborators) {
-    const personUtilization = calculateUtilization90Days({ ...projection, date, collaborators: [collaborator] });
+    const personUtilization = calculateUtilization90Days({ ...projection, date, endDate: projection.returnDate, collaborators: [collaborator] });
     committedByPerson.set(collaborator.id, personUtilization.committedPersonDays);
     availableByPerson.set(collaborator.id, personUtilization.availablePersonDays);
   }
@@ -263,7 +287,7 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
     collaborators.push(...inactive.filter(person => !includedIds.has(person.id)));
   }
   return collaborators.filter(item => {
-    if (filters.jobRoleId && item.jobRoleId !== filters.jobRoleId) return false;
+    if (filters.jobRoleId && !roleIdsForFamily(projection.jobRoles, item.jobRole?.name).includes(filters.jobRoleId)) return false;
     return !filters.search || item.name.toLocaleLowerCase('pt-BR').includes(filters.search.toLocaleLowerCase('pt-BR'));
   }).map(collaborator => ({
     id: collaborator.id,

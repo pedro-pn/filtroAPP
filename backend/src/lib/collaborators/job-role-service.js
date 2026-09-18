@@ -1,6 +1,7 @@
 import { allocationPeriod } from '../efetivo/planning/allocation-period.js';
 import { missionEndsOnOrAfter } from '../efetivo/planning/mission-period.js';
 import { collaboratorJobRoleHistoryInclude } from './job-role-history.js';
+import { jobRoleFamilyKey, jobRoleFamilyName } from '../../../../shared/job-role-display.js';
 
 export function normalizeJobRoleKey(value) {
   return String(value || '')
@@ -10,6 +11,8 @@ export function normalizeJobRoleKey(value) {
     .toLocaleLowerCase('pt-BR')
     .replace(/\s+/g, ' ');
 }
+
+export { jobRoleFamilyKey, jobRoleFamilyName };
 
 export function indexJobRolesByNormalizedKey(jobRoles = []) {
   const index = new Map();
