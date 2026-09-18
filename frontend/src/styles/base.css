@@ -3420,6 +3420,8 @@ a {
 .acp-group-member strong { color: var(--g); }
 .acp-group-member span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
 .acp-group-member em { color: var(--mu); font-style: normal; font-size: 11px; }
+.acp-group-member.is-complete { border-color: #86b89a; background: #e8f5ec; color: #205b35; }
+.acp-group-member.is-complete strong, .acp-group-member.is-complete em { color: #1f7a3d; }
 .acp-pcard-metric { display: flex; flex-direction: column; gap: 4px; }
 .acp-pcard-metric-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 13px; }
 .acp-pcard-metric-top > span:first-child { min-width: 0; }
@@ -3844,6 +3846,13 @@ a {
   color: var(--tx);
   font-size: 12px;
 }
+.acp-det-group-members span.is-complete {
+  border-color: #86b89a;
+  background: #e8f5ec;
+  color: #205b35;
+}
+.acp-det-group-members span.is-complete strong { color: #1f7a3d; }
+.acp-det-group-members span small { font-weight: 700; color: inherit; }
 .acp-det-group-members strong { color: var(--g); }
 .acp-det-group-members em {
   overflow: hidden;
@@ -14789,6 +14798,55 @@ body.app-reorder-touching {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.quality-deviation-projects {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.quality-deviation-project {
+  min-width: 0;
+}
+
+.quality-deviation-projects.is-grouped .quality-deviation-project {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--bg);
+}
+
+.quality-deviation-project-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.quality-deviation-project-head h3 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  color: var(--tx);
+  font-size: 14px;
+}
+
+.quality-deviation-project-head h3 span {
+  color: var(--mu);
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.quality-deviation-project-head > .badge {
+  flex: 0 0 auto;
 }
 
 .quality-deviation-list {

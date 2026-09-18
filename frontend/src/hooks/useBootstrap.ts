@@ -21,10 +21,11 @@ export function useReportDetailBootstrap(reportId: string, enabled = true) {
   });
 }
 
-export function useGestorBootstrap() {
+export function useGestorBootstrap(enabled = true) {
   const { user } = useAuth();
   return useQuery({
     queryKey: queryKeys.gestorBootstrap(user?.id),
-    queryFn: getGestorBootstrap
+    queryFn: getGestorBootstrap,
+    enabled
   });
 }

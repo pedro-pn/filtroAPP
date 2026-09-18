@@ -5,7 +5,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { requireAuth, requireAcompanhamentoAccess, requireAcompanhamentoManager } from '../../middleware/auth.js';
 import { getSystemReconciliation, linkReconciledMeasurement, linkReconciledMeasurements } from '../../lib/acompanhamento/system-reconciliation.js';
 import { historicalError } from '../../lib/reports/historical-services.js';
-import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 
 export function createSystemReconciliationRouter(client = prisma) {
   const router = Router({ mergeParams: true });
@@ -23,7 +23,7 @@ export function createSystemReconciliationRouter(client = prisma) {
     }).parse(req.body);
     try {
       const result = await linkReconciledMeasurements(client, { ...data, projectId: req.params.projectId, userId: req.auth.user.id });
-      statisticsProjectsCache.clear();
+      clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
       if (['P2034', 'P2002'].includes(error.code)) throw historicalError('Outra alteração ocorreu. Atualize a lista e tente novamente.', 409);
@@ -39,7 +39,7 @@ export function createSystemReconciliationRouter(client = prisma) {
       if (error.code === 'P2034') throw historicalError('Outra alteração ocorreu. Atualize a lista e tente novamente.', 409);
       throw error;
     }
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res.json({ saved: true });
   }));
   return router;

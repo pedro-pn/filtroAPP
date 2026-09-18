@@ -1211,12 +1211,17 @@ export function GestorPage() {
     { status: 'SIGNED', projectActive: true }
   ]);
   const [pendingTotalCount, approvedTotalCount, signedTotalCount] = reportCountsQuery.data ?? [0, 0, 0];
-  const draftsQuery = useDrafts();
-  const gestorBootstrapQuery = useGestorBootstrap();
+  const draftsQuery = useDrafts(undefined, tab === 'pendentes');
+  const needsGestorBootstrap = ['projetos', 'arquivados', 'equipe', 'usuarios', 'nps'].includes(tab) || manualReportModalOpen;
+  const gestorBootstrapQuery = useGestorBootstrap(needsGestorBootstrap);
   const activeProjectsQuery = { data: gestorBootstrapQuery.data?.activeProjects, isLoading: gestorBootstrapQuery.isLoading };
-  const commercialPendenciasQuery = useQuery({ queryKey: ['commercial-pendencias'], queryFn: getCommercialPendencias });
+  const commercialPendenciasQuery = useQuery({
+    queryKey: ['commercial-pendencias'],
+    queryFn: getCommercialPendencias,
+    enabled: tab === 'projetos'
+  });
   const commercialPendenciaByProject = useMemo(() => commercialPendenciaMapByProject(commercialPendenciasQuery.data || []), [commercialPendenciasQuery.data]);
-  const jobRolesQuery = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
+  const jobRolesQuery = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles(), enabled: tab === 'equipe' });
   const jobRoleIds = useMemo(() => new Set((jobRolesQuery.data || []).map(role => role.id)), [jobRolesQuery.data]);
   const renderRoleOptions = (value: string) => {
     const current = collaboratorsQuery.data?.find(item => item.jobRoleId === value)?.jobRole;
@@ -1231,8 +1236,11 @@ export function GestorPage() {
   };
   const archivedProjectsQuery = { data: gestorBootstrapQuery.data?.archivedProjects, isLoading: gestorBootstrapQuery.isLoading };
   const collaboratorsQuery = { data: gestorBootstrapQuery.data?.collaborators, isLoading: gestorBootstrapQuery.isLoading };
-  const internalUsersQuery = useUsers('internal');
-  const clientUsersQuery = useUsers('client');
+  const internalUsersQuery = useUsers(
+    'internal',
+    ['projetos', 'arquivados'].includes(tab) || (tab === 'usuarios' && userAdminGroup === 'internal')
+  );
+  const clientUsersQuery = useUsers('client', tab === 'usuarios' && userAdminGroup === 'client');
   const surveysQuery = { data: gestorBootstrapQuery.data?.surveys, isLoading: gestorBootstrapQuery.isLoading };
   const projectSegmentsQuery = { data: gestorBootstrapQuery.data?.projectSegments, isLoading: gestorBootstrapQuery.isLoading };
   const surveyQuestionsQuery = { data: gestorBootstrapQuery.data?.surveyQuestions, isLoading: gestorBootstrapQuery.isLoading };
@@ -1341,6 +1349,12 @@ export function GestorPage() {
       .forEach(project => byId.set(project.id, project));
     return sortProjects(Array.from(byId.values()), 'asc');
   }, [activeProjectsQuery.data, archivedProjectsQuery.data]);
+
+  useEffect(() => {
+    const firstProjectId = manualReportProjectOptions[0]?.id;
+    if (!manualReportModalOpen || manualReportTarget || manualReportForm.projectId || !firstProjectId) return;
+    setManualReportForm(current => current.projectId ? current : { ...current, projectId: firstProjectId });
+  }, [manualReportForm.projectId, manualReportModalOpen, manualReportProjectOptions, manualReportTarget]);
 
   useEffect(() => {
     setSelectedReportIds([]);

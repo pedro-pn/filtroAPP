@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import MDBReader from 'mdb-reader';
 
 import prisma from '../prisma.js';
+import { commercialDashboardCache } from '../resource-list-cache.js';
 import { computeProgressForProjects } from './avanco.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
@@ -800,18 +801,45 @@ export async function removeProjectAdditionalProposal(projectId, codProp) {
 
 // Dashboard de acompanhamento: projetos cuja proposta bate com propostas importadas, com o
 // previsto (orçamento/revisão) e o realizado parcial (nº de RDOs = dias trabalhados, % prazo).
-export async function listCommercialDashboard({ categoryCode = null, includeAdminOnlyCategories = true } = {}) {
+export async function listCommercialDashboard({
+  categoryCode = null,
+  includeAdminOnlyCategories = true,
+  projectIds = null
+} = {}) {
+  const scopedProjectIds = Array.isArray(projectIds)
+    ? [...new Set(projectIds.map(String).filter(Boolean))].sort()
+    : null;
+  if (scopedProjectIds?.length === 0) return [];
+
+  const cacheKey = JSON.stringify({
+    categoryCode: categoryCode || null,
+    includeAdminOnlyCategories: Boolean(includeAdminOnlyCategories),
+    projectIds: scopedProjectIds
+  });
+  return commercialDashboardCache.get(cacheKey, () => listCommercialDashboardUncached({
+    categoryCode,
+    includeAdminOnlyCategories,
+    projectIds: scopedProjectIds
+  }));
+}
+
+async function listCommercialDashboardUncached({
+  categoryCode = null,
+  includeAdminOnlyCategories = true,
+  projectIds = null
+} = {}) {
+  const projectIdFilter = projectIds ? { in: projectIds } : { not: null };
   // Salários do Omie nunca entram no realizado (serão calculados no app via ponto).
   const categoryWhere = await buildOmieCostCategoryWhere({
     categoryCode,
     includeAdminOnly: includeAdminOnlyCategories
   });
   const realizedWhere = {
-    projectId: { not: null },
+    projectId: projectIdFilter,
     ...categoryWhere
   };
   const invoicedWhere = {
-    projectId: { not: null },
+    projectId: projectIdFilter,
     valor: { not: null },
     NOT: [{ statusTitulo: 'CANCELADO' }],
     OR: [
@@ -835,7 +863,11 @@ export async function listCommercialDashboard({ categoryCode = null, includeAdmi
       }
     }),
     prisma.project.findMany({
-      where: { deletedAt: null, managerOnly: false },
+      where: {
+        deletedAt: null,
+        managerOnly: false,
+        ...(projectIds ? { id: { in: projectIds } } : {})
+      },
       select: {
         id: true,
         code: true,
@@ -852,16 +884,21 @@ export async function listCommercialDashboard({ categoryCode = null, includeAdmi
       }
     }),
     prisma.projectBudget.findMany({
-      where: { version: 1 },
+      where: { version: 1, ...(projectIds ? { projectId: { in: projectIds } } : {}) },
       select: {
         projectId: true, sourceProposalCodBd: true, approvedAt: true, mobilizationLeadDays: true,
         salePrice: true, plannedTotalCost: true, expectedProfit: true, expectedMargin: true, taxes: true, plannedDays: true
       }
     }),
     prisma.projectAdditionalProposal.findMany({
+      where: projectIds ? { projectId: { in: projectIds } } : undefined,
       select: { projectId: true, codProp: true, sourceProposalCodBd: true }
     }),
-    prisma.report.groupBy({ by: ['projectId'], where: { reportType: 'RDO', deletedAt: null }, _count: { _all: true } }),
+    prisma.report.groupBy({
+      by: ['projectId'],
+      where: { reportType: 'RDO', deletedAt: null, ...(projectIds ? { projectId: { in: projectIds } } : {}) },
+      _count: { _all: true }
+    }),
     prisma.omiePurchase.groupBy({ by: ['projectId'], where: realizedWhere, _sum: { valor: true } }),
     prisma.omiePurchase.groupBy({ by: ['projectId'], where: { ...realizedWhere, statusTitulo: 'PAGO' }, _sum: { valor: true } }),
     prisma.omieReceivable.findMany({

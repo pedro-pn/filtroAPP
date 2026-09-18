@@ -1,13 +1,15 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import pg from 'pg';
 
 import env from '../config/env.js';
-import { databaseUrlWithConnectionLimit } from './prisma-url.js';
+import { buildDatabasePoolConfig } from './prisma-pool-config.js';
 
-export function createPrismaClient() {
-  const databaseUrl = databaseUrlWithConnectionLimit(env.databaseUrl, env.databaseConnectionLimit);
+const { Pool } = pg;
+
+export function createPrismaClient({ pool = new Pool(buildDatabasePoolConfig(env)) } = {}) {
   const options = {
-    adapter: new PrismaPg({ connectionString: databaseUrl })
+    adapter: new PrismaPg(pool, { disposeExternalPool: true })
   };
 
   if (env.prismaSlowQueryMs > 0) {
@@ -17,7 +19,17 @@ export function createPrismaClient() {
   return new PrismaClient(options);
 }
 
-const prisma = createPrismaClient();
+const databasePool = new Pool(buildDatabasePoolConfig(env));
+const prisma = createPrismaClient({ pool: databasePool });
+
+export function getDatabasePoolMetrics() {
+  return {
+    total: databasePool.totalCount,
+    idle: databasePool.idleCount,
+    waiting: databasePool.waitingCount,
+    max: databasePool.options.max
+  };
+}
 
 if (env.prismaSlowQueryMs > 0) {
   prisma.$on('query', event => {

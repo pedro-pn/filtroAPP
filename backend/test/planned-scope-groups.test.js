@@ -22,7 +22,7 @@ test('scope names only project existing progress: totals, weights, history and w
   const plain = calc(unnamed, reports), grouped = calc(named, reports);
   assert.deepEqual(withoutGroups(grouped), plain);
   assert.deepEqual(grouped.scopeGroups.map(group => group.scopeName), ['UG 01', 'UG 02']);
-  assert.deepEqual(grouped.scopeGroups.map(group => group.services[0].executionPct), [100, 20]);
+  assert.deepEqual(grouped.scopeGroups.map(group => group.services[0].executionPct), [150, 20]);
   assert.deepEqual(grouped.scopeGroups.flatMap(group => group.services.flatMap(item => item.systems)), grouped.services[0].systems);
   const dates = { expectedEndDate: '2026-01-15', referenceDate: '2026-01-01' };
   const weekly = buildRequiredWeeklyProgress(grouped, dates);

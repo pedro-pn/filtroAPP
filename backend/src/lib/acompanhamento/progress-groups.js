@@ -52,7 +52,7 @@ export function combineProgressBreakdowns(progresses = []) {
     .map(service => {
       const systems = Array.from(service.systems.values())
         .map(system => {
-          const pct = system.plannedQty > 0 ? Math.min(system.realizedQty / system.plannedQty, 1) * 100 : null;
+          const pct = system.plannedQty > 0 ? system.realizedQty / system.plannedQty * 100 : null;
           return {
             ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName, diameter: system.diameter, diameterUnit: system.diameterUnit } : {}),
             systemType: system.systemType,
@@ -71,7 +71,7 @@ export function combineProgressBreakdowns(progresses = []) {
         for (const system of measurable) {
           const metric = metrics.get(system.systemType) ?? { planned: 0, completed: 0 };
           metric.planned += system.plannedQty;
-          metric.completed += Math.min(system.realizedQty, system.plannedQty);
+          metric.completed += system.realizedQty;
           metrics.set(system.systemType, metric);
         }
         executionPct = round1([...metrics.values()].reduce((sum, metric) => sum + metric.completed / metric.planned * 100, 0) / metrics.size);

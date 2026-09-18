@@ -60,6 +60,8 @@ INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 B2_URI="${B2_URI:-}"
 B2_BIN="${B2_BIN:-b2}"
 LOCAL_BACKUP_KEEP="${LOCAL_BACKUP_KEEP:-}"
+BACKUP_NICE_LEVEL="${BACKUP_NICE_LEVEL:-19}"
+BACKUP_DOCKER_CPUS="${BACKUP_DOCKER_CPUS:-0.5}"
 
 write_backup_status() {
   local status="$1"
@@ -142,18 +144,19 @@ mkdir -p "$RUN_DIR"
 cd "$PROJECT_DIR"
 
 echo "[backup] dumping postgres database to $RUN_DIR"
-docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" | gzip > "$RUN_DIR/postgres.sql.gz"
+docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  | nice -n "$BACKUP_NICE_LEVEL" gzip -1 > "$RUN_DIR/postgres.sql.gz"
 
 if [ "$INCLUDE_REPORTS" = "true" ]; then
   echo "[backup] archiving reports volume $REPORTS_VOLUME"
-  docker run --rm -v "${REPORTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/relatorios.tar.gz ."
+  docker run --rm --cpus "$BACKUP_DOCKER_CPUS" -v "${REPORTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/relatorios.tar.gz ."
 else
   echo "[backup] skipping reports volume archive"
 fi
 
 if [ "$INCLUDE_CERTS" = "true" ]; then
   echo "[backup] archiving cert volume $CERTS_VOLUME"
-  docker run --rm -v "${CERTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/certs.tar.gz ."
+  docker run --rm --cpus "$BACKUP_DOCKER_CPUS" -v "${CERTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/certs.tar.gz ."
 fi
 
 # Volume do infra-proxy (Caddy): guarda a chave da conta ACME e os certificados
@@ -162,7 +165,7 @@ fi
 if [ "$INCLUDE_PROXY" = "true" ]; then
   if docker volume inspect "$PROXY_VOLUME" >/dev/null 2>&1; then
     echo "[backup] archiving proxy volume $PROXY_VOLUME"
-    docker run --rm -v "${PROXY_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/proxy.tar.gz ."
+    docker run --rm --cpus "$BACKUP_DOCKER_CPUS" -v "${PROXY_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/proxy.tar.gz ."
   else
     # Nao criar o volume por engano: `docker run -v` criaria um vazio e o backup
     # ficaria com um arquivo inutil, dando falsa sensacao de cobertura.

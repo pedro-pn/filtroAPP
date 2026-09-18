@@ -197,7 +197,9 @@ export function buildProgress(plannedServices, realizedByType) {
     const systems = Array.from(svc.systems.values()).map(sys => {
       const planned = sys.hasPlannedQty ? sys.plannedQty : null;
       const real = realizedForSystem(sys.systemType, realized);
-      const pct = planned && planned > 0 ? Math.min(real / planned, 1) * 100 : null;
+      // O realizado pode exceder a meta cadastrada; preserve o percentual
+      // real para evidenciar avanço acima de 100%.
+      const pct = planned && planned > 0 ? (real / planned) * 100 : null;
       return {
         systemType: sys.systemType,
         unit: sys.unit,

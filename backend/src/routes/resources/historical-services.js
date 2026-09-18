@@ -3,7 +3,7 @@ import { z } from 'zod';
 import prisma from '../../lib/prisma.js';
 import asyncHandler from '../../lib/async-handler.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
-import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { HISTORICAL_CSV_TEMPLATE, historicalError } from '../../lib/reports/historical-services.js';
 import {
   previewHistoricalImport, commitHistoricalImport, listHistoricalReports, updateHistoricalReport, linkHistoricalMeasurement
@@ -36,20 +36,20 @@ export function createHistoricalServicesRouter(client = prisma) {
   router.post('/:projectId/import', handle(async (req, res) => {
     const data = input.extend({ token: z.string().min(1), fileName: z.string().max(240).optional() }).parse(req.body);
     const result = await commitHistoricalImport(client, { ...data, projectId: req.params.projectId, userId: req.auth.user.id });
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res.status(result.created ? 201 : 200).json(result);
   }));
   router.put('/:projectId/:id', handle(async (req, res) => {
     const data = input.extend({ revision: z.number().int().positive() }).parse(req.body);
     const item = await updateHistoricalReport(client, { ...data, ...req.params, userId: req.auth.user.id });
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res.json(item);
   }));
   router.put('/:projectId/:id/items/:itemIndex/system', handle(async (req, res) => {
     const { projectSystemId, revision } = z.object({ projectSystemId: z.string().max(100).nullable(), revision: z.number().int().positive() }).parse(req.body);
     const itemIndex = z.coerce.number().int().nonnegative().max(1999).parse(req.params.itemIndex);
     const item = await linkHistoricalMeasurement(client, { ...req.params, itemIndex, projectSystemId, revision, userId: req.auth.user.id });
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res.json(item);
   }));
   return router;

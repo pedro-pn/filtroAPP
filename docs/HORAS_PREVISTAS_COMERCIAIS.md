@@ -20,7 +20,7 @@ A pendência aparece no card/detalhe do projeto e no topo do cronograma, com ata
 
 A decisão é salva imediatamente, identificando usuário, data, valores e assinatura dos dados conferidos em `Project.plannedHoursResolution`. Ela vale somente para aquele conjunto de propostas e horas. Uma mudança nesses dados volta a ser comparada e pode reabrir a pendência. Alterações irrelevantes em outros campos comerciais e novas importações idênticas não a reabrem.
 
-O cronograma verifica atualizações a cada 30 segundos. Alterações locais ainda não salvas são preservadas. Tentativas de salvar ou resolver usando uma versão antiga das horas recebem HTTP 409 e pedem atualização. O endpoint de resolução exige a mesma permissão de gestor que a edição do cronograma.
+O cronograma verifica atualizações ao retornar à aba, ao reconectar e após mutações relacionadas. Alterações locais ainda não salvas são preservadas. Tentativas de salvar ou resolver usando uma versão antiga das horas recebem HTTP 409 e pedem atualização. O endpoint de resolução exige a mesma permissão de gestor que a edição do cronograma.
 
 ## Publicação e verificação
 

@@ -50,6 +50,7 @@ const allowedRootLibFiles = new Set([
   'password.js',
   'pdf-link-annotations.js',
   'performance-logging.js',
+  'prisma-pool-config.js',
   'prisma-url.js',
   'prisma.js',
   'privacy-consent.js',

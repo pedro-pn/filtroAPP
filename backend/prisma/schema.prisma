@@ -734,6 +734,7 @@ model PontoPeriodSummary {
   @@unique([importId, sourceKey])
   @@index([collaboratorId])
   @@index([importId])
+  @@index([importId, collaboratorId])
 }
 
 // Lembra vínculos manuais nome-do-ponto → colaborador (variações de caixa/apelido entre imports).
@@ -1511,6 +1512,7 @@ model EfetivoMissionPlan {
   @@index([headquartersResponsibleCollaboratorId])
   @@index([headquartersResponsibleUserId])
   @@index([planId, projectId, scheduleStatus, mobilizationDate, returnDate])
+  @@index([projectId, deletedAt])
 }
 
 model EfetivoMissionCycle {
@@ -1938,6 +1940,7 @@ model ReportCollaborator {
   jobRoleSnapshot   JobRole?     @relation("ReportCollaboratorJobRoleSnapshot", fields: [jobRoleIdSnapshot], references: [id], onDelete: Restrict)
 
   @@id([reportId, collaboratorId])
+  @@index([collaboratorId])
   @@index([jobRoleIdSnapshot])
 }
 
@@ -1995,6 +1998,7 @@ model ReportService {
   attachments ReportAttachment[]
 
   @@index([reportId])
+  @@index([equipmentId])
 }
 
 model MaintenanceProfile {
@@ -3240,6 +3244,7 @@ model ReportDraft {
   project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([updatedAt])
+  @@index([userId, updatedAt])
 }
 
 model UserSession {
@@ -3251,6 +3256,7 @@ model UserSession {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
+  @@index([userId])
 }
 
 model DataSubjectRequest {
@@ -3605,6 +3611,7 @@ model OmiePurchase {
   project               Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([projectId, statusTitulo])
   @@index([codigoProjeto])
   @@index([categoriaCodigo])
   @@index([statusTitulo])
@@ -3645,6 +3652,7 @@ model OmieReceivable {
   project               Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([projectId, codigoTipoDocumento])
   @@index([codigoProjeto])
   @@index([codigoTipoDocumento])
   @@index([statusTitulo])

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { z } from 'zod';
@@ -43,6 +43,7 @@ import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import { qualityDeviationProjects } from './projectQualityDeviations';
 import type { AuthUser } from '../../types/auth';
 import { groupServicesByScope } from '../../utils/plannedScopeGroups';
 
@@ -660,10 +661,12 @@ export function ProjectDetailDashboard({
     queryFn: () => getProjectPlanningContext(projectId!, planningReferenceDate),
     enabled: !isGroup && Boolean(projectId && data)
   });
-  const { data: qualityDeviations = [], isLoading: qualityDeviationsLoading } = useQuery<ProjectDeviation[]>({
-    queryKey: ['qualidade', 'project-deviations', projectId],
-    queryFn: () => listProjectQualityDeviations(projectId!),
-    enabled: !isGroup && Boolean(projectId)
+  const deviationProjects = qualityDeviationProjects(data, projectId, isGroup);
+  const qualityDeviationQueries = useQueries({
+    queries: deviationProjects.map(deviationProject => ({
+      queryKey: ['qualidade', 'project-deviations', deviationProject.projectId],
+      queryFn: () => listProjectQualityDeviations(deviationProject.projectId)
+    }))
   });
   function toggleQualityDeviation(id: string) {
     setExpandedQualityDeviationIds(current => {
@@ -825,9 +828,10 @@ export function ProjectDetailDashboard({
         {data.group ? (
           <div className="acp-det-group-members" aria-label="Missões unificadas">
             {data.group.members.map(member => (
-              <span key={member.projectId}>
+              <span key={member.projectId} className={member.progressPct != null && member.progressPct >= 100 ? 'is-complete' : undefined}>
                 <strong>{member.code}</strong>
                 {member.name || member.clientName ? <em>{member.name || member.clientName}</em> : null}
+                {member.progressPct != null ? <small>{member.progressPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</small> : null}
                 {canManage ? (
                   <button
                     type="button"
@@ -1235,94 +1239,117 @@ export function ProjectDetailDashboard({
 
       {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} /> : null}
 
-      {!isGroup ? (
-        <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>
-          <div className="quality-deviations-head">
-            <div className="acp-det-sub">Desvios</div>
-            <a className="equip-link" href="/qualidade?tab=registros">Abrir Qualidade</a>
-          </div>
-          {qualityDeviationsLoading ? (
-            <div className="placeholder-copy">Carregando desvios...</div>
-          ) : qualityDeviations.length === 0 ? (
-            <div className="placeholder-copy">Nenhum desvio registrado.</div>
-          ) : (
-            <ul className="quality-deviation-list">
-              {qualityDeviations.map(deviation => {
-                const expanded = expandedQualityDeviationIds.has(deviation.id);
-                const detailsId = `quality-deviation-${deviation.id}`;
-                return (
-                  <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
-                    <div className="quality-deviation-row">
-                      <div className="quality-deviation-main">
-                        <strong>{deviation.number}</strong>
-                        <span>{deviation.nature?.name || '—'}</span>
-                        <small>{fmtDate(deviation.eventDate)}</small>
-                      </div>
-                      <div className="quality-deviation-meta">
-                        <span className={qualityImpactBadgeClass(deviation.impact)}>
-                          {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
-                        </span>
-                        <span className="badge">{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</span>
-                        <span className={deviation.recurrent ? 'badge badge-pen' : 'badge'}>
-                          {deviation.occurrences12m}x 12m
-                        </span>
-                        <button
-                          type="button"
-                          className="mini-btn alt quality-deviation-toggle"
-                          aria-expanded={expanded}
-                          aria-controls={detailsId}
-                          onClick={() => toggleQualityDeviation(deviation.id)}
-                        >
-                          {expanded ? 'Recolher' : 'Ver mais'}
-                        </button>
-                      </div>
-                    </div>
-                    {expanded ? (
-                      <div id={detailsId} className="quality-deviation-details">
-                        <dl className="quality-deviation-fields">
-                          <div>
-                            <dt>Disposição</dt>
-                            <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
-                          </div>
-                          <div>
-                            <dt>Origem</dt>
-                            <dd>{deviation.origin || '—'}</dd>
-                          </div>
-                          {deviation.linkedRnc ? (
-                            <div>
-                              <dt>RNC vinculada</dt>
-                              <dd>{deviation.linkedRnc}</dd>
-                            </div>
-                          ) : null}
-                          {deviation.actionDeadline ? (
-                            <div>
-                              <dt>Prazo da ação</dt>
-                              <dd>{fmtDate(deviation.actionDeadline)}</dd>
-                            </div>
-                          ) : null}
-                        </dl>
-                        <div className="quality-deviation-text">
-                          <span>Descrição</span>
-                          <p>{deviation.description}</p>
-                        </div>
-                        {deviation.definedAction || deviation.actionOwner ? (
-                          <div className="quality-deviation-text">
-                            <span>Ação definida</span>
-                            <p>
-                              {deviation.definedAction || '—'}
-                              {deviation.actionOwner ? ` · Responsável: ${deviation.actionOwner}` : ''}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+      <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>
+        <div className="quality-deviations-head">
+          <div className="acp-det-sub">Desvios</div>
+          <a className="equip-link" href="/qualidade?tab=registros">Abrir Qualidade</a>
         </div>
-      ) : null}
+        <div className={`quality-deviation-projects${isGroup ? ' is-grouped' : ''}`}>
+          {deviationProjects.map((deviationProject, projectIndex) => {
+            const deviationQuery = qualityDeviationQueries[projectIndex];
+            const deviations = deviationQuery?.data ?? [];
+            const projectLabel = deviationProject.name || deviationProject.clientName;
+            const titleId = `quality-deviation-project-${projectIndex}`;
+            return (
+              <section className="quality-deviation-project" key={deviationProject.projectId} aria-labelledby={isGroup ? titleId : undefined}>
+                {isGroup ? (
+                  <div className="quality-deviation-project-head">
+                    <h3 id={titleId}>
+                      Missão {deviationProject.code || 'sem código'}
+                      {projectLabel ? <span>{projectLabel}</span> : null}
+                    </h3>
+                    {!deviationQuery?.isLoading && !deviationQuery?.isError ? (
+                      <span className="badge">{deviations.length} {deviations.length === 1 ? 'desvio' : 'desvios'}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {deviationQuery?.isLoading ? (
+                  <div className="placeholder-copy">Carregando desvios...</div>
+                ) : deviationQuery?.isError ? (
+                  <div className="placeholder-copy">Não foi possível carregar os desvios desta missão.</div>
+                ) : deviations.length === 0 ? (
+                  <div className="placeholder-copy">Nenhum desvio registrado.</div>
+                ) : (
+                  <ul className="quality-deviation-list">
+                    {deviations.map((deviation: ProjectDeviation) => {
+                      const expanded = expandedQualityDeviationIds.has(deviation.id);
+                      const detailsId = `quality-deviation-${deviation.id}`;
+                      return (
+                        <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
+                          <div className="quality-deviation-row">
+                            <div className="quality-deviation-main">
+                              <strong>{deviation.number}</strong>
+                              <span>{deviation.nature?.name || '—'}</span>
+                              <small>{fmtDate(deviation.eventDate)}</small>
+                            </div>
+                            <div className="quality-deviation-meta">
+                              <span className={qualityImpactBadgeClass(deviation.impact)}>
+                                {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
+                              </span>
+                              <span className="badge">{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</span>
+                              <span className={deviation.recurrent ? 'badge badge-pen' : 'badge'}>
+                                {deviation.occurrences12m}x 12m
+                              </span>
+                              <button
+                                type="button"
+                                className="mini-btn alt quality-deviation-toggle"
+                                aria-expanded={expanded}
+                                aria-controls={detailsId}
+                                onClick={() => toggleQualityDeviation(deviation.id)}
+                              >
+                                {expanded ? 'Recolher' : 'Ver mais'}
+                              </button>
+                            </div>
+                          </div>
+                          {expanded ? (
+                            <div id={detailsId} className="quality-deviation-details">
+                              <dl className="quality-deviation-fields">
+                                <div>
+                                  <dt>Disposição</dt>
+                                  <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
+                                </div>
+                                <div>
+                                  <dt>Origem</dt>
+                                  <dd>{deviation.origin || '—'}</dd>
+                                </div>
+                                {deviation.linkedRnc ? (
+                                  <div>
+                                    <dt>RNC vinculada</dt>
+                                    <dd>{deviation.linkedRnc}</dd>
+                                  </div>
+                                ) : null}
+                                {deviation.actionDeadline ? (
+                                  <div>
+                                    <dt>Prazo da ação</dt>
+                                    <dd>{fmtDate(deviation.actionDeadline)}</dd>
+                                  </div>
+                                ) : null}
+                              </dl>
+                              <div className="quality-deviation-text">
+                                <span>Descrição</span>
+                                <p>{deviation.description}</p>
+                              </div>
+                              {deviation.definedAction || deviation.actionOwner ? (
+                                <div className="quality-deviation-text">
+                                  <span>Ação definida</span>
+                                  <p>
+                                    {deviation.definedAction || '—'}
+                                    {deviation.actionOwner ? ` · Responsável: ${deviation.actionOwner}` : ''}
+                                  </p>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </div>
 
       {!isGroup ? (
         <section className="page-card acp-project-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
@@ -1601,7 +1628,7 @@ export function ProjectDetailDashboard({
       />
       <ProjectQualityDeviationsNovelty
         user={progressHistoryNoveltyUser}
-        enabled={qualityDeviationsNoveltyActive && !isGroup}
+        enabled={qualityDeviationsNoveltyActive && deviationProjects.length > 0}
         onSeen={() => setQualityDeviationsNoveltyActive(false)}
       />
       <ProjectAdditionalProposalsNovelty
