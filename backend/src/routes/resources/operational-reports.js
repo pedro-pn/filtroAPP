@@ -53,7 +53,7 @@ import {
   hasReportEmissionPermission,
 } from "../../lib/operational-reports/permissions.js";
 import { reportCollaboratorCreateManyData } from "../../lib/report-collaborators.js";
-import { statisticsProjectsCache } from "../../lib/resource-list-cache.js";
+import { clearProjectDerivedCaches } from "../../lib/resource-list-cache.js";
 import { requireAuth } from "../../middleware/auth.js";
 
 const router = Router();
@@ -659,7 +659,7 @@ router.post(
       await prisma.report.delete({ where: { id: created.id } }).catch(() => {});
       throw error;
     }
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res
       .status(201)
       .json(publicOperationalReport(await freshReport(created.id)));
@@ -1528,7 +1528,7 @@ router.put(
       // eslint-disable-next-line no-await-in-loop
       await persistPhotos(record.id, record.equipment.code, input.photos);
     }
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     res.json(publicOperationalReport(await freshReport(updated.id)));
   }),
 );
@@ -1674,7 +1674,7 @@ router.patch(
         });
       });
     }
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     logOperationalReportEvent("review_transition", {
       actorUserId: req.auth.user.id,
       reportId: report.id,

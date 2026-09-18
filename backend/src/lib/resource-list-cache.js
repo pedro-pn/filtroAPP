@@ -14,6 +14,16 @@ export const unitCategoriesCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const companyEquipmentCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const equipmentCategoriesCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const statisticsProjectsCache = createKeyedTtlCache(DASHBOARD_TTL_MS);
+export const commercialDashboardCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 50);
+export const projectCardsCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 10);
+export const laborCostCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 10);
+
+export function clearProjectDerivedCaches() {
+  statisticsProjectsCache.clear();
+  commercialDashboardCache.clear();
+  projectCardsCache.clear();
+  laborCostCache.clear();
+}
 
 // Caches dos shims de compatibilidade do RDO que agora leem do modelo unificado.
 export function clearEquipmentModuleCaches() {

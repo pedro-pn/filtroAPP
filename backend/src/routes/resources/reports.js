@@ -71,7 +71,7 @@ import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { logSlowOperation } from '../../lib/performance-logging.js';
 import { activeReportProjectWhere, assertProjectReadyForReports } from '../../lib/project-visibility.js';
-import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
 import {
   normalizeReportUploadReference,
@@ -3319,7 +3319,7 @@ async function processReportApprovalPostProcessingJob(job) {
       }
     }
 
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.COMPLETED, { error: null });
   } catch (error) {
     console.error('Falha no pós-processamento da aprovação do relatório.', {
@@ -6047,7 +6047,7 @@ router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
     item = await prisma.report.findUniqueOrThrow({ where: { id: item.id }, include });
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
@@ -6064,7 +6064,7 @@ router.put('/:id/manual-data', requireAuth, requireRdoManager, asyncHandler(asyn
   });
   if (result.status) return res.status(result.status).json(result.body);
 
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(result.item);
 }));
 
@@ -6175,7 +6175,7 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, { allowLinkedServiceReport: true });
     item = await prisma.report.findUniqueOrThrow({ where: { id: item.id }, include });
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
@@ -6437,7 +6437,7 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
   });
 
   await organizeAndSyncReportUploadAttachments(item);
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(item);
 }));
 
@@ -6476,7 +6476,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
     await ensureInternalSignatureRoundAndNotify(organized, req.auth.user.id, signatureEvidenceFromRequest(req));
   }
 
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(201).json(createdReports);
 }));
 
@@ -6618,7 +6618,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, signatureEvidenceFromRequest(req));
     queueApprovedReportNotification(organizedItem);
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(201).json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
@@ -6914,7 +6914,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, evidence);
     if (isManagerFixingClientRejection) queueReapprovedReportNotification(organizedItem);
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(await withDerivedServiceReportParentMeta(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation)));
 }));
 
@@ -7084,7 +7084,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
     }
   });
 
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(204).end();
 }));
 
@@ -7179,7 +7179,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
     scheduleReportApprovalPostProcessing();
   }
   logSlowOperation('reports.status.update', Date.now() - tPatch0, { txMs: tPatchTx - tPatch0, newStatus: data.status });
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(reportWithSignatureEmailDelivery(item, null));
 }));
 

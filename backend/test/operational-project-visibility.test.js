@@ -84,6 +84,8 @@ test('missão oculta não é aberta por id nem criada por uma seleção antiga',
 
 test('dashboard e pendências do Acompanhamento ocultam Somente gestor sem excluir códigos da Sede', async t => {
   const projectQueries = [];
+  const reportQueries = [];
+  const omiePurchaseQueries = [];
   function stub(model, method, implementation = async () => []) {
     const original = prisma[model][method];
     prisma[model][method] = implementation;
@@ -96,16 +98,24 @@ test('dashboard e pendências do Acompanhamento ocultam Somente gestor sem exclu
   for (const [model, method] of [
     ['commercialProposal', 'findMany'], ['commercialProposal', 'groupBy'],
     ['projectBudget', 'findMany'], ['projectAdditionalProposal', 'findMany'],
-    ['report', 'groupBy'], ['omiePurchase', 'groupBy'],
     ['omieReceivable', 'findMany'], ['omieCategory', 'findMany']
   ]) stub(model, method);
+  stub('report', 'groupBy', async ({ where }) => { reportQueries.push(where); return []; });
+  stub('omiePurchase', 'groupBy', async ({ where }) => { omiePurchaseQueries.push(where); return []; });
 
   assert.deepEqual(await listCommercialDashboard(), []);
   assert.deepEqual(await listCommercialPendencias(), []);
-  assert.equal(projectQueries.length, 2);
+  assert.deepEqual(await listCommercialDashboard({ projectIds: ['project-1'] }), []);
+  assert.equal(projectQueries.length, 3);
   projectQueries.forEach(where => {
     assert.equal(where.managerOnly, false);
     assert.equal(where.deletedAt, null);
     assert.equal(where.code, undefined);
   });
+  assert.deepEqual(projectQueries[2].id, { in: ['project-1'] });
+  assert.deepEqual(reportQueries[1].projectId, { in: ['project-1'] });
+  assert.deepEqual(omiePurchaseQueries.slice(-2).map(where => where.projectId), [
+    { in: ['project-1'] },
+    { in: ['project-1'] }
+  ]);
 });

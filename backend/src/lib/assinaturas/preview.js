@@ -15,6 +15,22 @@ const wasmUrl = fileURLToPath(new URL('./wasm/', import.meta.resolve('pdfjs-dist
 const cMapUrl = fileURLToPath(new URL('./cmaps/', import.meta.resolve('pdfjs-dist/package.json')));
 // Recria também as prévias em branco geradas sem os decodificadores de scans.
 const PREVIEW_VERSION = 'v3';
+const pendingRenders = new Map();
+const renderWaiters = [];
+let activeRenders = 0;
+
+async function withRenderSlot(loader) {
+  if (activeRenders >= env.assinaturasPreviewConcurrency) {
+    await new Promise(resolve => renderWaiters.push(resolve));
+  }
+  activeRenders += 1;
+  try {
+    return await loader();
+  } finally {
+    activeRenders -= 1;
+    renderWaiters.shift()?.();
+  }
+}
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -51,6 +67,25 @@ export async function renderPage(document, pageNumber, { rootDir = env.uploadDir
     if (error?.code !== 'ENOENT') throw error;
   }
 
+  const renderKey = `${rootDir}:${document.id}:${number}:${PREVIEW_VERSION}`;
+  const existing = pendingRenders.get(renderKey);
+  if (existing) return existing;
+
+  const pending = withRenderSlot(() => renderPageUncached(document, number, {
+    rootDir,
+    directory,
+    targetPath,
+    startedAt
+  }));
+  pendingRenders.set(renderKey, pending);
+  try {
+    return await pending;
+  } finally {
+    if (pendingRenders.get(renderKey) === pending) pendingRenders.delete(renderKey);
+  }
+}
+
+async function renderPageUncached(document, number, { rootDir, directory, targetPath, startedAt }) {
   const bytes = await sourcePdfBuffer(document, { rootDir });
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(bytes),

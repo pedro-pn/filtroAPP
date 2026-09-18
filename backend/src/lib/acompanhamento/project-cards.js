@@ -15,6 +15,7 @@ import { laborCostByProject } from './labor-cost.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
 import { reportAllCollaboratorIds, reportPersonTimeMetrics } from './report-time.js';
 import prisma from '../prisma.js';
+import { projectCardsCache } from '../resource-list-cache.js';
 
 function toNum(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -132,6 +133,11 @@ export function lastDayStatus(lastReport, project) {
 
 // Cards da aba Projetos (previsto x realizado por projeto).
 export async function listProjectCards({ includeAdminOnlyCategories = true } = {}) {
+  const cacheKey = includeAdminOnlyCategories ? 'admin' : 'standard';
+  return projectCardsCache.get(cacheKey, () => listProjectCardsUncached({ includeAdminOnlyCategories }));
+}
+
+async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = {}) {
   const rows = await listCommercialDashboard({ includeAdminOnlyCategories });
   const projectIds = rows.map(r => r.projectId);
   if (projectIds.length === 0) return [];

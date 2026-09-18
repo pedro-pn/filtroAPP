@@ -1,4 +1,5 @@
 import { logSlowOperation } from '../lib/performance-logging.js';
+import { getDatabasePoolMetrics } from '../lib/prisma.js';
 
 export function requestMetrics(req, res, next) {
   const startedAt = process.hrtime.bigint();
@@ -7,7 +8,8 @@ export function requestMetrics(req, res, next) {
     logSlowOperation('http_request', Math.round(durationMs), {
       method: req.method,
       path: req.route?.path || req.path,
-      statusCode: res.statusCode
+      statusCode: res.statusCode,
+      dbPool: getDatabasePoolMetrics()
     });
   });
   next();

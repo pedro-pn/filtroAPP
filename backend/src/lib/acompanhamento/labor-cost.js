@@ -24,6 +24,7 @@
  */
 
 import prisma from '../prisma.js';
+import { laborCostCache } from '../resource-list-cache.js';
 import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
 import { buildProjectTagResolver, isPontoTravelTag } from '../pontomais/normalize.js';
@@ -2231,6 +2232,10 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
 
 // Custo de mão de obra por projeto (mapa projectId -> { laborCost, laborCostBase, hours }) + sobra total.
 export async function laborCostByProject(importId = null) {
+  return laborCostCache.get(importId || 'latest', () => laborCostByProjectUncached(importId));
+}
+
+async function laborCostByProjectUncached(importId = null) {
   const { pontoImport, periodStart, periodEnd, byCollaboratorId } = await computeCollaboratorRates(importId);
   if (!pontoImport) {
     return { pontoImport: null, periodStart: null, periodEnd: null, byProjectId: new Map(), idle: { cost: 0, costBase: 0, hours: 0 }, byCollaboratorId: new Map() };

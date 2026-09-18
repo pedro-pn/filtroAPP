@@ -14,6 +14,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { computeMonthlyCost } from '../../lib/acompanhamento/cost-engine.js';
 import { getAnnualCollaboratorCosts, setAnnualCollaboratorCosts } from '../../lib/acompanhamento/settings.js';
 import prisma from '../../lib/prisma.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { requireAcompanhamentoManager, requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
 const router = Router();
@@ -114,6 +115,7 @@ router.put('/perfis/:key/parametros', requireAuth, requireAcompanhamentoManager,
       createdByUserId: req.auth?.user?.id ?? null
     }
   });
+  clearProjectDerivedCaches();
   res.status(201).json({ key: current.profile.key, effectiveDate: created.effectiveDate, params: created.params });
 }));
 
@@ -181,6 +183,7 @@ router.put('/cargos/:jobRoleId/parametros', requireAuth, requireAcompanhamentoMa
       createdByUserId: req.auth?.user?.id ?? null
     }
   });
+  clearProjectDerivedCaches();
   res.status(201).json({ jobRoleId: role.id, profileId: profile.id, effectiveDate: created.effectiveDate, params: created.params });
 }));
 
@@ -199,7 +202,9 @@ const configSchema = z.object({
 router.put('/config', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const current = await getAnnualCollaboratorCosts();
   const values = configSchema.parse(req.body);
-  res.json(await setAnnualCollaboratorCosts({ ...current, ...values }, req.auth?.user?.id ?? null));
+  const updated = await setAnnualCollaboratorCosts({ ...current, ...values }, req.auth?.user?.id ?? null);
+  clearProjectDerivedCaches();
+  res.json(updated);
 }));
 
 // === Categorias Omie consideradas nos cálculos do acompanhamento ===
@@ -245,6 +250,7 @@ router.put('/categorias-omie/:codigo', requireAuth, requireAcompanhamentoManager
     where: { codigo: req.params.codigo },
     data: { includeInAcompanhamentoCosts }
   });
+  clearProjectDerivedCaches();
   res.json({
     id: category.id,
     codigo: category.codigo,
@@ -265,6 +271,7 @@ router.patch('/categorias-omie/:codigo/visibilidade', requireAuth, requireHubAdm
     where: { codigo: req.params.codigo },
     data: { adminOnly }
   });
+  clearProjectDerivedCaches();
   res.json({
     id: category.id,
     codigo: category.codigo,

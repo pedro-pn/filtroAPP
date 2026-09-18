@@ -11,10 +11,11 @@ import {
 } from '../api/users';
 import { queryKeys } from './queryKeys';
 
-export function useUsers(group?: 'internal' | 'client') {
+export function useUsers(group?: 'internal' | 'client', enabled = true) {
   return useQuery({
     queryKey: queryKeys.users(group),
-    queryFn: () => listUsers(group)
+    queryFn: () => listUsers(group),
+    enabled
   });
 }
 
