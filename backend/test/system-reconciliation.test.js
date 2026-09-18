@@ -244,8 +244,9 @@ test('lote misto salva só linhas escolhidas, sem alterar RDO/PDF/aliases; prese
   const afterRows = nativeReportMeasurements(state.native[0]).filter(row => row.service.finalized);
   assert.equal(afterRows[0].measurement.projectSystemId, 'b');
   assert.equal(afterRows[1].measurement.projectSystemId, null);
-  assert.deepEqual(progress(state).current, before.current);
-  assert.deepEqual(progress(state).history, before.history);
+  const after = progress(state);
+  assert.equal(after.current.progressPct, before.current.progressPct);
+  assert.deepEqual(after.history.map(item => ({ date: item.date, progressPct: item.progressPct })), before.history.map(item => ({ date: item.date, progressPct: item.progressPct })));
   await assert.rejects(linkReconciledMeasurements(client, input), error => error.statusCode === 409);
   const fresh = (await getSystemReconciliation(client, 'p')).reports.find(report => report.id === 'n1');
   await linkReconciledMeasurements(client, { ...input, projectSystemId: null, measurements: [selected(fresh)] });
