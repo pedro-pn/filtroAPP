@@ -469,7 +469,9 @@ export async function getProjectDetail(projectId, {
 
   for (const r of reports) {
     const key = dateKey(r.reportDate);
-    if (!lastRdoDate || new Date(r.reportDate) > new Date(lastRdoDate)) lastRdoDate = r.reportDate;
+    if (r.reportType === 'RDO' && (!lastRdoDate || new Date(r.reportDate) > new Date(lastRdoDate))) {
+      lastRdoDate = r.reportDate;
+    }
     const sc = r.specialConditions || {};
     const dayCollaboratorIds = dayCollaboratorIdsByReport.get(r.id) || [];
     const metrics = reportPersonTimeMetrics(r, dayCollaboratorIds);
