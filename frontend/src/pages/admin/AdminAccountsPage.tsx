@@ -59,6 +59,12 @@ const reportPermissionOptions: Array<{
   { value: 'PRODUCTION', label: 'Acessar produção e emitir relatórios' }
 ];
 
+const INTERNAL_RDO_ROLES: ModuleRole[] = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
+
+function impliedReportPermission(form: Pick<AccountFormState, 'accountType' | 'moduleRoles'>, permission: ReportEmissionPermission) {
+  return permission === 'SITE_RDO' && form.accountType !== 'CLIENT' && form.moduleRoles.some(role => INTERNAL_RDO_ROLES.includes(role));
+}
+
 function accountTypeLabel(accountType?: AccountType) {
   if (accountType === 'ADMIN') return 'Admin';
   if (accountType === 'CLIENT') return 'Cliente';
@@ -437,8 +443,16 @@ export function AdminAccountsPage() {
               <div className="admin-role-grid">
                 {reportPermissionOptions.map(option => (
                   <label className="admin-role-option" key={option.value}>
-                    <input type="checkbox" checked={form.reportEmissionPermissions.includes(option.value)} onChange={() => toggleReportPermission(option.value)} />
-                    <span>{option.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={impliedReportPermission(form, option.value) || form.reportEmissionPermissions.includes(option.value)}
+                      disabled={impliedReportPermission(form, option.value)}
+                      onChange={() => toggleReportPermission(option.value)}
+                    />
+                    <span>
+                      {option.label}
+                      {impliedReportPermission(form, option.value) ? ' (incluída no papel RDO)' : ''}
+                    </span>
                   </label>
                 ))}
               </div>

@@ -184,7 +184,7 @@ export function resolveAccountPayload(data, existingUser = null) {
   }
 
   assertRoleAccountCompatibility(targetAccountType, role, moduleRoles);
-  const reportEmissionPermissions = data.reportEmissionPermissions !== undefined ? normalizeReportEmissionPermissions(data.reportEmissionPermissions, targetAccountType) : normalizeReportEmissionPermissions(existingUser?.reportEmissionPermissions || [], targetAccountType);
+  const reportEmissionPermissions = normalizeReportEmissionPermissions(data.reportEmissionPermissions !== undefined ? data.reportEmissionPermissions : existingUser?.reportEmissionPermissions || [], targetAccountType, moduleRoles);
   const acompanhamentoAccount = { accountType: targetAccountType, moduleRoles };
   if (data.acompanhamentoExtraPermissions?.length && !canReceiveAcompanhamentoExtraPermissions(acompanhamentoAccount)) {
     const error = new Error('Permissões adicionais de Acompanhamento só podem ser concedidas a contas internas com o papel Gestor do módulo.');

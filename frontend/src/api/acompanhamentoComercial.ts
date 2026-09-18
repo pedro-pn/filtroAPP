@@ -744,6 +744,8 @@ export interface ManualProjectCostPayload {
 export interface ProjectDetailCollaborator {
   name: string;
   role: string;
+  /** Indica que a pessoa veio do planejamento do Efetivo, antes do primeiro RDO. */
+  planned?: boolean;
   /** Jornada dos RDOs; em grupos, usa o maior lançamento por data para evitar duplicidade entre missões. */
   horas: number;
   /** Soma bruta das jornadas de todas as missões, inclusive quando elas se sobrepõem. */

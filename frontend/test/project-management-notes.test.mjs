@@ -34,3 +34,18 @@ test('somente gestores recebem a permissão de adicionar notas', async () => {
   assert.match(pageSource, /canManageProjectNotes=\{isManager\}/);
   assert.match(boardSource, /canManageProjectNotes=\{canManageProjectNotes\}/);
 });
+
+test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', async () => {
+  const source = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
+
+  assert.match(source, /!data\.header\.lastRdoDate/);
+  assert.match(source, /plannedCollaborators\.map/);
+  assert.match(source, /className="api-badge status-planned">Planejado/);
+  assert.match(source, /Ainda não há RDO para este projeto/);
+});
+
+test('escopo do dashboard possui rolagem local após o limite de altura', async () => {
+  const styles = await readSource('src/styles/base.css');
+
+  assert.match(styles, /\.acp-det-scope\s*\{[^}]*max-height:\s*360px[^}]*overflow-y:\s*auto/);
+});

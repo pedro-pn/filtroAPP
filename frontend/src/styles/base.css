@@ -4377,7 +4377,14 @@ a {
 }
 .acp-det-equip-item > strong { font-size: 13px; white-space: nowrap; }
 .acp-det-equip-item > small { grid-column: 1 / -1; color: var(--mu); font-size: 11px; }
-.acp-det-scope { display: flex; flex-direction: column; gap: 8px; }
+.acp-det-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .acp-det-scope-svc { border: 1px solid var(--br); border-radius: var(--rs); padding: 8px 10px; background: var(--bg); }
 .acp-det-scope-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; }
 .acp-det-scope-weight { font-weight: 400; color: var(--mu); font-size: 12px; }

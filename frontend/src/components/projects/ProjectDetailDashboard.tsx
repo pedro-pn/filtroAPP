@@ -800,6 +800,28 @@ export function ProjectDetailDashboard({
       ? ' (consolidado)'
       : '';
   const manualCosts = data.manualCosts ?? [];
+  const plannedCollaborators = planningContext?.collaborators ?? [];
+  const showingPlannedCollaborators = !data.header.lastRdoDate
+    && plannedCollaborators.length > 0;
+  const collaborators = showingPlannedCollaborators
+    ? plannedCollaborators.map(collaborator => ({
+      name: collaborator.name,
+      role: collaborator.jobRole.name,
+      planned: true,
+      horas: 0,
+      horasLancadas: 0,
+      horasApropriadas: null,
+      horasDeslocamento: 0,
+      diasApropriados: [],
+      sobreposicaoHoras: 0,
+      horasRelatoriosPorData: [],
+      custo: null,
+      custoHora: null,
+      custoEstimadoRdo: null,
+      custoHoraEstimadoRdo: null,
+      custoDeslocamento: null
+    }))
+    : data.colaboradores;
   const canAddManualCost = canManageManualCosts && !isGroup && Boolean(projectId);
   const hasAdditionalProposalContribution = (data.budgetBreakdown?.additionals ?? []).some(item => (
     hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
@@ -1438,16 +1460,25 @@ export function ProjectDetailDashboard({
       <div className="page-card acp-det-block">
         <details className="acp-det-collabs-details" open>
           <summary className="acp-det-collabs-summary">
-            Colaboradores na obra ({data.colaboradores.length})
+            Colaboradores na obra ({collaborators.length})
           </summary>
-          {data.colaboradores.length === 0 ? (
-            <div className="placeholder-copy" style={{ marginTop: 8 }}>Nenhum colaborador nos relatórios de execução.</div>
+          {collaborators.length === 0 ? (
+            <div className="placeholder-copy" style={{ marginTop: 8 }}>Nenhum colaborador nos relatórios de execução ou no planejamento do Efetivo.</div>
           ) : (
             <div className="acp-det-collab-body">
               <div className="acp-det-collab-context" role="note">
-                <strong>Base da apropriação: ponto de {fmtDate(data.maoDeObra.periodStart)} a {fmtDate(data.maoDeObra.periodEnd)}</strong>
-                <span>O deslocamento já está incluído nas horas e no custo total; aparece separado apenas para detalhamento.</span>
-                <span>Horas em azul vêm dos RDOs. Valores em roxo com a indicação RDO são estimativas dessas jornadas, exibidas quando não há horas apropriadas pelo ponto.</span>
+                {showingPlannedCollaborators ? (
+                  <>
+                    <strong>Equipe planejada no Efetivo</strong>
+                    <span>Ainda não há RDO para este projeto. Os colaboradores abaixo são os previstos na missão oficial e serão substituídos pelo realizado assim que houver lançamentos.</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>Base da apropriação: ponto de {fmtDate(data.maoDeObra.periodStart)} a {fmtDate(data.maoDeObra.periodEnd)}</strong>
+                    <span>O deslocamento já está incluído nas horas e no custo total; aparece separado apenas para detalhamento.</span>
+                    <span>Horas em azul vêm dos RDOs. Valores em roxo com a indicação RDO são estimativas dessas jornadas, exibidas quando não há horas apropriadas pelo ponto.</span>
+                  </>
+                )}
               </div>
 
               <div className="acp-table-wrap">
@@ -1471,9 +1502,9 @@ export function ProjectDetailDashboard({
                     </tr>
                   </thead>
                   <tbody>
-                    {data.colaboradores.map((c, i) => (
+                    {collaborators.map((c, i) => (
                       <tr key={i}>
-                        <td>{c.name}</td>
+                        <td>{c.name} {c.planned ? <span className="api-badge status-planned">Planejado</span> : null}</td>
                         <td data-label="Cargo">{c.role}</td>
                         <td data-label="Horas apropriadas" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                           {c.horasApropriadas != null && c.horasApropriadas > 0 ? (
@@ -1543,7 +1574,7 @@ export function ProjectDetailDashboard({
                       </tr>
                     </thead>
                     <tbody>
-                      {data.colaboradores.map((c, i) => (
+                      {collaborators.map((c, i) => (
                         <tr key={i}>
                           <td>{c.name}</td>
                           <td data-label={isGroup ? 'Sem sobreposição' : 'Jornada dos relatórios'} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtHours(c.horas)}</td>
