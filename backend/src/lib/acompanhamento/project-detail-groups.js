@@ -50,6 +50,7 @@ function memberSummary(member, detail) {
     name: project.name ?? '',
     clientName: detail?.header?.clientName ?? project.clientName ?? '',
     clientCnpj: detail?.header?.clientCnpj ?? project.clientCnpj ?? '',
+    progressPct: detail?.avancoPct ?? null,
     order: member.order ?? 0,
     visible: Boolean(detail)
   };

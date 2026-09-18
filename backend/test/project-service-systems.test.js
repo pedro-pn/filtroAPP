@@ -72,11 +72,11 @@ test('diameters, wildcard rows and repeated planned rows cannot consume a measur
   assert.notEqual(diameterKey('2', 'pol'), diameterKey('50.8', 'mm'));
 });
 
-test('excess of one system never compensates another; execution is weighted by measurable quantity', () => {
+test('excess of one system is preserved in the weighted execution percentage', () => {
   const result = calc(scope([row(registry[0], 10), row(registry[1], 90)]), [service(registry[0].equipment, undefined, 100)]);
-  assert.equal(result.progressPct, 10);
+  assert.equal(result.progressPct, 100);
   const grouped = combineProgressBreakdowns([result]);
-  assert.equal(grouped.progressPct, 10);
+  assert.equal(grouped.progressPct, 100);
   assert.equal(grouped.services[0].systems.length, 2);
   assert.equal(grouped.services[0].systems[1].equipment, registry[1].equipment);
 });

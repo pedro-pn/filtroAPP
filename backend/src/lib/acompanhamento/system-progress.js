@@ -71,10 +71,10 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
       if (measurable) {
         const metric = metrics.get(row.systemType) ?? { planned: 0, completed: 0 };
         metric.planned += row.plannedQty;
-        metric.completed += Math.min(row.realizedQty, row.plannedQty);
+        metric.completed += row.realizedQty;
         metrics.set(row.systemType, metric);
       }
-      return { ...row, realizedQty: round(row.realizedQty), pct: measurable ? round(Math.min(row.realizedQty / row.plannedQty, 1) * 100, 1) : null };
+      return { ...row, realizedQty: round(row.realizedQty), pct: measurable ? round(row.realizedQty / row.plannedQty * 100, 1) : null };
     });
     const pcts = [...metrics.values()].map(metric => metric.completed / metric.planned * 100);
     return { serviceType: service.serviceType, weight: service.weight, systems, executionPct: pcts.length ? round(pcts.reduce((sum, pct) => sum + pct, 0) / pcts.length, 1) : null };

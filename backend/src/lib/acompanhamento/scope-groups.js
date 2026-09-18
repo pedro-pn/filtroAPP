@@ -43,7 +43,7 @@ function executionPct(systems) {
   for (const row of measurable) {
     const metric = metrics.get(row.systemType) ?? { planned: 0, completed: 0 };
     metric.planned += row.plannedQty;
-    metric.completed += Math.min(row.realizedQty ?? 0, row.plannedQty);
+    metric.completed += row.realizedQty ?? 0;
     metrics.set(row.systemType, metric);
   }
   return round1([...metrics.values()].reduce((sum, metric) => sum + metric.completed / metric.planned * 100, 0) / metrics.size);

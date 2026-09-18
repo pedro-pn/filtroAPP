@@ -828,9 +828,10 @@ export function ProjectDetailDashboard({
         {data.group ? (
           <div className="acp-det-group-members" aria-label="Missões unificadas">
             {data.group.members.map(member => (
-              <span key={member.projectId}>
+              <span key={member.projectId} className={member.progressPct != null && member.progressPct >= 100 ? 'is-complete' : undefined}>
                 <strong>{member.code}</strong>
                 {member.name || member.clientName ? <em>{member.name || member.clientName}</em> : null}
+                {member.progressPct != null ? <small>{member.progressPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</small> : null}
                 {canManage ? (
                   <button
                     type="button"
