@@ -20,6 +20,7 @@ import {
   demobilizationGateIssues,
   handoverGateIssues,
   planningGateIssues,
+  projectWorkflowAnalysisReadiness,
   projectWorkflowCommercialReadiness,
   projectWorkflowCloseoutReadiness,
   projectWorkflowClosureGate,
@@ -331,7 +332,7 @@ test('planejamento completo libera Preparação e D-15 acompanha equipe nominal 
   const readiness = projectWorkflowPreparationReadiness(prepared);
   assert.ok(readiness.total > 0);
   assert.equal(readiness.completed, readiness.total);
-  assert.equal(readiness.sections.length, 7);
+  assert.equal(readiness.sections.length, 9);
   prepared.teamPreparation.members[0].checks[0].status = 'PENDING';
   assert.equal(projectWorkflowPreparationReadiness(prepared).completed, readiness.total - 1);
   assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 6);
@@ -488,10 +489,12 @@ test('desmobilização possui 15 controles e permite retorno revalidado à execu
     .slice(0, 6)
     .map(item => ({ key: item.key, status: 'DONE' }));
   const readiness = projectWorkflowDemobilizationReadiness({ checklists });
-  assert.equal(readiness.total, 15);
+  assert.equal(readiness.total, 17);
   assert.equal(readiness.completed, 6);
-  assert.equal(readiness.percentage, 40);
-  assert.deepEqual(readiness.sections.map(item => item.key), ['DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS']);
+  assert.equal(readiness.percentage, 35);
+  assert.deepEqual(readiness.sections.map(item => item.key), ['DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS', 'DEMOBILIZATION_DATES']);
+  const withDates = projectWorkflowDemobilizationReadiness({ checklists, fieldCompletionDate: '2026-09-20', demobilizationDate: '2026-09-22' });
+  assert.equal(withDates.completed, 8);
   assert.equal(allowedProjectWorkflowTransition('EXECUTION', 'DEMOBILIZATION'), true);
   assert.equal(allowedProjectWorkflowTransition('DEMOBILIZATION', 'EXECUTION'), true);
 
@@ -523,10 +526,11 @@ test('Pós-job exige desmobilização concluída e consolida nove controles', ()
 
   const postJobChecklists = completed('POST_JOB').slice(0, 5);
   const readiness = projectWorkflowPostJobReadiness({ checklists: postJobChecklists });
-  assert.equal(readiness.total, 9);
+  assert.equal(readiness.total, 10);
   assert.equal(readiness.completed, 5);
-  assert.equal(readiness.percentage, 56);
-  assert.deepEqual(readiness.sections.map(item => item.key), ['POST_JOB_FEEDBACK', 'POST_JOB_LEARNING']);
+  assert.equal(readiness.percentage, 50);
+  assert.deepEqual(readiness.sections.map(item => item.key), ['POST_JOB_FEEDBACK', 'POST_JOB_LEARNING', 'POST_JOB_MEETING']);
+  assert.equal(projectWorkflowPostJobReadiness({ checklists: postJobChecklists, postJob: { meetingDate: '2026-09-25' } }).completed, 6);
   assert.equal(allowedProjectWorkflowTransition('DEMOBILIZATION', 'POST_JOB'), true);
   assert.equal(allowedProjectWorkflowTransition('POST_JOB', 'DEMOBILIZATION'), true);
 });
@@ -545,10 +549,12 @@ test('Documentação e medição exige pós-job concluído e consolida 14 contro
   assert.match(projectWorkflowTransitionIssues(workflow, 'FINAL_MEASUREMENT')[0], /Lições aprendidas/i);
 
   const readiness = projectWorkflowCloseoutReadiness({ checklists: completed('FINAL_MEASUREMENT').slice(0, 8) });
-  assert.equal(readiness.total, 14);
+  assert.equal(readiness.total, 16);
   assert.equal(readiness.completed, 8);
-  assert.equal(readiness.percentage, 57);
-  assert.deepEqual(readiness.sections.map(item => item.key), ['CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT']);
+  assert.equal(readiness.percentage, 50);
+  assert.deepEqual(readiness.sections.map(item => item.key), ['CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT', 'CLOSEOUT_MEASUREMENT_APPROVAL']);
+  const approved = projectWorkflowCloseoutReadiness({ checklists: completed('FINAL_MEASUREMENT').slice(0, 8), measurement: { approvedAt: '2026-09-30', approvedAmount: 0 } });
+  assert.equal(approved.completed, 10);
   assert.equal(allowedProjectWorkflowTransition('POST_JOB', 'FINAL_MEASUREMENT'), true);
   assert.equal(allowedProjectWorkflowTransition('FINAL_MEASUREMENT', 'POST_JOB'), true);
 });
@@ -566,7 +572,8 @@ test('Encerramento consolida os dez controles finais e dependências estruturada
   assert.equal(readiness.total, 10);
   assert.equal(readiness.completed, 10);
   const gate = projectWorkflowClosureGate(workflow);
-  assert.equal(gate.total, 24);
+  assert.equal(gate.total, 27);
+  assert.equal(gate.completed, 27);
   assert.equal(gate.ready, true);
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'FINISHED'), []);
   workflow.criticalAnswers.push({ key: 'SPECIAL_EQUIPMENT', answer: true });
@@ -608,4 +615,81 @@ test('etapa reaberta por retorno do fluxo vale pela última entrada', () => {
   ]);
   assert.deepEqual(timeline.MOBILIZATION_PLANNING, { enteredAt: at('13').toISOString(), completedAt: null });
   assert.deepEqual(timeline.PREPARATION, { enteredAt: at('11').toISOString(), completedAt: at('13').toISOString() });
+});
+
+test('progresso da análise inicial só chega a 100% quando o gate não tem pendências', () => {
+  const workflow = {
+    stage: 'INITIAL_ANALYSIS',
+    checklists: completed('INITIAL_ANALYSIS'),
+    isCritical: false,
+    preparationLeadTimeDays: 15,
+    analysisClientContactMade: false,
+    analysisClientContactName: null,
+    analysisClientContactPhone: null,
+    analysisClientContactDate: null,
+    criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ key: item.key, answer: false })),
+    issues: []
+  };
+  const checklistCount = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').length;
+  const expectedTotal = checklistCount + 2 + PROJECT_WORKFLOW_CRITICAL_QUESTIONS.length;
+
+  // tudo preenchido, exceto o contato com o cliente: pendência no gate e progresso abaixo de 100%
+  let readiness = projectWorkflowAnalysisReadiness(workflow);
+  assert.equal(readiness.total, expectedTotal);
+  assert.equal(readiness.completed, expectedTotal - 1);
+  assert.ok(readiness.percentage < 100);
+  assert.deepEqual(analysisGateIssues(workflow), ['Realizar e confirmar o contato inicial com o cliente']);
+
+  // contato marcado como realizado, mas incompleto, continua pendente
+  workflow.analysisClientContactMade = true;
+  workflow.analysisClientContactName = 'Maria';
+  readiness = projectWorkflowAnalysisReadiness(workflow);
+  assert.equal(readiness.completed, expectedTotal - 1);
+  assert.equal(analysisGateIssues(workflow).length, 2);
+
+  workflow.analysisClientContactPhone = '+5541999990000';
+  workflow.analysisClientContactDate = '2026-09-21';
+  readiness = projectWorkflowAnalysisReadiness(workflow);
+  assert.equal(readiness.percentage, 100);
+  assert.deepEqual(analysisGateIssues(workflow), []);
+
+  // criticidade não informada, checklist e resposta crítica também contam
+  workflow.isCritical = null;
+  assert.equal(projectWorkflowAnalysisReadiness(workflow).completed, expectedTotal - 1);
+  workflow.isCritical = false;
+  workflow.checklists = workflow.checklists.slice(1);
+  assert.equal(projectWorkflowAnalysisReadiness(workflow).completed, expectedTotal - 1);
+  workflow.checklists = completed('INITIAL_ANALYSIS');
+  workflow.criticalAnswers = workflow.criticalAnswers.slice(1);
+  assert.equal(projectWorkflowAnalysisReadiness(workflow).completed, expectedTotal - 1);
+
+  // resposta "sim" sem pendência encaminhada não conclui a pergunta
+  const question = PROJECT_WORKFLOW_CRITICAL_QUESTIONS.find(item => item.createsIssue !== false);
+  workflow.criticalAnswers = PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ key: item.key, answer: item.key === question.key }));
+  assert.equal(projectWorkflowAnalysisReadiness(workflow).completed, expectedTotal - 1);
+  assert.match(analysisGateIssues(workflow)[0], /Encaminhar a pendência/);
+});
+
+test('a ação analysis_schedule exige fim depois do início', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  const base = { action: 'analysis_schedule', version: 1 };
+  assert.equal(patch.safeParse({ ...base, plannedExecutionStartDate: '2027-02-20', plannedExecutionEndDate: '2027-04-30' }).success, true);
+  assert.equal(patch.safeParse({ ...base, plannedExecutionStartDate: null, plannedExecutionEndDate: null }).success, true);
+  const invalid = patch.safeParse({ ...base, plannedExecutionStartDate: '2027-04-30', plannedExecutionEndDate: '2027-02-20' });
+  assert.equal(invalid.success, false);
+  assert.match(invalid.error.issues[0].message, /não pode ser anterior/);
+});
+
+test('liberação do cliente só exige a data da solicitação, sem destinatário', () => {
+  const base = { key: 'CUSTOMER_REGISTRATION', requested: true, requestedAt: '2026-09-10', requestedTo: null, completed: false, completedAt: null };
+  const request = readiness => readiness.sections.find(item => item.key === 'D15_CLIENT');
+  const withItem = item => projectWorkflowPreparationReadiness({
+    clientReleases: { attendance: { date: '2026-09-09', confirmed: true }, items: [item] }
+  });
+  // solicitação com data conta como concluída mesmo sem destinatário
+  const requested = request(withItem(base));
+  const pending = request(withItem({ ...base, requestedAt: null }));
+  assert.equal(requested.completed - pending.completed, 1);
+  const done = request(withItem({ ...base, completed: true, completedAt: '2026-09-12' }));
+  assert.equal(done.completed - requested.completed, 1);
 });

@@ -175,9 +175,13 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(schema, /TRAININGS_RELEASED/);
   assert.match(panel, /futura integração externa/);
   assert.match(panel, /Confirmação do atendimento/);
-  assert.match(panel, /Data da solicitação/);
-  assert.match(panel, /Solicitado para quem/);
-  assert.match(panel, /Data da conclusão/);
+  assert.doesNotMatch(panel, /Data da solicitação|Data da conclusão/);
+  assert.match(panel, /Solicitado\{values\.requestedAt/);
+  assert.match(panel, /Concluído\{values\.completedAt/);
+  assert.match(panel, /completedAt: completed \? values\.completedAt \|\| todayDateOnly\(\) : ''/);
+  assert.doesNotMatch(panel, /Solicitado para quem|requestedTo/);
+  assert.match(panel, /disabled=\{disabled \|\| !values\.requested\}/);
+  assert.match(panel, /<DateInput/);
   assert.match(panel, /Na sede e disponível na data necessária/);
   assert.match(panel, /Manutenção em dia/);
   assert.match(panel, /if \(!maintenance\.required\) return null/);
@@ -254,8 +258,10 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   const sharedSchema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(intake, /Documentação antecipada/);
-  assert.match(intake, /Data da solicitação/);
-  assert.match(intake, /Data da confirmação/);
+  assert.doesNotMatch(intake, /Data da solicitação|Data da confirmação/);
+  assert.match(intake, /Solicitado\{item\.requestedAt \? ` em \$\{displayDateOnly\(item\.requestedAt\)\}` : ''\}/);
+  assert.match(intake, /disabled=\{saving \|\| !canEdit \|\| item\.status === 'PENDING'\}/);
+  assert.match(intake, /<DateInput id="analysis-client-contact-date"/);
   assert.match(intake, /Histórico/);
   assert.match(intake, /\{category\.description\}/);
   assert.match(intake, /documentation_requirement_update/);
@@ -352,14 +358,15 @@ test('D-30 usa o Estoque nos insumos e salva a logística preliminar automaticam
   assert.match(planning, /Itens disponíveis no Estoque/);
   assert.match(planning, /Produtos químicos/);
   assert.match(planning, /Filtros/);
-  assert.match(planning, /Data do pedido/);
-  assert.match(planning, /Data da compra/);
+  assert.match(planning, /Pedido realizado/);
+  assert.match(planning, /Compra concluída/);
   assert.match(planning, /Será necessário veículo/);
   assert.match(planning, /Será necessário frete/);
   assert.match(planning, /Será necessária hospedagem/);
   assert.match(planning, /A hospedagem já foi solicitada/);
-  assert.match(planning, /Data da solicitação/);
-  assert.match(planning, /Data da conclusão/);
+  assert.doesNotMatch(planning, /Data do pedido|Data da compra|Data da solicitação|Data da conclusão/);
+  assert.match(planning, /Hospedagem concluída/);
+  assert.match(planning, /todayDateOnly\(\)/);
   assert.match(planning, /onBlur=\{\(\) => save\(draft\)\}/);
   assert.match(schema, /action: z\.literal\('supply_plan'\)/);
   assert.match(schema, /action: z\.literal\('logistics_plan'\)/);
@@ -445,4 +452,36 @@ test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
   assert.match(panel, /Registro em Qualidade/);
   assert.match(board, /Pós-job:/);
   assert.match(styles, /project-workflow-category/);
+});
+
+test('campos de data com salvamento automático só confirmam datas completas e o handover segue o padrão dos cards', () => {
+  const dateInput = fs.readFileSync(new URL('../src/components/ui/DateInput.tsx', import.meta.url), 'utf8');
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const efetivoPage = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  assert.match(dateInput, /isCommittableDate/);
+  assert.match(dateInput, /validity\.badInput/);
+  assert.match(dateInput, /onCommit/);
+  assert.match(efetivoPage, /<DateInput id="efetivo-position-date"/);
+  assert.match(preparation, /<DateInput\s+id="workflow-pre-job-scheduled-date"/);
+  assert.match(preparation, /<DateInput id="workflow-freight-departure-date"/);
+  const settings = modal.slice(modal.indexOf('function WorkflowSettingsForm('), modal.indexOf('function DemobilizationDatesForm('));
+  assert.match(settings, /<ProjectWorkflowCategory[\s\S]*title="Responsáveis e cronograma"/);
+  assert.match(settings, /Gestor de Contrato/);
+  assert.doesNotMatch(modal, /Planejador/);
+});
+
+test('incompatibilidades de recursos aparecem no planejamento e na preparação, fora da análise inicial', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const resources = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowResourcePlanning.tsx', import.meta.url), 'utf8');
+  const conflictUtil = fs.readFileSync(new URL('../src/utils/projectWorkflowResourceConflicts.ts', import.meta.url), 'utf8');
+  assert.match(conflictUtil, /RESOURCE_TEAM_CONFLICT/);
+  assert.match(conflictUtil, /RESOURCE_EQUIPMENT_CONFLICT/);
+  assert.match(resources, /data-project-workflow-resource-conflicts/);
+  assert.match(resources, /Sem mobilização operacional prevista, a disponibilidade considera/);
+  assert.match(modal, /analysisIssues = workflow\.issues\.filter\(item => !isResourceConflictIssue\(item\)\)/);
+  const planning = modal.slice(modal.indexOf("activeStage === 'MOBILIZATION_PLANNING'"), modal.indexOf("activeStage === 'PREPARATION'"));
+  assert.match(planning, /ProjectWorkflowResourceConflicts/);
+  const preparation = modal.slice(modal.indexOf('const renderPreparation = () =>'), modal.indexOf('const renderPostJob = () =>'));
+  assert.match(preparation, /ProjectWorkflowResourceConflicts/);
 });

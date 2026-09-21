@@ -1056,6 +1056,8 @@ model ProjectWorkflow {
   analysisClientContactName          String?
   analysisClientContactPhone         String?
   analysisClientContactDate          DateTime?                              @db.Date
+  plannedExecutionStartDate          DateTime?                              @db.Date
+  plannedExecutionEndDate            DateTime?                              @db.Date
   teamPlanDefined                    Boolean?
   equipmentPlanDefined               Boolean?
   supplyPlanDefined                  Boolean?

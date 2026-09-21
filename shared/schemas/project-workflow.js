@@ -325,7 +325,7 @@ export function makeProjectWorkflowSchemas(z) {
     key: z.enum(PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS),
     requested: z.boolean(),
     requestedAt: dateOnly.nullable(),
-    requestedTo: z.string().trim().max(160, 'O destinatário deve ter no máximo 160 caracteres.').nullable(),
+    requestedTo: z.string().trim().max(160, 'O destinatário deve ter no máximo 160 caracteres.').nullable().optional(),
     completed: z.boolean(),
     completedAt: dateOnly.nullable()
   }).strict().superRefine((value, ctx) => {
@@ -402,6 +402,17 @@ export function makeProjectWorkflowSchemas(z) {
     if (!value.contactName?.trim()) ctx.addIssue({ code: 'custom', path: ['contactName'], message: 'Informe o nome do contato.' });
     if (!value.contactPhone?.trim()) ctx.addIssue({ code: 'custom', path: ['contactPhone'], message: 'Informe o telefone do contato.' });
     if (!value.contactDate) ctx.addIssue({ code: 'custom', path: ['contactDate'], message: 'Informe a data do contato.' });
+  });
+  const analysisSchedule = z.object({
+    action: z.literal('analysis_schedule'),
+    version,
+    correctionStage,
+    plannedExecutionStartDate: dateOnly.nullable(),
+    plannedExecutionEndDate: dateOnly.nullable()
+  }).strict().superRefine((value, ctx) => {
+    if (value.plannedExecutionStartDate && value.plannedExecutionEndDate && value.plannedExecutionEndDate < value.plannedExecutionStartDate) {
+      ctx.addIssue({ code: 'custom', path: ['plannedExecutionEndDate'], message: 'O fim da execução não pode ser anterior ao início.' });
+    }
   });
   const analysisCriticality = z.object({
     action: z.literal('analysis_criticality'),
@@ -661,7 +672,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisCriticality, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisSchedule, analysisCriticality, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

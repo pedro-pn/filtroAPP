@@ -32,6 +32,44 @@ export function missionTeamScheduleStatus(status: MissionScheduleStatus | null |
   return status === 'CANCELLED' ? 'CANCELLED' : 'CONFIRMED';
 }
 
+/** Cargo previsto no planejamento D-30 da obra; `roleIds` reúne os cargos da mesma família. */
+export interface PlannedTeamRole {
+  id: string;
+  name: string;
+  requiredCount: number;
+  roleIds: string[];
+}
+
+/** Dados já definidos no fluxo de gestão (Handover, análise inicial e planejamento D-30) que a equipe apenas reflete. */
+export interface InitialTeamContext {
+  leaderUserId: string;
+  leaderName: string;
+  mobilizationDate: string;
+  executionStartDate: string;
+  executionEndDate: string;
+  plannedRoles: PlannedTeamRole[];
+}
+
+export function plannedRoleIdSet(plannedRoles: PlannedTeamRole[] | undefined) {
+  return new Set((plannedRoles || []).flatMap(role => role.roleIds.length ? role.roleIds : [role.id]));
+}
+
+export function isPlannedRole(jobRoleId: string | null | undefined, plannedRoles: PlannedTeamRole[] | undefined) {
+  return Boolean(jobRoleId && plannedRoleIdSet(plannedRoles).has(jobRoleId));
+}
+
+/** Quantos colaboradores selecionados cobrem cada cargo previsto (e quantos foram escolhidos fora do plano). */
+export function plannedRoleCoverage(plannedRoles: PlannedTeamRole[] | undefined, selected: Array<{ jobRoleId?: string | null }>) {
+  const roles = plannedRoles || [];
+  const rows = roles.map(role => {
+    const ids = new Set(role.roleIds.length ? role.roleIds : [role.id]);
+    return { role, selected: selected.filter(person => person.jobRoleId && ids.has(person.jobRoleId)).length };
+  });
+  const planned = plannedRoleIdSet(roles);
+  const outsidePlan = selected.filter(person => !person.jobRoleId || !planned.has(person.jobRoleId)).length;
+  return { rows, outsidePlan };
+}
+
 export function toggleMissionCollaborator(selectedIds: string[], collaboratorId: string, selected: boolean): string[] {
   if (selected) return selectedIds.includes(collaboratorId) ? selectedIds : [...selectedIds, collaboratorId];
   return selectedIds.filter(id => id !== collaboratorId);

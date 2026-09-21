@@ -1872,6 +1872,7 @@
    Os balões de dica são portais fora do diálogo, por isso também recebem os tokens.
    ========================================================================== */
 .project-workflow-modal,
+.efetivo-team-dialog,
 .project-workflow-stage-tip-balloon,
 .project-workflow-category-help-balloon {
   --pw-surface: var(--wh);
@@ -2165,6 +2166,7 @@
 .project-workflow-reopen textarea { resize: vertical; width: 100%; }
 .project-workflow-form { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 12px; padding: 12px; }
 .project-workflow-form > p { color: var(--mu); margin: 0; }
+.project-workflow-category-content > .project-workflow-form { border: 0; border-radius: 0; padding: 0; }
 .project-workflow-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
 .project-workflow-form-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .project-workflow-form-grid .field-group { min-width: 0; }
@@ -2222,6 +2224,8 @@
 .project-workflow-release-toggle input { accent-color: var(--pw-accent, var(--g)); flex: 0 0 15px; height: 15px; margin: 0; width: 15px; }
 .project-workflow-release-toggle input:focus-visible { outline: none; }
 .project-workflow-release-toggle span { min-width: 0; overflow-wrap: anywhere; }
+.project-workflow-toggle-group-label { color: var(--pw-muted, var(--mu)); display: block; font-size: 12px; font-weight: 500; margin-bottom: 6px; }
+.project-workflow-toggle-row { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Chip de conferência: o checkbox nativo continua sendo o controle, invisível sobre o chip */
 .project-workflow-member-check { align-items: center; background: var(--pw-surface, var(--wh)); border: 1px solid var(--pw-border, var(--br)); border-radius: 999px; color: var(--pw-muted, var(--mu)); cursor: pointer; display: inline-flex; font-size: 12.5px; font-weight: 500; gap: 6px; min-height: 30px; padding: 0 11px 0 6px; position: relative; transition: background-color .15s, border-color .15s, color .15s; }
 .project-workflow-member-check input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
@@ -2820,4 +2824,90 @@
   .project-workflow-footer-status { flex-basis: auto; }
   .project-workflow-footer-actions { justify-content: stretch; }
   .project-workflow-footer-actions button { flex: 1 1 auto; }
+}
+
+/* ==========================================================================
+   Diálogos de equipe (definir equipe inicial e escolher colaboradores)
+   Mesma linguagem do diálogo de gestão do projeto: tokens --pw-*, cartões com
+   borda suave, verde institucional como ação e cores semânticas para avisos.
+   ========================================================================== */
+.efetivo-team-dialog :is(.primary-button, .secondary-button, .danger-button, .mini-btn) { align-items: center; border: 1px solid transparent; border-radius: 9px; display: inline-flex; font-size: 13px; font-weight: 600; gap: 7px; justify-content: center; line-height: 1.1; min-height: 36px; padding: 7px 15px; transition: background-color .15s, border-color .15s, box-shadow .15s, color .15s; }
+.efetivo-team-dialog :is(.primary-button, .secondary-button, .danger-button, .mini-btn):focus-visible { box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.efetivo-team-dialog :is(.primary-button, .mini-btn) { background: var(--pw-accent); border-color: var(--pw-accent); box-shadow: var(--pw-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .12); color: var(--wh); }
+.efetivo-team-dialog :is(.primary-button, .mini-btn):hover:not(:disabled) { background: var(--pw-accent-hover); border-color: var(--pw-accent-hover); }
+.efetivo-team-dialog :is(.primary-button, .mini-btn, .danger-button):disabled { background: var(--pw-surface-3); border-color: var(--pw-surface-3); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: 1; }
+.efetivo-team-dialog .mini-btn { border-radius: 8px; font-size: 12.5px; min-height: 30px; padding: 5px 11px; }
+.efetivo-team-dialog .secondary-button { background: var(--pw-surface); border-color: var(--pw-border); box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); }
+.efetivo-team-dialog .secondary-button:hover:not(:disabled) { background: var(--pw-surface-2); border-color: var(--pw-faint); }
+.efetivo-team-dialog .secondary-button:disabled { box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: .7; }
+.efetivo-team-dialog .field-group label { color: var(--pw-muted); font-size: 12px; font-weight: 500; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea) { background-color: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); font-size: 13px; min-height: 36px; padding: 7px 11px; transition: border-color .15s, box-shadow .15s; }
+.efetivo-team-dialog select { padding-right: 30px; }
+.efetivo-team-dialog textarea { min-height: 64px; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):hover:not(:disabled) { border-color: var(--pw-faint); }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
+.efetivo-team-dialog :is(input, textarea)::placeholder { color: var(--pw-faint); }
+.efetivo-team-dialog input.is-required-empty { border-color: var(--pw-crit-dot); }
+.efetivo-team-dialog input.is-required-empty:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
+.modal-card.efetivo-modal.efetivo-team-dialog { border-color: var(--pw-border); border-radius: 16px; box-shadow: var(--pw-shadow-lg); color: var(--pw-ink); }
+.efetivo-team-dialog .efetivo-modal-header { border-bottom: 1px solid var(--pw-border-soft); padding: 18px 22px 14px; }
+.efetivo-team-dialog .efetivo-modal-header h3 { font-size: 17px; font-weight: 650; letter-spacing: -.015em; }
+.efetivo-team-dialog .efetivo-modal-header p { color: var(--pw-muted); font-size: 13px; }
+.efetivo-team-dialog .efetivo-modal-body { background: var(--pw-surface); padding: 16px 22px 20px; }
+.efetivo-team-dialog .efetivo-modal-footer { background: var(--pw-surface); border-top: 1px solid var(--pw-border-soft); gap: 10px; padding: 14px 22px; }
+.efetivo-team-dialog .efetivo-form-grid { gap: 14px; }
+.efetivo-team-dialog .efetivo-form-section-title { color: var(--pw-muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; margin: 6px 0 -6px; text-transform: uppercase; }
+.efetivo-team-dialog .efetivo-mission-identity,
+.efetivo-team-dialog .efetivo-team-reflected:is(.field-group) { background: var(--pw-surface-2); border: 1px solid var(--pw-border-soft); border-radius: 10px; }
+.efetivo-team-dialog .efetivo-mission-identity { padding: 12px 14px; }
+.efetivo-team-dialog .efetivo-team-reflected:is(.field-group) { gap: 3px; padding: 10px 12px; }
+.efetivo-team-dialog .efetivo-team-reflected > span:not(.field-hint) { color: var(--pw-muted); font-size: 12px; font-weight: 500; }
+.efetivo-team-dialog .efetivo-team-reflected > strong { color: var(--pw-ink); font-size: 14px; }
+.efetivo-team-dialog .field-hint { color: var(--pw-muted); font-size: 11.5px; }
+.efetivo-team-dialog input[readonly] { background-color: var(--pw-surface-2); color: var(--pw-ink); cursor: default; }
+.efetivo-team-dialog .efetivo-team-fieldset { background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 12px; box-shadow: var(--pw-shadow-xs); padding: 14px 16px 16px; }
+.efetivo-team-dialog .efetivo-team-fieldset legend { color: var(--pw-ink); font-size: 13px; font-weight: 650; }
+.efetivo-team-dialog .efetivo-team-picker-trigger strong { font-size: 14px; }
+.efetivo-team-dialog .efetivo-team-picker-trigger span { color: var(--pw-muted); }
+.efetivo-team-dialog .efetivo-team-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.efetivo-team-dialog .efetivo-team-summary span { align-items: center; background: var(--pw-surface-3); border: 0; border-radius: 999px; color: var(--pw-muted); display: inline-flex; font-size: 12px; font-weight: 500; gap: 6px; padding: 4px 10px; }
+.efetivo-team-dialog .efetivo-team-summary span strong { color: var(--pw-ink); font-variant-numeric: tabular-nums; }
+.efetivo-team-dialog .efetivo-team-summary span.is-covered { background: var(--pw-ok-bg); color: var(--pw-ok); }
+.efetivo-team-dialog .efetivo-team-summary span.is-covered strong { color: var(--pw-ok); }
+.efetivo-team-dialog .efetivo-team-summary span.is-warning { background: var(--pw-warn-bg); color: var(--pw-warn); }
+.efetivo-team-dialog .efetivo-team-summary span.is-warning strong { color: var(--pw-warn); }
+.efetivo-team-dialog .efetivo-team-dialog-toolbar > strong { color: var(--pw-accent); }
+
+.efetivo-team-plan { align-items: center; background: var(--pw-surface-2); border: 1px solid var(--pw-border-soft); border-radius: 12px; display: grid; gap: 8px 20px; grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 14px; padding: 12px 14px; }
+.efetivo-team-plan-roles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.efetivo-team-plan-roles > strong { font-size: 13px; }
+.efetivo-team-plan-roles .efetivo-team-summary { margin-top: 6px; }
+.efetivo-team-plan-note { color: var(--pw-muted); font-size: 12px; grid-column: 1 / -1; margin: 0; }
+.efetivo-team-toggle { align-items: center; color: var(--pw-ink); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 600; gap: 10px; position: relative; }
+.efetivo-team-toggle input { height: 1px; margin: 0; opacity: 0; position: absolute; width: 1px; }
+.efetivo-team-toggle-track { background: var(--pw-faint); border-radius: 999px; flex: 0 0 auto; height: 20px; position: relative; transition: background-color .15s; width: 36px; }
+.efetivo-team-toggle-track::after { background: var(--wh); border-radius: 50%; box-shadow: var(--pw-shadow-xs); content: ""; height: 16px; left: 2px; position: absolute; top: 2px; transition: transform .15s; width: 16px; }
+.efetivo-team-toggle input:checked + .efetivo-team-toggle-track { background: var(--pw-accent); }
+.efetivo-team-toggle input:checked + .efetivo-team-toggle-track::after { transform: translateX(16px); }
+.efetivo-team-toggle input:focus-visible + .efetivo-team-toggle-track { box-shadow: 0 0 0 3px var(--pw-ring); }
+@media (prefers-reduced-motion: reduce) { .efetivo-team-toggle-track, .efetivo-team-toggle-track::after { transition: none; } }
+
+.efetivo-team-dialog .efetivo-availability-card { background: var(--pw-surface); border-color: var(--pw-border); border-radius: 10px; }
+.efetivo-team-dialog .efetivo-team-availability-card.selected { border-color: var(--pw-accent); box-shadow: inset 3px 0 0 var(--pw-accent); }
+.efetivo-team-dialog .efetivo-team-availability-card label > input { accent-color: var(--pw-accent); }
+.efetivo-team-dialog .efetivo-availability-context { border-top-color: var(--pw-border-soft); }
+.efetivo-team-dialog .efetivo-availability-person > i { background: var(--pw-surface-2); border-color: var(--pw-border-soft); color: var(--pw-accent); }
+.efetivo-team-dialog .efetivo-plan-warning small,
+.efetivo-team-dialog .efetivo-unavailable-warning small,
+.efetivo-team-dialog .efetivo-overlap-warning small { color: var(--pw-warn); font-weight: 600; }
+.efetivo-team-dialog .efetivo-team-hidden-selected { background: var(--pw-warn-bg); border-color: var(--pw-warn-dot); }
+.efetivo-team-unavailable { border-top: 1px solid var(--pw-border-soft); display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; }
+.efetivo-team-unavailable > header { display: flex; flex-direction: column; gap: 2px; }
+.efetivo-team-unavailable > header strong { font-size: 13px; }
+.efetivo-team-unavailable > header small { color: var(--pw-muted); font-size: 12px; }
+.efetivo-team-unavailable .efetivo-compact-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+@media (max-width: 760px) {
+  .efetivo-team-plan { grid-template-columns: 1fr; }
+  .efetivo-team-dialog .efetivo-modal-header, .efetivo-team-dialog .efetivo-modal-body, .efetivo-team-dialog .efetivo-modal-footer { padding-left: 16px; padding-right: 16px; }
 }

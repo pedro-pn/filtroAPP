@@ -12,7 +12,9 @@ import type {
   ProjectWorkflowPatch
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
+import { DateInput } from '../../../components/ui/DateInput';
 import { displayDateOnly } from '../../../utils/calendarGrid';
+import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedule';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 
@@ -52,7 +54,7 @@ export function ProjectWorkflowHandoverSignals({ detail, documents }: {
   return (
     <ProjectWorkflowCategory
       title="Informações do handover"
-      description="Dados de consulta recebidos do Comercial e dos anexos do projeto. Eles não são pendências do planejador."
+      description="Dados de consulta recebidos do Comercial e dos anexos do projeto. Eles não são pendências do Gestor de Contrato."
       area="Comercial"
       status="Consulta"
       className="project-workflow-handover-signals"
@@ -135,6 +137,16 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [countryListOpen]);
+  const schedule = projectExecutionSchedule(workflow);
+  const saveSchedule = (start: string, end: string) => onPatch({
+    action: 'analysis_schedule',
+    version: workflow.version,
+    plannedExecutionStartDate: start || null,
+    plannedExecutionEndDate: end || null
+  });
+  const scheduleHint = (source: 'PLANNED' | 'COMMERCIAL' | null) => source === 'PLANNED'
+    ? 'Definida aqui e refletida na definição da equipe.'
+    : source === 'COMMERCIAL' ? 'Sugestão da previsão comercial. Ajuste se a operação for diferente.' : 'Informe para preencher a definição da equipe.';
   const saveContact = (name = contactName, phone = contactPhone, country = contactCountry, date = contactDate) => {
     const normalizedName = name.trim();
     const normalizedPhone = formatPhoneValue(country, phone);
@@ -202,13 +214,15 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
       <div className="project-workflow-analysis-dates">
         <div className="field-group"><label htmlFor="analysis-commercial-mobilization-date">Mobilização estimada</label><input id="analysis-commercial-mobilization-date" type="date" value={workflow.commercialExpectedMobilizationDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedMobilizationDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
         <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><input id="analysis-commercial-start-date" type="date" value={workflow.commercialExpectedStartDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedStartDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
+        <div className="field-group"><label htmlFor="analysis-execution-start-date">Início da execução previsto</label><DateInput id="analysis-execution-start-date" value={schedule.executionStartDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => saveSchedule(value, schedule.executionEndDate)} /><small>{scheduleHint(schedule.executionStartSource)}</small></div>
+        <div className="field-group"><label htmlFor="analysis-execution-end-date">Fim da execução previsto</label><DateInput id="analysis-execution-end-date" min={schedule.executionStartDate || undefined} value={schedule.executionEndDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => saveSchedule(schedule.executionStartDate, value)} /><small>{scheduleHint(schedule.executionEndSource)}</small></div>
       </div>
       <article className="project-workflow-analysis-contact">
         <header><div><strong>Contato inicial com o cliente realizado?</strong><p>Esta confirmação exige “Sim”, nome, telefone e data. Enquanto estiver em “Não”, permanece pendente.</p></div><ProjectWorkflowBooleanChoice value={contactMade} label="Contato inicial com o cliente realizado?" disabled={saving || !workflow.permissions.canEdit} onSelect={chooseContact} /></header>
         {contactMade === true ? <div className="project-workflow-analysis-contact-fields">
           <div className="field-group"><label htmlFor="analysis-client-contact-name">Nome do contato *</label><input id="analysis-client-contact-name" value={contactName} maxLength={160} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactName(event.target.value)} onBlur={() => saveContact()} /></div>
           <div className="field-group project-workflow-phone-field"><label htmlFor="analysis-client-contact-phone">Telefone do contato *</label><div className="project-workflow-phone-control"><div className="project-workflow-country-picker"><button ref={countryTriggerRef} type="button" className="project-workflow-country-trigger" aria-label={`País do telefone: ${contactCountry.name}`} aria-expanded={countryListOpen} aria-haspopup="listbox" disabled={saving || !workflow.permissions.canEdit} onClick={toggleCountryList} onKeyDown={handleCountryKeyDown}><span aria-hidden="true">{phoneCountryFlag(contactCountry.iso)}</span><span>+{contactCountry.callingCode}</span><span aria-hidden="true">▾</span></button>{countryListOpen ? <div ref={countryListRef} className="project-workflow-country-list" role="listbox" aria-label="País do telefone" style={{ top: countryListPosition.top, left: countryListPosition.left, width: countryListPosition.width }}>{PHONE_COUNTRIES.map(country => <button id={`analysis-phone-country-${country.iso}`} type="button" role="option" aria-selected={country.iso === contactCountry.iso} className="project-workflow-country-option" key={`${country.iso}-${country.callingCode}`} onClick={() => { setContactCountry(country); setCountryListOpen(false); saveContact(contactName, contactPhone, country); }}><span aria-hidden="true">{phoneCountryFlag(country.iso)}</span><span>{country.name}</span><span>+{country.callingCode}</span></button>)}</div> : null}</div><input id="analysis-client-contact-phone" type="tel" inputMode="tel" value={contactPhone} placeholder={contactCountry.iso === 'BR' ? 'DDD 00000-0000' : 'Número de telefone'} maxLength={contactCountry.iso === 'BR' ? 13 : 30} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactPhone(formatPhoneLocal(contactCountry, event.target.value))} onBlur={() => saveContact()} /></div></div>
-          <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><input id="analysis-client-contact-date" type="date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onChange={event => { const value = event.target.value; setContactDate(value); saveContact(contactName, contactPhone, contactCountry, value); }} /></div>
+          <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><DateInput id="analysis-client-contact-date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => { setContactDate(value); saveContact(contactName, contactPhone, contactCountry, value); }} /></div>
         </div> : null}
         {contactMade === true && (!contactName.trim() || !phoneDigits(contactPhone) || !contactDate) ? <small>Preencha nome, telefone e data para registrar o contato.</small> : null}
       </article>
@@ -314,9 +328,19 @@ function DocumentationRequirementEditor({ item, version, saving, canEdit, onPatc
     <article className="project-workflow-documentation-requirement">
       <div className="project-workflow-documentation-fields">
         <div className="field-group"><label htmlFor={`documentation-name-${item.id}`}>Nome</label><input id={`documentation-name-${item.id}`} value={name} disabled={saving || !canEdit} onChange={event => setName(event.target.value)} onBlur={() => { const value = name.trim(); if (value && value !== item.name) onPatch({ action: 'documentation_requirement_update', version, requirementId: item.id, name: value }); }} /></div>
-        <div className="field-group"><label htmlFor={`documentation-status-${item.id}`}>Acompanhamento</label><select id={`documentation-status-${item.id}`} value={item.status} disabled={saving || !canEdit} onChange={event => changeStatus(event.target.value as ProjectWorkflowDocumentationStatus)}><option value="PENDING">Pendente</option><option value="REQUESTED">Solicitado ao setor responsável</option><option value="CONFIRMED">Confirmado</option></select></div>
-        <div className="field-group"><label htmlFor={`documentation-requested-${item.id}`}>Data da solicitação</label><input id={`documentation-requested-${item.id}`} type="date" value={item.requestedAt || ''} disabled={saving || !canEdit || item.status === 'PENDING'} onChange={event => onPatch({ action: 'documentation_requirement_update', version, requirementId: item.id, requestedAt: event.target.value || null })} /></div>
-        <div className="field-group"><label htmlFor={`documentation-confirmed-${item.id}`}>Data da confirmação</label><input id={`documentation-confirmed-${item.id}`} type="date" min={item.requestedAt || undefined} value={item.confirmedAt || ''} disabled={saving || !canEdit || item.status !== 'CONFIRMED'} onChange={event => onPatch({ action: 'documentation_requirement_update', version, requirementId: item.id, confirmedAt: event.target.value || null })} /></div>
+        <div className="field-group">
+          <span className="project-workflow-toggle-group-label">Acompanhamento</span>
+          <div className="project-workflow-toggle-row">
+            <label className="project-workflow-release-toggle">
+              <input type="checkbox" checked={item.status !== 'PENDING'} disabled={saving || !canEdit} onChange={event => changeStatus(event.target.checked ? 'REQUESTED' : 'PENDING')} />
+              <span>Solicitado{item.requestedAt ? ` em ${displayDateOnly(item.requestedAt)}` : ''}</span>
+            </label>
+            <label className="project-workflow-release-toggle">
+              <input type="checkbox" checked={item.status === 'CONFIRMED'} disabled={saving || !canEdit || item.status === 'PENDING'} onChange={event => changeStatus(event.target.checked ? 'CONFIRMED' : 'REQUESTED')} />
+              <span>Confirmado{item.confirmedAt ? ` em ${displayDateOnly(item.confirmedAt)}` : ''}</span>
+            </label>
+          </div>
+        </div>
       </div>
       <div className="project-workflow-documentation-requirement-footer"><RequirementHistory item={item} />{canEdit ? <Button type="button" variant="mini" disabled={saving} onClick={() => onPatch({ action: 'documentation_requirement_archive', version, requirementId: item.id, archived: true })}>Remover item</Button> : null}</div>
     </article>

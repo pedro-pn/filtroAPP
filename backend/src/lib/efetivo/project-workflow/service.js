@@ -22,6 +22,7 @@ import {
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
   normalizeProjectWorkflowDocumentation,
+  projectWorkflowAnalysisReadiness,
   projectWorkflowCommercialReadiness,
   projectWorkflowCloseoutReadiness,
   projectWorkflowClosureGate,
@@ -39,6 +40,8 @@ import {
 } from './rules.js';
 import { synchronizePostJobQualityRecord } from './post-job-quality.js';
 import { projectDocumentReadiness, projectDocumentRequirements } from './documents.js';
+import { notifyProjectWorkflowResourceConflicts } from './email-alerts.js';
+import { detectResourceConflicts, syncResourceConflictIssues } from './resource-conflicts.js';
 import {
   emptyProjectWorkflowResourcePlanning,
   loadProjectWorkflowResourcePlanning
@@ -307,7 +310,7 @@ function validateCorrectionStage(workflow, payload, context) {
     throw planningError('A correção não pode alterar a etapa do Kanban.', { statusCode: 400, code: 'PROJECT_WORKFLOW_CORRECTION_ACTION_FORBIDDEN' });
   }
   if (workflow.stage === 'FINISHED' || !canEditWorkflow(workflow, context)) {
-    throw planningError('Somente projetos ativos podem receber correções pelo Líder ou Planejador.', { statusCode: 403, code: 'PROJECT_WORKFLOW_CORRECTION_FORBIDDEN' });
+    throw planningError('Somente projetos ativos podem receber correções pelo Líder ou Gestor de Contrato.', { statusCode: 403, code: 'PROJECT_WORKFLOW_CORRECTION_FORBIDDEN' });
   }
   const currentIndex = PROJECT_WORKFLOW_STAGES.indexOf(workflow.stage);
   const correctionIndex = PROJECT_WORKFLOW_STAGES.indexOf(payload.correctionStage);
@@ -315,6 +318,19 @@ function validateCorrectionStage(workflow, payload, context) {
     throw planningError('A correção deve apontar para uma etapa já concluída.', { statusCode: 409, code: 'PROJECT_WORKFLOW_CORRECTION_STAGE_INVALID' });
   }
   return payload.correctionStage;
+}
+
+// Líder, gestor e Gestor de Contrato podem corrigir etapas já concluídas ("Fazer correção"). As validações de
+// escrita usam a etapa corrigida; estes helpers só evitam que os controles cheguem ao front como somente leitura.
+function canCorrectStage(workflow, stage, context) {
+  const stageIndex = PROJECT_WORKFLOW_STAGES.indexOf(stage);
+  return Boolean(
+    workflow
+    && workflow.stage !== 'FINISHED'
+    && stageIndex >= 0
+    && stageIndex < PROJECT_WORKFLOW_STAGES.indexOf(workflow.stage)
+    && canEditWorkflow(workflow, context)
+  );
 }
 
 function checklistIsAvailable(workflow, definition) {
@@ -328,8 +344,16 @@ function canEditChecklist(workflow, definition, context) {
     || canEditEfetivoChecklistArea(context.user, definition.areaRoles);
 }
 
+function canEditChecklistOrCorrect(workflow, definition, context) {
+  return canEditChecklist(workflow, definition, context) || canCorrectStage(workflow, definition?.stage, context);
+}
+
 function preparationIsAvailable(workflow) {
   return ['PREPARATION', 'READY_TO_MOBILIZE'].includes(workflow?.stage);
+}
+
+function canEditPreparationAreaOrCorrect(workflow, areaRoles, context) {
+  return canEditPreparationArea(workflow, areaRoles, context) || canCorrectStage(workflow, 'PREPARATION', context);
 }
 
 function canEditPreparationArea(workflow, areaRoles, context) {
@@ -357,7 +381,7 @@ function publicTeamPreparation(workflow, mission, context) {
         sourceUpdatedAt: record?.sourceUpdatedAt || null,
         updatedAt: record?.updatedAt || null,
         updatedBy: record?.updatedBy || null,
-        canEdit: canEditPreparationArea(workflow, definition.areaRoles, context) && record?.source !== 'EXTERNAL'
+        canEdit: canEditPreparationAreaOrCorrect(workflow, definition.areaRoles, context) && record?.source !== 'EXTERNAL'
       };
     })
   }));
@@ -377,7 +401,7 @@ function publicPreparationResources(workflow, resourcePlanning, context) {
       status: record?.status || 'PENDING',
       updatedAt: record?.updatedAt || null,
       updatedBy: record?.updatedBy || null,
-      canEdit: canEditPreparationArea(workflow, definition.areaRoles, context)
+      canEdit: canEditPreparationAreaOrCorrect(workflow, definition.areaRoles, context)
     };
   });
   const detailedEquipment = (resourcePlanning?.equipment?.categories || []).flatMap(category => (
@@ -440,7 +464,7 @@ function publicClientReleases(workflow, context) {
       source: attendance?.source || 'MANUAL',
       updatedAt: attendance?.updatedAt || null,
       updatedBy: attendance?.updatedBy || null,
-      canEdit: canEditPreparationArea(workflow, ['efetivo:operations'], context) && attendance?.source !== 'EXTERNAL'
+      canEdit: canEditPreparationAreaOrCorrect(workflow, ['efetivo:operations'], context) && attendance?.source !== 'EXTERNAL'
     },
     items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(definition => {
       const record = recordByKey.get(definition.key);
@@ -457,7 +481,7 @@ function publicClientReleases(workflow, context) {
         sourceUpdatedAt: record?.sourceUpdatedAt || null,
         updatedAt: record?.updatedAt || null,
         updatedBy: record?.updatedBy || null,
-        canEdit: canEditPreparationArea(workflow, definition.areaRoles, context) && record?.source !== 'EXTERNAL'
+        canEdit: canEditPreparationAreaOrCorrect(workflow, definition.areaRoles, context) && record?.source !== 'EXTERNAL'
       };
     })
   };
@@ -467,7 +491,7 @@ function publicPreJob(workflow, context) {
   return {
     scheduledDate: dateKey(workflow?.preJobScheduledDate),
     completedDate: dateKey(workflow?.preJobCompletedDate),
-    canEdit: canEditPreparationArea(workflow, ['efetivo:operations'], context)
+    canEdit: canEditPreparationAreaOrCorrect(workflow, ['efetivo:operations'], context)
   };
 }
 
@@ -475,7 +499,7 @@ function publicQsms(workflow, context) {
   return {
     verified: typeof workflow?.qsmsVerified === 'boolean' ? workflow.qsmsVerified : null,
     verificationNote: workflow?.qsmsVerificationNote || null,
-    canEdit: canEditPreparationArea(workflow, ['efetivo:qsms'], context)
+    canEdit: canEditPreparationAreaOrCorrect(workflow, ['efetivo:qsms'], context)
   };
 }
 
@@ -494,8 +518,8 @@ function publicTravel(workflow, context) {
     freightDepartureTime: plan.freightDepartureTime || null,
     lodgingRequired: workflow?.logisticsPlan?.lodgingRequired !== false,
     freightRequired: workflow?.logisticsPlan?.freightRequired !== false,
-    canEditLodging: canEditPreparationArea(workflow, ['efetivo:administrative'], context),
-    canEditLogistics: canEditPreparationArea(workflow, ['efetivo:operations'], context)
+    canEditLodging: canEditPreparationAreaOrCorrect(workflow, ['efetivo:administrative'], context),
+    canEditLogistics: canEditPreparationAreaOrCorrect(workflow, ['efetivo:operations'], context)
   };
 }
 
@@ -506,6 +530,7 @@ function publicPermissions(workflow, context) {
   const canManage = Boolean(workflow && (manager || isLeader || isPlanner));
   const finished = workflow?.stage === 'FINISHED';
   const planning = workflow?.stage === 'MOBILIZATION_PLANNING' && !finished;
+  const planningCorrectable = canCorrectStage(workflow, 'MOBILIZATION_PLANNING', context);
   return {
     canInitialize: manager && !workflow,
     canEdit: canManage && !finished,
@@ -514,10 +539,10 @@ function publicPermissions(workflow, context) {
     canChangeLeader: Boolean(workflow && manager && !finished),
     canChangePlanner: Boolean(workflow && manager && !finished),
     canEditCommercial: false,
-    canEditTeamPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))),
-    canEditEquipmentPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:assets']))),
-    canEditSupplyPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:supplies']))),
-    canEditLogisticsPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))),
+    canEditTeamPlanning: Boolean((planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))) || planningCorrectable),
+    canEditEquipmentPlanning: Boolean((planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:assets']))) || planningCorrectable),
+    canEditSupplyPlanning: Boolean((planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:supplies']))) || planningCorrectable),
+    canEditLogisticsPlanning: Boolean((planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))) || planningCorrectable),
     canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage))
   };
 }
@@ -569,7 +594,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     updatedAt: null,
     updatedBy: null,
     ...checklistByKey.get(definition.key),
-    canEdit: canEditChecklist(workflow, definition, context)
+    canEdit: canEditChecklistOrCorrect(workflow, definition, context)
   }));
   const criticalAnswers = PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(definition => ({
     ...definition,
@@ -598,10 +623,11 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const preJob = publicPreJob(workflow, context);
   const qsms = publicQsms(workflow, context);
   const travel = publicTravel(workflow, context);
-  const preparationReadiness = projectWorkflowPreparationReadiness({ ...workflow, checklists, teamPreparation, clientReleases, preparationResources, qsms, travel });
-  const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
-  const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
-  const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
+  const preparationReadiness = projectWorkflowPreparationReadiness({ ...workflowWithDocuments, checklists, documentationCategories, teamPreparation, clientReleases, preparationResources, qsms, travel, issues });
+  const analysisReadiness = projectWorkflowAnalysisReadiness({ ...workflowWithDocuments, checklists, issues });
+  const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists, fieldCompletionDate: workflow.fieldCompletionDate, demobilizationDate });
+  const postJobReadiness = projectWorkflowPostJobReadiness({ checklists, postJob: workflow.postJob });
+  const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists, measurement: workflow.measurement });
   const closureReadiness = projectWorkflowClosureReadiness({ checklists });
   const closureGate = projectWorkflowClosureGate({ ...workflowWithDocuments, checklists, issues });
   const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, preparationResources, qsms, issues }, milestones, today);
@@ -625,7 +651,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
       const hasPermission = workflow.stage === 'FINISHED' && stage === 'FINAL_MEASUREMENT'
         ? permissions.canReopen
         : permissions.canEdit;
-      const permissionIssues = hasPermission ? [] : ['Somente o gestor, o Líder de Projetos ou o Planejador pode alterar a etapa'];
+      const permissionIssues = hasPermission ? [] : ['Somente o gestor, o Líder de Projetos ou o Gestor de Contrato pode alterar a etapa'];
       const transitionIssues = [...permissionIssues, ...gateIssues];
       return { stage, allowed: transitionIssues.length === 0, issues: transitionIssues };
     });
@@ -636,6 +662,8 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     commercialExpectedMobilizationDate: dateKey(workflow.commercialExpectedMobilizationDate),
     commercialExpectedStartDate: dateKey(workflow.commercialExpectedStartDate),
     analysisClientContactDate: dateKey(workflow.analysisClientContactDate),
+    plannedExecutionStartDate: dateKey(workflow.plannedExecutionStartDate),
+    plannedExecutionEndDate: dateKey(workflow.plannedExecutionEndDate),
     fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
     demobilizationDate: dateKey(demobilizationDate),
     checklists,
@@ -651,6 +679,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     travel,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
+    analysisReadiness,
     resourcePlanning: normalizedResourcePlanning,
     planningReadiness,
     preparationReadiness,
@@ -866,8 +895,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         ? publicPreparationResources(workflow, emptyProjectWorkflowResourcePlanning(workflow), context)
         : null;
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
-      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness({ ...workflow, teamPreparation, clientReleases, preparationResources }) : null;
-      const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
+      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness({ ...workflowWithDocuments, teamPreparation, clientReleases, preparationResources }) : null;
+      const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness({ ...workflow, demobilizationDate: dateKey(project.demobilizationDate) }) : null;
       const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
       const closeoutReadiness = workflow ? projectWorkflowCloseoutReadiness(workflow) : null;
       const closureReadiness = workflow ? projectWorkflowClosureReadiness(workflow) : null;
@@ -1044,7 +1073,7 @@ async function loadWorkflowForMutation(tx, projectId, context) {
 
 function assertEditable(workflow, context) {
   if (!canEditWorkflow(workflow, context)) {
-    throw planningError('A alteração é restrita ao gestor do Efetivo, ao Líder de Projetos ou ao Planejador designado.', {
+    throw planningError('A alteração é restrita ao gestor do Efetivo, ao Líder de Projetos ou ao Gestor de Contrato designado.', {
       statusCode: 403,
       code: 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
     });
@@ -1115,7 +1144,7 @@ async function applySettings(tx, workflow, payload, context) {
   }
   if (payload.plannerUserId && payload.plannerUserId !== workflow.plannerUserId) {
     if (!contextIsManager(context)) {
-      throw planningError('Somente o gestor do Efetivo pode trocar o Planejador.', { statusCode: 403, code: 'PROJECT_WORKFLOW_MANAGER_REQUIRED' });
+      throw planningError('Somente o gestor do Efetivo pode trocar o Gestor de Contrato.', { statusCode: 403, code: 'PROJECT_WORKFLOW_MANAGER_REQUIRED' });
     }
     await requireEligiblePlanner(tx, payload.plannerUserId);
     data.plannerUserId = payload.plannerUserId;
@@ -1331,7 +1360,7 @@ async function applyClientRelease(tx, workflow, payload, context) {
     update: {
       requested: payload.requested,
       requestedAt: payload.requestedAt ? utcDate(payload.requestedAt) : null,
-      requestedTo: payload.requestedTo || null,
+      ...(Object.hasOwn(payload, 'requestedTo') ? { requestedTo: payload.requestedTo || null } : {}),
       completed: payload.completed,
       completedAt: payload.completedAt ? utcDate(payload.completedAt) : null,
       source: 'MANUAL',
@@ -1379,6 +1408,24 @@ async function applyAnalysisContact(tx, workflow, payload) {
       analysisClientContactName: payload.made ? payload.contactName : null,
       analysisClientContactPhone: payload.made ? payload.contactPhone : null,
       analysisClientContactDate: payload.made && payload.contactDate ? utcDate(payload.contactDate) : null
+    }
+  });
+}
+
+async function applyAnalysisSchedule(tx, workflow, payload) {
+  const start = payload.plannedExecutionStartDate || null;
+  const end = payload.plannedExecutionEndDate || null;
+  const mobilization = dateKey(workflow.plannedMobilizationDate);
+  if (start && mobilization && start < mobilization) {
+    throw planningError('O início da execução não pode ser anterior à mobilização prevista.', {
+      code: 'INVALID_PROJECT_WORKFLOW_EXECUTION_SCHEDULE'
+    });
+  }
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: {
+      plannedExecutionStartDate: start ? utcDate(start) : null,
+      plannedExecutionEndDate: end ? utcDate(end) : null
     }
   });
 }
@@ -1663,6 +1710,29 @@ async function applyIssue(tx, workflow, payload) {
   });
 }
 
+const RESOURCE_CONFLICT_STAGES = ['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE'];
+
+// Ao mudar a mobilização prevista, reavalia a equipe e os equipamentos já definidos para a nova data.
+// Incompatibilidades viram pendências críticas (e um aviso por e-mail); quando somem, a pendência é resolvida.
+async function refreshResourceConflicts(tx, workflow, payload, context) {
+  const newDate = payload.plannedMobilizationDate || null;
+  if (!newDate || newDate === dateKey(workflow.plannedMobilizationDate)) return null;
+  const current = await tx.projectWorkflow.findUnique({ where: { projectId: workflow.projectId }, include: WORKFLOW_INCLUDE });
+  if (!current || !RESOURCE_CONFLICT_STAGES.includes(current.stage)) return null;
+  if (current.teamPlanDefined !== true && current.equipmentPlanDefined !== true) return null;
+  const planning = await loadProjectWorkflowResourcePlanning(tx, current);
+  const detected = detectResourceConflicts(planning, planning.referenceDate);
+  const { notify, resolved } = await syncResourceConflictIssues(tx, current, detected, planning.referenceDate);
+  if (notify.length || resolved.length) {
+    await recordEvent(tx, workflow.projectId, context.actorUserId, 'WORKFLOW_RESOURCE_CONFLICTS', {
+      plannedMobilizationDate: newDate,
+      conflicts: notify.map(item => item.type),
+      resolved
+    });
+  }
+  return notify.length ? { conflicts: notify } : null;
+}
+
 async function applyAccept(tx, workflow, context, now) {
   if (workflow.leaderUserId !== context.actorUserId) {
     throw planningError('Somente o Líder de Projetos designado pode confirmar o recebimento.', { statusCode: 403, code: 'PROJECT_WORKFLOW_LEADER_REQUIRED' });
@@ -1925,6 +1995,7 @@ async function applyDemobilization(tx, workflow, payload, context, dependencies)
 export async function updateProjectWorkflow(projectId, payload, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const now = dependencies.now || new Date();
+  let resourceConflictNotice = null;
   await runPlanningTransaction(database, async tx => {
     const workflow = await loadWorkflowForMutation(tx, projectId, context);
     const correctionStage = validateCorrectionStage(workflow, payload, context);
@@ -1983,6 +2054,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'travel') await applyTravel(tx, workflowForMutation, payload);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflowForMutation, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflowForMutation, payload);
+    else if (payload.action === 'analysis_schedule') await applyAnalysisSchedule(tx, workflowForMutation, payload);
     else if (payload.action === 'analysis_criticality') await applyAnalysisCriticality(tx, workflowForMutation, payload);
     else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflowForMutation, payload);
     else if (payload.action === 'equipment_plan') await applyEquipmentPlan(tx, workflowForMutation, payload);
@@ -1999,9 +2071,23 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'post_job') await applyPostJob(tx, workflowForMutation, payload, context, dependencies, now);
     else if (payload.action === 'measurement') await applyMeasurement(tx, workflowForMutation, payload, context);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, context, now);
+    if (payload.action === 'settings') resourceConflictNotice = await refreshResourceConflicts(tx, workflow, payload, context);
     const eventData = { ...payload };
     delete eventData.version;
     await recordEvent(tx, projectId, context.actorUserId, `WORKFLOW_${payload.action.toUpperCase()}`, eventData);
   });
+  if (resourceConflictNotice) {
+    try {
+      await (dependencies.notifyResourceConflicts || notifyProjectWorkflowResourceConflicts)({
+        client: database,
+        projectId,
+        conflicts: resourceConflictNotice.conflicts,
+        now
+      });
+    } catch (error) {
+      // o aviso é complementar: a pendência já foi registrada e a data já foi alterada
+      console.error('Falha ao notificar incompatibilidade de recursos.', { projectId, error: String(error?.message || error) });
+    }
+  }
   return getProjectWorkflow(projectId, context, { ...dependencies, database, now });
 }

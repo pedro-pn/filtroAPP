@@ -7,6 +7,7 @@ import {
   PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_STAGES
 } from '../../../../../shared/schemas/project-workflow.js';
+import { isResourceConflictIssue } from './resource-conflicts.js';
 
 // Eventos que colocam o projeto numa etapa: o início da gestão abre o Handover, o aceite abre a
 // Análise inicial e as demais mudanças registram a etapa de destino em `data.stage`.
@@ -103,7 +104,7 @@ export function activeProjectWorkflowIssues(workflow) {
   const positiveAnswers = new Set((workflow?.criticalAnswers || [])
     .filter(item => item.answer === true && issueQuestionKeys.has(item.key))
     .map(item => item.key));
-  return (workflow?.issues || []).filter(issue => issue.sourceQuestion && positiveAnswers.has(issue.sourceQuestion));
+  return (workflow?.issues || []).filter(issue => issue.sourceQuestion && (positiveAnswers.has(issue.sourceQuestion) || isResourceConflictIssue(issue)));
 }
 
 export function normalizeProjectWorkflowDocumentation(workflow) {
@@ -138,6 +139,10 @@ function checklistProgress(workflow, definitions) {
     total: definitions.length,
     percentage: definitions.length ? Math.round((completed / definitions.length) * 100) : 0
   };
+}
+
+function countedSection(key, completed, total) {
+  return { key, completed, total, percentage: total ? Math.round((completed / total) * 100) : 0 };
 }
 
 function teamMemberProgress(workflow, keys, { requireTeam = true } = {}) {
@@ -242,13 +247,13 @@ function clientReleaseProgress(workflow) {
     blockers.push({ key: 'CLIENT_ATTENDANCE', label: 'Confirmação do atendimento', reason: 'Confirmar a data do atendimento' });
   }
   for (const item of items) {
-    const requestComplete = item.requested && item.requestedAt && item.requestedTo?.trim();
+    const requestComplete = item.requested && item.requestedAt;
     const completionComplete = item.completed && item.completedAt;
     if (requestComplete) completed += 1;
     else blockers.push({
       key: `CLIENT_${item.key}_REQUEST`,
       label: item.label,
-      reason: !item.requested ? 'Solicitação pendente' : 'Informar data e destinatário da solicitação'
+      reason: !item.requested ? 'Solicitação pendente' : 'Informar a data da solicitação'
     });
     if (completionComplete) completed += 1;
     else blockers.push({
@@ -477,6 +482,12 @@ export function projectWorkflowPreparationReadiness(workflow) {
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
+  // O gate de mobilização também exige a documentação (tipos e anexos obrigatórios) e as pendências críticas resolvidas.
+  const documentation = projectWorkflowDocumentationReadiness(workflow, null, null);
+  const requiredDocuments = workflow?.documentRequirements?.MOBILIZATION || { readyCount: 0, totalCount: 0 };
+  sections.push(countedSection('D15_DOCUMENTATION', documentation.completed + requiredDocuments.readyCount, documentation.total + requiredDocuments.totalCount));
+  const criticalIssues = activeProjectWorkflowIssues(workflow).filter(issue => issue.criticality === 'HIGH');
+  sections.push(countedSection('D15_CRITICAL_ISSUES', criticalIssues.filter(issue => issue.status === 'RESOLVED').length, criticalIssues.length));
   const completed = sections.reduce((sum, section) => sum + section.completed, 0);
   const total = sections.reduce((sum, section) => sum + section.total, 0);
   return {
@@ -493,6 +504,8 @@ export function projectWorkflowDemobilizationReadiness(workflow) {
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
+  // O gate da etapa exige as datas de conclusão de campo e de desmobilização, além do checklist.
+  sections.push(countedSection('DEMOBILIZATION_DATES', [workflow?.fieldCompletionDate, workflow?.demobilizationDate].filter(Boolean).length, 2));
   const completed = sections.reduce((sum, section) => sum + section.completed, 0);
   const total = sections.reduce((sum, section) => sum + section.total, 0);
   return {
@@ -509,6 +522,8 @@ export function projectWorkflowPostJobReadiness(workflow) {
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
+  // O gate da etapa exige a data da reunião de pós-job, além do checklist.
+  sections.push(countedSection('POST_JOB_MEETING', workflow?.postJob?.meetingDate ? 1 : 0, 1));
   const completed = sections.reduce((sum, section) => sum + section.completed, 0);
   const total = sections.reduce((sum, section) => sum + section.total, 0);
   return {
@@ -525,6 +540,8 @@ export function projectWorkflowCloseoutReadiness(workflow) {
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
+  // O encerramento também exige a data de aprovação e o valor aprovado da medição.
+  sections.push(countedSection('CLOSEOUT_MEASUREMENT_APPROVAL', [Boolean(workflow?.measurement?.approvedAt), workflow?.measurement?.approvedAmount != null].filter(Boolean).length, 2));
   const completed = sections.reduce((sum, section) => sum + section.completed, 0);
   const total = sections.reduce((sum, section) => sum + section.total, 0);
   return { completed, total, percentage: total ? Math.round((completed / total) * 100) : 0, sections };
@@ -571,8 +588,11 @@ export function projectWorkflowClosureGate(workflow) {
     ...documentBlockers
   ];
   const documentRequirements = workflow?.documentRequirements?.CLOSEOUT || { ready: true, readyCount: 0, totalCount: 0, blockers: [] };
-  const completed = closeout.completed + finalChecklist.completed + documentRequirements.readyCount;
-  const total = closeout.total + finalChecklist.total + documentRequirements.totalCount;
+  const structuredTotal = 3;
+  const structuredCompleted = structuredTotal - structuredBlockers.length;
+  const activeIssues = activeProjectWorkflowIssues(workflow);
+  const completed = closeout.completed + finalChecklist.completed + documentRequirements.readyCount + structuredCompleted + (activeIssues.length - openIssues.length);
+  const total = closeout.total + finalChecklist.total + documentRequirements.totalCount + structuredTotal + activeIssues.length;
   return {
     ready: blockers.length === 0,
     completed,
@@ -714,34 +734,58 @@ export function postJobGateIssues(workflow) {
   return issues;
 }
 
-export function analysisGateIssues(workflow) {
-  const issues = incompleteChecklistLabels(workflow, 'INITIAL_ANALYSIS');
+// Cada checagem da análise inicial alimenta, ao mesmo tempo, o gate da etapa e o progresso exibido:
+// o percentual só chega a 100% quando o gate não tem mais pendências.
+function analysisChecks(workflow) {
+  const answered = answeredChecklistKeys(workflow, 'INITIAL_ANALYSIS');
+  const checks = PROJECT_WORKFLOW_CHECKLISTS
+    .filter(item => item.stage === 'INITIAL_ANALYSIS')
+    .map(item => ({ key: item.key, issues: answered.has(item.key) ? [] : [item.label] }));
+  const contactIssues = [];
   if (workflow.analysisClientContactMade !== true) {
-    issues.push('Realizar e confirmar o contato inicial com o cliente');
+    contactIssues.push('Realizar e confirmar o contato inicial com o cliente');
   } else {
-    if (!workflow.analysisClientContactName?.trim()) issues.push('Informar o nome do contato inicial com o cliente');
-    if (!workflow.analysisClientContactPhone?.trim()) issues.push('Informar o telefone do contato inicial com o cliente');
-    if (!workflow.analysisClientContactDate) issues.push('Informar a data do contato inicial com o cliente');
+    if (!workflow.analysisClientContactName?.trim()) contactIssues.push('Informar o nome do contato inicial com o cliente');
+    if (!workflow.analysisClientContactPhone?.trim()) contactIssues.push('Informar o telefone do contato inicial com o cliente');
+    if (!workflow.analysisClientContactDate) contactIssues.push('Informar a data do contato inicial com o cliente');
   }
+  checks.push({ key: 'ANALYSIS_CLIENT_CONTACT', issues: contactIssues });
+  const criticalityIssues = [];
   if (workflow.isCritical == null) {
-    issues.push('Informar se a obra é crítica');
+    criticalityIssues.push('Informar se a obra é crítica');
   } else if (workflow.isCritical && (!Number.isInteger(workflow.preparationLeadTimeDays) || workflow.preparationLeadTimeDays < 15)) {
-    issues.push('Informar a antecedência de preparação da obra crítica');
+    criticalityIssues.push('Informar a antecedência de preparação da obra crítica');
   }
+  checks.push({ key: 'ANALYSIS_CRITICALITY', issues: criticalityIssues });
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item.answer]));
   const issueByQuestion = new Map((workflow.issues || []).map(item => [item.sourceQuestion, item]));
   for (const question of PROJECT_WORKFLOW_CRITICAL_QUESTIONS) {
+    const questionIssues = [];
     if (!answerByKey.has(question.key)) {
-      issues.push(`Responder: ${question.label}`);
-      continue;
+      questionIssues.push(`Responder: ${question.label}`);
+    } else if (answerByKey.get(question.key) && question.createsIssue !== false) {
+      const issue = issueByQuestion.get(question.key);
+      if (!issue?.area || !issue?.ownerName || !issue?.requiredLeadTimeDays || !issue?.dueDate) {
+        questionIssues.push(`Encaminhar a pendência: ${question.issueDescription}`);
+      }
     }
-    if (!answerByKey.get(question.key) || question.createsIssue === false) continue;
-    const issue = issueByQuestion.get(question.key);
-    if (!issue?.area || !issue?.ownerName || !issue?.requiredLeadTimeDays || !issue?.dueDate) {
-      issues.push(`Encaminhar a pendência: ${question.issueDescription}`);
-    }
+    checks.push({ key: `ANALYSIS_QUESTION_${question.key}`, issues: questionIssues });
   }
-  return issues;
+  return checks;
+}
+
+export function analysisGateIssues(workflow) {
+  return analysisChecks(workflow).flatMap(check => check.issues);
+}
+
+export function projectWorkflowAnalysisReadiness(workflow) {
+  const checks = analysisChecks(workflow);
+  const completed = checks.filter(check => check.issues.length === 0).length;
+  return {
+    completed,
+    total: checks.length,
+    percentage: checks.length ? Math.round((completed / checks.length) * 100) : 0
+  };
 }
 
 export function planningGateIssues(workflow) {

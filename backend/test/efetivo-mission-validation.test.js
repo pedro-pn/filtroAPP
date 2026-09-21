@@ -89,3 +89,30 @@ test('missão só pode mover quando líder, datas, equipe e confirmação estão
   assert.deepEqual(missionMovePendencies(complete), []);
   assert.deepEqual(missionMovePendencies({ ...complete, scheduleStatus: 'DRAFT', allocations: [] }), ['completar a equipe', 'confirmar a programação']);
 });
+
+test('o Líder de Projetos do fluxo responde pela missão da obra mesmo sem ser conta coordenadora', async () => {
+  let userQuery = null;
+  const tx = {
+    projectWorkflow: { findFirst: async input => input.where.leaderUserId === 'leader-1' && input.where.projectId === 'project-1' ? { projectId: 'project-1' } : null },
+    user: {
+      findFirst: async input => {
+        userQuery = input;
+        return { id: 'leader-1', name: 'Gestor do Projeto', collaborator: null };
+      }
+    }
+  };
+  const responsible = await resolveMissionResponsible(tx, { projectId: 'project-1', headquartersResponsibleUserId: 'leader-1' });
+  assert.deepEqual(responsible, { name: 'Gestor do Projeto', role: 'Líder de Projetos', collaboratorId: null, userId: 'leader-1' });
+  assert.equal(Object.hasOwn(userQuery.where, 'OR'), false, 'não exige conta coordenadora para o líder do fluxo');
+
+  // com colaborador vinculado, usa o cargo dele
+  tx.user.findFirst = async () => ({ id: 'leader-1', name: 'Conta', collaborator: { id: 'c1', name: 'Ana', isActive: true, jobRole: { name: 'Coordenadora' } } });
+  assert.deepEqual(await resolveMissionResponsible(tx, { projectId: 'project-1', headquartersResponsibleUserId: 'leader-1' }),
+    { name: 'Ana', role: 'Coordenadora', collaboratorId: 'c1', userId: 'leader-1' });
+
+  // quem não é o líder do fluxo continua sujeito às regras anteriores
+  await assert.rejects(resolveMissionResponsible({
+    projectWorkflow: { findFirst: async () => null },
+    user: { findFirst: async () => ({ id: 'u2', name: 'Outro', collaborator: null }) }
+  }, { projectId: 'project-1', headquartersResponsibleUserId: 'u2' }), error => error.code === 'INVALID_MISSION_LEADER');
+});

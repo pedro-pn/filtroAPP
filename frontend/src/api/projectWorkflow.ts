@@ -191,8 +191,11 @@ export interface ProjectWorkflowPlanningReadiness {
   completed: number;
   total: number;
   percentage: number;
-  sections: Array<{ key: ProjectWorkflowChecklistSection; completed: number; total: number; percentage: number }>;
+  sections: Array<{ key: ProjectWorkflowChecklistSection | ProjectWorkflowReadinessExtraSection; completed: number; total: number; percentage: number }>;
 }
+
+/** Itens que o gate da etapa exige além dos checklists e que também entram no progresso. */
+export type ProjectWorkflowReadinessExtraSection = 'D15_DOCUMENTATION' | 'D15_CRITICAL_ISSUES' | 'DEMOBILIZATION_DATES' | 'POST_JOB_MEETING' | 'CLOSEOUT_MEASUREMENT_APPROVAL';
 
 export interface ProjectWorkflowRolePlanningOption {
   id: string;
@@ -351,6 +354,9 @@ export interface ProjectWorkflowLogisticsPlanning {
 
 export interface ProjectWorkflowResourcePlanning {
   targetDate?: string | null;
+  /** Data usada para calcular disponibilidade; difere de targetDate quando a mobilização prevista não foi informada. */
+  referenceDate?: string | null;
+  referenceDateSource?: 'PLANNED' | 'COMMERCIAL' | 'TODAY' | null;
   team: {
     defined: boolean | null;
     demands: ProjectWorkflowTeamDemand[];
@@ -573,6 +579,8 @@ export interface ProjectWorkflow {
   analysisClientContactName: string | null;
   analysisClientContactPhone: string | null;
   analysisClientContactDate: string | null;
+  plannedExecutionStartDate: string | null;
+  plannedExecutionEndDate: string | null;
   isCritical: boolean | null;
   preparationLeadTimeDays: number;
   preJob: {
@@ -618,6 +626,7 @@ export interface ProjectWorkflow {
   clientReleases: ProjectWorkflowClientReleases;
   documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
+  analysisReadiness: ProjectWorkflowClosureReadiness;
   resourcePlanning: ProjectWorkflowResourcePlanning;
   planningReadiness: ProjectWorkflowPlanningReadiness;
   preparationReadiness: ProjectWorkflowPreparationReadiness;
@@ -778,11 +787,12 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'client_attendance'; version: number; attendanceDate: string }
-  | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo: string | null; completed: boolean; completedAt: string | null }
+  | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo?: string | null; completed: boolean; completedAt: string | null }
   | { action: 'pre_job'; version: number; scheduledDate?: string | null; completedDate?: string | null }
   | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportDescription?: string | null; freightDefined?: boolean | null; freightType?: 'OWN' | 'THIRD_PARTY' | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
+  | { action: 'analysis_schedule'; version: number; plannedExecutionStartDate: string | null; plannedExecutionEndDate: string | null }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactPhone?: string | null; contactDate?: string | null }
   | { action: 'analysis_criticality'; version: number; isCritical: boolean; preparationLeadTimeDays?: number }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }

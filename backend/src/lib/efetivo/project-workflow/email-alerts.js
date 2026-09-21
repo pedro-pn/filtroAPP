@@ -1,5 +1,5 @@
 import env from '../../../config/env.js';
-import { buildProjectWorkflowMilestoneEmailTemplate } from '../../email-templates.js';
+import { buildProjectWorkflowMilestoneEmailTemplate, buildProjectWorkflowResourceConflictEmailTemplate } from '../../email-templates.js';
 import { runTrackedJob } from '../../jobs/runner.js';
 import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from '../../mailer.js';
 import prisma from '../../prisma.js';
@@ -101,6 +101,76 @@ async function recordNotification(client, workflow, recipient, milestone, now, s
       error
     }
   });
+}
+
+/**
+ * Avisa o Líder e o Gestor de Contrato quando a mudança da data de mobilização deixa a equipe ou os equipamentos
+ * definidos incompatíveis. Cada tipo de conflito é enviado uma vez por data e destinatário; falhas de envio
+ * ficam registradas, mas nunca desfazem a alteração da data.
+ */
+export async function notifyProjectWorkflowResourceConflicts({
+  client = prisma,
+  mailer = sendMail,
+  projectId,
+  conflicts = [],
+  now = new Date(),
+  missingMailerConfig = getMissingMailerConfig(),
+  logger = console
+} = {}) {
+  if (!conflicts.length) return { emailsSent: 0 };
+  if (mailer === sendMail && !outboundEmailsEnabled()) return { emailsSent: 0, skipped: true, reason: 'outbound_emails_disabled' };
+  if (mailer === sendMail && missingMailerConfig.length) return { emailsSent: 0, skipped: true, reason: 'mailer_not_configured' };
+  const workflow = await client.projectWorkflow.findUnique({
+    where: { projectId },
+    select: {
+      projectId: true,
+      stage: true,
+      plannedMobilizationDate: true,
+      project: { select: { code: true, name: true, clientName: true } },
+      leader: { select: { id: true, name: true, email: true, isActive: true } },
+      planner: { select: { id: true, name: true, email: true, isActive: true } }
+    }
+  });
+  if (!workflow?.plannedMobilizationDate) return { emailsSent: 0 };
+  const recipients = alertRecipients(workflow);
+  const milestoneOf = conflict => `RESOURCE_${conflict.type}`;
+  const sentLogs = recipients.length && client.projectWorkflowEmailNotification?.findMany
+    ? await client.projectWorkflowEmailNotification.findMany({
+      where: { projectId, status: 'SENT', milestone: { in: conflicts.map(milestoneOf) } },
+      select: { projectId: true, milestone: true, plannedMobilizationDate: true, recipientEmail: true }
+    })
+    : [];
+  const sentKeys = new Set(sentLogs.map(notificationKey));
+  let emailsSent = 0;
+  for (const recipient of recipients) {
+    const pending = conflicts.filter(conflict => !sentKeys.has(notificationKey({
+      projectId,
+      milestone: milestoneOf(conflict),
+      plannedMobilizationDate: workflow.plannedMobilizationDate,
+      recipientEmail: recipient.email
+    })));
+    if (!pending.length) continue;
+    const template = buildProjectWorkflowResourceConflictEmailTemplate({
+      recipientName: recipient.name,
+      projectCode: workflow.project.code,
+      projectName: workflow.project.name,
+      clientName: workflow.project.clientName,
+      stageLabel: PROJECT_WORKFLOW_STAGE_LABELS[workflow.stage] || workflow.stage,
+      plannedMobilizationDate: workflow.plannedMobilizationDate,
+      conflicts: pending,
+      appUrl: projectUrl(projectId)
+    });
+    try {
+      await mailer({ to: recipient.email, ...template });
+      for (const conflict of pending) await recordNotification(client, workflow, recipient, milestoneOf(conflict), now, 'SENT');
+      emailsSent += 1;
+    } catch (error) {
+      const message = String(error?.message || error).slice(0, 2000);
+      for (const conflict of pending) await recordNotification(client, workflow, recipient, milestoneOf(conflict), now, 'FAILED', message);
+      logger.error('Falha ao avisar incompatibilidade de recursos da gestão de projetos.', { projectId, recipient: recipient.email, error: message });
+    }
+  }
+  return { emailsSent };
 }
 
 export async function processProjectWorkflowEmailAlerts({

@@ -17,6 +17,21 @@ function utcDate(value) {
 
 const RESERVATION_STAGES = ['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE'];
 
+const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+
+/**
+ * Data em que a disponibilidade de cargos e equipamentos é calculada. A mobilização operacional prevista é
+ * opcional; sem ela, o planejamento usa a previsão comercial e, por último, a data de hoje. Sem essa
+ * alternativa, os catálogos ficavam vazios e não era possível definir equipe nem equipamentos.
+ */
+export function resourceReferenceDate(workflow, today = SAO_PAULO_DATE_FORMATTER.format(new Date())) {
+  const planned = dateKey(workflow?.plannedMobilizationDate);
+  if (planned) return { date: planned, source: 'PLANNED' };
+  const commercial = dateKey(workflow?.commercialExpectedMobilizationDate) || dateKey(workflow?.commercialExpectedStartDate);
+  if (commercial) return { date: commercial, source: 'COMMERCIAL' };
+  return { date: today, source: 'TODAY' };
+}
+
 function addDays(value, days) {
   const date = utcDate(dateKey(value));
   date.setUTCDate(date.getUTCDate() + Math.max(0, Number(days) || 0));
@@ -286,6 +301,8 @@ export function emptyProjectWorkflowResourcePlanning(workflow = {}) {
   const targetDate = dateKey(workflow.plannedMobilizationDate);
   return {
     targetDate,
+    referenceDate: null,
+    referenceDateSource: null,
     team: publicTeamPlanning(workflow, []),
     equipment: publicEquipmentPlanning(workflow, []),
     supplies: buildSupplyPlanning(workflow, []),
@@ -431,7 +448,7 @@ async function loadEquipmentCatalog(database, workflow, targetDate) {
   const currentProject = database.project?.findUnique
     ? await database.project.findUnique({ where: { id: currentProjectId }, select: { demobilizationDate: true } })
     : null;
-  const currentEndDate = reservationEndDate({ ...workflow, project: currentProject });
+  const currentEndDate = reservationEndDate({ ...workflow, plannedMobilizationDate: workflow.plannedMobilizationDate || targetDate, project: currentProject });
   const plannedReservations = plannedWorkflows.flatMap(other => {
     const startsOn = dateKey(other.plannedMobilizationDate);
     const endsOn = reservationEndDate(other);
@@ -510,17 +527,21 @@ async function loadSupplyCatalog(database, currentProjectId) {
   }));
 }
 
-export async function loadProjectWorkflowResourcePlanning(database, workflow) {
+export async function loadProjectWorkflowResourcePlanning(database, workflow, { today } = {}) {
   if (!workflow) return emptyProjectWorkflowResourcePlanning();
+  // targetDate segue sendo apenas a mobilização operacional prevista (base da logística); a data de
+  // referência dos catálogos pode vir de uma alternativa.
   const targetDate = dateKey(workflow.plannedMobilizationDate);
-  if (!targetDate) return emptyProjectWorkflowResourcePlanning(workflow);
+  const reference = resourceReferenceDate(workflow, today);
   const [teamCatalog, equipmentCatalog, supplyCatalog] = await Promise.all([
-    loadTeamCatalog(database, targetDate, workflow.projectId),
-    loadEquipmentCatalog(database, workflow, targetDate),
+    loadTeamCatalog(database, reference.date, workflow.projectId),
+    loadEquipmentCatalog(database, workflow, reference.date),
     loadSupplyCatalog(database, workflow.projectId)
   ]);
   return {
     targetDate,
+    referenceDate: reference.date,
+    referenceDateSource: reference.source,
     team: publicTeamPlanning(workflow, teamCatalog),
     equipment: publicEquipmentPlanning(workflow, equipmentCatalog),
     supplies: buildSupplyPlanning(workflow, supplyCatalog),

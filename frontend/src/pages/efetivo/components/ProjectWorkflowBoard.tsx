@@ -60,6 +60,8 @@ import {
   setReorderDragImage,
   type PointerDragState
 } from '../../../utils/reorderDrag';
+import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
+import type { InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionAllocationModal } from './MissionAllocationModal';
 import { MissionFormModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
@@ -232,7 +234,7 @@ function ProjectCard({
         </div>
         <div><dt>Participantes</dt><dd>{mission?.participantCount || 0}</dd></div>
       </dl>
-      {workflow ? <small>Líder do projeto: {workflow.leader.name}{workflow.planner ? ` · Planejador: ${workflow.planner.name}` : ' · Planejador não definido'}</small> : null}
+      {workflow ? <small>Líder do projeto: {workflow.leader.name}{workflow.planner ? ` · Gestor de Contrato: ${workflow.planner.name}` : ' · Gestor de Contrato não definido'}</small> : null}
       {responsibleName ? (
         <div className="efetivo-mission-owner">
           <i aria-hidden="true">{initials(responsibleName)}</i>
@@ -420,6 +422,7 @@ export function ProjectWorkflowBoard({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [teamMissionId, setTeamMissionId] = useState<string | null>(null);
   const [missionFormProjectId, setMissionFormProjectId] = useState<string | null>(null);
+  const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const pointerRef = useRef<(PointerDragState & { drag: DragState; card: HTMLElement }) | null>(null);
@@ -650,7 +653,7 @@ export function ProjectWorkflowBoard({
       if (project.workflow.stage === 'FINISHED') {
         onProjectSelect(project.id);
         if (!project.permissions.canReopen) {
-          toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Planejador pode reabrir este projeto.', 'error');
+          toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Gestor de Contrato pode reabrir este projeto.', 'error');
         } else if (target !== 'FINAL_MEASUREMENT') {
           toast('Movimentação bloqueada: um projeto encerrado volta primeiro para Documentação / medição.', 'error');
         } else {
@@ -660,7 +663,7 @@ export function ProjectWorkflowBoard({
       }
       if (!project.permissions.canEdit) {
         onProjectSelect(project.id);
-        toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Planejador pode alterar esta etapa.', 'error');
+        toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Gestor de Contrato pode alterar esta etapa.', 'error');
         return;
       }
       if (target === 'FINISHED') {
@@ -1006,12 +1009,13 @@ export function ProjectWorkflowBoard({
           mission={missionFormMission}
           project={missionFormMission ? null : missionFormProject as PendingMissionProject | null}
           initialTeamMode
+          context={teamContext}
           roles={planningRoles.data || []}
           rolesLoading={planningRoles.isLoading}
           coordinators={planningCoordinators.data || []}
           coordinatorsLoading={planningCoordinators.isLoading}
           saving={saveInitialTeam.isPending}
-          onClose={() => setMissionFormProjectId(null)}
+          onClose={() => { setMissionFormProjectId(null); setTeamContext(undefined); }}
           onSubmit={payload => saveInitialTeam.mutate({ mission: missionFormMission, payload })}
         />
       ) : null}
@@ -1056,6 +1060,7 @@ export function ProjectWorkflowBoard({
             toast('Somente o gestor do Efetivo pode criar a programação.', 'error');
             return;
           }
+          setTeamContext(detail.data.workflow ? buildInitialTeamContext(detail.data.workflow) : undefined);
           setMissionFormProjectId(detail.data.project.id);
           if (pendingMissionProjects.isError) void pendingMissionProjects.refetch();
           if (planningMissions.isError) void planningMissions.refetch();

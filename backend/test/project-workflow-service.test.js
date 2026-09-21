@@ -1093,7 +1093,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, stageDependencies);
   result = await updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
-  assert.equal(result.workflow.demobilizationReadiness.total, 15);
+  assert.equal(result.workflow.demobilizationReadiness.total, 17);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION']);
   assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
 
@@ -1120,7 +1120,8 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   result = await updateProjectWorkflow('project-1', {
     action: 'checklist', version: 6, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE'
   }, operations, { database });
-  assert.equal(result.workflow.demobilizationReadiness.completed, 1);
+  // 1 controle do checklist + as datas de conclusão de campo e de desmobilização exigidas pelo gate
+  assert.equal(result.workflow.demobilizationReadiness.completed, 3);
 });
 
 test('datas efetivas não podem ser antecipadas fora da desmobilização', async () => {
@@ -1150,7 +1151,7 @@ test('Pós-job persiste fechamento, sincroniza Qualidade e expõe histórico rel
   });
   assert.equal(detail.workflow.stage, 'POST_JOB');
   assert.deepEqual(synchronizedStages, ['POST_JOB']);
-  assert.equal(detail.workflow.postJobReadiness.total, 9);
+  assert.equal(detail.workflow.postJobReadiness.total, 10);
 
   let synchronizedInput = null;
   detail = await updateProjectWorkflow('project-1', {
@@ -1177,7 +1178,8 @@ test('Pós-job persiste fechamento, sincroniza Qualidade e expõe histórico rel
   detail = await updateProjectWorkflow('project-1', {
     action: 'checklist', version: 3, key: 'POST_JOB_MEETING_COMPLETED', status: 'DONE'
   }, leader, { database });
-  assert.equal(detail.workflow.postJobReadiness.completed, 1);
+  // 1 controle do checklist + a data da reunião de pós-job exigida pelo gate
+  assert.equal(detail.workflow.postJobReadiness.completed, 2);
 
   state.relatedPostJobs.push({
     projectId: 'project-2',
@@ -1211,7 +1213,7 @@ test('Documentação e medição avança pelo gate e persiste valores auditávei
   });
   assert.equal(detail.workflow.stage, 'FINAL_MEASUREMENT');
   assert.deepEqual(synchronizedStages, ['FINAL_MEASUREMENT']);
-  assert.equal(detail.workflow.closeoutReadiness.total, 14);
+  assert.equal(detail.workflow.closeoutReadiness.total, 16);
 
   detail = await updateProjectWorkflow('project-1', {
     action: 'measurement',
@@ -1297,6 +1299,118 @@ test('gate bloqueado impede autorização e papel de área não pode revalidar',
   state.workflow.stage = 'READY_TO_MOBILIZE';
   await assert.rejects(
     updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 1 }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+});
+
+test('modo de correção libera todos os controles de etapas concluídas para quem pode corrigir', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  await updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, leader, { database });
+  state.workflow.stage = 'EXECUTION';
+
+  const analysisChecklist = detail => detail.workflow.checklists.filter(item => item.stage === 'INITIAL_ANALYSIS');
+  const planningChecklist = detail => detail.workflow.checklists.filter(item => item.stage === 'MOBILIZATION_PLANNING');
+
+  let detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.ok(analysisChecklist(detail).length > 0);
+  assert.ok(analysisChecklist(detail).every(item => item.canEdit), 'checklist da análise inicial editável na correção');
+  assert.equal(detail.workflow.permissions.canEditTeamPlanning, true);
+  assert.equal(detail.workflow.permissions.canEditEquipmentPlanning, true);
+  assert.equal(detail.workflow.permissions.canEditSupplyPlanning, true);
+  assert.equal(detail.workflow.permissions.canEditLogisticsPlanning, true);
+  assert.equal(detail.workflow.preJob.canEdit, true);
+  assert.equal(detail.workflow.travel.canEditLodging, true);
+  assert.equal(planningChecklist(detail).every(item => item.canEdit), true);
+
+  // sem poder de correção (nem Líder, nem gestor, nem Gestor de Contrato) nada é liberado
+  detail = await getProjectWorkflow('project-1', viewer, { database });
+  assert.ok(analysisChecklist(detail).every(item => !item.canEdit));
+  assert.equal(detail.workflow.permissions.canEditTeamPlanning, false);
+  assert.equal(detail.workflow.preJob.canEdit, false);
+
+  // a correção realmente grava em etapa anterior
+  const edited = await updateProjectWorkflow('project-1', {
+    action: 'checklist', version: state.workflow.version, key: 'ANALYSIS_RESPONSIBILITIES', status: 'DONE', correctionStage: 'INITIAL_ANALYSIS'
+  }, leader, { database });
+  assert.equal(edited.workflow.checklists.find(item => item.key === 'ANALYSIS_RESPONSIBILITIES').status, 'DONE');
+
+  // projeto encerrado não aceita correção
+  state.workflow.stage = 'FINISHED';
+  detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.ok(analysisChecklist(detail).every(item => !item.canEdit));
+});
+
+test('mudar a data de mobilização vira pendência quando a equipe definida fica incompatível e avisa os responsáveis', async () => {
+  const { database, state } = fakeDatabase();
+  database.collaborator = { findMany: async () => [{ id: 'collab-1', name: 'Ana', jobRoleId: 'role-1', admissionDate: null, terminationDate: null, isActive: true }] };
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  state.workflow.stage = 'MOBILIZATION_PLANNING';
+  state.workflow.teamPlanDefined = true;
+  state.teamDemands.push({ id: 'demand-1', projectId: 'project-1', jobRoleId: 'role-1', requiredCount: 3 });
+  const notices = [];
+  const notifyResourceConflicts = async input => { notices.push(input); };
+
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-01'
+  }, manager, { database, notifyResourceConflicts });
+  const conflict = detail.workflow.issues.find(issue => issue.sourceQuestion === 'RESOURCE_TEAM_CONFLICT');
+  assert.ok(conflict, 'a pendência aparece para o projeto');
+  assert.equal(conflict.status, 'OPEN');
+  assert.equal(conflict.criticality, 'HIGH');
+  assert.match(conflict.description, /Mecânico: necessário 3, disponível 1/);
+  assert.equal(notices.length, 1);
+  assert.deepEqual(notices[0].conflicts.map(item => item.type), ['TEAM']);
+  assert.equal(state.events.at(-2).action, 'WORKFLOW_RESOURCE_CONFLICTS');
+  // bloqueia a mobilização até ser resolvida
+  assert.ok(detail.workflow.mobilizationGate.blockers.some(blocker => blocker.label === conflict.description));
+
+  // data que não altera nada não gera novo aviso
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-01'
+  }, manager, { database, notifyResourceConflicts });
+  assert.equal(notices.length, 1);
+
+  // com a equipe compatível, a próxima mudança de data resolve a pendência sozinha
+  state.teamDemands[0].requiredCount = 1;
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-10'
+  }, manager, { database, notifyResourceConflicts });
+  assert.equal(detail.workflow.issues.find(issue => issue.sourceQuestion === 'RESOURCE_TEAM_CONFLICT').status, 'RESOLVED');
+  assert.equal(notices.length, 1);
+
+  // falha ao avisar não desfaz a alteração da data
+  state.teamDemands[0].requiredCount = 3;
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-20'
+  }, manager, { database, notifyResourceConflicts: async () => { throw new Error('sem e-mail'); } });
+  assert.equal(detail.workflow.plannedMobilizationDate, '2027-03-20');
+  assert.equal(detail.workflow.issues.find(issue => issue.sourceQuestion === 'RESOURCE_TEAM_CONFLICT').status, 'OPEN');
+});
+
+test('a previsão de início e fim da execução é registrada na análise inicial e validada', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  await updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, leader, { database });
+
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: '2027-02-20', plannedExecutionEndDate: '2027-04-30'
+  }, leader, { database });
+  assert.equal(detail.workflow.plannedExecutionStartDate, '2027-02-20');
+  assert.equal(detail.workflow.plannedExecutionEndDate, '2027-04-30');
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: '2027-02-10', plannedExecutionEndDate: null }, leader, { database }),
+    error => error.code === 'INVALID_PROJECT_WORKFLOW_EXECUTION_SCHEDULE'
+  );
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: null, plannedExecutionEndDate: null
+  }, leader, { database });
+  assert.equal(detail.workflow.plannedExecutionStartDate, null);
+  assert.equal(detail.workflow.plannedExecutionEndDate, null);
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: '2027-02-20', plannedExecutionEndDate: '2027-02-01' }, viewer, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
 });

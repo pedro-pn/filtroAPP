@@ -45,8 +45,10 @@ import {
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import {
   ProjectWorkflowEquipmentPlanningCard,
+  ProjectWorkflowResourceConflicts,
   ProjectWorkflowTeamPlanningCard
 } from './ProjectWorkflowResourcePlanning';
+import { isResourceConflictIssue } from '../../../utils/projectWorkflowResourceConflicts';
 import {
   ProjectWorkflowLogisticsPlanningCard,
   ProjectWorkflowSupplyPlanningCard
@@ -223,10 +225,10 @@ function stageHeadingReadiness(workflow: ProjectWorkflow, stage: ProjectWorkflow
   if (stage === 'MOBILIZATION_PLANNING') return { marker: 'D-30', readiness: workflow.planningReadiness };
   if (stage === 'PREPARATION' || stage === 'READY_TO_MOBILIZE') return { marker: `D-${workflow.preparationLeadTimeDays}`, readiness: workflow.preparationReadiness };
   if (stage === 'WAITING_PLANNING') return { marker: 'D-30', readiness: documentationStageReadiness(workflow) };
-  if (stage === 'INITIAL_ANALYSIS') return { marker: null, readiness: documentationStageReadiness(workflow) };
+  if (stage === 'INITIAL_ANALYSIS') return { marker: null, readiness: workflow.analysisReadiness };
   if (stage === 'DEMOBILIZATION') return { marker: null, readiness: workflow.demobilizationReadiness };
   if (stage === 'POST_JOB') return { marker: null, readiness: workflow.postJobReadiness };
-  if (stage === 'FINAL_MEASUREMENT') return { marker: null, readiness: workflow.closeoutReadiness };
+  if (stage === 'FINAL_MEASUREMENT') return { marker: null, readiness: workflow.closureGate };
   return { marker: null, readiness: null };
 }
 
@@ -258,7 +260,7 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
           {errors.leaderUserId ? <span className="field-error">{errors.leaderUserId.message}</span> : null}
         </div>
         <div className={fieldClass(errors.plannerUserId)}>
-          <label htmlFor="workflow-start-planner">Planejador *</label>
+          <label htmlFor="workflow-start-planner">Gestor de Contrato *</label>
           <select id="workflow-start-planner" disabled={saving} aria-invalid={Boolean(errors.plannerUserId)} {...register('plannerUserId')}>
             <option value="">Selecione</option>
             {leaders.map(item => <option value={item.id} key={item.id}>{item.name}{item.email ? ` · ${item.email}` : ' · sem e-mail cadastrado'}</option>)}
@@ -287,7 +289,7 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   const workflow = detail.workflow!;
   const schema = z.object({
     leaderUserId: z.string().min(1, 'Selecione o líder.'),
-    plannerUserId: z.string().min(1, 'Selecione o planejador.'),
+    plannerUserId: z.string().min(1, 'Selecione o gestor de contrato.'),
     plannedMobilizationDate: z.string()
   });
   type Values = z.infer<typeof schema>;
@@ -297,34 +299,43 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   });
   useEffect(() => reset({ leaderUserId: workflow.leaderUserId, plannerUserId: workflow.plannerUserId || '', plannedMobilizationDate: workflow.plannedMobilizationDate || '' }), [reset, workflow.leaderUserId, workflow.plannerUserId, workflow.plannedMobilizationDate]);
   return (
-    <form className="project-workflow-form" noValidate onSubmit={handleSubmit(values => onPatch({ action: 'settings', version: workflow.version, ...values, plannedMobilizationDate: values.plannedMobilizationDate || null }))}>
-      <div className="project-workflow-form-grid">
-        <div className={fieldClass(errors.leaderUserId)}>
-          <label htmlFor="workflow-leader">Líder de Projetos *</label>
-          <select id="workflow-leader" disabled={saving || !workflow.permissions.canChangeLeader} aria-invalid={Boolean(errors.leaderUserId)} {...register('leaderUserId')}>
-            {leaders.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
-          </select>
-          {errors.leaderUserId ? <span className="field-error">{errors.leaderUserId.message}</span> : null}
-          {!workflow.permissions.canChangeLeader ? <span className="field-hint">Somente o gestor pode trocar o líder.</span> : null}
+    <ProjectWorkflowCategory
+      title="Responsáveis e cronograma"
+      description="Defina o Líder de Projetos, o Gestor de Contrato e a mobilização operacional prevista."
+      area="Handover"
+      status={workflow.plannerUserId ? 'Responsáveis definidos' : 'Gestor de Contrato pendente'}
+      complete={Boolean(workflow.leaderUserId && workflow.plannerUserId)}
+      data-project-workflow-settings
+    >
+      <form className="project-workflow-form" noValidate onSubmit={handleSubmit(values => onPatch({ action: 'settings', version: workflow.version, ...values, plannedMobilizationDate: values.plannedMobilizationDate || null }))}>
+        <div className="project-workflow-form-grid">
+          <div className={fieldClass(errors.leaderUserId)}>
+            <label htmlFor="workflow-leader">Líder de Projetos *</label>
+            <select id="workflow-leader" disabled={saving || !workflow.permissions.canChangeLeader} aria-invalid={Boolean(errors.leaderUserId)} {...register('leaderUserId')}>
+              {leaders.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
+            </select>
+            {errors.leaderUserId ? <span className="field-error">{errors.leaderUserId.message}</span> : null}
+            {!workflow.permissions.canChangeLeader ? <span className="field-hint">Somente o gestor pode trocar o líder.</span> : null}
+          </div>
+          <div className={fieldClass(errors.plannerUserId)}>
+            <label htmlFor="workflow-planner">Gestor de Contrato *</label>
+            <select id="workflow-planner" disabled={saving || !workflow.permissions.canChangePlanner} aria-invalid={Boolean(errors.plannerUserId)} {...register('plannerUserId')}>
+              <option value="">Selecione</option>
+              {leaders.map(item => <option value={item.id} key={item.id}>{item.name}{item.email ? ` · ${item.email}` : ' · sem e-mail cadastrado'}</option>)}
+            </select>
+            {errors.plannerUserId ? <span className="field-error">{errors.plannerUserId.message}</span> : null}
+            {!workflow.permissions.canChangePlanner ? <span className="field-hint">Somente o gestor do Efetivo pode trocar o Gestor de Contrato.</span> : null}
+          </div>
+          <div className={fieldClass(errors.plannedMobilizationDate)}>
+            <label htmlFor="workflow-date">Mobilização operacional prevista</label>
+            <input id="workflow-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate')} />
+            <span className="field-hint">Opcional e independente da previsão comercial recebida do CRM.</span>
+            {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
+          </div>
         </div>
-        <div className={fieldClass(errors.plannerUserId)}>
-          <label htmlFor="workflow-planner">Planejador *</label>
-          <select id="workflow-planner" disabled={saving || !workflow.permissions.canChangePlanner} aria-invalid={Boolean(errors.plannerUserId)} {...register('plannerUserId')}>
-            <option value="">Selecione</option>
-            {leaders.map(item => <option value={item.id} key={item.id}>{item.name}{item.email ? ` · ${item.email}` : ' · sem e-mail cadastrado'}</option>)}
-          </select>
-          {errors.plannerUserId ? <span className="field-error">{errors.plannerUserId.message}</span> : null}
-          {!workflow.permissions.canChangePlanner ? <span className="field-hint">Somente o gestor pode trocar o planejador.</span> : null}
-        </div>
-        <div className={fieldClass(errors.plannedMobilizationDate)}>
-          <label htmlFor="workflow-date">Mobilização operacional prevista</label>
-          <input id="workflow-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate')} />
-          <span className="field-hint">Opcional e independente da previsão comercial recebida do CRM.</span>
-          {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
-        </div>
-      </div>
-      {workflow.permissions.canEdit ? <div className="project-workflow-inline-actions"><Button type="submit" variant="secondary" disabled={saving || !isDirty}>Salvar responsáveis e data</Button></div> : null}
-    </form>
+        {workflow.permissions.canEdit ? <div className="project-workflow-inline-actions"><Button type="submit" variant="secondary" disabled={saving || !isDirty}>Salvar responsáveis e data</Button></div> : null}
+      </form>
+    </ProjectWorkflowCategory>
   );
 }
 
@@ -644,7 +655,9 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     ['CLOSEOUT_MEASUREMENT', 'Medição', 'Comercial']
   ] as const;
   const finalCloseoutChecklists = workflow.checklists.filter(item => item.section === 'FINAL_CLOSEOUT');
-  const openIssues = workflow.issues.filter(item => item.status !== 'RESOLVED');
+  // Pendências de recursos (mudança de data) aparecem nas etapas de planejamento e preparação, não na análise.
+  const analysisIssues = workflow.issues.filter(item => !isResourceConflictIssue(item));
+  const openIssues = analysisIssues.filter(item => item.status !== 'RESOLVED');
   const answeredCriticals = workflow.criticalAnswers.filter(item => item.answer !== null).length;
 
   const renderCriticalItems = () => (
@@ -663,19 +676,20 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     <>
       <ProjectWorkflowDocumentationTracking workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       {renderCriticalItems()}
-      {workflow.issues.length ? <ProjectWorkflowCategory
+      {analysisIssues.length ? <ProjectWorkflowCategory
         title="Pendências"
         description="Itens levantados na análise que precisam ser resolvidos antes da mobilização."
         area="Análise"
-        progress={{ completed: workflow.issues.length - openIssues.length, total: workflow.issues.length }}
+        progress={{ completed: analysisIssues.length - openIssues.length, total: analysisIssues.length }}
         status={openIssues.length ? `${openIssues.length} aberta${openIssues.length === 1 ? '' : 's'}` : 'Concluído'}
         tone={openIssues.length ? 'crit' : 'ok'}
         complete={!openIssues.length}
-      >{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={stageSaving} canEdit={workflow.permissions.canEdit} onPatch={stagePatch} key={issue.id} />)}</ProjectWorkflowCategory> : null}
+      >{analysisIssues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={stageSaving} canEdit={workflow.permissions.canEdit} onPatch={stagePatch} key={issue.id} />)}</ProjectWorkflowCategory> : null}
     </>
   );
   const renderPreparation = () => (
     <>
+      <ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowDefinitiveTeam workflow={workflow} saving={stageSaving} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} />
       <ProjectWorkflowClientReleasesPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowEquipmentPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
@@ -741,7 +755,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   } else if (activeStage === 'WAITING_PLANNING') {
     stageContent = <>{renderAnalysisMonitoring()}</>;
   } else if (activeStage === 'MOBILIZATION_PLANNING') {
-    stageContent = <><ProjectWorkflowTeamPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
+    stageContent = <><ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowTeamPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
   } else if (activeStage === 'PREPARATION' || activeStage === 'READY_TO_MOBILIZE') {
     stageContent = renderPreparation();
   } else if (activeStage === 'MOBILIZATION') {
@@ -957,7 +971,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
           </div>
           {workflow ? <dl className="project-workflow-meta" aria-label="Resumo fixo do projeto">
             <div><dt>Líder</dt><dd title={workflow.leader.email || 'Sem e-mail cadastrado'}><span className="project-workflow-avatar" aria-hidden="true">{initialsOf(workflow.leader.name)}</span>{workflow.leader.name}</dd></div>
-            <div><dt>Planejador</dt><dd title={workflow.planner?.email || 'Sem e-mail cadastrado'}>{workflow.planner ? <span className="project-workflow-avatar" aria-hidden="true">{initialsOf(workflow.planner.name)}</span> : null}{workflow.planner?.name || 'Não definido'}</dd></div>
+            <div><dt>Gestor de Contrato</dt><dd title={workflow.planner?.email || 'Sem e-mail cadastrado'}>{workflow.planner ? <span className="project-workflow-avatar" aria-hidden="true">{initialsOf(workflow.planner.name)}</span> : null}{workflow.planner?.name || 'Não definido'}</dd></div>
             <div><dt>Mobilização</dt><dd className="is-numeric">{workflow.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}</dd></div>
             <div><dt>Próximo marco</dt><dd className={workflow.milestones.dueMilestones.length ? 'is-due' : undefined}><ProjectWorkflowIcon name="clock" />{nextMilestoneText}</dd></div>
           </dl> : null}
