@@ -1,7 +1,9 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
+import { prepareImageForUpload } from '../../utils/imageUpload';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
+import { PhotoCaptureButton } from './PhotoCaptureButton';
 import { stageUploadDeletion } from './photoDeletionStaging';
 import { useConfirmDialog } from './useConfirmDialog';
 
@@ -141,7 +143,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: ArrayLike<File> | null) {
     const selected = Array.from(files || []);
     if (!selected.length) return;
 
@@ -149,14 +151,18 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     setError('');
 
     try {
+      // Fotos grandes do celular são reduzidas no aparelho antes de irem em base64 no envio.
       const items = await Promise.all(
-        selected.map(async file => ({
-          label: uploadLabel,
-          fileName: file.name,
-          mimeType: file.type || (/\.(hei[cf])$/i.test(file.name) ? 'image/heic' : 'image/jpeg'),
-          dataUrl: await fileToDataUrl(file),
-          projectId
-        }))
+        selected.map(async original => {
+          const file = await prepareImageForUpload(original);
+          return {
+            label: uploadLabel,
+            fileName: file.name,
+            mimeType: file.type || (/\.(hei[cf])$/i.test(file.name) ? 'image/heic' : 'image/jpeg'),
+            dataUrl: await fileToDataUrl(file),
+            projectId
+          };
+        })
       );
       const uploaded = await uploadFiles(items);
       onChange([...value, ...uploaded]);
@@ -227,6 +233,11 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
           <small>{value.length ? `${value.length} arquivo(s) · clique ou solte para adicionar` : 'ou clique para selecionar'}</small>
         </span>
       </div>
+      {!disabled ? (
+        <div className="upload-field-actions">
+          <PhotoCaptureButton disabled={isUploading} onFiles={files => void handleFiles(files)} />
+        </div>
+      ) : null}
       {error ? <div className="inline-error">{error}</div> : null}
       {hasPreviouslyAddedFiles ? (
         <div className="upload-previous-note">Estas fotos foram adicionadas anteriormente neste serviço. Se removidas, sairão do relatório.</div>

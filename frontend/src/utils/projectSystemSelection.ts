@@ -4,6 +4,10 @@ import { cleaningModePatch, isSystemCleaning } from './cleaningMeasurement';
 export const systemNameKey = (value: unknown) => String(value ?? '').normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+// Mesma chave de escopo do backend (avanco.js): nome normalizado; sem nome = "Sem escopo definido".
+export const NO_SCOPE_KEY = '__sem-escopo__';
+export const scopeKeyOf = (scopeName: string | null | undefined) => systemNameKey(scopeName) || NO_SCOPE_KEY;
+
 export function projectSystemSuggestionOptions(registry: ProjectSystem[], field: 'equipmentId' | 'system',
   equipment: unknown, editingScope?: ProjectSystem[]) {
   // No relatório, apenas identidades com metas atuais. No editor, as linhas atuais

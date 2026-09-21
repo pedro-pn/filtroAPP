@@ -21,6 +21,7 @@ import { buildWorkedHoursProgress } from './project-cards.js';
 import {
   buildRequiredWeeklyProgress,
   computeProgressHistoryForProjects,
+  computeProgressSlicesForProject,
   computeProjectProgress,
   isConfirmedReportParticipant,
   selectRealizedSourceReportData
@@ -371,7 +372,8 @@ export async function getProjectDetail(projectId, {
     manualCostsByProject,
     hoursByProject,
     progressHistoryByProject,
-    projectProgress
+    projectProgress,
+    progressSlices
   ] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
@@ -417,7 +419,8 @@ export async function getProjectDetail(projectId, {
     getManualProjectCostsByProject([projectId], { includeEntries: true }),
     loadPlannedHours([projectId]),
     computeProgressHistoryForProjects([projectId]),
-    computeProjectProgress(projectId)
+    computeProjectProgress(projectId),
+    computeProgressSlicesForProject(projectId)
   ]);
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
 
@@ -625,6 +628,21 @@ export async function getProjectDetail(projectId, {
     expectedEndDate,
     referenceDate: projectReferenceDate
   });
+  // Avanço por recorte (escopo e/ou Equipamento/UG do cliente); só projetos com o que filtrar.
+  const progressFilters = progressSlices ? {
+    scopes: progressSlices.scopes,
+    equipments: progressSlices.equipments,
+    lookup: progressSlices.lookup,
+    slices: progressSlices.slices.map(({ progress, progressHistory }) => ({
+      avancoPct: progress.progressPct,
+      progressHistory,
+      requiredWeeklyProgress: buildRequiredWeeklyProgress(progress, {
+        startDate: row.startDate,
+        expectedEndDate,
+        referenceDate: projectReferenceDate
+      })
+    }))
+  } : null;
 
   const alerts = [...plannedHoursAlerts(hours?.hoursPlan), ...computeAlerts({
     startDate: row.startDate ?? null,
@@ -678,6 +696,7 @@ export async function getProjectDetail(projectId, {
     avancoMethod: row.progressMethod ?? null,
     progressHistory: progressHistoryByProject.get(projectId) ?? [],
     requiredWeeklyProgress,
+    progressFilters,
     standby: { count: standbyCount, minutes: standbyMinutesTotal },
     ultimosDias,
     overtimeMinutes: overtimeMinutesTotal,

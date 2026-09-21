@@ -578,6 +578,22 @@ export interface RequiredWeeklyProgress {
   scopeGroups?: Array<{ scopeName: string | null; services: RequiredWeeklyProgress['services'] }>;
 }
 
+// Avanço de um recorte do projeto (escopo e/ou Equipamento/UG do cliente).
+export interface ProgressSlice {
+  avancoPct: number | null;
+  progressHistory: ProgressHistoryPoint[];
+  requiredWeeklyProgress: RequiredWeeklyProgress;
+}
+
+// Filtros do avanço: `lookup["escopo|equipamento"]` ('' = todos) aponta para `slices`; null = igual
+// ao projeto inteiro; ausente = combinação sem escopo medível.
+export interface ProgressFilters {
+  scopes: Array<{ key: string; name: string }>;
+  equipments: Array<{ key: string; name: string }>;
+  slices: ProgressSlice[];
+  lookup: Record<string, number | null>;
+}
+
 export async function getProjectProgress(projectId: string): Promise<ProjectProgress> {
   const { data } = await apiClient.get<ProjectProgress>(`/acompanhamento/comercial/projetos/${projectId}/avanco`);
   return data;
@@ -890,6 +906,7 @@ export interface ProjectDetail {
   avancoPct: number | null;
   progressHistory?: ProgressHistoryPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
+  progressFilters?: ProgressFilters | null;
   standby: { count: number; minutes: number };
   ultimosDias: Array<{
     date: string;

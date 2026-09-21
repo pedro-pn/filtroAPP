@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { getProjectProgress, type ProgressSystem } from '../../api/acompanhamentoComercial';
+import { scopeKeyOf, systemNameKey } from '../../utils/projectSystemSelection';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -24,8 +25,20 @@ function systemLine(sys: ProgressSystem) {
 }
 
 // Avanço físico do projeto (RDO ponderado por serviço) — realizado dos RDOs × escopo previsto.
-export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
-  const [equipment, setEquipment] = useState('');
+// `filter`/`progressPct` são opcionais: quando o dashboard já filtra por Escopo e/ou Equipamento/UG,
+// ele controla o recorte (chaves normalizadas, '' = todos, e o percentual do topo) e o seletor
+// interno deixa de aparecer.
+export function ProjectProgressBreakdown({ projectId, filter, progressPct }: {
+  projectId: string;
+  filter?: { scopeKey: string; equipmentKey: string };
+  progressPct?: number | null;
+}) {
+  const [ownEquipment, setEquipment] = useState('');
+  const controlled = filter !== undefined;
+  const equipment = controlled ? filter.equipmentKey : ownEquipment;
+  const scopeKey = controlled ? filter.scopeKey : '';
+  const matchesEquipment = (name: string | null | undefined) => !equipment
+    || (controlled ? systemNameKey(name) === equipment : name === equipment);
   const { data, isLoading } = useQuery({
     queryKey: ['project-progress', projectId],
     queryFn: () => getProjectProgress(projectId),
@@ -39,7 +52,7 @@ export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
 
   return (
     <div className="acp-progress">
-      {data.services.some(service => service.systems.some(system => system.projectSystemId)) ? <div className="field-group">
+      {!controlled && data.services.some(service => service.systems.some(system => system.projectSystemId)) ? <div className="field-group">
         <label>Filtrar equipamento / UG</label>
         <select aria-label="Filtrar equipamento / UG" value={equipment} onChange={event => setEquipment(event.target.value)}>
           <option value="">Todas as UGs / equipamentos</option>
@@ -48,20 +61,22 @@ export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
         <small>O percentual geral mantém todo o escopo; o filtro altera apenas as linhas exibidas.</small>
       </div> : null}
       <div className="acp-progress-total">
-        <div className="acp-prog-bar big"><span style={{ width: `${Math.min(data.progressPct ?? 0, 100)}%` }} /></div>
-        <strong>{fmtPct(data.progressPct)}</strong>
+        <div className="acp-prog-bar big"><span style={{ width: `${Math.min((progressPct === undefined ? data.progressPct : progressPct) ?? 0, 100)}%` }} /></div>
+        <strong>{fmtPct(progressPct === undefined ? data.progressPct : progressPct)}</strong>
       </div>
       <div className="acp-progress-list">
-        {(data.scopeGroups ?? [{ scopeName: null, services: data.services }]).map(group => <section key={group.scopeName ?? ''} className={data.scopeGroups ? 'acp-scope-group' : undefined}>
+        {(data.scopeGroups ?? [{ scopeName: null, services: data.services }])
+          .filter(group => !scopeKey || scopeKeyOf(group.scopeName) === scopeKey)
+          .map(group => <section key={group.scopeName ?? ''} className={data.scopeGroups ? 'acp-scope-group' : undefined}>
           {data.scopeGroups ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
-        {group.services.map((svc, i) => (
+        {group.services.filter(svc => !controlled || svc.systems.some(sys => matchesEquipment(sys.equipment))).map((svc, i) => (
           <div className="acp-progress-svc" key={i}>
             <div className="acp-progress-svc-head">
               <span>{SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}</span>
               <span className="acp-progress-meta">peso {svc.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(svc.executionPct)}</span>
             </div>
             <ul className="acp-progress-sys">
-              {svc.systems.filter(sys => !equipment || sys.equipment === equipment).map((sys, j) => <li key={j}>{systemLine(sys)}</li>)}
+              {svc.systems.filter(sys => matchesEquipment(sys.equipment)).map((sys, j) => <li key={j}>{systemLine(sys)}</li>)}
             </ul>
           </div>
         ))}

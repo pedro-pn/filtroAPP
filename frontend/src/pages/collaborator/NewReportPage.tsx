@@ -10,6 +10,7 @@ import { listReports } from '../../api/reports';
 import { DraftSaveStatus, type DraftSaveStatusValue } from '../../components/reports/DraftSaveStatus';
 import { NewReportSpecialConditions } from '../../components/reports/NewReportSpecialConditions';
 import { ReportActivitiesCard, ReportCollaboratorsCard, ReportDateField, ReportFormActions, ReportFormStepper, ReportOvertimeCard, ReportScheduleCard, ReportSummaryCard } from '../../components/reports/ReportCoreFields';
+import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { RdoDdsNovelty } from '../../components/reports/RdoDdsNovelty';
 import { ReportWorkforceNotices } from '../../components/reports/ReportWorkforceNotices';
 import { ServiceCollaboratorsBlock, ServiceFields } from '../../components/reports/ServiceFields';
@@ -1222,6 +1223,7 @@ function SiteRdoFormPage() {
       {confirmDialog}
 
       {user ? <RdoDdsNovelty user={user} enabled={ddsNoveltyActive && step === 0 && !effectiveServiceOnly} onSeen={() => setDdsNoveltyActive(false)} /> : null}
+      <PhotoCaptureNovelty user={user} placement="rdo-new" />
     </Shell>
   );
 }
