@@ -47,6 +47,8 @@ import {
 } from '../../components/reports/ReportCoreFields';
 import { Button } from '../../components/ui/Button';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
+import { PhotoCaptureButton } from '../../components/ui/PhotoCaptureButton';
+import { prepareImageForUpload } from '../../utils/imageUpload';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { UploadPreviewListItem } from '../../components/ui/UploadField';
@@ -142,8 +144,10 @@ async function filesToUploads(
   if (!files?.length) return [];
   return Promise.all(
     Array.from(files).map(
-      (file) =>
-        new Promise<MaintenancePhotoPayload>((resolve, reject) => {
+      async (original) => {
+        // Fotos grandes do celular são reduzidas no aparelho: o corpo do envio leva tudo em base64.
+        const file = await prepareImageForUpload(original);
+        return new Promise<MaintenancePhotoPayload>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () =>
             resolve({
@@ -154,7 +158,8 @@ async function filesToUploads(
           reader.onerror = () =>
             reject(new Error(`Não foi possível ler ${file.name}.`));
           reader.readAsDataURL(file);
-        })
+        });
+      }
     )
   );
 }
@@ -186,6 +191,7 @@ function MaintenanceCardEditor({
   const {
     clearErrors,
     control,
+    getValues,
     register,
     setValue,
     formState: { errors }
@@ -237,14 +243,17 @@ function MaintenanceCardEditor({
     }
   }, [selectedEquipment?.category?.id]);
 
+  const retainedPhotoCount = existingPhotos.filter(
+    (photo) => !removePhotoIds.includes(photo.id)
+  ).length;
+
   async function addPhotos(files: FileList | File[] | null) {
     const uploads = await filesToUploads(files);
-    const retainedCount = existingPhotos.filter(
-      (photo) => !removePhotoIds.includes(photo.id)
-    ).length;
+    // Lê as fotos atuais só depois da leitura dos arquivos, que é assíncrona.
+    const current = getValues(`maintenanceRecords.${index}.photos`) || [];
     setValue(
       `maintenanceRecords.${index}.photos`,
-      [...photos, ...uploads].slice(0, Math.max(0, 10 - retainedCount)),
+      [...current, ...uploads].slice(0, Math.max(0, 10 - retainedPhotoCount)),
       { shouldValidate: true }
     );
   }
@@ -516,6 +525,12 @@ function MaintenanceCardEditor({
             void addPhotos(files);
           }}
         />
+        <div className="upload-field-actions">
+          <PhotoCaptureButton
+            maxPhotos={Math.max(0, 10 - retainedPhotoCount - photos.length)}
+            onFiles={(files) => void addPhotos(files)}
+          />
+        </div>
         {existingPhotos.length || photos.length ? (
           <div className="upload-list operational-maintenance-photo-list">
             {existingPhotos.map((photo) => {

@@ -6103,7 +6103,8 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   width: min(100%, 620px);
 }
 
-.romaneio-qr-camera {
+.romaneio-qr-camera,
+.camera-capture-view {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -6113,11 +6114,76 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   background: #111827;
 }
 
-.romaneio-qr-camera video {
+.romaneio-qr-camera video,
+.camera-capture-view video {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.camera-capture-modal {
+  width: min(100%, 620px);
+}
+
+.camera-capture-view {
+  max-height: 60dvh;
+}
+
+.camera-capture-view video {
+  object-fit: contain;
+}
+
+.camera-capture-shots {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 8px 0 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.camera-capture-shots li {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.camera-capture-shots img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  object-fit: cover;
+}
+
+.camera-capture-shots button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #111827;
+  color: #fff;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.photo-capture-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.upload-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .romaneio-qr-camera-frame {
