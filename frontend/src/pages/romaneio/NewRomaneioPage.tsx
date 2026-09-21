@@ -267,7 +267,11 @@ export function NewRomaneioPage() {
   const projectOptions = useMemo(() => {
     const projects = [...(projectsQuery.data || [])];
     const editProject = editQuery.data?.project;
-    if (romaneioType === 'INBOUND' && editProject && !projects.some(project => project.id === editProject.id)) projects.push(editProject);
+    // Preserve the project attached to an existing romaneio while editing.
+    // Archived or temporarily unavailable outbound projects may be absent from
+    // the selectable-projects endpoint, but the backend still returns them with
+    // the romaneio and permits the edit for authorized users.
+    if (editProject && !projects.some(project => project.id === editProject.id)) projects.push(editProject);
     return projects;
   }, [editQuery.data?.project, projectsQuery.data, romaneioType]);
 
