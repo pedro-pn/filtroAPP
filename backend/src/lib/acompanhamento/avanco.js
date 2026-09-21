@@ -18,6 +18,7 @@
 import prisma from '../prisma.js';
 import { loadHistoricalRealizedServices } from '../reports/historical-services-store.js';
 import { buildSystemProgress } from './system-progress.js';
+import { systemNameKey } from './project-systems.js';
 import { extractServiceMeasurements, realizedFromExtraData } from './realized-measurements.js';
 import { withNativeMeasurementLinks } from './native-measurement-links.js';
 export { realizedFromExtraData } from './realized-measurements.js';
@@ -341,6 +342,13 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
     return compactWeeklyProgressHistory(ordered, { startDate });
   }
 
+  const { points } = buildProgressTimeline(plannedServices, serviceReports);
+  return weeklyHistory(points, startDate);
+}
+
+// Acumula, data a data, o realizado dos serviços finalizados de relatórios-fonte e registra o
+// avanço após cada data com RDO. Devolve também o realizado final, que é o avanço atual.
+function buildProgressTimeline(plannedServices, serviceReports) {
   const servicesByDate = new Map();
   for (const service of serviceReports) {
     if (!isServiceFinalized(service)) continue;
@@ -354,19 +362,107 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
   }
 
   const realizedByType = new Map();
-  const rawPoints = [];
+  const points = [];
   const dates = Array.from(servicesByDate.keys()).sort((a, b) => dateMs(a) - dateMs(b));
   for (const date of dates) {
     for (const service of servicesByDate.get(date) ?? []) {
       addRealizedService(realizedByType, service, service.canonical);
     }
-    const progress = buildProgress(plannedServices, realizedByType);
-    if (progress.progressPct !== null) rawPoints.push({ date, progressPct: progress.progressPct });
+    points.push({ date, progressPct: buildProgress(plannedServices, realizedByType).progressPct });
   }
+  return { points, realizedByType };
+}
 
-  const history = compactWeeklyProgressHistory(rawPoints, { startDate });
+function weeklyHistory(points, startDate) {
+  const history = compactWeeklyProgressHistory(points.filter(point => point.progressPct !== null), { startDate });
   if (history.length === 0 && startDate) return [{ date: toDateKey(startDate), progressPct: 0 }];
   return history;
+}
+
+export const NO_SCOPE_KEY = '__sem-escopo__';
+const scopeKeyOf = service => {
+  const name = service.scopeName?.trim();
+  return name ? systemNameKey(name) : NO_SCOPE_KEY;
+};
+
+// Recortes do escopo previsto por Escopo (nome do agrupamento) e por Equipamento/UG do cliente,
+// combináveis entre si. Cada recorte mantém os serviços com o próprio peso e só as linhas do
+// equipamento escolhido, então o avanço usa metas, pesos e realizado exclusivos dele. Escopo
+// legado (sem sistema vinculado) não pertence a nenhuma UG.
+//
+// `lookup` mapeia "escopo|equipamento" ('' = todos) para o índice em `entries`; `null` significa
+// "igual ao projeto inteiro" e ausência, combinação sem escopo medível. Combinações com os mesmos
+// serviços e linhas compartilham a mesma entrada. Devolve null se não houver o que filtrar
+// (menos de 2 escopos e menos de 2 equipamentos medíveis).
+export function splitPlannedServices(plannedServices = []) {
+  const scopes = new Map(), equipments = new Map();
+  for (const service of plannedServices) {
+    const key = scopeKeyOf(service);
+    if (!scopes.has(key)) scopes.set(key, { key, name: service.scopeName?.trim() || 'Sem escopo definido' });
+    for (const row of service.systems ?? []) {
+      const name = row.projectSystem?.equipment, equipmentKey = systemNameKey(name);
+      if (equipmentKey && !equipments.has(equipmentKey)) equipments.set(equipmentKey, { key: equipmentKey, name });
+    }
+  }
+
+  const pick = (scopeKey, equipmentKey) => {
+    const services = [], parts = [];
+    plannedServices.forEach((service, index) => {
+      if (scopeKey && scopeKeyOf(service) !== scopeKey) return;
+      const rows = [];
+      (service.systems ?? []).forEach((row, rowIndex) => {
+        if (!equipmentKey || systemNameKey(row.projectSystem?.equipment) === equipmentKey) rows.push(rowIndex);
+      });
+      if (equipmentKey && rows.length === 0) return;
+      services.push(equipmentKey ? { ...service, systems: rows.map(rowIndex => service.systems[rowIndex]) } : service);
+      parts.push([index, rows]);
+    });
+    return { services, signature: JSON.stringify(parts) };
+  };
+
+  const measurable = (scopeKey, equipmentKey) => hasMeasurableScope(pick(scopeKey, equipmentKey).services);
+  const validScopes = [...scopes.values()].filter(scope => measurable(scope.key, ''));
+  const validEquipments = [...equipments.values()].filter(equipment => measurable('', equipment.key));
+  if (validScopes.length < 2 && validEquipments.length < 2) return null;
+
+  const scopeAxis = validScopes.length >= 2 ? ['', ...validScopes.map(scope => scope.key)] : [''];
+  const equipmentAxis = validEquipments.length >= 2 ? ['', ...validEquipments.map(equipment => equipment.key)] : [''];
+  const wholeSignature = pick('', '').signature;
+  const entries = [], indexBySignature = new Map(), lookup = {};
+  for (const scopeKey of scopeAxis) {
+    for (const equipmentKey of equipmentAxis) {
+      if (!scopeKey && !equipmentKey) continue;
+      const { services, signature } = pick(scopeKey, equipmentKey);
+      if (!hasMeasurableScope(services)) continue;
+      if (signature !== wholeSignature && !indexBySignature.has(signature)) {
+        indexBySignature.set(signature, entries.length);
+        entries.push({ services });
+      }
+      lookup[`${scopeKey}|${equipmentKey}`] = signature === wholeSignature ? null : indexBySignature.get(signature);
+    }
+  }
+  return {
+    scopes: scopeAxis.length > 1 ? validScopes : [],
+    equipments: equipmentAxis.length > 1 ? validEquipments : [],
+    entries,
+    lookup
+  };
+}
+
+// Avanço e histórico semanal de cada recorte (escopo e/ou Equipamento/UG). Null quando o projeto
+// não tem o que filtrar.
+export function buildProgressSlices(plannedServices, serviceReports, { startDate = null } = {}) {
+  const split = splitPlannedServices(plannedServices);
+  if (!split) return null;
+  return {
+    scopes: split.scopes,
+    equipments: split.equipments,
+    lookup: split.lookup,
+    slices: split.entries.map(({ services }) => {
+      const { points, realizedByType } = buildProgressTimeline(services, serviceReports);
+      return { progress: buildProgress(services, realizedByType), progressHistory: weeklyHistory(points, startDate) };
+    })
+  };
 }
 
 // Agrega o realizado dos RDOs (por projeto → por serviço canônico) para um conjunto de projetos.
@@ -445,20 +541,10 @@ export async function computeProgressForProjects(projectIds) {
   return result;
 }
 
-export async function computeProgressHistoryForProjects(projectIds) {
-  const result = new Map();
-  if (!projectIds || projectIds.length === 0) return result;
-
-  const [plannedServices, projects, reportServices, manualProgressHistory, historicalServices] = await Promise.all([
-    prisma.projectPlannedService.findMany({
-      where: { projectId: { in: projectIds } },
-      orderBy: [{ order: 'asc' }],
-      include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
-    }),
-    prisma.project.findMany({
-      where: { id: { in: projectIds } },
-      select: { id: true, startDate: true, manualProgressPct: true, updatedAt: true }
-    }),
+// Serviços de relatório (nativos + históricos) de cada projeto, no formato consumido pela linha do
+// tempo do avanço. Compartilhado pelo histórico do projeto e pelo avanço por equipamento.
+async function loadReportServicesByProject(projectIds) {
+  const [reportServices, historicalServices] = await Promise.all([
     prisma.reportService.findMany({
       where: {
         report: {
@@ -475,21 +561,9 @@ export async function computeProgressHistoryForProjects(projectIds) {
         report: { select: { id: true, projectId: true, reportType: true, reportDate: true, specialConditions: true, measurementLinks: true } }
       }
     }),
-    prisma.projectManualProgressHistory.findMany({
-      where: { projectId: { in: projectIds } },
-      select: { projectId: true, progressPct: true, recordedAt: true },
-      orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }]
-    }),
     loadHistoricalRealizedServices(prisma, projectIds)
   ]);
 
-  const plannedByProject = new Map();
-  for (const service of plannedServices) {
-    if (!plannedByProject.has(service.projectId)) plannedByProject.set(service.projectId, []);
-    plannedByProject.get(service.projectId).push(service);
-  }
-
-  const projectById = new Map(projects.map(project => [project.id, project]));
   const servicesByProject = new Map();
   for (const service of [...withNativeMeasurementLinks(reportServices), ...historicalServices]) {
     const projectId = service.report?.projectId;
@@ -506,6 +580,38 @@ export async function computeProgressHistoryForProjects(projectIds) {
       specialConditions: service.report?.specialConditions
     });
   }
+  return servicesByProject;
+}
+
+export async function computeProgressHistoryForProjects(projectIds) {
+  const result = new Map();
+  if (!projectIds || projectIds.length === 0) return result;
+
+  const [plannedServices, projects, servicesByProject, manualProgressHistory] = await Promise.all([
+    prisma.projectPlannedService.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ order: 'asc' }],
+      include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
+    }),
+    prisma.project.findMany({
+      where: { id: { in: projectIds } },
+      select: { id: true, startDate: true, manualProgressPct: true, updatedAt: true }
+    }),
+    loadReportServicesByProject(projectIds),
+    prisma.projectManualProgressHistory.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { projectId: true, progressPct: true, recordedAt: true },
+      orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }]
+    })
+  ]);
+
+  const plannedByProject = new Map();
+  for (const service of plannedServices) {
+    if (!plannedByProject.has(service.projectId)) plannedByProject.set(service.projectId, []);
+    plannedByProject.get(service.projectId).push(service);
+  }
+
+  const projectById = new Map(projects.map(project => [project.id, project]));
 
   const manualHistoryByProject = new Map();
   for (const item of manualProgressHistory) {
@@ -528,6 +634,23 @@ export async function computeProgressHistoryForProjects(projectIds) {
   }
 
   return result;
+}
+
+// Recortes de avanço (escopo e/ou Equipamento/UG do cliente) de um projeto; null quando não há o
+// que filtrar. O ritmo semanal é montado por quem conhece as datas do cronograma.
+export async function computeProgressSlicesForProject(projectId) {
+  const plannedServices = await prisma.projectPlannedService.findMany({
+    where: { projectId },
+    orderBy: [{ order: 'asc' }],
+    include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
+  });
+  if (!splitPlannedServices(plannedServices)) return null;
+
+  const [project, servicesByProject] = await Promise.all([
+    prisma.project.findUnique({ where: { id: projectId }, select: { startDate: true } }),
+    loadReportServicesByProject([projectId])
+  ]);
+  return buildProgressSlices(plannedServices, servicesByProject.get(projectId) ?? [], { startDate: project?.startDate ?? null });
 }
 
 // Avanço detalhado de um projeto (endpoint do modal do cronograma).

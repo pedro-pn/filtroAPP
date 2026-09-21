@@ -611,6 +611,8 @@ export function ProjectDetailDashboard({
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedScheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [scheduleDirty, setScheduleDirty] = useState(false);
+  const [progressScopeKey, setProgressScopeKey] = useState('');
+  const [progressEquipmentKey, setProgressEquipmentKey] = useState('');
   const [progressHistoryNoveltyActive, setProgressHistoryNoveltyActive] = useState(true);
   const [weeklyTargetNoveltyActive, setWeeklyTargetNoveltyActive] = useState(true);
   const [manualCostNoveltyActive, setManualCostNoveltyActive] = useState(true);
@@ -799,6 +801,28 @@ export function ProjectDetailDashboard({
     : data.avancoMethod === 'GROUP_SCOPE' || data.avancoMethod === 'GROUP_WEIGHTED' || data.avancoMethod === 'GROUP_AVERAGE'
       ? ' (consolidado)'
       : '';
+  // Avanço por Escopo e/ou Equipamento/UG do cliente: o recorte troca o percentual, o ritmo e o
+  // histórico. A combinação escolhida aponta para um recorte já calculado pelo backend.
+  const progressFilters = isGroup ? null : data.progressFilters ?? null;
+  const progressScopes = progressFilters?.scopes ?? [];
+  const progressEquipments = progressFilters?.equipments ?? [];
+  const activeScopeKey = progressScopes.some(item => item.key === progressScopeKey) ? progressScopeKey : '';
+  const activeEquipmentKey = progressEquipments.some(item => item.key === progressEquipmentKey) ? progressEquipmentKey : '';
+  const combinationAvailable = (scopeKey: string, equipmentKey: string) =>
+    (!scopeKey && !equipmentKey) || progressFilters?.lookup[`${scopeKey}|${equipmentKey}`] !== undefined;
+  const sliceIndex = progressFilters?.lookup[`${activeScopeKey}|${activeEquipmentKey}`];
+  const selectedProgressSlice = progressFilters && typeof sliceIndex === 'number' ? progressFilters.slices[sliceIndex] : null;
+  const progressFilterLabel = [
+    progressScopes.find(item => item.key === activeScopeKey)?.name,
+    progressEquipments.find(item => item.key === activeEquipmentKey)?.name
+  ].filter(Boolean).join(' · ');
+  const shownAvancoPct = selectedProgressSlice ? selectedProgressSlice.avancoPct : data.avancoPct;
+  const shownProgressHistory = selectedProgressSlice ? selectedProgressSlice.progressHistory : data.progressHistory;
+  const shownRequiredWeeklyProgress = selectedProgressSlice ? selectedProgressSlice.requiredWeeklyProgress : data.requiredWeeklyProgress;
+  const changeProgressScope = (scopeKey: string) => {
+    setProgressScopeKey(scopeKey);
+    if (!combinationAvailable(scopeKey, activeEquipmentKey)) setProgressEquipmentKey('');
+  };
   const manualCosts = data.manualCosts ?? [];
   const plannedCollaborators = planningContext?.collaborators ?? [];
   const showingPlannedCollaborators = !data.header.lastRdoDate
@@ -1177,18 +1201,48 @@ export function ProjectDetailDashboard({
         {/* Coluna 2 */}
         <div className="acp-det-col">
           <div className="page-card acp-det-block">
+            {progressScopes.length >= 2 || progressEquipments.length >= 2 ? (
+              <div className="acp-progress-filters">
+                {progressScopes.length >= 2 ? (
+                  <div className="acp-progress-filter">
+                    <label htmlFor="acp-progress-scope">Escopo</label>
+                    <select id="acp-progress-scope" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
+                      <option value="">Todos os escopos</option>
+                      {progressScopes.map(item => (
+                        <option key={item.key} value={item.key} disabled={!combinationAvailable(item.key, activeEquipmentKey)}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                {progressEquipments.length >= 2 ? (
+                  <div className="acp-progress-filter">
+                    <label htmlFor="acp-progress-equipment">Equipamento do cliente</label>
+                    <select id="acp-progress-equipment" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
+                      <option value="">Todos os equipamentos</option>
+                      {progressEquipments.map(item => (
+                        <option key={item.key} value={item.key} disabled={!combinationAvailable(activeScopeKey, item.key)}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <div className="acp-det-avanco">
               <div className="acp-det-metric-top">
-                <HelpTip help="Quanto do escopo vendido já foi executado: cruza o realizado dos RDOs (metros de tubulação, litros de óleo) com o previsto, ponderado pelo peso de cada serviço. Sem escopo cadastrado, usa o avanço manual informado no cronograma.">Avanço do escopo{progressSuffix}</HelpTip>
-                <span className="acp-det-metric-val">{fmtPct(data.avancoPct)}</span>
+                <HelpTip help="Quanto do escopo vendido já foi executado: cruza o realizado dos RDOs (metros de tubulação, litros de óleo) com o previsto, ponderado pelo peso de cada serviço. Sem escopo cadastrado, usa o avanço manual informado no cronograma. Ao filtrar por escopo e/ou equipamento do cliente, considera só as metas, os pesos e o realizado do recorte escolhido.">Avanço do escopo{progressFilterLabel ? ` · ${progressFilterLabel}` : progressSuffix}</HelpTip>
+                <span className="acp-det-metric-val">{fmtPct(shownAvancoPct)}</span>
               </div>
-              <Bar value={data.avancoPct} />
+              <Bar value={shownAvancoPct} />
             </div>
-            <RequiredWeeklyProgressCard target={data.requiredWeeklyProgress} />
-            <ProgressHistoryChart points={data.progressHistory} />
+            <RequiredWeeklyProgressCard key={`${activeScopeKey}|${activeEquipmentKey}`} target={shownRequiredWeeklyProgress} />
+            <ProgressHistoryChart key={`${activeScopeKey}|${activeEquipmentKey}`} points={shownProgressHistory} />
             {!isGroup && projectId ? <details style={{ marginTop: 12 }}>
               <summary>Previsto × realizado por UG e sistema</summary>
-              <ProjectProgressBreakdown projectId={projectId} />
+              <ProjectProgressBreakdown
+                projectId={projectId}
+                filter={progressFilters ? { scopeKey: activeScopeKey, equipmentKey: activeEquipmentKey } : undefined}
+                progressPct={selectedProgressSlice ? selectedProgressSlice.avancoPct : undefined}
+              />
             </details> : null}
 
             <div className="acp-det-two">

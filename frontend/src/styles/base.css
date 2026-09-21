@@ -3980,6 +3980,10 @@ a {
 .acp-det-metric, .acp-det-avanco { display: flex; flex-direction: column; gap: 5px; }
 .acp-det-metric-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .acp-det-metric-val { color: var(--mu); font-size: 12px; text-align: right; }
+.acp-progress-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 10px; margin-bottom: 10px; }
+.acp-progress-filter { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.acp-progress-filter label { font-size: 12px; font-weight: 600; color: var(--mu); }
+.acp-progress-filter select { width: 100%; min-width: 0; }
 .acp-weekly-target {
   border: 1px solid color-mix(in srgb, var(--g) 35%, var(--br));
   border-radius: var(--rs);
