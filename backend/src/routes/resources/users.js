@@ -19,6 +19,7 @@ import { userDeletionImpact } from '../../lib/assinaturas/service.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 import { normalizeReportEmissionPermissions } from '../../lib/operational-reports/permissions.js';
 import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions } from '../../../../shared/modules/acompanhamento-permissions.js';
+import { REVIEW_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions } from '../../../../shared/modules/rdo-permissions.js';
 
 const router = Router();
 const ACCOUNT_ROLE_LABELS = {
@@ -37,6 +38,7 @@ const schema = z.object({
   accountType: z.nativeEnum(AccountType).optional(),
   moduleRoles: z.array(z.string()).optional(),
   acompanhamentoExtraPermissions: z.array(z.enum([PROJECT_TAXES_AND_BILLING])).optional(),
+  rdoExtraPermissions: z.array(z.enum([REVIEW_REPORTS])).optional(),
   reportEmissionPermissions: z.array(z.enum(['SITE_RDO', 'MAINTENANCE', 'PRODUCTION'])).optional(),
   isActive: z.boolean().optional(),
   collaboratorId: z.string().nullable().optional()
@@ -196,13 +198,25 @@ export function resolveAccountPayload(data, existingUser = null) {
     acompanhamentoAccount
   );
 
+  const rdoAccount = { accountType: targetAccountType, moduleRoles };
+  if (data.rdoExtraPermissions?.length && !canReceiveRdoExtraPermissions(rdoAccount)) {
+    const error = new Error('Permissões adicionais de RDO só podem ser concedidas a contas internas com o papel Coordenador do módulo.');
+    error.status = 400;
+    throw error;
+  }
+  const rdoExtraPermissions = normalizeRdoExtraPermissions(
+    data.rdoExtraPermissions ?? existingUser?.rdoExtraPermissions,
+    rdoAccount
+  );
+
   return {
     accountType: targetAccountType,
     role,
     collaboratorId,
     moduleRoles,
     reportEmissionPermissions,
-    acompanhamentoExtraPermissions
+    acompanhamentoExtraPermissions,
+    rdoExtraPermissions
   };
 }
 
@@ -371,6 +385,7 @@ router.post(
           collaboratorId: accountPayload.collaboratorId || null,
           reportEmissionPermissions: accountPayload.reportEmissionPermissions,
           acompanhamentoExtraPermissions: accountPayload.acompanhamentoExtraPermissions,
+          rdoExtraPermissions: accountPayload.rdoExtraPermissions,
           moduleRoles: {
             create: moduleRoleRows('', accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
           }
@@ -455,6 +470,7 @@ router.put(
       collaboratorId: accountPayload.collaboratorId || null,
       reportEmissionPermissions: accountPayload.reportEmissionPermissions,
       acompanhamentoExtraPermissions: accountPayload.acompanhamentoExtraPermissions,
+      rdoExtraPermissions: accountPayload.rdoExtraPermissions,
       ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
       ...(data.moduleRoles !== undefined || accountShapeChanged(data, currentUser)
         ? {

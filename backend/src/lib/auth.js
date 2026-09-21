@@ -6,6 +6,7 @@ import { notificationPreferences } from './notification-preferences.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from './privacy-consent.js';
 import { serializeReportEmissionPermissions } from './operational-reports/permissions.js';
 import { normalizeAcompanhamentoExtraPermissions } from '../../../shared/modules/acompanhamento-permissions.js';
+import { normalizeRdoExtraPermissions } from '../../../shared/modules/rdo-permissions.js';
 
 const SESSION_DAYS = 7;
 const REMEMBER_SESSION_DAYS = 30;
@@ -83,6 +84,10 @@ export function publicUser(user) {
     accountType: user.accountType || accountTypeForLegacyRole(user.role),
     moduleRoles: serializeModuleRoles(user),
     acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(user.acompanhamentoExtraPermissions, {
+      accountType: user.accountType || accountTypeForLegacyRole(user.role),
+      moduleRoles: serializeModuleRoles(user)
+    }),
+    rdoExtraPermissions: normalizeRdoExtraPermissions(user.rdoExtraPermissions, {
       accountType: user.accountType || accountTypeForLegacyRole(user.role),
       moduleRoles: serializeModuleRoles(user)
     }),

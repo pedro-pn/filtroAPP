@@ -15,6 +15,7 @@ import type { UserDeletionImpact, UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
 import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions, type AcompanhamentoExtraPermission } from '../../../../shared/modules/acompanhamento-permissions.js';
+import { REVIEW_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions, type RdoExtraPermission } from '../../../../shared/modules/rdo-permissions.js';
 
 type AccountFilter = 'all' | AccountType;
 type ModuleFilter = 'all' | string;
@@ -30,6 +31,7 @@ interface AccountFormState {
   moduleRoles: ModuleRole[];
   reportEmissionPermissions: ReportEmissionPermission[];
   acompanhamentoExtraPermissions: AcompanhamentoExtraPermission[];
+  rdoExtraPermissions: RdoExtraPermission[];
 }
 
 interface ManualPasswordSetup {
@@ -47,7 +49,8 @@ const emptyForm: AccountFormState = {
   collaboratorId: '',
   moduleRoles: [],
   reportEmissionPermissions: [],
-  acompanhamentoExtraPermissions: []
+  acompanhamentoExtraPermissions: [],
+  rdoExtraPermissions: []
 };
 
 const reportPermissionOptions: Array<{
@@ -94,7 +97,8 @@ function userToForm(user: InternalUserSummary): AccountFormState {
     collaboratorId: user.collaboratorId || '',
     moduleRoles: rolesForAccountType(accountType, user.moduleRoles || []),
     reportEmissionPermissions: accountType === 'CLIENT' ? [] : user.reportEmissionPermissions || [],
-    acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(user.acompanhamentoExtraPermissions, { accountType, moduleRoles: user.moduleRoles })
+    acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(user.acompanhamentoExtraPermissions, { accountType, moduleRoles: user.moduleRoles }),
+    rdoExtraPermissions: normalizeRdoExtraPermissions(user.rdoExtraPermissions, { accountType, moduleRoles: user.moduleRoles })
   };
 }
 
@@ -190,6 +194,7 @@ export function AdminAccountsPage() {
       collaboratorId: accountType === 'CLIENT' ? '' : current.collaboratorId,
       moduleRoles: rolesForAccountType(accountType, current.moduleRoles),
       acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType, moduleRoles: current.moduleRoles }),
+      rdoExtraPermissions: normalizeRdoExtraPermissions(current.rdoExtraPermissions, { accountType, moduleRoles: current.moduleRoles }),
       reportEmissionPermissions: accountType === 'CLIENT' ? [] : current.reportEmissionPermissions
     }));
   }
@@ -208,7 +213,8 @@ export function AdminAccountsPage() {
       return {
         ...current,
         moduleRoles: rolesForAccountType(current.accountType, nextRoles),
-        acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType: current.accountType, moduleRoles: nextRoles })
+        acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType: current.accountType, moduleRoles: nextRoles }),
+        rdoExtraPermissions: normalizeRdoExtraPermissions(current.rdoExtraPermissions, { accountType: current.accountType, moduleRoles: nextRoles })
       };
     });
   }
@@ -241,6 +247,7 @@ export function AdminAccountsPage() {
           moduleRoles: rolesForAccountType(form.accountType, form.moduleRoles),
           reportEmissionPermissions: form.accountType === 'CLIENT' ? [] : form.reportEmissionPermissions,
           acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(form.acompanhamentoExtraPermissions, form),
+          rdoExtraPermissions: normalizeRdoExtraPermissions(form.rdoExtraPermissions, form),
           isActive: form.isActive,
           collaboratorId: form.accountType === 'CLIENT' ? null : form.collaboratorId || null
         };
@@ -434,6 +441,32 @@ export function AdminAccountsPage() {
                   />
                   <span>Visualizar impostos pagos e faturamentos realizados no projeto</span>
                 </label>
+              )}
+            </div>
+          ) : null}
+          {!isEditingClient && (form.accountType === 'ADMIN' || canReceiveRdoExtraPermissions(form)) ? (
+            <div className="field-group field-group-wide">
+              <label>Permissões adicionais do RDO</label>
+              {form.accountType === 'ADMIN' ? (
+                <div className="form-hint">Administradores já revisam, editam e aprovam relatórios de qualquer projeto.</div>
+              ) : (
+                <>
+                  <label className="admin-role-option">
+                    <input
+                      type="checkbox"
+                      checked={form.rdoExtraPermissions.includes(REVIEW_REPORTS)}
+                      onChange={event => setForm(current => ({
+                        ...current,
+                        rdoExtraPermissions: event.target.checked ? [REVIEW_REPORTS] : []
+                      }))}
+                    />
+                    <span>Revisar relatórios: abrir a tela de edição do gestor, aprovar e devolver</span>
+                  </label>
+                  <div className="form-hint">
+                    Inclui baixar DOCX, alterar a numeração, descartar edições pendentes e consultar a auditoria.
+                    Não inclui excluir relatórios nem acessar projetos visíveis somente para o gestor.
+                  </div>
+                </>
               )}
             </div>
           ) : null}
