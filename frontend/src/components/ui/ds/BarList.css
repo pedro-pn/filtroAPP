@@ -1,0 +1,38 @@
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink);
+}
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__item { display: grid; gap: var(--space-2); min-width: 0; }
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__copy {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__copy > span { color: var(--muted); }
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__value { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__track {
+  display: block;
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+:where(.fv-ds, [data-fv-ds]) .fv-bar-list__track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-text);
+}

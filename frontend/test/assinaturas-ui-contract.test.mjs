@@ -75,11 +75,15 @@ test('campo de assinatura pode ser removido, nasce compacto e usa apresentação
   assert.match(css, /\.signature-field,[\s\S]*?border-radius:\s*var\(--rs\)/);
 });
 
-test('campo usa uma cor suave, nome centralizado e controles transparentes', async () => {
+test('campo usa cor de identificação e remoção DS com foco visível', async () => {
   const css = await source('src/styles/base.css');
+  const migratedCss = await source('src/pages/assinaturas/AssinaturasPreparation.ds.css');
+  const canvas = await source('src/pages/assinaturas/components/PdfPageCanvas.tsx');
   assert.match(css, /\.signature-field,[\s\S]*?border:\s*0;[\s\S]*?justify-content:\s*center/);
   assert.match(css, /\.signature-field > span:first-child \{[\s\S]*?text-align:\s*center/);
-  assert.match(css, /\.signature-field-remove \{[\s\S]*?background:\s*transparent;[\s\S]*?right:\s*-20px;[\s\S]*?top:\s*-20px/);
+  assert.match(canvas, /<IconButton[\s\S]*?className="signature-field-remove"[\s\S]*?icon=\{DS_ICONS.trash\}/);
+  assert.match(migratedCss, /\.signature-field-remove \{[^}]*background: var\(--surface\)/);
+  assert.match(migratedCss, /:focus-visible \{[^}]*outline: 2px solid var\(--brand\)/);
   assert.match(css, /\.signature-field-resize \{[\s\S]*?repeating-linear-gradient\([\s\S]*?border:\s*0/);
   assert.doesNotMatch(css, /\.signature-field-color-[1-5]\s*\{/);
 });
@@ -87,12 +91,13 @@ test('campo usa uma cor suave, nome centralizado e controles transparentes', asy
 test('acompanhamento agrupa informações e mantém ações compactas na horizontal', async () => {
   const [list, css] = await Promise.all([
     source('src/pages/assinaturas/components/SignerStatusList.tsx'),
-    source('src/styles/base.css')
+    source('src/pages/assinaturas/AssinaturasTracking.ds.css')
   ]);
   assert.match(list, /className="signature-status-overview"/);
   assert.match(list, /className="signature-status-detail"/);
-  assert.match(css, /\.signature-status-row \{[\s\S]*?border-radius:\s*var\(--rs\)[\s\S]*?grid-template-columns:\s*minmax\(180px, \.8fr\) minmax\(250px, 1fr\) minmax\(240px, auto\)/);
-  assert.match(css, /\.signature-status-row > \.signature-row-actions \{[\s\S]*?flex-direction:\s*row/);
+  assert.match(list, /<Card className="assinaturas-signer-card"/);
+  assert.match(css, /\.signature-row-actions,[\s\S]*?flex-direction:\s*row;[\s\S]*?flex-wrap:\s*nowrap/);
+  assert.match(css, /\.signature-status-list \{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
 test('cadastro separa formulário e adicionados usando a mesma cor do campo', async () => {
@@ -102,7 +107,7 @@ test('cadastro separa formulário e adicionados usando a mesma cor do campo', as
     source('src/styles/base.css')
   ]);
   assert.ok(
-    list.indexOf('signature-signer-form-card') < list.indexOf('signature-added-signers'),
+    list.indexOf('assinaturas-setup__signer-form') < list.indexOf('assinaturas-setup__added-signers'),
     'o formulário deve aparecer antes da relação de assinantes adicionados'
   );
   assert.match(list, /signature-signer-item signature-signer-color-/);
@@ -114,11 +119,12 @@ test('cadastro separa formulário e adicionados usando a mesma cor do campo', as
 test('ações de ciclo de vida permanecem em uma linha compacta', async () => {
   const [detail, css] = await Promise.all([
     source('src/pages/assinaturas/components/DocumentDetailView.tsx'),
-    source('src/styles/base.css')
+    source('src/pages/assinaturas/AssinaturasPreparation.ds.css')
   ]);
   assert.match(detail, /title="Cancela o documento e revoga todos os convites pendentes[\s\S]*?Cancelar rodada/);
-  assert.match(css, /\.signature-lifecycle-actions \{[\s\S]*?flex-wrap:\s*nowrap/);
-  assert.match(css, /\.signature-lifecycle-actions > button \{[\s\S]*?white-space:\s*nowrap/);
+  assert.match(css, /:is\(\.signature-tabs, \.signature-lifecycle-actions, \.signature-detail-actions\) \{[^}]*flex-wrap:\s*nowrap/);
+  assert.match(css, /:is\(\.signature-tabs, \.signature-lifecycle-actions, \.signature-detail-actions\) \{[^}]*overflow:\s*visible/);
+  assert.match(detail, /appearance="design-system"/);
 });
 
 test('clique no PDF escolhe o assinante no local e inclui diretamente quando há apenas um', async () => {
@@ -132,28 +138,31 @@ test('clique no PDF escolhe o assinante no local e inclui diretamente quando há
   assert.doesNotMatch(list, /onSelect/);
   assert.match(canvas, /signers\.length === 1[\s\S]*?addField\(signers\[0\]\.id, point\)/);
   assert.match(canvas, /setPendingPlacement\(point\)/);
-  assert.match(canvas, /className=\{`signature-signer-picker/);
+  assert.match(canvas, /className="signature-signer-picker"/);
   assert.match(css, /\.signature-signer-picker \{[\s\S]*?position:\s*absolute[\s\S]*?z-index:/);
 });
 
 test('diálogo de publicação separa conteúdo, campos e ações', async () => {
   const [dialog, css] = await Promise.all([
     source('src/pages/assinaturas/components/PublishDialog.tsx'),
-    source('src/styles/base.css')
+    source('src/pages/assinaturas/AssinaturasPreparation.ds.css')
   ]);
   assert.match(dialog, /className="signature-publish-form"/);
-  assert.match(css, /\.signature-publish-form \{[\s\S]*?display:\s*flex[\s\S]*?gap:\s*14px/);
-  assert.match(css, /\.signature-publish-form \.modal-actions \{[\s\S]*?border-top:[\s\S]*?padding-top:/);
+  assert.match(css, /\.signature-publish-form \{[^}]*gap:\s*var\(--space-4\)/);
+  assert.match(dialog, /footer=\{/);
+  assert.match(dialog, /form="signature-publish-form"/);
+  assert.match(dialog, /fullscreenOnMobile=\{false\}/);
 });
 
 test('upload separa ações do anexo e documentos usam listagem vertical', async () => {
   const [modal, page, css] = await Promise.all([
     source('src/pages/assinaturas/components/NewDocumentModal.tsx'),
-    source('src/pages/assinaturas/AssinaturasPage.tsx'),
+    source('src/pages/assinaturas/components/DocumentLibrary.tsx'),
     source('src/styles/base.css')
   ]);
   assert.match(modal, /className="signature-new-document-form"/);
-  assert.match(css, /\.signature-new-document-form \.modal-actions \{[\s\S]*?margin-top:/);
+  assert.match(modal, /footer=\{/);
+  assert.match(modal, /form="signature-new-document-form"/);
   assert.match(page, /className="signature-document-list"/);
   assert.match(css, /\.signature-document-list \{[\s\S]*?flex-direction:\s*column/);
 });
@@ -165,17 +174,20 @@ test('formulários de assinatura usam rótulo e contrato visual de erro comparti
     source('src/pages/assinaturas/components/PublishDialog.tsx'),
     source('src/components/ui/PdfDropzone.tsx')
   ]);
-  for (const component of [upload, signers, publish]) {
-    assert.match(component, /field-group/);
-    assert.match(component, /aria-invalid/);
-    assert.match(component, /field-error/);
+  assert.match(upload, /<Field id="signature-title" label="Título"/);
+  assert.match(upload, /errorText=\{form\.formState\.errors\.title\?\.message\}/);
+  assert.match(upload, /<Input size="sm"/);
+  for (const component of [signers, publish]) {
+    assert.match(component, /<Field id=/);
+    assert.match(component, /errorText=\{form.formState.errors/);
+    assert.match(component, /<Input size="sm"/);
     assert.doesNotMatch(component, /placeholder=/);
   }
   assert.match(dropzone, /field-group \$\{error \? 'field-invalid'/);
   assert.match(dropzone, /aria-invalid=\{Boolean\(error\)\}/);
   assert.match(dropzone, /id=\{`\$\{id\}-error`\}/);
-  assert.match(publish, /<label htmlFor="signature-expiry"/);
-  assert.match(publish, /<select id="signature-expiry"/);
+  assert.match(publish, /<Field id="signature-expiry" label="Validade dos links"/);
+  assert.match(publish, /<Select size="sm"/);
 });
 
 test('posicionamento usa Pointer Events, restaura no cancelamento e tem suporte touch', async () => {
@@ -200,7 +212,7 @@ test('módulo mantém onboarding permanente, datas São Paulo e proteções de o
     source('src/pages/assinaturas/components/DocumentDetailView.tsx'),
     source('src/pages/assinaturas/components/SignerStatusList.tsx'),
     source('src/pages/assinaturas/components/AuditTrail.tsx'),
-    source('src/pages/assinaturas/AssinaturasPublicSignPage.tsx')
+    source('src/pages/assinaturas/components/PublicSignatureView.tsx')
   ]);
   assert.match(tutorial, /localStorage\.setItem/);
   assert.equal((tutorial.match(/title: '\d\./g) || []).length, 6);
@@ -208,7 +220,8 @@ test('módulo mantém onboarding permanente, datas São Paulo e proteções de o
   for (const surface of [card, detail, signerStatus, audit, publicPage]) {
     assert.match(surface, /formatSignatureDateTime/);
   }
-  assert.match(page, /equip-page assinaturas-page/);
+  assert.match(page, /<AssinaturasAppShell/);
+  assert.match(page, /className="assinaturas-page-v2"/);
   assert.match(css, /\.signature-document-list \{[\s\S]*?flex-direction:\s*column/);
   assert.match(css, /\.signature-list-section \*,[\s\S]*?min-width:\s*0/);
   assert.match(css, /\.signature-tabs \{[\s\S]*?flex-wrap:\s*wrap/);

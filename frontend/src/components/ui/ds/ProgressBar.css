@@ -1,0 +1,20 @@
+:where(.fv-ds, [data-fv-ds]) .fv-progress-bar { display: grid; min-width: 0; gap: var(--space-2); }
+:where(.fv-ds, [data-fv-ds]) .fv-progress-bar__heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+:where(.fv-ds, [data-fv-ds]) .fv-progress-bar__heading strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+:where(.fv-ds, [data-fv-ds]) .fv-progress-bar__track {
+  display: flex;
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+:where(.fv-ds, [data-fv-ds]) .fv-progress-bar__track > span { height: 100%; background: var(--fv-tone-ink); }

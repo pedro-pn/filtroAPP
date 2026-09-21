@@ -22,6 +22,7 @@ import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { currentPageScrollState, saveCurrentPageScroll } from '../../hooks/usePageScrollRestoration';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Button, Card, MetricCard, SearchInput, StatusPill, type SemanticTone } from '../../components/ui/ds';
 import { DS_ICONS } from '../../components/ui/ds/icons';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
@@ -243,6 +244,7 @@ export function ClientPage() {
   const [signaturePrivacyAccepted, setSignaturePrivacyAccepted] = useState(false);
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<ReportSummary | null>(null);
   // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
   const [clientSearch, setClientSearch] = usePersistentSearch(`client-search:${user?.id || user?.username || 'anonymous'}`);
   const debouncedClientSearch = useDebouncedValue(clientSearch, 300);
@@ -718,14 +720,19 @@ export function ClientPage() {
   );
   const initialSignerName = initialSignerNameForReport(signatureTargetReport, user);
 
-  async function handleReject(report: ReportSummary) {
+  function requestReject(report: ReportSummary) {
     const comment = commentsById[report.id]?.trim();
     if (!comment) {
       showToast(TEXT.rejectRequired, 'error');
       return;
     }
-    if (!window.confirm('Confirmar reprovação deste relatório?')) return;
+    setRejectTarget(report);
+  }
 
+  async function handleReject(report: ReportSummary) {
+    const comment = commentsById[report.id]?.trim();
+    if (!comment) return;
+    setRejectTarget(null);
     try {
       await reportMutations.clientReview.mutateAsync({
         id: report.id,
@@ -821,7 +828,7 @@ export function ClientPage() {
                   <span className="client-report-action-label--full">Assinar digitalmente</span>
                   <span className="client-report-action-label--compact">Assinar</span>
                 </Button>
-                <Button variant="danger" size="sm" type="button" onClick={() => void handleReject(report)}>
+                <Button variant="danger" size="sm" type="button" onClick={() => requestReject(report)}>
                   {TEXT.reject}
                 </Button>
               </>
@@ -1208,6 +1215,17 @@ export function ClientPage() {
           setSignaturePrivacyAccepted(false);
         }}
         onConfirm={payload => void confirmSignature(payload)}
+      />
+      <ConfirmDialog
+        open={Boolean(rejectTarget)}
+        appearance="design-system"
+        title="Reprovar relatório?"
+        description="O motivo informado será registrado e ficará visível no histórico do relatório."
+        highlight={rejectTarget ? `${rejectTarget.reportType} ${rejectTarget.sequenceNumber || ''}`.trim() : undefined}
+        confirmLabel="Confirmar reprovação"
+        confirmDisabled={reportMutations.clientReview.isPending}
+        onCancel={() => setRejectTarget(null)}
+        onConfirm={() => rejectTarget && void handleReject(rejectTarget)}
       />
     </RdoAppShell>
   );

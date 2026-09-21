@@ -35,7 +35,7 @@ async function loadOperationalReportsNovelty() {
   }
 }
 
-test('RDO comum e relatórios operacionais compartilham os campos centrais', async () => {
+test('RDO preserva o DS e operacionais mantêm campos centrais até a migração M2', async () => {
   const [rdo, operational] = await Promise.all([
     readFile(
       new URL('../src/pages/collaborator/NewReportPage.tsx', import.meta.url),
@@ -59,12 +59,19 @@ test('RDO comum e relatórios operacionais compartilham os campos centrais', asy
   ];
 
   for (const component of sharedComponents) {
-    assert.match(rdo, new RegExp(`<${component}`));
     assert.match(operational, new RegExp(`<${component}`));
   }
+  for (const component of ['ProgressSteps', 'Card', 'Input', 'Select', 'Button']) {
+    assert.match(rdo, new RegExp(`<${component}\\b`));
+  }
+  for (const page of [rdo, operational]) {
+    assert.match(page, /calculateReportOvertimeSummary/);
+    for (const field of ['reportDate', 'arrivalTime', 'departureTime', 'lunchBreak', 'collaboratorIds']) assert.ok(page.includes(field), field);
+  }
+  assert.match(rdo, /<OperationalReportFormPage mode=\{operationalSelection\}/);
 });
 
-test('turno noturno usa a mesma implementação nos dois fluxos', async () => {
+test('turno noturno preserva os campos nos dois fluxos, sem reverter o DS do RDO', async () => {
   const [specialConditions, operational] = await Promise.all([
     readFile(
       new URL(
@@ -82,7 +89,8 @@ test('turno noturno usa a mesma implementação nos dois fluxos', async () => {
     )
   ]);
 
-  assert.match(specialConditions, /<ReportNightShiftFields/);
+  assert.match(specialConditions, /<Switch/);
+  for (const field of ['noturno', 'nightCollaboratorIds', 'noturnoStart', 'noturnoEnd', 'noturnoInterval']) assert.ok(specialConditions.includes(field), field);
   assert.match(operational, /<ReportNightShiftFields/);
   assert.doesNotMatch(operational, /operational-collaborator-grid/);
   assert.doesNotMatch(operational, /operational-toggle/);

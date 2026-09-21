@@ -42,6 +42,11 @@ test('confirmação informa o texto exigido e preserva instruções personalizad
     assert.match(custom, /<label[^>]*>Digite o nome de usuário para confirmar<\/label>/);
     assert.doesNotMatch(custom, /Digite <strong>/);
 
+    for (const appearance of ['legacy', 'design-system']) {
+      const withChildren = render({ appearance, children: createElement('p', { role: 'note' }, 'Motivo da revogação') });
+      assert.match(withChildren, /role="note">Motivo da revogação/);
+    }
+
     const simple = render({});
     assert.doesNotMatch(simple, /confirm-dialog-text|Digite/);
     assert.doesNotMatch(simple, /<button[^>]*disabled/);

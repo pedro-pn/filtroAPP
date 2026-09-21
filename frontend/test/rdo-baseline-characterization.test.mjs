@@ -4,9 +4,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test, { after, before } from 'node:test';
 import { createServer } from 'vite';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const frontendRoot = fileURLToPath(new URL('../', import.meta.url));
-const source = (path) => readFileSync(join(frontendRoot, path), 'utf8');
+const source = (path) => withRdoCompanions(path, candidate => readFileSync(join(frontendRoot, candidate), 'utf8'));
 
 let viteServer;
 
@@ -207,7 +208,7 @@ test('App keeps RDO route groups, aliases, public signature routes and replace r
     assert.match(
       app,
       new RegExp(
-        `moduleRoutePath\\('rdo', '${routeKey}', \\{ legacy: true \\}\\)`
+        `moduleRoutePath\\('rdo', '${routeKey}', \\{\\s*legacy: true\\s*\\}\\)`
       )
     );
   }
@@ -288,10 +289,9 @@ test('collaborator home and ongoing-services actions keep their current data and
   assert.match(ongoing, /matchesSearch\(\[/);
   assert.match(ongoing, /Carregando serviços em andamento/);
   assert.match(ongoing, /Nenhum serviço em andamento encontrado/);
-  assert.match(
-    ongoing,
-    /window\.confirm\('Excluir este serviço em andamento\?'\)/
-  );
+  assert.match(ongoing, /<ConfirmDialog/);
+  assert.match(ongoing, /title="Excluir serviço em andamento\?"/);
+  assert.match(ongoing, /onConfirm=\{\(\) => deleteTarget && void handleDeleteService/);
   assert.match(
     ongoing,
     /reportMutations\.deleteService\.mutateAsync\(\{ reportId, serviceId \}\)/
@@ -315,7 +315,7 @@ test('new report keeps the existing server-backed autosave contract', () => {
   );
   assert.match(
     page,
-    /sameProjectDateIds[\s\S]*filter\(id => id !== saved\.id\)[\s\S]*removeDraftAsync\(id\)/
+    /sameProjectDateIds[\s\S]*filter\(\(?id\)? => id !== saved\.id\)[\s\S]*removeDraftAsync\(id\)/
   );
   assert.match(
     page,

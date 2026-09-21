@@ -1,0 +1,151 @@
+@import './EfetivoDialogs.css';
+
+/* DS portals follow insertion order. The legacy 1100 layer would otherwise
+   cover the shared confirmation dialog opened above the team selector. */
+.fv-modal-backdrop.efetivo-team-availability-backdrop { z-index: var(--z-overlay); }
+
+/* Scoped composition of shared controls: a single scroll region per dialog. */
+.efetivo-team-v2 { min-width: 0; }
+.efetivo-team-stack,
+.efetivo-team-section,
+.efetivo-team-v2.efetivo-team-fieldset,
+.efetivo-team-cycle-editor,
+.efetivo-team-allocation-form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+.efetivo-team-section + .efetivo-team-section {
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+}
+.efetivo-team-v2 :where(h3, h4, p) { margin: 0; }
+.efetivo-team-v2 :where(h3, h4, strong) { color: var(--ink); overflow-wrap: anywhere; }
+.efetivo-team-v2 h3 { font-size: var(--text-md); line-height: var(--leading-md); }
+.efetivo-team-v2 h4 { font-size: var(--text-sm); line-height: var(--leading-sm); }
+.efetivo-team-section > header,
+.efetivo-team-person-heading > div { display: grid; min-width: 0; gap: var(--space-1); }
+.efetivo-team-section > header > p,
+.efetivo-team-person-heading p,
+.efetivo-team-v2 .efetivo-team-help {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+.efetivo-team-v2 .efetivo-team-warning {
+  color: var(--warning);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+.efetivo-team-role-summary { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.efetivo-team-v2 .fv-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.efetivo-team-person-heading { display: grid; gap: var(--space-2); }
+.efetivo-team-person-heading > .fv-badge { justify-self: start; }
+.efetivo-team-person-card > .fv-card__body,
+.efetivo-team-choice-card > .fv-card__body { display: grid; min-width: 0; gap: var(--space-3); }
+.efetivo-team-person-card > .fv-card__body > .fv-badge { justify-self: start; }
+
+/* Cycles are simple rows, not another layer of cards inside the person card. */
+.efetivo-team-cycle-list { display: grid; min-width: 0; }
+.efetivo-team-cycle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+}
+.efetivo-team-cycle-row + .efetivo-team-cycle-row { border-block-start: var(--border-width) solid var(--line); }
+.efetivo-team-cycle-summary { display: grid; min-width: 0; gap: var(--space-1); }
+.efetivo-team-cycle-heading { display: flex; align-items: center; gap: var(--space-2); }
+.efetivo-team-cycle-heading > strong { font-size: var(--text-sm); }
+.efetivo-team-cycle-summary > p { color: var(--ink); font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
+.efetivo-team-cycle-row > .efetivo-team-cycle-editor { grid-column: 1 / -1; }
+.efetivo-team-cycle-editor,
+.efetivo-team-allocation-form {
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.efetivo-team-cycle-editor .fv-field__message:not(.fv-field__message--error) { color: var(--ink); }
+.efetivo-team-allocation-form { gap: var(--space-3); }
+.efetivo-team-management-dialog .efetivo-team-section { gap: var(--space-3); }
+.efetivo-team-management-dialog .efetivo-team-person-card { border-color: var(--line-strong); }
+.efetivo-team-person-heading { padding-block-end: var(--space-2); border-block-end: var(--border-width) solid var(--line); }
+.efetivo-team-period-fields { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-3); }
+.efetivo-team-v2 .efetivo-team-period-fields .fv-field { min-width: 0; }
+.efetivo-team-v2 .efetivo-team-period-fields .fv-field__label { font-size: var(--text-xs); }
+.efetivo-team-v2 .efetivo-team-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: visible;
+}
+.efetivo-team-v2 .efetivo-team-actions > .fv-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.efetivo-team-v2 .app-combobox { min-width: 0; }
+.efetivo-team-v2 .app-combobox-control input { min-height: var(--space-10); font-size: var(--text-sm); }
+.efetivo-team-v2 .app-combobox-list { font-size: var(--text-sm); }
+
+.efetivo-team-v2.efetivo-team-selection-dialog { --fv-modal-width: var(--content-max); }
+.efetivo-team-selection-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: var(--space-3); }
+.efetivo-team-selection-count { color: var(--ink); font-size: var(--text-sm); font-weight: var(--font-semibold); }
+.efetivo-team-v2 .efetivo-team-availability-kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: var(--space-4); }
+.efetivo-team-availability-column { display: grid; min-width: 0; gap: var(--space-3); border-block-start: var(--space-1) solid var(--stage); padding-block-start: var(--space-3); }
+.efetivo-team-availability-column[data-availability-status='AVAILABLE'] { --stage: var(--success); }
+.efetivo-team-availability-column[data-availability-status='AWAITING_MOBILIZATION'] { --stage: var(--warning); }
+.efetivo-team-availability-column[data-availability-status='MOBILIZED'] { --stage: var(--info); }
+.efetivo-team-availability-column[data-availability-status='ON_VACATION'] { --stage: var(--pu); }
+.efetivo-team-availability-column > header > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.efetivo-team-availability-column > header h3 { font-size: var(--text-sm); }
+.efetivo-team-availability-column > header p { margin-block-start: var(--space-1); color: var(--muted); font-size: var(--text-xs); }
+.efetivo-team-choice { display: flex; align-items: start; gap: var(--space-2); cursor: pointer; }
+.efetivo-team-choice:has(input:disabled) { cursor: not-allowed; }
+.efetivo-team-choice > input { flex: 0 0 auto; width: var(--space-4); height: var(--space-4); margin-block-start: var(--space-1); }
+.efetivo-team-choice-person { display: flex; min-width: 0; align-items: start; gap: var(--space-2); }
+.efetivo-team-choice-person > i { display: grid; flex: 0 0 auto; width: var(--space-8); height: var(--space-8); place-items: center; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink); font-size: var(--text-xs); font-style: normal; }
+.efetivo-team-choice-person > span { display: grid; min-width: 0; gap: var(--space-1); }
+.efetivo-team-choice-person strong { font-size: var(--text-sm); line-height: var(--leading-sm); }
+.efetivo-team-choice-person small { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--muted); overflow-wrap: anywhere; }
+.efetivo-team-v2 .efetivo-team-choice-card.fv-card--selected :is(.efetivo-team-choice-person small, .efetivo-team-help) { color: var(--ink); }
+
+@media (min-width: 768px) {
+  /* Keep the new-cycle action beside its dates, without an empty button row. */
+  .efetivo-team-new-project-cycle { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+  .efetivo-team-v2 .efetivo-team-new-project-cycle > .efetivo-team-actions {
+    padding-block-start: calc(var(--leading-sm) + var(--space-2));
+  }
+}
+@media (max-width: 1279.98px) {
+  .efetivo-team-v2 .efetivo-team-availability-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+  .efetivo-team-v2 .efetivo-team-availability-kanban,
+  .efetivo-team-selection-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-team-period-fields { gap: var(--space-2); }
+  .efetivo-team-v2 .efetivo-team-period-fields .fv-control-shell { padding-inline: var(--space-2); }
+  .efetivo-team-v2 .efetivo-team-actions { gap: var(--space-1); }
+  .efetivo-team-v2 .efetivo-team-actions > .fv-button { padding-inline: var(--space-1); }
+  .efetivo-team-management-dialog .efetivo-team-person-card { padding: var(--space-3); }
+  .efetivo-team-person-card .efetivo-team-cycle-editor { padding: var(--space-2); }
+  .efetivo-team-cycle-row { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-team-project-cycles > .efetivo-team-cycle-list > .efetivo-team-cycle-row[data-cycle-state='closed'] {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+@media (max-width: 479.98px) {
+  .efetivo-team-allocation-form .efetivo-team-period-fields .fv-field__heading {
+    min-height: calc(var(--leading-sm) * 2);
+  }
+}

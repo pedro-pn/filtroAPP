@@ -5,9 +5,13 @@ import { acceptClientPrivacyConsent } from '../../api/auth';
 import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../constants/privacy';
+import { BrandLogo } from '../../components/brand/BrandLogo';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Button, Card } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
 import { downloadBlob } from '../../utils/download';
+import '../RdoPublicPage.css';
 
 export function ClientPrivacyConsentPage() {
   const { logout, replaceUser, user } = useAuth();
@@ -17,6 +21,7 @@ export function ClientPrivacyConsentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
+  const [deletionConfirmOpen, setDeletionConfirmOpen] = useState(false);
 
   async function handleAccept() {
     if (!accepted || isSubmitting) return;
@@ -55,7 +60,7 @@ export function ClientPrivacyConsentPage() {
   }
 
   async function handleDeletionRequest() {
-    if (!window.confirm('Registrar solicitação de eliminação/análise manual dos seus dados?')) return;
+    setDeletionConfirmOpen(false);
     setIsRequestingDeletion(true);
     try {
       const request = await requestMyDataDeletion();
@@ -68,14 +73,17 @@ export function ClientPrivacyConsentPage() {
   }
 
   return (
-    <main className="client-privacy-page">
-      <section className="client-privacy-panel" aria-labelledby="client-privacy-title">
-        <div className="client-privacy-heading">
+    <main className="fv-ds rdo-public-shell client-privacy-page" data-fv-ds>
+      <header className="rdo-public-header">
+        <BrandLogo className="rdo-public-logo" />
+      </header>
+      <Card className="rdo-public-card client-privacy-panel" padding="lg" aria-labelledby="client-privacy-title">
+        <div className="client-privacy-heading rdo-consent-heading">
           <div>
-            <div className="section-title" id="client-privacy-title">Privacidade</div>
-            <h1>Antes de continuar</h1>
+            <span className="rdo-consent-eyebrow">Privacidade</span>
+            <h1 id="client-privacy-title">Antes de continuar</h1>
           </div>
-          <span>{user?.name || 'Cliente'}</span>
+          <span className="rdo-consent-user">{user?.name || 'Cliente'}</span>
         </div>
         <PrivacyNotice
           variant="clientAccount"
@@ -83,26 +91,38 @@ export function ClientPrivacyConsentPage() {
           onCheckedChange={setAccepted}
           disabled={isSubmitting}
         />
-        <Link className="auth-link" to="/privacidade" target="_blank" rel="noopener noreferrer">
+        <Link className="rdo-consent-link" to="/privacidade" target="_blank" rel="noopener noreferrer">
           Ler política de privacidade completa
         </Link>
         <div className="client-privacy-rights">
-          <button className="secondary-button" type="button" onClick={() => void handleDataExport()} disabled={isExportingData}>
+          <Button size="sm" variant="secondary" type="button" loading={isExportingData} onClick={() => void handleDataExport()}>
             {isExportingData ? 'Gerando...' : 'Exportar meus dados'}
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void handleDeletionRequest()} disabled={isRequestingDeletion}>
+          </Button>
+          <Button size="sm" variant="secondary" type="button" disabled={isRequestingDeletion} onClick={() => setDeletionConfirmOpen(true)}>
             {isRequestingDeletion ? 'Registrando...' : 'Solicitar eliminação'}
-          </button>
+          </Button>
         </div>
         <div className="client-privacy-actions">
-          <button className="secondary-button" type="button" onClick={handleLogout} disabled={isSubmitting}>
+          <Button size="sm" variant="secondary" type="button" onClick={handleLogout} disabled={isSubmitting}>
             Sair
-          </button>
-          <button className="primary-button" type="button" onClick={() => void handleAccept()} disabled={!accepted || isSubmitting}>
+          </Button>
+          <Button size="sm" variant="primary" type="button" loading={isSubmitting} onClick={() => void handleAccept()} disabled={!accepted}>
             {isSubmitting ? 'Registrando...' : 'Aceitar e continuar'}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
+      <ConfirmDialog
+        open={deletionConfirmOpen}
+        appearance="design-system"
+        title="Solicitar eliminação de dados?"
+        description="A solicitação será registrada para análise manual. Você poderá acompanhar o atendimento pelo protocolo gerado."
+        confirmLabel="Registrar solicitação"
+        cancelLabel="Voltar"
+        danger
+        confirmDisabled={isRequestingDeletion}
+        onCancel={() => setDeletionConfirmOpen(false)}
+        onConfirm={() => void handleDeletionRequest()}
+      />
     </main>
   );
 }

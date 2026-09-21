@@ -1,14 +1,20 @@
 import { useState } from 'react';
 
 import { downloadSignaturePdf, type SignatureDocument } from '../../../api/assinaturas';
-import { Button } from '../../../components/ui/Button';
+import { AppIcon } from '../../../components/icons/AppIcon';
+import { Button, StatusPill } from '../../../components/ui/ds';
+import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { useAssinaturaMutations } from '../../../hooks/useAssinaturas';
 import { DocumentSetupView } from './DocumentSetupView';
 import { SignerStatusList } from './SignerStatusList';
 import { AuditTrail } from './AuditTrail';
+import { DocumentTrackingSummary } from './DocumentTrackingSummary';
 import { formatSignatureDateTime } from '../utils/datetime';
+import { signatureDocumentStatusLabels } from '../utils/documentStatus';
+import { PageHeader } from '../../../layout/PageHeader';
+import '../AssinaturasPreparation.ds.css';
 
 function saveBlob(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -37,13 +43,18 @@ export function DocumentDetailView({
   const showToast = useToast();
   const mutations = useAssinaturaMutations();
   const [pendingAction, setPendingAction] = useState<'archive' | 'cancel' | 'delete' | null>(null);
+  const [downloading, setDownloading] = useState<'original' | 'final' | null>(null);
   const isDraft = document.status === 'RASCUNHO';
   const activeTab = isDraft ? (tab === 'audit' ? 'audit' : 'setup') : (tab === 'setup' ? 'details' : tab);
   async function download(final: boolean) {
+    if (downloading) return;
+    setDownloading(final ? 'final' : 'original');
     try {
       saveBlob(await downloadSignaturePdf(document.id, final), final ? `${document.title}-assinado.pdf` : document.originalFileName);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível baixar o PDF.', 'error');
+    } finally {
+      setDownloading(null);
     }
   }
   async function runLifecycleAction() {
@@ -70,38 +81,38 @@ export function DocumentDetailView({
   }
   const actionPending = mutations.archive.isPending || mutations.cancel.isPending || mutations.deleteDocument.isPending;
   return (
-    <section className="signature-detail">
-      <div className="signature-detail-heading">
-        <Button variant="secondary" onClick={onBack}>Voltar</Button>
-        <div><h2>{document.title}</h2><p>{document.originalFileName}</p></div>
-        <span className={`signature-status signature-status-${document.status.toLowerCase()}`}>{document.status.replaceAll('_', ' ')}</span>
+    <section className="fv-ds assinaturas-detail">
+      <div className="assinaturas-detail__topline">
+        <Button variant="secondary" size="sm" iconLeft={<AppIcon icon={DS_ICONS.previous} size="sm" />} onClick={onBack}>Voltar</Button>
+        <StatusPill status={signatureDocumentStatusLabels[document.status]} />
       </div>
-      <div className="signature-tabs">
-        {document.status !== 'RASCUNHO' ? <button type="button" className={activeTab === 'details' ? 'active' : ''} onClick={() => onTabChange('details')}>Acompanhamento</button> : null}
-        {isDraft ? <button type="button" className={activeTab === 'setup' ? 'active' : ''} onClick={() => onTabChange('setup')}>Configuração</button> : null}
-        <button type="button" className={activeTab === 'audit' ? 'active' : ''} onClick={() => onTabChange('audit')}>Auditoria</button>
-      </div>
+      <PageHeader title={document.title} description={document.originalFileName} />
       <div className="signature-document-dates">
         <span>Criado em {formatSignatureDateTime(document.createdAt)}</span>
         {document.completedAt ? <span>Concluído em {formatSignatureDateTime(document.completedAt)}</span> : null}
       </div>
-      <div className="signature-lifecycle-actions">
-        {document.archivedAt ? <Button variant="secondary" onClick={restoreArchive}>Restaurar dos arquivados</Button>
-          : <Button variant="secondary" disabled={document.status === 'FINALIZANDO'} onClick={() => setPendingAction('archive')}>Arquivar</Button>}
-        {document.status === 'AGUARDANDO_ASSINATURAS' ? <Button variant="secondary" title="Cancela o documento e revoga todos os convites pendentes; assinaturas concluídas são preservadas." onClick={() => setPendingAction('cancel')}>Cancelar rodada</Button> : null}
-        <Button variant="secondary" disabled={document.status === 'FINALIZANDO'} title={document.status === 'FINALIZANDO' ? 'Aguarde a geração do PDF final.' : undefined} onClick={() => setPendingAction('delete')}>Excluir</Button>
+      <div className="assinaturas-detail__navigation">
+        <div className="signature-tabs" role="group" aria-label="Seções do documento">
+          {document.status !== 'RASCUNHO' ? <Button size="sm" variant={activeTab === 'details' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'details'} onClick={() => onTabChange('details')}>Acompanhamento</Button> : null}
+          {isDraft ? <Button size="sm" variant={activeTab === 'setup' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'setup'} onClick={() => onTabChange('setup')}>Configuração</Button> : null}
+          <Button size="sm" variant={activeTab === 'audit' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'audit'} onClick={() => onTabChange('audit')}>Auditoria</Button>
+        </div>
+        <div className="signature-lifecycle-actions">
+          {document.archivedAt ? <Button variant="secondary" size="sm" title="Restaurar dos arquivados" loading={mutations.restoreArchived.isPending} onClick={restoreArchive}>Restaurar</Button>
+            : <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} onClick={() => setPendingAction('archive')}>Arquivar</Button>}
+          {document.status === 'AGUARDANDO_ASSINATURAS' ? <Button variant="secondary" size="sm" title="Cancela o documento e revoga todos os convites pendentes; assinaturas concluídas são preservadas." onClick={() => setPendingAction('cancel')}>Cancelar rodada</Button> : null}
+          <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} title={document.status === 'FINALIZANDO' ? 'Aguarde a geração do PDF final.' : undefined} onClick={() => setPendingAction('delete')}>Excluir</Button>
+        </div>
       </div>
-      {activeTab === 'setup' ? <DocumentSetupView document={document} pageNumber={pageNumber} onPageChange={onPageChange} /> : activeTab === 'audit' ? <AuditTrail documentId={document.id} /> : (
+      {activeTab === 'setup' ? <DocumentSetupView document={document} pageNumber={pageNumber} onPageChange={onPageChange} /> : activeTab === 'audit' ? <AuditTrail key={document.id} documentId={document.id} /> : (
         <>
-          {document.status === 'FINALIZANDO' ? <p className="signature-inline-warning">O PDF assinado está sendo finalizado. Esta tela atualiza automaticamente.</p> : null}
-          <div className="signature-detail-actions">
-            <Button variant="secondary" onClick={() => download(false)}>Baixar original</Button>
-            <Button disabled={document.status !== 'CONCLUIDO'} onClick={() => download(true)}>Baixar PDF assinado</Button>
-          </div>
+          <DocumentTrackingSummary document={document} downloading={downloading} onDownload={download} />
           <SignerStatusList documentId={document.id} signers={document.signers} />
         </>
       )}
       <ConfirmDialog
+        appearance="design-system"
+        confirmDisabled={actionPending}
         open={Boolean(pendingAction)}
         title={pendingAction === 'archive' ? 'Arquivar documento?' : pendingAction === 'cancel' ? 'Cancelar rodada de assinaturas?' : 'Excluir documento?'}
         description={pendingAction === 'archive'

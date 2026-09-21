@@ -3,9 +3,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const frontendRoot = fileURLToPath(new URL('../', import.meta.url));
-const source = (path) => readFileSync(join(frontendRoot, path), 'utf8');
+const source = (path) => withRdoCompanions(path, candidate => readFileSync(join(frontendRoot, candidate), 'utf8'));
 
 function sectionBetween(contents, start, end) {
   const startIndex = contents.indexOf(start);
@@ -299,6 +300,7 @@ test('gate B.5 mantém default legacy e habilita o DS apenas nas superfícies mi
   assert.deepEqual(
     optedInFiles.sort(),
     [
+      join(frontendRoot, 'src/components/reports/ReportDetailActions.tsx'),
       join(frontendRoot, 'src/pages/ReportDetailPage.tsx'),
       join(frontendRoot, 'src/pages/gestor/GestorPage.tsx')
     ].sort()

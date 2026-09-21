@@ -50,7 +50,7 @@ test('aba Missões só nasce de projeto cadastrado, sem cadastro manual', () => 
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionsBoard.tsx', import.meta.url), 'utf8');
   const form = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionFormModal.tsx', import.meta.url), 'utf8');
   assert.match(board, /listPendingMissionProjects/);
-  assert.match(board, /efetivo-mission-pending/);
+  assert.match(board, /efetivo-mission-card-v2--pending/);
   assert.doesNotMatch(board, /Nova missão/);
   assert.doesNotMatch(form, /id="mission-project"/);
 });
@@ -100,11 +100,11 @@ test('paridade de campos com o exemplo de referência', () => {
     assert.ok(missionForm.includes(label), `campo ausente no diálogo de missão: ${label}`);
   }
   const missionsBoard = read('../src/pages/efetivo/components/MissionsBoard.tsx');
-  for (const label of ['posições planejadas', 'posições pendentes', 'Equipe completa e sem conflitos', 'Alocar disponíveis']) {
+  for (const label of ['Posições planejadas', 'Posições pendentes', 'Equipe completa e sem conflitos', 'Alocar disponíveis']) {
     assert.ok(missionsBoard.includes(label), `resumo ausente na aba Missões: ${label}`);
   }
   const kanban = read('../src/pages/efetivo/components/MissionKanban.tsx');
-  for (const label of ['contratos no fluxo', 'LÍDER VINCULADO', 'Ver líder e equipe', 'Nenhuma missão nesta etapa']) {
+  for (const label of ['contratos no fluxo', 'MissionKanbanTeam', 'Equipe e ciclos', 'Nenhuma missão nesta etapa']) {
     assert.ok(kanban.includes(label), `elemento ausente no kanban: ${label}`);
   }
   const stages = read('../src/utils/missionKanban.ts');

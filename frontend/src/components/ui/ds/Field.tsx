@@ -1,10 +1,10 @@
-import { useId, type ReactNode } from 'react';
+import { useId, type HTMLAttributes, type ReactNode } from 'react';
 
 import { FieldContext } from './field-context';
 import { joinClassNames } from './utils';
 import './styles.css';
 
-export interface FieldProps {
+export interface FieldProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'id'> {
   children: ReactNode;
   label?: ReactNode;
   helperText?: ReactNode;
@@ -27,7 +27,8 @@ export function Field({
   id,
   required,
   disabled,
-  className
+  className,
+  ...props
 }: FieldProps) {
   const reactId = useId();
   const baseId = id ?? `fv-field-${reactId.replace(/:/g, '')}`;
@@ -47,6 +48,7 @@ export function Field({
       }}
     >
       <div
+        {...props}
         className={joinClassNames('fv-field', className)}
         data-disabled={disabled || undefined}
         data-invalid={Boolean(errorText) || undefined}

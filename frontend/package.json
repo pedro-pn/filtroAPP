@@ -10,6 +10,7 @@
     "test": "node --test test/*.test.mjs",
     "test:rdo:static": "node --test test/rdo-*.test.mjs",
     "test:rdo:behavioral": "playwright test --config=playwright.rdo.config.ts",
+    "test:rdo:visual": "playwright test --config=playwright.rdo.visual.config.ts",
     "test:rdo": "npm run test:rdo:static && npm run test:rdo:behavioral",
     "typecheck:rdo:e2e": "tsc --noEmit -p tsconfig.e2e.json",
     "lint": "eslint ."

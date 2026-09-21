@@ -19,6 +19,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconLeft?: ReactNode;
   iconRight?: ReactNode;
   fullWidth?: boolean;
+  /** Allow long labels (for example clickable card titles) to wrap without clipping. */
+  multiline?: boolean;
+  counter?: ReactNode;
   children: ReactNode;
 }
 
@@ -31,6 +34,8 @@ function ButtonComponent(
     iconLeft,
     iconRight,
     fullWidth = false,
+    multiline = false,
+    counter,
     disabled,
     className,
     children,
@@ -51,6 +56,7 @@ function ButtonComponent(
         `fv-button--${variant}`,
         `fv-button--${size}`,
         fullWidth && 'fv-button--full',
+        multiline && 'fv-button--multiline',
         className
       )}
       disabled={isDisabled}
@@ -61,6 +67,7 @@ function ButtonComponent(
         {loading ? <Spinner size="sm" decorative /> : iconLeft}
       </span>
       <span className="fv-button__label">{children}</span>
+      {counter !== undefined && counter !== null ? <span className="fv-button__counter">{counter}</span> : null}
       {iconRight ? (
         <span className="fv-button__icon" aria-hidden="true">
           {iconRight}

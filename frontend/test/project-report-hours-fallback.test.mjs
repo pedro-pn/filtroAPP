@@ -6,15 +6,15 @@ const readSource = relativePath => readFile(new URL(`../${relativePath}`, import
 
 test('horas dos RDOs aparecem como fallback visual das horas apropriadas', async () => {
   const [component, css] = await Promise.all([
-    readSource('src/components/projects/ProjectDetailDashboard.tsx'),
-    readSource('src/styles/base.css')
+    readSource('src/components/projects/ProjectDetailPeople.tsx'),
+    readSource('src/components/projects/ProjectDetailDashboard.ds.css')
   ]);
 
   assert.match(component, /c\.horasApropriadas != null && c\.horasApropriadas > 0/);
   assert.match(component, /\) : c\.horas > 0 \? \([\s\S]{0,900}?fmtHours\(c\.horas\)/);
-  assert.match(component, /className="acp-report-hours-fallback-trigger"/);
+  assert.match(component, /className="acp-detail-report-hours-trigger"/);
   assert.match(component, /não entram no custo apropriado/);
-  assert.match(component, /<small>RDO<\/small>/);
-  assert.match(css, /\.acp-report-hours-fallback-trigger\s*\{[^}]*color:\s*var\(--bl\)/s);
-  assert.match(css, /\.acp-report-hours-fallback-value\s*\{[^}]*border-bottom:\s*1px dashed currentColor/s);
+  assert.match(component, /onSelect\(c, 'REPORT'\)/);
+  assert.match(component, /fmtHours\(c.horas\)\} · RDO/);
+  assert.match(css, /\.acp-detail-report-hours-trigger\s*\{[^}]*color:\s*var\(--info\)/s);
 });

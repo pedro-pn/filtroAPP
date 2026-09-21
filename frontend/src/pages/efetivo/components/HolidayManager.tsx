@@ -54,6 +54,6 @@ export function HolidayManager({ canManage }: { canManage: boolean }) {
         <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={() => setFormOpen(false)} disabled={save.isPending}>Cancelar</Button><Button type="submit" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar feriado'}</Button></footer>
       </form>
     </Modal>
-    <ConfirmDialog open={Boolean(deleting)} title="Remover feriado?" description="A data voltará a compor a capacidade útil." highlight={deleting?.name} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} onConfirm={() => { if (deleting && !remove.isPending) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
+    <ConfirmDialog appearance="design-system" open={Boolean(deleting)} title="Remover feriado?" description="A data voltará a compor a capacidade útil." highlight={deleting?.name} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} onConfirm={() => { if (deleting && !remove.isPending) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
   </section>;
 }

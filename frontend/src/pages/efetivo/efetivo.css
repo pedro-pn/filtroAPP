@@ -632,12 +632,19 @@
   padding: 8px;
 }
 
+/* Narrow Kanban columns stack the metrics before a date breaks in half. */
+.efetivo-kanban-card dl {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr));
+}
+
 .efetivo-role-card dt,
 .efetivo-mission-card dt,
 .efetivo-kanban-card dt {
   color: var(--mu);
   font-size: 11px;
 }
+
+.efetivo-kanban-card dt { color: var(--ink); }
 
 .efetivo-role-card dd,
 .efetivo-mission-card dd,
@@ -874,16 +881,16 @@
 }
 
 .efetivo-team-option.selected {
-  background: rgba(48, 80, 58, .07);
+  background: var(--brand-softer);
   box-shadow: inset 3px 0 0 var(--g);
 }
 
 .efetivo-team-option:not(.unavailable):hover {
-  background: #f8faf8;
+  background: var(--surface-2);
 }
 
 .efetivo-team-option.selected:hover {
-  background: rgba(48, 80, 58, .11);
+  background: var(--brand-soft);
 }
 
 .efetivo-team-option input {
@@ -1217,7 +1224,7 @@
 }
 .efetivo-toggle input { accent-color: var(--g); height: 16px; margin: 0; width: 16px; }
 .efetivo-toggle span { font-size: 12px; font-weight: 700; }
-.efetivo-toggle small { background: var(--sf); border-radius: 999px; color: var(--mu); font-size: 11px; padding: 1px 6px; }
+.efetivo-toggle small { background: var(--sf); border-radius: 999px; color: var(--ink); font-size: 11px; padding: 1px 6px; }
 
 .efetivo-kanban-mobile-select { display: none; }
 .efetivo-kanban-card .efetivo-kanban-move-select { display: none; }
@@ -1230,16 +1237,16 @@
 .efetivo-kanban.show-cancelled { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
 /* Cor só na bolinha da etapa; colunas e cards seguem a cor única do módulo. */
-[data-kanban-stage='STANDBY'] { --stage: #64748b; }
-[data-kanban-stage='MOBILIZATION'] { --stage: #f59e0b; }
-[data-kanban-stage='EXECUTION'] { --stage: #2563eb; }
-[data-kanban-stage='FINAL_MEASUREMENT'] { --stage: #8b5cf6; }
-[data-kanban-stage='FINISHED'] { --stage: #16a34a; }
-[data-kanban-status='CANCELLED'] { --stage: #dc2626; }
-[data-availability-status='AVAILABLE'] { --stage: #16a34a; }
-[data-availability-status='AWAITING_MOBILIZATION'] { --stage: #f59e0b; }
-[data-availability-status='MOBILIZED'] { --stage: #2563eb; }
-[data-availability-status='ON_VACATION'] { --stage: #8b5cf6; }
+[data-kanban-stage='STANDBY'] { --stage: var(--muted); }
+[data-kanban-stage='MOBILIZATION'] { --stage: var(--warning); }
+[data-kanban-stage='EXECUTION'] { --stage: var(--info); }
+[data-kanban-stage='FINAL_MEASUREMENT'] { --stage: var(--pu); }
+[data-kanban-stage='FINISHED'] { --stage: var(--success); }
+[data-kanban-status='CANCELLED'] { --stage: var(--danger); }
+[data-availability-status='AVAILABLE'] { --stage: var(--success); }
+[data-availability-status='AWAITING_MOBILIZATION'] { --stage: var(--warning); }
+[data-availability-status='MOBILIZED'] { --stage: var(--info); }
+[data-availability-status='ON_VACATION'] { --stage: var(--pu); }
 
 .efetivo-kanban-column {
   background: var(--sf);
@@ -1302,7 +1309,7 @@
 }
 
 .efetivo-kanban-card.draggable { cursor: grab; }
-.efetivo-kanban-card.draggable:hover { box-shadow: 0 6px 16px rgba(20, 20, 20, .1); }
+.efetivo-kanban-card.draggable:hover { box-shadow: var(--shadow-e2); }
 .efetivo-kanban-card.efetivo-kanban-pending {
   background: var(--warning-bg);
   border-color: var(--warning-border);
@@ -1479,7 +1486,7 @@
 .efetivo-admin-role > div:first-child { align-items: center; display: flex; gap: 8px; }
 .efetivo-admin-tabs { display: flex; gap: 8px; padding: 8px; }
 .efetivo-admin-tabs button { background: transparent; border: 0; border-radius: var(--rs); color: var(--mu); cursor: pointer; font-weight: 700; padding: 9px 12px; }
-.efetivo-admin-tabs button.active { background: var(--gl); color: var(--g); }
+.efetivo-admin-tabs button.active { background: var(--brand-soft); color: var(--brand-text); }
 .efetivo-role-color { border: 1px solid var(--br); border-radius: 50%; height: 18px; width: 18px; }
 .efetivo-user-grid article { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 4px; padding: 12px; }
 .efetivo-user-grid span { color: var(--mu); }
@@ -1487,6 +1494,15 @@
 .efetivo-activity-list article { display: flex; gap: 12px; }
 .efetivo-activity-list p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
 .efetivo-activity-marker { background: var(--gl); border-radius: 50%; flex: 0 0 9px; height: 9px; margin-top: 5px; }
+
+@media (min-width: 1001px) and (max-width: 1279.98px) {
+  .efetivo-kanban,
+  .efetivo-kanban.show-cancelled { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1280px) and (max-width: 1439.98px) {
+  .efetivo-kanban.show-cancelled { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 @media (max-width: 1000px) {
   .efetivo-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1572,13 +1588,13 @@
 }
 
 .equip-nav-count.efetivo-nav-pending {
-  background: var(--warning-border);
-  color: #4a2c05;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .equip-nav-item.active .equip-nav-count.efetivo-nav-pending {
-  background: var(--warning-border);
-  color: #4a2c05;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 /* Tiras de resumo (missões e kanban), no padrão do exemplo de referência. */
@@ -1624,7 +1640,7 @@
 .efetivo-team-status.danger { color: var(--rd); }
 .efetivo-team-status.success { color: var(--g); }
 
-/* Kanban: descrição da etapa, responsável e equipe expansível. */
+/* Kanban: descrição da etapa, responsável e equipe sempre visível. */
 .efetivo-kanban-column > header { align-items: flex-start; flex-direction: column; gap: 2px; }
 .efetivo-kanban-column > header > div { align-items: center; display: flex; gap: 8px; justify-content: space-between; width: 100%; }
 .efetivo-kanban-column > header small { color: var(--mu); font-size: 11px; }
@@ -1651,8 +1667,8 @@
 
 .efetivo-mission-owner span { display: flex; flex-direction: column; min-width: 0; }
 .efetivo-mission-owner small { color: var(--mu); font-size: 9.5px; letter-spacing: .06em; }
-.efetivo-mission-owner strong { font-size: 12.5px; }
-.efetivo-mission-owner b { color: var(--mu); font-size: 11px; font-weight: 500; }
+.efetivo-mission-owner strong { font-size: 12.5px; overflow-wrap: anywhere; }
+.efetivo-mission-owner b { color: var(--mu); font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
 
 .efetivo-kanban-details {
   background: var(--bg);
@@ -1664,10 +1680,11 @@
 }
 
 .efetivo-kanban-details > span { color: var(--mu); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
-.efetivo-kanban-details > div { align-items: center; display: flex; gap: 7px; }
-.efetivo-kanban-details strong { font-size: 12.5px; }
+.efetivo-kanban-details > div { align-items: center; display: grid; gap: 2px 7px; grid-template-columns: 26px minmax(0, 1fr); }
+.efetivo-kanban-details > div > i { grid-row: span 2; }
+.efetivo-kanban-details strong { font-size: 12.5px; overflow-wrap: anywhere; }
 .efetivo-kanban-details em { color: var(--g); font-size: 10.5px; margin-left: 6px; }
-.efetivo-kanban-details small { color: var(--mu); font-size: 11px; margin-left: auto; }
+.efetivo-kanban-details small { color: var(--mu); font-size: 11px; grid-column: 2; overflow-wrap: anywhere; }
 .efetivo-kanban-details p { color: var(--mu); font-size: 12px; margin: 0; }
 
 .efetivo-team-toggle {
@@ -1680,6 +1697,8 @@
   padding: 2px 0;
   text-align: left;
 }
+
+.efetivo-kanban-pending .efetivo-team-toggle { color: var(--warning); }
 
 .efetivo-kanban-team-actions { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
 .efetivo-kanban-team-manage {
@@ -1751,7 +1770,7 @@
 
 .efetivo-calendar-grid button.has-conflict { border-color: var(--rd); }
 .efetivo-planning-table tbody tr { cursor: pointer; }
-.efetivo-planning-table tbody tr.selected { background: rgba(48, 80, 58, .07); box-shadow: inset 3px 0 0 var(--gl); }
+.efetivo-planning-table tbody tr.selected { background: var(--brand-softer); box-shadow: inset 3px 0 0 var(--gl); }
 .efetivo-absence-card.selected { border-color: var(--gl); box-shadow: 0 0 0 2px var(--gl); }
 
 /* Itens acionáveis das listas compactas e atalhos entre painéis. */

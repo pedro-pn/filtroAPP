@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 
-import { Button } from '../../components/ui/Button';
-import { SearchBar } from '../../components/ui/SearchBar';
+import { Button, EmptyState, IconButton, Skeleton } from '../../components/ui/ds';
+import { DS_ICONS } from '../../components/ui/ds/icons';
 import { useToast } from '../../components/ui/ToastContext';
 import { useAuth } from '../../auth/AuthContext';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
 import { useAssinaturaMutations, useSignatureDocument, useSignatureDocuments } from '../../hooks/useAssinaturas';
-import { DocumentCard } from './components/DocumentCard';
+import { DocumentLibrary } from './components/DocumentLibrary';
+import { AssinaturasAppShell } from './AssinaturasAppShell';
 import { DocumentDetailView } from './components/DocumentDetailView';
 import { NewDocumentModal } from './components/NewDocumentModal';
 import { AssinaturasTutorial } from './AssinaturasTutorial';
 import { normalizeSignatureSearchParams, signatureDocumentSearchParams } from './utils/navigation';
+import './AssinaturasPage.ds.css';
 
 export function AssinaturasPage() {
   const showToast = useToast();
@@ -99,16 +99,18 @@ export function AssinaturasPage() {
   }
 
   return (
-    <Shell>
-      <TopBar
-        title="Assinaturas"
-        subtitle="Envio de PDFs e coleta de assinaturas"
-        actions={<button className="topbar-chip" type="button" onClick={() => tutorialTrigger.current?.()}>Ver tutorial</button>}
-      />
-      <main className="page-scroll equip-page assinaturas-page">
+    <AssinaturasAppShell
+      archived={archived || Boolean(selectedId && documentQuery.data?.isArchived)}
+      documentTitle={selectedId ? documentQuery.data?.title || 'Documento' : undefined}
+      actions={<>
+        <IconButton className="assinaturas-tutorial-mobile" icon={DS_ICONS.alertInfo} label="Ver tutorial de Assinaturas" onClick={() => tutorialTrigger.current?.()} />
+        <Button className="assinaturas-tutorial-desktop" variant="ghost" size="sm" onClick={() => tutorialTrigger.current?.()}>Ver tutorial</Button>
+      </>}
+    >
+      <main className="assinaturas-page-v2">
         {selectedId ? (
-          documentQuery.isLoading ? <div className="signature-page-state">Carregando documento...</div>
-            : documentQuery.isError || !documentQuery.data ? <div className="signature-page-state">Não foi possível carregar o documento. <Button onClick={() => documentQuery.refetch()}>Tentar novamente</Button></div>
+          documentQuery.isLoading ? <div className="fv-ds"><Skeleton variant="card" label="Carregando documento..." /></div>
+            : documentQuery.isError || !documentQuery.data ? <div className="fv-ds"><EmptyState variant="error" title="Não foi possível carregar o documento." action={{ label: 'Tentar novamente', onClick: () => void documentQuery.refetch() }} /></div>
               : <DocumentDetailView
                 document={documentQuery.data}
                 tab={detailTab}
@@ -118,33 +120,29 @@ export function AssinaturasPage() {
                 onBack={closeDocument}
               />
         ) : (
-          <section className="signature-list-section">
-            <div className="signature-list-heading">
-              <div><h1>Documentos</h1><p>Prepare e acompanhe assinaturas avulsas.</p></div>
-              <span data-signature-new-document><Button onClick={() => setNewOpen(true)}>Novo documento</Button></span>
-            </div>
-            <div className="signature-list-filters">
-              <SearchBar value={query} onChange={value => setParam('q', value)} placeholder="Buscar por título ou arquivo" />
-              <div className="field-group">
-                <label htmlFor="signature-status-filter">Status</label>
-                <select id="signature-status-filter" value={status} onChange={event => setParam('status', event.target.value)}>
-                  <option value="">Todos</option><option value="RASCUNHO">Rascunho</option><option value="AGUARDANDO_ASSINATURAS">Aguardando</option><option value="FINALIZANDO">Finalizando</option><option value="CONCLUIDO">Concluído</option><option value="CANCELADO">Cancelado</option>
-                </select>
-              </div>
-            </div>
-            <div className="signature-tabs signature-list-tabs">
-              <button type="button" className={!archived ? 'active' : ''} onClick={() => setParam('tab', '')}>Ativos</button>
-              <button type="button" className={archived ? 'active' : ''} onClick={() => setParam('tab', 'archived')}>Arquivados</button>
-            </div>
-            {listQuery.isLoading ? <div className="signature-document-list" aria-busy="true">{Array.from({ length: 3 }).map((_, index) => <div className="signature-document-card skeleton" key={index} />)}</div> : null}
-            {listQuery.isError ? <div className="signature-page-state">Não foi possível carregar os documentos. <Button onClick={() => listQuery.refetch()}>Tentar novamente</Button></div> : null}
-            {listQuery.data && !listQuery.data.items.length ? <div className="signature-page-state"><strong>Nenhum documento ainda.</strong><span>Envie um PDF para iniciar.</span><Button onClick={() => setNewOpen(true)}>Novo documento</Button></div> : null}
-            {listQuery.data?.items.length ? <div className="signature-document-list">{listQuery.data.items.map(document => <DocumentCard key={document.id} document={document} onOpen={() => openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details')} />)}</div> : null}
-          </section>
+          <DocumentLibrary
+            data={listQuery.data}
+            loading={listQuery.isLoading}
+            error={listQuery.isError}
+            archived={archived}
+            query={query}
+            status={status}
+            onQueryChange={value => setParam('q', value)}
+            onStatusChange={value => setParam('status', value)}
+            onArchiveChange={value => setParam('tab', value ? 'archived' : '')}
+            onClearFilters={() => {
+              const next = new URLSearchParams(params);
+              next.delete('q'); next.delete('status'); next.delete('page');
+              setParams(next, { replace: true });
+            }}
+            onRetry={() => void listQuery.refetch()}
+            onNew={() => setNewOpen(true)}
+            onOpen={document => openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details')}
+          />
         )}
         <NewDocumentModal open={newOpen} submitting={mutations.create.isPending} onClose={() => setNewOpen(false)} onSubmit={create} />
         <AssinaturasTutorial userKey={user?.id || ''} ready={Boolean(user) && !listQuery.isLoading} triggerRef={tutorialTrigger} />
       </main>
-    </Shell>
+    </AssinaturasAppShell>
   );
 }

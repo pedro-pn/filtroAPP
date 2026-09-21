@@ -174,11 +174,12 @@ export function DesignSystemPage() {
         >
           <div className="ds-demo-form-grid">
             <Field
+              id="ds-demo-mission-name"
               label="Nome da missão"
               helperText="Use um nome identificável."
               required
             >
-              <Input name="missionName" placeholder="Ex.: Inspeção anual" />
+              <Input id="ds-demo-mission-name-control" name="missionName" placeholder="Ex.: Inspeção anual" />
             </Field>
             <Field
               label="Campo em foco"

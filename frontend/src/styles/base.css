@@ -3304,6 +3304,21 @@ a {
   border-top: 1px solid var(--br);
 }
 .acp-mission-reports-trigger { width: 100%; }
+.fv-modal.acp-mission-reports-modal {
+  overflow: hidden;
+}
+.fv-modal.acp-mission-reports-modal .fv-modal__body {
+  min-height: 0;
+  padding: 0;
+}
+.acp-mission-reports-context {
+  margin: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
 .modal-card.acp-mission-reports-modal {
   width: min(96vw, 1040px);
   max-width: 1040px;
@@ -3332,6 +3347,9 @@ a {
   padding: 16px 18px 20px;
   overflow-y: auto;
 }
+.fv-modal.acp-mission-reports-modal .acp-mission-reports-body {
+  color: var(--ink);
+}
 .acp-mission-reports-feedback {
   display: flex;
   align-items: center;
@@ -3345,6 +3363,16 @@ a {
   max-width: 1180px;
   padding: 0;
   overflow: hidden;
+}
+.fv-modal.acp-pdf-viewer-modal {
+  width: min(98vw, 1180px);
+  height: min(94dvh, 900px);
+  max-width: 1180px;
+  overflow: hidden;
+}
+.fv-modal.acp-pdf-viewer-modal .fv-modal__body {
+  min-height: 0;
+  padding: 0;
 }
 .acp-pdf-viewer {
   display: grid;
@@ -3363,6 +3391,12 @@ a {
 }
 .acp-pdf-viewer-head h2 { margin: 0; color: var(--g); font-size: 19px; }
 .acp-pdf-viewer-head p { margin: 4px 0 0; color: var(--mu); font-size: 13px; }
+.fv-ds .acp-pdf-viewer-head {
+  border-bottom-color: var(--line);
+}
+.fv-ds .acp-pdf-viewer-head p {
+  color: var(--muted);
+}
 .acp-pdf-viewer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .acp-pdf-canvas-viewer {
   display: grid;
@@ -3380,6 +3414,10 @@ a {
   padding: 8px 12px;
   border-bottom: 1px solid var(--br);
   background: var(--wh);
+}
+.fv-ds .acp-pdf-canvas-toolbar {
+  border-bottom-color: var(--line);
+  background: var(--surface);
 }
 .acp-pdf-canvas-control-group { display: flex; align-items: center; gap: 8px; }
 .acp-pdf-canvas-control-group > span {
@@ -3432,6 +3470,8 @@ a {
   .acp-pdf-viewer-head { align-items: stretch; flex-direction: column; padding: 12px; }
   .acp-pdf-viewer-actions { justify-content: stretch; }
   .acp-pdf-viewer-actions .mini-btn { flex: 1 1 0; }
+  .fv-modal.acp-pdf-viewer-modal { width: calc(100vw - 12px); height: calc(100dvh - 12px); max-height: calc(100dvh - 12px); }
+  .acp-pdf-viewer-actions .fv-button { flex: 1 1 0; }
   .acp-pdf-canvas-toolbar { justify-content: center; padding: 8px; }
   .acp-pdf-canvas-control-group { width: 100%; justify-content: center; }
   .acp-pdf-canvas-stage { padding: 8px; }

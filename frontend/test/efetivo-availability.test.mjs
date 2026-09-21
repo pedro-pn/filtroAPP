@@ -121,25 +121,26 @@ test('seleção da equipe abre diálogo kanban em vez de lista embutida', () => 
 
 test('gestão direta da equipe permite múltiplos ciclos e confirma sobreposição', () => {
   const source = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionAllocationModal.tsx', import.meta.url), 'utf8');
-  const css = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoTeam.ds.css', import.meta.url), 'utf8');
   assert.match(source, /Ciclos do projeto/);
   assert.match(source, /Novo ciclo individual/);
   assert.match(source, /Personalizar ciclos/);
   assert.match(source, /Registre a desmobilização antes de criar outro ciclo/);
   assert.match(source, /Confirmar sobreposição/);
   assert.match(source, /efetivo-allocation-add-actions/);
-  assert.match(css, /\.efetivo-allocation-add\s*\{[^}]*grid-template-columns:\s*minmax\(220px, 1fr\) minmax\(300px, 1fr\)/);
-  assert.match(css, /\.efetivo-cycle-list > article\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/);
-  assert.match(css, /@media \(max-width: 540px\)[\s\S]*?\.efetivo-cycle-add,[\s\S]*?grid-template-columns:\s*1fr;/);
+  assert.match(source, /<MissionPeriodFields/);
+  assert.match(css, /\.efetivo-team-period-fields\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.efetivo-team-cycle-row\s*\{[^}]*display: grid/);
+  assert.match(css, /\.efetivo-team-actions\s*\{[^}]*flex-wrap: nowrap/);
 });
 
 test('status dos dois kanbans têm bolinhas com cores próprias e o módulo usa toda a largura', () => {
   const css = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
-  for (const status of ['STANDBY', 'MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED']) {
-    assert.match(css, new RegExp(`\\[data-kanban-stage='${status}'\\] \\{ --stage: #[0-9a-f]{6}; \\}`));
+  for (const [status, token] of Object.entries({ STANDBY: 'muted', MOBILIZATION: 'warning', EXECUTION: 'info', FINAL_MEASUREMENT: 'pu', FINISHED: 'success' })) {
+    assert.ok(css.includes(`[data-kanban-stage='${status}'] { --stage: var(--${token}); }`));
   }
-  for (const status of ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION']) {
-    assert.match(css, new RegExp(`\\[data-availability-status='${status}'\\] \\{ --stage: #[0-9a-f]{6}; \\}`));
+  for (const [status, token] of Object.entries({ AVAILABLE: 'success', AWAITING_MOBILIZATION: 'warning', MOBILIZED: 'info', ON_VACATION: 'pu' })) {
+    assert.ok(css.includes(`[data-availability-status='${status}'] { --stage: var(--${token}); }`));
   }
   assert.match(css, /\.app-shell:has\(\.equip-page\.efetivo-page\)\s*\{[\s\S]*?max-width:\s*none/);
 });

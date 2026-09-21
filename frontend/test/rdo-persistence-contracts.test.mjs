@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 function assertIncludesAll(actual, expected, context) {
   for (const value of expected) {

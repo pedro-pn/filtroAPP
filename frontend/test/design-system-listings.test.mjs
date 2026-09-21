@@ -3,6 +3,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createServer } from 'vite';
 
 const frontendRoot = fileURLToPath(new URL('../', import.meta.url));
 const source = (path) => readFileSync(join(frontendRoot, path), 'utf8');
@@ -54,6 +57,44 @@ test('DataTable keeps native table semantics, sortable headers and accessible se
     listingTypes,
     /accessor\?:\s*keyof T \| \(\(row: T\) => unknown\)/
   );
+});
+
+test('DataTable can reuse its card presentation while keeping tables as the default', async () => {
+  const server = await createServer({
+    configFile: false,
+    root: frontendRoot,
+    server: { middlewareMode: true, hmr: false },
+    esbuild: { jsx: 'automatic' },
+    optimizeDeps: { noDiscovery: true },
+    appType: 'custom'
+  });
+  try {
+    const { DataTable } = await server.ssrLoadModule('/src/components/ui/ds/listings/DataTable.tsx');
+    const props = {
+      rows: [{ id: 'r1', name: 'RDO 1' }],
+      getRowId: (row) => row.id,
+      columns: [{ key: 'name', header: 'Relatório', render: (row) => row.name }],
+      ariaLabel: 'Relatórios',
+      mobile: { renderItem: (row) => ({ title: row.name }) },
+      selection: {
+        selectedRowIds: ['r1'],
+        onSelectionChange() {},
+        getRowLabel: (row) => row.name,
+        showSelectAll: false
+      }
+    };
+    const table = renderToStaticMarkup(createElement(DataTable, props));
+    const cards = renderToStaticMarkup(createElement(DataTable, { ...props, layout: 'cards' }));
+    assert.match(table, /<table\b/);
+    assert.doesNotMatch(table, /class="fv-data-table__mobile/);
+    assert.doesNotMatch(cards, /<table\b/);
+    assert.match(cards, /fv-data-table__mobile/);
+    assert.match(cards, /aria-selected="true"/);
+    assert.match(cards, /type="checkbox"[^>]*checked=""/);
+    assert.match(cards, /RDO 1/);
+  } finally {
+    await server.close();
+  }
 });
 
 test('SearchInput keeps controlled input immediate and debounce as an auxiliary callback', () => {
@@ -207,7 +248,7 @@ test('listings harness is an isolated Vite entry without application routing', (
   assert.doesNotMatch(entry, /BrowserRouter|MemoryRouter|Routes|Route/);
 });
 
-test('Phase 5 listing primitives are enabled across the migrated RDO profiles', () => {
+test('Phase 5 listing primitives are enabled across the migrated RDO, Efetivo and Assinaturas surfaces', () => {
   const listingNames = 'DataTable|SearchInput|FilterBar|MobileList|Pagination';
   const namedListingImport = new RegExp(
     `import\\s*\\{[^}]*\\b(?:${listingNames})\\b[^}]*\\}\\s*from\\s*['"][^'"]*components/ui/ds(?:/listings(?:/[^'"]+)?)?['"]`,
@@ -220,13 +261,17 @@ test('Phase 5 listing primitives are enabled across the migrated RDO profiles', 
     ...sourceFilesUnder('src/pages'),
     ...sourceFilesUnder('src/modules')
   ];
-  const migratedRdoPagePaths = new Set([
+  const migratedPagePaths = new Set([
     'src/pages/gestor/GestorPage.tsx',
     'src/pages/coordinator/CoordinatorPage.tsx',
     'src/pages/client/ClientPage.tsx',
     'src/pages/collaborator/MyReportsPage.tsx',
     'src/pages/collaborator/MyArchivedReportsPage.tsx',
-    'src/pages/collaborator/OngoingServicesPage.tsx'
+    'src/pages/collaborator/OngoingServicesPage.tsx',
+    'src/pages/efetivo/components/CollaboratorsBoard.tsx',
+    'src/pages/efetivo/components/MissionsBoard.tsx',
+    'src/pages/efetivo/components/MissionTeamSelector.tsx',
+    'src/pages/assinaturas/components/DocumentLibrary.tsx'
   ].map(path => new URL(`../${path}`, import.meta.url).pathname));
   const managerPagePath = new URL('../src/pages/gestor/GestorPage.tsx', import.meta.url).pathname;
   const managerPage = readFileSync(managerPagePath, 'utf8');
@@ -234,22 +279,22 @@ test('Phase 5 listing primitives are enabled across the migrated RDO profiles', 
   assert.match(managerPage, /ManagerReportListing/);
   assert.match(managerPage, namedListingImport);
 
-  for (const file of migratedRdoPagePaths) {
+  for (const file of migratedPagePaths) {
     assert.match(readFileSync(file, 'utf8'), namedListingImport, file);
   }
 
   for (const file of productionFiles.filter(
-    (file) => !migratedRdoPagePaths.has(file)
+    (file) => !migratedPagePaths.has(file)
   )) {
     assert.doesNotMatch(
       readFileSync(file, 'utf8'),
       namedListingImport,
-      `${file} não deve adotar os componentes de listagem fora das superfícies RDO migradas`
+      `${file} não deve adotar os componentes de listagem fora das superfícies migradas`
     );
     assert.doesNotMatch(
       readFileSync(file, 'utf8'),
       directListingImport,
-      `${file} não deve adotar os componentes de listagem fora das superfícies RDO migradas`
+      `${file} não deve adotar os componentes de listagem fora das superfícies migradas`
     );
   }
 });

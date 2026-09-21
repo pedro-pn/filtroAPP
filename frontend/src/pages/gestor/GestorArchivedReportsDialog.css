@@ -1,0 +1,90 @@
+/* Archived reports reuse the DS modal and listing, outside the project grid. */
+:where(.fv-ds, [data-fv-ds]).rdo-archived-reports-dialog-backdrop {
+  align-items: center;
+  padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog__content {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog__context {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog__context strong {
+  color: var(--ink);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog__filter {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .fv-mobile-list__items {
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .fv-mobile-list__item > .fv-card {
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-e0);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .fv-mobile-list__item > .fv-card:not(.fv-card--selected) {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__mobile-title {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__actions {
+  flex-wrap: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__batch-toolbar--archived > .admin-form-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__batch-toolbar--archived .fv-button {
+  min-width: 0;
+  --fv-button-padding: var(--space-2);
+  --fv-button-font-size: var(--text-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .report-batch-action-label--full { display: none; }
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .report-batch-action-label--compact { display: inline; }
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .report-batch-select-all .report-batch-action-label--full { display: inline; }
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .report-batch-select-all .report-batch-action-label--compact { display: none; }
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog > :where(.fv-modal__header, .fv-modal__body) {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .fv-modal__title {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__batch-toolbar--archived .fv-button {
+    --fv-button-padding: var(--space-1);
+  }
+}

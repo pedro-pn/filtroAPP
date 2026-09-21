@@ -1,8 +1,12 @@
 import { useState } from 'react';
 
-import { Button } from '../../../components/ui/Button';
+import type { SignatureAuditItem } from '../../../api/assinaturas';
+import { AppIcon } from '../../../components/icons/AppIcon';
+import { Badge, Button, Card, EmptyState, Skeleton } from '../../../components/ui/ds';
+import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { useSignatureAudit } from '../../../hooks/useAssinaturas';
 import { formatSignatureDateTime } from '../utils/datetime';
+import '../AssinaturasTracking.ds.css';
 
 const actionLabels: Record<string, string> = {
   DOCUMENTO_CRIADO: 'Documento criado',
@@ -34,26 +38,41 @@ const actionLabels: Record<string, string> = {
   DADOS_ACESSO_ANONIMIZADOS: 'Dados de acesso anonimizados'
 };
 
+export function AuditTimeline({ items }: { items: SignatureAuditItem[] }) {
+  return (
+    <ol className="assinaturas-audit__timeline" aria-label="Eventos de auditoria">
+      {items.map(item => {
+        const tone = ['EMAIL_FALHOU', 'FINALIZACAO_FALHOU'].includes(item.action) ? 'danger'
+          : ['CONVITE_EXPIRADO', 'CONVITE_REVOGADO', 'DOCUMENTO_CANCELADO', 'DOCUMENTO_EXCLUIDO'].includes(item.action) ? 'warning'
+            : ['PDF_FINAL_GERADO', 'DOCUMENTO_CONCLUIDO'].includes(item.action) ? 'success' : 'info';
+        return <li className={`assinaturas-audit__event assinaturas-audit__event--${tone}`} key={item.id}>
+          <div className="assinaturas-audit__event-heading"><h3>{actionLabels[item.action] || item.action.replaceAll('_', ' ')}</h3><time dateTime={item.createdAt}>{formatSignatureDateTime(item.createdAt)}</time></div>
+          {item.description ? <p>{item.description}</p> : null}
+        </li>;
+      })}
+    </ol>
+  );
+}
+
 export function AuditTrail({ documentId }: { documentId: string }) {
   const [cursor, setCursor] = useState('');
   const audit = useSignatureAudit(documentId, cursor);
 
-  if (audit.isLoading) return <div className="signature-page-state">Carregando auditoria...</div>;
-  if (audit.isError || !audit.data) return <div className="signature-page-state">Não foi possível carregar a auditoria. <Button onClick={() => audit.refetch()}>Tentar novamente</Button></div>;
-  if (!audit.data.items.length) return <div className="signature-page-state">Nenhum evento de auditoria nesta página.</div>;
-
   return (
-    <div className="signature-audit-list">
-      {audit.data.items.map(item => (
-        <article className="signature-audit-card" key={item.id}>
-          <div><strong>{actionLabels[item.action] || item.action.replaceAll('_', ' ')}</strong><time>{formatSignatureDateTime(item.createdAt)}</time></div>
-          {item.description ? <p>{item.description}</p> : null}
-        </article>
-      ))}
-      <div className="signature-audit-pagination">
-        <Button variant="secondary" disabled={!cursor} onClick={() => setCursor('')}>Primeira página</Button>
-        <Button variant="secondary" disabled={!audit.data.nextCursor} onClick={() => setCursor(audit.data.nextCursor || '')}>Próxima página</Button>
+    <Card className="fv-ds assinaturas-audit" padding="md" title={<h2>Histórico do documento</h2>}
+      actions={!audit.isLoading && !audit.isError && audit.data ? <Badge tone="neutral">{audit.data.items.length} nesta página</Badge> : undefined}
+    >
+      <p className="assinaturas-audit__intro">Criação, convites e assinaturas registrados para este documento.</p>
+      <div id="assinaturas-audit-events" aria-busy={audit.isFetching || undefined}>
+        {audit.isLoading ? <div className="assinaturas-audit__loading"><Skeleton variant="card" label="Carregando auditoria..." /><Skeleton variant="card" /><Skeleton variant="card" /></div>
+          : audit.isError || !audit.data ? <EmptyState variant="error" title="Não foi possível carregar a auditoria." action={{ label: 'Tentar novamente', onClick: () => void audit.refetch() }} />
+            : !audit.data.items.length ? <EmptyState title="Nenhum evento de auditoria nesta página." />
+              : <AuditTimeline items={audit.data.items} />}
       </div>
-    </div>
+      <div className="assinaturas-audit__pagination" role="group" aria-label="Paginação da auditoria">
+        <Button variant="secondary" size="sm" iconLeft={<AppIcon icon={DS_ICONS.firstPage} size="sm" />} aria-controls="assinaturas-audit-events" disabled={!cursor} onClick={() => setCursor('')}>Primeira página</Button>
+        <Button variant="secondary" size="sm" iconRight={<AppIcon icon={DS_ICONS.next} size="sm" />} aria-controls="assinaturas-audit-events" disabled={audit.isFetching || audit.isError || !audit.data?.nextCursor} onClick={() => setCursor(audit.data?.nextCursor || '')}>Próxima página</Button>
+      </div>
+    </Card>
   );
 }

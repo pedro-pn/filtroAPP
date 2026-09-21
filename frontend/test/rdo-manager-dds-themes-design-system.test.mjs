@@ -172,11 +172,11 @@ test('B.8 keeps the shared dds-themes cache consumers untouched', () => {
 
   assert.match(
     reportDetail,
-    /queryKey: \['dds-themes'\], queryFn: \(\) => listDdsThemes\(\)/
+    /queryKey: \['dds-themes'\],\s*queryFn: \(\) => listDdsThemes\(\)/
   );
   assert.match(
     newReport,
-    /queryKey: \['dds-themes'\], queryFn: \(\) => listDdsThemes\(\)/
+    /queryKey: \['dds-themes'\],\s*queryFn: \(\) => listDdsThemes\(\)/
   );
   assert.match(
     reviewAlert,

@@ -1,8 +1,44 @@
 # Estudo de migração visual — Formulário de RDO
 
 > Data do levantamento: 3 de setembro de 2026  
+> Auditoria pós-implementação: 4 de setembro de 2026
 > Tela principal: `frontend/src/pages/collaborator/NewReportPage.tsx`  
 > Escopo: adequação ao Filtrovali DS sem alterar fluxos, regras ou contratos do RDO.
+
+## Estado pós-implementação
+
+O formulário principal e o editor estão **visualmente migrados**. Ambos usam
+`AppShell`, `PageHeader`, `FormStepper`, `Switch`, cards e ações do design system,
+mantêm o fluxo de três etapas e compartilham a mesma composição visual. A variante
+“somente serviço”, autosave, validações, uploads, seis tipos de serviço e regras de
+equipe permaneceram preservados.
+
+As decisões refinadas durante a implementação também foram incorporadas:
+
+- no mobile, a escala de leitura do formulário original foi preservada e os cards
+  internos redundantes dos serviços foram achatados;
+- no desktop, o formulário permanece estreito e centralizado, semelhante à leitura
+  mobile, por decisão posterior ao estudo inicial;
+- os campos dos serviços foram separados por tema no desktop e compactados no
+  mobile;
+- criação e edição reutilizam os mesmos elementos e estilos;
+- upload, foco, stepper entre navegadores, anexos e ações finais receberam ajustes
+  específicos de tema e responsividade.
+
+### Fechamento técnico do formulário
+
+As três pendências confirmadas foram concluídas em 04/09/2026:
+
+1. os controles condicionais de DDS, standby e turno noturno receberam `Field`,
+   IDs estáveis e nomes acessíveis; o tema personalizado possui `aria-label`;
+2. `NewReportPage.tsx` e `ReportDetailPage.tsx` voltaram aos budgets por extração de
+   formatação/identidade de serviços e ações do detalhe, sem mover regras de domínio;
+3. foi adicionada uma suíte visual determinística em claro/escuro, Chromium/Firefox
+   e 390, 768, 1.024 e 1.280 px.
+
+Na mesma rodada, a remoção de fotos existentes passou a usar confirmação DS sem
+alterar o `photoDeletionStaging`. As rotas públicas e a barreira de consentimento,
+embora externas ao formulário, também foram fechadas no roadmap do módulo.
 
 ## Decisão
 
@@ -81,8 +117,10 @@ Também permanecem os contratos utilizados por testes, foco e rolagem até erros
 - Aplicar `.fv-ds` no menor limite que contenha todo o formulário.
 - Trocar `Shell`/`TopBar` por `AppShell` e `PageHeader`, usando o mesmo modelo de
   navegação já adotado pelo Hub e pelas páginas migradas.
-- Usar conteúdo fluido com largura máxima entre 1.120 e 1.280 px, em vez do teto de
-  540 px.
+- Preservar uma coluna estreita e centralizada para o corpo do formulário também no
+  desktop. Esta decisão substitui a proposta inicial de expandi-lo até 1.280 px e
+  mantém a nova identidade visual sem perder a densidade de leitura aprovada no
+  mobile.
 - Exibir título “Novo relatório”, breadcrumb `RDO / Novo relatório` e a etapa atual no
   cabeçalho da página.
 - Deixar módulos, conta, sair, tema e menu móvel sob responsabilidade do shell
@@ -102,7 +140,7 @@ duplicar a barra de progresso. `DraftSaveStatus` pode receber uma aparência
 
 | Região | Desktop (≥ 1.024 px) | Tablet (768–1.023 px) | Mobile (< 768 px) |
 |---|---|---|---|
-| Conteúdo | AppShell com sidebar; formulário amplo | drawer; largura total | uma coluna e navegação inferior |
+| Conteúdo | AppShell com sidebar; formulário estreito centralizado | drawer; coluna controlada | uma coluna e navegação inferior |
 | Campos | grid de 2–3 colunas | grid de 2 colunas | uma coluna |
 | Ações | barra sticky dentro do conteúdo | barra sticky | fixa/sticky acima da `BottomBar` e safe area |
 | Modal de serviço | caixa central média | caixa central/folha | bottom sheet |
@@ -164,9 +202,10 @@ e a altura da `BottomBar`.
 | modal local de tipos | `Modal` com apresentação mobile em bottom sheet |
 | upload local | `UploadField` com aparência DS e `AppIcon` |
 
-`Stepper`, `Switch`, grupos de escolha e bottom sheet ainda não existem como
-primitivos oficiais. Eles devem ser adicionados ao design system antes ou durante a
-migração, sem recriar versões particulares dentro do RDO.
+`FormStepper` e `Switch` foram adicionados como primitivos oficiais e são exportados
+pelo design system. Os grupos de escolha permanecem na composição existente do RDO,
+com estilos escopados, e o seletor de serviço usa `Modal` responsivo sem alterar o
+fluxo funcional.
 
 ## Estratégia técnica sem regressão
 
@@ -278,8 +317,11 @@ meio da migração.
 
 ## Definição de pronto
 
-A migração estará concluída quando o formulário tiver aparência e comportamento
-responsivo equivalentes às páginas já consolidadas no novo design, em mobile, tablet e
-desktop, sem diferenças funcionais observáveis. Todos os contratos acima devem
-continuar válidos e nenhum consumidor compartilhado pode mudar de aparência sem optar
-explicitamente pelo design system.
+A migração visual e seu fechamento técnico estão concluídos: o formulário tem aparência e
+comportamento responsivo equivalentes às páginas consolidadas, sem diferenças
+funcionais observáveis, e os consumidores compartilhados fazem opt-in explícito.
+Os rótulos condicionais, budgets arquiteturais e a matriz visual automatizada da
+seção “Estado pós-implementação” estão concluídos; a definição de pronto original
+está integralmente satisfeita. Na varredura final, os 27 arquivos de contrato do
+RDO, o build, o lint, a tipagem E2E e os 16 cenários/32 capturas visuais em Chromium/Firefox
+ficaram verdes, sem confirmação nativa remanescente no módulo.

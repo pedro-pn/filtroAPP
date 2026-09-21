@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
 import { AppIcon } from '../icons/AppIcon';
+import { ConfirmDialog } from './ConfirmDialog';
 import { IconButton } from './ds/Button';
 import { DS_ICONS } from './ds/icons';
 import { stageUploadDeletion } from './photoDeletionStaging';
+import './UploadField.css';
 
 interface UploadFieldProps {
   label: string;
@@ -134,7 +136,7 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
             className="upload-remove-button"
             icon={removed ? RotateCcw : DS_ICONS.trash}
             label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
-            variant={removed ? 'secondary' : 'danger'}
+            variant="secondary"
             size="sm"
             onClick={() => onRemove(index)}
           />
@@ -159,6 +161,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{ index: number; ref: string; fileName: string } | null>(null);
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
 
@@ -201,13 +204,17 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
     // A exclusão é global, mas só é efetivada ao SALVAR o relatório. Aqui apenas
     // encenamos a remoção (some da lista); se o usuário não salvar, nada é apagado.
     if (ref) {
-      const confirmed = window.confirm(
-        'Remover esta imagem? Ao salvar, ela será excluída de TODOS os relatórios em que aparece e apagada do servidor.'
-      );
-      if (!confirmed) return;
-      stageUploadDeletion(ref);
+      setRemoveTarget({ index, ref, fileName: file.fileName });
+      return;
     }
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function confirmRemoveFile() {
+    if (!removeTarget) return;
+    stageUploadDeletion(removeTarget.ref);
+    onChange(value.filter((_, itemIndex) => itemIndex !== removeTarget.index));
+    setRemoveTarget(null);
   }
 
   const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadPreviewFile));
@@ -265,6 +272,16 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           ))}
         </div>
       ) : null}
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        appearance={appearance}
+        title="Remover imagem?"
+        description="Ao salvar, ela será removida de todos os relatórios em que aparece e apagada do servidor."
+        highlight={removeTarget?.fileName}
+        confirmLabel="Remover imagem"
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={confirmRemoveFile}
+      />
     </div>
   );
 }

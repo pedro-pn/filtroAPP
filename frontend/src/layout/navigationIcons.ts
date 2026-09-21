@@ -56,4 +56,3 @@ export const NAVIGATION_CHROME_ICONS = {
   search: Search,
   settings: Settings
 } as const;
-

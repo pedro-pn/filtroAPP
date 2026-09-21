@@ -1,0 +1,39 @@
+.acp-overview, .acp-overview__results { display: grid; gap: var(--space-5); min-width: 0; }
+.acp-overview__heading { display: flex; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.acp-overview__heading h1 { margin: 0; font-size: var(--text-xl); }
+.acp-overview__heading h2 { margin: 0; font-size: var(--text-lg); }
+.acp-overview__heading p, .acp-overview__description {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.acp-overview__description { margin: 0 0 var(--space-5); }
+.acp-overview__metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.acp-overview__charts { display: grid; gap: var(--space-4); align-items: start; min-width: 0; }
+.acp-overview__listing { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-overview__cell { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
+.acp-overview__cell > small { color: var(--muted); font-size: var(--text-xs); font-weight: var(--font-regular); }
+.acp-overview__project-name { white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.acp-overview .acp-overview__project-action { height: auto; justify-content: flex-start; padding-block: var(--space-2); }
+.acp-overview__project-action .fv-button__label { text-align: left; }
+.acp-overview__members { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-xs); }
+.acp-overview .fv-data-table__table { table-layout: fixed; }
+.acp-overview .fv-data-table thead th:first-child { width: 25%; }
+.acp-overview .fv-data-table thead th:nth-child(2), .acp-overview .fv-data-table thead th:nth-child(3) { width: 16%; }
+.acp-overview .fv-data-table thead th:nth-child(4) { width: 15%; }
+.acp-overview .fv-data-table thead th:nth-child(5) { width: 8%; }
+.acp-overview .fv-data-table thead th:last-child { width: 20%; }
+
+@media (max-width: 639.98px) {
+  .acp-overview__metrics { grid-template-columns: minmax(0, 1fr); }
+}
+@media (min-width: 768px) {
+  .acp-overview .fv-filter-bar__main { align-items: start; }
+  .acp-overview .fv-filter-bar__search { flex-basis: 100%; }
+  .acp-overview .fv-filter-bar__controls { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
+  .acp-overview .fv-mobile-list__items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .acp-overview__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .acp-overview__charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

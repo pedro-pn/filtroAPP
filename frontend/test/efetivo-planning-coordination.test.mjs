@@ -97,16 +97,19 @@ test('seletor de equipe abre em portal mesmo antes de preencher o período', () 
   const selector = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionTeamSelector.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   const confirmDialog = fs.readFileSync(new URL('../src/components/ui/ConfirmDialog.tsx', import.meta.url), 'utf8');
+  const modal = fs.readFileSync(new URL('../src/components/ui/Modal.tsx', import.meta.url), 'utf8');
   const baseStyles = fs.readFileSync(new URL('../src/styles/base.css', import.meta.url), 'utf8');
   const trigger = selector.match(/<Button variant="secondary"[\s\S]*?Ver colaboradores<\/Button>/)?.[0] || '';
 
   assert.match(selector, /createPortal\(<Modal[\s\S]*document\.body\)/);
-  assert.match(selector, /backdropClassName="modal-backdrop efetivo-team-availability-backdrop"/);
+  assert.match(selector, /backdropClassName="efetivo-team-availability-backdrop"/);
   assert.match(trigger, /disabled=\{disabled\}/);
   assert.doesNotMatch(trigger, /!validPeriod|loading/);
   assert.match(selector, /Informe o período da missão/);
   assert.match(styles, /\.efetivo-team-availability-backdrop\s*\{[^}]*z-index:\s*1100;/);
-  assert.match(confirmDialog, /createPortal\(dialog, document\.body\)/);
+  assert.match(confirmDialog, /return dialog;/);
+  assert.doesNotMatch(confirmDialog, /createPortal/);
+  assert.match(modal, /return createPortal\([\s\S]*document\.body/);
   assert.match(confirmDialog, /confirm-dialog-backdrop/);
   assert.match(baseStyles, /\.confirm-dialog-backdrop\s*\{[^}]*z-index:\s*1200;/);
 });
@@ -120,8 +123,10 @@ test('programação mostra e envia mobilização e desmobilização por colabora
   assert.match(selector, /Datas individuais da equipe/);
   assert.match(selector, /collaborator\?\.name/);
   assert.match(selector, /collaborator\?\.role/);
-  assert.match(selector, /mission-team-mobilization-/);
-  assert.match(selector, /mission-team-demobilization-/);
+  assert.match(selector, /<MissionPeriodFields id=\{'mission-team-' \+ collaboratorId\}/);
+  const periodFields = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionPeriodFields.tsx', import.meta.url), 'utf8');
+  assert.match(periodFields, /-mobilization/);
+  assert.match(periodFields, /-demobilization/);
   assert.match(form, /name:\s*\['mobilizationDate', 'executionEndDate', 'returnDate', 'allocationPeriods'\]/);
   assert.match(api.match(/export interface MissionInput \{[\s\S]*?\n\}/)?.[0] || '', /allocationPeriods:/);
   assert.match(openapi, /allocationPeriods:[\s\S]*?mobilizationDate:[\s\S]*?demobilizationDate:/);

@@ -43,7 +43,7 @@ test('imagens existentes no editor separam miniatura e link no mobile', () => {
   assert.match(upload, /className="upload-list-preview"/);
   assert.match(upload, /<img className="upload-list-thumb" src=\{href\} alt=""/);
   assert.match(baseCss, /a\.upload-list-name \{[\s\S]*?text-decoration: underline/);
-  assert.match(formCss, /\.rdo-form-page a\.upload-list-name \{[\s\S]*?color: var\(--bl\)/);
+  assert.match(formCss, /\.rdo-form-page a\.upload-list-name \{[\s\S]*?color: var\(--info\)/);
   assert.match(
     mobileBlock,
     /\.upload-list-item \{[\s\S]*?grid-template-columns: var\(--space-12\) minmax\(0, 1fr\) auto/
@@ -52,4 +52,19 @@ test('imagens existentes no editor separam miniatura e link no mobile', () => {
     mobileBlock,
     /\.upload-list-name \{[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere/
   );
+});
+
+test('remoção de fotos reutiliza IconButton com contraste suave e sem comprimir a lixeira', () => {
+  const upload = source('src/components/ui/UploadField.tsx');
+  const css = source('src/components/ui/UploadField.css');
+  assert.match(upload, /import '\.\/UploadField.css'/);
+  assert.match(upload, /<IconButton[\s\S]*?icon=\{removed \? RotateCcw : DS_ICONS.trash\}[\s\S]*?variant="secondary"[\s\S]*?onClick=\{\(\) => onRemove\(index\)\}/);
+  assert.match(css, /\.upload-field--ds \.upload-remove-button.fv-icon-button/);
+  assert.match(css, /flex: 0 0 var\(--fv-button-height\)/);
+  assert.match(css, /min-width: var\(--fv-button-height\)/);
+  assert.match(css, /background: var\(--surface-2\);\s*color: var\(--danger\)/);
+  assert.match(css, /> svg \{\s*flex: none;\s*width: var\(--space-5\);\s*height: var\(--space-5\)/);
+  assert.match(css, /--fv-button-height: calc\(var\(--space-10\) \+ var\(--space-1\)\)/);
+  assert.doesNotMatch(css, /#[a-f\d]{3,8}\b|rgba?\(|!important/i);
+  assert.match(upload, /stageUploadDeletion\(removeTarget.ref\)/);
 });

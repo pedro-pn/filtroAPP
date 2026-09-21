@@ -6,7 +6,9 @@ const source = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('formulário de RDO usa o shell e os componentes do design system', () => {
-  const page = source('src/pages/collaborator/NewReportPage.tsx');
+  const entry = source('src/pages/collaborator/NewReportPage.tsx');
+  assert.match(entry, /if \(selection === 'obra'\) return <SiteRdoFormPage \/>/);
+  const page = entry.slice(entry.indexOf('function SiteRdoFormPage()'));
 
   assert.match(page, /<AppShell\b/);
   assert.match(page, /<PageHeader\b/);

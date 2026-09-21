@@ -25,7 +25,7 @@ export function EfetivoTutorial({ userKey, ready, goToSection, triggerRef }: {
     window.setTimeout(() => {
       const navigateNext = (section: EfetivoPlanningSection) => (_element: Element | undefined, _step: unknown, options: { driver: { moveNext: () => void } }) => { goToSection(section); window.setTimeout(() => options.driver.moveNext(), 300); };
       const steps: DriveStep[] = [
-        { element: '[data-efetivo-nav]', popover: { title: 'Oito áreas integradas', description: 'Visão geral, calendário, pessoas, missões, evolução, simulações, produtividade e administração compartilham a mesma base.', side: 'right', align: 'start' } },
+        { element: '[data-efetivo-nav]', popover: { title: 'Nove áreas integradas', description: 'Visão geral, calendário, pessoas, disponibilidade, missões, evolução, simulações, produtividade e administração compartilham a mesma base.', side: 'right', align: 'start' } },
         { element: '[data-efetivo-planning-filters]', popover: { title: 'Posição do planejamento', description: 'A data e a função ficam na URL e sobrevivem ao refresh.', side: 'bottom', align: 'start' } },
         { element: '[data-efetivo-planning-kpis]', popover: { title: 'Capacidade diária', description: 'Veja ativos, alocados, indisponíveis, livres, déficit e utilização futura.', side: 'bottom', align: 'start', onNextClick: navigateNext('calendario') } },
         { element: '[data-efetivo-calendar]', popover: { title: 'Calendário integrado', description: 'Alterne entre dia, semana e mês e abra qualquer data para ver missões e ausências.', side: 'top', align: 'start', onNextClick: navigateNext('missoes') } },

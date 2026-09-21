@@ -1,6 +1,11 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { AppIcon } from '../icons/AppIcon';
+import { IconButton } from './ds/Button';
+import { DS_ICONS } from './ds/icons';
+import './PdfDropzone.css';
 
 interface Props {
+  appearance?: 'legacy' | 'design-system';
   id: string;
   label: string;
   file?: File | null;
@@ -21,6 +26,7 @@ interface Props {
 }
 
 export function PdfDropzone({
+  appearance = 'legacy',
   id,
   label,
   file = null,
@@ -69,13 +75,14 @@ export function PdfDropzone({
   }
 
   return (
-    <div className={`field-group ${error ? 'field-invalid' : ''}`}>
+    <div className={`field-group ${error ? 'field-invalid' : ''} ${appearance === 'design-system' ? 'fv-ds pdf-upload--ds' : ''}`}>
       <label htmlFor={id}>{label}</label>
       <div
         className={`pdf-dropzone ${dragOver ? 'drag-over' : ''} ${selectedName ? 'has-file' : ''}`}
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled}
+        aria-label={appearance === 'design-system' ? label : undefined}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
         onClick={open}
@@ -102,13 +109,17 @@ export function PdfDropzone({
             event.currentTarget.value = '';
           }}
         />
-        <span className="pdf-dropzone-icon" aria-hidden="true">⤓</span>
+        <span className="pdf-dropzone-icon" aria-hidden="true">{appearance === 'design-system' ? <AppIcon icon={DS_ICONS.upload} size="md" /> : '⤓'}</span>
         <span className="pdf-dropzone-text">
           <strong>{selectedName || emptyText || (multiple ? 'Arraste os PDFs aqui' : 'Arraste o PDF aqui')}</strong>
           <small>{selectedName ? (selectedHint || (multiple ? 'Clique ou solte para adicionar mais' : 'Clique ou solte outro para substituir')) : emptyHint}</small>
         </span>
         {selectedName && !disabled ? (
-          <button
+          appearance === 'design-system' ? <IconButton
+            variant="secondary" size="sm" icon={DS_ICONS.close} label="Remover arquivo selecionado"
+            onKeyDown={event => event.stopPropagation()}
+            onClick={event => { event.stopPropagation(); if (multiple && onFiles) onFiles([]); else onFile(null); }}
+          /> : <button
             type="button"
             className="pdf-dropzone-clear"
             aria-label="Remover arquivo selecionado"

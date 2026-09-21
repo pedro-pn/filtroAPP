@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { DdsTheme } from '../../api/ddsThemes';
 import type { RdoStoreState } from '../../store/rdoStore';
 import type { Collaborator } from '../../types/domain';
-import { Badge, Button, Card, Input, Select, Switch } from '../ui/ds';
+import { Badge, Button, Card, Field, Input, Select, Switch } from '../ui/ds';
 
 interface NewReportSpecialConditionsProps {
   collaborators: Collaborator[];
@@ -153,24 +153,38 @@ export function NewReportSpecialConditions({
         {enabled ? (
           <div className="collapse-section">
             <div className="fg-r2">
-              <div className={fieldState(startTarget)} data-invalid-target={startTarget}>
-                <label>Início <span style={{ color: 'var(--rd)' }}>*</span></label>
+              <Field
+                id={`rdo-dds-${shift}-start`}
+                className={fieldState(startTarget)}
+                label="Início"
+                required
+                optionalText={null}
+                data-invalid-target={startTarget}
+              >
                 <Input
+                  id={`rdo-dds-${shift}-start-control`}
                   type="time"
                   value={isDay ? ddsDayStart : ddsNightStart}
                   invalid={invalidTarget === startTarget}
                   onChange={event => setHeaderField(isDay ? 'ddsDayStart' : 'ddsNightStart', event.target.value)}
                 />
-              </div>
-              <div className={fieldState(endTarget)} data-invalid-target={endTarget}>
-                <label>Término <span style={{ color: 'var(--rd)' }}>*</span></label>
+              </Field>
+              <Field
+                id={`rdo-dds-${shift}-end`}
+                className={fieldState(endTarget)}
+                label="Término"
+                required
+                optionalText={null}
+                data-invalid-target={endTarget}
+              >
                 <Input
+                  id={`rdo-dds-${shift}-end-control`}
                   type="time"
                   value={isDay ? ddsDayEnd : ddsNightEnd}
                   invalid={invalidTarget === endTarget}
                   onChange={event => setHeaderField(isDay ? 'ddsDayEnd' : 'ddsNightEnd', event.target.value)}
                 />
-              </div>
+              </Field>
             </div>
             <div className="section-title" style={{ marginTop: 14 }}>
               Temas abordados <span style={{ color: 'var(--rd)' }}>*</span>
@@ -191,6 +205,7 @@ export function NewReportSpecialConditions({
             </div>
             <div className="cadd">
               <Input
+                aria-label={`Novo tema de DDS do turno ${isDay ? 'diurno' : 'noturno'}`}
                 value={customInput}
                 placeholder="Tema fora da lista? Digite aqui..."
                 onChange={(event) =>
@@ -224,14 +239,12 @@ export function NewReportSpecialConditions({
       {standby ? (
         <div className="collapse-section">
           <div className="fg-r2">
-            <div className={fieldState('header:standbyDuration')} data-invalid-target="header:standbyDuration">
-              <label>Tempo total <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <Input type="time" step={60} value={standbyDuration} invalid={invalidTarget === 'header:standbyDuration'} onChange={event => setHeaderField('standbyDuration', event.target.value)} />
-            </div>
-            <div className={fieldState('header:standbyMotivo')} data-invalid-target="header:standbyMotivo">
-              <label>Motivo <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <Input type="text" placeholder="Motivo..." value={standbyMotivo} invalid={invalidTarget === 'header:standbyMotivo'} onChange={event => setHeaderField('standbyMotivo', event.target.value)} />
-            </div>
+            <Field id="rdo-standby-duration" className={fieldState('header:standbyDuration')} label="Tempo total" required optionalText={null} data-invalid-target="header:standbyDuration">
+              <Input id="rdo-standby-duration-control" type="time" step={60} value={standbyDuration} invalid={invalidTarget === 'header:standbyDuration'} onChange={event => setHeaderField('standbyDuration', event.target.value)} />
+            </Field>
+            <Field id="rdo-standby-reason" className={fieldState('header:standbyMotivo')} label="Motivo" required optionalText={null} data-invalid-target="header:standbyMotivo">
+              <Input id="rdo-standby-reason-control" type="text" placeholder="Motivo..." value={standbyMotivo} invalid={invalidTarget === 'header:standbyMotivo'} onChange={event => setHeaderField('standbyMotivo', event.target.value)} />
+            </Field>
           </div>
         </div>
       ) : null}
@@ -241,19 +254,16 @@ export function NewReportSpecialConditions({
       {noturno ? (
         <div className="collapse-section noturno-section">
           <div className="fg-r2 night-time-grid">
-            <div className={fieldState('header:noturnoStart')} data-invalid-target="header:noturnoStart">
-              <label>Início <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <Input type="time" value={noturnoStart} invalid={invalidTarget === 'header:noturnoStart'} onChange={event => setHeaderField('noturnoStart', event.target.value)} />
-            </div>
-            <div className={fieldState('header:noturnoEnd')} data-invalid-target="header:noturnoEnd">
-              <label>Término <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <Input type="time" value={noturnoEnd} invalid={invalidTarget === 'header:noturnoEnd'} onChange={event => setHeaderField('noturnoEnd', event.target.value)} />
-            </div>
+            <Field id="rdo-night-start" className={fieldState('header:noturnoStart')} label="Início" required optionalText={null} data-invalid-target="header:noturnoStart">
+              <Input id="rdo-night-start-control" type="time" value={noturnoStart} invalid={invalidTarget === 'header:noturnoStart'} onChange={event => setHeaderField('noturnoStart', event.target.value)} />
+            </Field>
+            <Field id="rdo-night-end" className={fieldState('header:noturnoEnd')} label="Término" required optionalText={null} data-invalid-target="header:noturnoEnd">
+              <Input id="rdo-night-end-control" type="time" value={noturnoEnd} invalid={invalidTarget === 'header:noturnoEnd'} onChange={event => setHeaderField('noturnoEnd', event.target.value)} />
+            </Field>
           </div>
-          <div className={fieldState('header:noturnoInterval')} style={{ marginTop: 6 }} data-invalid-target="header:noturnoInterval">
-            <label>Intervalo noturno</label>
-            <Input type="time" step={1} value={noturnoInterval} invalid={invalidTarget === 'header:noturnoInterval'} onChange={event => setHeaderField('noturnoInterval', event.target.value)} />
-          </div>
+          <Field id="rdo-night-interval" className={fieldState('header:noturnoInterval')} label="Intervalo noturno" style={{ marginTop: 6 }} data-invalid-target="header:noturnoInterval">
+            <Input id="rdo-night-interval-control" type="time" step={1} value={noturnoInterval} invalid={invalidTarget === 'header:noturnoInterval'} onChange={event => setHeaderField('noturnoInterval', event.target.value)} />
+          </Field>
           <div className="section-title" style={{ marginTop: 14 }}>Equipe noturna</div>
           <div className={`colab-list ${invalidTarget === 'header:nightCollaborators' ? 'field-invalid-panel' : ''}`} data-invalid-target="header:nightCollaborators">
             {renderNightCollaborators()}
@@ -272,4 +282,3 @@ export function NewReportSpecialConditions({
     </Card>
   );
 }
-

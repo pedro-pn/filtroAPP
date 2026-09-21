@@ -916,8 +916,9 @@ function FollowUpPanel({
               </div>
               {appearance === 'design-system' ? (
                 <div className="rdo-nps-dashboard__follow-controls">
-                  <Field label="Status" optionalText={null}>
+                  <Field id={`survey-follow-status-${survey.id}`} label="Status" optionalText={null}>
                     <Select
+                      id={`survey-follow-status-${survey.id}-control`}
                       size="sm"
                       value={survey.followUpStatus || 'OPEN'}
                       onChange={event => mutations.updateFollowUp.mutate({
@@ -931,8 +932,9 @@ function FollowUpPanel({
                       <option value="NOT_APPLICABLE">Não aplicável</option>
                     </Select>
                   </Field>
-                  <Field label="Resultado do contato" optionalText={null}>
+                  <Field id={`survey-follow-notes-${survey.id}`} label="Resultado do contato" optionalText={null}>
                     <Input
+                      id={`survey-follow-notes-${survey.id}-control`}
                       size="sm"
                       defaultValue={survey.followUpNotes || ''}
                       placeholder="Adicione uma observação"
@@ -958,6 +960,7 @@ function FollowUpPanel({
                     <option value="NOT_APPLICABLE">Não aplicável</option>
                   </select>
                   <input
+                    aria-label={`Resultado do contato de ${title}`}
                     defaultValue={survey.followUpNotes || ''}
                     placeholder="Resultado do contato"
                     onBlur={event => mutations.updateFollowUp.mutate({

@@ -143,6 +143,21 @@
   width: 100%;
 }
 
+:where(.fv-ds, [data-fv-ds]) .fv-button__counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: var(--space-5);
+  min-height: var(--space-5);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-variant-numeric: tabular-nums;
+}
+
 :where(.fv-ds, [data-fv-ds]) .fv-button__icon {
   display: inline-grid;
   flex: 0 0 auto;
@@ -157,6 +172,20 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--multiline {
+  height: auto;
+  min-height: var(--fv-button-height);
+  justify-content: flex-start;
+  padding-block: var(--space-1);
+  white-space: normal;
+  text-align: start;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--multiline .fv-button__label {
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-icon-button {
@@ -478,6 +507,15 @@
   white-space: nowrap;
 }
 
+:where(.fv-ds, [data-fv-ds]) .fv-badge--multiline {
+  width: fit-content;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge--multiline .fv-badge__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 :where(.fv-ds, [data-fv-ds]) .fv-badge__remove {
   display: inline-grid;
   width: var(--space-6);
@@ -739,6 +777,39 @@
   background: var(--brand-softer);
 }
 
+/* Surface button remains behind content; embedded controls keep their own hit areas. */
+:where(.fv-ds, [data-fv-ds]) .fv-card--surface-action {
+  position: relative;
+  isolation: isolate;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__surface-action {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__surface-action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--surface-action > :not(.fv-card__surface-action) {
+  position: relative;
+  pointer-events: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--surface-action :where(button:not(.fv-card__surface-action), a, input, select, textarea, label, form, [tabindex], [data-card-interactive]) {
+  pointer-events: auto;
+}
+
 :where(.fv-ds, [data-fv-ds]) .fv-card--accent {
   border-inline-start: var(--space-1) solid var(--fv-tone-ink);
 }
@@ -837,9 +908,7 @@
 @media (max-width: 767.98px) {
   :where(.fv-ds, [data-fv-ds])
     :where(.fv-card__actions, .fv-card__footer) {
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
+    min-width: 0;
   }
 
   :where(.fv-ds, [data-fv-ds]) .fv-button {

@@ -4,8 +4,9 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import type { EfetivoAbsence, EfetivoAbsencePayload, EfetivoCollaboratorOption } from '../../../api/efetivo';
-import { Button } from '../../../components/ui/Button';
+import { Button, Field, Input, Select, Textarea } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
+import '../EfetivoDialogs.css';
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe uma data válida.');
 const absenceFormSchema = z.object({
@@ -52,9 +53,25 @@ export function AbsenceFormModal({ open, absence, collaborators, saving, onClose
   }, [absence, initialCollaboratorId, open, reset]);
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="efetivo-absence-title" panelClassName="modal-card efetivo-modal">
+    <Modal
+      open={open}
+      onClose={onClose}
+      closeOnEscape={!saving}
+      showCloseButton={!saving}
+      appearance="design-system"
+      title={absence ? 'Editar indisponibilidade' : 'Programar indisponibilidade'}
+      size="md"
+      fullscreenOnMobile={false}
+      panelClassName="efetivo-dialog"
+      ariaDescribedBy="efetivo-absence-description"
+      footer={<>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <Button variant="primary" size="sm" type="submit" form="efetivo-absence-form" loading={saving}>Salvar indisponibilidade</Button>
+      </>}
+    >
       <form
-        className="efetivo-modal-layout"
+        id="efetivo-absence-form"
+        className="efetivo-dialog-form"
         noValidate
         onSubmit={handleSubmit(values => onSubmit({
           collaboratorId: values.collaboratorId,
@@ -64,58 +81,33 @@ export function AbsenceFormModal({ open, absence, collaborators, saving, onClose
           note: values.note.trim() || null
         }))}
       >
-        <header className="efetivo-modal-header">
-          <div>
-            <h3 id="efetivo-absence-title">{absence ? 'Editar indisponibilidade' : 'Programar indisponibilidade'}</h3>
-            <p>Férias, folga e afastamento bloqueiam a alocação no período inteiro.</p>
-          </div>
-          <button className="icon-button" type="button" aria-label="Fechar" onClick={onClose} disabled={saving}>×</button>
-        </header>
-        <div className="efetivo-modal-body efetivo-absence-form-body">
-          <div className={errors.collaboratorId ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="efetivo-absence-collaborator">Colaborador *</label>
-            <select
-              id="efetivo-absence-collaborator"
-              disabled={Boolean(absence) || saving}
-              aria-invalid={Boolean(errors.collaboratorId)}
-              {...register('collaboratorId')}
-            >
+        <p className="efetivo-dialog-description" id="efetivo-absence-description">Férias, folga e afastamento bloqueiam a alocação no período inteiro.</p>
+        <div className="efetivo-dialog-fields">
+          <Field id="efetivo-absence-collaborator" label="Colaborador" required className="efetivo-dialog-wide" errorText={errors.collaboratorId?.message}>
+            <Select size="sm" disabled={Boolean(absence) || saving} {...register('collaboratorId')}>
               <option value="">Selecione</option>
               {collaborators.map(collaborator => (
                 <option key={collaborator.id} value={collaborator.id}>{collaborator.name} · {collaborator.role}</option>
               ))}
-            </select>
-            {errors.collaboratorId ? <span className="field-error" role="alert">{errors.collaboratorId.message}</span> : null}
-          </div>
-          <div className={errors.startDate ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="efetivo-absence-start">Início *</label>
-            <input id="efetivo-absence-start" type="date" disabled={saving} aria-invalid={Boolean(errors.startDate)} {...register('startDate')} />
-            {errors.startDate ? <span className="field-error" role="alert">{errors.startDate.message}</span> : null}
-          </div>
-          <div className={errors.type ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="efetivo-absence-type">Tipo *</label>
-            <select id="efetivo-absence-type" disabled={saving} aria-invalid={Boolean(errors.type)} {...register('type')}>
+            </Select>
+          </Field>
+          <Field id="efetivo-absence-type" label="Tipo" required className="efetivo-dialog-wide" errorText={errors.type?.message}>
+            <Select size="sm" disabled={saving} {...register('type')}>
               <option value="FERIAS">Férias</option>
               <option value="FOLGA">Folga</option>
               <option value="AFASTAMENTO">Afastamento</option>
-            </select>
-            {errors.type ? <span className="field-error" role="alert">{errors.type.message}</span> : null}
-          </div>
-          <div className={errors.endDate ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="efetivo-absence-end">Fim *</label>
-            <input id="efetivo-absence-end" type="date" disabled={saving} aria-invalid={Boolean(errors.endDate)} {...register('endDate')} />
-            {errors.endDate ? <span className="field-error" role="alert">{errors.endDate.message}</span> : null}
-          </div>
-          <div className={errors.note ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="efetivo-absence-note">Observação</label>
-            <textarea id="efetivo-absence-note" rows={4} disabled={saving} aria-invalid={Boolean(errors.note)} {...register('note')} />
-            {errors.note ? <span className="field-error" role="alert">{errors.note.message}</span> : null}
-          </div>
+            </Select>
+          </Field>
+          <Field id="efetivo-absence-start" label="Início" required errorText={errors.startDate?.message}>
+            <Input size="sm" type="date" disabled={saving} {...register('startDate')} />
+          </Field>
+          <Field id="efetivo-absence-end" label="Fim" required errorText={errors.endDate?.message}>
+            <Input size="sm" type="date" disabled={saving} {...register('endDate')} />
+          </Field>
+          <Field id="efetivo-absence-note" label="Observação" optionalText="" className="efetivo-dialog-wide" errorText={errors.note?.message}>
+            <Textarea size="sm" rows={3} disabled={saving} {...register('note')} />
+          </Field>
         </div>
-        <footer className="efetivo-modal-footer">
-          <Button variant="secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar indisponibilidade'}</Button>
-        </footer>
       </form>
     </Modal>
   );

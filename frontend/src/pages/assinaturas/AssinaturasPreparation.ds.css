@@ -1,0 +1,325 @@
+.assinaturas-detail {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  color: var(--ink);
+}
+
+.assinaturas-detail > *,
+.assinaturas-detail :is(.fv-page-header__copy, .signature-signer-panel, .signature-editor-panel) {
+  min-width: 0;
+}
+
+.assinaturas-detail .fv-page-header__copy :is(h1, p) {
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-detail :is(.assinaturas-detail__topline, .assinaturas-detail__navigation) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.assinaturas-detail .assinaturas-detail__navigation {
+  flex-wrap: wrap;
+}
+
+.assinaturas-detail :is(.signature-tabs, .signature-lifecycle-actions, .signature-detail-actions) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+}
+
+.assinaturas-detail .signature-document-dates {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  gap: var(--space-2) var(--space-4);
+}
+
+.assinaturas-setup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+  align-items: start;
+  color: var(--ink);
+}
+
+.assinaturas-setup h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+.assinaturas-setup :is(.signature-signer-panel, .signature-signer-form, .signature-editor-panel > .fv-card__body) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.assinaturas-setup .assinaturas-setup__added-signers {
+  min-width: 0;
+}
+
+.assinaturas-setup :is(.assinaturas-setup__section-heading, .assinaturas-setup__signer-actions, .signature-editor-actions, .signature-editor-toolbar) {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.assinaturas-setup .signature-editor-actions {
+  justify-content: flex-end;
+}
+
+.assinaturas-setup .signature-signer-list {
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.assinaturas-setup .signature-signer-item {
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--signature-signer-color) 7%, var(--surface));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: visible;
+}
+
+.assinaturas-setup .signature-signer-identity {
+  gap: var(--space-1);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-setup .signature-signer-identity span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  white-space: normal;
+  overflow: visible;
+}
+
+.assinaturas-setup :is(.signature-editor-hint, .signature-empty-signers, .signature-editor-toolbar > span) {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-setup .signature-editor-toolbar > span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.assinaturas-setup .signature-empty-signers {
+  margin-top: var(--space-3);
+}
+
+.assinaturas-setup .assinaturas-setup__save-status:empty {
+  display: none;
+}
+
+/* Only the PDF is a spatial, scrollable workspace; controls never scroll locally. */
+.assinaturas-setup .signature-pdf-scroll {
+  min-width: 0;
+  max-height: min(68vh, 900px);
+  overflow: auto;
+  padding: var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.assinaturas-setup .signature-pdf-canvas {
+  min-width: 600px;
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+
+/* Keep the measured bounds identical to the actual page, including landscape PDFs. */
+.assinaturas-setup .signature-pdf-canvas.is-ready {
+  min-height: 0;
+}
+
+.assinaturas-setup .signature-page-loading {
+  padding: var(--space-4);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.assinaturas-setup .signature-page-loading > .fv-skeleton {
+  width: 100%;
+  height: 100%;
+}
+
+.assinaturas-setup .signature-field {
+  border: 1px solid var(--signature-signer-color);
+  color: var(--signature-signer-color);
+}
+
+.assinaturas-setup .signature-field-remove {
+  right: calc(-1 * var(--space-4));
+  top: calc(-1 * var(--space-8));
+  opacity: 1;
+  color: var(--danger);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.assinaturas-setup .signature-field-remove:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.assinaturas-setup :is(.signature-field, .signature-pdf-scroll, .signature-field-remove, .signature-signer-picker-option):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.assinaturas-setup .signature-signer-picker {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-e2);
+  padding: var(--space-2);
+  min-width: 0;
+  max-width: none;
+  overflow-y: auto;
+  transform: translate(var(--signature-picker-offset-x, 8px), var(--signature-picker-offset-y, 8px));
+}
+
+.assinaturas-setup .signature-signer-picker-head {
+  padding: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.assinaturas-setup .signature-signer-picker-option {
+  text-align: left;
+  height: auto;
+  white-space: normal;
+  overflow: visible;
+}
+
+.assinaturas-setup .signature-signer-picker-option > span {
+  width: auto;
+  height: auto;
+  background: transparent;
+  border-radius: 0;
+  flex: initial;
+}
+
+.assinaturas-setup .signature-signer-picker-option > .fv-button__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-setup .assinaturas-setup__signer-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--signature-signer-color);
+}
+
+.assinaturas-publish-dialog .signature-publish-form {
+  gap: var(--space-4);
+  min-width: 0;
+  color: var(--ink);
+}
+
+.assinaturas-publish-dialog .signature-publish-form > p {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.assinaturas-publish-dialog__signers {
+  display: grid;
+  gap: var(--space-3);
+  max-height: 12rem;
+  overflow-y: auto;
+  list-style: none;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.assinaturas-publish-dialog__signers li {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-publish-dialog__signers span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+@media (min-width: 1280px) {
+  .assinaturas-setup {
+    grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .assinaturas-detail .assinaturas-detail__navigation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assinaturas-detail :is(.signature-tabs, .signature-lifecycle-actions) {
+    justify-content: flex-start;
+  }
+
+  .assinaturas-detail .fv-button--sm,
+  .assinaturas-setup .fv-button--sm,
+  .assinaturas-publish-dialog .fv-button--sm {
+    min-height: 44px;
+    padding-inline: var(--space-3);
+    font-size: var(--text-xs);
+    gap: var(--space-1);
+  }
+
+  .assinaturas-setup .fv-icon-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .assinaturas-setup .signature-field-remove {
+    top: calc(-1 * var(--space-8));
+  }
+
+  .assinaturas-setup :is(.assinaturas-setup__signer-form, .signature-editor-panel) {
+    padding: var(--space-3);
+  }
+}

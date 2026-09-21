@@ -12,12 +12,13 @@ import {
 } from '../api/publicSignatures';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { SignatureDialog } from '../components/reports/SignatureDialog';
+import { BrandLogo } from '../components/brand/BrandLogo';
+import { Alert, Button, Card, Field, Skeleton, StatusPill, Textarea, type SemanticTone } from '../components/ui/ds';
 import { useToast } from '../components/ui/ToastContext';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const logoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_VERDE.png`;
+import './RdoPublicPage.css';
 
 const statusText: Record<string, string> = {
   ACTIVE: 'Disponível para assinatura',
@@ -27,6 +28,16 @@ const statusText: Record<string, string> = {
   EXPIRED: 'Link expirado',
   UNAVAILABLE: 'Relatório indisponível',
   INVALID: 'Link inválido'
+};
+
+const statusTone: Record<string, SemanticTone> = {
+  ACTIVE: 'info',
+  SIGNED: 'brand',
+  REJECTED: 'danger',
+  INVALIDATED: 'danger',
+  EXPIRED: 'warning',
+  UNAVAILABLE: 'neutral',
+  INVALID: 'danger'
 };
 
 export function PublicSignaturePage() {
@@ -122,38 +133,35 @@ export function PublicSignaturePage() {
   }
 
   return (
-    <main className="survey-page-shell public-signature-page">
-      <header className="survey-header">
-        <img src={logoUrl} alt="Filtrovali" />
+    <main className="fv-ds rdo-public-shell public-signature-page" data-fv-ds>
+      <header className="rdo-public-header">
+        <BrandLogo className="rdo-public-logo" />
       </header>
-      <section className="auth-card public-signature-card">
-        <div className="section-title">Assinatura eletrônica</div>
-        {signatureQuery.isLoading ? <p className="placeholder-copy">Carregando assinatura...</p> : null}
+      <Card className="rdo-public-card public-signature-card" padding="lg" title="Assinatura eletrônica">
+        {signatureQuery.isLoading ? <Skeleton variant="text" lines={5} label="Carregando assinatura" /> : null}
         {signatureQuery.isError ? (
-          <p className="inline-error">
+          <Alert tone="danger" title="Não foi possível carregar a assinatura">
             {signatureQuery.error instanceof Error ? signatureQuery.error.message : 'Não foi possível carregar o link.'}
-          </p>
+          </Alert>
         ) : null}
         {!signatureQuery.isLoading && !signatureQuery.isError ? (
           <>
-            <div className={`public-signature-status status-${status.toLowerCase()}`}>
-              {statusText[status] || status}
-            </div>
+            <StatusPill className="rdo-public-status" status={status} label={statusText[status] || status} tone={statusTone[status] || 'neutral'} />
             {report ? (
-              <div className="det-section">
-                <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{report.project.code} - {report.project.name}</span></div>
+              <dl className="rdo-public-details">
+                <div><dt>Projeto</dt><dd>{report.project.code} - {report.project.name}</dd></div>
                 {batchMode ? (
-                  <div className="det-row"><span className="det-label">Pendências</span><span className="det-val">{reportItems.length} RDOs para assinatura</span></div>
+                  <div><dt>Pendências</dt><dd>{reportItems.length} RDOs para assinatura</dd></div>
                 ) : (
                   <>
-                    <div className="det-row"><span className="det-label">Relatório</span><span className="det-val">{report.reportType} {report.sequenceNumber || ''}</span></div>
-                    <div className="det-row"><span className="det-label">Data</span><span className="det-val">{formatDateOnlyPtBr(report.reportDate || '')}</span></div>
+                    <div><dt>Relatório</dt><dd>{report.reportType} {report.sequenceNumber || ''}</dd></div>
+                    <div><dt>Data</dt><dd>{formatDateOnlyPtBr(report.reportDate || '')}</dd></div>
                   </>
                 )}
-                <div className="det-row"><span className="det-label">Signatário</span><span className="det-val">{signer?.name || '-'} ({signer?.email || '-'})</span></div>
-              </div>
+                <div><dt>Signatário</dt><dd>{signer?.name || '-'} ({signer?.email || '-'})</dd></div>
+              </dl>
             ) : (
-              <p className="placeholder-copy">Não foi possível localizar uma assinatura ativa para este link.</p>
+              <Alert tone="warning">Não foi possível localizar uma assinatura ativa para este link.</Alert>
             )}
             {canSign ? (
               <>
@@ -163,9 +171,9 @@ export function PublicSignaturePage() {
                   onCheckedChange={setPrivacyAccepted}
                   disabled={confirmMutation.isPending}
                 />
-                <div className={batchMode ? 'public-signature-report-list' : 'public-signature-actions'}>
+                <div className={batchMode ? 'public-signature-report-list' : 'public-signature-single-container'}>
                   {reportItems.map(item => (
-                    <div className={batchMode ? 'public-signature-report-card' : 'public-signature-single-actions'} key={item.signatureId || item.report.id}>
+                    <Card className={batchMode ? 'public-signature-report-card' : 'public-signature-single-actions'} padding="sm" variant="flat" key={item.signatureId || item.report.id}>
                       {batchMode ? (
                         <div className="public-signature-report-meta">
                           <strong>{reportLabel(item)}</strong>
@@ -173,44 +181,44 @@ export function PublicSignaturePage() {
                         </div>
                       ) : null}
                       <div className="public-signature-actions">
-                        <a className="secondary-button" href={publicSignaturePdfUrl(token, item.signatureId)} target="_blank" rel="noopener noreferrer">
+                        <a className="fv-button fv-button--secondary fv-button--sm" href={publicSignaturePdfUrl(token, item.signatureId)} target="_blank" rel="noopener noreferrer">
                           Abrir PDF
                         </a>
-                        <button className="primary-button" type="button" onClick={() => openSignatureDialog(item.signatureId)} disabled={!privacyAccepted || item.status !== 'ACTIVE'}>
+                        <Button size="sm" variant="primary" type="button" onClick={() => openSignatureDialog(item.signatureId)} disabled={!privacyAccepted || item.status !== 'ACTIVE'}>
                           Assinar
-                        </button>
-                        <button className="danger-button" type="button" onClick={() => openRejectForm(item.signatureId)} disabled={item.status !== 'ACTIVE'}>
+                        </Button>
+                        <Button size="sm" variant="danger" type="button" onClick={() => openRejectForm(item.signatureId)} disabled={item.status !== 'ACTIVE'}>
                           Reprovar
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
                 {rejectOpen ? (
                   <form className="public-signature-reject" onSubmit={handleRejectSubmit}>
-                    <div className="field-group">
-                      <label htmlFor="public-signature-reason">Motivo da reprovação de {reportLabel(selectedItem)}</label>
-                      <textarea
-                        id="public-signature-reason"
+                    <Field id="public-signature-reason" label={`Motivo da reprovação de ${reportLabel(selectedItem)}`} required optionalText={null}>
+                      <Textarea
+                        id="public-signature-reason-control"
                         rows={4}
                         value={rejectionReason}
                         onChange={event => setRejectionReason(event.target.value)}
                         required
                       />
-                    </div>
-                    <button className="danger-button" type="submit" disabled={rejectMutation.isPending}>
+                    </Field>
+                    <Button size="sm" variant="danger" type="submit" loading={rejectMutation.isPending}>
                       Confirmar reprovação
-                    </button>
+                    </Button>
                   </form>
                 ) : null}
               </>
             ) : null}
           </>
         ) : null}
-      </section>
+      </Card>
       <SignatureDialog
         open={signatureOpen}
         title={`Assinar ${reportLabel(selectedItem)}`}
+        appearance="design-system"
         initialSignerName={initialPublicSignerName(selectedItem)}
         allowCachedSignerName={Boolean(initialPublicSignerName(selectedItem))}
         cacheIdentity={`${selectedItem?.signer.email || signer?.email || token}:${selectedItem?.signatureId || ''}`}

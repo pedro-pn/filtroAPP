@@ -822,7 +822,8 @@
   }
 
   :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response {
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    /* Notas seguem compactas; respostas longas não podem consumir a pergunta. */
+    grid-template-columns: minmax(0, 1fr) fit-content(60%);
     align-items: baseline;
     gap: var(--space-4);
   }
@@ -911,7 +912,7 @@
   }
 
   :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response {
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    grid-template-columns: minmax(0, 1fr) fit-content(60%);
   }
 }
 
@@ -1997,6 +1998,104 @@
     .rdo-active-project-card__detail-panel--overview
     > dl {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Desktop: the existing project card becomes a responsive tile. Auto-fill
+   keeps a single search result compact; editing still has the full row. */
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list,
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__loading,
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list,
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__loading {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+    align-items: start;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list > .rdo-active-project-card {
+    container: rdo-project-tile / inline-size;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list > [data-project-editing='true'] {
+    grid-column: 1 / -1;
+  }
+
+  @container rdo-project-tile (max-width: 40rem) {
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header > .fv-card__actions {
+      width: 100%;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__header-actions {
+      width: 100%;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__heading {
+      align-items: flex-start;
+      gap: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__detail-panel {
+      padding: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--full {
+      display: none;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--compact {
+      display: inline;
+    }
+  }
+}
+
+/* Archived tiles retain their report groups, selection and project actions. */
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list > .rdo-project-card--archived {
+    container: rdo-archived-tile / inline-size;
+  }
+
+  @container rdo-archived-tile (max-width: 60rem) {
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'identity identity' 'reports quick-actions';
+      gap: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header > .fv-card__heading,
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__heading { display: contents; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__identity { grid-area: identity; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__icon { display: none; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__reports-toggle { grid-area: reports; justify-self: start; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header > .fv-card__actions {
+      grid-area: quick-actions;
+      justify-self: end;
+      overflow: visible;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions {
+      display: grid;
+      width: 100%;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2);
+    }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions > .fv-button:first-child { grid-area: 1 / 1; justify-self: start; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions > .fv-button:not(:first-child) { grid-area: 1 / 2; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions > .fv-badge { grid-column: 1 / -1; justify-self: start; max-width: 100%; white-space: normal; }
   }
 }
 
@@ -3900,14 +3999,10 @@
   }
 
   :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics {
-    display: flex;
-    grid-template-columns: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
     padding: var(--focus-ring-offset) var(--focus-ring-offset) var(--space-2);
-    overflow-x: auto;
-    scroll-padding-inline: var(--focus-ring-offset);
-    scroll-snap-type: inline proximity;
-    scrollbar-width: thin;
   }
 
   :where(.fv-ds, [data-fv-ds])
@@ -3917,14 +4012,13 @@
   }
 
   :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card {
-    min-width: calc(var(--space-16) * 2 + var(--space-4));
+    min-width: 0;
     min-height: var(--space-16);
-    flex: 1 0 calc(var(--space-16) * 2 + var(--space-4));
+    flex: none;
     gap: var(--space-2);
     padding: var(--space-3);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-e0);
-    scroll-snap-align: start;
   }
 
   :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card__icon {
@@ -4217,9 +4311,6 @@
     flex-wrap: nowrap;
     justify-content: flex-start;
     gap: var(--space-1);
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
   }
 
   :where(.fv-ds, [data-fv-ds])
@@ -4228,7 +4319,7 @@
     .fv-button {
     width: auto;
     min-width: calc(var(--space-10) + var(--space-1));
-    flex: 1 0 auto;
+    flex: 1 1 0;
     --fv-button-padding: var(--space-1);
     --fv-button-font-size: var(--text-xs);
     --fv-button-line-height: var(--leading-xs);
