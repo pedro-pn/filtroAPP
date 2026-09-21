@@ -3,6 +3,7 @@ import { normalizeCostEstimatePayload, technicalServiceRequiresChemicalProducts 
 import { money, number, numberValue } from '../formato';
 import type { Levantamento } from '../useLevantamento';
 import type { ChemicalVolumeResult } from '../../../../../../shared/comercial/dist/chemical-cleaning.js';
+import type { ChemicalPumpChoice } from '../../../../../../shared/comercial/dist/cost-model.js';
 import { VolumeQuimicoResumo } from './VolumeQuimicoResumo';
 
 /**
@@ -101,20 +102,12 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
   const produtosExcluidos = registros(draft.deletedProducts).filter(produtoAplicavel);
   const calculados = registros(result.productResults);
 
-  /** Grava (ou, com `undefined`, remove) o ajuste manual de sistemas do grupo. */
-  function alterarSistemasQuimicos(
+  /** Grava a lista de bombas escolhidas do circuito; `undefined` volta ao automático. */
+  function alterarBombasQuimicas(
     circuitoId: string,
-    chave: string,
-    contagem: number | undefined
+    bombas: ChemicalPumpChoice[] | undefined
   ) {
-    const circuito = todosOsCircuitos.find(item => String(item.id) === circuitoId);
-    if (!circuito) return;
-    const { [chave]: _anterior, ...demais } =
-      (circuito.chemicalSystemCounts as Record<string, number> | undefined) || {};
-    const proximo = contagem === undefined ? demais : { ...demais, [chave]: contagem };
-    updateCollection('volumeSystems', circuitoId, {
-      chemicalSystemCounts: Object.keys(proximo).length ? proximo : undefined
-    });
+    updateCollection('volumeSystems', circuitoId, { chemicalPumps: bombas });
   }
 
   function acrescentar() {
@@ -202,7 +195,7 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
 
       <VolumeQuimicoResumo
         volumes={result.chemicalVolumeResults as ChemicalVolumeResult[] | undefined}
-        onAlterarSistemas={alterarSistemasQuimicos}
+        onAlterarBombas={alterarBombasQuimicas}
       />
 
       {produtos.length > 0 ? (

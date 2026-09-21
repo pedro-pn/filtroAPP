@@ -236,6 +236,14 @@ export type HoseSegment = {
   fillPercent: number;
 };
 
+/** Uma linha de bombas escolhidas à mão: `quantity` bombas do tipo `pumpId` (litros do reservatório). */
+export type ChemicalPumpChoice = {
+  id: string;
+  material: "carbon_steel" | "stainless_steel";
+  pumpId: "120" | "240" | "1000";
+  quantity: number;
+};
+
 export type VolumeSystem = {
   id: string;
   name: string;
@@ -246,11 +254,11 @@ export type VolumeSystem = {
   reservoirVolumes?: EquipmentVolumeItem[];
   servicesByItem?: boolean;
   /**
-   * Nº de sistemas de bomba informado à mão na limpeza química, por grupo
-   * `material:bomba` (ex.: `carbon_steel:240`). Sem entrada, vale o automático
-   * (`ceil(comprimento / 50 m)`) — ver `chemical-cleaning.ts`.
+   * Bombas da limpeza química escolhidas à mão neste circuito. Ausente = modo
+   * automático (bomba pelo diâmetro, sistemas de até 50 m); presente — mesmo
+   * vazio — substitui o automático. Ver `chemical-cleaning.ts`.
    */
-  chemicalSystemCounts?: Record<string, number>;
+  chemicalPumps?: ChemicalPumpChoice[];
   manualVolumes: ManualVolumeItem[];
   cycles: number;
   enabled: boolean;
@@ -1355,14 +1363,28 @@ function normalizeHoseSegment(value: unknown, index: number): HoseSegment {
   };
 }
 
-/** Descarta chaves fora de `material:bomba` e contagens que não sejam inteiros ≥ 1. */
-function normalizeChemicalSystemCounts(value: unknown): Pick<VolumeSystem, "chemicalSystemCounts"> {
-  const entries = Object.entries(objectValue(value)).flatMap(([key, count]) => {
-    const validKey = /^(carbon_steel|stainless_steel):(120|240|1000)$/.test(key);
-    const rounded = Math.round(Number(count));
-    return validKey && Number.isFinite(rounded) && rounded >= 1 ? [[key, Math.min(rounded, 999)] as const] : [];
-  });
-  return entries.length ? { chemicalSystemCounts: Object.fromEntries(entries) } : {};
+/**
+ * A presença da lista é o próprio modo manual, então `[]` é preservado. Linhas
+ * com material/bomba desconhecidos ou quantidade que não seja inteiro ≥ 1 caem.
+ */
+function normalizeChemicalPumps(value: unknown): Pick<VolumeSystem, "chemicalPumps"> {
+  if (!Array.isArray(value)) return {};
+  return {
+    chemicalPumps: value.flatMap((raw, index) => {
+      const source = objectValue(raw);
+      const material = enumValue(source.material, ["carbon_steel", "stainless_steel"] as const, "carbon_steel");
+      const pumpId = String(source.pumpId);
+      const quantity = Math.round(Number(source.quantity));
+      const validMaterial = source.material === "carbon_steel" || source.material === "stainless_steel";
+      if (!validMaterial || !["120", "240", "1000"].includes(pumpId) || !Number.isFinite(quantity) || quantity < 1) return [];
+      return [{
+        id: importedId(source.id, "pump", index),
+        material,
+        pumpId: pumpId as ChemicalPumpChoice["pumpId"],
+        quantity: Math.min(quantity, 999),
+      }];
+    }),
+  };
 }
 
 function normalizeVolumeSystem(value: unknown, index: number): VolumeSystem {
@@ -1376,7 +1398,7 @@ function normalizeVolumeSystem(value: unknown, index: number): VolumeSystem {
     equipmentVolumes: arrayValue(source.equipmentVolumes).map(normalizeEquipmentVolume),
     ...(source.reservoirVolumes === undefined ? {} : { reservoirVolumes: arrayValue(source.reservoirVolumes).map(normalizeEquipmentVolume) }),
     ...(source.servicesByItem === true ? { servicesByItem: true } : {}),
-    ...normalizeChemicalSystemCounts(source.chemicalSystemCounts),
+    ...normalizeChemicalPumps(source.chemicalPumps),
     manualVolumes: arrayValue(source.manualVolumes).map(normalizeManualVolume),
     cycles: Math.max(1, nonNegative(source.cycles, 1)),
     enabled: booleanValue(source.enabled, true),
@@ -4429,7 +4451,9 @@ export function validateCostEstimate(value: CostEstimatePayloadV2 | unknown): Co
       const segmentPath = `${path}.pipeSegments[${segmentIndex}]`;
       const chemical = system.servicesByItem ? segment.serviceIds?.includes('limpeza_quimica')
         : circuitServices.chemicalSystemIds.has(system.id);
-      if (chemical && !['carbon_steel', 'stainless_steel'].includes(segment.material ?? system.material)) {
+      // Com as bombas escolhidas à mão, o material do tubo não define bomba nenhuma.
+      if (chemical && !system.chemicalPumps
+        && !['carbon_steel', 'stainless_steel'].includes(segment.material ?? system.material)) {
         add('error', `${segmentPath}.material`, 'Selecione aço carbono ou aço inox para dimensionar a bomba de limpeza química.');
       }
       if (segment.lengthM > 0 && segment.internalDiameterMm <= 0) {

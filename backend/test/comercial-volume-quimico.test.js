@@ -157,43 +157,79 @@ test('exportação apresenta as parcelas e o mesmo total utilizado nos produtos'
 test('100 m de 5" (aço carbono) geram 2 sistemas de bomba de 240 L = 1946,13 L, automaticamente', () => {
   const volume = calculateEstimate(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })])).chemicalVolumeResults[0];
   const group = volume.groups[0];
-  assert.deepEqual([group.pumpId, group.systemCount, group.autoSystemCount, group.customized], ['240', 2, 2, false]);
+  assert.deepEqual([volume.mode, group.pumpId, group.systemCount, volume.pipeLengthM], ['auto', '240', 2, 100]);
+  assert.equal(volume.autoGroups, undefined);
   assert.equal(volume.totalVolumeLiters, 1946.1265);
 });
 
-test('sistemas ajustados à mão substituem o automático só no grupo indicado e mantêm a referência', () => {
-  const draft = fixture([pipe({ lengthM: 100, internalDiameterMm: 127 }), pipe({ id: 'inox', material: 'stainless_steel', lengthM: 20 })]);
-  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 3 };
+const manual = (draft, chemicalPumps) => { draft.volumeSystems[0].chemicalPumps = chemicalPumps; return draft; };
+const bomba = (patch = {}) => ({ id: 'b1', material: 'carbon_steel', pumpId: '240', quantity: 1, ...patch });
+
+test('bombas escolhidas à mão substituem a dedução automática; o tubo continua pela geometria', () => {
+  const draft = manual(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]),
+    [bomba({ quantity: 1 }), bomba({ id: 'b2', pumpId: '120', quantity: 2, material: 'stainless_steel' })]);
   const volume = calculateEstimate(draft).chemicalVolumeResults[0];
-  const carbono = volume.groups.find(g => g.material === 'carbon_steel');
-  const inox = volume.groups.find(g => g.material === 'stainless_steel');
-  assert.deepEqual([carbono.systemCount, carbono.autoSystemCount, carbono.customized], [3, 2, true]);
-  assert.equal(carbono.reservoirVolumeLiters, 720);
-  assert.equal(carbono.hoseVolumeLiters, 300);
-  assert.deepEqual([inox.systemCount, inox.customized], [1, false]);
-  // Menos sistemas que o automático também é permitido (o orçamentista sabe do campo).
-  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 1 };
-  assert.equal(calculateEstimate(draft).chemicalVolumeResults[0].groups[0].systemCount, 1);
+  assert.equal(volume.mode, 'manual');
+  assert.deepEqual(volume.groups.map(g => [g.id, g.material, g.pumpId, g.systemCount]),
+    [['b1', 'carbon_steel', '240', 1], ['b2', 'stainless_steel', '120', 2]]);
+  assert.equal(volume.pipeVolumeLiters, 1266.1265);
+  assert.equal(volume.reservoirVolumeLiters, 240 + 2 * 120);
+  assert.equal(volume.hoseVolumeLiters, 100 + 2 * 50);
+  assert.equal(volume.totalVolumeLiters, 1946.1265);
+  // A sugestão automática segue disponível como referência.
+  assert.deepEqual(volume.autoGroups.map(g => [g.pumpId, g.systemCount]), [['240', 2]]);
 });
 
-test('ajuste manual sobrevive à normalização; entradas inválidas ou de grupos inexistentes são descartadas', () => {
-  const draft = fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]);
-  draft.volumeSystems[0].chemicalSystemCounts = {
-    'carbon_steel:240': 4.4, 'stainless_steel:120': 0, 'carbon_steel:999': 2, 'lixo': 3, 'stainless_steel:1000': 'x',
-  };
-  const restored = normalizeCostEstimatePayload(JSON.parse(JSON.stringify(draft)));
-  assert.deepEqual(restored.volumeSystems[0].chemicalSystemCounts, { 'carbon_steel:240': 4 });
-  assert.equal(calculateEstimate(restored).chemicalVolumeResults[0].groups[0].systemCount, 4);
-  delete draft.volumeSystems[0].chemicalSystemCounts;
-  assert.equal('chemicalSystemCounts' in normalizeCostEstimatePayload(draft).volumeSystems[0], false);
+test('o produto é dosado sobre o volume com as bombas escolhidas à mão', () => {
+  const draft = manual(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]), [bomba({ quantity: 3 })]);
+  const result = calculateEstimate(draft);
+  // 1266,1265 (tubo) + 3 × (240 + 100).
+  assert.equal(result.chemicalVolumeResults[0].totalVolumeLiters, 2286.1265);
+  assert.equal(result.productResults[0].sourceVolumeLiters, 2286.1265);
 });
 
-test('ajuste órfão (diâmetro passou para outra bomba) é ignorado e volta a valer se a bomba voltar', () => {
-  const draft = fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]);
-  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 5 };
-  draft.volumeSystems[0].pipeSegments[0].internalDiameterMm = 50.8;
-  const group = calculateEstimate(draft).chemicalVolumeResults[0].groups[0];
-  assert.deepEqual([group.pumpId, group.systemCount, group.customized], ['120', 2, false]);
-  draft.volumeSystems[0].pipeSegments[0].internalDiameterMm = 127;
-  assert.equal(calculateEstimate(draft).chemicalVolumeResults[0].groups[0].systemCount, 5);
+test('ciclos multiplicam também as bombas escolhidas à mão', () => {
+  const draft = manual(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]), [bomba()]);
+  draft.volumeSystems[0].cycles = 2;
+  assert.equal(calculateEstimate(draft).chemicalVolumeResults[0].totalVolumeLiters, 3212.253);
+});
+
+test('lista manual vazia é um modo válido: só tubo e outros sistemas, sem bomba', () => {
+  const draft = manual(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]), []);
+  const volume = calculateEstimate(draft).chemicalVolumeResults[0];
+  assert.deepEqual([volume.mode, volume.groups.length, volume.reservoirVolumeLiters, volume.hoseVolumeLiters], ['manual', 0, 0, 0]);
+  assert.equal(volume.totalVolumeLiters, 1266.1265);
+  assert.equal(normalizeCostEstimatePayload(JSON.parse(JSON.stringify(draft))).volumeSystems[0].chemicalPumps.length, 0);
+});
+
+test('no modo manual o material "Outro" do tubo deixa de ser pendência; no automático continua', () => {
+  const draft = fixture([pipe({ material: 'other', lengthM: 100, internalDiameterMm: 127 })]);
+  const erroDeMaterial = () => validateCostEstimate(draft).errors.some(e => e.path.endsWith('.material'));
+  assert.equal(erroDeMaterial(), true);
+  manual(draft, [bomba()]);
+  assert.equal(erroDeMaterial(), false);
+  const volume = calculateEstimate(draft).chemicalVolumeResults[0];
+  assert.equal(volume.pipeVolumeLiters, 1266.1265);
+  assert.equal(volume.totalVolumeLiters, 1606.1265);
+});
+
+test('a lista manual sobrevive à normalização; linhas inválidas caem e o modo automático não é inventado', () => {
+  const draft = fixture([pipe()]);
+  manual(draft, [
+    bomba({ quantity: 2.6 }),
+    bomba({ id: 'x1', pumpId: '999' }), bomba({ id: 'x2', material: 'other' }),
+    bomba({ id: 'x3', quantity: 0 }), bomba({ id: 'x4', quantity: 'abc' }), 'lixo', null,
+  ]);
+  const restored = normalizeCostEstimatePayload(JSON.parse(JSON.stringify(draft))).volumeSystems[0];
+  assert.deepEqual(restored.chemicalPumps, [bomba({ quantity: 3 })]);
+  delete draft.volumeSystems[0].chemicalPumps;
+  assert.equal('chemicalPumps' in normalizeCostEstimatePayload(draft).volumeSystems[0], false);
+});
+
+test('exportação de bomba escolhida à mão deixa comprimento e tubo em branco na linha', () => {
+  const draft = manual(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]), [bomba({ quantity: 2 })]);
+  const rows = linhasDaPlanilha({ payload: draft });
+  const pump = rows.find(row => row[1] === 'Aço carbono' && row[2] === 240);
+  assert.deepEqual([pump[3], pump[4], pump[5], pump[6], pump[7]], ['', 2, '', 480, 200]);
+  assert.equal(rows.find(row => row[1] === 'TOTAL DO CIRCUITO').at(-1), 1946.1265);
 });

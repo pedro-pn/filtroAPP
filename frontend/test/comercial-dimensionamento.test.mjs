@@ -102,21 +102,32 @@ test('produtos mostram memória LEC com bomba, mangueiras e total para dosagem',
   assert.match(html, /memória de cálculo LEC/);
   assert.match(html, /Reservatórios das bombas \(L\)/);
   assert.match(html, /<td>120 L<\/td>/);
-  assert.match(html, /<td>50 m<\/td><td><input[^>]*aria-label="Sistemas de Prensa — Aço carbono, bomba 120 L"[^>]*value="1"\/><\/td>/);
-  assert.doesNotMatch(html, /automático: /);
+  assert.match(html, /<td>50 m<\/td><td>1<\/td>/);
   assert.match(html, /Mangueiras \(L\)/);
+  // Automático: tabela só de leitura, com a porta de entrada para o modo manual.
+  assert.match(html, /Bombas: automático \(LEC\)/);
+  assert.match(html, />Escolher bombas manualmente<\/button>/);
+  assert.doesNotMatch(html, /Voltar ao automático|\+ Adicionar bomba/);
 });
 
-test('memória LEC deixa editar o nº de sistemas e mostra o automático quando há ajuste manual', () => {
+test('memória LEC no modo manual mostra as bombas escolhidas, editáveis, e a sugestão automática', () => {
   const draft = model.createDefaultCostEstimatePayload();
   draft.volumeSystems[0].name = 'Prensa';
   draft.volumeSystems[0].pipeSegments = [{ ...helpers.novoSistemaDimensionado('pipes'),
     description: 'Linha', lengthM: 100, internalDiameterMm: 127, serviceIds: ['limpeza_quimica'] }];
-  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 3 };
+  draft.volumeSystems[0].chemicalPumps = [{ id: 'b1', material: 'stainless_steel', pumpId: '1000', quantity: 3 }];
   const html = renderToStaticMarkup(createElement(InsumosSection, { levantamento: state(draft) }));
-  assert.match(html, /aria-label="Sistemas de Prensa — Aço carbono, bomba 240 L"[^>]*value="3"/);
-  assert.match(html, /automático: 2/);
-  assert.match(html, />Restaurar<\/button>/);
+  assert.match(html, /Bombas: escolhidas manualmente/);
+  assert.match(html, /aria-label="Material da Prensa — bomba 1"[^>]*>.*?<option value="stainless_steel" selected="">/);
+  assert.match(html, /aria-label="Tipo da Prensa — bomba 1"[^>]*>.*?<option value="1000" selected="">1000 L — tubos acima de 8″/);
+  assert.match(html, /aria-label="Quantidade da Prensa — bomba 1"[^>]*value="3"/);
+  assert.match(html, /Sugestão automática: 2 × bomba 240 L \(aço carbono\)/);
+  assert.match(html, /Tubulação considerada: 100 m/);
+  assert.match(html, />Voltar ao automático<\/button>/);
+  assert.match(html, /\+ Adicionar bomba/);
+  // 1266,13 (tubo) + 3 × (1000 + 200) = 4866,13 L.
+  assert.match(html, /4\.866,13 L para dosagem/);
+  assert.doesNotMatch(html, /Sistemas ≤ 50 m/);
 });
 
 test('material incompatível destaca a seleção do tubo para limpeza química', () => {

@@ -337,12 +337,14 @@ function linhasEsquema2(payload, result, estimate) {
   const volumesQuimicos = records(result.chemicalVolumeResults);
   if (volumesQuimicos.length) {
     linhas.push([], ['VOLUME PARA DOSAGEM QUÍMICA — LEC v1.3'],
-      ['CIRCUITO', 'MATERIAL', 'BOMBA / RESERVATÓRIO (L)', 'COMPRIMENTO (M)', 'SISTEMAS (AUTO: ATÉ 50 M, OU AJUSTE MANUAL)',
+      ['CIRCUITO', 'MATERIAL', 'BOMBA / RESERVATÓRIO (L)', 'COMPRIMENTO (M)', 'SISTEMAS / BOMBAS (AUTOMÁTICO: ATÉ 50 M; OU ESCOLHA MANUAL)',
         'TUBULAÇÃO (L)', 'RESERVATÓRIOS DAS BOMBAS (L)', 'MANGUEIRAS (L)', 'OUTROS VOLUMES (L)', 'CICLOS', 'VOLUME PARA DOSAGEM (L)']);
     for (const volume of volumesQuimicos) {
+      // Bombas escolhidas à mão não medem tubo: comprimento e tubulação ficam em branco na linha.
+      const manual = volume.mode === 'manual';
       for (const group of records(volume.groups)) {
         linhas.push([volume.name, SYSTEM_MATERIALS.find(item => item.value === group.material)?.label ?? '',
-          group.reservoirLitersPerSystem, group.lengthM, group.systemCount, group.pipeVolumeLiters,
+          group.reservoirLitersPerSystem, manual ? '' : group.lengthM, group.systemCount, manual ? '' : group.pipeVolumeLiters,
           group.reservoirVolumeLiters, group.hoseVolumeLiters, '', volume.cycles,
           numero(group.totalVolumeLiters) * numero(volume.cycles)]);
       }
