@@ -102,8 +102,21 @@ test('produtos mostram memória LEC com bomba, mangueiras e total para dosagem',
   assert.match(html, /memória de cálculo LEC/);
   assert.match(html, /Reservatórios das bombas \(L\)/);
   assert.match(html, /<td>120 L<\/td>/);
-  assert.match(html, /<td>50 m<\/td><td>1<\/td>/);
+  assert.match(html, /<td>50 m<\/td><td><input[^>]*aria-label="Sistemas de Prensa — Aço carbono, bomba 120 L"[^>]*value="1"\/><\/td>/);
+  assert.doesNotMatch(html, /automático: /);
   assert.match(html, /Mangueiras \(L\)/);
+});
+
+test('memória LEC deixa editar o nº de sistemas e mostra o automático quando há ajuste manual', () => {
+  const draft = model.createDefaultCostEstimatePayload();
+  draft.volumeSystems[0].name = 'Prensa';
+  draft.volumeSystems[0].pipeSegments = [{ ...helpers.novoSistemaDimensionado('pipes'),
+    description: 'Linha', lengthM: 100, internalDiameterMm: 127, serviceIds: ['limpeza_quimica'] }];
+  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 3 };
+  const html = renderToStaticMarkup(createElement(InsumosSection, { levantamento: state(draft) }));
+  assert.match(html, /aria-label="Sistemas de Prensa — Aço carbono, bomba 240 L"[^>]*value="3"/);
+  assert.match(html, /automático: 2/);
+  assert.match(html, />Restaurar<\/button>/);
 });
 
 test('material incompatível destaca a seleção do tubo para limpeza química', () => {
@@ -158,4 +171,28 @@ test('validação destaca os campos de sistema e serviço na aba correta', () =>
   const html = renderToStaticMarkup(createElement(CircuitosBloco, { levantamento }));
   assert.match(html, /aria-label="Nome do sistema"[^>]*aria-invalid="true"/);
   assert.match(html, /Selecione um serviço/);
+});
+
+test('necessidade / compra mostra a quantidade uma vez, com unidade, e o valor em linha própria', () => {
+  const montar = packageSize => {
+    const draft = model.createDefaultCostEstimatePayload();
+    draft.volumeSystems[0].pipeSegments = [{ ...helpers.novoSistemaDimensionado('pipes'),
+      description: 'Linha', lengthM: 100, internalDiameterMm: 127, serviceIds: ['limpeza_quimica'] }];
+    draft.products = [{ ...draft.products[0], systemId: '*', doseMode: 'percent_volume', dose: 5, unit: 'kg',
+      densityKgPerL: 1, wastePercent: 0, packageSize, unitCost: 10, priceBasis: 'unit' }];
+    return renderToStaticMarkup(createElement(InsumosSection, { levantamento: state(draft) }));
+  };
+  const celula = html => html.match(/<td class="com-calculado">(.*?)<\/td>/)[1];
+
+  // Sem embalagem que arredonde: 5% de 1.946,13 L = 97,31 kg, uma única vez.
+  const semEmbalagem = celula(montar(0));
+  assert.equal((semEmbalagem.match(/97,31/g) || []).length, 1);
+  assert.match(semEmbalagem, /<strong>97,31<\/strong> kg<\/div>/);
+  assert.match(semEmbalagem, /<div class="com-nota">R\$\s?973,06<\/div>/);
+  assert.doesNotMatch(semEmbalagem, / \/ /);
+
+  // Embalagem de 20 kg arredonda para 100 kg (5 emb.): aí sim as duas quantidades.
+  const comEmbalagem = celula(montar(20));
+  assert.match(comEmbalagem, /necessário <span>97,31<\/span> kg/);
+  assert.match(comEmbalagem, /compra <strong>100<\/strong> kg \(5 emb\.\)/);
 });

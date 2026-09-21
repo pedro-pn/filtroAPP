@@ -245,6 +245,12 @@ export type VolumeSystem = {
   equipmentVolumes: EquipmentVolumeItem[];
   reservoirVolumes?: EquipmentVolumeItem[];
   servicesByItem?: boolean;
+  /**
+   * Nº de sistemas de bomba informado à mão na limpeza química, por grupo
+   * `material:bomba` (ex.: `carbon_steel:240`). Sem entrada, vale o automático
+   * (`ceil(comprimento / 50 m)`) — ver `chemical-cleaning.ts`.
+   */
+  chemicalSystemCounts?: Record<string, number>;
   manualVolumes: ManualVolumeItem[];
   cycles: number;
   enabled: boolean;
@@ -1349,6 +1355,16 @@ function normalizeHoseSegment(value: unknown, index: number): HoseSegment {
   };
 }
 
+/** Descarta chaves fora de `material:bomba` e contagens que não sejam inteiros ≥ 1. */
+function normalizeChemicalSystemCounts(value: unknown): Pick<VolumeSystem, "chemicalSystemCounts"> {
+  const entries = Object.entries(objectValue(value)).flatMap(([key, count]) => {
+    const validKey = /^(carbon_steel|stainless_steel):(120|240|1000)$/.test(key);
+    const rounded = Math.round(Number(count));
+    return validKey && Number.isFinite(rounded) && rounded >= 1 ? [[key, Math.min(rounded, 999)] as const] : [];
+  });
+  return entries.length ? { chemicalSystemCounts: Object.fromEntries(entries) } : {};
+}
+
 function normalizeVolumeSystem(value: unknown, index: number): VolumeSystem {
   const source = objectValue(value);
   return {
@@ -1360,6 +1376,7 @@ function normalizeVolumeSystem(value: unknown, index: number): VolumeSystem {
     equipmentVolumes: arrayValue(source.equipmentVolumes).map(normalizeEquipmentVolume),
     ...(source.reservoirVolumes === undefined ? {} : { reservoirVolumes: arrayValue(source.reservoirVolumes).map(normalizeEquipmentVolume) }),
     ...(source.servicesByItem === true ? { servicesByItem: true } : {}),
+    ...normalizeChemicalSystemCounts(source.chemicalSystemCounts),
     manualVolumes: arrayValue(source.manualVolumes).map(normalizeManualVolume),
     cycles: Math.max(1, nonNegative(source.cycles, 1)),
     enabled: booleanValue(source.enabled, true),

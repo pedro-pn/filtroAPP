@@ -153,3 +153,47 @@ test('exportação apresenta as parcelas e o mesmo total utilizado nos produtos'
   const pump = rows.find(row=>row[1]==='Aço carbono' && row[2]===120);
   assert.equal(pump[4],1); assert.equal(pump[6],120); assert.equal(pump[7],50);
 });
+
+test('100 m de 5" (aço carbono) geram 2 sistemas de bomba de 240 L = 1946,13 L, automaticamente', () => {
+  const volume = calculateEstimate(fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })])).chemicalVolumeResults[0];
+  const group = volume.groups[0];
+  assert.deepEqual([group.pumpId, group.systemCount, group.autoSystemCount, group.customized], ['240', 2, 2, false]);
+  assert.equal(volume.totalVolumeLiters, 1946.1265);
+});
+
+test('sistemas ajustados à mão substituem o automático só no grupo indicado e mantêm a referência', () => {
+  const draft = fixture([pipe({ lengthM: 100, internalDiameterMm: 127 }), pipe({ id: 'inox', material: 'stainless_steel', lengthM: 20 })]);
+  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 3 };
+  const volume = calculateEstimate(draft).chemicalVolumeResults[0];
+  const carbono = volume.groups.find(g => g.material === 'carbon_steel');
+  const inox = volume.groups.find(g => g.material === 'stainless_steel');
+  assert.deepEqual([carbono.systemCount, carbono.autoSystemCount, carbono.customized], [3, 2, true]);
+  assert.equal(carbono.reservoirVolumeLiters, 720);
+  assert.equal(carbono.hoseVolumeLiters, 300);
+  assert.deepEqual([inox.systemCount, inox.customized], [1, false]);
+  // Menos sistemas que o automático também é permitido (o orçamentista sabe do campo).
+  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 1 };
+  assert.equal(calculateEstimate(draft).chemicalVolumeResults[0].groups[0].systemCount, 1);
+});
+
+test('ajuste manual sobrevive à normalização; entradas inválidas ou de grupos inexistentes são descartadas', () => {
+  const draft = fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]);
+  draft.volumeSystems[0].chemicalSystemCounts = {
+    'carbon_steel:240': 4.4, 'stainless_steel:120': 0, 'carbon_steel:999': 2, 'lixo': 3, 'stainless_steel:1000': 'x',
+  };
+  const restored = normalizeCostEstimatePayload(JSON.parse(JSON.stringify(draft)));
+  assert.deepEqual(restored.volumeSystems[0].chemicalSystemCounts, { 'carbon_steel:240': 4 });
+  assert.equal(calculateEstimate(restored).chemicalVolumeResults[0].groups[0].systemCount, 4);
+  delete draft.volumeSystems[0].chemicalSystemCounts;
+  assert.equal('chemicalSystemCounts' in normalizeCostEstimatePayload(draft).volumeSystems[0], false);
+});
+
+test('ajuste órfão (diâmetro passou para outra bomba) é ignorado e volta a valer se a bomba voltar', () => {
+  const draft = fixture([pipe({ lengthM: 100, internalDiameterMm: 127 })]);
+  draft.volumeSystems[0].chemicalSystemCounts = { 'carbon_steel:240': 5 };
+  draft.volumeSystems[0].pipeSegments[0].internalDiameterMm = 50.8;
+  const group = calculateEstimate(draft).chemicalVolumeResults[0].groups[0];
+  assert.deepEqual([group.pumpId, group.systemCount, group.customized], ['120', 2, false]);
+  draft.volumeSystems[0].pipeSegments[0].internalDiameterMm = 127;
+  assert.equal(calculateEstimate(draft).chemicalVolumeResults[0].groups[0].systemCount, 5);
+});

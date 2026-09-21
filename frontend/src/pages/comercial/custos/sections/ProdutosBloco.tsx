@@ -50,6 +50,11 @@ function registros(valor: unknown): AnyRecord[] {
   return Array.isArray(valor) ? (valor as AnyRecord[]) : [];
 }
 
+/** A embalagem só interessa na tela quando arredonda a compra para outro valor. */
+function comprasDiferem(calculado: AnyRecord): boolean {
+  return Math.abs(numberValue(calculado.purchaseQuantity) - numberValue(calculado.requiredQuantity)) >= 0.005;
+}
+
 function novoProduto(circuitoId?: string): AnyRecord {
   return {
     id: `produto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -95,6 +100,22 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
   const produtos = registros(draft.products).filter(produtoAplicavel);
   const produtosExcluidos = registros(draft.deletedProducts).filter(produtoAplicavel);
   const calculados = registros(result.productResults);
+
+  /** Grava (ou, com `undefined`, remove) o ajuste manual de sistemas do grupo. */
+  function alterarSistemasQuimicos(
+    circuitoId: string,
+    chave: string,
+    contagem: number | undefined
+  ) {
+    const circuito = todosOsCircuitos.find(item => String(item.id) === circuitoId);
+    if (!circuito) return;
+    const { [chave]: _anterior, ...demais } =
+      (circuito.chemicalSystemCounts as Record<string, number> | undefined) || {};
+    const proximo = contagem === undefined ? demais : { ...demais, [chave]: contagem };
+    updateCollection('volumeSystems', circuitoId, {
+      chemicalSystemCounts: Object.keys(proximo).length ? proximo : undefined
+    });
+  }
 
   function acrescentar() {
     setDraft(atual => ({
@@ -179,7 +200,10 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
         </div>
       </div>
 
-      <VolumeQuimicoResumo volumes={result.chemicalVolumeResults as ChemicalVolumeResult[] | undefined} />
+      <VolumeQuimicoResumo
+        volumes={result.chemicalVolumeResults as ChemicalVolumeResult[] | undefined}
+        onAlterarSistemas={alterarSistemasQuimicos}
+      />
 
       {produtos.length > 0 ? (
         <div className="com-table-wrap com-table-wrap-produtos-volume">
@@ -368,13 +392,30 @@ export function ProdutosBloco({ levantamento }: { levantamento: Levantamento }) 
                         <>
                           {/* Necessidade é o que o cálculo pede; compra é o que
                               a embalagem obriga. A diferença é desperdício
-                              inevitável, e o orçamentista precisa ver as duas. */}
-                          <span>{number(numberValue(calculado.requiredQuantity))}</span>
-                          {' / '}
-                          <strong>{number(numberValue(calculado.purchaseQuantity))}</strong>
-                          <small className="com-nota">
-                            {money(numberValue(calculado.total))}
-                          </small>
+                              inevitável, então só vira duas linhas quando a
+                              embalagem de fato muda o número. */}
+                          {comprasDiferem(calculado) ? (
+                            <>
+                              <div>
+                                necessário{' '}
+                                <span>{number(numberValue(calculado.requiredQuantity))}</span>{' '}
+                                {String(item.unit || '')}
+                              </div>
+                              <div>
+                                compra{' '}
+                                <strong>{number(numberValue(calculado.purchaseQuantity))}</strong>{' '}
+                                {String(item.unit || '')}
+                                {numberValue(calculado.packageCount) > 0 &&
+                                  ` (${numberValue(calculado.packageCount)} emb.)`}
+                              </div>
+                            </>
+                          ) : (
+                            <div>
+                              <strong>{number(numberValue(calculado.requiredQuantity))}</strong>{' '}
+                              {String(item.unit || '')}
+                            </div>
+                          )}
+                          <div className="com-nota">{money(numberValue(calculado.total))}</div>
                         </>
                       )}
                     </td>

@@ -20,7 +20,12 @@ export type ChemicalPumpGroup = {
   material: PumpMaterial;
   pumpId: string;
   lengthM: number;
+  /** Sistemas efetivamente cobrados: o informado à mão ou, sem ele, o automático. */
   systemCount: number;
+  /** `ceil(comprimento / 50 m)`, sempre calculado para servir de referência na tela. */
+  autoSystemCount: number;
+  /** `true` quando `systemCount` veio de `VolumeSystem.chemicalSystemCounts`. */
+  customized: boolean;
   reservoirLitersPerSystem: number;
   hoseLitersPerSystem: number;
   pipeVolumeLiters: number;
@@ -47,6 +52,10 @@ const round = (value: number) =>
 const positive = (value: number) =>
   Number.isFinite(value) ? Math.max(0, value) : 0;
 
+/** Chave do grupo em `VolumeSystem.chemicalSystemCounts`. */
+export const chemicalGroupKey = (material: string, pumpId: string) =>
+  `${material}:${pumpId}`;
+
 export function chemicalPumpForDiameter(diameterMm: number) {
   if (!Number.isFinite(diameterMm) || diameterMm <= 0) return undefined;
   return CHEMICAL_PUMPS.find((pump) => diameterMm <= pump.maxDiameterMm + 1e-9);
@@ -54,7 +63,8 @@ export function chemicalPumpForDiameter(diameterMm: number) {
 
 /**
  * CUSTO.Produtos!L65/L68: volume de tubo + sistemas × (reservatório + mangueiras).
- * O agrupamento e o teto de comprimento automatizam a entrada manual L43:L49.
+ * O agrupamento e o teto de comprimento automatizam a entrada manual L43:L49;
+ * `system.chemicalSystemCounts` permite sobrescrever o nº de sistemas por grupo.
  * Não altera o volume geométrico do cliente, utilizado pelos demais serviços.
  * Recebe o circuito normalizado e previamente associado à limpeza química.
  */
@@ -80,12 +90,14 @@ export function calculateChemicalCleaningVolume(
     const material = pipe.material ?? system.material;
     // "Outro" precisa ser corrigido na linha; não presumir uma bomba compatível.
     if (material !== "carbon_steel" && material !== "stainless_steel") continue;
-    const key = `${material}:${pump.id}`;
+    const key = chemicalGroupKey(material, pump.id);
     const group = grouped.get(key) ?? {
       material,
       pumpId: pump.id,
       lengthM: 0,
       systemCount: 0,
+      autoSystemCount: 0,
+      customized: false,
       reservoirLitersPerSystem: pump.reservoirLiters,
       hoseLitersPerSystem: pump.hoseLiters,
       pipeVolumeLiters: 0,
@@ -99,16 +111,24 @@ export function calculateChemicalCleaningVolume(
   }
   const groups = [...grouped.values()].map((group) => {
     const lengthM = round(group.lengthM);
-    const systemCount = Math.max(
+    const autoSystemCount = Math.max(
       1,
       Math.ceil(lengthM / CHEMICAL_SYSTEM_MAX_LENGTH_M),
     );
+    // Ajuste manual (LEC: campo "quantidade de sistemas"). Grupos que deixaram
+    // de existir — p.ex. o diâmetro mudou de bomba — simplesmente não são lidos.
+    const manualCount =
+      system.chemicalSystemCounts?.[chemicalGroupKey(group.material, group.pumpId)];
+    const customized = Number.isInteger(manualCount) && manualCount! >= 1;
+    const systemCount = customized ? manualCount! : autoSystemCount;
     const reservoirVolumeLiters = systemCount * group.reservoirLitersPerSystem;
     const hoseVolumeLiters = systemCount * group.hoseLitersPerSystem;
     return {
       ...group,
       lengthM,
       systemCount,
+      autoSystemCount,
+      customized,
       reservoirVolumeLiters,
       hoseVolumeLiters,
       pipeVolumeLiters: round(group.pipeVolumeLiters),

@@ -337,7 +337,7 @@ function linhasEsquema2(payload, result, estimate) {
   const volumesQuimicos = records(result.chemicalVolumeResults);
   if (volumesQuimicos.length) {
     linhas.push([], ['VOLUME PARA DOSAGEM QUÍMICA — LEC v1.3'],
-      ['CIRCUITO', 'MATERIAL', 'BOMBA / RESERVATÓRIO (L)', 'COMPRIMENTO (M)', 'SISTEMAS ATÉ 50 M',
+      ['CIRCUITO', 'MATERIAL', 'BOMBA / RESERVATÓRIO (L)', 'COMPRIMENTO (M)', 'SISTEMAS (AUTO: ATÉ 50 M, OU AJUSTE MANUAL)',
         'TUBULAÇÃO (L)', 'RESERVATÓRIOS DAS BOMBAS (L)', 'MANGUEIRAS (L)', 'OUTROS VOLUMES (L)', 'CICLOS', 'VOLUME PARA DOSAGEM (L)']);
     for (const volume of volumesQuimicos) {
       for (const group of records(volume.groups)) {
