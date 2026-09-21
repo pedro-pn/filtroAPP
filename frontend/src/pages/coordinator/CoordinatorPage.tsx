@@ -35,6 +35,7 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { reportDraftDateLabel, reportDraftServiceCount, reportDraftToRdoState, SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
+import { coordinatorPendingCountQuery, coordinatorPendingReportFilters } from './pendingReportFilters';
 
 type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas' | 'dds';
 const COORDINATOR_TABS: CoordinatorTab[] = ['pending', 'approved', 'archived', 'nps', 'estatisticas', 'dds'];
@@ -151,15 +152,11 @@ export function CoordinatorPage() {
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const showToast = useToast();
-  const pendingReportFilters = {
-    summary: true,
-    statuses: ['PENDING', 'RETURNED'],
-    projectActive: true,
-    createdByUserId: user?.id || '',
+  const pendingReportFilters = coordinatorPendingReportFilters(user, {
     search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
-  };
+  });
   const approvedReportFilters = {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
@@ -190,9 +187,7 @@ export function CoordinatorPage() {
     onLoadMore: reportsQuery.loadMore
   });
   // P7 — total de pendentes do coordenador via endpoint único de contadores.
-  const pendingCountQuery = useReportCounts([
-    { statuses: ['PENDING', 'RETURNED'], projectActive: true, createdByUserId: user?.id || '' }
-  ]);
+  const pendingCountQuery = useReportCounts([coordinatorPendingCountQuery(user)]);
   const archivedProjectsQuery = useProjects(false);
   const surveysQuery = useSurveys();
   const draftsQuery = useDrafts();

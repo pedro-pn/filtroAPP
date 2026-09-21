@@ -1,6 +1,8 @@
 import type { PublicModuleRole } from '../modules/registry';
 import type { AcompanhamentoExtraPermission } from '../../../shared/modules/acompanhamento-permissions.js';
 export type { AcompanhamentoExtraPermission } from '../../../shared/modules/acompanhamento-permissions.js';
+import type { RdoExtraPermission } from '../../../shared/modules/rdo-permissions.js';
+export type { RdoExtraPermission } from '../../../shared/modules/rdo-permissions.js';
 
 export type UserRole = 'COLLABORATOR' | 'MANAGER' | 'COORDINATOR' | 'CLIENT';
 export type AccountType = 'ADMIN' | 'INTERNAL' | 'CLIENT';
@@ -17,6 +19,7 @@ export interface AuthUser {
   moduleRoles: ModuleRole[];
   reportEmissionPermissions: ReportEmissionPermission[];
   acompanhamentoExtraPermissions?: AcompanhamentoExtraPermission[];
+  rdoExtraPermissions?: RdoExtraPermission[];
   isActive: boolean;
   clientCnpj?: string | null;
   privacyPolicyAcceptedAt?: string | null;

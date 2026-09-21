@@ -32,6 +32,7 @@ import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../components/ui/photoDeletionStaging';
+import type { AuthUser } from '../types/auth';
 import type { Collaborator, Equipment, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
 import { clientCanSignReport, clientSignerPrefillNameForReport } from '../utils/clientSignature';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
@@ -43,6 +44,7 @@ import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
 import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
 import { reportEditorOperationalMode } from './reportEditorOperationalMode';
 import { REPORT_DETAIL_TEXT as TEXT } from './reportDetailText';
+import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js';
 
 const serviceTypeModalOptions = [
   { type: 'limpeza', icon: '🧪', name: 'Limpeza química' },
@@ -291,8 +293,8 @@ function isDerivedServiceReport(report: ReportSummary) {
     && Boolean(report.specialConditions.parentRdoId);
 }
 
-function canEditDerivedServiceReport(report: ReportSummary, role?: string) {
-  return role === 'MANAGER'
+function canEditDerivedServiceReport(report: ReportSummary, user?: AuthUser | null) {
+  return canReviewRdoReports(user)
     && isDerivedServiceReport(report)
     && report.status !== 'SIGNED'
     && report.parentRdoStatus === 'SIGNED';
@@ -676,8 +678,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const manualReport = isManualUploadedReport(report);
   const manualServiceReport = manualReport && report.reportType !== 'RDO';
   const operationalMode = reportEditorOperationalMode({ manualReport, serviceOnly, derivedServiceReport });
-  const isManager = user?.role === 'MANAGER';
-  const canEditSequence = isManager && !readOnly && !manualReport;
+  const canReview = canReviewRdoReports(user);
+  const canEditSequence = canReview && !readOnly && !manualReport;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
 
   useEffect(() => {
@@ -738,7 +740,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const rdoSlotMap = bootstrapQuery.data?.rdoSlotMap;
   const inhibitionOptions = bootstrapQuery.data?.inhibitionOptions;
   const overtimeApproval = overtimeMinutesFromReport(report);
-  const showOvertimeApproval = isManager && canApproveInEditor && !serviceReportMode && overtimeApproval.total > 0;
+  const showOvertimeApproval = canReview && canApproveInEditor && !serviceReportMode && overtimeApproval.total > 0;
   const showDdsFields = report.reportType === 'RDO' && !manualReport && !serviceReportMode;
   const ddsThemesQuery = useQuery({ queryKey: ['dds-themes'], queryFn: () => listDdsThemes(), enabled: showDdsFields, staleTime: 60_000 });
 
@@ -961,7 +963,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     const saved = await handleSave({ navigateAfter: false, showSuccess: false });
     if (!saved) return;
     const updated = await handleStatus(status, reviewNotes);
-    if (updated && status === 'APPROVED' && user?.role === 'MANAGER') {
+    if (updated && status === 'APPROVED' && canReview) {
       navigate(reportBackPath, { replace: true, state: reportBackState });
     }
   }
@@ -1014,7 +1016,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               onChange={event => setField('sequenceNumber', event.target.value)}
               required
             />
-            {isManager ? (
+            {canReview ? (
               <span
                 className={sequenceConflict ? 'inline-error' : 'placeholder-copy'}
                 style={{ marginTop: 4 }}
@@ -1290,12 +1292,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           <button className="secondary-button" type="button" onClick={() => void handleDownload('pdf')}>
             PDF
           </button>
-          {isManager && !manualReport ? (
+          {canReview && !manualReport ? (
             <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
               DOCX
             </button>
           ) : null}
-          {isManager && canApproveInEditor ? (
+          {canReview && canApproveInEditor ? (
             <button
               className="primary-button"
               type="button"
@@ -1305,7 +1307,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               {hasActiveClientRejection(report) ? 'Salvar e Reenviar' : 'Salvar e Aprovar'}
             </button>
           ) : null}
-          {isManager && !serviceReportMode && !manualReport ? (
+          {canReview && !serviceReportMode && !manualReport ? (
             <button
               className="danger-button"
               type="button"
@@ -1392,9 +1394,9 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [clientComment, setClientComment] = useState('');
   const manualReport = isManualUploadedReport(report);
-  const canDownloadDocx = role === 'MANAGER' && !manualReport;
+  const canDownloadDocx = canReviewRdoReports(user) && !manualReport;
   const canClientSign = role === 'CLIENT' && clientCanSignReport(report, user, hasActiveClientRejection(report));
-  const canEditSequence = role === 'MANAGER' && report.status !== 'SIGNED';
+  const canEditSequence = canReviewRdoReports(user) && report.status !== 'SIGNED';
 
   async function handleDownload(format: 'pdf' | 'docx') {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
@@ -2008,16 +2010,17 @@ export function ReportDetailPage() {
   }
 
   const report = reportQuery.data;
-  const canEditLinkedServiceReport = report ? canEditDerivedServiceReport(report, user?.role) : false;
+  const canReviewReports = canReviewRdoReports(user);
+  const canEditLinkedServiceReport = report ? canEditDerivedServiceReport(report, user) : false;
   const showRdoEditor =
     !!report
     && (
       (report.status !== 'SIGNED' && report.reportType === 'RDO' && (
-        user?.role === 'MANAGER'
+        canReviewReports
         || collaboratorCanEditReport(user, report)
         || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
       ))
-      || (report.status !== 'SIGNED' && user?.role === 'MANAGER' && isServiceOnlyReport(report))
+      || (report.status !== 'SIGNED' && canReviewReports && isServiceOnlyReport(report))
       || canEditLinkedServiceReport
     );
 
@@ -2052,7 +2055,7 @@ export function ReportDetailPage() {
         {report ? (
           <>
             {showRdoEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
-            {user?.role === 'MANAGER' ? <ReportAuditHistory reportId={report.id} /> : null}
+            {canReviewReports ? <ReportAuditHistory reportId={report.id} /> : null}
             {!showRdoEditor ? <ReportDetailActions report={report} role={user?.role} /> : null}
           </>
         ) : null}

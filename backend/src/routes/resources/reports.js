@@ -101,6 +101,8 @@ import { resolveActualWorkforceContext } from '../../lib/workforce/actual-confli
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
 import historicalServicesRouter from './historical-services.js';
+import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
+import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -802,7 +804,7 @@ export function markManualDerivedServiceReportEdit(specialConditions, userId) {
 }
 
 export function canDirectEditDerivedServiceReport(user, report, parentRdo) {
-  return user?.role === 'MANAGER'
+  return canReviewRdoReports(user)
     && isDerivedServiceReport(report)
     && report?.status !== ReportStatus.SIGNED
     && !hasActiveSignedInternalSignature(report)
@@ -5897,8 +5899,8 @@ router.post('/counts', requireAuth, requireRdoAccess, asyncHandler(async (req, r
 
 router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const data = batchDownloadSchema.parse(req.body);
-  if (data.format === 'docx' && req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode baixar DOCX em lote.' });
+  if (data.format === 'docx' && !canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode baixar DOCX em lote.' });
   }
 
   const ids = uniqueIds(data.ids);
@@ -6388,8 +6390,8 @@ router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, 
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode baixar o DOCX.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode baixar o DOCX.' });
   }
 
   item = await refreshDerivedReportSource(item);
@@ -6639,8 +6641,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
   const isDirectDerivedServiceReport = isDerivedServiceReport(existing);
   const manualUploadedReport = isManualUploadedReport(existing);
-  if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
+  if (isServiceOnlyReport && !canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode editar relatórios somente de serviço.' });
   }
   let parentRdoForDirectServiceEdit = null;
   if (isDirectDerivedServiceReport) {
@@ -6653,8 +6655,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         deletedAt: true
       }
     });
-    if (req.auth.user.role !== 'MANAGER') {
-      return res.status(403).json({ error: 'Apenas o gestor pode editar diretamente relatórios de serviço vinculados ao RDO.' });
+    if (!canReviewRdoReports(req.auth.user)) {
+      return res.status(403).json({ error: 'Apenas quem revisa relatórios pode editar diretamente relatórios de serviço vinculados ao RDO.' });
     }
     if (!canDirectEditDerivedServiceReport(req.auth.user, existing, parentRdoForDirectServiceEdit)) {
       return res.status(409).json({
@@ -6669,7 +6671,9 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       return res.status(400).json({ error: 'Tipo de serviço incompatível com este relatório independente.' });
     }
   }
-  if (req.auth.user.role === 'COORDINATOR' && existing.createdByUserId !== req.auth.user.id) {
+  if (req.auth.user.role === 'COORDINATOR'
+    && !canReviewRdoReports(req.auth.user)
+    && existing.createdByUserId !== req.auth.user.id) {
     return res.status(403).json({ error: 'O coordenador só pode editar relatórios criados por ele.' });
   }
   assertReportMutable(existing);
@@ -6691,7 +6695,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         authorizedUsers: true
       }
     });
-    assertProjectReadyForReports(targetProject);
+    // O revisor edita como o gestor, mas projetos managerOnly seguem restritos a ele.
+    if (!canReviewRdoReports(req.auth.user)) assertProjectReadyForReports(targetProject);
     if (targetProject.managerOnly) {
       return res.status(403).json({ error: 'Este projeto é visível somente para o gestor.' });
     }
@@ -6700,7 +6705,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     }
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
-  const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
+  const isManagerFixingClientRejection = canReviewRdoReports(req.auth.user) && hasActiveClientRejection(existing);
   const evidence = signatureEvidenceFromRequest(req);
   const unfinalizedDerivedRefs = existing.reportType === ReportType.RDO && data.deleteUnfinalizedDerivedReports === true
     ? demotedFinalizedServiceRefs(existing.services || [], data.services || [])
@@ -6742,7 +6747,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
           }
         )
       : null;
-    const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
+    const managerProvidedSequence = canReviewRdoReports(req.auth.user) && data.sequenceNumber;
     const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
     const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
     const specialConditions = stripAuthoritativeExecutionContext(
@@ -6757,7 +6762,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       justification: specialConditions.workforceJustification
     });
     const planningContext = await getOfficialMissionContext({ projectId: data.projectId, date: data.reportDate }, { database: tx });
-    const internalEditState = req.auth.user.role === 'MANAGER'
+    const internalEditState = canReviewRdoReports(req.auth.user)
       ? extractInternalEditState(existing.specialConditions)
       : (hasApprovedVersion
           ? {
@@ -6771,7 +6776,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
           : {});
     const overtimeRejected = specialConditions?.overtimeAccepted === false;
     const storedSpecialConditionsBaseSeed = {
-      ...(req.auth.user.role === 'MANAGER'
+      ...(canReviewRdoReports(req.auth.user)
         ? withClientRejectionCleared(stripInternalEditState(specialConditions))
         : stripInternalEditState(specialConditions)),
       ...(serviceOnlySpecialConditions || {}),
@@ -6812,7 +6817,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
       });
     }
-    const nextStatus = req.auth.user.role === 'MANAGER'
+    const nextStatus = canReviewRdoReports(req.auth.user)
       ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
       : ReportStatus.PENDING;
     await assertApprovedReportSignatureEmailPreflight({
@@ -6845,14 +6850,14 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         specialConditions: withLeaderSnapshot(storedSpecialConditions, leaderSnapshot),
         pendingDerivedTypes: isServiceOnlyReport || isDirectDerivedServiceReport ? [] : collectPendingDerivedTypes(data.services),
         status: nextStatus,
-        reviewNotes: req.auth.user.role === 'MANAGER'
+        reviewNotes: canReviewRdoReports(req.auth.user)
           ? existing.reviewNotes
           : (hasApprovedVersion ? COLLABORATOR_EDIT_NOTE : null),
-        reviewedByUserId: req.auth.user.role === 'MANAGER'
+        reviewedByUserId: canReviewRdoReports(req.auth.user)
           ? (isManagerFixingClientRejection ? req.auth.user.id : existing.reviewedByUserId)
           : null,
-        returnedAt: req.auth.user.role === 'MANAGER' ? existing.returnedAt : null,
-        approvedAt: req.auth.user.role === 'MANAGER'
+        returnedAt: canReviewRdoReports(req.auth.user) ? existing.returnedAt : null,
+        approvedAt: canReviewRdoReports(req.auth.user)
           ? (isManagerFixingClientRejection ? new Date() : existing.approvedAt)
           : null,
         collaborators: {
@@ -6919,8 +6924,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode alterar a numeração dos relatórios.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode alterar a numeração dos relatórios.' });
   }
 
   const data = sequenceSchema.parse(req.body);
@@ -6929,6 +6934,7 @@ router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async 
     include
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, existing)) return undefined;
   assertReportMutable(existing);
 
   const item = await prisma.$transaction(async tx => {
@@ -6953,7 +6959,7 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode desfazer edições de relatórios.` });
   }
-  if (req.auth.user.role === 'MANAGER') {
+  if (canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a própria edição pendente.' });
   }
 
@@ -6994,8 +7000,8 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
 }));
 
 router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edição pendente.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode descartar uma edição pendente.' });
   }
 
   const existing = await prisma.report.findUniqueOrThrow({
@@ -7003,6 +7009,7 @@ router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(asy
     include
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, existing)) return undefined;
   assertReportMutable(existing);
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
@@ -7089,8 +7096,8 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
 }));
 
 router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode revisar relatórios.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode revisar relatórios.' });
   }
 
   const data = statusSchema.parse(req.body);
@@ -7100,6 +7107,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
     include
   });
   if (!previous || isReportUnavailable(previous)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, previous)) return undefined;
   if (previous?.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
@@ -7391,16 +7399,13 @@ router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async 
   res.json(item.reportSignatures || []);
 }));
 
-router.get('/:id/audit', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode consultar a auditoria do relatório.' });
-  }
-
+router.get('/:id/audit', requireAuth, requireRdoReviewer, asyncHandler(async (req, res) => {
   const auditReport = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
-    select: { id: true, deletedAt: true, project: { select: { deletedAt: true } } }
+    select: { id: true, deletedAt: true, project: { select: { deletedAt: true, managerOnly: true } } }
   });
   if (isReportUnavailable(auditReport)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, auditReport)) return undefined;
 
   const logs = await prisma.reportAuditLog.findMany({
     where: { reportId: req.params.id },

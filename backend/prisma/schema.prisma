@@ -22,6 +22,10 @@ enum AcompanhamentoExtraPermission {
   VIEW_PROJECT_TAXES_AND_BILLING
 }
 
+enum RdoExtraPermission {
+  REVIEW_REPORTS
+}
+
 enum ReportEmissionPermission {
   SITE_RDO
   MAINTENANCE
@@ -2487,6 +2491,7 @@ model User {
   accountType                          AccountType                         @default(INTERNAL)
   reportEmissionPermissions            ReportEmissionPermission[]          @default([])
   acompanhamentoExtraPermissions       AcompanhamentoExtraPermission[]     @default([])
+  rdoExtraPermissions                  RdoExtraPermission[]                @default([])
   isActive                             Boolean                             @default(true)
   clientCnpj                           String?
   privacyPolicyAcceptedAt              DateTime?
