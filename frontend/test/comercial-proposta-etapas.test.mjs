@@ -317,8 +317,8 @@ const formComercialCompleto = {
   payment: '30 dias',
   taxes: 'ISS incluso',
   validity: '30',
-  overtimeRate: 'R$ 2.250,00',
-  standbyTeam: 'R$ 250,00',
+  overtimeRate: 'R$ 250,00',
+  standbyTeam: 'R$ 2.250,00',
   standbyEquipment: 'R$ 1.000,00',
   extraMobilization: 'R$ 4.500,00'
 };
@@ -393,8 +393,8 @@ test('comercial: os quatro adicionais são obrigatórios', () => {
 
 test('comercial: hora extra e stand-by de equipe têm os padrões solicitados', () => {
   assert.deepEqual(mod.VALORES_PADRAO_STANDBY, {
-    overtimeRate: 'R$ 2.250,00',
-    standbyTeam: 'R$ 250,00'
+    overtimeRate: 'R$ 250,00',
+    standbyTeam: 'R$ 2.250,00'
   });
 
   const pagina = readFileSync(

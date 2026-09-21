@@ -429,8 +429,8 @@ export const CAMPOS_STANDBY = [
 ] as const;
 
 export const VALORES_PADRAO_STANDBY = {
-  overtimeRate: 'R$ 2.250,00',
-  standbyTeam: 'R$ 250,00'
+  overtimeRate: 'R$ 250,00',
+  standbyTeam: 'R$ 2.250,00'
 } as const;
 
 export function quantidadeDoItemDePreco(valor: unknown): number {
