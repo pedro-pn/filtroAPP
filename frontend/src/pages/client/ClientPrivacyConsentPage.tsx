@@ -7,10 +7,12 @@ import { useAuth } from '../../auth/AuthContext';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../constants/privacy';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { downloadBlob } from '../../utils/download';
 
 export function ClientPrivacyConsentPage() {
   const { logout, replaceUser, user } = useAuth();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const showToast = useToast();
   const [accepted, setAccepted] = useState(false);
@@ -55,7 +57,12 @@ export function ClientPrivacyConsentPage() {
   }
 
   async function handleDeletionRequest() {
-    if (!window.confirm('Registrar solicitação de eliminação/análise manual dos seus dados?')) return;
+    const confirmed = await confirm({
+      title: 'Solicitar eliminação dos seus dados?',
+      description: 'A solicitação é registrada para análise manual e você recebe um protocolo de acompanhamento.',
+      confirmLabel: 'Registrar solicitação'
+    });
+    if (!confirmed) return;
     setIsRequestingDeletion(true);
     try {
       const request = await requestMyDataDeletion();
@@ -103,6 +110,7 @@ export function ClientPrivacyConsentPage() {
           </button>
         </div>
       </section>
+      {confirmDialog}
     </main>
   );
 }

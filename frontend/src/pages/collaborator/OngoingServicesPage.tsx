@@ -7,6 +7,7 @@ import { serviceTypeLabels } from '../../components/reports/serviceTypes';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { collectOngoingServices } from '../../utils/ongoingServices';
@@ -16,6 +17,7 @@ export function OngoingServicesPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const reportsQuery = useReports({ mine: true, summary: true });
   const reportMutations = useReportMutations();
   const [search, setSearch] = useState('');
@@ -43,8 +45,15 @@ export function OngoingServicesPage() {
     navigate('/', { replace: true });
   }
 
-  async function handleDeleteService(reportId: string, serviceId: string) {
-    if (!window.confirm('Excluir este serviço em andamento?')) return;
+  async function handleDeleteService(item: (typeof services)[number]) {
+    const confirmed = await confirm({
+      title: 'Excluir serviço em andamento?',
+      description: 'O serviço é removido do RDO de origem e deixa de aparecer como pendente para todos os usuários do projeto.',
+      highlight: `${serviceTypeLabels[item.serviceType] || item.serviceType} · RDO ${item.report.sequenceNumber || '---'}`,
+      confirmLabel: 'Excluir serviço'
+    });
+    if (!confirmed) return;
+    const { report: { id: reportId }, service: { id: serviceId } } = item;
     try {
       await reportMutations.deleteService.mutateAsync({ reportId, serviceId });
       showToast('Serviço excluído.', 'success');
@@ -102,7 +111,7 @@ export function OngoingServicesPage() {
                         className="mini-btn danger"
                         type="button"
                         disabled={reportMutations.deleteService.isPending}
-                        onClick={() => void handleDeleteService(item.report.id, item.service.id)}
+                        onClick={() => void handleDeleteService(item)}
                       >
                         Excluir
                       </button>
@@ -114,6 +123,7 @@ export function OngoingServicesPage() {
           </section>
         ))}
       </main>
+      {confirmDialog}
     </Shell>
   );
 }

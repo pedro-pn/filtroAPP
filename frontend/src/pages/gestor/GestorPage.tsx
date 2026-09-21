@@ -42,6 +42,7 @@ import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { JobRoleManager } from '../../components/projects/JobRoleManager';
@@ -1112,6 +1113,7 @@ export function GestorPage() {
   const { user, logout } = useAuth();
   const { hydrate, reset } = useRdoStore();
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
   const [equipeSubTab, setEquipeSubTab] = useState<'colaboradores' | 'cargos' | 'dds'>('colaboradores');
   // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
@@ -1903,7 +1905,13 @@ export function GestorPage() {
   }
 
   async function handleProjectRemove(project: Project) {
-    if (!window.confirm('Excluir este projeto de todos os módulos? O histórico e os documentos vinculados serão preservados.')) return;
+    const confirmed = await confirm({
+      title: 'Excluir este projeto de todos os módulos?',
+      description: 'O histórico e os documentos vinculados são preservados no banco de dados.',
+      highlight: [project.code, project.name].filter(Boolean).join(' · '),
+      confirmLabel: 'Excluir projeto'
+    });
+    if (!confirmed) return;
 
     try {
       await projectMutations.removeProject.mutateAsync(project.id);
@@ -2058,7 +2066,13 @@ export function GestorPage() {
   }
 
   async function handleReportDelete(report: ReportSummary) {
-    if (!window.confirm('Arquivar este relatório? O registro permanecerá preservado no banco de dados.')) return;
+    const confirmed = await confirm({
+      title: 'Arquivar este relatório?',
+      description: 'O registro permanece preservado no banco de dados e sai das listagens ativas.',
+      highlight: `${report.reportType} ${report.sequenceNumber || '---'}`,
+      confirmLabel: 'Arquivar relatório'
+    });
+    if (!confirmed) return;
 
     try {
       await reportMutations.deleteReport.mutateAsync(report.id);
@@ -4535,6 +4549,7 @@ export function GestorPage() {
           </div>
         </form>
       </Modal>
+      {confirmDialog}
     </Shell>
   );
 }

@@ -14,6 +14,7 @@ import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
@@ -248,6 +249,7 @@ export function ClientPage() {
   const batchSignatureTipShownRef = useRef(false);
   const clientReportGroupRefreshRef = useRef<Record<string, number>>({});
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
   const reportsQuery = useAccumulatedReportsPage({
     summary: true,
@@ -725,7 +727,13 @@ export function ClientPage() {
       showToast(TEXT.rejectRequired, 'error');
       return;
     }
-    if (!window.confirm('Confirmar reprovação deste relatório?')) return;
+    const confirmed = await confirm({
+      title: 'Reprovar este relatório?',
+      description: 'A reprovação é registrada com o seu comentário e devolvida à equipe responsável.',
+      highlight: reportLabel(report),
+      confirmLabel: 'Reprovar relatório'
+    });
+    if (!confirmed) return;
 
     try {
       await reportMutations.clientReview.mutateAsync({
@@ -1174,6 +1182,7 @@ export function ClientPage() {
         }}
         onConfirm={payload => void confirmSignature(payload)}
       />
+      {confirmDialog}
     </Shell>
   );
 }

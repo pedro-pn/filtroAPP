@@ -14,14 +14,14 @@ export interface OngoingServiceItem {
   system: string;
 }
 
-function serviceFinalized(service: ReportServiceSummary) {
+export function isServiceFinalized(service: ReportServiceSummary) {
   if (typeof service.finalized === 'boolean') return service.finalized;
   const stored = service.extraData?.['Serviço finalizado?'];
   if (typeof stored === 'string') return ['sim', 'true', 'finalizado'].includes(stored.trim().toLowerCase());
   return false;
 }
 
-function serviceEquipmentName(service: ReportServiceSummary) {
+export function serviceEquipmentLabel(service: ReportServiceSummary) {
   const extra = service.extraData || {};
   const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['Embarcação'] || extra.Embarcacao || extra['ID da embarcação'] || '';
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
@@ -132,7 +132,7 @@ function serviceSemanticKey(report: ReportSummary, service: ReportServiceSummary
   const base = [
     report.projectId || '',
     service.serviceType || '',
-    serviceEquipmentName(service).trim().toLowerCase(),
+    serviceEquipmentLabel(service).trim().toLowerCase(),
     String(service.system || extra.Sistema || '').trim().toLowerCase()
   ];
   const step = serviceStepName(service).trim().toLowerCase();
@@ -141,7 +141,7 @@ function serviceSemanticKey(report: ReportSummary, service: ReportServiceSummary
     : [...base, ...serviceDisambiguatorParts(service)].join('||');
 }
 
-function serviceOngoingKeys(report: ReportSummary, service: ReportServiceSummary) {
+export function serviceOngoingKeys(report: ReportSummary, service: ReportServiceSummary) {
   const extra = service.extraData || {};
   const semanticKey = serviceSemanticKey(report, service);
   const explicitKeys = [
@@ -177,7 +177,7 @@ export function collectOngoingServices(reports: ReportSummary[], cutoffDate: Dat
     .forEach(report => {
       (report.services || []).forEach(service => {
         const keys = serviceOngoingKeys(report, service);
-        if (serviceFinalized(service)) {
+        if (isServiceFinalized(service)) {
           for (const [itemKey, item] of items.entries()) {
             if (item.key === service.id || item.key === keys[0] || keys.includes(item.key)) items.delete(itemKey);
           }
@@ -195,7 +195,7 @@ export function collectOngoingServices(reports: ReportSummary[], cutoffDate: Dat
           projectTitle: [report.project?.code, report.project?.name].filter(Boolean).join(' - ') || report.project?.name || report.projectId,
           projectCode: report.project?.code || '---',
           serviceType: normalizeServiceType(service.serviceType || ''),
-          equipment: serviceEquipmentName(service) || 'Equipamento não informado',
+          equipment: serviceEquipmentLabel(service) || 'Equipamento não informado',
           system: service.system || String((service.extraData || {}).Sistema || '')
         });
       });
@@ -205,4 +205,127 @@ export function collectOngoingServices(reports: ReportSummary[], cutoffDate: Dat
     a.projectTitle.localeCompare(b.projectTitle, 'pt-BR', { numeric: true, sensitivity: 'base' })
     || a.serviceType.localeCompare(b.serviceType, 'pt-BR', { numeric: true, sensitivity: 'base' })
   );
+}
+
+export interface PendingProjectService {
+  key: string;
+  keys: string[];
+  report: ReportSummary;
+  service: ReportServiceSummary;
+}
+
+// Serviços ainda não finalizados de um projeto, na ordem cronológica dos RDOs: cada chave de
+// continuidade mantém apenas a ocorrência mais recente, e some da lista quando algum RDO a
+// finaliza. Usado tanto na criação do RDO quanto na revisão/edição.
+export function collectPendingProjectServices(reports: ReportSummary[]): PendingProjectService[] {
+  const items = new Map<string, PendingProjectService>();
+
+  [...reports]
+    .sort((a, b) => reportTime(a) - reportTime(b) || new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+    .forEach(report => {
+      (report.services || []).forEach(service => {
+        const keys = serviceOngoingKeys(report, service);
+        for (const [itemKey, item] of items.entries()) {
+          if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+        }
+        if (isServiceFinalized(service)) return;
+        const key = keys[0] || service.id;
+        items.set(key, { key, keys, report, service });
+      });
+    });
+
+  return Array.from(items.values()).sort((a, b) => reportTime(b.report) - reportTime(a.report));
+}
+
+// Chaves de continuidade de um serviço que ainda está no formulário (não persistido).
+export function formServiceOngoingKeys(data: Record<string, unknown>): string[] {
+  return Array.from(new Set([
+    String(data.__ongoingKey || '').trim(),
+    String(data.__serviceLinkKey || '').trim(),
+    String(data.__sourceServiceId || '').trim()
+  ].filter(Boolean)));
+}
+
+export function markPreviouslyAddedUploads(extra: Record<string, unknown>) {
+  const groups = Array.isArray(extra.__uploads__) ? extra.__uploads__ : [];
+  if (!groups.length) return extra;
+
+  return {
+    ...extra,
+    __uploads__: groups.map(group => {
+      if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
+      const record = group as { label?: unknown; files?: unknown };
+      const files = Array.isArray(record.files)
+        ? record.files.map(file => (file && typeof file === 'object' && !Array.isArray(file) ? { ...(file as Record<string, unknown>), __previouslyAdded: true } : file))
+        : record.files;
+      return { ...record, files };
+    })
+  };
+}
+
+function firstIdFromField(value: unknown) {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.ids)) {
+    return record.ids.find((id): id is string => typeof id === 'string' && id.trim().length > 0) || '';
+  }
+  return '';
+}
+
+function continuedPressureTestedEquipment(data: Record<string, unknown>) {
+  const raw = String(data.equipamentoTestado || data['Equipamento testado'] || '').trim();
+  if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
+  if (raw === 'outro' || raw === 'Outro') return 'outro';
+  return 'tubulacao';
+}
+
+// Dados de formulário para continuar um serviço pendente: herda o cadastro do serviço anterior e
+// zera o que é específico do dia (horários, etapas, medições, observações e finalização).
+// `baseData` permite passar os dados já normalizados para o formulário em questão.
+export function buildContinuedServiceData(
+  service: ReportServiceSummary,
+  ongoingKey: string,
+  baseData?: Record<string, unknown>
+): Record<string, unknown> {
+  const extra = markPreviouslyAddedUploads(baseData || service.extraData || {});
+  const type = normalizeServiceType(service.serviceType || '');
+  const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
+  const previousDesidratacaoUnit = firstIdFromField(
+    extra.desidratacaoUnit || extra['Equipamento de desidratação'] || extra['Equipamento de desidratacao'] || extra['Equipamento de desidrataÃ§Ã£o']
+  );
+  const previousPressureTestedEquipment = type === 'pressao' ? continuedPressureTestedEquipment(extra) : '';
+
+  return {
+    ...extra,
+    __ongoingKey: ongoingKey,
+    __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
+    etapas: [],
+    customEtapa: '',
+    aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
+    houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
+    contadorUtilizado,
+    contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
+    contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
+    contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
+    contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
+    houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
+    desidratacaoUnit: previousDesidratacaoUnit,
+    houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
+    umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
+    umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
+    equipmentId: service.equipmentId || serviceEquipmentLabel(service),
+    system: service.system || String(extra.Sistema || ''),
+    equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
+    equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
+    material:
+      previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao'
+        ? ''
+        : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
+    startTime: '',
+    endTime: '',
+    notes: '',
+    finalized: undefined,
+    _prefilled: true
+  };
 }
