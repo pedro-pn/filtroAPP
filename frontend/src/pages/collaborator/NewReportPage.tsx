@@ -290,6 +290,21 @@ function SiteRdoFormPage() {
     addService(normalizeServiceType(service.serviceType), buildContinuedServiceData(service, ongoingKey));
   }
 
+  // Excluir remove o serviço do RDO de origem, então o pendente some para todos os usuários do
+  // projeto. Restrito ao gestor, e o backend recusa RDO assinado ou com assinatura em andamento.
+  const canDeleteOngoingService = user?.role === 'MANAGER';
+
+  async function handleDeletePendingService(sourceReport: ReportSummary, service: ReportServiceSummary) {
+    if (!canDeleteOngoingService) return;
+    if (!window.confirm(`Excluir este serviço em andamento do RDO ${sourceReport.sequenceNumber || '---'}? Ele deixa de aparecer como pendente para todos.`)) return;
+    try {
+      await reportMutations.deleteService.mutateAsync({ reportId: sourceReport.id, serviceId: service.id });
+      showToast('Serviço excluído.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível excluir o serviço.', 'error');
+    }
+  }
+
   function handleContinueServices() {
     if (!pendingProjectServices.length) return;
     visiblePendingProjectServices.forEach(({ service, key }) => continueService(service, key));
@@ -1002,9 +1017,21 @@ function SiteRdoFormPage() {
                               {system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
                             </div>
                           </div>
-                          <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
-                            Continuar
-                          </button>
+                          <div className="admin-card-actions">
+                            <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
+                              Continuar
+                            </button>
+                            {canDeleteOngoingService ? (
+                              <button
+                                className="mini-btn danger"
+                                type="button"
+                                disabled={reportMutations.deleteService.isPending}
+                                onClick={() => void handleDeletePendingService(report, service)}
+                              >
+                                Excluir
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </article>
                     );
