@@ -29,6 +29,7 @@ import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
+import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../../utils/ongoingServices';
 import { cleaningSystemQuantity, isSystemCleaning } from '../../utils/cleaningMeasurement';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
@@ -92,87 +93,6 @@ function sameStringSet(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   const bSet = new Set(b);
   return a.every((item) => bSet.has(item));
-}
-
-function stringifyServiceKeyValue(value: unknown): string {
-  if (Array.isArray(value)) return value.map(stringifyServiceKeyValue).filter(Boolean).join('|');
-  if (value && typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => {
-        const text = stringifyServiceKeyValue(item);
-        return text ? `${key}:${text}` : '';
-      })
-      .filter(Boolean)
-      .join('|');
-  }
-  return String(value || '');
-}
-
-function serviceKeyPart(value: unknown): string {
-  return stringifyServiceKeyValue(value)
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\s+/g, ' ');
-}
-
-function firstServiceKeyPart(extra: Record<string, unknown>, names: string[]): string {
-  for (const name of names) {
-    const value = extra[name];
-    const part = serviceKeyPart(value);
-    if (part) return part;
-  }
-  return '';
-}
-
-function serviceDisambiguatorParts(service: ReportServiceSummary) {
-  const extra = service.extraData || {};
-  const type = normalizeServiceType(service.serviceType || '');
-  const material = serviceKeyPart(service.material) || firstServiceKeyPart(extra, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento']);
-  const parts = material ? [`material:${material}`] : [];
-
-  if (type === 'filtragem' || type === 'flushing') {
-    const oilType = firstServiceKeyPart(extra, ['Tipo de óleo', 'Tipo de oleo', 'tipoOleo']);
-    const oilVolume = firstServiceKeyPart(extra, ['Volume de óleo', 'Volume de oleo', 'volumeOleo']);
-    if (oilType) parts.push(`oleo:${oilType}`);
-    if (oilVolume) parts.push(`volume:${oilVolume}`);
-    if (type === 'flushing') {
-      const flushingTubing = firstServiceKeyPart(extra, ['Flushing em tubulação?', 'Flushing em tubulacao?', 'flushingTubulacao']);
-      const flushingType = firstServiceKeyPart(extra, ['Tipo de flushing', 'tipoFlushing']);
-      if (flushingTubing) parts.push(`tubulacao:${flushingTubing}`);
-      if (flushingType) parts.push(`flushing:${flushingType}`);
-    }
-  }
-
-  if (type === 'pressao') {
-    const testedEquipment = firstServiceKeyPart(extra, ['Equipamento testado', 'equipamentoTestado']);
-    const testedEquipmentOther = firstServiceKeyPart(extra, ['Outro equipamento testado', 'equipamentoTestadoOutro']);
-    const workPressure = firstServiceKeyPart(extra, ['Pressão de trabalho', 'Pressao de trabalho', 'pressaoTrabalho']);
-    const testPressure = firstServiceKeyPart(extra, ['Pressão de teste', 'Pressao de teste', 'pressaoTeste']);
-    const testFluid = firstServiceKeyPart(extra, ['Fluido de teste', 'fluidoTeste']);
-    const testOil = firstServiceKeyPart(extra, ['Qual óleo?', 'Qual oleo?', 'qualOleo']);
-    if (testedEquipment) parts.push(`equipamento-testado:${testedEquipment}`);
-    if (testedEquipmentOther) parts.push(`equipamento-testado-outro:${testedEquipmentOther}`);
-    if (workPressure) parts.push(`ptrabalho:${workPressure}`);
-    if (testPressure) parts.push(`pteste:${testPressure}`);
-    if (testFluid) parts.push(`fluido:${testFluid}`);
-    if (testOil) parts.push(`oleo:${testOil}`);
-  }
-
-  if (type === 'limpeza') {
-    const tubing = firstServiceKeyPart(extra, ['Limpeza de tubulação?', 'Limpeza de tubulacao?', 'limpezaTubulacao']);
-    const method = firstServiceKeyPart(extra, ['Método de limpeza', 'Metodo de limpeza', 'metodos']);
-    const location = firstServiceKeyPart(extra, ['Local de limpeza', 'local']);
-    const inspection = firstServiceKeyPart(extra, ['Tipo de inspeção', 'Tipo de inspecao', 'tipoInspecao']);
-    if (tubing) parts.push(`tubulacao:${tubing}`);
-    if (method) parts.push(`metodo:${method}`);
-    if (location) parts.push(`local:${location}`);
-    if (inspection) parts.push(`inspecao:${inspection}`);
-  }
-
-  return parts;
 }
 
 function SiteRdoFormPage() {
@@ -296,16 +216,6 @@ function SiteRdoFormPage() {
     }
   }
 
-  function firstIdFromField(value: unknown) {
-    if (typeof value === 'string') return value;
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
-    const record = value as Record<string, unknown>;
-    if (Array.isArray(record.ids)) {
-      return record.ids.find((id): id is string => typeof id === 'string' && id.trim().length > 0) || '';
-    }
-    return '';
-  }
-
   // Fetch the summarized project history for service continuity and duplicate checks.
   const lastProjectReportQuery = useQuery({
     queryKey: ['reports', 'last-project', projectId],
@@ -338,123 +248,10 @@ function SiteRdoFormPage() {
   }, [effectiveServiceOnly, lastProjectReportQuery.data, projectId, reportDate]);
   const isCheckingDuplicateReportDate = !effectiveServiceOnly && !!projectId && !!reportDate && lastProjectReportQuery.isLoading;
 
-  const serviceFinalized = useCallback((service: ReportServiceSummary) => {
-    if (typeof service.finalized === 'boolean') return service.finalized;
-    const extra = service.extraData || {};
-    const stored = extra['Serviço finalizado?'];
-    if (typeof stored === 'string') return ['sim', 'true', 'finalizado'].includes(stored.trim().toLowerCase());
-    return false;
-  }, []);
-
-  const serviceEquipmentName = useCallback((service: ReportServiceSummary) => {
-    const extra = service.extraData || {};
-    const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['Embarcação'] || extra.Embarcacao || extra['ID da embarcação'] || '';
-    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
-    if (value && typeof value === 'object') {
-      const record = value as Record<string, unknown>;
-      if (Array.isArray(record.labels)) return record.labels.filter(Boolean).join(', ');
-      return String(record.name || record.nome || record.code || record.codigo || record.id || '');
-    }
-    return String(value || service.equipmentId || '');
-  }, []);
-
-  const serviceStepName = useCallback((service: ReportServiceSummary) => {
-    if (normalizeServiceType(service.serviceType || '') !== 'inibicao') return '';
-    const extra = service.extraData || {};
-    const value = extra.Steps || extra.steps || extra.Step || extra.step || '';
-    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
-    return String(value || '');
-  }, []);
-
-  const serviceSemanticKey = useCallback(
-    (report: ReportSummary, service: ReportServiceSummary) => {
-      const extra = service.extraData || {};
-      const base = [
-        report.projectId || '',
-        service.serviceType || '',
-        serviceEquipmentName(service).trim().toLowerCase(),
-        String(service.system || extra.Sistema || '')
-          .trim()
-          .toLowerCase()
-      ];
-      const step = serviceStepName(service).trim().toLowerCase();
-      return normalizeServiceType(service.serviceType || '') === 'inibicao' ? [...base, step].join('||') : [...base, ...serviceDisambiguatorParts(service)].join('||');
-    },
-    [serviceEquipmentName, serviceStepName]
-  );
-
-  const serviceOngoingKeys = useCallback(
-    (report: ReportSummary, service: ReportServiceSummary) => {
-      const extra = service.extraData || {};
-      const semanticKey = serviceSemanticKey(report, service);
-      const explicitKeys = [String(extra.__ongoingKey || '').trim(), String(extra.__serviceLinkKey || '').trim(), String(extra.__sourceServiceId || '').trim()].filter(Boolean);
-      const hasSemanticExplicitKey = explicitKeys.some((key) => key.includes('||'));
-
-      return Array.from(new Set([...(hasSemanticExplicitKey ? [semanticKey, ...explicitKeys] : [...explicitKeys, semanticKey])].filter(Boolean)));
-    },
-    [serviceSemanticKey]
-  );
-
-  const serviceOngoingKey = useCallback(
-    (report: ReportSummary, service: ReportServiceSummary) => {
-      return serviceOngoingKeys(report, service)[0] || service.id;
-    },
-    [serviceOngoingKeys]
-  );
-
-  function markPreviouslyAddedUploads(extra: Record<string, unknown>) {
-    const groups = Array.isArray(extra.__uploads__) ? extra.__uploads__ : [];
-    if (!groups.length) return extra;
-
-    return {
-      ...extra,
-      __uploads__: groups.map((group) => {
-        if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
-        const record = group as { label?: unknown; files?: unknown };
-        const files = Array.isArray(record.files) ? record.files.map((file) => (file && typeof file === 'object' && !Array.isArray(file) ? { ...(file as UploadedFile), __previouslyAdded: true } : file)) : record.files;
-        return { ...record, files };
-      })
-    };
-  }
-
-  const pendingProjectServices = useMemo(() => {
-    const items = new Map<
-      string,
-      {
-        key: string;
-        keys: string[];
-        report: ReportSummary;
-        service: ReportServiceSummary;
-      }
-    >();
-    [...projectReports].reverse().forEach((report) => {
-      (report.services || []).forEach((service) => {
-        const keys = serviceOngoingKeys(report, service);
-        if (serviceFinalized(service)) {
-          for (const [itemKey, item] of items.entries()) {
-            if (item.keys.some((key) => keys.includes(key))) items.delete(itemKey);
-          }
-          return;
-        }
-        for (const [itemKey, item] of items.entries()) {
-          if (item.keys.some((key) => keys.includes(key))) items.delete(itemKey);
-        }
-        const key = serviceOngoingKey(report, service);
-        items.set(key, { key, keys, report, service });
-      });
-    });
-    return Array.from(items.values()).sort((a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime());
-  }, [projectReports, serviceFinalized, serviceOngoingKey, serviceOngoingKeys]);
+  const pendingProjectServices = useMemo(() => collectPendingProjectServices(projectReports), [projectReports]);
 
   const visiblePendingProjectServices = useMemo(() => {
-    const activeKeys = new Set(
-      services
-        .map((service) => {
-          const data = service.data || {};
-          return String(data.__ongoingKey || data.__serviceLinkKey || data.__sourceServiceId || '').trim();
-        })
-        .filter(Boolean)
-    );
+    const activeKeys = new Set(services.flatMap((service) => formServiceOngoingKeys(service.data || {})));
     return pendingProjectServices.filter((item) => !activeKeys.has(item.key));
   }, [pendingProjectServices, services]);
 
@@ -490,40 +287,7 @@ function SiteRdoFormPage() {
   }, [serviceCollaboratorOptionIds, services, updateService]);
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
-    const extra = markPreviouslyAddedUploads(service.extraData || {});
-    const type = normalizeServiceType(service.serviceType);
-    const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
-    const previousDesidratacaoUnit = firstIdFromField(extra.desidratacaoUnit || extra['Equipamento de desidratação'] || extra['Equipamento de desidratacao'] || extra['Equipamento de desidrataÃ§Ã£o']);
-    const previousPressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(extra) : '';
-    addService(type, {
-      ...extra,
-      __ongoingKey: ongoingKey,
-      __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
-      etapas: [],
-      customEtapa: '',
-      aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
-      houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
-      contadorUtilizado,
-      contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
-      contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
-      contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
-      contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
-      houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
-      desidratacaoUnit: previousDesidratacaoUnit,
-      houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
-      umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
-      umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
-      equipmentId: service.equipmentId || serviceEquipmentName(service),
-      system: service.system || String(extra.Sistema || ''),
-      equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
-      equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
-      material: previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao' ? '' : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
-      startTime: '',
-      endTime: '',
-      notes: '',
-      finalized: undefined,
-      _prefilled: true
-    });
+    addService(normalizeServiceType(service.serviceType), buildContinuedServiceData(service, ongoingKey));
   }
 
   function handleContinueServices() {
@@ -1226,7 +990,7 @@ function SiteRdoFormPage() {
                 <div className="admin-list" style={{ marginTop: 10 }}>
                   {visiblePendingProjectServices.map(({ key, report, service }) => {
                     const type = normalizeServiceType(service.serviceType);
-                    const equipment = serviceEquipmentName(service) || 'Equipamento não informado';
+                    const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
                     const system = service.system || String((service.extraData || {}).Sistema || '');
                     return (
                       <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>

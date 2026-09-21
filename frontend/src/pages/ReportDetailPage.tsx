@@ -3,7 +3,7 @@ import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { listDdsThemes } from '../api/ddsThemes';
-import { downloadReportDocx, downloadReportPdf } from '../api/reports';
+import { downloadReportDocx, downloadReportPdf, listReports } from '../api/reports';
 
 import { useAuth } from '../auth/AuthContext';
 import { accountPageStateFromPath, backPathFromState, hasBackPathInState } from '../auth/moduleNavigation';
@@ -40,6 +40,7 @@ import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
+import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
 import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
 import { reportEditorOperationalMode } from './reportEditorOperationalMode';
@@ -821,17 +822,57 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }
 
-  function addService(type = 'limpeza') {
+  // Histórico do projeto para sugerir a continuação de serviços não finalizados também durante a
+  // revisão/edição — o mesmo comportamento da criação do RDO (compartilha o cache da query).
+  const continuityProjectId = form.projectId || report.projectId;
+  const showServiceContinuity = !readOnly && !serviceReportMode && !manualReport && report.reportType === 'RDO';
+  const projectHistoryQuery = useQuery({
+    queryKey: ['reports', 'last-project', continuityProjectId],
+    queryFn: () => listReports({ projectId: continuityProjectId, summary: true }),
+    enabled: showServiceContinuity && !!continuityProjectId,
+    staleTime: 30_000
+  });
+
+  const pendingProjectServices = useMemo(() => {
+    if (!showServiceContinuity || !continuityProjectId) return [];
+    const cutoffDate = form.reportDate || report.reportDate;
+    const cutoff = cutoffDate ? new Date(`${String(cutoffDate).slice(0, 10)}T23:59:59`) : new Date();
+    const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
+    // Só os RDOs anteriores do projeto: o relatório em revisão entra pelos serviços do formulário.
+    const previousReports = (projectHistoryQuery.data || []).filter(item => (
+      item.id !== report.id
+      && item.reportType === 'RDO'
+      && item.projectId === continuityProjectId
+      && !item.deletedAt
+      && new Date(item.reportDate || item.createdAt || 0).getTime() <= cutoffTime
+    ));
+    return collectPendingProjectServices(previousReports);
+  }, [continuityProjectId, form.reportDate, projectHistoryQuery.data, report.id, report.reportDate, showServiceContinuity]);
+
+  const visiblePendingProjectServices = useMemo(() => {
+    const activeKeys = new Set(form.services.flatMap(service => formServiceOngoingKeys(service.data || {})));
+    return pendingProjectServices.filter(item => !activeKeys.has(item.key));
+  }, [form.services, pendingProjectServices]);
+
+  function addService(type = 'limpeza', data: Record<string, unknown> = {}) {
     if (manualReport) return;
     const id = serviceId();
     setForm(current => ({
       ...current,
-      services: [...current.services, { id, type, data: {} }]
+      services: [...current.services, { id, type, data }]
     }));
     setShowServiceModal(false);
     window.setTimeout(() => {
       document.querySelector(`[data-service-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 80);
+  }
+
+  function continueService(service: NonNullable<ReportSummary['services']>[number], ongoingKey: string) {
+    addService(normalizeServiceType(service.serviceType || ''), buildContinuedServiceData(service, ongoingKey, legacyServiceData(service)));
+  }
+
+  function continueAllPendingServices() {
+    visiblePendingProjectServices.forEach(({ service, key }) => continueService(service, key));
   }
 
   function updateService(id: string, data: Partial<RdoServiceForm>) {
@@ -1091,6 +1132,45 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             }
             onChange={updateManualOperationalFields}
           />
+        </section>
+      ) : null}
+
+      {showServiceContinuity && visiblePendingProjectServices.length > 0 ? (
+        <section className="page-card continuity-card">
+          <div className="section-title">Serviços em andamento</div>
+          <p className="placeholder-copy">
+            Serviços não finalizados em RDOs anteriores deste projeto que ainda não foram continuados neste relatório.
+          </p>
+          <div className="admin-list" style={{ marginTop: 10 }}>
+            {visiblePendingProjectServices.map(({ key, report: sourceReport, service }) => {
+              const type = normalizeServiceType(service.serviceType || '');
+              const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
+              const system = service.system || getString((service.extraData || {}).Sistema);
+              return (
+                <article className="ongoing-item-react" key={`${sourceReport.id}-${service.id}`}>
+                  <div className="admin-item-row">
+                    <div className="admin-item-main">
+                      <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
+                      <div className="admin-item-sub">
+                        {equipment}
+                        {system ? ` · ${system}` : ''} · RDO {sourceReport.sequenceNumber || '---'}
+                      </div>
+                    </div>
+                    <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
+                      Continuar
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {visiblePendingProjectServices.length > 1 ? (
+            <div className="admin-form-actions" style={{ marginTop: 10 }}>
+              <button className="secondary-button" type="button" onClick={continueAllPendingServices}>
+                Continuar todos
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
