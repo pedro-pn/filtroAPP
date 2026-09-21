@@ -3,6 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import type { CollaboratorJobRoleHistoryPayload } from '../../api/collaborators';
 import type { JobRole } from '../../api/jobRoles';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import type { Collaborator, CollaboratorJobRoleHistory } from '../../types/domain';
 
 interface Props {
@@ -22,6 +23,7 @@ function dateLabel(value: string) {
 
 export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPending, onUpdate, onRemove }: Props) {
   const toast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [editing, setEditing] = useState<CollaboratorJobRoleHistory | null>(null);
   const [jobRoleId, setJobRoleId] = useState(collaborator.jobRoleId);
   const [effectiveDate, setEffectiveDate] = useState(today());
@@ -73,9 +75,16 @@ export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPen
     }
   }
 
-  async function remove(historyId: string) {
+  async function remove(entry: CollaboratorJobRoleHistory) {
+    const confirmed = await confirm({
+      title: 'Excluir esta mudança de cargo?',
+      description: 'Os custos históricos do colaborador serão recalculados a partir do cargo que passa a valer no período.',
+      highlight: `${dateLabel(entry.effectiveDate)} · ${entry.jobRole.name}`,
+      confirmLabel: 'Excluir mudança'
+    });
+    if (!confirmed) return;
     try {
-      await onRemove(historyId);
+      await onRemove(entry.id);
       toast('Mudança de cargo excluída.', 'success');
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Não foi possível excluir a mudança de cargo.', 'error');
@@ -124,12 +133,13 @@ export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPen
                 <td data-label="Vigência">{dateLabel(entry.effectiveDate)}</td>
                 <td data-label="Cargo"><strong>{entry.jobRole.name}</strong></td>
                 <td data-label="Observação">{entry.note || '—'}</td>
-                <td data-label="Ações"><div className="admin-actions"><button className="mini-btn alt" type="button" disabled={isPending} onClick={() => startEdit(entry)}>Editar</button><button className="mini-btn danger" type="button" disabled={isPending || history.length <= 1} title={history.length <= 1 ? 'O único registro de cargo não pode ser excluído.' : undefined} onClick={() => { if (window.confirm('Excluir esta mudança de cargo? Os custos históricos serão recalculados.')) void remove(entry.id); }}>Excluir</button></div></td>
+                <td data-label="Ações"><div className="admin-actions"><button className="mini-btn alt" type="button" disabled={isPending} onClick={() => startEdit(entry)}>Editar</button><button className="mini-btn danger" type="button" disabled={isPending || history.length <= 1} title={history.length <= 1 ? 'O único registro de cargo não pode ser excluído.' : undefined} onClick={() => void remove(entry)}>Excluir</button></div></td>
               </tr>
             ))}</tbody>
           </table>
         </div>
       ) : <p className="placeholder-copy">Nenhum histórico de cargo cadastrado.</p>}
+      {confirmDialog}
     </section>
   );
 }

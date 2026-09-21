@@ -6,6 +6,7 @@ import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
 import { accountBackPath } from '../../auth/moduleNavigation';
 import { roleHomePath } from '../../auth/rolePath';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
@@ -14,6 +15,7 @@ export function AccountPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, replaceUser } = useAuth();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [email, setEmail] = useState(user?.email || '');
   const [emailMessage, setEmailMessage] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -135,7 +137,12 @@ export function AccountPage() {
   async function handleDeletionRequest() {
     setPrivacyMessage('');
     setPrivacyError('');
-    if (!window.confirm('Registrar solicitação de eliminação/análise manual dos seus dados?')) return;
+    const confirmed = await confirm({
+      title: 'Solicitar eliminação dos seus dados?',
+      description: 'A solicitação é registrada para análise manual e você recebe um protocolo de acompanhamento.',
+      confirmLabel: 'Registrar solicitação'
+    });
+    if (!confirmed) return;
     setIsRequestingDeletion(true);
     try {
       const request = await requestMyDataDeletion();
@@ -292,6 +299,7 @@ export function AccountPage() {
           </div>
         </section>
       </main>
+      {confirmDialog}
     </Shell>
   );
 }

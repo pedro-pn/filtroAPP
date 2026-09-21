@@ -3,6 +3,7 @@
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
 import { stageUploadDeletion } from './photoDeletionStaging';
+import { useConfirmDialog } from './useConfirmDialog';
 
 interface UploadFieldProps {
   label: string;
@@ -136,6 +137,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
 
@@ -171,16 +173,19 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     return raw && !raw.startsWith('data:') ? raw : '';
   }
 
-  function removeFile(index: number) {
+  async function removeFile(index: number) {
     const file = value[index] as UploadPreviewFile | undefined;
     if (!file) return;
     const ref = serverReference(file);
     // A exclusão é global, mas só é efetivada ao SALVAR o relatório. Aqui apenas
     // encenamos a remoção (some da lista); se o usuário não salvar, nada é apagado.
     if (ref) {
-      const confirmed = window.confirm(
-        'Remover esta imagem? Ao salvar, ela será excluída de TODOS os relatórios em que aparece e apagada do servidor.'
-      );
+      const confirmed = await confirm({
+        title: 'Remover esta imagem?',
+        description: 'Ao salvar o relatório, ela será excluída de TODOS os relatórios em que aparece e apagada do servidor.',
+        highlight: file.fileName || undefined,
+        confirmLabel: 'Remover imagem'
+      });
       if (!confirmed) return;
       stageUploadDeletion(ref);
     }
@@ -234,11 +239,12 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
               disabled={disabled}
               file={file}
               index={index}
-              onRemove={removeFile}
+              onRemove={index => void removeFile(index)}
             />
           ))}
         </div>
       ) : null}
+      {confirmDialog}
     </div>
   );
 }

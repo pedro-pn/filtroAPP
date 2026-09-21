@@ -18,6 +18,7 @@ import { Modal } from '../../components/ui/Modal';
 import { UploadField } from '../../components/ui/UploadField';
 import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../../components/ui/photoDeletionStaging';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { useNewReportBootstrap } from '../../hooks/useBootstrap';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReportMutations } from '../../hooks/useReports';
@@ -154,6 +155,7 @@ function SiteRdoFormPage() {
   } = useRdoStore();
 
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [step, setStep] = useState(0);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [invalidTarget, setInvalidTarget] = useState<string | null>(null);
@@ -296,7 +298,13 @@ function SiteRdoFormPage() {
 
   async function handleDeletePendingService(sourceReport: ReportSummary, service: ReportServiceSummary) {
     if (!canDeleteOngoingService) return;
-    if (!window.confirm(`Excluir este serviço em andamento do RDO ${sourceReport.sequenceNumber || '---'}? Ele deixa de aparecer como pendente para todos.`)) return;
+    const confirmed = await confirm({
+      title: 'Excluir serviço em andamento?',
+      description: 'O serviço é removido do RDO de origem e deixa de aparecer como pendente para todos os usuários do projeto.',
+      highlight: `${serviceTypeLabels[normalizeServiceType(service.serviceType || '')] || service.serviceType} · RDO ${sourceReport.sequenceNumber || '---'}`,
+      confirmLabel: 'Excluir serviço'
+    });
+    if (!confirmed) return;
     try {
       await reportMutations.deleteService.mutateAsync({ reportId: sourceReport.id, serviceId: service.id });
       showToast('Serviço excluído.', 'success');
@@ -1210,6 +1218,8 @@ function SiteRdoFormPage() {
           ))}
         </div>
       </Modal>
+
+      {confirmDialog}
 
       {user ? <RdoDdsNovelty user={user} enabled={ddsNoveltyActive && step === 0 && !effectiveServiceOnly} onSeen={() => setDdsNoveltyActive(false)} /> : null}
     </Shell>

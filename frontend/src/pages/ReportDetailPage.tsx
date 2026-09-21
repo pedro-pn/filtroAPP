@@ -22,6 +22,7 @@ import { SignatureProgress } from '../components/reports/SignatureProgress';
 import { SignatureDialog } from '../components/reports/SignatureDialog';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { useToast } from '../components/ui/ToastContext';
+import { useConfirmDialog } from '../components/ui/useConfirmDialog';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useReportDetailBootstrap } from '../hooks/useBootstrap';
 import { pageScrollRestoreStateFromNavigation } from '../hooks/usePageScrollRestoration';
@@ -665,6 +666,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const bootstrapQuery = useReportDetailBootstrap(report.id);
   const reportMutations = useReportMutations();
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
@@ -877,7 +879,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   async function handleDeletePendingService(sourceReport: ReportSummary, service: NonNullable<ReportSummary['services']>[number]) {
     if (!canDeleteOngoingService) return;
-    if (!window.confirm(`Excluir este serviço em andamento do RDO ${sourceReport.sequenceNumber || '---'}? Ele deixa de aparecer como pendente para todos.`)) return;
+    const confirmed = await confirm({
+      title: 'Excluir serviço em andamento?',
+      description: 'O serviço é removido do RDO de origem e deixa de aparecer como pendente para todos os usuários do projeto.',
+      highlight: `${serviceTypeLabels[normalizeServiceType(service.serviceType || '')] || service.serviceType} · RDO ${sourceReport.sequenceNumber || '---'}`,
+      confirmLabel: 'Excluir serviço'
+    });
+    if (!confirmed) return;
     try {
       await reportMutations.deleteService.mutateAsync({ reportId: sourceReport.id, serviceId: service.id });
       showToast('Serviço excluído.', 'success');
@@ -1426,6 +1434,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           ) : null}
         </div>
       ) : null}
+
+      {confirmDialog}
 
       <Modal
         open={derivedDeletionPromptOpen}
