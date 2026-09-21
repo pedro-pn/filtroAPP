@@ -46,6 +46,7 @@ import {
   RequiredMark
 } from '../../components/reports/ReportCoreFields';
 import { Button } from '../../components/ui/Button';
+import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { PhotoCaptureButton } from '../../components/ui/PhotoCaptureButton';
 import { prepareImageForUpload } from '../../utils/imageUpload';
@@ -1538,6 +1539,7 @@ export function OperationalReportFormPage({
           )}
         </main>
       </FormProvider>
+      <PhotoCaptureNovelty user={user} placement="maintenance" enabled={kind === 'MAINTENANCE'} />
     </Shell>
   );
 }

@@ -11,6 +11,7 @@ import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
 import { ManualReportOperationalFields, type ManualReportOperationalFieldsValue } from '../components/reports/ManualReportOperationalFields';
 import { DdsCustomThemeReviewAlert } from '../components/reports/DdsCustomThemeReviewAlert';
+import { PhotoCaptureNovelty } from '../components/reports/PhotoCaptureNovelty';
 import { ReportDdsSummarySection } from '../components/reports/ReportDdsSummarySection';
 import {
   buildManualReportOperationalData,
@@ -1296,6 +1297,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               ))}
             </div>
       </Modal>
+      <PhotoCaptureNovelty user={user} placement="rdo-edit" enabled={!readOnly} />
     </>
   );
 }
