@@ -233,7 +233,7 @@ function TimelineChart({ slots, mode }: { slots: StatsTimelineSlot[]; mode: 'hou
     : [];
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="stats-timeline-chart" style={{ overflowX: 'auto' }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: `${Math.max(W, slots.length * 30)}px`, height: 'auto' }}>
         {/* Y gridlines */}
         {[0, 0.25, 0.5, 0.75, 1].map(pct => {
@@ -1005,7 +1005,7 @@ export function StatsDashboardOverlay({ onClose }: StatsDashboardOverlayProps) {
   }, [onClose]);
 
   return (
-    <div className="survey-dash-overlay" role="dialog" aria-modal="true" aria-label="Dashboard de Estatísticas">
+    <div className="survey-dash-overlay survey-dash-overlay-wide" role="dialog" aria-modal="true" aria-label="Dashboard de Estatísticas">
       <div className="survey-dash-overlay-topbar">
         <img className="survey-dash-overlay-logo" src={headerLogoUrl} alt="Filtrovali" />
         <span className="survey-dash-overlay-title">Dashboard de Estatísticas</span>

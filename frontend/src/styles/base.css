@@ -8876,6 +8876,22 @@ select:disabled {
   max-width: 1040px;
 }
 
+/* Variante larga: aproveita a largura do desktop (Dashboard detalhado) */
+.survey-dash-overlay-wide .survey-dash-overlay-content {
+  max-width: 1800px;
+}
+
+@media (min-width: 1200px) {
+  .survey-dash-overlay-wide .survey-dash-overlay-scroll {
+    padding: 20px 32px;
+  }
+}
+
+/* O grafico SVG escala junto com a largura; limita para nao virar zoom gigante */
+.stats-timeline-chart > svg {
+  max-width: 1100px;
+}
+
 /* ── Survey Dashboard ────────────────────────────────────────── */
 
 .survey-dashboard {
