@@ -23,7 +23,7 @@ import { initialsOf } from '../../../utils/projectWorkflowPresentation';
 
 function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS') {
   return workflow.preparationReadiness.sections.find(section => section.key === key)
-    || { completed: 0, total: 0, percentage: 0 };
+    || { completed: 0, total: 0, percentage: 0, optional: false };
 }
 
 // Rótulo curto para o cabeçalho da frente; a contagem completa aparece no índice da etapa.

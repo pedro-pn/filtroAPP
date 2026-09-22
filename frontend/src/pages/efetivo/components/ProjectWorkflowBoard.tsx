@@ -313,7 +313,6 @@ function ProjectCard({
         ) : null}
         {workflow.executedAtHeadquarters ? <small className="project-workflow-authorization-badge">🏢 Executado na Sede</small> : null}
         {!workflow.executedAtHeadquarters && !['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
-        {!workflow.executedAtHeadquarters && !['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
         {workflow.issueCount ? (
           <em className={workflow.overdueIssueCount ? 'is-overdue' : ''}>
             {workflow.issueCount} pendência(s){workflow.overdueIssueCount ? ' · ' + workflow.overdueIssueCount + ' vencida(s)' : ''}

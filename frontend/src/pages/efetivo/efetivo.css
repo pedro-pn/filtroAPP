@@ -1863,8 +1863,7 @@
 .project-workflow-card .project-workflow-execution-badge,
 .project-workflow-card .project-workflow-authorization-badge.is-authorized { color: var(--g); font-weight: 700; }
 .project-workflow-card .project-workflow-documentation-badge.is-in_progress { color: var(--warning-text); }
-.project-workflow-card .project-workflow-mobilization-risk,
-.project-workflow-card .project-workflow-authorization-badge.is-suspended { color: var(--rd); font-weight: 700; }
+.project-workflow-card .project-workflow-mobilization-risk { color: var(--rd); font-weight: 700; }
 .project-workflow-card .project-workflow-mobilization-risk.is-attention { color: var(--warning-text); }
 .project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
 
