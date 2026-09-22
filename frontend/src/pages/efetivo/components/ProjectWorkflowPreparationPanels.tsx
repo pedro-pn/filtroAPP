@@ -10,6 +10,7 @@ import type {
   ProjectWorkflow,
   ProjectWorkflowClientReleases,
   ProjectWorkflowPatch,
+  ProjectWorkflowScheduleConfirmationField,
   ProjectWorkflowTransportMode
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
@@ -612,6 +613,50 @@ function ClientReleaseItem({ workflow, item, saving, onPatch }: {
   );
 }
 
+// Enquanto não existe integração com o CRM, as datas comerciais estimadas são digitadas manualmente na Análise
+// inicial; aqui no D-15 pedimos para confirmar se continuam valendo ou corrigir, antes da mobilização.
+function CommercialScheduleConfirmationItem({ workflow, field, label, data, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  field: 'START' | 'MOBILIZATION';
+  label: string;
+  data: ProjectWorkflowScheduleConfirmationField;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [newDate, setNewDate] = useState(data.value || '');
+  useEffect(() => { setEditing(false); setNewDate(data.value || ''); }, [data.value]);
+  const disabled = saving || !workflow.clientReleases.scheduleConfirmation.canEdit;
+  const confirm = (date?: string) => {
+    onPatch({ action: 'commercial_schedule_confirm', version: workflow.version, field, ...(date !== undefined ? { date } : {}) });
+    setEditing(false);
+  };
+  return (
+    <article className={`project-workflow-client-attendance${data.confirmed ? ' is-complete' : ''}`}>
+      <header><div><strong>{label}</strong><span>{data.value ? displayDateOnly(data.value) : 'Sem data'}</span></div><span>{data.confirmed ? 'Confirmado' : 'Pendente'}</span></header>
+      {editing ? (
+        <div className="project-workflow-client-attendance-fields">
+          <div className="field-group"><label htmlFor={`commercial-schedule-${field}`}>Nova data</label><DateInput id={`commercial-schedule-${field}`} value={newDate} disabled={disabled} onCommit={setNewDate} /></div>
+          <Button type="button" variant="secondary" disabled={disabled || !newDate} onClick={() => confirm(newDate)}>Salvar e confirmar</Button>
+          <Button type="button" variant="mini" disabled={disabled} onClick={() => setEditing(false)}>Cancelar</Button>
+        </div>
+      ) : (
+        <div className="project-workflow-commercial-schedule-choice">
+          <span>Essa data continua igual?</span>
+          <ProjectWorkflowBooleanChoice
+            value={data.confirmed ? true : null}
+            label={`${label} continua igual?`}
+            yesLabel="Sim, continua igual"
+            noLabel="Não, mudou"
+            disabled={disabled}
+            onSelect={value => { if (value) confirm(); else setEditing(true); }}
+          />
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function ProjectWorkflowClientReleasesPanel({ workflow, saving, onPatch }: {
   workflow: ProjectWorkflow;
   saving: boolean;
@@ -641,6 +686,8 @@ export function ProjectWorkflowClientReleasesPanel({ workflow, saving, onPatch }
           <Button type="button" variant="secondary" disabled={saving || !attendance.canEdit || !attendanceDate || (attendance.confirmed && !attendanceChanged)} onClick={() => onPatch({ action: 'client_attendance', version: workflow.version, attendanceDate })}>{attendance.confirmed ? 'Confirmar nova data' : 'Confirmar atendimento'}</Button>
         </div>
       </article>
+      {workflow.clientReleases.scheduleConfirmation.mobilization.relevant ? <CommercialScheduleConfirmationItem workflow={workflow} field="MOBILIZATION" label="Mobilização estimada" data={workflow.clientReleases.scheduleConfirmation.mobilization} saving={saving} onPatch={onPatch} /> : null}
+      {workflow.clientReleases.scheduleConfirmation.start.relevant ? <CommercialScheduleConfirmationItem workflow={workflow} field="START" label="Início estimado" data={workflow.clientReleases.scheduleConfirmation.start} saving={saving} onPatch={onPatch} /> : null}
       <div className="project-workflow-client-release-list">
         {workflow.clientReleases.items.map(item => <ClientReleaseItem workflow={workflow} item={item} saving={saving} onPatch={onPatch} key={item.key} />)}
       </div>

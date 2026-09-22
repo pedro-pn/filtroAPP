@@ -19,6 +19,7 @@ import {
   analysisGateIssues,
   allowedProjectWorkflowTransition,
   commercialFactIssues,
+  commercialScheduleConfirmationStatus,
   demobilizationGateIssues,
   handoverGateIssues,
   planningGateIssues,
@@ -718,6 +719,79 @@ test('a ação analysis_schedule exige fim depois do início', () => {
   const invalid = patch.safeParse({ ...base, plannedExecutionStartDate: '2027-04-30', plannedExecutionEndDate: '2027-02-20' });
   assert.equal(invalid.success, false);
   assert.match(invalid.error.issues[0].message, /não pode ser anterior/);
+});
+
+test('datas comerciais estimadas: editáveis a qualquer momento (sem CRM) e início não pode ser antes da mobilização', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  const base = { action: 'commercial_dates', version: 1 };
+  assert.equal(patch.safeParse({ ...base, expectedMobilizationDate: '2027-02-01', expectedStartDate: '2027-02-05' }).success, true);
+  assert.equal(patch.safeParse({ ...base, expectedStartDate: null }).success, true);
+  assert.equal(patch.safeParse(base).success, false);
+  const invalid = patch.safeParse({ ...base, expectedMobilizationDate: '2027-02-10', expectedStartDate: '2027-02-01' });
+  assert.equal(invalid.success, false);
+  assert.match(invalid.error.issues[0].message, /não pode ser anterior/);
+});
+
+test('confirmação da data comercial no D-15: "Sim, continua igual" confirma o valor atual; editar a data desconfirma sozinho', () => {
+  const withoutConfirmation = commercialScheduleConfirmationStatus({
+    executedAtHeadquarters: false,
+    commercialExpectedStartDate: new Date('2027-02-05T00:00:00Z'),
+    commercialExpectedMobilizationDate: new Date('2027-02-01T00:00:00Z'),
+    commercialScheduleConfirmation: {}
+  });
+  assert.equal(withoutConfirmation.start.relevant, true);
+  assert.equal(withoutConfirmation.start.confirmed, false);
+  assert.equal(withoutConfirmation.mobilization.relevant, true);
+  assert.equal(withoutConfirmation.mobilization.confirmed, false);
+
+  const confirmed = commercialScheduleConfirmationStatus({
+    executedAtHeadquarters: false,
+    commercialExpectedStartDate: new Date('2027-02-05T00:00:00Z'),
+    commercialExpectedMobilizationDate: new Date('2027-02-01T00:00:00Z'),
+    commercialScheduleConfirmation: { startConfirmedValue: '2027-02-05', mobilizationConfirmedValue: '2027-02-01' }
+  });
+  assert.equal(confirmed.start.confirmed, true);
+  assert.equal(confirmed.mobilization.confirmed, true);
+
+  // a data mudou depois de confirmada (ex.: editada de novo na Análise inicial): volta a exigir confirmação sozinho
+  const drifted = commercialScheduleConfirmationStatus({
+    executedAtHeadquarters: false,
+    commercialExpectedStartDate: new Date('2027-02-10T00:00:00Z'),
+    commercialExpectedMobilizationDate: new Date('2027-02-01T00:00:00Z'),
+    commercialScheduleConfirmation: { startConfirmedValue: '2027-02-05', mobilizationConfirmedValue: '2027-02-01' }
+  });
+  assert.equal(drifted.start.confirmed, false);
+  assert.equal(drifted.mobilization.confirmed, true);
+
+  // sem data preenchida, o item não é relevante (não força confirmação de algo que nem existe)
+  const empty = commercialScheduleConfirmationStatus({ executedAtHeadquarters: false, commercialScheduleConfirmation: {} });
+  assert.equal(empty.start.relevant, false);
+  assert.equal(empty.mobilization.relevant, false);
+
+  // na Sede, mobilização não conta (só início)
+  const sede = commercialScheduleConfirmationStatus({
+    executedAtHeadquarters: true,
+    commercialExpectedStartDate: new Date('2027-02-05T00:00:00Z'),
+    commercialExpectedMobilizationDate: new Date('2027-02-01T00:00:00Z'),
+    commercialScheduleConfirmation: {}
+  });
+  assert.equal(sede.start.relevant, true);
+  assert.equal(sede.mobilization.relevant, false);
+});
+
+test('D-15 bloqueia até confirmar (ou corrigir) a data comercial estimada, quando ela existe', () => {
+  const withItem = extra => projectWorkflowPreparationReadiness({
+    executedAtHeadquarters: false,
+    clientReleases: { attendance: { date: '2026-09-09', confirmed: true }, items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({ ...item, requested: true, requestedAt: '2026-09-09', completed: true, completedAt: '2026-09-10' })) },
+    ...extra
+  });
+  const clientSection = readiness => readiness.sections.find(item => item.key === 'D15_CLIENT');
+  const unconfirmed = withItem({ commercialExpectedStartDate: '2026-09-20', commercialScheduleConfirmation: {} });
+  assert.ok(clientSection(unconfirmed).blockers.some(item => item.key === 'COMMERCIAL_START_CONFIRMATION'));
+  const confirmed = withItem({ commercialExpectedStartDate: '2026-09-20', commercialScheduleConfirmation: { startConfirmedValue: '2026-09-20' } });
+  assert.ok(!clientSection(confirmed).blockers.some(item => item.key === 'COMMERCIAL_START_CONFIRMATION'));
+  const noCommercialDate = withItem({});
+  assert.ok(!clientSection(noCommercialDate).blockers.some(item => item.key === 'COMMERCIAL_START_CONFIRMATION'));
 });
 
 test('liberação do cliente só exige a data da solicitação, sem destinatário', () => {

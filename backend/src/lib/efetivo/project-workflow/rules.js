@@ -15,6 +15,11 @@ import {
 } from '../../../../../shared/schemas/project-workflow.js';
 import { isResourceConflictIssue } from './resource-conflicts.js';
 
+function dateKey(value) {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
 // Eventos que colocam o projeto numa etapa: o início da gestão abre o Handover, o aceite abre a
 // Análise inicial e as demais mudanças registram a etapa de destino em `data.stage`.
 export const PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS = ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE'];
@@ -252,6 +257,32 @@ function preparationItemProgress(workflow, itemType) {
   });
 }
 
+// Situação de confirmação de cada data comercial estimada no D-15: "relevant" indica se o item exige confirmação
+// (só quando a data já foi preenchida; mobilização não vale na Sede); "confirmed" compara o valor atual com o
+// que foi confirmado da última vez — qualquer edição da data (na Análise inicial ou em correção) "desconfirma"
+// sozinha, sem precisar de um reset explícito.
+export function commercialScheduleConfirmationStatus(workflow) {
+  const confirmation = workflow?.commercialScheduleConfirmation && typeof workflow.commercialScheduleConfirmation === 'object' && !Array.isArray(workflow.commercialScheduleConfirmation)
+    ? workflow.commercialScheduleConfirmation
+    : {};
+  const startValue = dateKey(workflow?.commercialExpectedStartDate);
+  const mobilizationValue = dateKey(workflow?.commercialExpectedMobilizationDate);
+  return {
+    start: {
+      value: startValue,
+      relevant: Boolean(startValue),
+      confirmed: Boolean(startValue) && confirmation.startConfirmedValue === startValue,
+      confirmedAt: confirmation.startConfirmedAt || null
+    },
+    mobilization: {
+      value: mobilizationValue,
+      relevant: !isHeadquartersWorkflow(workflow) && Boolean(mobilizationValue),
+      confirmed: Boolean(mobilizationValue) && confirmation.mobilizationConfirmedValue === mobilizationValue,
+      confirmedAt: confirmation.mobilizationConfirmedAt || null
+    }
+  };
+}
+
 function clientReleaseProgress(workflow) {
   const attendance = workflow?.clientReleases?.attendance || {};
   const providedItems = new Map((workflow?.clientReleases?.items || []).map(item => [item.key, item]));
@@ -288,7 +319,18 @@ function clientReleaseProgress(workflow) {
       reason: 'Conclusão pendente'
     });
   }
-  const total = 1 + (items.length * 2);
+  let total = 1 + (items.length * 2);
+  const schedule = commercialScheduleConfirmationStatus(workflow);
+  if (schedule.start.relevant) {
+    total += 1;
+    if (schedule.start.confirmed) completed += 1;
+    else blockers.push({ key: 'COMMERCIAL_START_CONFIRMATION', label: 'Início estimado', reason: 'Confirmar se a data continua igual ou informar a nova data' });
+  }
+  if (schedule.mobilization.relevant) {
+    total += 1;
+    if (schedule.mobilization.confirmed) completed += 1;
+    else blockers.push({ key: 'COMMERCIAL_MOBILIZATION_CONFIRMATION', label: 'Mobilização estimada', reason: 'Confirmar se a data continua igual ou informar a nova data' });
+  }
   return {
     completed,
     total,

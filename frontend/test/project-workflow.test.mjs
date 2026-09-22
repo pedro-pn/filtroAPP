@@ -288,7 +288,7 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(registry, /efetivo:administrative/);
 });
 
-test('análise inicial usa datas do CRM, contato estruturado e pendência sem campo Área', () => {
+test('análise inicial mostra as datas comerciais estimadas, contato estruturado e pendência sem campo Área', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
@@ -556,4 +556,32 @@ test('administração ganha a aba de e-mails de aviso por finalidade', () => {
   assert.match(board, /updateNotificationEmailSetting/);
   assert.match(api, /admin\/notification-emails/);
   assert.match(purposes, /PROJECT_WORKFLOW_CLIENT_REGISTRATION/);
+});
+
+test('datas comerciais estimadas ficam editáveis (sem CRM) na Análise inicial e são confirmadas ou corrigidas no D-15', () => {
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../src/api/projectWorkflow.ts', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  // destravadas: DateInput editável chamando commercial_dates, não mais <input readOnly>
+  assert.doesNotMatch(intake, /readOnly aria-readonly="true"/);
+  assert.match(intake, /<DateInput id="analysis-commercial-mobilization-date"/);
+  assert.match(intake, /<DateInput id="analysis-commercial-start-date"/);
+  assert.match(intake, /action: 'commercial_dates', version: workflow\.version, expectedMobilizationDate/);
+  assert.match(intake, /action: 'commercial_dates', version: workflow\.version, expectedStartDate/);
+  // D-15: confirmação com "Sim, continua igual" / "Não, mudou", não o padrão de botão único da confirmação de atendimento
+  assert.match(preparation, /function CommercialScheduleConfirmationItem/);
+  assert.match(preparation, /yesLabel="Sim, continua igual"/);
+  assert.match(preparation, /noLabel="Não, mudou"/);
+  assert.match(preparation, /action: 'commercial_schedule_confirm'/);
+  assert.match(preparation, /scheduleConfirmation\.mobilization\.relevant/);
+  assert.match(preparation, /scheduleConfirmation\.start\.relevant/);
+  assert.match(styles, /project-workflow-commercial-schedule-choice/);
+  // tipos e schema
+  assert.match(api, /action: 'commercial_dates'/);
+  assert.match(api, /action: 'commercial_schedule_confirm'/);
+  assert.match(schema, /action: z\.literal\('commercial_dates'\)/);
+  assert.match(schema, /action: z\.literal\('commercial_schedule_confirm'\)/);
+  assert.match(schema, /field: z\.enum\(\['MOBILIZATION', 'START'\]\)/);
 });

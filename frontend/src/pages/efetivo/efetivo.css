@@ -2281,6 +2281,8 @@
 .project-workflow-client-attendance.is-complete > header > span,
 .project-workflow-client-release.is-complete > header > span { color: var(--g); }
 .project-workflow-client-attendance-fields { align-items: end; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
+.project-workflow-commercial-schedule-choice { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
+.project-workflow-commercial-schedule-choice > span { color: var(--pw-muted, var(--mu)); font-size: 13px; }
 .project-workflow-client-release-list { display: grid; gap: 8px; min-width: 0; }
 .project-workflow-client-release-fields { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
 .project-workflow-client-attendance-fields .field-group,

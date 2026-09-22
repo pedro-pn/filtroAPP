@@ -28,6 +28,7 @@ import {
 import {
   activeProjectWorkflowIssues,
   allowedProjectWorkflowTransition,
+  commercialScheduleConfirmationStatus,
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
   normalizeProjectWorkflowDocumentation,
@@ -496,6 +497,12 @@ function publicClientReleases(workflow, context) {
       updatedAt: customerRegistration?.updatedAt || null,
       updatedBy: customerRegistration?.updatedBy || null,
       canEdit: canEditAreaAnyStage(workflow, PROJECT_WORKFLOW_CUSTOMER_REGISTRATION_RELEASE.areaRoles, context)
+    },
+    // Datas comerciais estimadas (mobilização/início), digitadas manualmente enquanto não existe integração com
+    // o CRM: confirmadas ou corrigidas aqui no D-15, antes da mobilização.
+    scheduleConfirmation: {
+      ...commercialScheduleConfirmationStatus(workflow),
+      canEdit: canEditPreparationAreaOrCorrect(workflow, ['efetivo:operations'], context)
     },
     attendance: {
       date: dateKey(attendance?.attendanceDate)
@@ -1569,6 +1576,47 @@ async function applyAnalysisSchedule(tx, workflow, payload) {
   });
 }
 
+function normalizeScheduleConfirmation(workflow) {
+  const value = workflow?.commercialScheduleConfirmation;
+  return value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : {};
+}
+
+// Editável a qualquer momento (mesmo padrão de analysis_schedule) enquanto não existe integração com o CRM.
+// Não mexe na confirmação: se a data mudar, `commercialScheduleConfirmationStatus` detecta sozinha que o valor
+// confirmado ficou desatualizado (ver rules.js).
+async function applyCommercialDates(tx, workflow, payload) {
+  const data = {};
+  if (Object.hasOwn(payload, 'expectedMobilizationDate')) data.commercialExpectedMobilizationDate = payload.expectedMobilizationDate ? utcDate(payload.expectedMobilizationDate) : null;
+  if (Object.hasOwn(payload, 'expectedStartDate')) data.commercialExpectedStartDate = payload.expectedStartDate ? utcDate(payload.expectedStartDate) : null;
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+}
+
+// D-15: "Sim, continua igual" (sem `date`) confirma o valor atual; "Não, mudou" (com `date`) corrige a data
+// comercial estimada e já confirma o novo valor — a correção em si já é a confirmação.
+async function applyCommercialScheduleConfirm(tx, workflow, payload, now) {
+  const isStart = payload.field === 'START';
+  const dateField = isStart ? 'commercialExpectedStartDate' : 'commercialExpectedMobilizationDate';
+  const data = {};
+  let confirmedValue;
+  if (Object.hasOwn(payload, 'date')) {
+    data[dateField] = payload.date ? utcDate(payload.date) : null;
+    confirmedValue = payload.date || null;
+  } else {
+    confirmedValue = dateKey(workflow[dateField]);
+  }
+  const confirmation = normalizeScheduleConfirmation(workflow);
+  const today = dateKey(now);
+  if (isStart) {
+    confirmation.startConfirmedAt = today;
+    confirmation.startConfirmedValue = confirmedValue;
+  } else {
+    confirmation.mobilizationConfirmedAt = today;
+    confirmation.mobilizationConfirmedValue = confirmedValue;
+  }
+  data.commercialScheduleConfirmation = confirmation;
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+}
+
 async function applyAnalysisCriticality(tx, workflow, payload) {
   await tx.projectWorkflow.update({
     where: { projectId: workflow.projectId },
@@ -2140,6 +2188,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
       assertPreparationAreaEditable(workflowForMutation, definition?.areaRoles || [], context);
     } else if (payload.action === 'client_attendance') {
       assertPreparationAreaEditable(workflowForMutation, ['efetivo:operations'], context);
+    } else if (payload.action === 'commercial_schedule_confirm') {
+      assertPreparationAreaEditable(workflowForMutation, ['efetivo:operations'], context);
     } else if (payload.action === 'client_release') {
       if (payload.key === PROJECT_WORKFLOW_CUSTOMER_REGISTRATION_RELEASE.key) {
         assertCustomerRegistrationEditable(workflowForMutation, context);
@@ -2188,6 +2238,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'critical') clientRegistrationNotice = await applyCriticalAnswer(tx, workflowForMutation, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflowForMutation, payload);
     else if (payload.action === 'analysis_schedule') await applyAnalysisSchedule(tx, workflowForMutation, payload);
+    else if (payload.action === 'commercial_dates') await applyCommercialDates(tx, workflowForMutation, payload);
+    else if (payload.action === 'commercial_schedule_confirm') await applyCommercialScheduleConfirm(tx, workflowForMutation, payload, now);
     else if (payload.action === 'analysis_criticality') await applyAnalysisCriticality(tx, workflowForMutation, payload);
     else if (payload.action === 'analysis_location') await applyAnalysisLocation(tx, workflowForMutation, payload);
     else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflowForMutation, payload);

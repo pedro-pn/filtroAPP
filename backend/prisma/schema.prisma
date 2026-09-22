@@ -1053,6 +1053,9 @@ model ProjectWorkflow {
   commercialClientContactEmail       String?
   commercialAssumptions              String?
   commercialSourceUpdatedAt          DateTime?
+  // Enquanto não existe integração com o CRM, as datas comerciais estimadas acima são digitadas manualmente; este
+  // campo guarda a confirmação (ou correção) de cada uma no D-15, antes da mobilização.
+  commercialScheduleConfirmation     Json                                   @default("{}")
   analysisClientContactMade          Boolean?
   analysisClientContactName          String?
   analysisClientContactPhone         String?

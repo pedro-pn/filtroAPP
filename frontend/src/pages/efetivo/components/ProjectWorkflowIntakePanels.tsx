@@ -208,7 +208,7 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
   return (
     <ProjectWorkflowCategory
       title="Datas e contato inicial"
-      description="As datas são recebidas do CRM. O contato operacional é registrado pelo Líder de Projetos e salvo automaticamente."
+      description="As datas comerciais são digitadas manualmente enquanto não existe integração com o CRM. O contato operacional é registrado pelo Líder de Projetos e salvo automaticamente."
       area="Análise"
       status={contactStatus}
       complete={Boolean(contactMade && contactName.trim() && contactPhone.trim() && contactDate)}
@@ -216,8 +216,8 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
       data-project-workflow-initial-analysis
     >
       <div className="project-workflow-analysis-dates">
-        {workflow.executedAtHeadquarters ? null : <div className="field-group"><label htmlFor="analysis-commercial-mobilization-date">Mobilização estimada</label><input id="analysis-commercial-mobilization-date" type="date" value={workflow.commercialExpectedMobilizationDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedMobilizationDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>}
-        <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><input id="analysis-commercial-start-date" type="date" value={workflow.commercialExpectedStartDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedStartDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
+        {workflow.executedAtHeadquarters ? null : <div className="field-group"><label htmlFor="analysis-commercial-mobilization-date">Mobilização estimada</label><DateInput id="analysis-commercial-mobilization-date" value={workflow.commercialExpectedMobilizationDate || ''} disabled={saving || !workflow.permissions.canEdit} onCommit={value => onPatch({ action: 'commercial_dates', version: workflow.version, expectedMobilizationDate: value || null })} /><small>Confirmada (ou corrigida) no D-15, antes da mobilização.</small></div>}
+        <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><DateInput id="analysis-commercial-start-date" value={workflow.commercialExpectedStartDate || ''} disabled={saving || !workflow.permissions.canEdit} onCommit={value => onPatch({ action: 'commercial_dates', version: workflow.version, expectedStartDate: value || null })} /><small>Confirmado (ou corrigido) no D-15, antes da mobilização.</small></div>
         <div className="field-group"><label htmlFor="analysis-execution-start-date">Início da execução previsto</label><DateInput id="analysis-execution-start-date" value={schedule.executionStartDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => saveSchedule(value, schedule.executionEndDate)} /><small>{scheduleHint(schedule.executionStartSource)}</small></div>
         <div className="field-group"><label htmlFor="analysis-execution-end-date">Fim da execução previsto</label><DateInput id="analysis-execution-end-date" min={schedule.executionStartDate || undefined} value={schedule.executionEndDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => saveSchedule(schedule.executionStartDate, value)} /><small>{scheduleHint(schedule.executionEndSource)}</small></div>
       </div>

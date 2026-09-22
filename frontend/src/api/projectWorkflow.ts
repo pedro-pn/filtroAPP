@@ -129,9 +129,23 @@ export interface ProjectWorkflowCustomerRegistrationRelease {
   canEdit: boolean;
 }
 
+export interface ProjectWorkflowScheduleConfirmationField {
+  value: string | null;
+  relevant: boolean;
+  confirmed: boolean;
+  confirmedAt: string | null;
+}
+
 export interface ProjectWorkflowClientReleases {
   // Cadastro no cliente: acompanhado à parte, nos itens críticos da Análise inicial — não faz parte de `items`.
   customerRegistration: ProjectWorkflowCustomerRegistrationRelease;
+  // Datas comerciais estimadas (mobilização/início), digitadas manualmente enquanto não existe integração com o
+  // CRM: confirmadas ou corrigidas aqui, no D-15, antes da mobilização.
+  scheduleConfirmation: {
+    start: ProjectWorkflowScheduleConfirmationField;
+    mobilization: ProjectWorkflowScheduleConfirmationField;
+    canEdit: boolean;
+  };
   attendance: {
     date: string | null;
     confirmed: boolean;
@@ -821,6 +835,8 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportMode?: ProjectWorkflowTransportMode | null; teamTransportVehicleType?: string | null; teamTransportQuantity?: number | null; freightDefined?: boolean | null; freightMode?: ProjectWorkflowTransportMode | null; freightVehicleType?: string | null; freightQuantity?: number | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_schedule'; version: number; plannedExecutionStartDate: string | null; plannedExecutionEndDate: string | null }
+  | { action: 'commercial_dates'; version: number; expectedMobilizationDate?: string | null; expectedStartDate?: string | null }
+  | { action: 'commercial_schedule_confirm'; version: number; field: 'MOBILIZATION' | 'START'; date?: string | null }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactPhone?: string | null; contactDate?: string | null }
   | { action: 'analysis_criticality'; version: number; isCritical: boolean; preparationLeadTimeDays?: number }
   | { action: 'analysis_location'; version: number; executedAtHeadquarters: boolean }

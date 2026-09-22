@@ -1124,6 +1124,49 @@ test('preparação registra pré-job e viagem em campos estruturados com salvame
   assert.equal(state.events.at(-1).action, 'WORKFLOW_TRAVEL');
 });
 
+test('datas comerciais destravadas (sem CRM) editáveis a qualquer momento; D-15 exige confirmar ou corrigir', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+
+  // editável já na Análise inicial (qualquer etapa ativa), sem precisar de papel de área específico
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_dates', version: 1, expectedMobilizationDate: '2027-01-20', expectedStartDate: '2027-01-25'
+  }, leader, { database });
+  assert.equal(detail.workflow.commercialExpectedMobilizationDate, '2027-01-20');
+  assert.equal(detail.workflow.commercialExpectedStartDate, '2027-01-25');
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.start.confirmed, false);
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, false);
+
+  // exige papel de operações para confirmar/corrigir em D-15 (mesmo padrão da confirmação de atendimento)
+  state.workflow.stage = 'PREPARATION';
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'commercial_schedule_confirm', version: detail.workflow.version, field: 'START' }, administrative, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
+  );
+
+  // "Sim, continua igual" confirma o valor atual sem alterar a data
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_schedule_confirm', version: detail.workflow.version, field: 'START'
+  }, operations, { database });
+  assert.equal(detail.workflow.commercialExpectedStartDate, '2027-01-25');
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.start.confirmed, true);
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, false);
+
+  // "Não, mudou" corrige a data e já confirma o novo valor
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_schedule_confirm', version: detail.workflow.version, field: 'MOBILIZATION', date: '2027-01-22'
+  }, operations, { database });
+  assert.equal(detail.workflow.commercialExpectedMobilizationDate, '2027-01-22');
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, true);
+
+  // editar a data de novo (ex.: correção posterior) desconfirma sozinho, sem reset explícito
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_dates', version: detail.workflow.version, expectedStartDate: '2027-01-28'
+  }, leader, { database });
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.start.confirmed, false);
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, true);
+});
+
 test('gate verde libera a mobilização direto, sem autorização manual, e volta a bloquear com o gate', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });

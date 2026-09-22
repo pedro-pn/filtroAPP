@@ -524,6 +524,31 @@ export function makeProjectWorkflowSchemas(z) {
       ctx.addIssue({ code: 'custom', path: ['plannedExecutionEndDate'], message: 'O fim da execução não pode ser anterior ao início.' });
     }
   });
+  // Enquanto não existe integração com o CRM, as datas comerciais estimadas são digitadas manualmente na Análise
+  // inicial (editável a qualquer momento) e confirmadas ou corrigidas no D-15 antes da mobilização.
+  const commercialDates = z.object({
+    action: z.literal('commercial_dates'),
+    version,
+    correctionStage,
+    expectedMobilizationDate: dateOnly.nullable().optional(),
+    expectedStartDate: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    if (!Object.hasOwn(value, 'expectedMobilizationDate') && !Object.hasOwn(value, 'expectedStartDate')) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma data comercial estimada.' });
+    }
+    if (value.expectedMobilizationDate && value.expectedStartDate && value.expectedStartDate < value.expectedMobilizationDate) {
+      ctx.addIssue({ code: 'custom', path: ['expectedStartDate'], message: 'O início estimado não pode ser anterior à mobilização estimada.' });
+    }
+  });
+  const commercialScheduleConfirm = z.object({
+    action: z.literal('commercial_schedule_confirm'),
+    version,
+    correctionStage,
+    field: z.enum(['MOBILIZATION', 'START']),
+    // Se informada, corrige a data comercial estimada e já confirma o novo valor ("Não, mudou"); se omitida,
+    // confirma o valor atual sem alterá-lo ("Sim, continua igual").
+    date: dateOnly.nullable().optional()
+  }).strict();
   const analysisCriticality = z.object({
     action: z.literal('analysis_criticality'),
     version,
@@ -787,7 +812,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisSchedule, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)
