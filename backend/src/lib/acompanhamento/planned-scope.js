@@ -27,20 +27,7 @@ function text(value) {
   return str || null;
 }
 
-// Lê o escopo previsto de um projeto (serviços + horas normais + hora extra), pronto para o front.
-export async function getPlannedScope(projectId) {
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
-  if (!project) throw new Error('Projeto não encontrado.');
-
-  const [services, hoursByProject] = await Promise.all([
-    prisma.projectPlannedService.findMany({
-      where: { projectId },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-      include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
-    }),
-    loadPlannedHours([projectId])
-  ]);
-  const hours = hoursByProject.get(projectId);
+export function buildPlannedScope(services, hours) {
   if (!hours) throw new Error('Projeto não encontrado.');
   const { normalHours, overtime, hoursPlan } = hours;
 
@@ -79,6 +66,23 @@ export async function getPlannedScope(projectId) {
       hours: o.hours
     }))
   };
+}
+
+// Lê o escopo previsto de um projeto (serviços + horas normais + hora extra), pronto para o front.
+export async function getPlannedScope(projectId) {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) throw new Error('Projeto não encontrado.');
+
+  const [services, hoursByProject] = await Promise.all([
+    prisma.projectPlannedService.findMany({
+      where: { projectId },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
+    }),
+    loadPlannedHours([projectId])
+  ]);
+  const hours = hoursByProject.get(projectId);
+  return buildPlannedScope(services, hours);
 }
 
 // Substitui todo o escopo previsto do projeto pelos conjuntos informados (já validados pela rota).

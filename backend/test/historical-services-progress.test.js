@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import prisma from '../src/lib/prisma.js';
-import { computeProgressForProjects, computeProgressHistoryForProjects } from '../src/lib/acompanhamento/avanco.js';
+import {
+  computeProgressDetailsForProjects,
+  computeProgressForProjects,
+  computeProgressHistoryForProjects
+} from '../src/lib/acompanhamento/avanco.js';
 import { HISTORICAL_CSV_TEMPLATE, parseHistoricalServicesCsv } from '../src/lib/reports/historical-services.js';
 
 function fixture(t) {
@@ -27,13 +31,16 @@ function fixture(t) {
         { systemType: 'TUBULACAO', quantity: 90, unit: 'M' }, { systemType: 'OLEO', quantity: 2000, unit: 'L' }
       ] }
     ].map(service => ({ ...service, projectId: 'project-5719-fixture' })),
-    sources: [], native: []
+    sources: [], native: [], queryCounts: new Map()
   };
   // Prisma expõe métodos por Proxy, sem descriptor compatível com t.mock.method.
   // Substituições locais a este processo de teste, sempre restauradas ao final.
   const stubFindMany = (model, implementation) => {
     const original = prisma[model].findMany;
-    prisma[model].findMany = implementation;
+    prisma[model].findMany = (...args) => {
+      state.queryCounts.set(model, (state.queryCounts.get(model) ?? 0) + 1);
+      return implementation(...args);
+    };
     t.after(() => { prisma[model].findMany = original; });
   };
   const inProjects = (record, ids) => ids.includes(record.projectId);
@@ -54,6 +61,31 @@ function fixture(t) {
   stubFindMany('projectManualProgressHistory', async () => []);
   return state;
 }
+
+test('pacote de avanço consolida dados atuais, histórico e recortes em uma rodada de consultas', async t => {
+  const state = fixture(t);
+  const details = (await computeProgressDetailsForProjects([state.project.id])).get(state.project.id);
+
+  assert.equal(details.progress.progressPct, 65);
+  assert.equal(details.progress.progressMethod, 'RDO');
+  assert.deepEqual(details.progressHistory, [
+    { date: '2026-01-01', progressPct: 40 },
+    { date: '2026-01-09', progressPct: 48.3 },
+    { date: '2026-01-17', progressPct: 56.7 },
+    { date: '2026-01-25', progressPct: 65 }
+  ]);
+  assert.equal(details.progressSlices, null);
+  for (const model of [
+    'project',
+    'projectPlannedService',
+    'projectManualProgressHistory',
+    'report',
+    'reportService',
+    'historicalServiceReport'
+  ]) {
+    assert.equal(state.queryCounts.get(model), 1, `${model} deve ser consultado uma vez`);
+  }
+});
 
 test('CSV alimenta o avanço real dos quatro serviços com cm/mL, pesos e datas de emissão', async t => {
   const state = fixture(t);

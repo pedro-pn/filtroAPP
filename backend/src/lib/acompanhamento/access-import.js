@@ -804,7 +804,8 @@ export async function removeProjectAdditionalProposal(projectId, codProp) {
 export async function listCommercialDashboard({
   categoryCode = null,
   includeAdminOnlyCategories = true,
-  projectIds = null
+  projectIds = null,
+  includeProgress = true
 } = {}) {
   const scopedProjectIds = Array.isArray(projectIds)
     ? [...new Set(projectIds.map(String).filter(Boolean))].sort()
@@ -814,19 +815,22 @@ export async function listCommercialDashboard({
   const cacheKey = JSON.stringify({
     categoryCode: categoryCode || null,
     includeAdminOnlyCategories: Boolean(includeAdminOnlyCategories),
-    projectIds: scopedProjectIds
+    projectIds: scopedProjectIds,
+    includeProgress: Boolean(includeProgress)
   });
   return commercialDashboardCache.get(cacheKey, () => listCommercialDashboardUncached({
     categoryCode,
     includeAdminOnlyCategories,
-    projectIds: scopedProjectIds
+    projectIds: scopedProjectIds,
+    includeProgress
   }));
 }
 
 async function listCommercialDashboardUncached({
   categoryCode = null,
   includeAdminOnlyCategories = true,
-  projectIds = null
+  projectIds = null,
+  includeProgress = true
 } = {}) {
   const projectIdFilter = projectIds ? { in: projectIds } : { not: null };
   // Salários do Omie nunca entram no realizado (serão calculados no app via ponto).
@@ -1044,13 +1048,15 @@ async function listCommercialDashboardUncached({
     applyManualCostsToDashboardRows(rows, manualCosts);
   }
 
-  // Avanço físico (RDO ponderado por serviço; ou manual como fallback) dos projetos exibidos, em lote.
-  const progressByProject = await computeProgressForProjects(rows.map(r => r.projectId));
-  for (const row of rows) {
-    const p = progressByProject.get(row.projectId);
-    row.progressPct = p?.progressPct ?? null;
-    row.progressMethod = p?.progressMethod ?? null;
-    row.progressWeight = progressContributionWeight(p);
+  if (includeProgress) {
+    // Avanço físico (RDO ponderado por serviço; ou manual como fallback) dos projetos exibidos, em lote.
+    const progressByProject = await computeProgressForProjects(rows.map(r => r.projectId));
+    for (const row of rows) {
+      const p = progressByProject.get(row.projectId);
+      row.progressPct = p?.progressPct ?? null;
+      row.progressMethod = p?.progressMethod ?? null;
+      row.progressWeight = progressContributionWeight(p);
+    }
   }
 
   rows.sort((a, b) => Number(a.resolved) - Number(b.resolved) || a.code.localeCompare(b.code));

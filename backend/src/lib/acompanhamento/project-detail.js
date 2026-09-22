@@ -20,9 +20,7 @@ import { getManualProjectCostsByProject } from './manual-costs.js';
 import { buildWorkedHoursProgress } from './project-cards.js';
 import {
   buildRequiredWeeklyProgress,
-  computeProgressHistoryForProjects,
-  computeProgressSlicesForProject,
-  computeProjectProgress,
+  computeProjectProgressDetails,
   isConfirmedReportParticipant,
   selectRealizedSourceReportData
 } from './avanco.js';
@@ -351,9 +349,15 @@ export function buildRecentReportDays(byDay, project, limit = 10) {
 
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
-  includeAdminOnlyCategories = true
+  includeAdminOnlyCategories = true,
+  progressDetails: preloadedProgressDetails = null,
+  plannedHoursByProject: preloadedPlannedHoursByProject = null
 } = {}) {
-  const rows = await listCommercialDashboard({ includeAdminOnlyCategories, projectIds: [projectId] });
+  const rows = await listCommercialDashboard({
+    includeAdminOnlyCategories,
+    projectIds: [projectId],
+    includeProgress: false
+  });
   const row = rows.find(r => r.projectId === projectId);
   if (!row) throw new Error('Projeto não encontrado no acompanhamento comercial.');
   const categoryWhere = await buildOmieCostCategoryWhere({
@@ -361,7 +365,6 @@ export async function getProjectDetail(projectId, {
   });
 
   const [
-    project,
     queriedReports,
     queriedCollaborators,
     costGroups,
@@ -371,14 +374,8 @@ export async function getProjectDetail(projectId, {
     stockCosts,
     manualCostsByProject,
     hoursByProject,
-    progressHistoryByProject,
-    projectProgress,
-    progressSlices
+    loadedProgressDetails
   ] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: projectId },
-      select: { clientSegment: true, mobilizationDate: true, workdayHours: true, weekendWorkdayHours: true, offshore: true, laborSleepModeByCollaborator: true }
-    }),
     prisma.report.findMany({
       where: { projectId, deletedAt: null },
       select: {
@@ -417,11 +414,15 @@ export async function getProjectDetail(projectId, {
     getEquipmentUsageByProject([projectId]),
     getStockConsumptionCostByProject([projectId]),
     getManualProjectCostsByProject([projectId], { includeEntries: true }),
-    loadPlannedHours([projectId]),
-    computeProgressHistoryForProjects([projectId]),
-    computeProjectProgress(projectId),
-    computeProgressSlicesForProject(projectId)
+    preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
+    preloadedProgressDetails ?? computeProjectProgressDetails(projectId)
   ]);
+  const {
+    project,
+    progress: projectProgress,
+    progressHistory,
+    progressSlices
+  } = loadedProgressDetails;
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
 
   // Mão de obra (HH) do ponto — mantido SEPARADO do gasto Omie (em validação, não somado).
@@ -619,7 +620,7 @@ export async function getProjectDetail(projectId, {
   );
 
   const expectedEndDate = row.startDate && plannedDays ? addCalendarDays(row.startDate, plannedDays) : null;
-  const avancoPct = row.progressPct ?? null;
+  const avancoPct = projectProgress.progressPct ?? null;
   const projectedEndByPace = (row.startDate && elapsedCorridos && elapsedCorridos > 0 && avancoPct && avancoPct > 0)
     ? addCalendarDays(row.startDate, elapsedCorridos * (100 / avancoPct))
     : null;
@@ -693,8 +694,8 @@ export async function getProjectDetail(projectId, {
     maioresGastos,
     manualCosts: manualCost.entries,
     avancoPct,
-    avancoMethod: row.progressMethod ?? null,
-    progressHistory: progressHistoryByProject.get(projectId) ?? [],
+    avancoMethod: projectProgress.progressMethod ?? null,
+    progressHistory,
     requiredWeeklyProgress,
     progressFilters,
     standby: { count: standbyCount, minutes: standbyMinutesTotal },

@@ -636,6 +636,98 @@ export async function computeProgressHistoryForProjects(projectIds) {
   return result;
 }
 
+// Carrega, em uma única rodada de consultas, todas as projeções usadas pelo detalhe de projeto.
+// Antes desta função o detalhe buscava escopo, projeto e serviços realizados separadamente para o
+// avanço atual, o histórico e os recortes. Em grupos de missões esse trabalho ainda era repetido
+// para calcular o peso de cada membro.
+export async function computeProgressDetailsForProjects(projectIds) {
+  const ids = [...new Set((projectIds ?? []).map(String).filter(Boolean))];
+  const result = new Map();
+  if (ids.length === 0) return result;
+
+  const [plannedServices, projects, servicesByProject, manualProgressHistory] = await Promise.all([
+    prisma.projectPlannedService.findMany({
+      where: { projectId: { in: ids } },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
+    }),
+    prisma.project.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        startDate: true,
+        manualProgressPct: true,
+        updatedAt: true,
+        clientSegment: true,
+        mobilizationDate: true,
+        workdayHours: true,
+        weekendWorkdayHours: true,
+        offshore: true,
+        laborSleepModeByCollaborator: true
+      }
+    }),
+    loadReportServicesByProject(ids),
+    prisma.projectManualProgressHistory.findMany({
+      where: { projectId: { in: ids } },
+      select: { projectId: true, progressPct: true, recordedAt: true },
+      orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }]
+    })
+  ]);
+
+  const plannedByProject = new Map();
+  for (const service of plannedServices) {
+    if (!plannedByProject.has(service.projectId)) plannedByProject.set(service.projectId, []);
+    plannedByProject.get(service.projectId).push(service);
+  }
+  const projectById = new Map(projects.map(project => [project.id, project]));
+  const manualHistoryByProject = new Map();
+  for (const item of manualProgressHistory) {
+    if (!manualHistoryByProject.has(item.projectId)) manualHistoryByProject.set(item.projectId, []);
+    manualHistoryByProject.get(item.projectId).push(item);
+  }
+
+  for (const projectId of ids) {
+    const project = projectById.get(projectId);
+    if (!project) continue;
+    const planned = plannedByProject.get(projectId) ?? [];
+    const serviceReports = servicesByProject.get(projectId) ?? [];
+    const timeline = buildProgressTimeline(planned, serviceReports);
+    const scope = planned.length > 0
+      ? buildProgress(planned, timeline.realizedByType)
+      : { hasScope: false, progressPct: null, services: [] };
+    const manual = project.manualProgressPct != null ? Number(project.manualProgressPct) : null;
+    const useManual = scope.progressPct == null && manual != null;
+    const progress = {
+      ...scope,
+      progressPct: scope.progressPct ?? (useManual ? manual : null),
+      progressMethod: scope.progressPct != null ? 'RDO' : (useManual ? 'MANUAL' : null)
+    };
+    const progressHistory = hasMeasurableScope(planned)
+      ? weeklyHistory(timeline.points, project.startDate)
+      : buildProgressHistory(planned, serviceReports, {
+          startDate: project.startDate,
+          manualProgressPct: project.manualProgressPct,
+          manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
+          currentDate: project.updatedAt ?? new Date()
+        });
+
+    result.set(projectId, {
+      project,
+      plannedServices: planned,
+      progress,
+      progressHistory,
+      progressSlices: buildProgressSlices(planned, serviceReports, { startDate: project.startDate })
+    });
+  }
+  return result;
+}
+
+export async function computeProjectProgressDetails(projectId) {
+  const details = (await computeProgressDetailsForProjects([projectId])).get(projectId);
+  if (!details) throw new Error('Projeto não encontrado.');
+  return details;
+}
+
 // Recortes de avanço (escopo e/ou Equipamento/UG do cliente) de um projeto; null quando não há o
 // que filtrar. O ritmo semanal é montado por quem conhece as datas do cronograma.
 export async function computeProgressSlicesForProject(projectId) {
