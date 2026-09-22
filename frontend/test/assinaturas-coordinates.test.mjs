@@ -50,6 +50,27 @@ test('fragmento é capturado, removido e nunca persistido', async () => {
   assert.equal(storage.size, 0);
 });
 
+test('novo fragmento pode substituir um convite já capturado na mesma aba', async () => {
+  const { captureInviteFromFragment } = await loadUtils();
+  const location = {
+    hash: `#convite=${'a'.repeat(64)}`,
+    pathname: '/assinaturas/assinar',
+    search: ''
+  };
+  const replacements = [];
+  const history = {
+    replaceState(_state, _title, url) {
+      replacements.push(url);
+      location.hash = '';
+    }
+  };
+
+  assert.equal(captureInviteFromFragment(location, history), 'a'.repeat(64));
+  location.hash = `#convite=${'b'.repeat(64)}`;
+  assert.equal(captureInviteFromFragment(location, history), 'b'.repeat(64));
+  assert.deepEqual(replacements, ['/assinaturas/assinar', '/assinaturas/assinar']);
+});
+
 test('token público fica fora de URL, storage e query key; polling não reenvia assinatura', async () => {
   const apiSource = await fs.readFile(new URL('../src/api/assinaturas.ts', import.meta.url), 'utf8');
   const hookSource = await fs.readFile(new URL('../src/hooks/useAssinaturas.ts', import.meta.url), 'utf8');
@@ -60,6 +81,9 @@ test('token público fica fora de URL, storage e query key; polling não reenvia
   assert.doesNotMatch(apiSource, /localStorage|sessionStorage/);
   assert.doesNotMatch(publicQueryKey, /token/);
   assert.match(hookSource, /refetchInterval: polling \? 2_000 : false/);
+  assert.match(hookSource, /\[token\]/);
   assert.equal((pageSource.match(/confirmPublicSignature\(/g) || []).length, 1);
+  assert.match(pageSource, /addEventListener\('hashchange', captureRenewedInvite\)/);
+  assert.match(pageSource, /setToken\(nextToken\)/);
   assert.match(pageSource, /setPolling\(result\.documentStatus === 'FINALIZANDO'\)/);
 });

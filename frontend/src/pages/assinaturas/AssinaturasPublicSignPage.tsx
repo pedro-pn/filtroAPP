@@ -12,7 +12,7 @@ import { formatSignatureDateTime } from './utils/datetime';
 import { SignatureDocumentPreview } from './components/SignatureDocumentPreview';
 
 export function AssinaturasPublicSignPage() {
-  const [token] = useState(() => captureInviteFromFragment(window.location, window.history));
+  const [token, setToken] = useState(() => captureInviteFromFragment(window.location, window.history));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -21,6 +21,23 @@ export function AssinaturasPublicSignPage() {
   const inviteQuery = usePublicSignatureInvite(token, polling);
 
   const loadPage = useCallback((page: number, signal: AbortSignal) => publicSignaturePage(token, page, signal), [token]);
+
+  useEffect(() => {
+    const captureRenewedInvite = () => {
+      const nextToken = captureInviteFromFragment(window.location, window.history);
+      if (!nextToken) return;
+
+      setToken(nextToken);
+      setDialogOpen(false);
+      setPrivacyAccepted(false);
+      setSubmitting(false);
+      setPolling(false);
+      setMessage('');
+    };
+
+    window.addEventListener('hashchange', captureRenewedInvite);
+    return () => window.removeEventListener('hashchange', captureRenewedInvite);
+  }, []);
 
   useEffect(() => {
     const status = inviteQuery.data?.document.status;
