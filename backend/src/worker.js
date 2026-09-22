@@ -2,6 +2,10 @@ import env from './config/env.js';
 import { startBackgroundJobs } from './jobs/background-jobs.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
 import prisma from './lib/prisma.js';
+// The reports module owns the approval processor implementation and registers it
+// during module initialization. The API loads it through the router tree; the
+// standalone worker must load it explicitly before starting the queue.
+import './routes/resources/reports.js';
 
 function reportProcessError(error, source) {
   captureOperationalError(error, {
@@ -29,5 +33,5 @@ async function shutdown(signal) {
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
-startBackgroundJobs();
+startBackgroundJobs({ keepAlive: true });
 console.log(`[worker] jobs iniciados em ${env.nodeEnv}`);

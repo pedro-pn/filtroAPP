@@ -22,6 +22,10 @@ export function configureReportApprovalPostProcessingProcessor(processor) {
   reportApprovalJobProcessor = processor;
 }
 
+export function isReportApprovalPostProcessingProcessorConfigured() {
+  return typeof reportApprovalJobProcessor === 'function';
+}
+
 function approvalJobRunnableWhere(staleCutoff) {
   return {
     OR: [
@@ -146,9 +150,15 @@ export function scheduleReportApprovalPostProcessing() {
   });
 }
 
-export function startReportApprovalPostProcessingJob({ intervalMs = REPORT_APPROVAL_JOB_INTERVAL_MS } = {}) {
+export function startReportApprovalPostProcessingJob({
+  intervalMs = REPORT_APPROVAL_JOB_INTERVAL_MS,
+  keepAlive = false
+} = {}) {
+  if (!isReportApprovalPostProcessingProcessorConfigured()) {
+    throw new Error('Report approval post-processing processor is not configured.');
+  }
   scheduleReportApprovalPostProcessing();
   const timer = setInterval(scheduleReportApprovalPostProcessing, intervalMs);
-  timer.unref?.();
+  if (!keepAlive) timer.unref?.();
   return timer;
 }

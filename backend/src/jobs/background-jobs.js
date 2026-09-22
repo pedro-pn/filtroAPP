@@ -13,7 +13,7 @@ import { startSignatureReminderJob } from '../lib/signature-reminders.js';
 import { startSurveyReminderJob } from '../lib/survey-reminders.js';
 import { startLegacyZapSignReconciliationJob } from '../lib/zapsign-legacy-reconciliation.js';
 
-export function startBackgroundJobs() {
+export function startBackgroundJobs({ keepAlive = false } = {}) {
   startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
   startSurveyReminderJob();
   startSignatureReminderJob();
@@ -23,7 +23,7 @@ export function startBackgroundJobs() {
   startLegacyZapSignReconciliationJob();
   startOmieSyncJob();
   startPontoMaisSyncJob();
-  startReportApprovalPostProcessingJob();
+  startReportApprovalPostProcessingJob({ keepAlive });
   startAssinaturasJobs();
   startOperationalAlertJob();
   syncRomaneioCatalog().catch(error => {
