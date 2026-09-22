@@ -13,7 +13,7 @@ import type {
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { DateInput } from '../../../components/ui/DateInput';
-import { displayDateOnly } from '../../../utils/calendarGrid';
+import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedule';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
@@ -156,7 +156,11 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
   };
   const chooseContact = (made: boolean) => {
     setContactMade(made);
-    if (made) return;
+    if (made) {
+      // A data não é escolhida à parte: o próprio registro do contato já a captura.
+      if (!contactDate) setContactDate(todayDateOnly());
+      return;
+    }
     setContactName('');
     setContactCountry(DEFAULT_PHONE_COUNTRY);
     setContactPhone('');
@@ -212,7 +216,7 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
       data-project-workflow-initial-analysis
     >
       <div className="project-workflow-analysis-dates">
-        <div className="field-group"><label htmlFor="analysis-commercial-mobilization-date">Mobilização estimada</label><input id="analysis-commercial-mobilization-date" type="date" value={workflow.commercialExpectedMobilizationDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedMobilizationDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
+        {workflow.executedAtHeadquarters ? null : <div className="field-group"><label htmlFor="analysis-commercial-mobilization-date">Mobilização estimada</label><input id="analysis-commercial-mobilization-date" type="date" value={workflow.commercialExpectedMobilizationDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedMobilizationDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>}
         <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><input id="analysis-commercial-start-date" type="date" value={workflow.commercialExpectedStartDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedStartDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
         <div className="field-group"><label htmlFor="analysis-execution-start-date">Início da execução previsto</label><DateInput id="analysis-execution-start-date" value={schedule.executionStartDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => saveSchedule(value, schedule.executionEndDate)} /><small>{scheduleHint(schedule.executionStartSource)}</small></div>
         <div className="field-group"><label htmlFor="analysis-execution-end-date">Fim da execução previsto</label><DateInput id="analysis-execution-end-date" min={schedule.executionStartDate || undefined} value={schedule.executionEndDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => saveSchedule(schedule.executionStartDate, value)} /><small>{scheduleHint(schedule.executionEndSource)}</small></div>
@@ -222,9 +226,9 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
         {contactMade === true ? <div className="project-workflow-analysis-contact-fields">
           <div className="field-group"><label htmlFor="analysis-client-contact-name">Nome do contato *</label><input id="analysis-client-contact-name" value={contactName} maxLength={160} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactName(event.target.value)} onBlur={() => saveContact()} /></div>
           <div className="field-group project-workflow-phone-field"><label htmlFor="analysis-client-contact-phone">Telefone do contato *</label><div className="project-workflow-phone-control"><div className="project-workflow-country-picker"><button ref={countryTriggerRef} type="button" className="project-workflow-country-trigger" aria-label={`País do telefone: ${contactCountry.name}`} aria-expanded={countryListOpen} aria-haspopup="listbox" disabled={saving || !workflow.permissions.canEdit} onClick={toggleCountryList} onKeyDown={handleCountryKeyDown}><span aria-hidden="true">{phoneCountryFlag(contactCountry.iso)}</span><span>+{contactCountry.callingCode}</span><span aria-hidden="true">▾</span></button>{countryListOpen ? <div ref={countryListRef} className="project-workflow-country-list" role="listbox" aria-label="País do telefone" style={{ top: countryListPosition.top, left: countryListPosition.left, width: countryListPosition.width }}>{PHONE_COUNTRIES.map(country => <button id={`analysis-phone-country-${country.iso}`} type="button" role="option" aria-selected={country.iso === contactCountry.iso} className="project-workflow-country-option" key={`${country.iso}-${country.callingCode}`} onClick={() => { setContactCountry(country); setCountryListOpen(false); saveContact(contactName, contactPhone, country); }}><span aria-hidden="true">{phoneCountryFlag(country.iso)}</span><span>{country.name}</span><span>+{country.callingCode}</span></button>)}</div> : null}</div><input id="analysis-client-contact-phone" type="tel" inputMode="tel" value={contactPhone} placeholder={contactCountry.iso === 'BR' ? 'DDD 00000-0000' : 'Número de telefone'} maxLength={contactCountry.iso === 'BR' ? 13 : 30} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactPhone(formatPhoneLocal(contactCountry, event.target.value))} onBlur={() => saveContact()} /></div></div>
-          <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><DateInput id="analysis-client-contact-date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onCommit={value => { setContactDate(value); saveContact(contactName, contactPhone, contactCountry, value); }} /></div>
+          <div className="field-group"><span className="field-hint">Data do contato: {contactDate ? displayDateOnly(contactDate) : 'capturada automaticamente ao registrar'}</span></div>
         </div> : null}
-        {contactMade === true && (!contactName.trim() || !phoneDigits(contactPhone) || !contactDate) ? <small>Preencha nome, telefone e data para registrar o contato.</small> : null}
+        {contactMade === true && (!contactName.trim() || !phoneDigits(contactPhone)) ? <small>Preencha nome e telefone para registrar o contato.</small> : null}
       </article>
     </ProjectWorkflowCategory>
   );

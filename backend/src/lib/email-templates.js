@@ -139,10 +139,12 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
   clientName,
   stageLabel,
   plannedMobilizationDate,
+  headquarters = false,
   milestones = [],
   criticalIssues = [],
   appUrl
 }) {
+  const dateLabel = headquarters ? 'Início da execução previsto' : 'Mobilização prevista';
   const safeRecipientName = escapeHtml(recipientName || 'responsável');
   const safeProjectCode = escapeHtml(projectCode);
   const safeProjectName = escapeHtml(projectName);
@@ -164,7 +166,7 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
         <div><strong>Cliente:</strong> ${safeClientName}</div>
         <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
         <div><strong>Etapa atual:</strong> ${safeStageLabel}</div>
-        <div><strong>Mobilização prevista:</strong> ${safeMobilizationDate}</div>
+        <div><strong>${dateLabel}:</strong> ${safeMobilizationDate}</div>
       </div>
     </div>
     <div style="margin-top:16px">
@@ -184,7 +186,7 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
       `O projeto ${projectCode} - ${projectName} atingiu: ${milestoneSummary}.`,
       `Cliente: ${clientName}`,
       `Etapa atual: ${stageLabel}`,
-      `Mobilização prevista: ${formatEmailDate(plannedMobilizationDate)}`,
+      `${dateLabel}: ${formatEmailDate(plannedMobilizationDate)}`,
       '',
       ...milestones.map(item => `${item.label}: ${item.description}`),
       ...(criticalIssues.length ? ['', 'Pendências críticas:', ...criticalIssues.map(issue => `- ${issue}`)] : []),
@@ -1372,6 +1374,49 @@ export function buildSurveyExpiredEmailTemplate({ clientName, projectCode, proje
       `Expirada em: ${expiresAt}`,
       appUrl ? `Acesso: ${appUrl}` : '',
       privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildProjectWorkflowClientRegistrationEmailTemplate({
+  projectCode,
+  projectName,
+  clientName,
+  leaderName,
+  appUrl
+}) {
+  const safeProjectCode = escapeHtml(projectCode);
+  const safeProjectName = escapeHtml(projectName);
+  const safeClientName = escapeHtml(clientName);
+  const safeLeaderName = escapeHtml(leaderName);
+  const safeAppUrl = escapeHtml(appUrl);
+  const title = 'Cadastro de cliente solicitado';
+  const intro = `O Líder de Projetos ${safeLeaderName || ''} confirmou, na Análise inicial do projeto ${safeProjectCode} - ${safeProjectName}, que é necessário providenciar o cadastro da Filtrovali junto ao cliente.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${safeClientName}</div>
+        <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
+        <div><strong>Líder de Projetos:</strong> ${safeLeaderName || 'Não informado'}</div>
+      </div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Providencie o cadastro e marque "Concluído" na Análise inicial do projeto quando finalizado.</p>
+    ${safeAppUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0"><a href="${safeAppUrl}" style="display:inline-block;background:#30503a;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">Abrir gestão do projeto</a></p>` : ''}
+  `;
+  const footer = 'Aviso automático da Gestão de Projetos Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Cadastro de cliente · ${projectCode} - ${projectName}`,
+    text: [
+      `O Líder de Projetos ${leaderName || ''} confirmou, na Análise inicial do projeto ${projectCode} - ${projectName}, que é necessário providenciar o cadastro da Filtrovali junto ao cliente.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Líder de Projetos: ${leaderName || 'Não informado'}`,
+      '',
+      'Providencie o cadastro e marque "Concluído" na Análise inicial do projeto quando finalizado.',
+      appUrl ? `Abrir projeto: ${appUrl}` : ''
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };

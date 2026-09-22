@@ -125,9 +125,8 @@ function workflowWithPreparationData(workflow, mission = null) {
   return { ...workflow, teamPreparation, clientReleases, preparationResources };
 }
 
-function authorizationInstruction(status) {
-  if (status === 'SUSPENDED') return 'Autorização suspensa: revalidar a mobilização na Gestão de Projetos';
-  return 'Autorização não emitida: autorizar a mobilização na Gestão de Projetos';
+function authorizationInstruction() {
+  return 'Projeto não autorizado: resolva os bloqueios do gate de mobilização na Gestão de Projetos';
 }
 
 export function projectOperationalMobilizationDecisionFromWorkflow(workflow, projectId = workflow?.projectId, mission = null) {

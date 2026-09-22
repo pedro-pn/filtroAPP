@@ -9,7 +9,9 @@ import {
 import { bumpPlanRevision } from './plan-context.js';
 
 const WORKFLOW_TO_MISSION_STAGE = {
-  READY_TO_MOBILIZE: 'STANDBY',
+  // Sem "Pronto para mobilizar": voltar para a Preparação (de qualquer etapa operacional) devolve a missão a
+  // Stand by, exatamente como a antiga etapa fazia.
+  PREPARATION: 'STANDBY',
   MOBILIZATION: 'MOBILIZATION',
   EXECUTION: 'EXECUTION',
   DEMOBILIZATION: 'FINAL_MEASUREMENT',

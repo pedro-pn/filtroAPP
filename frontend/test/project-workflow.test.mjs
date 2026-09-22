@@ -14,11 +14,12 @@ import {
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
 
-test('equipe inicial pertence à preparação e ciclos ficam disponíveis somente em execução', () => {
+test('equipe inicial pertence à preparação e continua disponível até a mobilização; ciclos só em execução', () => {
   assert.equal(canDefineInitialProjectTeam('MOBILIZATION_PLANNING'), false);
   assert.equal(canDefineInitialProjectTeam('PREPARATION'), true);
-  assert.equal(canDefineInitialProjectTeam('READY_TO_MOBILIZE'), true);
-  assert.equal(canDefineInitialProjectTeam('MOBILIZATION'), false);
+  // Sem "Pronto para mobilizar": a definição da equipe inicial continua disponível até a Mobilização.
+  assert.equal(canDefineInitialProjectTeam('MOBILIZATION'), true);
+  assert.equal(canDefineInitialProjectTeam('EXECUTION'), false);
   assert.equal(canManageProjectTeamCycles('MOBILIZATION'), false);
   assert.equal(canManageProjectTeamCycles('EXECUTION'), true);
   assert.equal(canManageProjectTeamCycles('DEMOBILIZATION'), false);
@@ -56,9 +57,9 @@ test('movimentação otimista mantém snapshot para restaurar um card bloqueado'
 test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('INITIAL_ANALYSIS'), ['WAITING_PLANNING', 'MOBILIZATION_PLANNING']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION_PLANNING'), ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION']);
-  assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE']);
-  assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'MOBILIZATION']);
-  assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['READY_TO_MOBILIZE', 'EXECUTION']);
+  // Sem "Pronto para mobilizar": a Preparação vai direto para a Mobilização.
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'MOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['PREPARATION', 'EXECUTION']);
   assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
   assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION', 'POST_JOB']);
   assert.deepEqual(projectWorkflowStageOptions('POST_JOB'), ['DEMOBILIZATION', 'FINAL_MEASUREMENT']);
@@ -189,14 +190,13 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(schema, /Material separado/);
   assert.match(panel, /Disponível em estoque/);
   assert.match(panel, /preparation_item_check/);
-  assert.match(panel, /workflow-pre-job-scheduled-date/);
-  assert.match(panel, /workflow-pre-job-completed-date/);
+  assert.match(panel, /Agendado\{workflow\.preJob\.scheduledDate/);
+  assert.match(panel, /Realizado\{workflow\.preJob\.completedDate/);
   assert.match(panel, /Hospedagem solicitada/);
   assert.match(panel, /Hospedagem confirmada/);
   assert.match(panel, /Transporte da equipe definido/);
   assert.match(panel, /Frete/);
-  assert.match(panel, /Próprio/);
-  assert.match(panel, /Terceiro/);
+  assert.match(panel, /TransportVehicleSelector/);
   assert.match(panel, /Foi verificado\?/);
   assert.match(panel, /O que foi verificado\?/);
   assert.match(panel, /action: 'qsms'/);
@@ -227,7 +227,7 @@ test('diálogo de planejamento separa as etapas em abas com resumo fixo e flags 
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(modal, /project-workflow-fixed-top/);
   assert.match(modal, /role="tablist" aria-label="Etapas do planejamento"/);
-  assert.match(modal, /WORKFLOW_STAGES\.map\(stage =>/);
+  assert.match(modal, /visibleStages\.map\(stage =>/);
   assert.match(modal, /role="tabpanel"/);
   assert.match(modal, /project-workflow-stage-flag/);
   assert.match(modal, /workflowStagePendingItems/);
@@ -261,7 +261,7 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.doesNotMatch(intake, /Data da solicitação|Data da confirmação/);
   assert.match(intake, /Solicitado\{item\.requestedAt \? ` em \$\{displayDateOnly\(item\.requestedAt\)\}` : ''\}/);
   assert.match(intake, /disabled=\{saving \|\| !canEdit \|\| item\.status === 'PENDING'\}/);
-  assert.match(intake, /<DateInput id="analysis-client-contact-date"/);
+  assert.match(intake, /Data do contato: \{contactDate/);
   assert.match(intake, /Histórico/);
   assert.match(intake, /\{category\.description\}/);
   assert.match(intake, /documentation_requirement_update/);
@@ -323,10 +323,10 @@ test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(modal, /ProjectWorkflowTeamPlanningCard/);
   assert.match(modal, /ProjectWorkflowEquipmentPlanningCard/);
-  assert.match(planning, /A equipe necessária para esta obra já foi definida/);
+  assert.match(planning, /Esta obra vai precisar de equipe própria/);
   assert.match(planning, /Necessidade de contratação/);
   assert.match(planning, /Confirmar equipe/);
-  assert.match(planning, /Os equipamentos necessários para esta obra já foram definidos/);
+  assert.match(planning, /Esta obra vai precisar de equipamentos/);
   assert.match(planning, /Categorias e equipamentos necessários/);
   assert.match(planning, /toggleEquipment/);
   assert.match(planning, /equipmentIds/);
@@ -394,12 +394,10 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(modal, /data-project-workflow-d15/);
   assert.match(modal, /data-project-workflow-gate/);
-  assert.match(modal, /Autorizar mobilização/);
-  assert.match(modal, /Revalidar autorização/);
   assert.match(board, /Risco de mobilização/);
   assert.match(board, /Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(12, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
@@ -463,7 +461,7 @@ test('campos de data com salvamento automático só confirmam datas completas e 
   assert.match(dateInput, /validity\.badInput/);
   assert.match(dateInput, /onCommit/);
   assert.match(efetivoPage, /<DateInput id="efetivo-position-date"/);
-  assert.match(preparation, /<DateInput\s+id="workflow-pre-job-scheduled-date"/);
+  assert.match(preparation, /Agendado\{workflow\.preJob\.scheduledDate/);
   assert.match(preparation, /<DateInput id="workflow-freight-departure-date"/);
   const settings = modal.slice(modal.indexOf('function WorkflowSettingsForm('), modal.indexOf('function DemobilizationDatesForm('));
   assert.match(settings, /<ProjectWorkflowCategory[\s\S]*title="Responsáveis e cronograma"/);
@@ -484,4 +482,78 @@ test('incompatibilidades de recursos aparecem no planejamento e na preparação,
   assert.match(planning, /ProjectWorkflowResourceConflicts/);
   const preparation = modal.slice(modal.indexOf('const renderPreparation = () =>'), modal.indexOf('const renderPostJob = () =>'));
   assert.match(preparation, /ProjectWorkflowResourceConflicts/);
+});
+
+test('Sede pula as etapas de mobilização nas opções de etapa e conta o prazo pelo início da execução', () => {
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION', true), ['MOBILIZATION_PLANNING', 'EXECUTION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION', true), ['PREPARATION', 'POST_JOB']);
+  assert.deepEqual(projectWorkflowStageOptions('POST_JOB', true), ['EXECUTION', 'FINAL_MEASUREMENT']);
+  // sem resposta ou em campo, nada muda
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION', false), ['MOBILIZATION_PLANNING', 'MOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
+  const sede = days => ({ workflow: { executedAtHeadquarters: true, milestones: { daysUntilMobilization: days } } });
+  assert.equal(projectWorkflowMilestoneText(sede(20)), 'Faltam 20 dia(s) para iniciar a execução');
+  assert.equal(projectWorkflowMilestoneText(sede(0)), 'Início da execução previsto para hoje');
+  assert.equal(projectWorkflowMilestoneText(sede(-3)), 'Início da execução atrasado há 3 dia(s)');
+  assert.equal(projectWorkflowMilestoneText(sede(null)), 'Início da execução ainda não informado');
+});
+
+test('cadastro no cliente: "Sim" só pré-preenche o e-mail, "Solicitar cadastro" que envia para o que estiver no campo, e "Concluído" usa botão (não checkbox)', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /function ClientRegistrationCriticalItem/);
+  assert.match(modal, /item\.key === 'CLIENT_REGISTRATION'/);
+  assert.match(modal, /workflow\.clientReleases\.customerRegistration/);
+  // botão explícito que envia para o que estiver no campo (padrão pré-preenchido ou digitado na hora)
+  assert.match(modal, />Solicitar cadastro</);
+  assert.match(modal, /notificationEmail: trimmedEmail/);
+  assert.match(modal, /Usar este e-mail como padrão para os próximos projetos\?/);
+  assert.match(modal, /sendRequest\(true\)/);
+  assert.match(modal, /sendRequest\(false\)/);
+  assert.match(modal, /\{ makeDefaultEmail \}/);
+  assert.doesNotMatch(modal, /Para quem foi solicitado/);
+  assert.match(schema, /notificationEmail: z\.string\(\)\.trim\(\)\.email/);
+  assert.match(schema, /makeDefaultEmail: z\.boolean\(\)\.optional\(\)/);
+  assert.match(styles, /project-workflow-client-registration-fields/);
+  // solicitado sem e-mail configurado não falha silenciosamente: avisa na tela
+  assert.match(modal, /release\.requested && !release\.email/);
+  assert.match(modal, /Nenhum e-mail de aviso configurado/);
+  // "Concluído" é um Button com preenchimento sólido quando ativo (mesmo padrão do botão "Fazer correção"), não um checkbox com moldura
+  const registrationComponent = modal.slice(modal.indexOf('function ClientRegistrationCriticalItem'), modal.indexOf('function IssueEditor'));
+  assert.match(registrationComponent, /project-workflow-registration-complete-button\$\{release\.completed \? ' is-active' : ''\}/);
+  assert.doesNotMatch(registrationComponent, /type="checkbox"/);
+  // antes de clicar não mostra o ícone de check nem usa cor de destaque (evita parecer já concluído)
+  assert.match(registrationComponent, /\{release\.completed \? <ProjectWorkflowIcon name="check" \/> : null\}/);
+  assert.match(styles, /project-workflow-registration-complete-button \{ background: var\(--pw-surface/);
+  assert.match(styles, /project-workflow-registration-complete-button\.is-active/);
+});
+
+test('transporte da equipe e frete usam o mesmo seletor de veículo (Nosso/Locação/Frete + tipo + quantidade)', () => {
+  const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  assert.match(panel, /function TransportVehicleSelector/);
+  // as duas seções (equipe e frete) reaproveitam o mesmo componente, sem se fundir numa só
+  const teamSection = panel.slice(panel.indexOf('Transporte da equipe definido'), panel.indexOf("<article className=\"project-workflow-client-release\">\n          <header><strong>Frete"));
+  assert.match(teamSection, /idPrefix="workflow-team-transport"/);
+  const freightSection = panel.slice(panel.indexOf('<header><strong>Frete'));
+  assert.match(freightSection, /idPrefix="workflow-freight"/);
+  assert.match(panel, /Quantos vão/);
+  assert.doesNotMatch(panel, /teamTransportDescription|freightType/);
+  assert.match(schema, /PROJECT_WORKFLOW_TRANSPORT_MODES = \['OWN', 'RENTAL', 'THIRD_PARTY'\]/);
+  assert.match(schema, /CARRETA.*TRUCK.*MUNCK.*TOCO/s);
+  assert.match(schema, /PICKUP.*HR.*VW10180.*PASSENGER/s);
+});
+
+test('administração ganha a aba de e-mails de aviso por finalidade', () => {
+  const page = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../src/api/efetivoPlanning.ts', import.meta.url), 'utf8');
+  const purposes = fs.readFileSync(new URL('../../shared/schemas/notification-email-settings.js', import.meta.url), 'utf8');
+  assert.match(page, /'regras', 'feriados', 'notificacoes', 'atividade'/);
+  assert.match(board, /tab === 'notificacoes'/);
+  assert.match(board, /listNotificationEmailSettings/);
+  assert.match(board, /updateNotificationEmailSetting/);
+  assert.match(api, /admin\/notification-emails/);
+  assert.match(purposes, /PROJECT_WORKFLOW_CLIENT_REGISTRATION/);
 });

@@ -4,8 +4,14 @@ import {
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS,
+  PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CRITICAL_QUESTIONS,
+  PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_DOCUMENTATION_TYPES,
+  PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_TEAM_CHECKS,
+  PROJECT_WORKFLOW_HEADQUARTERS_OPTIONAL_SECTIONS,
   PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
-  PROJECT_WORKFLOW_STAGES
+  PROJECT_WORKFLOW_STAGES,
+  isHeadquartersWorkflow,
+  projectWorkflowStageTransitions
 } from '../../../../../shared/schemas/project-workflow.js';
 import { isResourceConflictIssue } from './resource-conflicts.js';
 
@@ -109,7 +115,8 @@ export function activeProjectWorkflowIssues(workflow) {
 
 export function normalizeProjectWorkflowDocumentation(workflow) {
   const byType = new Map((workflow?.documentationCategories || []).map(item => [item.type, item]));
-  return PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS.map(definition => {
+  const hiddenTypes = isHeadquartersWorkflow(workflow) ? PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_DOCUMENTATION_TYPES : [];
+  return PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS.filter(definition => !hiddenTypes.includes(definition.type)).map(definition => {
     const category = byType.get(definition.type);
     return {
       id: null,
@@ -157,7 +164,8 @@ function teamMemberProgress(workflow, keys, { requireTeam = true } = {}) {
         }
       : { completed: 0, total: 0, percentage: 0, blockers: [] };
   }
-  const requestedKeys = new Set(keys);
+  const hiddenKeys = isHeadquartersWorkflow(workflow) ? PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_TEAM_CHECKS : [];
+  const requestedKeys = new Set(keys.filter(key => !hiddenKeys.includes(key)));
   const entries = members.flatMap(member => (member.checks || [])
     .filter(check => requestedKeys.has(check.key))
     .map(check => ({ member, check })));
@@ -201,9 +209,26 @@ function preparationItems(workflow, itemType) {
   }));
 }
 
+// Na Sede a seção continua visível, mas deixa de bloquear o avanço e de compor o progresso geral.
+function optionalInHeadquarters(workflow, progress) {
+  return isHeadquartersWorkflow(workflow) ? { ...progress, blockers: [], optional: true } : progress;
+}
+
+function sumRequired(sections) {
+  const required = sections.filter(section => !section.optional);
+  const completed = required.reduce((sum, section) => sum + section.completed, 0);
+  const total = required.reduce((sum, section) => sum + section.total, 0);
+  return { completed, total };
+}
+
 function preparationItemProgress(workflow, itemType) {
   const items = preparationItems(workflow, itemType);
   const sectionLabel = itemType === 'EQUIPMENT' ? 'Equipamentos reservados' : 'Materiais programados';
+  // O planejamento D-30 já pode ter respondido "não é necessário" — não vira bloqueio aqui também.
+  const notNeeded = itemType === 'EQUIPMENT' ? workflow?.equipmentPlanDefined === false : workflow?.supplyPlanDefined === false;
+  if (!items.length && (isHeadquartersWorkflow(workflow) || notNeeded)) {
+    return { completed: 0, total: 0, percentage: 0, blockers: [], optional: true };
+  }
   if (!items.length) {
     return {
       completed: 0,
@@ -219,18 +244,19 @@ function preparationItemProgress(workflow, itemType) {
     label: item.code ? `${item.code} · ${item.name}` : item.name,
     reason: `${check.label} pendente`
   }));
-  return {
+  return optionalInHeadquarters(workflow, {
     completed,
     total: entries.length,
     percentage: entries.length ? Math.round((completed / entries.length) * 100) : 0,
     blockers
-  };
+  });
 }
 
 function clientReleaseProgress(workflow) {
   const attendance = workflow?.clientReleases?.attendance || {};
   const providedItems = new Map((workflow?.clientReleases?.items || []).map(item => [item.key, item]));
-  const items = PROJECT_WORKFLOW_CLIENT_RELEASES.map(definition => ({
+  // Na Sede não há cadastro, envio de documentação nem integração no cliente: fica só a confirmação do atendimento.
+  const items = (isHeadquartersWorkflow(workflow) ? [] : PROJECT_WORKFLOW_CLIENT_RELEASES).map(definition => ({
     ...definition,
     requested: false,
     requestedAt: null,
@@ -296,18 +322,14 @@ function qsmsProgress(workflow) {
   const verified = typeof qsms.verified === 'boolean'
     ? qsms.verified
     : typeof workflow?.qsmsVerified === 'boolean' ? workflow.qsmsVerified : null;
-  const verificationNote = typeof qsms.verificationNote === 'string'
-    ? qsms.verificationNote.trim()
-    : typeof workflow?.qsmsVerificationNote === 'string' ? workflow.qsmsVerificationNote.trim() : '';
+  // O registro do que foi verificado é opcional: marcar como verificado já basta para liberar a frente.
   let blocker = null;
   if (verified === null) {
     blocker = { key: 'QSMS_VERIFIED', label: 'QSMS', reason: 'Informar se o QSMS foi verificado' };
   } else if (!verified) {
     blocker = { key: 'QSMS_VERIFIED', label: 'QSMS', reason: 'Realizar a verificação de QSMS' };
-  } else if (!verificationNote) {
-    blocker = { key: 'QSMS_VERIFICATION_NOTE', label: 'QSMS', reason: 'Registrar o que foi verificado' };
   }
-  return {
+  const progress = optionalInHeadquarters(workflow, {
     key: 'QSMS',
     label: 'QSMS',
     status: blocker ? 'BLOCKED' : 'READY',
@@ -315,7 +337,8 @@ function qsmsProgress(workflow) {
     total: 1,
     percentage: blocker ? 0 : 100,
     blockers: blocker ? [blocker] : []
-  };
+  });
+  return { ...progress, status: progress.blockers.length ? 'BLOCKED' : 'READY' };
 }
 
 function travelProgress(workflow) {
@@ -324,7 +347,8 @@ function travelProgress(workflow) {
     : workflow?.travelPlan && typeof workflow.travelPlan === 'object' && !Array.isArray(workflow.travelPlan)
       ? workflow.travelPlan
       : {};
-  const lodgingRequired = workflow?.logisticsPlan?.lodgingRequired !== false;
+  // Na Sede não há hospedagem.
+  const lodgingRequired = !isHeadquartersWorkflow(workflow) && workflow?.logisticsPlan?.lodgingRequired !== false;
   const freightRequired = workflow?.logisticsPlan?.freightRequired !== false;
   const lodgingBlockers = [];
   let lodgingCompleted = 0;
@@ -345,8 +369,12 @@ function travelProgress(workflow) {
 
   const logisticsBlockers = [];
   let logisticsCompleted = 0;
+  // Modo "Locação de carro" não tem tipo de veículo (só a quantidade); "Nosso"/"Frete" exigem o tipo escolhido.
+  const transportModeComplete = (mode, vehicleType, quantity) => Boolean(
+    mode && (mode === 'RENTAL' || vehicleType) && Number.isInteger(quantity) && quantity >= 1
+  );
   const transportComplete = travel.teamTransportDefined === true
-    && Boolean(travel.teamTransportDescription?.trim());
+    && transportModeComplete(travel.teamTransportMode, travel.teamTransportVehicleType, travel.teamTransportQuantity);
   if (transportComplete) logisticsCompleted += 1;
   else logisticsBlockers.push({
     key: 'TRAVEL_TEAM_TRANSPORT',
@@ -355,11 +383,12 @@ function travelProgress(workflow) {
       ? 'Definir Sim ou Não'
       : travel.teamTransportDefined === false
         ? 'Definir o transporte da equipe'
-        : 'Descrever o transporte definido'
+        : 'Selecionar o veículo e a quantidade'
   });
   if (freightRequired) {
     const freightComplete = travel.freightDefined === true && Boolean(
-      travel.freightType && travel.freightDepartureDate && travel.freightDepartureTime
+      transportModeComplete(travel.freightMode, travel.freightVehicleType, travel.freightQuantity)
+      && travel.freightDepartureDate && travel.freightDepartureTime
     );
     if (freightComplete) logisticsCompleted += 1;
     else logisticsBlockers.push({
@@ -367,16 +396,17 @@ function travelProgress(workflow) {
       label: 'Frete',
       reason: travel.freightDefined !== true
         ? 'Definir o frete'
-        : 'Informar tipo, data e horário de saída'
+        : 'Selecionar o veículo, a quantidade, a data e o horário de saída'
     });
   }
   const logistics = {
     key: 'LOGISTICS',
     label: 'Logística',
-    status: logisticsBlockers.length ? 'BLOCKED' : 'READY',
+    status: isHeadquartersWorkflow(workflow) || !logisticsBlockers.length ? 'READY' : 'BLOCKED',
     completed: logisticsCompleted,
     total: freightRequired ? 2 : 1,
-    blockers: logisticsBlockers
+    blockers: isHeadquartersWorkflow(workflow) ? [] : logisticsBlockers,
+    ...(isHeadquartersWorkflow(workflow) ? { optional: true } : {})
   };
   const completed = lodging.completed + logistics.completed;
   const total = lodging.total + logistics.total;
@@ -386,7 +416,8 @@ function travelProgress(workflow) {
     percentage: total ? Math.round((completed / total) * 100) : 100,
     blockers: [...lodging.blockers, ...logistics.blockers],
     lodging,
-    logistics
+    logistics,
+    ...(isHeadquartersWorkflow(workflow) ? { optional: true } : {})
   };
 }
 
@@ -439,25 +470,32 @@ export function projectWorkflowPlanningReadiness(workflow) {
   const logistics = workflow?.logisticsPlan && typeof workflow.logisticsPlan === 'object' && !Array.isArray(workflow.logisticsPlan)
     ? workflow.logisticsPlan
     : {};
+  const headquarters = isHeadquartersWorkflow(workflow);
   const logisticsComplete = typeof logistics.vehicleRequired === 'boolean'
     && typeof logistics.freightRequired === 'boolean'
-    && typeof logistics.lodgingRequired === 'boolean'
+    && (headquarters || typeof logistics.lodgingRequired === 'boolean')
     && (logistics.vehicleRequired === false || (Number(logistics.vehicleQuantity) > 0 && ['CARRO', 'CAMINHAO'].includes(logistics.vehicleType)))
-    && (logistics.lodgingRequired === false || (
+    && (headquarters || logistics.lodgingRequired === false || (
       Number(logistics.lodgingPeopleCount) > 0
       && Boolean(logistics.lodgingExpectedDate)
       && typeof logistics.lodgingRequested === 'boolean'
       && (logistics.lodgingRequested === false || Boolean(logistics.lodgingRequestedAt))
     ));
+  // "Não é necessário" (defined === false) é uma resposta completa, igual a "Sim" com itens definidos.
   const structuredSections = [
-    { key: 'D30_TEAM', complete: workflow?.teamPlanDefined === true && (workflow?.teamDemands || []).length > 0 },
-    { key: 'D30_EQUIPMENT', complete: workflow?.equipmentPlanDefined === true && (workflow?.equipmentCategoryPlans || []).length > 0 },
-    { key: 'D30_MATERIALS', complete: workflow?.supplyPlanDefined === true && supplyPlan.length > 0 },
+    { key: 'D30_TEAM', complete: workflow?.teamPlanDefined === false || (workflow?.teamPlanDefined === true && (workflow?.teamDemands || []).length > 0) },
+    { key: 'D30_EQUIPMENT', complete: workflow?.equipmentPlanDefined === false || (workflow?.equipmentPlanDefined === true && (workflow?.equipmentCategoryPlans || []).length > 0) },
+    { key: 'D30_MATERIALS', complete: workflow?.supplyPlanDefined === false || (workflow?.supplyPlanDefined === true && supplyPlan.length > 0) },
     { key: 'D30_LOGISTICS', complete: logisticsComplete }
-  ].map(item => ({ key: item.key, completed: item.complete ? 1 : 0, total: 1, percentage: item.complete ? 100 : 0 }));
+  ].map(item => ({
+    key: item.key,
+    completed: item.complete ? 1 : 0,
+    total: 1,
+    percentage: item.complete ? 100 : 0,
+    ...(headquarters && PROJECT_WORKFLOW_HEADQUARTERS_OPTIONAL_SECTIONS.includes(item.key) ? { optional: true } : {})
+  }));
   const sections = structuredSections;
-  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
-  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  const { completed, total } = sumRequired(sections);
   return {
     completed,
     total,
@@ -477,7 +515,7 @@ export function projectWorkflowPreparationReadiness(workflow) {
     if (key === 'D15_QSMS') return { ...qsmsProgress(workflow), key };
     if (key === 'D15_TRAVEL') {
       const travel = travelProgress(workflow);
-      return { key, completed: travel.completed, total: travel.total, percentage: travel.percentage };
+      return { key, completed: travel.completed, total: travel.total, percentage: travel.percentage, ...(travel.optional ? { optional: true } : {}) };
     }
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
@@ -488,8 +526,7 @@ export function projectWorkflowPreparationReadiness(workflow) {
   sections.push(countedSection('D15_DOCUMENTATION', documentation.completed + requiredDocuments.readyCount, documentation.total + requiredDocuments.totalCount));
   const criticalIssues = activeProjectWorkflowIssues(workflow).filter(issue => issue.criticality === 'HIGH');
   sections.push(countedSection('D15_CRITICAL_ISSUES', criticalIssues.filter(issue => issue.status === 'RESOLVED').length, criticalIssues.length));
-  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
-  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  const { completed, total } = sumRequired(sections);
   return {
     completed,
     total,
@@ -686,22 +723,22 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
   return { ready, fronts, preJob, blockers, deadlineStatus };
 }
 
+// Sem "Pronto para mobilizar" não há mais autorização manual a emitir ou revalidar: a partir da Mobilização
+// (ou da Execução, na Sede), com o gate limpo, o projeto está liberado — reavaliado a cada consulta, nunca um
+// flag fixo que possa ficar "suspenso".
 export function projectWorkflowMobilizationAuthorization(workflow, gate) {
-  const authorizedAt = workflow?.mobilizationAuthorizedAt || null;
-  const authorizedVersion = workflow?.mobilizationAuthorizationVersion ?? null;
-  const currentVersion = workflow?.version ?? null;
-  const authorized = Boolean(
-    authorizedAt
-    && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow?.stage)
-    && gate?.ready
-    && authorizedVersion === currentVersion
-  );
+  // A Desmobilização fica de fora: ela encerra a autorização para novas saídas operacionais (romaneios,
+  // retiradas do Estoque). O retorno da Desmobilização para a Execução usa o gate diretamente, não este status.
+  const relevantStages = isHeadquartersWorkflow(workflow)
+    ? ['EXECUTION']
+    : ['MOBILIZATION', 'EXECUTION'];
+  const authorized = relevantStages.includes(workflow?.stage) && Boolean(gate?.ready);
   return {
-    status: authorized ? 'AUTHORIZED' : authorizedAt ? 'SUSPENDED' : 'NOT_AUTHORIZED',
+    status: authorized ? 'AUTHORIZED' : 'NOT_AUTHORIZED',
     authorized,
-    authorizedAt,
-    authorizedVersion,
-    currentVersion
+    authorizedAt: null,
+    authorizedVersion: null,
+    currentVersion: workflow?.version ?? null
   };
 }
 
@@ -715,6 +752,9 @@ export function incompleteChecklistLabels(workflow, stage) {
 export function handoverGateIssues(workflow) {
   const issues = [];
   if (!workflow.leaderUserId) issues.push('Definir o Líder de Projetos');
+  // Sede ou campo muda o restante do fluxo (checklists, hospedagem, mobilização): precisa ser respondido
+  // antes de assumir a análise, para a Análise inicial já nascer ciente da modalidade.
+  if (workflow.executedAtHeadquarters == null) issues.push('Informar se o projeto será executado na Sede ou em campo');
   for (const blocker of workflow?.documentRequirements?.HANDOVER?.blockers || []) {
     issues.push(`${blocker.title}: ${blocker.reason}`);
   }
@@ -757,15 +797,19 @@ function analysisChecks(workflow) {
     criticalityIssues.push('Informar a antecedência de preparação da obra crítica');
   }
   checks.push({ key: 'ANALYSIS_CRITICALITY', issues: criticalityIssues });
+  // Sede ou campo já foi exigido no gate do Handover: aqui só se lê a resposta.
+  const hiddenQuestions = isHeadquartersWorkflow(workflow) ? PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CRITICAL_QUESTIONS : [];
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item.answer]));
   const issueByQuestion = new Map((workflow.issues || []).map(item => [item.sourceQuestion, item]));
-  for (const question of PROJECT_WORKFLOW_CRITICAL_QUESTIONS) {
+  for (const question of PROJECT_WORKFLOW_CRITICAL_QUESTIONS.filter(item => !hiddenQuestions.includes(item.key))) {
     const questionIssues = [];
     if (!answerByKey.has(question.key)) {
       questionIssues.push(`Responder: ${question.label}`);
     } else if (answerByKey.get(question.key) && question.createsIssue !== false) {
+      // O responsável nomeado ("para quem") saiu do fluxo: só a área (definida pela própria pergunta), o
+      // prazo necessário e a data limite continuam exigidos para dar a pendência por encaminhada.
       const issue = issueByQuestion.get(question.key);
-      if (!issue?.area || !issue?.ownerName || !issue?.requiredLeadTimeDays || !issue?.dueDate) {
+      if (!issue?.area || !issue?.requiredLeadTimeDays || !issue?.dueDate) {
         questionIssues.push(`Encaminhar a pendência: ${question.issueDescription}`);
       }
     }
@@ -790,13 +834,23 @@ export function projectWorkflowAnalysisReadiness(workflow) {
 
 export function planningGateIssues(workflow) {
   const issues = [];
-  if (workflow?.teamPlanDefined !== true || !(workflow?.teamDemands || []).length) {
+  // "Não" é uma resposta válida e completa (a obra pode não precisar de equipe, equipamentos ou insumos
+  // próprios): só falta responder (null) ou responder "Sim" sem detalhar nada continua pendente.
+  if (workflow?.teamPlanDefined == null) {
+    issues.push('Informar se será necessária equipe própria');
+  } else if (workflow.teamPlanDefined === true && !(workflow?.teamDemands || []).length) {
     issues.push('Definir os cargos e as quantidades da equipe');
   }
-  if (workflow?.equipmentPlanDefined !== true || !(workflow?.equipmentCategoryPlans || []).length) {
+  // Na Sede, equipamentos, insumos e logística são opcionais: não bloqueiam a preparação.
+  if (isHeadquartersWorkflow(workflow)) return issues;
+  if (workflow?.equipmentPlanDefined == null) {
+    issues.push('Informar se serão necessários equipamentos');
+  } else if (workflow.equipmentPlanDefined === true && !(workflow?.equipmentCategoryPlans || []).length) {
     issues.push('Definir os equipamentos necessários');
   }
-  if (workflow?.supplyPlanDefined !== true || !Array.isArray(workflow?.supplyPlan) || !workflow.supplyPlan.length) {
+  if (workflow?.supplyPlanDefined == null) {
+    issues.push('Informar se serão necessários insumos');
+  } else if (workflow.supplyPlanDefined === true && (!Array.isArray(workflow?.supplyPlan) || !workflow.supplyPlan.length)) {
     issues.push('Definir os insumos e as quantidades necessárias');
   }
   const logistics = workflow?.logisticsPlan && typeof workflow.logisticsPlan === 'object' && !Array.isArray(workflow.logisticsPlan)
@@ -816,27 +870,13 @@ export function planningGateIssues(workflow) {
   return issues;
 }
 
-export function allowedProjectWorkflowTransition(current, target) {
+export function allowedProjectWorkflowTransition(current, target, workflow = null) {
   if (current === target) return false;
-  const transitions = {
-    HANDOVER: [],
-    INITIAL_ANALYSIS: ['WAITING_PLANNING', 'MOBILIZATION_PLANNING'],
-    WAITING_PLANNING: ['INITIAL_ANALYSIS', 'MOBILIZATION_PLANNING'],
-    MOBILIZATION_PLANNING: ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION'],
-    PREPARATION: ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'],
-    READY_TO_MOBILIZE: ['PREPARATION', 'MOBILIZATION'],
-    MOBILIZATION: ['READY_TO_MOBILIZE', 'EXECUTION'],
-    EXECUTION: ['MOBILIZATION', 'DEMOBILIZATION'],
-    DEMOBILIZATION: ['EXECUTION', 'POST_JOB'],
-    POST_JOB: ['DEMOBILIZATION', 'FINAL_MEASUREMENT'],
-    FINAL_MEASUREMENT: ['POST_JOB', 'FINISHED'],
-    FINISHED: ['FINAL_MEASUREMENT']
-  };
-  return transitions[current]?.includes(target) || false;
+  return projectWorkflowStageTransitions(current, isHeadquartersWorkflow(workflow)).includes(target);
 }
 
 export function projectWorkflowTransitionIssues(workflow, target) {
-  if (!allowedProjectWorkflowTransition(workflow.stage, target)) return ['Transição de etapa não permitida'];
+  if (!allowedProjectWorkflowTransition(workflow.stage, target, workflow)) return ['Transição de etapa não permitida'];
   if (target === 'WAITING_PLANNING' || target === 'MOBILIZATION_PLANNING') {
     if (!workflow.acceptedAt) return ['O Líder de Projetos ainda não aceitou o handover'];
     return analysisGateIssues(workflow);
@@ -847,21 +887,10 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   if (target === 'FINISHED') {
     return projectWorkflowClosureGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
   }
-  if (target === 'READY_TO_MOBILIZE') {
-    return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
-  }
   if (target === 'MOBILIZATION' || target === 'EXECUTION') {
-    const gate = projectWorkflowMobilizationGate(workflow);
-    const authorization = projectWorkflowMobilizationAuthorization(workflow, gate);
-    const returningToExecution = workflow.stage === 'DEMOBILIZATION' && target === 'EXECUTION';
-    const returnIsRevalidated = Boolean(
-      workflow.mobilizationAuthorizedAt
-      && workflow.mobilizationAuthorizationVersion === workflow.version
-      && gate.ready
-    );
-    if (!authorization.authorized && !(returningToExecution && returnIsRevalidated)) {
-      return ['O projeto precisa de uma autorização de mobilização vigente'];
-    }
+    // Sem "Pronto para mobilizar" não há autorização manual: o gate de mobilização sem bloqueios já libera a
+    // entrada em Mobilização (ou, na Sede, direto em Execução) e o retorno da Desmobilização para a Execução.
+    return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
   }
   return [];
 }

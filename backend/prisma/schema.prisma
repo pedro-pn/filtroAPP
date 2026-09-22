@@ -260,7 +260,6 @@ enum ProjectWorkflowStage {
   WAITING_PLANNING
   MOBILIZATION_PLANNING
   PREPARATION
-  READY_TO_MOBILIZE
   MOBILIZATION
   EXECUTION
   DEMOBILIZATION
@@ -662,6 +661,7 @@ model AcompanhamentoSetting {
 model EfetivoSetting {
   key             String   @id
   numberValue     Float?
+  textValue       String?
   updatedByUserId String?
   updatedAt       DateTime @default(now()) @updatedAt
 }
@@ -1040,6 +1040,7 @@ model ProjectWorkflow {
   acceptedAt                         DateTime?
   plannedMobilizationDate            DateTime?                              @db.Date
   isCritical                         Boolean?
+  executedAtHeadquarters             Boolean?
   preparationLeadTimeDays            Int                                    @default(15)
   commercialExpectedMobilizationDate DateTime?                              @db.Date
   commercialExpectedStartDate        DateTime?                              @db.Date

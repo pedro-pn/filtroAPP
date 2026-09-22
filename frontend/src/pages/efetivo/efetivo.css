@@ -1571,15 +1571,6 @@
   }
 }
 
-.equip-nav-count.efetivo-nav-pending {
-  background: var(--warning-border);
-  color: #4a2c05;
-}
-
-.equip-nav-item.active .equip-nav-count.efetivo-nav-pending {
-  background: var(--warning-border);
-  color: #4a2c05;
-}
 
 /* Tiras de resumo (missões e kanban), no padrão do exemplo de referência. */
 .efetivo-summary-strip {
@@ -1782,17 +1773,29 @@
 .efetivo-panel-link:hover { text-decoration: underline; }
 .efetivo-utilization-card .efetivo-panel-link { align-self: flex-start; }
 
-/* Evolução única do projeto; Missões permanece como cadastro operacional de equipe e ciclos. */
+/* Evolução única do projeto; equipe e ciclos ficam dentro da gestão de cada projeto. */
 .project-workflow-toolbar { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 330px), .55fr); }
 .project-workflow-toolbar h2,
 .project-workflow-toolbar p { margin: 0; }
 .project-workflow-toolbar p { color: var(--mu); margin-top: 4px; }
 .project-workflow-toolbar .project-workflow-mobile-stage { display: none; }
 
+/* Seção oculta com as missões canceladas: os dados continuam salvos, só somem da coluna e das etapas que
+   exigem programação oficial (mobilização, execução, encerramento) até serem reativadas aqui. */
+.project-workflow-cancelled-toggle { color: var(--mu); grid-column: 1 / -1; justify-self: start; }
+.project-workflow-cancelled-toggle:hover { color: var(--pw-accent); }
+.project-workflow-cancelled-missions header h3 { margin: 0 0 4px; }
+.project-workflow-cancelled-missions header p { color: var(--mu); margin: 0; }
+.project-workflow-cancelled-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
+.project-workflow-cancelled-card { display: flex; flex-direction: column; gap: 10px; }
+.project-workflow-cancelled-card > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.project-workflow-cancelled-card span,
+.project-workflow-cancelled-card small { color: var(--mu); font-size: 12px; }
+
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(12, minmax(230px, 1fr));
+  grid-template-columns: repeat(11, minmax(230px, 1fr));
   min-width: 0;
   width: 100%;
   overflow-x: auto;
@@ -1943,10 +1946,14 @@
 .project-workflow-icon-button:focus-visible { box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
 .project-workflow-icon-button .project-workflow-icon { height: 18px; width: 18px; }
 
+/* Barra de ações da missão (edição completa e remoção; a equipe inicial fica nas etapas do fluxo) */
+.project-workflow-mission-bar { align-items: center; background: var(--pw-surface); border-bottom: 1px solid var(--pw-border-soft); display: flex; flex-wrap: wrap; font-size: 13px; gap: 8px; justify-content: space-between; padding: 8px 16px; }
+.project-workflow-mission-bar-actions { display: flex; flex: 0 0 auto; gap: 8px; }
+
 /* Linha do tempo das etapas */
 .project-workflow-fixed-top { background: var(--pw-surface); border-bottom: 1px solid var(--pw-border-soft); display: flex; flex: 0 0 auto; flex-direction: column; min-width: 0; padding: 12px 16px 8px; }
 .project-workflow-stage-tabs-scroll { min-width: 0; overflow-x: auto; padding: 2px 4px 4px; scrollbar-width: thin; }
-.project-workflow-stage-tabs { display: grid; grid-template-columns: repeat(12, minmax(92px, 1fr)); }
+.project-workflow-stage-tabs { display: grid; grid-template-columns: repeat(11, minmax(92px, 1fr)); }
 .project-workflow-stage-tab-tip { display: block; min-width: 0; outline: none; }
 .project-workflow-stage-tab { align-items: center; appearance: none; background: none; border: 0; border-radius: 10px; color: var(--pw-muted); cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 4px 4px 6px; position: relative; text-align: center; transition: background-color .15s; width: 100%; }
 .project-workflow-stage-tab::before { background: var(--pw-border); content: ""; height: 2px; left: calc(-50% + 14px); position: absolute; right: calc(50% + 14px); top: 15px; }
@@ -2501,6 +2508,18 @@
 .project-workflow-critical { align-items: center; background: var(--wh); border: 1px solid color-mix(in srgb, var(--tx) 18%, var(--br)); border-left: 3px solid color-mix(in srgb, var(--g) 55%, var(--br)); border-radius: var(--rs); box-shadow: 0 1px 3px rgba(20, 20, 20, .045); display: flex; gap: 10px; justify-content: space-between; padding: 10px; }
 .project-workflow-critical > span { min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-critical > div { display: flex; flex: 0 0 auto; gap: 6px; }
+.project-workflow-critical-registration { flex-wrap: wrap; }
+.project-workflow-client-registration-fields { border-top: 1px dashed color-mix(in srgb, var(--tx) 18%, var(--br)); display: flex; flex: 1 1 100%; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 10px; }
+.project-workflow-category-note.is-warning { color: var(--warning-text); font-weight: 600; }
+.project-workflow-client-registration-confirm { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.project-workflow-client-registration-confirm span { font-size: .85em; }
+.project-workflow-registration-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Mesmo padrão do botão de correção (Button + ícone + preenchimento sólido quando ativo), só que na cor de
+   sucesso em vez de âmbar — "Concluído" é um estado definitivo, não um alerta. */
+/* Antes de clicar fica neutro (cinza) de propósito: verde antes do clique passaria a impressão de já concluído. */
+.project-workflow-modal .project-workflow-registration-complete-button { background: var(--pw-surface, var(--wh)); border-color: var(--pw-border, var(--br)); color: var(--pw-muted, var(--mu)); }
+.project-workflow-modal .project-workflow-registration-complete-button:hover:not(:disabled) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
+.project-workflow-modal .project-workflow-registration-complete-button.is-active { background: var(--pw-accent, var(--g)); border-color: var(--pw-accent, var(--g)); color: var(--wh); }
 .project-workflow-issue { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .project-workflow-issue.is-overdue { border-color: var(--rd); }
 .project-workflow-category-content :is(.project-workflow-analysis-contact, .project-workflow-signal, .project-workflow-documentation-type, .project-workflow-resource-question, .project-workflow-resource-summary > article, .project-workflow-supply-draft > article, .project-workflow-preparation-resource, .project-workflow-client-attendance, .project-workflow-client-release, .project-workflow-issue) { background: var(--wh); border-color: color-mix(in srgb, var(--tx) 18%, var(--br)); box-shadow: 0 1px 3px rgba(20, 20, 20, .045); }

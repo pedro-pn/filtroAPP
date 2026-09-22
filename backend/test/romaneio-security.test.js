@@ -88,10 +88,9 @@ function romaneioOnlyOperatorSession() {
 function authorizedRomaneioWorkflow(projectId, overrides = {}) {
   return {
     projectId,
-    stage: 'READY_TO_MOBILIZE',
+    // Sem "Pronto para mobilizar": a autorização não é mais um flag fixo, é o gate reavaliado a cada consulta.
+    stage: 'MOBILIZATION',
     version: 2,
-    mobilizationAuthorizedAt: new Date('2026-09-09T12:00:00.000Z'),
-    mobilizationAuthorizationVersion: 2,
     preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
     preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
     qsmsVerified: true,
@@ -99,7 +98,9 @@ function authorizedRomaneioWorkflow(projectId, overrides = {}) {
     logisticsPlan: { lodgingRequired: false, freightRequired: false },
     travelPlan: {
       teamTransportDefined: true,
-      teamTransportDescription: 'Van própria.',
+      teamTransportMode: 'OWN',
+      teamTransportVehicleType: 'PICKUP',
+      teamTransportQuantity: 1,
       freightDefined: false
     },
     checklists: PROJECT_WORKFLOW_CHECKLISTS.map(item => ({ key: item.key, status: 'DONE' })),
@@ -658,7 +659,7 @@ test('Romaneio de saída lista somente gerenciados autorizados e legados ativos'
     calls.push(args);
     return [
       { id: 'managed-ready', code: '1', name: 'Gerenciado liberado', isActive: true, managerOnly: false, operator: null, workflow: authorizedRomaneioWorkflow('managed-ready') },
-      { id: 'managed-blocked', code: '2', name: 'Gerenciado bloqueado', isActive: true, managerOnly: false, operator: null, workflow: authorizedRomaneioWorkflow('managed-blocked', { mobilizationAuthorizationVersion: 1 }) },
+      { id: 'managed-blocked', code: '2', name: 'Gerenciado bloqueado', isActive: true, managerOnly: false, operator: null, workflow: authorizedRomaneioWorkflow('managed-blocked', { qsmsVerified: false }) },
       { id: 'legacy-active', code: '3', name: 'Legado ativo', isActive: true, managerOnly: false, operator: null, workflow: null },
       { id: 'legacy-finished', code: '4', name: 'Legado concluído', isActive: false, managerOnly: false, operator: null, workflow: null }
     ];

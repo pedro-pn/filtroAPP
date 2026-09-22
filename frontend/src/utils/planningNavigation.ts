@@ -1,4 +1,4 @@
-export const EFETIVO_SECTIONS = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'missoes', 'evolucao', 'simulacoes', 'produtividade', 'administracao'] as const;
+export const EFETIVO_SECTIONS = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'evolucao', 'simulacoes', 'produtividade', 'administracao'] as const;
 export type EfetivoPlanningSection = typeof EFETIVO_SECTIONS[number];
 
 export function parsePlanningSection(value: string | null): EfetivoPlanningSection {
@@ -10,7 +10,6 @@ const PARAMS_BY_SECTION: Record<EfetivoPlanningSection, string[]> = {
   calendario: ['date', 'view', 'funcao', 'dia'],
   colaboradores: ['date', 'funcao', 'search', 'colaborador', 'ausencia', 'ano'],
   disponibilidade: ['date', 'funcao'],
-  missoes: ['status', 'etapa', 'missao'],
   evolucao: ['projeto', 'busca', 'pagina', 'faseProjeto'],
   simulacoes: ['date', 'funcao', 'cenario', 'missao'],
   produtividade: ['ano', 'ateMes', 'colaborador'],

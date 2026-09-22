@@ -1,12 +1,13 @@
 import { apiClient, type ApiClientError } from './client';
 import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowTeamMemberCheckKey = 'NOTIFIED' | 'DOCUMENTS_CHECKED' | 'EXAMS_RELEASED' | 'TRAININGS_RELEASED';
 export type ProjectWorkflowPreparationItemType = 'EQUIPMENT' | 'MATERIAL';
 export type ProjectWorkflowPreparationItemCheckKey = 'TESTED' | 'ACCESSORIES_SEPARATED' | 'SEPARATED';
 export type ProjectWorkflowClientReleaseKey = 'CUSTOMER_REGISTRATION' | 'DOCUMENTS_SENT' | 'INTEGRATION_REQUEST';
+export type ProjectWorkflowTransportMode = 'OWN' | 'RENTAL' | 'THIRD_PARTY';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
@@ -31,7 +32,6 @@ export interface ProjectWorkflowPermissions {
   canEditEquipmentPlanning: boolean;
   canEditSupplyPlanning: boolean;
   canEditLogisticsPlanning: boolean;
-  canAuthorizeMobilization: boolean;
 }
 
 export interface ProjectOperationalMissionSummary {
@@ -116,7 +116,22 @@ export interface ProjectWorkflowTeamPreparation {
   }>;
 }
 
+export interface ProjectWorkflowCustomerRegistrationRelease {
+  key: 'CUSTOMER_REGISTRATION';
+  label: string;
+  requested: boolean;
+  requestedAt: string | null;
+  email: string | null;
+  completed: boolean;
+  completedAt: string | null;
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string } | null;
+  canEdit: boolean;
+}
+
 export interface ProjectWorkflowClientReleases {
+  // Cadastro no cliente: acompanhado à parte, nos itens críticos da Análise inicial — não faz parte de `items`.
+  customerRegistration: ProjectWorkflowCustomerRegistrationRelease;
   attendance: {
     date: string | null;
     confirmed: boolean;
@@ -191,7 +206,8 @@ export interface ProjectWorkflowPlanningReadiness {
   completed: number;
   total: number;
   percentage: number;
-  sections: Array<{ key: ProjectWorkflowChecklistSection | ProjectWorkflowReadinessExtraSection; completed: number; total: number; percentage: number }>;
+  /** `optional`: na Sede a seção continua visível, mas não bloqueia nem compõe o total. */
+  sections: Array<{ key: ProjectWorkflowChecklistSection | ProjectWorkflowReadinessExtraSection; completed: number; total: number; percentage: number; optional?: boolean }>;
 }
 
 /** Itens que o gate da etapa exige além dos checklists e que também entram no progresso. */
@@ -464,6 +480,8 @@ export interface ProjectWorkflowMobilizationGateFront {
   completed: number;
   total: number;
   blockers: Array<Omit<ProjectWorkflowMobilizationGateBlocker, 'front'>>;
+  /** Na Sede a frente é opcional: aparece no gate, mas não bloqueia. */
+  optional?: boolean;
 }
 
 export interface ProjectWorkflowMobilizationGate {
@@ -475,7 +493,7 @@ export interface ProjectWorkflowMobilizationGate {
 }
 
 export interface ProjectWorkflowMobilizationAuthorization {
-  status: 'NOT_AUTHORIZED' | 'AUTHORIZED' | 'SUSPENDED';
+  status: 'NOT_AUTHORIZED' | 'AUTHORIZED';
   authorized: boolean;
   authorizedAt: string | null;
   authorizedVersion: number | null;
@@ -582,6 +600,10 @@ export interface ProjectWorkflow {
   plannedExecutionStartDate: string | null;
   plannedExecutionEndDate: string | null;
   isCritical: boolean | null;
+  /** `null` = ainda não respondido (segue o fluxo de campo). `true` = executado na Sede, sem mobilização em campo. */
+  executedAtHeadquarters: boolean | null;
+  /** Sugestão da modalidade da proposta comercial (Pop/Sede × In loco). */
+  headquartersSuggestion?: boolean | null;
   preparationLeadTimeDays: number;
   preJob: {
     scheduledDate: string | null;
@@ -597,9 +619,13 @@ export interface ProjectWorkflow {
     lodgingRequestedDate: string | null;
     lodgingConfirmedDate: string | null;
     teamTransportDefined: boolean | null;
-    teamTransportDescription: string | null;
+    teamTransportMode: ProjectWorkflowTransportMode | null;
+    teamTransportVehicleType: string | null;
+    teamTransportQuantity: number | null;
     freightDefined: boolean | null;
-    freightType: 'OWN' | 'THIRD_PARTY' | null;
+    freightMode: ProjectWorkflowTransportMode | null;
+    freightVehicleType: string | null;
+    freightQuantity: number | null;
     freightDepartureDate: string | null;
     freightDepartureTime: string | null;
     lodgingRequired: boolean;
@@ -658,6 +684,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     closedAt: string | null;
     closedBy: { id: string; name: string } | null;
     plannedMobilizationDate: string | null;
+    plannedExecutionStartDate: string | null;
+    executedAtHeadquarters: boolean | null;
     isCritical: boolean | null;
     preparationLeadTimeDays: number;
     fieldCompletionDate: string | null;
@@ -787,14 +815,15 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'client_attendance'; version: number; attendanceDate: string }
-  | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo?: string | null; completed: boolean; completedAt: string | null }
+  | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo?: string | null; completed: boolean; completedAt: string | null; notificationEmail?: string; makeDefaultEmail?: boolean }
   | { action: 'pre_job'; version: number; scheduledDate?: string | null; completedDate?: string | null }
   | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
-  | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportDescription?: string | null; freightDefined?: boolean | null; freightType?: 'OWN' | 'THIRD_PARTY' | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
+  | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportMode?: ProjectWorkflowTransportMode | null; teamTransportVehicleType?: string | null; teamTransportQuantity?: number | null; freightDefined?: boolean | null; freightMode?: ProjectWorkflowTransportMode | null; freightVehicleType?: string | null; freightQuantity?: number | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_schedule'; version: number; plannedExecutionStartDate: string | null; plannedExecutionEndDate: string | null }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactPhone?: string | null; contactDate?: string | null }
   | { action: 'analysis_criticality'; version: number; isCritical: boolean; preparationLeadTimeDays?: number }
+  | { action: 'analysis_location'; version: number; executedAtHeadquarters: boolean }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
   | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[]; exceptions: Array<{ equipmentId: string; reason: string }> }> }
   | { action: 'supply_plan'; version: number; defined: boolean; items: Array<{ id: string; stockItemId: string | null; type: ProjectWorkflowSupplyType; name: string; unitLabel: string; requiredQuantity: number; requestedAt: string | null; purchasedAt: string | null; reservationExceptionReason?: string | null }> }
@@ -809,7 +838,6 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }
-  | { action: 'authorize_mobilization'; version: number }
 );
 
 const base = '/efetivo/project-workflow';

@@ -21,10 +21,12 @@ const SUPPLY_GROUPS: Array<{ type: ProjectWorkflowSupplyType; label: string }> =
   { type: 'FILTRO', label: 'Filtros' }
 ];
 
-function choiceStatus(value: boolean | null, completeLabel: string, pendingLabel: string) {
+function choiceStatus(value: boolean | null, completeLabel: string, notNeededLabel: string, optional = false) {
+  // "Não" é uma resposta completa (não é necessário), diferente de ainda não ter respondido.
   if (value === true) return completeLabel;
-  if (value === false) return pendingLabel;
-  return 'Pendente · selecione Sim ou Não';
+  if (value === false) return notNeededLabel;
+  // Na Sede o item é opcional: pode ficar sem resposta.
+  return optional ? 'Opcional' : 'Pendente · selecione Sim ou Não';
 }
 
 function supplyPayload(item: SupplyDraftItem) {
@@ -114,14 +116,14 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
     description="Selecione filtros e produtos químicos do Estoque e acompanhe eventuais compras."
     area="Suprimentos"
     tone={planning.purchasePendingCount ? 'warn' : undefined}
-    status={choiceStatus(planning.defined, planning.purchasePendingCount ? `${planning.purchasePendingCount} compra(s) pendente(s)` : `${planning.items.length} insumo(s)`, 'Insumos não definidos')}
-    complete={planning.defined === true && planning.items.length > 0}
+    status={choiceStatus(planning.defined, planning.purchasePendingCount ? `${planning.purchasePendingCount} compra(s) pendente(s)` : `${planning.items.length} insumo(s)`, 'Insumos não necessários', workflow.executedAtHeadquarters === true)}
+    complete={planning.defined === false || (planning.defined === true && planning.items.length > 0)}
     className="project-workflow-resource-card"
     data-project-workflow-supply-plan
   >
     <div className="project-workflow-resource-question">
-      <div><strong>Os insumos necessários para esta obra já foram definidos?</strong><p>“Não” mantém esta frente pendente.</p></div>
-      <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Insumos necessários definidos?" disabled={saving || !workflow.permissions.canEditSupplyPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
+      <div><strong>Esta obra vai precisar de insumos próprios?</strong><p>Se a obra não precisar de insumos próprios, marque “Não”.</p></div>
+      <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Esta obra vai precisar de insumos próprios?" disabled={saving || !workflow.permissions.canEditSupplyPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
     </div>
     {editing ? <div className="project-workflow-resource-editor">
       <fieldset className="project-workflow-equipment-categories"><legend>Itens disponíveis no Estoque</legend>{SUPPLY_GROUPS.map(group => {
@@ -203,13 +205,14 @@ export function ProjectWorkflowLogisticsPlanningCard({ workflow, saving, onPatch
   };
   const change = <K extends keyof LogisticsDraft>(key: K, value: LogisticsDraft[K]) => setDraft(current => ({ ...current, [key]: value }));
   const canEdit = workflow.permissions.canEditLogisticsPlanning && !saving;
+  const headquarters = workflow.executedAtHeadquarters === true;
 
   return <ProjectWorkflowCategory
     title="Logística preliminar"
-    description="Informe as necessidades de veículo, frete e hospedagem. Cada alteração é salva automaticamente."
+    description={headquarters ? 'Projeto na Sede: informe as necessidades de veículo e frete (opcional). Cada alteração é salva automaticamente.' : 'Informe as necessidades de veículo, frete e hospedagem. Cada alteração é salva automaticamente.'}
     area="Logística"
     tone={planning.complete && planning.warnings.length ? 'warn' : undefined}
-    status={planning.complete ? planning.warnings.length ? `${planning.warnings.length} aviso(s)` : 'Concluído' : `${planning.issues.length} pendência(s)`}
+    status={planning.complete ? planning.warnings.length ? `${planning.warnings.length} aviso(s)` : 'Concluído' : headquarters ? 'Opcional' : `${planning.issues.length} pendência(s)`}
     complete={planning.complete}
     className="project-workflow-resource-card project-workflow-logistics-card"
     data-project-workflow-logistics-plan
@@ -221,14 +224,14 @@ export function ProjectWorkflowLogisticsPlanningCard({ workflow, saving, onPatch
     <section className="project-workflow-logistics-section">
       <div className="project-workflow-resource-question"><div><strong>Será necessário frete?</strong><p>Esta decisão não exige detalhamento nesta etapa.</p></div><ProjectWorkflowBooleanChoice value={draft.freightRequired} label="Necessidade de frete" disabled={!canEdit} onSelect={value => save({ ...draft, freightRequired: value })} /></div>
     </section>
-    <section className="project-workflow-logistics-section">
+    {headquarters ? null : <section className="project-workflow-logistics-section">
       <div className="project-workflow-resource-question"><div><strong>Será necessária hospedagem?</strong><p>A data sugerida acompanha a mobilização e pode ser ajustada somente para a hospedagem.</p></div><ProjectWorkflowBooleanChoice value={draft.lodgingRequired} label="Necessidade de hospedagem" disabled={!canEdit} onSelect={value => save({ ...draft, lodgingRequired: value, lodgingPeopleCount: value ? draft.lodgingPeopleCount : null, lodgingExpectedDate: value ? draft.lodgingExpectedDate || workflow.resourcePlanning.targetDate || null : null, lodgingRequested: value ? draft.lodgingRequested : null, lodgingRequestedAt: value ? draft.lodgingRequestedAt : null, lodgingCompletedAt: value ? draft.lodgingCompletedAt : null })} /></div>
       {draft.lodgingRequired === true ? <div className="project-workflow-logistics-details">
         <div className="project-workflow-logistics-fields"><div className="field-group"><label htmlFor="workflow-logistics-lodging-people">Pessoas</label><input id="workflow-logistics-lodging-people" type="number" min="1" max="1000" step="1" value={draft.lodgingPeopleCount ?? ''} disabled={!canEdit} onChange={event => change('lodgingPeopleCount', event.target.value ? Number(event.target.value) : null)} onBlur={() => save(draft)} /></div><div className="field-group"><label htmlFor="workflow-logistics-lodging-date">Data prevista</label><DateInput id="workflow-logistics-lodging-date" value={draft.lodgingExpectedDate || ''} disabled={!canEdit} onCommit={value => save({ ...draft, lodgingExpectedDate: value || null })} /></div></div>
         <div className="project-workflow-resource-question"><div><strong>A hospedagem já foi solicitada?</strong><p>A data da solicitação e a da conclusão são registradas automaticamente.</p></div><ProjectWorkflowBooleanChoice value={draft.lodgingRequested} label="Hospedagem solicitada" disabled={!canEdit} onSelect={value => save({ ...draft, lodgingRequested: value, lodgingRequestedAt: value ? draft.lodgingRequestedAt || todayDateOnly() : null, lodgingCompletedAt: value ? draft.lodgingCompletedAt : null })} /></div>
         {draft.lodgingRequested === true ? <div className="project-workflow-logistics-fields"><label className="project-workflow-release-toggle"><input type="checkbox" checked={Boolean(draft.lodgingCompletedAt)} disabled={!canEdit} onChange={event => save({ ...draft, lodgingRequestedAt: draft.lodgingRequestedAt || todayDateOnly(), lodgingCompletedAt: event.target.checked ? todayDateOnly() : null })} /><span>Hospedagem concluída{draft.lodgingCompletedAt ? ` em ${displayDateOnly(draft.lodgingCompletedAt)}` : ''}</span></label>{draft.lodgingRequestedAt ? <small className="project-workflow-source-detail">Solicitada em {displayDateOnly(draft.lodgingRequestedAt)}</small> : null}</div> : null}
       </div> : null}
-    </section>
+    </section>}
     {planning.issues.length ? <ul className="project-workflow-logistics-issues">{planning.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : planning.warnings.length ? <ul className="project-workflow-logistics-issues">{planning.warnings.map(warning => <li key={warning}>⚠ {warning}</li>)}</ul> : <p className="project-workflow-stock-ok">✓ Necessidades de logística preliminar informadas.</p>}
   </ProjectWorkflowCategory>;
 }

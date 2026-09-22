@@ -434,3 +434,18 @@ export async function getPlanningActivity(cursor?: string) {
 export async function listEfetivoRoleUsers() {
   return (await apiClient.get<Array<{ id: string; name: string; accountType: string; moduleRoles: Array<{ role: string }> }>>(`${base}/admin/users`)).data;
 }
+
+export interface NotificationEmailSetting {
+  key: string;
+  label: string;
+  description: string;
+  email: string | null;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+}
+export async function listNotificationEmailSettings() {
+  return (await apiClient.get<NotificationEmailSetting[]>(`${base}/admin/notification-emails`)).data;
+}
+export async function updateNotificationEmailSetting(purpose: string, email: string) {
+  return (await apiClient.patch<Pick<NotificationEmailSetting, 'email' | 'updatedAt' | 'updatedByUserId'>>(`${base}/admin/notification-emails`, { purpose, email })).data;
+}

@@ -1,4 +1,4 @@
-export const PROJECT_WORKFLOW_STAGES: readonly ['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'];
+export const PROJECT_WORKFLOW_STAGES: readonly ['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'];
 export const PROJECT_WORKFLOW_STAGE_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_STAGES)[number], string>>;
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS: readonly ['INITIAL_ANALYSIS', 'D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS', 'D15_TEAM', 'D15_CLIENT', 'D15_EQUIPMENT', 'D15_MATERIALS', 'D15_PRE_JOB', 'D15_TRAVEL', 'D15_QSMS', 'DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS', 'POST_JOB_FEEDBACK', 'POST_JOB_LEARNING', 'CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT', 'FINAL_CLOSEOUT'];
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number], string>>;
@@ -54,3 +54,19 @@ export function projectWorkflowMilestones(plannedMobilizationDate: string | null
   preparationDate: string | null;
   preparationDue: boolean;
 };
+
+export const PROJECT_WORKFLOW_HEADQUARTERS_SKIPPED_STAGES: readonly ['MOBILIZATION', 'DEMOBILIZATION'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_EDITABLE_STAGES: readonly ['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_TEAM_CHECKS: readonly ['EXAMS_RELEASED', 'TRAININGS_RELEASED'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_DOCUMENTATION_TYPES: readonly ['EXAM'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CRITICAL_QUESTIONS: readonly ['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CLIENT_RELEASES: readonly string[];
+export const PROJECT_WORKFLOW_HEADQUARTERS_OPTIONAL_SECTIONS: readonly string[];
+export const PROJECT_WORKFLOW_TRANSPORT_MODES: readonly ['OWN', 'RENTAL', 'THIRD_PARTY'];
+export const PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_TRANSPORT_MODES)[number], string>>;
+export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES: Readonly<{ OWN: readonly string[]; THIRD_PARTY: readonly string[] }>;
+export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPE_LABELS: Readonly<Record<string, string>>;
+export function isHeadquartersWorkflow(workflow: { executedAtHeadquarters?: boolean | null } | null | undefined): boolean;
+export function projectWorkflowVisibleStages(headquarters: boolean): readonly (typeof PROJECT_WORKFLOW_STAGES)[number][];
+export function projectWorkflowReferenceDate<T extends string | Date>(workflow: { executedAtHeadquarters?: boolean | null; plannedExecutionStartDate?: T | null; plannedMobilizationDate?: T | null } | null | undefined): T | null;
+export function projectWorkflowStageTransitions(stage: (typeof PROJECT_WORKFLOW_STAGES)[number], headquarters?: boolean): (typeof PROJECT_WORKFLOW_STAGES)[number][];
