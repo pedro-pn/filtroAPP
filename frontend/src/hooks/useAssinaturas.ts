@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -102,8 +102,13 @@ export function useSignatureAudit(documentId: string, cursor = '') {
 }
 
 export function usePublicSignatureInvite(token: string, polling = false) {
-  const opaqueSession = useRef(globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
-  const queryKey = useMemo(() => ['assinaturas', 'publico', opaqueSession.current], []);
+  const opaqueSession = useMemo(
+    () => globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
+    // A troca do token precisa criar uma nova consulta sem expor o segredo na query key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token]
+  );
+  const queryKey = useMemo(() => ['assinaturas', 'publico', opaqueSession], [opaqueSession]);
   return useQuery({
     queryKey,
     queryFn: () => getPublicSignatureInvite(token),
