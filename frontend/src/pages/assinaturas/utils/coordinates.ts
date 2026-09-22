@@ -48,12 +48,17 @@ export function normalizedToPercent(rect: NormalizedRect) {
   };
 }
 
+export function inviteTokenFromFragment(location: Pick<Location, 'hash'>) {
+  const params = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+  const token = params.get('convite') || '';
+  return /^[a-f0-9]{64}$/i.test(token) ? token : '';
+}
+
 export function captureInviteFromFragment(
   location: Pick<Location, 'hash' | 'pathname' | 'search'>,
   history: Pick<History, 'replaceState'>
 ) {
-  const params = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
-  const token = params.get('convite') || '';
+  const token = inviteTokenFromFragment(location);
   history.replaceState(null, '', `${location.pathname}${location.search}`);
-  return /^[a-f0-9]{64}$/i.test(token) ? token : '';
+  return token;
 }

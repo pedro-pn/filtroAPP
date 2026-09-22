@@ -50,6 +50,16 @@ test('fragmento é capturado, removido e nunca persistido', async () => {
   assert.equal(storage.size, 0);
 });
 
+test('leitura do fragmento é pura e sobrevive a uma renderização repetida', async () => {
+  const { inviteTokenFromFragment } = await loadUtils();
+  const token = 'a'.repeat(64);
+  const location = { hash: `#convite=${token}` };
+
+  assert.equal(inviteTokenFromFragment(location), token);
+  assert.equal(inviteTokenFromFragment(location), token);
+  assert.equal(location.hash, `#convite=${token}`);
+});
+
 test('novo fragmento pode substituir um convite já capturado na mesma aba', async () => {
   const { captureInviteFromFragment } = await loadUtils();
   const location = {
@@ -83,7 +93,10 @@ test('token público fica fora de URL, storage e query key; polling não reenvia
   assert.match(hookSource, /refetchInterval: polling \? 2_000 : false/);
   assert.match(hookSource, /\[token\]/);
   assert.equal((pageSource.match(/confirmPublicSignature\(/g) || []).length, 1);
+  assert.match(pageSource, /useState\(\(\) => inviteTokenFromFragment\(window\.location\)\)/);
+  assert.doesNotMatch(pageSource, /useState\(\(\) => captureInviteFromFragment/);
   assert.match(pageSource, /addEventListener\('hashchange', captureRenewedInvite\)/);
+  assert.match(pageSource, /captureRenewedInvite\(\);/);
   assert.match(pageSource, /setToken\(nextToken\)/);
   assert.match(pageSource, /setPolling\(result\.documentStatus === 'FINALIZANDO'\)/);
 });
