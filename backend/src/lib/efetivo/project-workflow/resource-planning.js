@@ -6,6 +6,7 @@ import { getItemBalances } from '../../estoque/stock-balance.js';
 import { calculateDailyCapacity } from '../planning/capacity.js';
 import { missionEndsOnOrAfter } from '../planning/mission-period.js';
 import { groupJobRoles } from '../../../../../shared/job-role-display.js';
+import { isHeadquartersWorkflow, projectWorkflowReferenceDate } from '../../../../../shared/schemas/project-workflow.js';
 
 function dateKey(value) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10) || null;
@@ -15,7 +16,23 @@ function utcDate(value) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-const RESERVATION_STAGES = ['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE'];
+const RESERVATION_STAGES = ['MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION'];
+
+const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+
+/**
+ * Data em que a disponibilidade de cargos e equipamentos é calculada. A mobilização operacional prevista é
+ * opcional; sem ela, o planejamento usa a previsão comercial e, por último, a data de hoje. Sem essa
+ * alternativa, os catálogos ficavam vazios e não era possível definir equipe nem equipamentos.
+ */
+export function resourceReferenceDate(workflow, today = SAO_PAULO_DATE_FORMATTER.format(new Date())) {
+  // Na Sede não há mobilização: a referência é o início da execução previsto.
+  const planned = dateKey(projectWorkflowReferenceDate(workflow));
+  if (planned) return { date: planned, source: 'PLANNED' };
+  const commercial = dateKey(workflow?.commercialExpectedMobilizationDate) || dateKey(workflow?.commercialExpectedStartDate);
+  if (commercial) return { date: commercial, source: 'COMMERCIAL' };
+  return { date: today, source: 'TODAY' };
+}
 
 function addDays(value, days) {
   const date = utcDate(dateKey(value));
@@ -26,7 +43,7 @@ function addDays(value, days) {
 function reservationEndDate(workflow) {
   const demobilization = dateKey(workflow?.project?.demobilizationDate);
   if (demobilization) return demobilization;
-  const start = dateKey(workflow?.commercialExpectedStartDate) || dateKey(workflow?.plannedMobilizationDate);
+  const start = dateKey(workflow?.commercialExpectedStartDate) || dateKey(projectWorkflowReferenceDate(workflow));
   const duration = Math.max(1, Number(workflow?.commercialExpectedDurationDays) || 1);
   return addDays(start, duration - 1);
 }
@@ -252,7 +269,9 @@ export function buildLogisticsPlanning(workflow, targetDate = null) {
     : {};
   const vehicleRequired = typeof plan.vehicleRequired === 'boolean' ? plan.vehicleRequired : null;
   const freightRequired = typeof plan.freightRequired === 'boolean' ? plan.freightRequired : null;
-  const lodgingRequired = typeof plan.lodgingRequired === 'boolean' ? plan.lodgingRequired : null;
+  // Na Sede não há hospedagem, e a logística inteira é opcional (não bloqueia a Preparação).
+  const headquarters = isHeadquartersWorkflow(workflow);
+  const lodgingRequired = !headquarters && typeof plan.lodgingRequired === 'boolean' ? plan.lodgingRequired : null;
   const lodgingRequested = lodgingRequired && typeof plan.lodgingRequested === 'boolean' ? plan.lodgingRequested : null;
   const result = {
     vehicleRequired,
@@ -270,7 +289,7 @@ export function buildLogisticsPlanning(workflow, targetDate = null) {
   if (vehicleRequired == null) issues.push('Informar se será necessário veículo');
   if (vehicleRequired === true && (!result.vehicleQuantity || !result.vehicleType)) issues.push('Detalhar quantidade e tipo dos veículos');
   if (freightRequired == null) issues.push('Informar se será necessário frete');
-  if (lodgingRequired == null) issues.push('Informar se será necessária hospedagem');
+  if (lodgingRequired == null && !headquarters) issues.push('Informar se será necessária hospedagem');
   if (lodgingRequired === true && (!result.lodgingPeopleCount || !result.lodgingExpectedDate)) issues.push('Detalhar pessoas e data prevista da hospedagem');
   if (lodgingRequired === true && lodgingRequested == null) issues.push('Informar se a hospedagem já foi solicitada');
   if (lodgingRequired === true && lodgingRequested === true && !result.lodgingRequestedAt) issues.push('Informar a data da solicitação da hospedagem');
@@ -279,13 +298,15 @@ export function buildLogisticsPlanning(workflow, targetDate = null) {
   if (lodgingRequired === true && lodgingRequested === true && result.lodgingRequestedAt && !result.lodgingCompletedAt) {
     warnings.push('Hospedagem solicitada e aguardando conclusão');
   }
-  return { ...result, complete: issues.length === 0, issues, warnings };
+  return { ...result, complete: issues.length === 0, issues, warnings, optional: headquarters };
 }
 
 export function emptyProjectWorkflowResourcePlanning(workflow = {}) {
   const targetDate = dateKey(workflow.plannedMobilizationDate);
   return {
     targetDate,
+    referenceDate: null,
+    referenceDateSource: null,
     team: publicTeamPlanning(workflow, []),
     equipment: publicEquipmentPlanning(workflow, []),
     supplies: buildSupplyPlanning(workflow, []),
@@ -420,7 +441,9 @@ async function loadEquipmentCatalog(database, workflow, targetDate) {
       },
       select: {
         projectId: true,
+        executedAtHeadquarters: true,
         plannedMobilizationDate: true,
+        plannedExecutionStartDate: true,
         commercialExpectedStartDate: true,
         commercialExpectedDurationDays: true,
         project: { select: { code: true, name: true, demobilizationDate: true } },
@@ -431,9 +454,14 @@ async function loadEquipmentCatalog(database, workflow, targetDate) {
   const currentProject = database.project?.findUnique
     ? await database.project.findUnique({ where: { id: currentProjectId }, select: { demobilizationDate: true } })
     : null;
-  const currentEndDate = reservationEndDate({ ...workflow, project: currentProject });
+  const currentEndDate = reservationEndDate({
+    ...workflow,
+    plannedMobilizationDate: workflow.plannedMobilizationDate || targetDate,
+    plannedExecutionStartDate: workflow.plannedExecutionStartDate || targetDate,
+    project: currentProject
+  });
   const plannedReservations = plannedWorkflows.flatMap(other => {
-    const startsOn = dateKey(other.plannedMobilizationDate);
+    const startsOn = dateKey(projectWorkflowReferenceDate(other));
     const endsOn = reservationEndDate(other);
     if (!startsOn || !endsOn || !rangesOverlap(targetDate, currentEndDate, startsOn, endsOn)) return [];
     return other.equipmentCategoryPlans.flatMap(plan => (Array.isArray(plan.equipmentIds) ? plan.equipmentIds : []).map(equipmentId => ({
@@ -476,7 +504,9 @@ async function loadSupplyCatalog(database, currentProjectId) {
       select: {
         projectId: true,
         supplyPlan: true,
+        executedAtHeadquarters: true,
         plannedMobilizationDate: true,
+        plannedExecutionStartDate: true,
         project: { select: { code: true, name: true } }
       }
     })
@@ -491,7 +521,7 @@ async function loadSupplyCatalog(database, currentProjectId) {
         projectCode: reservedWorkflow.project?.code || '',
         projectName: reservedWorkflow.project?.name || '',
         quantity: Number(plannedItem.requiredQuantity || 0),
-        mobilizationDate: dateKey(reservedWorkflow.plannedMobilizationDate)
+        mobilizationDate: dateKey(projectWorkflowReferenceDate(reservedWorkflow))
       });
       reservationsByItem.set(plannedItem.stockItemId, reservations);
     }
@@ -510,17 +540,21 @@ async function loadSupplyCatalog(database, currentProjectId) {
   }));
 }
 
-export async function loadProjectWorkflowResourcePlanning(database, workflow) {
+export async function loadProjectWorkflowResourcePlanning(database, workflow, { today } = {}) {
   if (!workflow) return emptyProjectWorkflowResourcePlanning();
+  // targetDate segue sendo apenas a mobilização operacional prevista (base da logística); a data de
+  // referência dos catálogos pode vir de uma alternativa.
   const targetDate = dateKey(workflow.plannedMobilizationDate);
-  if (!targetDate) return emptyProjectWorkflowResourcePlanning(workflow);
+  const reference = resourceReferenceDate(workflow, today);
   const [teamCatalog, equipmentCatalog, supplyCatalog] = await Promise.all([
-    loadTeamCatalog(database, targetDate, workflow.projectId),
-    loadEquipmentCatalog(database, workflow, targetDate),
+    loadTeamCatalog(database, reference.date, workflow.projectId),
+    loadEquipmentCatalog(database, workflow, reference.date),
     loadSupplyCatalog(database, workflow.projectId)
   ]);
   return {
     targetDate,
+    referenceDate: reference.date,
+    referenceDateSource: reference.source,
     team: publicTeamPlanning(workflow, teamCatalog),
     equipment: publicEquipmentPlanning(workflow, equipmentCatalog),
     supplies: buildSupplyPlanning(workflow, supplyCatalog),

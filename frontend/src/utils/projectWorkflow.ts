@@ -1,6 +1,7 @@
 import {
   PROJECT_WORKFLOW_STAGE_LABELS,
-  PROJECT_WORKFLOW_STAGES
+  PROJECT_WORKFLOW_STAGES,
+  projectWorkflowStageTransitions
 } from '../../../shared/schemas/project-workflow.js';
 import type { ProjectWorkflowStage, ProjectWorkflowSummary } from '../api/projectWorkflow';
 
@@ -16,7 +17,8 @@ export const PROJECT_KANBAN_STAGE_LABELS: Record<ProjectKanbanStage, string> = {
 export type ProjectKanbanColumns = Record<ProjectKanbanStage, ProjectWorkflowSummary[]>;
 
 export function canDefineInitialProjectTeam(stage: ProjectKanbanStage) {
-  return stage === 'PREPARATION' || stage === 'READY_TO_MOBILIZE';
+  // Sem "Pronto para mobilizar": a definição da equipe inicial continua disponível até a Mobilização.
+  return stage === 'PREPARATION' || stage === 'MOBILIZATION';
 }
 
 export function canManageProjectTeamCycles(stage: ProjectKanbanStage) {
@@ -79,23 +81,19 @@ export function projectWorkflowMilestoneText(item: ProjectWorkflowSummary) {
     return 'Desmobilização em andamento';
   }
   const milestones = item.workflow?.milestones;
+  // Na Sede a contagem é do início da execução previsto, não da mobilização em campo.
+  if (item.workflow?.executedAtHeadquarters) {
+    if (!milestones || milestones.daysUntilMobilization == null) return 'Início da execução ainda não informado';
+    if (milestones.daysUntilMobilization < 0) return `Início da execução atrasado há ${Math.abs(milestones.daysUntilMobilization)} dia(s)`;
+    if (milestones.daysUntilMobilization === 0) return 'Início da execução previsto para hoje';
+    return `Faltam ${milestones.daysUntilMobilization} dia(s) para iniciar a execução`;
+  }
   if (!milestones || milestones.daysUntilMobilization == null) return 'Mobilização ainda não informada';
   if (milestones.daysUntilMobilization < 0) return `Mobilização atrasada há ${Math.abs(milestones.daysUntilMobilization)} dia(s)`;
   if (milestones.daysUntilMobilization === 0) return 'Mobilização prevista para hoje';
   return `Faltam ${milestones.daysUntilMobilization} dia(s)`;
 }
 
-export function projectWorkflowStageOptions(stage: ProjectWorkflowStage) {
-  if (stage === 'INITIAL_ANALYSIS') return ['WAITING_PLANNING', 'MOBILIZATION_PLANNING'] as ProjectWorkflowStage[];
-  if (stage === 'WAITING_PLANNING') return ['INITIAL_ANALYSIS', 'MOBILIZATION_PLANNING'] as ProjectWorkflowStage[];
-  if (stage === 'MOBILIZATION_PLANNING') return ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION'] as ProjectWorkflowStage[];
-  if (stage === 'PREPARATION') return ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'] as ProjectWorkflowStage[];
-  if (stage === 'READY_TO_MOBILIZE') return ['PREPARATION', 'MOBILIZATION'] as ProjectWorkflowStage[];
-  if (stage === 'MOBILIZATION') return ['READY_TO_MOBILIZE', 'EXECUTION'] as ProjectWorkflowStage[];
-  if (stage === 'EXECUTION') return ['MOBILIZATION', 'DEMOBILIZATION'] as ProjectWorkflowStage[];
-  if (stage === 'DEMOBILIZATION') return ['EXECUTION', 'POST_JOB'] as ProjectWorkflowStage[];
-  if (stage === 'POST_JOB') return ['DEMOBILIZATION', 'FINAL_MEASUREMENT'] as ProjectWorkflowStage[];
-  if (stage === 'FINAL_MEASUREMENT') return ['POST_JOB', 'FINISHED'] as ProjectWorkflowStage[];
-  if (stage === 'FINISHED') return ['FINAL_MEASUREMENT'] as ProjectWorkflowStage[];
-  return [];
+export function projectWorkflowStageOptions(stage: ProjectWorkflowStage, headquarters = false) {
+  return projectWorkflowStageTransitions(stage, headquarters) as ProjectWorkflowStage[];
 }

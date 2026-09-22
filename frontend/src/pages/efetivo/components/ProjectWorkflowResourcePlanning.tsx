@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import type {
   ProjectWorkflow,
   ProjectWorkflowEquipmentPlanningItem,
+  ProjectWorkflowIssue,
   ProjectWorkflowPatch
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { displayDateOnly } from '../../../utils/calendarGrid';
+import { isResourceConflictIssue } from '../../../utils/projectWorkflowResourceConflicts';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 
@@ -14,10 +16,11 @@ type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 type TeamDraft = Array<{ jobRoleId: string; requiredCount: number }>;
 type EquipmentSelection = { categoryId: string; equipmentIds: string[]; exceptionReasons: Record<string, string> };
 
-function choiceStatus(defined: boolean | null, completeLabel: string, pendingLabel: string) {
+function choiceStatus(defined: boolean | null, completeLabel: string, notNeededLabel: string, optional = false) {
+  // "Não" é uma resposta completa (não é necessário), diferente de ainda não ter respondido.
   if (defined === true) return completeLabel;
-  if (defined === false) return pendingLabel;
-  return 'Pendente';
+  if (defined === false) return notNeededLabel;
+  return optional ? 'Opcional' : 'Pendente';
 }
 
 function availabilityLabel(item: ProjectWorkflowEquipmentPlanningItem) {
@@ -41,6 +44,65 @@ function maintenanceLabel(item: ProjectWorkflowEquipmentPlanningItem) {
   if (item.maintenance.status === 'OVERDUE') return `Manutenção vencida${item.maintenance.nextMaintenanceDate ? ` em ${displayDateOnly(item.maintenance.nextMaintenanceDate)}` : ''}`;
   if (item.maintenance.status === 'NO_HISTORY') return 'Sem manutenção aprovada no histórico';
   return 'Periodicidade de manutenção não configurada';
+}
+
+export function ProjectWorkflowResourceConflicts({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: PatchHandler;
+}) {
+  const issues = workflow.issues.filter(isResourceConflictIssue);
+  if (!issues.length) return null;
+  const open = issues.filter(issue => issue.status !== 'RESOLVED');
+  const canEdit = workflow.permissions.canEdit && !saving;
+  return (
+    <ProjectWorkflowCategory
+      title="Incompatibilidades de recursos"
+      description="A mudança da data de mobilização deixou a equipe ou os equipamentos definidos incompatíveis com o calendário e a disponibilidade. Cada item bloqueia a mobilização até ser resolvido e é resolvido automaticamente quando a data ou os recursos voltam a ser compatíveis."
+      area="Operações"
+      progress={{ completed: issues.length - open.length, total: issues.length }}
+      status={open.length ? `${open.length} aberta${open.length === 1 ? '' : 's'}` : 'Resolvidas'}
+      tone={open.length ? 'crit' : 'ok'}
+      complete={open.length === 0}
+      data-project-workflow-resource-conflicts
+    >
+      {issues.map(issue => (
+        <article className={`project-workflow-issue${issue.overdue ? ' is-overdue' : ''}`} key={issue.id}>
+          <div className="field-group">
+            <label htmlFor={`resource-conflict-status-${issue.id}`}>{issue.area}</label>
+            <p className="project-workflow-category-note">{issue.description}</p>
+            <select
+              id={`resource-conflict-status-${issue.id}`}
+              value={issue.status}
+              disabled={!canEdit}
+              onChange={event => onPatch({
+                action: 'issue',
+                version: workflow.version,
+                issueId: issue.id,
+                description: issue.description,
+                ownerName: issue.ownerName,
+                requiredLeadTimeDays: issue.requiredLeadTimeDays,
+                dueDate: issue.dueDate,
+                criticality: issue.criticality,
+                status: event.target.value as ProjectWorkflowIssue['status']
+              })}
+            >
+              <option value="OPEN">Aberta</option>
+              <option value="IN_PROGRESS">Em andamento</option>
+              <option value="RESOLVED">Resolvida</option>
+            </select>
+          </div>
+          {issue.overdue ? <strong className="project-workflow-overdue">Prazo vencido</strong> : null}
+        </article>
+      ))}
+    </ProjectWorkflowCategory>
+  );
+}
+
+function ReferenceDateNote({ planning }: { planning: ProjectWorkflow['resourcePlanning'] }) {
+  if (!planning.referenceDate || planning.referenceDateSource === 'PLANNED') return null;
+  const origin = planning.referenceDateSource === 'COMMERCIAL' ? 'previsão comercial de mobilização' : 'data de hoje';
+  return <p className="project-workflow-category-note" data-project-workflow-reference-date>Sem mobilização operacional prevista, a disponibilidade considera {displayDateOnly(planning.referenceDate)} ({origin}). Informe a data no Handover para calcular com precisão.</p>;
 }
 
 export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
@@ -88,14 +150,15 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
       description="Defina os cargos e a quantidade necessária para a obra."
       area="Operações"
       icon="users"
-      status={choiceStatus(planning.defined, `${planning.demands.length} cargo(s)`, 'Equipe não definida')}
-      complete={planning.defined === true && planning.demands.length > 0}
+      status={choiceStatus(planning.defined, `${planning.demands.length} cargo(s)`, 'Equipe não necessária')}
+      complete={planning.defined === false || (planning.defined === true && planning.demands.length > 0)}
       className="project-workflow-resource-card"
       data-project-workflow-team-plan
     >
+      <ReferenceDateNote planning={workflow.resourcePlanning} />
       <div className="project-workflow-resource-question">
-        <div><strong>A equipe necessária para esta obra já foi definida?</strong><p>“Não” mantém esta frente pendente.</p></div>
-        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipe necessária definida?" disabled={saving || !workflow.permissions.canEditTeamPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
+        <div><strong>Esta obra vai precisar de equipe própria?</strong><p>Se a obra não precisar de equipe própria, marque “Não”.</p></div>
+        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Esta obra vai precisar de equipe própria?" disabled={saving || !workflow.permissions.canEditTeamPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
       </div>
       {editing ? <div className="project-workflow-resource-editor">
         <div className="project-workflow-resource-add">
@@ -179,16 +242,17 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
   return (
     <ProjectWorkflowCategory
       title="Equipamentos"
-      description={`Consulte disponibilidade, calibração e manutenção para ${workflow.resourcePlanning.targetDate ? displayDateOnly(workflow.resourcePlanning.targetDate) : 'a mobilização prevista'}.`}
+      description={`Consulte disponibilidade, calibração e manutenção para ${workflow.resourcePlanning.referenceDate ? displayDateOnly(workflow.resourcePlanning.referenceDate) : 'a mobilização prevista'}.`}
       area="Ativos"
-      status={choiceStatus(planning.defined, `${planning.equipmentIds.length} equipamento(s)`, 'Equipamentos não definidos')}
-      complete={planning.defined === true && planning.equipmentIds.length > 0}
+      status={choiceStatus(planning.defined, `${planning.equipmentIds.length} equipamento(s)`, 'Equipamentos não necessários', workflow.executedAtHeadquarters === true)}
+      complete={planning.defined === false || (planning.defined === true && planning.equipmentIds.length > 0)}
       className="project-workflow-resource-card"
       data-project-workflow-equipment-plan
     >
+      <ReferenceDateNote planning={workflow.resourcePlanning} />
       <div className="project-workflow-resource-question">
-        <div><strong>Os equipamentos necessários para esta obra já foram definidos?</strong><p>“Não” mantém esta frente pendente.</p></div>
-        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipamentos necessários definidos?" disabled={saving || !workflow.permissions.canEditEquipmentPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
+        <div><strong>Esta obra vai precisar de equipamentos?</strong><p>Se a obra não precisar de equipamentos, marque “Não”.</p></div>
+        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Esta obra vai precisar de equipamentos?" disabled={saving || !workflow.permissions.canEditEquipmentPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
       </div>
       {editing ? <div className="project-workflow-resource-editor">
         <fieldset className="project-workflow-equipment-categories"><legend>Categorias e equipamentos necessários</legend>{planning.catalog.map(category => {

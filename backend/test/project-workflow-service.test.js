@@ -25,6 +25,7 @@ function fakeDatabase() {
     teamMemberChecks: [],
     preparationItemChecks: [],
     clientReleases: [],
+    efetivoSettings: [],
     answers: [],
     issues: [],
     commercialFacts: [],
@@ -210,11 +211,24 @@ function fakeDatabase() {
       }
     },
     projectWorkflowClientRelease: {
+      findUnique: async input => {
+        const key = input.where.projectId_key.key;
+        return state.clientReleases.find(item => item.key === key) || null;
+      },
       upsert: async input => {
         const key = input.where.projectId_key.key;
         const existing = state.clientReleases.find(item => item.key === key);
         if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
         else state.clientReleases.push({ id: `client-release-${state.clientReleases.length + 1}`, attendanceDate: null, attendanceConfirmedAt: null, requested: false, requestedAt: null, requestedTo: null, completed: false, completedAt: null, sourceRecordId: null, sourceUpdatedAt: null, createdAt: new Date(), updatedAt: new Date(), ...input.create });
+      }
+    },
+    efetivoSetting: {
+      findUnique: async input => state.efetivoSettings.find(item => item.key === input.where.key) || null,
+      upsert: async input => {
+        const existing = state.efetivoSettings.find(item => item.key === input.where.key);
+        if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
+        else state.efetivoSettings.push({ numberValue: null, textValue: null, updatedByUserId: null, updatedAt: new Date(), ...input.create });
+        return state.efetivoSettings.find(item => item.key === input.where.key);
       }
     },
     projectWorkflowCriticalAnswer: {
@@ -379,10 +393,15 @@ test('gestor inicia handover sem programação de equipe e sem presumir aceite',
   assert.equal(result.workflow.stage, 'HANDOVER');
   assert.equal(result.workflow.acceptedAt, null);
   assert.equal(result.workflow.planner.id, 'leader-1');
-  assert.equal(result.workflow.handoverGate.ready, true);
-  assert.equal(result.workflow.handoverGate.issues.length, 0);
+  // Sede ou campo ainda não foi respondido: bloqueia o gate do handover.
+  assert.equal(result.workflow.handoverGate.ready, false);
+  assert.deepEqual(result.workflow.handoverGate.issues, ['Informar se o projeto será executado na Sede ou em campo']);
   assert.equal(result.workflow.checklists.filter(item => item.stage === 'HANDOVER').length, 0);
   assert.equal(state.events[0].action, 'WORKFLOW_STARTED');
+
+  const answered = await updateProjectWorkflow('project-1', { action: 'analysis_location', version: result.workflow.version, executedAtHeadquarters: false }, manager, { database });
+  assert.equal(answered.workflow.handoverGate.ready, true);
+  assert.equal(answered.workflow.handoverGate.issues.length, 0);
 });
 
 test('gestor inicia handover sem mobilização prevista e configura antecedência de obra crítica', async () => {
@@ -427,18 +446,11 @@ test('planejador vinculado mantém o workflow sem assumir aceite ou autorizaçã
   result = await getProjectWorkflow('project-1', planner, { database });
   assert.equal(result.workflow.permissions.canEdit, true);
   assert.equal(result.workflow.permissions.canAccept, false);
-  assert.equal(result.workflow.permissions.canAuthorizeMobilization, false);
 
   result = await updateProjectWorkflow('project-1', {
     action: 'settings', version: 1, plannedMobilizationDate: '2027-02-20'
   }, planner, { database });
   assert.equal(result.workflow.plannedMobilizationDate, '2027-02-20');
-
-  state.workflow.stage = 'READY_TO_MOBILIZE';
-  await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 2 }, planner, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_AUTHORIZATION_FORBIDDEN'
-  );
 });
 
 test('somente o líder designado aceita o handover informativo', async () => {
@@ -448,7 +460,12 @@ test('somente o líder designado aceita o handover informativo', async () => {
     updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, viewer, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
-  const result = await updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, leader, { database, now: new Date('2026-09-10T10:00:00Z') });
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_HANDOVER_INCOMPLETE'
+  );
+  await updateProjectWorkflow('project-1', { action: 'analysis_location', version: 1, executedAtHeadquarters: false }, leader, { database });
+  const result = await updateProjectWorkflow('project-1', { action: 'accept', version: 2 }, leader, { database, now: new Date('2026-09-10T10:00:00Z') });
   assert.equal(result.workflow.stage, 'INITIAL_ANALYSIS');
   assert.equal(result.workflow.acceptedAt.toISOString(), '2026-09-10T10:00:00.000Z');
   const { HANDOVER, INITIAL_ANALYSIS } = result.workflow.stageTimeline;
@@ -477,6 +494,78 @@ test('pendência só aparece enquanto o item crítico correspondente está em Si
   assert.equal(list.items[0].workflow.issueCount, 1);
 });
 
+test('cadastro no cliente: "Sim" só pré-preenche o e-mail padrão, sem solicitar nem avisar; "Solicitar cadastro" que dispara o aviso', async () => {
+  const { database, state } = fakeDatabase();
+  state.efetivoSettings.push({ key: 'notificationEmail.PROJECT_WORKFLOW_CLIENT_REGISTRATION', textValue: 'administrativo@filtrovali.com.br', numberValue: null, updatedByUserId: null, updatedAt: new Date() });
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  const notified = [];
+  const notifyClientRegistrationRequested = async args => { notified.push(args); return { emailsSent: 1 }; };
+  let detail = await updateProjectWorkflow('project-1', { action: 'critical', version: 1, key: 'CLIENT_REGISTRATION', answer: true }, leader, { database, notifyClientRegistrationRequested });
+  // "Sim" não solicita nem avisa sozinho — só deixa o e-mail padrão já preenchido no campo
+  assert.equal(state.issues.length, 0);
+  assert.equal(detail.workflow.clientReleases.customerRegistration.requested, false);
+  assert.equal(detail.workflow.clientReleases.customerRegistration.requestedAt, null);
+  assert.equal(detail.workflow.clientReleases.customerRegistration.email, 'administrativo@filtrovali.com.br');
+  assert.equal(notified.length, 0);
+
+  // clicar em "Solicitar cadastro" (envia para o que estiver no campo, aqui o próprio padrão) que dispara o aviso
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'client_release', version: detail.workflow.version, key: 'CUSTOMER_REGISTRATION',
+    requested: true, requestedAt: '2026-12-01', completed: false, completedAt: null,
+    notificationEmail: 'administrativo@filtrovali.com.br'
+  }, leader, { database, notifyClientRegistrationRequested });
+  assert.equal(detail.workflow.clientReleases.customerRegistration.requested, true);
+  assert.ok(detail.workflow.clientReleases.customerRegistration.requestedAt);
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0].email, 'administrativo@filtrovali.com.br');
+  assert.equal(notified[0].projectId, 'project-1');
+
+  detail = await updateProjectWorkflow('project-1', { action: 'critical', version: detail.workflow.version, key: 'CLIENT_REGISTRATION', answer: false }, leader, {
+    database, notifyClientRegistrationRequested: async args => { notified.push(args); }
+  });
+  assert.equal(detail.workflow.clientReleases.customerRegistration.requested, false);
+  assert.equal(detail.workflow.clientReleases.customerRegistration.requestedAt, null);
+  assert.equal(detail.workflow.clientReleases.customerRegistration.email, 'administrativo@filtrovali.com.br');
+  assert.equal(notified.length, 1);
+});
+
+test('cadastro no cliente: "Solicitar cadastro" pode usar um e-mail digitado na hora (não precisa ser o padrão) e pode virar o novo padrão', async () => {
+  const { database, state } = fakeDatabase();
+  state.efetivoSettings.push({ key: 'notificationEmail.PROJECT_WORKFLOW_CLIENT_REGISTRATION', textValue: 'administrativo@filtrovali.com.br', numberValue: null, updatedByUserId: null, updatedAt: new Date() });
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  const notified = [];
+  const notifyClientRegistrationRequested = async args => { notified.push(args); return { emailsSent: 1 }; };
+  let detail = await updateProjectWorkflow('project-1', { action: 'critical', version: 1, key: 'CLIENT_REGISTRATION', answer: true }, leader, { database, notifyClientRegistrationRequested });
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'client_release', version: detail.workflow.version, key: 'CUSTOMER_REGISTRATION',
+    requested: true, requestedAt: '2026-12-01', completed: false, completedAt: null,
+    notificationEmail: 'nova@filtrovali.com.br', makeDefaultEmail: true
+  }, administrative, { database, notifyClientRegistrationRequested });
+  assert.equal(detail.workflow.clientReleases.customerRegistration.email, 'nova@filtrovali.com.br');
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0].email, 'nova@filtrovali.com.br');
+  assert.equal(state.efetivoSettings.find(item => item.key === 'notificationEmail.PROJECT_WORKFLOW_CLIENT_REGISTRATION').textValue, 'nova@filtrovali.com.br');
+
+  // corrigir o e-mail depois de já solicitado reenvia o aviso
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'client_release', version: detail.workflow.version, key: 'CUSTOMER_REGISTRATION',
+    requested: true, requestedAt: detail.workflow.clientReleases.customerRegistration.requestedAt, completed: false, completedAt: null,
+    notificationEmail: 'outra@filtrovali.com.br', makeDefaultEmail: false
+  }, administrative, { database, notifyClientRegistrationRequested });
+  assert.equal(detail.workflow.clientReleases.customerRegistration.email, 'outra@filtrovali.com.br');
+  assert.equal(notified.length, 2);
+  assert.equal(notified[1].email, 'outra@filtrovali.com.br');
+  // makeDefaultEmail:false não mexeu no padrão global
+  assert.equal(state.efetivoSettings.find(item => item.key === 'notificationEmail.PROJECT_WORKFLOW_CLIENT_REGISTRATION').textValue, 'nova@filtrovali.com.br');
+
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'client_release', version: detail.workflow.version, key: 'CUSTOMER_REGISTRATION',
+    requested: true, requestedAt: detail.workflow.clientReleases.customerRegistration.requestedAt, completed: true, completedAt: '2027-01-10'
+  }, administrative, { database, notifyClientRegistrationRequested });
+  assert.equal(detail.workflow.clientReleases.customerRegistration.completed, true);
+  assert.equal(detail.workflow.clientReleases.customerRegistration.completedAt, '2027-01-10');
+});
+
 test('requisito documental crítico usa os cards e não cria pendência genérica', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
@@ -495,6 +584,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
   state.workflow.analysisClientContactPhone = '(11) 99999-9999';
   state.workflow.analysisClientContactDate = new Date('2026-09-10T00:00:00Z');
   state.workflow.isCritical = false;
+  state.workflow.executedAtHeadquarters = false;
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').map(item => ({ id: item.key, projectId: 'project-1', key: item.key, status: 'DONE' })));
   state.answers.push(...PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ id: item.key, projectId: 'project-1', key: item.key, answer: item.key === 'SPECIAL_EQUIPMENT' })));
   state.issues.push({ id: 'issue-1', projectId: 'project-1', sourceQuestion: 'SPECIAL_EQUIPMENT', description: 'Equipamento', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null, criticality: 'HIGH', status: 'OPEN' });
@@ -762,9 +852,13 @@ function makeStateReadyForMobilization(state) {
     lodgingRequestedDate: '2026-09-09',
     lodgingConfirmedDate: '2026-09-10',
     teamTransportDefined: true,
-    teamTransportDescription: 'Van própria.',
+    teamTransportMode: 'OWN',
+    teamTransportVehicleType: 'PICKUP',
+    teamTransportQuantity: 1,
     freightDefined: false,
-    freightType: null,
+    freightMode: null,
+    freightVehicleType: null,
+    freightQuantity: null,
     freightDepartureDate: null,
     freightDepartureTime: null
   };
@@ -944,7 +1038,8 @@ test('QSMS edita sua frente sem avançar a etapa', async () => {
   state.workflow.stage = 'PREPARATION';
   let result = await updateProjectWorkflow('project-1', { action: 'qsms', version: 1, verified: true }, qsms, { database });
   assert.equal(result.workflow.qsms.verified, true);
-  assert.equal(result.workflow.preparationReadiness.completed, 0);
+  // marcado como verificado já libera a frente, mesmo sem o registro do que foi verificado
+  assert.equal(result.workflow.preparationReadiness.completed, 1);
   result = await updateProjectWorkflow('project-1', { action: 'qsms', version: 2, verificationNote: 'APR e documentação de segurança.' }, qsms, { database });
   assert.equal(result.workflow.qsms.verificationNote, 'APR e documentação de segurança.');
   assert.equal(result.workflow.preparationReadiness.completed, 1);
@@ -977,11 +1072,12 @@ test('preparação acompanha equipe por colaborador e liberações do cliente co
   assert.equal(result.workflow.clientReleases.attendance.confirmed, true);
   result = await updateProjectWorkflow('project-1', {
     action: 'client_release', version: 4, key: 'CUSTOMER_REGISTRATION', requested: true,
-    requestedAt: '2026-09-12', requestedTo: 'Portaria da unidade', completed: false, completedAt: null
+    requestedAt: '2026-09-12', requestedTo: 'cadastro@filtrovali.com.br', completed: false, completedAt: null
   }, administrative, { database });
-  const registration = result.workflow.clientReleases.items.find(item => item.key === 'CUSTOMER_REGISTRATION');
-  assert.equal(registration.requestedTo, 'Portaria da unidade');
+  const registration = result.workflow.clientReleases.customerRegistration;
+  assert.equal(registration.email, 'cadastro@filtrovali.com.br');
   assert.equal(registration.completed, false);
+  assert.equal(result.workflow.clientReleases.items.some(item => item.key === 'CUSTOMER_REGISTRATION'), false);
   result = await updateProjectWorkflow('project-1', {
     action: 'preparation_item_check', version: 5, itemType: 'MATERIAL', itemId: 'stock-stock-filter-1', key: 'SEPARATED', status: 'PENDING'
   }, supplies, { database });
@@ -1019,63 +1115,98 @@ test('preparação registra pré-job e viagem em campos estruturados com salvame
     action: 'travel', version: 4, teamTransportDefined: true
   }, operations, { database });
   detail = await updateProjectWorkflow('project-1', {
-    action: 'travel', version: 5, teamTransportDescription: 'Van própria com saída da sede.', freightDefined: false
+    action: 'travel', version: 5, teamTransportMode: 'OWN', teamTransportVehicleType: 'PICKUP', teamTransportQuantity: 2, freightDefined: false
   }, operations, { database });
-  assert.equal(detail.workflow.travel.teamTransportDescription, 'Van própria com saída da sede.');
+  assert.equal(detail.workflow.travel.teamTransportMode, 'OWN');
+  assert.equal(detail.workflow.travel.teamTransportVehicleType, 'PICKUP');
+  assert.equal(detail.workflow.travel.teamTransportQuantity, 2);
   assert.equal(detail.workflow.travel.freightDefined, false);
   assert.equal(state.events.at(-1).action, 'WORKFLOW_TRAVEL');
 });
 
-test('gate verde emite autorização versionada e alteração posterior a suspende', async () => {
+test('datas comerciais destravadas (sem CRM) editáveis a qualquer momento; D-15 exige confirmar ou corrigir', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+
+  // editável já na Análise inicial (qualquer etapa ativa), sem precisar de papel de área específico
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_dates', version: 1, expectedMobilizationDate: '2027-01-20', expectedStartDate: '2027-01-25'
+  }, leader, { database });
+  assert.equal(detail.workflow.commercialExpectedMobilizationDate, '2027-01-20');
+  assert.equal(detail.workflow.commercialExpectedStartDate, '2027-01-25');
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.start.confirmed, false);
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, false);
+
+  // exige papel de operações para confirmar/corrigir em D-15 (mesmo padrão da confirmação de atendimento)
+  state.workflow.stage = 'PREPARATION';
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'commercial_schedule_confirm', version: detail.workflow.version, field: 'START' }, administrative, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
+  );
+
+  // "Sim, continua igual" confirma o valor atual sem alterar a data
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_schedule_confirm', version: detail.workflow.version, field: 'START'
+  }, operations, { database });
+  assert.equal(detail.workflow.commercialExpectedStartDate, '2027-01-25');
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.start.confirmed, true);
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, false);
+
+  // "Não, mudou" corrige a data e já confirma o novo valor
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_schedule_confirm', version: detail.workflow.version, field: 'MOBILIZATION', date: '2027-01-22'
+  }, operations, { database });
+  assert.equal(detail.workflow.commercialExpectedMobilizationDate, '2027-01-22');
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, true);
+
+  // editar a data de novo (ex.: correção posterior) desconfirma sozinho, sem reset explícito
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'commercial_dates', version: detail.workflow.version, expectedStartDate: '2027-01-28'
+  }, leader, { database });
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.start.confirmed, false);
+  assert.equal(detail.workflow.clientReleases.scheduleConfirmation.mobilization.confirmed, true);
+});
+
+test('gate verde libera a mobilização direto, sem autorização manual, e volta a bloquear com o gate', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   makeStateReadyForMobilization(state);
-  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, {
+  // sem "Pronto para mobilizar": a Preparação com o gate limpo já vai direto para a Mobilização
+  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, {
     database,
-    now: new Date('2026-09-09T18:00:00Z')
+    now: new Date('2026-09-09T18:00:00Z'),
+    synchronizeOfficialMissionStage: async () => null
   });
-  assert.equal(result.workflow.stage, 'READY_TO_MOBILIZE');
+  assert.equal(result.workflow.stage, 'MOBILIZATION');
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
-  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 2);
+  // quebrar o gate derruba a autorização na hora, sem precisar de nenhum passo de "suspensão"
   result = await updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 2, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'PENDING' }, assets, { database });
-  assert.equal(result.workflow.mobilizationAuthorization.status, 'SUSPENDED');
   assert.equal(result.workflow.mobilizationGate.ready, false);
+  assert.equal(result.workflow.mobilizationAuthorization.status, 'NOT_AUTHORIZED');
+  // e corrigir o item já libera de novo, também sem nenhuma ação manual de revalidação
   result = await updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 3, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'DONE' }, assets, { database });
   assert.equal(result.workflow.mobilizationGate.ready, true);
-  assert.equal(result.workflow.mobilizationAuthorization.status, 'SUSPENDED');
-  result = await updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 4 }, leader, {
-    database,
-    now: new Date('2026-09-10T09:00:00Z')
-  });
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
-  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 5);
-  assert.equal(state.events.at(-1).action, 'WORKFLOW_AUTHORIZE_MOBILIZATION');
 });
 
-test('avanço para execução transporta a autorização para a nova versão', async () => {
+test('avanço para execução não passa mais por "Pronto para mobilizar"', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   makeStateReadyForMobilization(state);
   const synchronizedStages = [];
-  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, {
+  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, {
     database,
     now: new Date('2026-09-09T18:00:00Z'),
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION' }, leader, {
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, {
     database,
     now: new Date('2026-09-10T09:00:00Z'),
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, {
-    database,
-    now: new Date('2026-09-10T10:00:00Z'),
-    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
-  });
   assert.equal(result.workflow.stage, 'EXECUTION');
-  assert.equal(result.workflow.version, 4);
+  assert.equal(result.workflow.version, 3);
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
-  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 4);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION']);
 });
 
@@ -1088,17 +1219,18 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
     database,
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   };
-  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, stageDependencies);
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION' }, leader, stageDependencies);
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, stageDependencies);
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
+  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
-  assert.equal(result.workflow.demobilizationReadiness.total, 15);
+  assert.equal(result.workflow.demobilizationReadiness.total, 17);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION']);
+  // a Desmobilização encerra a autorização para novas saídas operacionais (romaneios, Estoque); o retorno à
+  // Execução usa o gate de mobilização diretamente, não esse status
   assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
 
   result = await updateProjectWorkflow('project-1', {
-    action: 'demobilization', version: 5, mobilizationDate: '2026-09-10', fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
+    action: 'demobilization', version: 4, mobilizationDate: '2026-09-10', fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
   }, leader, {
     database,
     synchronizeOfficialMissionDemobilization: async (_tx, _projectId, returnDate) => {
@@ -1112,15 +1244,16 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   assert.equal(state.events.at(-1).action, 'WORKFLOW_DEMOBILIZATION');
 
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'demobilization', version: 6, returnDate: '2026-09-19' }, leader, { database }),
+    updateProjectWorkflow('project-1', { action: 'demobilization', version: 5, returnDate: '2026-09-19' }, leader, { database }),
     error => error.code === 'INVALID_PROJECT_WORKFLOW_DEMOBILIZATION'
   );
-  assert.equal(state.workflow.version, 6);
+  assert.equal(state.workflow.version, 5);
 
   result = await updateProjectWorkflow('project-1', {
-    action: 'checklist', version: 6, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE'
+    action: 'checklist', version: 5, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE'
   }, operations, { database });
-  assert.equal(result.workflow.demobilizationReadiness.completed, 1);
+  // 1 controle do checklist + as datas de conclusão de campo e de desmobilização exigidas pelo gate
+  assert.equal(result.workflow.demobilizationReadiness.completed, 3);
 });
 
 test('datas efetivas não podem ser antecipadas fora da desmobilização', async () => {
@@ -1150,7 +1283,7 @@ test('Pós-job persiste fechamento, sincroniza Qualidade e expõe histórico rel
   });
   assert.equal(detail.workflow.stage, 'POST_JOB');
   assert.deepEqual(synchronizedStages, ['POST_JOB']);
-  assert.equal(detail.workflow.postJobReadiness.total, 9);
+  assert.equal(detail.workflow.postJobReadiness.total, 10);
 
   let synchronizedInput = null;
   detail = await updateProjectWorkflow('project-1', {
@@ -1177,7 +1310,8 @@ test('Pós-job persiste fechamento, sincroniza Qualidade e expõe histórico rel
   detail = await updateProjectWorkflow('project-1', {
     action: 'checklist', version: 3, key: 'POST_JOB_MEETING_COMPLETED', status: 'DONE'
   }, leader, { database });
-  assert.equal(detail.workflow.postJobReadiness.completed, 1);
+  // 1 controle do checklist + a data da reunião de pós-job exigida pelo gate
+  assert.equal(detail.workflow.postJobReadiness.completed, 2);
 
   state.relatedPostJobs.push({
     projectId: 'project-2',
@@ -1211,7 +1345,7 @@ test('Documentação e medição avança pelo gate e persiste valores auditávei
   });
   assert.equal(detail.workflow.stage, 'FINAL_MEASUREMENT');
   assert.deepEqual(synchronizedStages, ['FINAL_MEASUREMENT']);
-  assert.equal(detail.workflow.closeoutReadiness.total, 14);
+  assert.equal(detail.workflow.closeoutReadiness.total, 16);
 
   detail = await updateProjectWorkflow('project-1', {
     action: 'measurement',
@@ -1285,18 +1419,170 @@ test('Encerramento registra autoria e reabertura exige justificativa auditável'
   assert.equal(state.events.at(-1).data.reason, 'Cliente solicitou ajuste no valor final.');
 });
 
-test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {
+test('gate bloqueado impede a entrada em Mobilização e papel de área não edita a etapa', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-10' }, manager, { database });
   makeStateReadyForMobilization(state);
   state.preparationItemChecks = state.preparationItemChecks.filter(item => !(item.itemType === 'MATERIAL' && item.key === 'SEPARATED'));
+  // sem "Pronto para mobilizar": o próprio avanço para a Mobilização é quem barra com o gate incompleto
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, { database }),
+    updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, { database }),
     error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED'
   );
-  state.workflow.stage = 'READY_TO_MOBILIZE';
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 1 }, operations, { database }),
+    updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, operations, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
+});
+
+test('modo de correção libera todos os controles de etapas concluídas para quem pode corrigir', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  await updateProjectWorkflow('project-1', { action: 'analysis_location', version: 1, executedAtHeadquarters: false }, leader, { database });
+  await updateProjectWorkflow('project-1', { action: 'accept', version: 2 }, leader, { database });
+  state.workflow.stage = 'EXECUTION';
+
+  const analysisChecklist = detail => detail.workflow.checklists.filter(item => item.stage === 'INITIAL_ANALYSIS');
+  const planningChecklist = detail => detail.workflow.checklists.filter(item => item.stage === 'MOBILIZATION_PLANNING');
+
+  let detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.ok(analysisChecklist(detail).length > 0);
+  assert.ok(analysisChecklist(detail).every(item => item.canEdit), 'checklist da análise inicial editável na correção');
+  assert.equal(detail.workflow.permissions.canEditTeamPlanning, true);
+  assert.equal(detail.workflow.permissions.canEditEquipmentPlanning, true);
+  assert.equal(detail.workflow.permissions.canEditSupplyPlanning, true);
+  assert.equal(detail.workflow.permissions.canEditLogisticsPlanning, true);
+  assert.equal(detail.workflow.preJob.canEdit, true);
+  assert.equal(detail.workflow.travel.canEditLodging, true);
+  assert.equal(planningChecklist(detail).every(item => item.canEdit), true);
+
+  // sem poder de correção (nem Líder, nem gestor, nem Gestor de Contrato) nada é liberado
+  detail = await getProjectWorkflow('project-1', viewer, { database });
+  assert.ok(analysisChecklist(detail).every(item => !item.canEdit));
+  assert.equal(detail.workflow.permissions.canEditTeamPlanning, false);
+  assert.equal(detail.workflow.preJob.canEdit, false);
+
+  // a correção realmente grava em etapa anterior
+  const edited = await updateProjectWorkflow('project-1', {
+    action: 'checklist', version: state.workflow.version, key: 'ANALYSIS_RESPONSIBILITIES', status: 'DONE', correctionStage: 'INITIAL_ANALYSIS'
+  }, leader, { database });
+  assert.equal(edited.workflow.checklists.find(item => item.key === 'ANALYSIS_RESPONSIBILITIES').status, 'DONE');
+
+  // projeto encerrado não aceita correção
+  state.workflow.stage = 'FINISHED';
+  detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.ok(analysisChecklist(detail).every(item => !item.canEdit));
+});
+
+test('mudar a data de mobilização vira pendência quando a equipe definida fica incompatível e avisa os responsáveis', async () => {
+  const { database, state } = fakeDatabase();
+  database.collaborator = { findMany: async () => [{ id: 'collab-1', name: 'Ana', jobRoleId: 'role-1', admissionDate: null, terminationDate: null, isActive: true }] };
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  state.workflow.stage = 'MOBILIZATION_PLANNING';
+  state.workflow.teamPlanDefined = true;
+  state.teamDemands.push({ id: 'demand-1', projectId: 'project-1', jobRoleId: 'role-1', requiredCount: 3 });
+  const notices = [];
+  const notifyResourceConflicts = async input => { notices.push(input); };
+
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-01'
+  }, manager, { database, notifyResourceConflicts });
+  const conflict = detail.workflow.issues.find(issue => issue.sourceQuestion === 'RESOURCE_TEAM_CONFLICT');
+  assert.ok(conflict, 'a pendência aparece para o projeto');
+  assert.equal(conflict.status, 'OPEN');
+  assert.equal(conflict.criticality, 'HIGH');
+  assert.match(conflict.description, /Mecânico: necessário 3, disponível 1/);
+  assert.equal(notices.length, 1);
+  assert.deepEqual(notices[0].conflicts.map(item => item.type), ['TEAM']);
+  assert.equal(state.events.at(-2).action, 'WORKFLOW_RESOURCE_CONFLICTS');
+  // bloqueia a mobilização até ser resolvida
+  assert.ok(detail.workflow.mobilizationGate.blockers.some(blocker => blocker.label === conflict.description));
+
+  // data que não altera nada não gera novo aviso
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-01'
+  }, manager, { database, notifyResourceConflicts });
+  assert.equal(notices.length, 1);
+
+  // com a equipe compatível, a próxima mudança de data resolve a pendência sozinha
+  state.teamDemands[0].requiredCount = 1;
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-10'
+  }, manager, { database, notifyResourceConflicts });
+  assert.equal(detail.workflow.issues.find(issue => issue.sourceQuestion === 'RESOURCE_TEAM_CONFLICT').status, 'RESOLVED');
+  assert.equal(notices.length, 1);
+
+  // falha ao avisar não desfaz a alteração da data
+  state.teamDemands[0].requiredCount = 3;
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'settings', version: state.workflow.version, plannedMobilizationDate: '2027-03-20'
+  }, manager, { database, notifyResourceConflicts: async () => { throw new Error('sem e-mail'); } });
+  assert.equal(detail.workflow.plannedMobilizationDate, '2027-03-20');
+  assert.equal(detail.workflow.issues.find(issue => issue.sourceQuestion === 'RESOURCE_TEAM_CONFLICT').status, 'OPEN');
+});
+
+test('a previsão de início e fim da execução é registrada na análise inicial e validada', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  await updateProjectWorkflow('project-1', { action: 'analysis_location', version: 1, executedAtHeadquarters: false }, leader, { database });
+  await updateProjectWorkflow('project-1', { action: 'accept', version: 2 }, leader, { database });
+
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: '2027-02-20', plannedExecutionEndDate: '2027-04-30'
+  }, leader, { database });
+  assert.equal(detail.workflow.plannedExecutionStartDate, '2027-02-20');
+  assert.equal(detail.workflow.plannedExecutionEndDate, '2027-04-30');
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: '2027-02-10', plannedExecutionEndDate: null }, leader, { database }),
+    error => error.code === 'INVALID_PROJECT_WORKFLOW_EXECUTION_SCHEDULE'
+  );
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: null, plannedExecutionEndDate: null
+  }, leader, { database });
+  assert.equal(detail.workflow.plannedExecutionStartDate, null);
+  assert.equal(detail.workflow.plannedExecutionEndDate, null);
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'analysis_schedule', version: state.workflow.version, plannedExecutionStartDate: '2027-02-20', plannedExecutionEndDate: '2027-02-01' }, viewer, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+});
+
+test('Sede ou campo é respondido na Análise inicial, muda o fluxo e trava depois do Planejamento', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'INITIAL_ANALYSIS';
+  state.workflow.acceptedAt = new Date();
+  let detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.ok(detail.workflow.executedAtHeadquarters == null);
+  assert.ok(detail.workflow.analysisReadiness.percentage < 100);
+
+  detail = await updateProjectWorkflow('project-1', { action: 'analysis_location', version: detail.workflow.version, executedAtHeadquarters: true }, leader, { database });
+  assert.equal(detail.workflow.executedAtHeadquarters, true);
+  // itens removidos da análise e da documentação
+  assert.equal(detail.workflow.criticalAnswers.some(item => item.key === 'CLIENT_REQUIREMENTS'), false);
+  assert.equal(detail.workflow.documentationCategories.some(item => item.type === 'EXAM'), false);
+
+  // depois de sair do Planejamento a resposta fica travada
+  state.workflow.stage = 'PREPARATION';
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'analysis_location', version: detail.workflow.version, executedAtHeadquarters: false }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_HEADQUARTERS_LOCKED'
+  );
+  detail = await getProjectWorkflow('project-1', leader, { database });
+  const stages = detail.workflow.transitionOptions.map(item => item.stage);
+  assert.ok(stages.includes('EXECUTION'));
+  assert.equal(stages.includes('MOBILIZATION'), false);
+});
+
+test('em campo, o fluxo segue com Pronto para mobilizar e a pergunta de exigências do cliente', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'INITIAL_ANALYSIS';
+  state.workflow.acceptedAt = new Date();
+  const detail = await updateProjectWorkflow('project-1', { action: 'analysis_location', version: 1, executedAtHeadquarters: false }, leader, { database });
+  assert.equal(detail.workflow.executedAtHeadquarters, false);
+  assert.equal(detail.workflow.criticalAnswers.some(item => item.key === 'CLIENT_REQUIREMENTS'), true);
+  assert.equal(detail.workflow.documentationCategories.some(item => item.type === 'EXAM'), true);
 });

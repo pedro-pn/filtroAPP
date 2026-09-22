@@ -14,11 +14,12 @@ import {
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
 
-test('equipe inicial pertence à preparação e ciclos ficam disponíveis somente em execução', () => {
+test('equipe inicial pertence à preparação e continua disponível até a mobilização; ciclos só em execução', () => {
   assert.equal(canDefineInitialProjectTeam('MOBILIZATION_PLANNING'), false);
   assert.equal(canDefineInitialProjectTeam('PREPARATION'), true);
-  assert.equal(canDefineInitialProjectTeam('READY_TO_MOBILIZE'), true);
-  assert.equal(canDefineInitialProjectTeam('MOBILIZATION'), false);
+  // Sem "Pronto para mobilizar": a definição da equipe inicial continua disponível até a Mobilização.
+  assert.equal(canDefineInitialProjectTeam('MOBILIZATION'), true);
+  assert.equal(canDefineInitialProjectTeam('EXECUTION'), false);
   assert.equal(canManageProjectTeamCycles('MOBILIZATION'), false);
   assert.equal(canManageProjectTeamCycles('EXECUTION'), true);
   assert.equal(canManageProjectTeamCycles('DEMOBILIZATION'), false);
@@ -56,9 +57,9 @@ test('movimentação otimista mantém snapshot para restaurar um card bloqueado'
 test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('INITIAL_ANALYSIS'), ['WAITING_PLANNING', 'MOBILIZATION_PLANNING']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION_PLANNING'), ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION']);
-  assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE']);
-  assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'MOBILIZATION']);
-  assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['READY_TO_MOBILIZE', 'EXECUTION']);
+  // Sem "Pronto para mobilizar": a Preparação vai direto para a Mobilização.
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'MOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['PREPARATION', 'EXECUTION']);
   assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
   assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION', 'POST_JOB']);
   assert.deepEqual(projectWorkflowStageOptions('POST_JOB'), ['DEMOBILIZATION', 'FINAL_MEASUREMENT']);
@@ -175,9 +176,13 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(schema, /TRAININGS_RELEASED/);
   assert.match(panel, /futura integração externa/);
   assert.match(panel, /Confirmação do atendimento/);
-  assert.match(panel, /Data da solicitação/);
-  assert.match(panel, /Solicitado para quem/);
-  assert.match(panel, /Data da conclusão/);
+  assert.doesNotMatch(panel, /Data da solicitação|Data da conclusão/);
+  assert.match(panel, /Solicitado\{values\.requestedAt/);
+  assert.match(panel, /Concluído\{values\.completedAt/);
+  assert.match(panel, /completedAt: completed \? values\.completedAt \|\| todayDateOnly\(\) : ''/);
+  assert.doesNotMatch(panel, /Solicitado para quem|requestedTo/);
+  assert.match(panel, /disabled=\{disabled \|\| !values\.requested\}/);
+  assert.match(panel, /<DateInput/);
   assert.match(panel, /Na sede e disponível na data necessária/);
   assert.match(panel, /Manutenção em dia/);
   assert.match(panel, /if \(!maintenance\.required\) return null/);
@@ -185,14 +190,13 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(schema, /Material separado/);
   assert.match(panel, /Disponível em estoque/);
   assert.match(panel, /preparation_item_check/);
-  assert.match(panel, /workflow-pre-job-scheduled-date/);
-  assert.match(panel, /workflow-pre-job-completed-date/);
+  assert.match(panel, /Agendado\{workflow\.preJob\.scheduledDate/);
+  assert.match(panel, /Realizado\{workflow\.preJob\.completedDate/);
   assert.match(panel, /Hospedagem solicitada/);
   assert.match(panel, /Hospedagem confirmada/);
   assert.match(panel, /Transporte da equipe definido/);
   assert.match(panel, /Frete/);
-  assert.match(panel, /Próprio/);
-  assert.match(panel, /Terceiro/);
+  assert.match(panel, /TransportVehicleSelector/);
   assert.match(panel, /Foi verificado\?/);
   assert.match(panel, /O que foi verificado\?/);
   assert.match(panel, /action: 'qsms'/);
@@ -223,7 +227,7 @@ test('diálogo de planejamento separa as etapas em abas com resumo fixo e flags 
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(modal, /project-workflow-fixed-top/);
   assert.match(modal, /role="tablist" aria-label="Etapas do planejamento"/);
-  assert.match(modal, /WORKFLOW_STAGES\.map\(stage =>/);
+  assert.match(modal, /visibleStages\.map\(stage =>/);
   assert.match(modal, /role="tabpanel"/);
   assert.match(modal, /project-workflow-stage-flag/);
   assert.match(modal, /workflowStagePendingItems/);
@@ -254,8 +258,10 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   const sharedSchema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(intake, /Documentação antecipada/);
-  assert.match(intake, /Data da solicitação/);
-  assert.match(intake, /Data da confirmação/);
+  assert.doesNotMatch(intake, /Data da solicitação|Data da confirmação/);
+  assert.match(intake, /Solicitado\{item\.requestedAt \? ` em \$\{displayDateOnly\(item\.requestedAt\)\}` : ''\}/);
+  assert.match(intake, /disabled=\{saving \|\| !canEdit \|\| item\.status === 'PENDING'\}/);
+  assert.match(intake, /Data do contato: \{contactDate/);
   assert.match(intake, /Histórico/);
   assert.match(intake, /\{category\.description\}/);
   assert.match(intake, /documentation_requirement_update/);
@@ -282,7 +288,7 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(registry, /efetivo:administrative/);
 });
 
-test('análise inicial usa datas do CRM, contato estruturado e pendência sem campo Área', () => {
+test('análise inicial mostra as datas comerciais estimadas, contato estruturado e pendência sem campo Área', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
@@ -317,10 +323,10 @@ test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(modal, /ProjectWorkflowTeamPlanningCard/);
   assert.match(modal, /ProjectWorkflowEquipmentPlanningCard/);
-  assert.match(planning, /A equipe necessária para esta obra já foi definida/);
+  assert.match(planning, /Esta obra vai precisar de equipe própria/);
   assert.match(planning, /Necessidade de contratação/);
   assert.match(planning, /Confirmar equipe/);
-  assert.match(planning, /Os equipamentos necessários para esta obra já foram definidos/);
+  assert.match(planning, /Esta obra vai precisar de equipamentos/);
   assert.match(planning, /Categorias e equipamentos necessários/);
   assert.match(planning, /toggleEquipment/);
   assert.match(planning, /equipmentIds/);
@@ -352,14 +358,15 @@ test('D-30 usa o Estoque nos insumos e salva a logística preliminar automaticam
   assert.match(planning, /Itens disponíveis no Estoque/);
   assert.match(planning, /Produtos químicos/);
   assert.match(planning, /Filtros/);
-  assert.match(planning, /Data do pedido/);
-  assert.match(planning, /Data da compra/);
+  assert.match(planning, /Pedido realizado/);
+  assert.match(planning, /Compra concluída/);
   assert.match(planning, /Será necessário veículo/);
   assert.match(planning, /Será necessário frete/);
   assert.match(planning, /Será necessária hospedagem/);
   assert.match(planning, /A hospedagem já foi solicitada/);
-  assert.match(planning, /Data da solicitação/);
-  assert.match(planning, /Data da conclusão/);
+  assert.doesNotMatch(planning, /Data do pedido|Data da compra|Data da solicitação|Data da conclusão/);
+  assert.match(planning, /Hospedagem concluída/);
+  assert.match(planning, /todayDateOnly\(\)/);
   assert.match(planning, /onBlur=\{\(\) => save\(draft\)\}/);
   assert.match(schema, /action: z\.literal\('supply_plan'\)/);
   assert.match(schema, /action: z\.literal\('logistics_plan'\)/);
@@ -387,12 +394,10 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(modal, /data-project-workflow-d15/);
   assert.match(modal, /data-project-workflow-gate/);
-  assert.match(modal, /Autorizar mobilização/);
-  assert.match(modal, /Revalidar autorização/);
   assert.match(board, /Risco de mobilização/);
   assert.match(board, /Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(12, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
@@ -445,4 +450,138 @@ test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
   assert.match(panel, /Registro em Qualidade/);
   assert.match(board, /Pós-job:/);
   assert.match(styles, /project-workflow-category/);
+});
+
+test('campos de data com salvamento automático só confirmam datas completas e o handover segue o padrão dos cards', () => {
+  const dateInput = fs.readFileSync(new URL('../src/components/ui/DateInput.tsx', import.meta.url), 'utf8');
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const efetivoPage = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  assert.match(dateInput, /isCommittableDate/);
+  assert.match(dateInput, /validity\.badInput/);
+  assert.match(dateInput, /onCommit/);
+  assert.match(efetivoPage, /<DateInput id="efetivo-position-date"/);
+  assert.match(preparation, /Agendado\{workflow\.preJob\.scheduledDate/);
+  assert.match(preparation, /<DateInput id="workflow-freight-departure-date"/);
+  const settings = modal.slice(modal.indexOf('function WorkflowSettingsForm('), modal.indexOf('function DemobilizationDatesForm('));
+  assert.match(settings, /<ProjectWorkflowCategory[\s\S]*title="Responsáveis e cronograma"/);
+  assert.match(settings, /Gestor de Contrato/);
+  assert.doesNotMatch(modal, /Planejador/);
+});
+
+test('incompatibilidades de recursos aparecem no planejamento e na preparação, fora da análise inicial', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const resources = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowResourcePlanning.tsx', import.meta.url), 'utf8');
+  const conflictUtil = fs.readFileSync(new URL('../src/utils/projectWorkflowResourceConflicts.ts', import.meta.url), 'utf8');
+  assert.match(conflictUtil, /RESOURCE_TEAM_CONFLICT/);
+  assert.match(conflictUtil, /RESOURCE_EQUIPMENT_CONFLICT/);
+  assert.match(resources, /data-project-workflow-resource-conflicts/);
+  assert.match(resources, /Sem mobilização operacional prevista, a disponibilidade considera/);
+  assert.match(modal, /analysisIssues = workflow\.issues\.filter\(item => !isResourceConflictIssue\(item\)\)/);
+  const planning = modal.slice(modal.indexOf("activeStage === 'MOBILIZATION_PLANNING'"), modal.indexOf("activeStage === 'PREPARATION'"));
+  assert.match(planning, /ProjectWorkflowResourceConflicts/);
+  const preparation = modal.slice(modal.indexOf('const renderPreparation = () =>'), modal.indexOf('const renderPostJob = () =>'));
+  assert.match(preparation, /ProjectWorkflowResourceConflicts/);
+});
+
+test('Sede pula as etapas de mobilização nas opções de etapa e conta o prazo pelo início da execução', () => {
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION', true), ['MOBILIZATION_PLANNING', 'EXECUTION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION', true), ['PREPARATION', 'POST_JOB']);
+  assert.deepEqual(projectWorkflowStageOptions('POST_JOB', true), ['EXECUTION', 'FINAL_MEASUREMENT']);
+  // sem resposta ou em campo, nada muda
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION', false), ['MOBILIZATION_PLANNING', 'MOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
+  const sede = days => ({ workflow: { executedAtHeadquarters: true, milestones: { daysUntilMobilization: days } } });
+  assert.equal(projectWorkflowMilestoneText(sede(20)), 'Faltam 20 dia(s) para iniciar a execução');
+  assert.equal(projectWorkflowMilestoneText(sede(0)), 'Início da execução previsto para hoje');
+  assert.equal(projectWorkflowMilestoneText(sede(-3)), 'Início da execução atrasado há 3 dia(s)');
+  assert.equal(projectWorkflowMilestoneText(sede(null)), 'Início da execução ainda não informado');
+});
+
+test('cadastro no cliente: "Sim" só pré-preenche o e-mail, "Solicitar cadastro" que envia para o que estiver no campo, e "Concluído" usa botão (não checkbox)', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /function ClientRegistrationCriticalItem/);
+  assert.match(modal, /item\.key === 'CLIENT_REGISTRATION'/);
+  assert.match(modal, /workflow\.clientReleases\.customerRegistration/);
+  // botão explícito que envia para o que estiver no campo (padrão pré-preenchido ou digitado na hora)
+  assert.match(modal, />Solicitar cadastro</);
+  assert.match(modal, /notificationEmail: trimmedEmail/);
+  assert.match(modal, /Usar este e-mail como padrão para os próximos projetos\?/);
+  assert.match(modal, /sendRequest\(true\)/);
+  assert.match(modal, /sendRequest\(false\)/);
+  assert.match(modal, /\{ makeDefaultEmail \}/);
+  assert.doesNotMatch(modal, /Para quem foi solicitado/);
+  assert.match(schema, /notificationEmail: z\.string\(\)\.trim\(\)\.email/);
+  assert.match(schema, /makeDefaultEmail: z\.boolean\(\)\.optional\(\)/);
+  assert.match(styles, /project-workflow-client-registration-fields/);
+  // solicitado sem e-mail configurado não falha silenciosamente: avisa na tela
+  assert.match(modal, /release\.requested && !release\.email/);
+  assert.match(modal, /Nenhum e-mail de aviso configurado/);
+  // "Concluído" é um Button com preenchimento sólido quando ativo (mesmo padrão do botão "Fazer correção"), não um checkbox com moldura
+  const registrationComponent = modal.slice(modal.indexOf('function ClientRegistrationCriticalItem'), modal.indexOf('function IssueEditor'));
+  assert.match(registrationComponent, /project-workflow-registration-complete-button\$\{release\.completed \? ' is-active' : ''\}/);
+  assert.doesNotMatch(registrationComponent, /type="checkbox"/);
+  // antes de clicar não mostra o ícone de check nem usa cor de destaque (evita parecer já concluído)
+  assert.match(registrationComponent, /\{release\.completed \? <ProjectWorkflowIcon name="check" \/> : null\}/);
+  assert.match(styles, /project-workflow-registration-complete-button \{ background: var\(--pw-surface/);
+  assert.match(styles, /project-workflow-registration-complete-button\.is-active/);
+});
+
+test('transporte da equipe e frete usam o mesmo seletor de veículo (Nosso/Locação/Frete + tipo + quantidade)', () => {
+  const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  assert.match(panel, /function TransportVehicleSelector/);
+  // as duas seções (equipe e frete) reaproveitam o mesmo componente, sem se fundir numa só
+  const teamSection = panel.slice(panel.indexOf('Transporte da equipe definido'), panel.indexOf("<article className=\"project-workflow-client-release\">\n          <header><strong>Frete"));
+  assert.match(teamSection, /idPrefix="workflow-team-transport"/);
+  const freightSection = panel.slice(panel.indexOf('<header><strong>Frete'));
+  assert.match(freightSection, /idPrefix="workflow-freight"/);
+  assert.match(panel, /Quantos vão/);
+  assert.doesNotMatch(panel, /teamTransportDescription|freightType/);
+  assert.match(schema, /PROJECT_WORKFLOW_TRANSPORT_MODES = \['OWN', 'RENTAL', 'THIRD_PARTY'\]/);
+  assert.match(schema, /CARRETA.*TRUCK.*MUNCK.*TOCO/s);
+  assert.match(schema, /PICKUP.*HR.*VW10180.*PASSENGER/s);
+});
+
+test('administração ganha a aba de e-mails de aviso por finalidade', () => {
+  const page = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../src/api/efetivoPlanning.ts', import.meta.url), 'utf8');
+  const purposes = fs.readFileSync(new URL('../../shared/schemas/notification-email-settings.js', import.meta.url), 'utf8');
+  assert.match(page, /'regras', 'feriados', 'notificacoes', 'atividade'/);
+  assert.match(board, /tab === 'notificacoes'/);
+  assert.match(board, /listNotificationEmailSettings/);
+  assert.match(board, /updateNotificationEmailSetting/);
+  assert.match(api, /admin\/notification-emails/);
+  assert.match(purposes, /PROJECT_WORKFLOW_CLIENT_REGISTRATION/);
+});
+
+test('datas comerciais estimadas ficam editáveis (sem CRM) na Análise inicial e são confirmadas ou corrigidas no D-15', () => {
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../src/api/projectWorkflow.ts', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  // destravadas: DateInput editável chamando commercial_dates, não mais <input readOnly>
+  assert.doesNotMatch(intake, /readOnly aria-readonly="true"/);
+  assert.match(intake, /<DateInput id="analysis-commercial-mobilization-date"/);
+  assert.match(intake, /<DateInput id="analysis-commercial-start-date"/);
+  assert.match(intake, /action: 'commercial_dates', version: workflow\.version, expectedMobilizationDate/);
+  assert.match(intake, /action: 'commercial_dates', version: workflow\.version, expectedStartDate/);
+  // D-15: confirmação com "Sim, continua igual" / "Não, mudou", não o padrão de botão único da confirmação de atendimento
+  assert.match(preparation, /function CommercialScheduleConfirmationItem/);
+  assert.match(preparation, /yesLabel="Sim, continua igual"/);
+  assert.match(preparation, /noLabel="Não, mudou"/);
+  assert.match(preparation, /action: 'commercial_schedule_confirm'/);
+  assert.match(preparation, /scheduleConfirmation\.mobilization\.relevant/);
+  assert.match(preparation, /scheduleConfirmation\.start\.relevant/);
+  assert.match(styles, /project-workflow-commercial-schedule-choice/);
+  // tipos e schema
+  assert.match(api, /action: 'commercial_dates'/);
+  assert.match(api, /action: 'commercial_schedule_confirm'/);
+  assert.match(schema, /action: z\.literal\('commercial_dates'\)/);
+  assert.match(schema, /action: z\.literal\('commercial_schedule_confirm'\)/);
+  assert.match(schema, /field: z\.enum\(\['MOBILIZATION', 'START'\]\)/);
 });

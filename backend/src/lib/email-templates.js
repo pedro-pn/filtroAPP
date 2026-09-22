@@ -139,10 +139,12 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
   clientName,
   stageLabel,
   plannedMobilizationDate,
+  headquarters = false,
   milestones = [],
   criticalIssues = [],
   appUrl
 }) {
+  const dateLabel = headquarters ? 'Início da execução previsto' : 'Mobilização prevista';
   const safeRecipientName = escapeHtml(recipientName || 'responsável');
   const safeProjectCode = escapeHtml(projectCode);
   const safeProjectName = escapeHtml(projectName);
@@ -164,7 +166,7 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
         <div><strong>Cliente:</strong> ${safeClientName}</div>
         <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
         <div><strong>Etapa atual:</strong> ${safeStageLabel}</div>
-        <div><strong>Mobilização prevista:</strong> ${safeMobilizationDate}</div>
+        <div><strong>${dateLabel}:</strong> ${safeMobilizationDate}</div>
       </div>
     </div>
     <div style="margin-top:16px">
@@ -174,7 +176,7 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
     ${safeIssues.length ? `<div style="margin-top:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px"><strong style="color:#9a3412">Pendências críticas abertas</strong><ul style="font-size:13px;line-height:1.7;margin:8px 0 0;padding-left:20px">${safeIssues.map(issue => `<li>${issue}</li>`).join('')}</ul></div>` : ''}
     ${safeAppUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0"><a href="${safeAppUrl}" style="display:inline-block;background:#30503a;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">Abrir gestão do projeto</a></p>` : ''}
   `;
-  const footer = 'Aviso automático da Gestão de Projetos Filtrovali para o Líder e o Planejador vinculados ao projeto.';
+  const footer = 'Aviso automático da Gestão de Projetos Filtrovali para o Líder e o Gestor de Contrato vinculados ao projeto.';
 
   return {
     subject: `[Filtrovali] ${milestoneSummary} · ${projectCode} - ${projectName}`,
@@ -184,12 +186,66 @@ export function buildProjectWorkflowMilestoneEmailTemplate({
       `O projeto ${projectCode} - ${projectName} atingiu: ${milestoneSummary}.`,
       `Cliente: ${clientName}`,
       `Etapa atual: ${stageLabel}`,
-      `Mobilização prevista: ${formatEmailDate(plannedMobilizationDate)}`,
+      `${dateLabel}: ${formatEmailDate(plannedMobilizationDate)}`,
       '',
       ...milestones.map(item => `${item.label}: ${item.description}`),
       ...(criticalIssues.length ? ['', 'Pendências críticas:', ...criticalIssues.map(issue => `- ${issue}`)] : []),
       appUrl ? ['', `Abrir projeto: ${appUrl}`] : []
     ].flat().filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildProjectWorkflowResourceConflictEmailTemplate({
+  recipientName,
+  projectCode,
+  projectName,
+  clientName,
+  stageLabel,
+  plannedMobilizationDate,
+  conflicts = [],
+  appUrl
+}) {
+  const safeRecipientName = escapeHtml(recipientName || 'responsável');
+  const safeProjectCode = escapeHtml(projectCode);
+  const safeProjectName = escapeHtml(projectName);
+  const safeMobilizationDate = escapeHtml(formatEmailDate(plannedMobilizationDate));
+  const safeAppUrl = escapeHtml(appUrl);
+  const title = 'Incompatibilidade de recursos com a nova data';
+  const intro = `Olá, ${safeRecipientName}. A mobilização do projeto ${safeProjectCode} - ${safeProjectName} foi prevista para ${safeMobilizationDate} e os recursos já definidos deixaram de estar compatíveis com essa data.`;
+  const groups = conflicts.map(conflict => `
+    <div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px">
+      <strong style="color:#9a3412">${escapeHtml(conflict.title)}</strong>
+      <ul style="font-size:14px;line-height:1.7;margin:8px 0 0;padding-left:20px">${conflict.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+    </div>`).join('');
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${escapeHtml(clientName)}</div>
+        <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
+        <div><strong>Etapa atual:</strong> ${escapeHtml(stageLabel)}</div>
+        <div><strong>Mobilização prevista:</strong> ${safeMobilizationDate}</div>
+      </div>
+    </div>
+    ${groups}
+    <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Cada incompatibilidade foi registrada como pendência crítica do projeto e precisa ser resolvida antes da mobilização: ajuste a equipe ou os equipamentos, ou revise a data prevista.</p>
+    ${safeAppUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0"><a href="${safeAppUrl}" style="display:inline-block;background:#30503a;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">Abrir gestão do projeto</a></p>` : ''}
+  `;
+  const footer = 'Aviso automático da Gestão de Projetos Filtrovali para o Líder e o Gestor de Contrato vinculados ao projeto.';
+
+  return {
+    subject: `[Filtrovali] Incompatibilidade de recursos · ${projectCode} - ${projectName}`,
+    text: [
+      `Olá, ${recipientName || 'responsável'}.`,
+      '',
+      `A mobilização do projeto ${projectCode} - ${projectName} foi prevista para ${formatEmailDate(plannedMobilizationDate)} e os recursos já definidos deixaram de estar compatíveis com essa data.`,
+      `Cliente: ${clientName}`,
+      `Etapa atual: ${stageLabel}`,
+      ...conflicts.flatMap(conflict => ['', `${conflict.title}:`, ...conflict.items.map(item => `- ${item}`)]),
+      '',
+      'Cada incompatibilidade foi registrada como pendência crítica e precisa ser resolvida antes da mobilização.',
+      appUrl ? ['', `Abrir projeto: ${appUrl}`] : []
+    ].flat().filter(value => value !== undefined && value !== null && value !== false).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
 }
@@ -1318,6 +1374,49 @@ export function buildSurveyExpiredEmailTemplate({ clientName, projectCode, proje
       `Expirada em: ${expiresAt}`,
       appUrl ? `Acesso: ${appUrl}` : '',
       privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildProjectWorkflowClientRegistrationEmailTemplate({
+  projectCode,
+  projectName,
+  clientName,
+  leaderName,
+  appUrl
+}) {
+  const safeProjectCode = escapeHtml(projectCode);
+  const safeProjectName = escapeHtml(projectName);
+  const safeClientName = escapeHtml(clientName);
+  const safeLeaderName = escapeHtml(leaderName);
+  const safeAppUrl = escapeHtml(appUrl);
+  const title = 'Cadastro de cliente solicitado';
+  const intro = `O Líder de Projetos ${safeLeaderName || ''} confirmou, na Análise inicial do projeto ${safeProjectCode} - ${safeProjectName}, que é necessário providenciar o cadastro da Filtrovali junto ao cliente.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${safeClientName}</div>
+        <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
+        <div><strong>Líder de Projetos:</strong> ${safeLeaderName || 'Não informado'}</div>
+      </div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Providencie o cadastro e marque "Concluído" na Análise inicial do projeto quando finalizado.</p>
+    ${safeAppUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0"><a href="${safeAppUrl}" style="display:inline-block;background:#30503a;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">Abrir gestão do projeto</a></p>` : ''}
+  `;
+  const footer = 'Aviso automático da Gestão de Projetos Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Cadastro de cliente · ${projectCode} - ${projectName}`,
+    text: [
+      `O Líder de Projetos ${leaderName || ''} confirmou, na Análise inicial do projeto ${projectCode} - ${projectName}, que é necessário providenciar o cadastro da Filtrovali junto ao cliente.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Líder de Projetos: ${leaderName || 'Não informado'}`,
+      '',
+      'Providencie o cadastro e marque "Concluído" na Análise inicial do projeto quando finalizado.',
+      appUrl ? `Abrir projeto: ${appUrl}` : ''
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };

@@ -14,6 +14,8 @@ import {
   updatePlanningJobRole,
   updatePlanningSettings
 } from '../lib/efetivo/planning/administration.js';
+import { listNotificationEmailSettings, setNotificationEmailSetting } from '../lib/efetivo/notification-email-settings.js';
+import { makeNotificationEmailSettingSchema } from '../../../shared/schemas/notification-email-settings.js';
 import {
   addMissionAllocation,
   listEligibleCollaborators,
@@ -359,6 +361,17 @@ router.get('/admin/settings', requireEfetivoViewer, asyncHandler(async (_req, re
 
 router.patch('/admin/settings', requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updatePlanningSettings(planningSettingsInputSchema.parse(req.body), context(req)));
+}));
+
+const notificationEmailSettingSchema = makeNotificationEmailSettingSchema(z);
+
+router.get('/admin/notification-emails', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+  res.json(await listNotificationEmailSettings());
+}));
+
+router.patch('/admin/notification-emails', requireEfetivoManager, asyncHandler(async (req, res) => {
+  const payload = notificationEmailSettingSchema.parse(req.body);
+  res.json(await setNotificationEmailSetting(payload.purpose, payload.email, context(req).actorUserId));
 }));
 
 router.get('/admin/activity', requireEfetivoViewer, asyncHandler(async (req, res) => {

@@ -10,6 +10,7 @@ import {
 
 import {
   createPlanningMission,
+  deletePlanningMission,
   listPendingMissionProjects,
   listPlanningCoordinators,
   listPlanningJobRoles,
@@ -17,6 +18,7 @@ import {
   movePlanningMission,
   updatePlanningMission,
   type MissionInput,
+  type MissionScheduleStatus,
   type MissionStage,
   type PendingMissionProject,
   type PlanningMission
@@ -34,6 +36,7 @@ import {
   type ProjectWorkflowSummary
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
@@ -60,6 +63,9 @@ import {
   setReorderDragImage,
   type PointerDragState
 } from '../../../utils/reorderDrag';
+import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
+import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
+import { selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionAllocationModal } from './MissionAllocationModal';
 import { MissionFormModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
@@ -117,10 +123,30 @@ function initials(name: string) {
   return name.split(' ').filter(Boolean).map(part => part[0]).slice(0, 2).join('').toLocaleUpperCase('pt-BR');
 }
 
+// Líder, datas e equipe são canônicos do fluxo de gestão (Handover, análise inicial e planejamento D-30):
+// a única coisa que falta ao Kanban é confirmar ou cancelar a missão, então o restante do payload viaja
+// inalterado a partir dos dados atuais da própria missão.
+function missionInputFromExisting(mission: PlanningMission, scheduleStatus: Exclude<MissionScheduleStatus, 'DRAFT'>): MissionInput {
+  return {
+    projectId: mission.projectId,
+    scheduleStatus,
+    headquartersResponsibleUserId: mission.headquartersResponsibleUserId,
+    mobilizationDate: mission.mobilizationDate.slice(0, 10),
+    executionStartDate: mission.executionStartDate.slice(0, 10),
+    executionEndDate: mission.executionEndDate.slice(0, 10),
+    returnDate: mission.returnDate ? mission.returnDate.slice(0, 10) : null,
+    collaboratorIds: selectedMissionCollaboratorIds(mission),
+    allocationPeriods: mission.allocations.map(allocation => {
+      const period = missionAllocationPeriod(allocation, mission);
+      return { collaboratorId: allocation.collaboratorId, mobilizationDate: period.startDate, demobilizationDate: period.endDate };
+    })
+  };
+}
+
 function moveOptions(item: ProjectWorkflowSummary): ProjectKanbanStage[] {
   if (!item.workflow) return LEGACY_PROJECT_STAGES;
   if (item.workflow.stage === 'HANDOVER') return ['HANDOVER', 'INITIAL_ANALYSIS'];
-  return [item.workflow.stage, ...projectWorkflowStageOptions(item.workflow.stage)];
+  return [item.workflow.stage, ...projectWorkflowStageOptions(item.workflow.stage, item.workflow.executedAtHeadquarters === true)];
 }
 
 function ProjectCard({
@@ -225,14 +251,16 @@ function ProjectCard({
       <span>{item.clientName || 'Cliente não informado'} · {item.location || 'Local não informado'}</span>
       <dl className="project-workflow-card-summary">
         <div>
-          <dt>{stage === 'HANDOVER' ? 'Previsão de mobilização' : 'Mobilização'}</dt>
-          <dd>{mission?.mobilizationDate
-            ? displayDateOnly(mission.mobilizationDate)
-            : workflow?.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}</dd>
+          <dt>{workflow?.executedAtHeadquarters ? 'Início da execução' : stage === 'HANDOVER' ? 'Previsão de mobilização' : 'Mobilização'}</dt>
+          <dd>{workflow?.executedAtHeadquarters
+            ? workflow.plannedExecutionStartDate ? displayDateOnly(workflow.plannedExecutionStartDate) : 'Não informado'
+            : mission?.mobilizationDate
+              ? displayDateOnly(mission.mobilizationDate)
+              : workflow?.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}</dd>
         </div>
         <div><dt>Participantes</dt><dd>{mission?.participantCount || 0}</dd></div>
       </dl>
-      {workflow ? <small>Líder do projeto: {workflow.leader.name}{workflow.planner ? ` · Planejador: ${workflow.planner.name}` : ' · Planejador não definido'}</small> : null}
+      {workflow ? <small>Líder do projeto: {workflow.leader.name}{workflow.planner ? ` · Gestor de Contrato: ${workflow.planner.name}` : ' · Gestor de Contrato não definido'}</small> : null}
       {responsibleName ? (
         <div className="efetivo-mission-owner">
           <i aria-hidden="true">{initials(responsibleName)}</i>
@@ -266,7 +294,7 @@ function ProjectCard({
             D-30: {workflow.planningReadiness.completed}/{workflow.planningReadiness.total} · {workflow.planningReadiness.percentage}%
           </small>
         ) : null}
-        {['PREPARATION', 'READY_TO_MOBILIZE'].includes(workflow.stage) ? (
+        {['PREPARATION', 'MOBILIZATION'].includes(workflow.stage) ? (
           <small className="project-workflow-preparation-badge">
             D-{workflow.preparationLeadTimeDays}: {workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%
           </small>
@@ -283,8 +311,8 @@ function ProjectCard({
         {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'RISK' ? (
           <small className="project-workflow-mobilization-risk is-risk">Risco de mobilização · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
-        {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
-        {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
+        {workflow.executedAtHeadquarters ? <small className="project-workflow-authorization-badge">🏢 Executado na Sede</small> : null}
+        {!workflow.executedAtHeadquarters && !['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
         {workflow.issueCount ? (
           <em className={workflow.overdueIssueCount ? 'is-overdue' : ''}>
             {workflow.issueCount} pendência(s){workflow.overdueIssueCount ? ' · ' + workflow.overdueIssueCount + ' vencida(s)' : ''}
@@ -420,7 +448,10 @@ export function ProjectWorkflowBoard({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [teamMissionId, setTeamMissionId] = useState<string | null>(null);
   const [missionFormProjectId, setMissionFormProjectId] = useState<string | null>(null);
+  const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
+  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
+  const [showCancelledMissions, setShowCancelledMissions] = useState(false);
   const dragRef = useRef<DragState | null>(null);
   const pointerRef = useRef<(PointerDragState & { drag: DragState; card: HTMLElement }) | null>(null);
   const pendingTouchRef = useRef<PendingTouch | null>(null);
@@ -436,6 +467,13 @@ export function ProjectWorkflowBoard({
     .find(mission => mission.projectId === missionFormProjectId) || null;
   const missionFormProject = (pendingMissionProjects.data || [])
     .find(project => project.id === missionFormProjectId) || null;
+  const deletingMission = (planningMissions.data || []).find(mission => mission.id === deletingMissionId) || null;
+  // Uma missão cancelada some do card do projeto e das etapas que exigem programação oficial (mobilização,
+  // execução, encerramento), mas nada é apagado: `listPlanningMissions` continua trazendo o registro completo.
+  const cancelledMissions = (planningMissions.data || []).filter(mission => mission.scheduleStatus === 'CANCELLED');
+  // A etapa do projeto (`workflow.stage`) nunca é tocada ao cancelar: o card só some da coluna enquanto
+  // cancelado, e reativar o traz de volta exatamente para onde estava, sem precisar guardar nada à parte.
+  const cancelledProjectIds = new Set(cancelledMissions.map(mission => mission.projectId));
 
   useEffect(() => {
     if (!teamMissionId || planningMissions.isFetching || teamMission) return;
@@ -535,6 +573,35 @@ export function ProjectWorkflowBoard({
       setMissionFormProjectId(null);
       onProjectSelect(projectId);
       toast(variables.mission ? 'Equipe inicial atualizada.' : 'Equipe inicial definida.', 'success');
+    },
+    onError: (error: Error) => toast(error.message, 'error')
+  });
+
+  // Confirmar/cancelar é a única informação que a equipe inicial (acima) não cobre; o resto da missão
+  // (líder, datas, equipe) é sempre canônico do fluxo de gestão e não tem mais um diálogo próprio de edição.
+  const setMissionStatus = useMutation({
+    mutationFn: ({ mission, status }: { mission: PlanningMission; status: Exclude<MissionScheduleStatus, 'DRAFT'> }) =>
+      updatePlanningMission(mission.id, mission.version, missionInputFromExisting(mission, status)),
+    onSuccess: async (_, variables) => {
+      await refreshMissionPlanningQueries(queryClient);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
+        queryClient.invalidateQueries({ queryKey: ['project-workflow', variables.mission.projectId] })
+      ]);
+      toast(variables.status === 'CONFIRMED' ? 'Missão confirmada.' : 'Missão cancelada.', 'success');
+    },
+    onError: (error: Error) => toast(error.message, 'error')
+  });
+  const removeMission = useMutation({
+    mutationFn: (mission: PlanningMission) => deletePlanningMission(mission.id),
+    onSuccess: async (_, mission) => {
+      await refreshMissionPlanningQueries(queryClient);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
+        queryClient.invalidateQueries({ queryKey: ['project-workflow', mission.projectId] })
+      ]);
+      setDeletingMissionId(null);
+      toast('Programação removida.', 'success');
     },
     onError: (error: Error) => toast(error.message, 'error')
   });
@@ -650,7 +717,7 @@ export function ProjectWorkflowBoard({
       if (project.workflow.stage === 'FINISHED') {
         onProjectSelect(project.id);
         if (!project.permissions.canReopen) {
-          toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Planejador pode reabrir este projeto.', 'error');
+          toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Gestor de Contrato pode reabrir este projeto.', 'error');
         } else if (target !== 'FINAL_MEASUREMENT') {
           toast('Movimentação bloqueada: um projeto encerrado volta primeiro para Documentação / medição.', 'error');
         } else {
@@ -660,7 +727,7 @@ export function ProjectWorkflowBoard({
       }
       if (!project.permissions.canEdit) {
         onProjectSelect(project.id);
-        toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Planejador pode alterar esta etapa.', 'error');
+        toast('Movimentação bloqueada: somente o gestor, o Líder de Projetos ou o Gestor de Contrato pode alterar esta etapa.', 'error');
         return;
       }
       if (target === 'FINISHED') {
@@ -671,7 +738,7 @@ export function ProjectWorkflowBoard({
           return;
         }
       }
-      const allowedTargets = projectWorkflowStageOptions(project.workflow.stage);
+      const allowedTargets = projectWorkflowStageOptions(project.workflow.stage, project.workflow.executedAtHeadquarters === true);
       if (!allowedTargets.includes(target)) {
         onProjectSelect(project.id);
         const labels = allowedTargets.map(stageOption => PROJECT_KANBAN_STAGE_LABELS[stageOption]).join(' ou ');
@@ -898,12 +965,52 @@ export function ProjectWorkflowBoard({
             ))}
           </select>
         </div>
+        {cancelledMissions.length ? (
+          <button
+            type="button"
+            className="project-workflow-link project-workflow-cancelled-toggle"
+            aria-pressed={showCancelledMissions}
+            data-project-workflow-cancelled-toggle
+            onClick={() => setShowCancelledMissions(open => !open)}
+          >
+            {showCancelledMissions ? 'Ocultar missões canceladas' : 'Ver missões canceladas'}
+          </button>
+        ) : null}
       </section>
+      {showCancelledMissions && cancelledMissions.length ? (
+        <section className="page-card project-workflow-cancelled-missions" data-project-workflow-cancelled-missions>
+          <header>
+            <h3>Missões canceladas</h3>
+            <p>Líder, datas e equipe continuam salvos. Reative para o projeto voltar a exigir a programação oficial nas etapas de mobilização, execução e encerramento.</p>
+          </header>
+          <div className="project-workflow-cancelled-list">
+            {cancelledMissions.map(mission => (
+              <article className="page-card project-workflow-cancelled-card" key={mission.id}>
+                <div>
+                  <strong>{mission.project.code} · {mission.project.name}</strong>
+                  <span>{mission.project.clientName || 'Sem cliente'} · {displayDateOnly(mission.mobilizationDate)} a {displayDateOnly(mission.executionEndDate)}</span>
+                  <small>{mission.allocations.length} participante(s)</small>
+                </div>
+                {canManage ? (
+                  <div className="efetivo-action-row">
+                    <Button variant="secondary" disabled={setMissionStatus.isPending} onClick={() => setMissionStatus.mutate({ mission, status: 'CONFIRMED' })}>Reativar</Button>
+                    <Button variant="danger" disabled={removeMission.isPending} onClick={() => setDeletingMissionId(mission.id)}>Remover</Button>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section
         className={'project-workflow-columns' + (draggingId ? ' is-dragging' : '')}
         aria-label="Evolução única dos projetos"
       >
-        {PROJECT_KANBAN_STAGES.map(stage => (
+        {PROJECT_KANBAN_STAGES.map(stage => {
+          // Enquanto a missão está cancelada, o projeto some da coluna e só aparece em "Cancelados"; a etapa
+          // em si não muda, então reativar o traz de volta para cá sem precisar restaurar nada.
+          const visibleItems = columns[stage].filter(item => !cancelledProjectIds.has(item.id));
+          return (
           <div
             className={[
               'project-workflow-column',
@@ -929,10 +1036,10 @@ export function ProjectWorkflowBoard({
           >
             <header>
               <strong>{PROJECT_KANBAN_STAGE_LABELS[stage]}</strong>
-              <span>{columns[stage].length}</span>
+              <span>{visibleItems.length}</span>
             </header>
             <div className="project-workflow-card-list">
-              {columns[stage].map(item => (
+              {visibleItems.map(item => (
                 <ProjectCard
                   item={item}
                   stage={stage}
@@ -974,12 +1081,13 @@ export function ProjectWorkflowBoard({
                   key={item.id}
                 />
               ))}
-              {columns[stage].length
+              {visibleItems.length
                 ? null
                 : <p className="efetivo-kanban-empty">Nenhum projeto nesta etapa</p>}
             </div>
           </div>
-        ))}
+          );
+        })}
       </section>
       {list.data.total > list.data.pageSize ? (
         <nav className="project-workflow-pagination" aria-label="Paginação dos projetos">
@@ -1006,15 +1114,25 @@ export function ProjectWorkflowBoard({
           mission={missionFormMission}
           project={missionFormMission ? null : missionFormProject as PendingMissionProject | null}
           initialTeamMode
+          context={teamContext}
           roles={planningRoles.data || []}
           rolesLoading={planningRoles.isLoading}
           coordinators={planningCoordinators.data || []}
           coordinatorsLoading={planningCoordinators.isLoading}
           saving={saveInitialTeam.isPending}
-          onClose={() => setMissionFormProjectId(null)}
+          onClose={() => { setMissionFormProjectId(null); setTeamContext(undefined); }}
           onSubmit={payload => saveInitialTeam.mutate({ mission: missionFormMission, payload })}
         />
       ) : null}
+      <ConfirmDialog
+        open={Boolean(deletingMissionId && deletingMission)}
+        title="Remover programação?"
+        description="A exclusão é lógica e a trilha permanece na auditoria; o projeto volta a aparecer como missão pendente."
+        highlight={deletingMission ? `${deletingMission.project.code} · ${deletingMission.project.name}` : undefined}
+        confirmLabel={removeMission.isPending ? 'Removendo…' : 'Remover'}
+        onConfirm={() => { if (deletingMission) removeMission.mutate(deletingMission); }}
+        onCancel={() => setDeletingMissionId(null)}
+      />
       <ProjectLegacyCompletionModal
         project={completionTarget?.project || null}
         mission={completionTarget?.mission || null}
@@ -1056,8 +1174,28 @@ export function ProjectWorkflowBoard({
             toast('Somente o gestor do Efetivo pode criar a programação.', 'error');
             return;
           }
+          setTeamContext(detail.data.workflow ? buildInitialTeamContext(detail.data.workflow) : undefined);
           setMissionFormProjectId(detail.data.project.id);
           if (pendingMissionProjects.isError) void pendingMissionProjects.refetch();
+          if (planningMissions.isError) void planningMissions.refetch();
+        }}
+        canManageMission={canManage}
+        missionStatusSaving={setMissionStatus.isPending}
+        onSetMissionStatus={status => {
+          const missionId = detail.data?.project.operationalMission?.id;
+          const mission = missionId ? (planningMissions.data || []).find(item => item.id === missionId) : undefined;
+          if (!mission) {
+            toast('Não foi possível carregar os dados desta programação.', 'error');
+            if (planningMissions.isError) void planningMissions.refetch();
+            return;
+          }
+          setMissionStatus.mutate({ mission, status });
+        }}
+        onRemoveMission={() => {
+          const missionId = detail.data?.project.operationalMission?.id;
+          if (!missionId) return;
+          onProjectSelect(undefined);
+          setDeletingMissionId(missionId);
           if (planningMissions.isError) void planningMissions.refetch();
         }}
       />

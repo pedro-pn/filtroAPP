@@ -18,10 +18,9 @@ import {
 function authorizedWorkflow(overrides = {}) {
   return {
     projectId: 'managed-authorized',
-    stage: 'READY_TO_MOBILIZE',
+    // Sem "Pronto para mobilizar": a autorização não é mais um flag fixo, é o gate reavaliado a cada consulta.
+    stage: 'MOBILIZATION',
     version: 3,
-    mobilizationAuthorizedAt: new Date('2026-09-09T12:00:00.000Z'),
-    mobilizationAuthorizationVersion: 3,
     preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
     preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
     qsmsVerified: true,
@@ -31,9 +30,13 @@ function authorizedWorkflow(overrides = {}) {
       lodgingRequestedDate: '2026-09-09',
       lodgingConfirmedDate: '2026-09-10',
       teamTransportDefined: true,
-      teamTransportDescription: 'Van própria.',
+      teamTransportMode: 'OWN',
+      teamTransportVehicleType: 'PICKUP',
+      teamTransportQuantity: 1,
       freightDefined: false,
-      freightType: null,
+      freightMode: null,
+      freightVehicleType: null,
+      freightQuantity: null,
       freightDepartureDate: null,
       freightDepartureTime: null
     },
@@ -67,7 +70,7 @@ test('Saída lista gerenciado autorizado e legado ativo', () => {
   }, 'OUTBOUND'), true);
   assert.equal(romaneioProjectAvailableForType({
     id: 'managed-blocked', isActive: true, workflow: authorizedWorkflow({
-      projectId: 'managed-blocked', mobilizationAuthorizationVersion: 2
+      projectId: 'managed-blocked', qsmsVerified: false
     })
   }, 'OUTBOUND'), false);
   assert.equal(romaneioProjectAvailableForType({ id: 'legacy-active', isActive: true, workflow: null }, 'OUTBOUND'), true);

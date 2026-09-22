@@ -18,10 +18,9 @@ import {
 export function managedWorkflow(overrides = {}) {
   return {
     projectId: 'project-1',
-    stage: 'READY_TO_MOBILIZE',
+    // Sem "Pronto para mobilizar": a autorização não é mais um flag fixo, é o gate reavaliado a cada consulta.
+    stage: 'MOBILIZATION',
     version: 7,
-    mobilizationAuthorizedAt: new Date('2026-09-09T12:00:00.000Z'),
-    mobilizationAuthorizationVersion: 7,
     preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
     preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
     qsmsVerified: true,
@@ -31,9 +30,13 @@ export function managedWorkflow(overrides = {}) {
       lodgingRequestedDate: '2026-09-09',
       lodgingConfirmedDate: '2026-09-10',
       teamTransportDefined: true,
-      teamTransportDescription: 'Van própria.',
+      teamTransportMode: 'OWN',
+      teamTransportVehicleType: 'PICKUP',
+      teamTransportQuantity: 1,
       freightDefined: true,
-      freightType: 'THIRD_PARTY',
+      freightMode: 'THIRD_PARTY',
+      freightVehicleType: 'TRUCK',
+      freightQuantity: 1,
       freightDepartureDate: '2026-09-14',
       freightDepartureTime: '08:00'
     },
@@ -116,18 +119,18 @@ test('desmobilização encerra a autorização para novas saídas operacionais',
   const decision = await projectOperationalMobilizationDecision(database(managedWorkflow({ stage: 'DEMOBILIZATION' })), 'project-1');
   assert.equal(decision.status, 'BLOCKED');
   assert.equal(decision.allowed, false);
-  assert.equal(decision.authorizationStatus, 'SUSPENDED');
+  assert.equal(decision.authorizationStatus, 'NOT_AUTHORIZED');
 });
 
-test('autorização suspensa bloqueia com contrato uniforme e explicável', async () => {
+test('projeto ainda em preparação bloqueia com contrato uniforme e explicável', async () => {
   await assert.rejects(
-    assertProjectMobilizationAuthorized(database(managedWorkflow({ version: 8 })), 'project-1'),
+    assertProjectMobilizationAuthorized(database(managedWorkflow({ stage: 'PREPARATION' })), 'project-1'),
     error => {
       assert.equal(error.statusCode, 409);
       assert.equal(error.code, 'PROJECT_MOBILIZATION_NOT_AUTHORIZED');
       assert.match(error.message, /Gestão de Projetos/);
-      assert.ok(error.issues.some(issue => /revalid/i.test(issue.message)));
-      assert.equal(error.mobilizationControl.authorizationStatus, 'SUSPENDED');
+      assert.ok(error.issues.some(issue => /Gestão de Projetos/i.test(issue.message)));
+      assert.equal(error.mobilizationControl.authorizationStatus, 'NOT_AUTHORIZED');
       return true;
     }
   );
@@ -137,13 +140,14 @@ test('gate incompleto informa os bloqueios sem aceitar data histórica', async (
   const workflow = managedWorkflow({
     stage: 'PREPARATION',
     version: 9,
-    qsmsVerificationNote: null
+    // marcado como verificado não basta mais registrar o que foi verificado: só reabrir a verificação bloqueia
+    qsmsVerified: false
   });
   const decision = await projectOperationalMobilizationDecision(database(workflow), 'project-1');
   assert.equal(decision.status, 'BLOCKED');
   assert.equal(decision.allowed, false);
-  assert.equal(decision.authorizationStatus, 'SUSPENDED');
-  assert.ok(decision.blockers.some(item => item.key === 'QSMS_VERIFICATION_NOTE'));
+  assert.equal(decision.authorizationStatus, 'NOT_AUTHORIZED');
+  assert.ok(decision.blockers.some(item => item.key === 'QSMS_VERIFIED'));
 });
 
 test('romaneio valida saída antes de gerar arquivos e preserva entrada', () => {

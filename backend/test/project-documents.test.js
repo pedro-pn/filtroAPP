@@ -45,7 +45,7 @@ test('cria catálogo, mantém versões imutáveis e arquiva/restaura com concorr
 
 test('aceite registra autoria e uma nova versão reinicia a decisão e invalida autorização', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'filtro-project-acceptance-'));
-  const { database, state } = createProjectDocumentsDatabase({ stage: 'READY_TO_MOBILIZE' });
+  const { database, state } = createProjectDocumentsDatabase({ stage: 'MOBILIZATION' });
   const created = await createProjectDocument('project_1', {
     type: 'CONTRACT', title: 'Contrato aceito', acceptanceMode: 'CLIENT', requirementStage: 'MOBILIZATION',
     initialVersion: { fileName: 'contrato.pdf', dataUrl: testPdfDataUrl('aceite') }

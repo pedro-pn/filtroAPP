@@ -260,7 +260,6 @@ enum ProjectWorkflowStage {
   WAITING_PLANNING
   MOBILIZATION_PLANNING
   PREPARATION
-  READY_TO_MOBILIZE
   MOBILIZATION
   EXECUTION
   DEMOBILIZATION
@@ -662,6 +661,7 @@ model AcompanhamentoSetting {
 model EfetivoSetting {
   key             String   @id
   numberValue     Float?
+  textValue       String?
   updatedByUserId String?
   updatedAt       DateTime @default(now()) @updatedAt
 }
@@ -1040,6 +1040,7 @@ model ProjectWorkflow {
   acceptedAt                         DateTime?
   plannedMobilizationDate            DateTime?                              @db.Date
   isCritical                         Boolean?
+  executedAtHeadquarters             Boolean?
   preparationLeadTimeDays            Int                                    @default(15)
   commercialExpectedMobilizationDate DateTime?                              @db.Date
   commercialExpectedStartDate        DateTime?                              @db.Date
@@ -1052,10 +1053,15 @@ model ProjectWorkflow {
   commercialClientContactEmail       String?
   commercialAssumptions              String?
   commercialSourceUpdatedAt          DateTime?
+  // Enquanto não existe integração com o CRM, as datas comerciais estimadas acima são digitadas manualmente; este
+  // campo guarda a confirmação (ou correção) de cada uma no D-15, antes da mobilização.
+  commercialScheduleConfirmation     Json                                   @default("{}")
   analysisClientContactMade          Boolean?
   analysisClientContactName          String?
   analysisClientContactPhone         String?
   analysisClientContactDate          DateTime?                              @db.Date
+  plannedExecutionStartDate          DateTime?                              @db.Date
+  plannedExecutionEndDate            DateTime?                              @db.Date
   teamPlanDefined                    Boolean?
   equipmentPlanDefined               Boolean?
   supplyPlanDefined                  Boolean?

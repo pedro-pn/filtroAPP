@@ -66,14 +66,16 @@ function fakeDatabase(mission = completeMission()) {
 }
 
 test('etapa do workflow possui projeção operacional única', () => {
-  assert.equal(missionStageForProjectWorkflow('READY_TO_MOBILIZE'), 'STANDBY');
+  // Sem "Pronto para mobilizar": voltar para a Preparação (de qualquer etapa operacional) devolve a missão a
+  // Stand by, exatamente como a antiga etapa fazia.
+  assert.equal(missionStageForProjectWorkflow('PREPARATION'), 'STANDBY');
   assert.equal(missionStageForProjectWorkflow('MOBILIZATION'), 'MOBILIZATION');
   assert.equal(missionStageForProjectWorkflow('EXECUTION'), 'EXECUTION');
   assert.equal(missionStageForProjectWorkflow('DEMOBILIZATION'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('POST_JOB'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('FINAL_MEASUREMENT'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('FINISHED'), 'FINISHED');
-  assert.equal(missionStageForProjectWorkflow('PREPARATION'), null);
+  assert.equal(missionStageForProjectWorkflow('WAITING_PLANNING'), null);
 });
 
 test('desmobilização atualiza retorno sem alterar equipe ou ciclos', async () => {
@@ -129,7 +131,7 @@ test('mobilização exige missão oficial confirmada e completa', async () => {
   );
 });
 
-test('retorno a Pronto para mobilizar não cria missão inexistente', async () => {
+test('retorno à Preparação não cria missão inexistente', async () => {
   const { database } = fakeDatabase(null);
-  assert.equal(await synchronizeOfficialMissionStage(database, 'project-1', 'READY_TO_MOBILIZE'), null);
+  assert.equal(await synchronizeOfficialMissionStage(database, 'project-1', 'PREPARATION'), null);
 });

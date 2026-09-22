@@ -4,7 +4,6 @@ export const PROJECT_WORKFLOW_STAGES = [
   'WAITING_PLANNING',
   'MOBILIZATION_PLANNING',
   'PREPARATION',
-  'READY_TO_MOBILIZE',
   'MOBILIZATION',
   'EXECUTION',
   'DEMOBILIZATION',
@@ -19,7 +18,6 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   WAITING_PLANNING: 'Aguardando planejamento',
   MOBILIZATION_PLANNING: 'Planejamento da mobilização',
   PREPARATION: 'Preparação',
-  READY_TO_MOBILIZE: 'Pronto para mobilizar',
   MOBILIZATION: 'Mobilização',
   EXECUTION: 'Em execução',
   DEMOBILIZATION: 'Desmobilização',
@@ -97,11 +95,34 @@ export const PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS = [
   'INTEGRATION_REQUEST'
 ];
 
+// O cadastro no cliente saiu daqui: agora é perguntado nos itens críticos da Análise inicial (com aviso por
+// e-mail ao Administrativo) e não aparece mais, duplicado, na Preparação.
+export const PROJECT_WORKFLOW_CUSTOMER_REGISTRATION_RELEASE = { key: 'CUSTOMER_REGISTRATION', label: 'Cadastro no cliente', areaRoles: ['efetivo:administrative'] };
+
 export const PROJECT_WORKFLOW_CLIENT_RELEASES = [
-  { key: 'CUSTOMER_REGISTRATION', label: 'Cadastro no cliente', areaRoles: ['efetivo:administrative'] },
   { key: 'DOCUMENTS_SENT', label: 'Documentação enviada ao cliente', areaRoles: ['efetivo:administrative'] },
   { key: 'INTEGRATION_REQUEST', label: 'Solicitação de integração', areaRoles: ['efetivo:administrative'] }
 ];
+
+// Seletor estruturado de veículo/transporte, usado tanto no transporte da equipe quanto no frete (seções
+// separadas, mesmo catálogo): "Nosso" e "Frete" (terceiro) escolhem um tipo de veículo do catálogo; "Locação de
+// carro" não tem tipo (é sempre um carro alugado) — só a quantidade.
+export const PROJECT_WORKFLOW_TRANSPORT_MODES = ['OWN', 'RENTAL', 'THIRD_PARTY'];
+export const PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS = { OWN: 'Nosso', RENTAL: 'Locação de carro', THIRD_PARTY: 'Frete (terceiro)' };
+export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES = {
+  OWN: ['PICKUP', 'HR', 'VW10180', 'PASSENGER'],
+  THIRD_PARTY: ['CARRETA', 'TRUCK', 'MUNCK', 'TOCO', 'HR', 'PICKUP']
+};
+export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPE_LABELS = {
+  PICKUP: 'Pickup',
+  HR: 'HR',
+  VW10180: 'VW 10.180',
+  PASSENGER: 'Veículo de passeio',
+  CARRETA: 'Carreta',
+  TRUCK: 'Truck',
+  MUNCK: 'Munck',
+  TOCO: 'Toco'
+};
 
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
 
@@ -197,6 +218,15 @@ export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
     area: 'Administrativo/RH',
     issueDescription: 'Regularizar treinamentos, exames ou documentos específicos do cliente',
     createsIssue: false
+  },
+  {
+    key: 'CLIENT_REGISTRATION',
+    label: 'É necessário cadastro da Filtrovali junto ao cliente?',
+    area: 'Administrativo',
+    issueDescription: 'Solicitar cadastro da Filtrovali junto ao cliente',
+    // Não cria uma pendência genérica: aciona o aviso por e-mail ao Administrativo e acompanha só
+    // "Solicitado"/"Concluído" (ver PROJECT_WORKFLOW_CUSTOMER_REGISTRATION_RELEASE).
+    createsIssue: false
   }
 ];
 
@@ -204,7 +234,7 @@ export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES = ['DOCUMENT', 'EXAM', 'TRAINI
 export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES = ['PENDING', 'REQUESTED', 'CONFIRMED'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS = [
   { type: 'DOCUMENT', label: 'Documentos técnicos', description: 'É necessário algum documento de engenharia? Ex.: instrução de trabalho', singularLabel: 'documento técnico', nameLabel: 'Nome do documento técnico' },
-  { type: 'EXAM', label: 'Exames adicionais', description: 'É necessário algum exame adicional para o projeto?', singularLabel: 'exame adicional', nameLabel: 'Nome do exame adicional' },
+  { type: 'EXAM', label: 'Exames adicionais', description: 'É necessário algum exame adicional para o projeto? Ex.: PMSO, ASO, LTCAT, PGR', singularLabel: 'exame adicional', nameLabel: 'Nome do exame adicional' },
   { type: 'TRAINING', label: 'Documentos de segurança', description: 'É necessária alguma documentação de segurança específica? Ex.: NRs, APRs', singularLabel: 'documento de segurança', nameLabel: 'Nome do documento de segurança' },
   { type: 'QUALITY', label: 'Documentos de qualidade', description: 'É necessário algum documento de qualidade diferente do usual? Ex.: RDO, RCPUs, RTPs', singularLabel: 'documento de qualidade', nameLabel: 'Nome do documento de qualidade' },
   { type: 'CERTIFICATION', label: 'Certificações adicionais', description: 'Quais certificações serão necessárias para o projeto? Ex.: calibração de equipamentos, planos de manutenção, checklists', singularLabel: 'certificação adicional', nameLabel: 'Nome da certificação adicional' }
@@ -226,6 +256,59 @@ export const PROJECT_WORKFLOW_COMMERCIAL_FACTS = [
   { key: 'MEASUREMENT_TERMS_DEFINED', label: 'Condição de medição definida', allowNotApplicable: false, evidence: 'note' },
   { key: 'BILLING_TERMS_DEFINED', label: 'Condição de faturamento definida', allowNotApplicable: false, evidence: 'note' }
 ];
+
+// Projeto executado na Sede: não há mobilização em campo. A resposta (`executedAtHeadquarters`) é dada na
+// Análise inicial; `null` = ainda não respondido e o projeto segue o fluxo de campo. Itens "ocultos" somem da
+// tela, dos bloqueios e do progresso; itens "opcionais" continuam visíveis, mas não bloqueiam nem contam.
+export const PROJECT_WORKFLOW_HEADQUARTERS_SKIPPED_STAGES = ['MOBILIZATION', 'DEMOBILIZATION'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_EDITABLE_STAGES = ['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_TEAM_CHECKS = ['EXAMS_RELEASED', 'TRAININGS_RELEASED'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_DOCUMENTATION_TYPES = ['EXAM'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CRITICAL_QUESTIONS = ['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION'];
+export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CLIENT_RELEASES = PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS;
+export const PROJECT_WORKFLOW_HEADQUARTERS_OPTIONAL_SECTIONS = [
+  'D30_EQUIPMENT',
+  'D30_MATERIALS',
+  'D30_LOGISTICS',
+  'D15_EQUIPMENT',
+  'D15_MATERIALS',
+  'D15_TRAVEL',
+  'D15_QSMS'
+];
+
+export function isHeadquartersWorkflow(workflow) {
+  return workflow?.executedAtHeadquarters === true;
+}
+
+export function projectWorkflowVisibleStages(headquarters) {
+  return headquarters
+    ? PROJECT_WORKFLOW_STAGES.filter(stage => !PROJECT_WORKFLOW_HEADQUARTERS_SKIPPED_STAGES.includes(stage))
+    : PROJECT_WORKFLOW_STAGES;
+}
+
+// Data-base dos marcos D-x e dos alertas: a mobilização em campo, ou o início da execução prevista na Sede.
+export function projectWorkflowReferenceDate(workflow) {
+  return isHeadquartersWorkflow(workflow) ? workflow?.plannedExecutionStartDate || null : workflow?.plannedMobilizationDate || null;
+}
+
+export function projectWorkflowStageTransitions(stage, headquarters = false) {
+  const transitions = {
+    HANDOVER: [],
+    INITIAL_ANALYSIS: ['WAITING_PLANNING', 'MOBILIZATION_PLANNING'],
+    WAITING_PLANNING: ['INITIAL_ANALYSIS', 'MOBILIZATION_PLANNING'],
+    MOBILIZATION_PLANNING: ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION'],
+    // Sem "Pronto para mobilizar": a Preparação vai direto para a etapa seguinte quando o gate está limpo,
+    // sem autorização manual (na Sede, direto para a Execução, sem mobilização em campo).
+    PREPARATION: headquarters ? ['MOBILIZATION_PLANNING', 'EXECUTION'] : ['MOBILIZATION_PLANNING', 'MOBILIZATION'],
+    MOBILIZATION: ['PREPARATION', 'EXECUTION'],
+    EXECUTION: headquarters ? ['PREPARATION', 'POST_JOB'] : ['MOBILIZATION', 'DEMOBILIZATION'],
+    DEMOBILIZATION: ['EXECUTION', 'POST_JOB'],
+    POST_JOB: headquarters ? ['EXECUTION', 'FINAL_MEASUREMENT'] : ['DEMOBILIZATION', 'FINAL_MEASUREMENT'],
+    FINAL_MEASUREMENT: ['POST_JOB', 'FINISHED'],
+    FINISHED: ['FINAL_MEASUREMENT']
+  };
+  return transitions[stage] || [];
+}
 
 function dateOnlySchema(z) {
   return z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.').refine(value => {
@@ -325,15 +408,22 @@ export function makeProjectWorkflowSchemas(z) {
     key: z.enum(PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS),
     requested: z.boolean(),
     requestedAt: dateOnly.nullable(),
-    requestedTo: z.string().trim().max(160, 'O destinatário deve ter no máximo 160 caracteres.').nullable(),
+    // Reaproveitado só para o cadastro no cliente: guarda o e-mail para onde o aviso foi enviado.
+    requestedTo: z.string().trim().max(160, 'O destinatário deve ter no máximo 160 caracteres.').nullable().optional(),
     completed: z.boolean(),
-    completedAt: dateOnly.nullable()
+    completedAt: dateOnly.nullable(),
+    // Edição pontual do e-mail de aviso do cadastro no cliente; reenvia e, opcionalmente, atualiza o padrão.
+    notificationEmail: z.string().trim().email('Informe um e-mail válido.').max(160).optional(),
+    makeDefaultEmail: z.boolean().optional()
   }).strict().superRefine((value, ctx) => {
     if (value.completed && !value.requested) {
       ctx.addIssue({ code: 'custom', path: ['requested'], message: 'Registre a solicitação antes da conclusão.' });
     }
     if (value.requestedAt && value.completedAt && value.requestedAt > value.completedAt) {
       ctx.addIssue({ code: 'custom', path: ['completedAt'], message: 'A conclusão não pode ser anterior à solicitação.' });
+    }
+    if (value.key !== 'CUSTOMER_REGISTRATION' && (value.notificationEmail || value.makeDefaultEmail)) {
+      ctx.addIssue({ code: 'custom', path: ['notificationEmail'], message: 'Este item não tem aviso por e-mail.' });
     }
   });
   const preJob = z.object({
@@ -361,6 +451,8 @@ export function makeProjectWorkflowSchemas(z) {
       ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração do QSMS.' });
     }
   });
+  const transportVehicleType = z.string().trim().max(40).nullable().optional();
+  const transportQuantity = z.coerce.number().int('Informe um número inteiro.').min(1, 'Informe ao menos 1.').max(99, 'Informe até 99.').nullable().optional();
   const travel = z.object({
     action: z.literal('travel'),
     version,
@@ -368,19 +460,37 @@ export function makeProjectWorkflowSchemas(z) {
     lodgingRequestedDate: dateOnly.nullable().optional(),
     lodgingConfirmedDate: dateOnly.nullable().optional(),
     teamTransportDefined: z.boolean().nullable().optional(),
-    teamTransportDescription: z.string().trim().max(1000, 'A descrição deve ter no máximo 1000 caracteres.').nullable().optional(),
+    teamTransportMode: z.enum(PROJECT_WORKFLOW_TRANSPORT_MODES).nullable().optional(),
+    teamTransportVehicleType: transportVehicleType,
+    teamTransportQuantity: transportQuantity,
     freightDefined: z.boolean().nullable().optional(),
-    freightType: z.enum(['OWN', 'THIRD_PARTY']).nullable().optional(),
+    freightMode: z.enum(PROJECT_WORKFLOW_TRANSPORT_MODES).nullable().optional(),
+    freightVehicleType: transportVehicleType,
+    freightQuantity: transportQuantity,
     freightDepartureDate: dateOnly.nullable().optional(),
     freightDepartureTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Informe um horário válido.').nullable().optional()
   }).strict().superRefine((value, ctx) => {
-    const fields = ['lodgingRequestedDate', 'lodgingConfirmedDate', 'teamTransportDefined', 'teamTransportDescription', 'freightDefined', 'freightType', 'freightDepartureDate', 'freightDepartureTime'];
+    const fields = [
+      'lodgingRequestedDate', 'lodgingConfirmedDate',
+      'teamTransportDefined', 'teamTransportMode', 'teamTransportVehicleType', 'teamTransportQuantity',
+      'freightDefined', 'freightMode', 'freightVehicleType', 'freightQuantity',
+      'freightDepartureDate', 'freightDepartureTime'
+    ];
     if (!fields.some(key => Object.hasOwn(value, key))) {
       ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração de viagem e logística.' });
     }
     if (value.lodgingRequestedDate && value.lodgingConfirmedDate && value.lodgingRequestedDate > value.lodgingConfirmedDate) {
       ctx.addIssue({ code: 'custom', path: ['lodgingConfirmedDate'], message: 'A confirmação não pode ser anterior à solicitação.' });
     }
+    // Locação de carro não tem tipo de veículo; Nosso/Frete exigem um tipo do catálogo daquele modo.
+    const checkVehicleType = (mode, vehicleType, path) => {
+      if (!mode || !vehicleType) return;
+      const catalog = PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES[mode];
+      if (!catalog) ctx.addIssue({ code: 'custom', path, message: 'Locação de carro não tem tipo de veículo.' });
+      else if (!catalog.includes(vehicleType)) ctx.addIssue({ code: 'custom', path, message: 'Tipo de veículo inválido para o modo escolhido.' });
+    };
+    if (Object.hasOwn(value, 'teamTransportVehicleType')) checkVehicleType(value.teamTransportMode, value.teamTransportVehicleType, ['teamTransportVehicleType']);
+    if (Object.hasOwn(value, 'freightVehicleType')) checkVehicleType(value.freightMode, value.freightVehicleType, ['freightVehicleType']);
   });
   const critical = z.object({
     action: z.literal('critical'),
@@ -403,6 +513,42 @@ export function makeProjectWorkflowSchemas(z) {
     if (!value.contactPhone?.trim()) ctx.addIssue({ code: 'custom', path: ['contactPhone'], message: 'Informe o telefone do contato.' });
     if (!value.contactDate) ctx.addIssue({ code: 'custom', path: ['contactDate'], message: 'Informe a data do contato.' });
   });
+  const analysisSchedule = z.object({
+    action: z.literal('analysis_schedule'),
+    version,
+    correctionStage,
+    plannedExecutionStartDate: dateOnly.nullable(),
+    plannedExecutionEndDate: dateOnly.nullable()
+  }).strict().superRefine((value, ctx) => {
+    if (value.plannedExecutionStartDate && value.plannedExecutionEndDate && value.plannedExecutionEndDate < value.plannedExecutionStartDate) {
+      ctx.addIssue({ code: 'custom', path: ['plannedExecutionEndDate'], message: 'O fim da execução não pode ser anterior ao início.' });
+    }
+  });
+  // Enquanto não existe integração com o CRM, as datas comerciais estimadas são digitadas manualmente na Análise
+  // inicial (editável a qualquer momento) e confirmadas ou corrigidas no D-15 antes da mobilização.
+  const commercialDates = z.object({
+    action: z.literal('commercial_dates'),
+    version,
+    correctionStage,
+    expectedMobilizationDate: dateOnly.nullable().optional(),
+    expectedStartDate: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    if (!Object.hasOwn(value, 'expectedMobilizationDate') && !Object.hasOwn(value, 'expectedStartDate')) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma data comercial estimada.' });
+    }
+    if (value.expectedMobilizationDate && value.expectedStartDate && value.expectedStartDate < value.expectedMobilizationDate) {
+      ctx.addIssue({ code: 'custom', path: ['expectedStartDate'], message: 'O início estimado não pode ser anterior à mobilização estimada.' });
+    }
+  });
+  const commercialScheduleConfirm = z.object({
+    action: z.literal('commercial_schedule_confirm'),
+    version,
+    correctionStage,
+    field: z.enum(['MOBILIZATION', 'START']),
+    // Se informada, corrige a data comercial estimada e já confirma o novo valor ("Não, mudou"); se omitida,
+    // confirma o valor atual sem alterá-lo ("Sim, continua igual").
+    date: dateOnly.nullable().optional()
+  }).strict();
   const analysisCriticality = z.object({
     action: z.literal('analysis_criticality'),
     version,
@@ -414,6 +560,12 @@ export function makeProjectWorkflowSchemas(z) {
       ctx.addIssue({ code: 'custom', path: ['preparationLeadTimeDays'], message: 'Informe a antecedência de preparação da obra crítica.' });
     }
   });
+  const analysisLocation = z.object({
+    action: z.literal('analysis_location'),
+    version,
+    correctionStage,
+    executedAtHeadquarters: z.boolean()
+  }).strict();
   const teamPlan = z.object({
     action: z.literal('team_plan'),
     version,
@@ -656,12 +808,11 @@ export function makeProjectWorkflowSchemas(z) {
       ctx.addIssue({ code: 'custom', path: ['approvedAt'], message: 'A aprovação não pode ser anterior à preparação.' });
     }
   });
-  const authorizeMobilization = z.object({ action: z.literal('authorize_mobilization'), version }).strict();
   return {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisCriticality, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

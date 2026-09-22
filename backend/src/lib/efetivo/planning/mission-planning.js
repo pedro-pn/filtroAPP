@@ -137,14 +137,24 @@ export async function resolveMissionResponsible(tx, payload) {
       code: 'INVALID_MISSION_COORDINATOR'
     });
   }
+  // O Líder de Projetos do fluxo de gestão já foi definido na análise e responde pela missão dessa obra, mesmo
+  // sem ser conta coordenadora nem ter colaborador vinculado.
+  const workflowLeader = payload.projectId && tx.projectWorkflow?.findFirst
+    ? await tx.projectWorkflow.findFirst({
+      where: { projectId: payload.projectId, leaderUserId: payload.headquartersResponsibleUserId },
+      select: { projectId: true }
+    })
+    : null;
   const coordinator = await tx.user.findFirst({
     where: {
       id: payload.headquartersResponsibleUserId,
       isActive: true,
-      OR: [
-        { role: 'COORDINATOR' },
-        { moduleRoles: { some: { role: 'RDO_COORDINATOR' } } }
-      ]
+      ...(workflowLeader ? {} : {
+        OR: [
+          { role: 'COORDINATOR' },
+          { moduleRoles: { some: { role: 'RDO_COORDINATOR' } } }
+        ]
+      })
     },
     select: {
       id: true,
@@ -158,6 +168,14 @@ export async function resolveMissionResponsible(tx, payload) {
     });
   }
   const linkedCollaborator = coordinator.collaborator;
+  if (workflowLeader && !(linkedCollaborator?.isActive && linkedCollaborator.jobRole?.name)) {
+    return {
+      name: coordinator.name,
+      role: 'Líder de Projetos',
+      collaboratorId: null,
+      userId: coordinator.id
+    };
+  }
   if (!linkedCollaborator?.isActive || !linkedCollaborator.jobRole?.name) {
     throw planningError('A conta selecionada precisa estar vinculada a um colaborador ativo com cargo.', {
       code: 'INVALID_MISSION_LEADER'
