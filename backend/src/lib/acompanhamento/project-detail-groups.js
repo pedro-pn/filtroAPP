@@ -508,24 +508,46 @@ export async function getMissionGroupDetail(groupId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true
 } = {}) {
-  const [{ getProjectDetail }, { getPlannedScope }, { computeProjectProgress }] = await Promise.all([
+  const [
+    { getProjectDetail },
+    { buildPlannedScope },
+    { computeProgressDetailsForProjects },
+    { loadPlannedHours }
+  ] = await Promise.all([
     import('./project-detail.js'),
     import('./planned-scope.js'),
-    import('./avanco.js')
+    import('./avanco.js'),
+    import('./planned-hours.js')
   ]);
   const group = await getActiveMissionGroup({ groupId });
+  const members = (group.members ?? [])
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const memberIds = members.map(member => member.projectId);
+  const [progressDetailsByProject, plannedHoursByProject] = await Promise.all([
+    computeProgressDetailsForProjects(memberIds),
+    loadPlannedHours(memberIds)
+  ]);
   const entries = await Promise.all(
-    (group.members ?? [])
-      .slice()
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map(async member => {
-        const [detail, plannedScope, progress] = await Promise.all([
-          getProjectDetail(member.projectId, { includeCollaboratorCosts, includeAdminOnlyCategories }),
-          getPlannedScope(member.projectId).catch(() => null),
-          computeProjectProgress(member.projectId).catch(() => null)
-        ]);
-        return { projectId: member.projectId, member, detail, plannedScope, progress };
-      })
+    members.map(async member => {
+      const progressDetails = progressDetailsByProject.get(member.projectId) ?? null;
+      const plannedHours = plannedHoursByProject.get(member.projectId) ?? null;
+      const detail = await getProjectDetail(member.projectId, {
+        includeCollaboratorCosts,
+        includeAdminOnlyCategories,
+        progressDetails,
+        plannedHoursByProject
+      });
+      return {
+        projectId: member.projectId,
+        member,
+        detail,
+        plannedScope: progressDetails && plannedHours
+          ? buildPlannedScope(progressDetails.plannedServices, plannedHours)
+          : null,
+        progress: progressDetails?.progress ?? null
+      };
+    })
   );
   return groupProjectDetails(group, entries);
 }

@@ -13,6 +13,7 @@ test('HTTP + PostgreSQL: commercial forecast, divergence resolution, stale edits
   const { getProjectDetail } = await import('../src/lib/acompanhamento/project-detail.js');
   const { listProjectCards } = await import('../src/lib/acompanhamento/project-cards.js');
   const { getMissionGroupDetail } = await import('../src/lib/acompanhamento/project-detail-groups.js');
+  const { clearProjectDerivedCaches } = await import('../src/lib/resource-list-cache.js');
   const suffix = randomUUID(), code = randomInt(1_000_000, 100_000_000);
   const users = [], proposals = [];
   let project, server, group;
@@ -53,7 +54,11 @@ test('HTTP + PostgreSQL: commercial forecast, divergence resolution, stale edits
   const scope = async () => { const r = await request('/escopo-previsto'); assert.equal(r.status, 200); return r.data; };
   const raw = (normal, extra = 0) => ({ hh_total: normal + extra, hh_util_diurno: normal, hh_util_noturno: 0,
     hh_util_extra_diurno: extra, hh_util_extra_noturno: 0, hh_sab_diurno: 0, hh_sab_noturno: 0, hh_dom_diurno: 0, hh_dom_noturno: 0 });
-  const importHours = async value => prisma.commercialProposal.update({ where: { codBd: code }, data: { rawRow: value } });
+  const importHours = async value => {
+    await prisma.commercialProposal.update({ where: { codBd: code }, data: { rawRow: value } });
+    // Espelha a rota de importação comercial, que invalida os derivados após atualizar o staging.
+    clearProjectDerivedCaches();
+  };
   const verifyViews = async (total, pending) => {
     const detail = await getProjectDetail(project.id);
     const card = (await listProjectCards()).find(c => c.projectId === project.id);

@@ -141,6 +141,44 @@ com requisições interativas.
 - compressão de backup roda com prioridade baixa e o container de arquivo tem
   CPU limitada.
 
+## Rodada complementar — 21/09/2026
+
+Uma revisão posterior do caminho de detalhe encontrou trabalho duplicado no
+avanço físico. A mesma abertura de projeto carregava novamente escopo, projeto,
+serviços nativos, serviços históricos e histórico manual para calcular:
+
+- o avanço resumido usado pelo dashboard comercial;
+- o avanço atual do detalhe;
+- o histórico semanal;
+- os recortes por escopo/equipamento;
+- e, em grupos de missões, o peso do mesmo projeto outra vez.
+
+A carga foi consolidada em `computeProgressDetailsForProjects`. O detalhe agora
+pede ao dashboard comercial para não recalcular o avanço, reutiliza os dados do
+projeto retornados pelo pacote e deriva avanço atual, histórico e recortes da
+mesma leitura. Grupos de missões fazem uma única carga em lote para todos os
+membros e repassam o resultado para cada detalhe.
+
+Pela contagem estática dos acessos Prisma, um detalhe com recortes deixa de
+percorrer até 23 consultas relacionadas a projeto/avanço e passa a usar seis
+consultas, executadas em paralelo. Em um grupo, essas seis consultas são
+compartilhadas por todos os membros em vez de repetidas por projeto. Um teste de
+regressão verifica o resultado do cálculo e garante uma única leitura de cada
+modelo envolvido no pacote consolidado.
+
+O grupo também deixou de consultar horas previstas e escopo duas vezes por
+membro. As seis consultas adicionais que existiam por projeto nesse caminho
+(horas no detalhe, validação/projeção do escopo e horas novamente no escopo)
+foram substituídas por duas consultas de horas em lote; projeto e serviços
+previstos são reaproveitados do pacote de avanço.
+
+Após o deploy, comparar o p95 das rotas de detalhe individual e de grupo com o
+baseline desta auditoria. Se a meta continuar não atendida, o próximo candidato
+é o caminho frio de custo de mão de obra, que ainda precisa montar a apropriação
+global do período antes de servir o primeiro acesso; a decisão de particioná-lo
+deve ser baseada em `pg_stat_statements` e nos logs lentos, pois o cache local já
+remove esse custo dos acessos aquecidos.
+
 ## Redis: usar agora ou não?
 
 Não é recomendada a introdução de Redis como primeira resposta à lentidão.
