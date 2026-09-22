@@ -7,12 +7,14 @@ import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { Button } from '../../components/ui/Button';
 import { SIGNATURE_AVULSA_NOTICE_VERSION } from '../../constants/privacy';
 import { usePublicSignatureInvite } from '../../hooks/useAssinaturas';
-import { captureInviteFromFragment } from './utils/coordinates';
+import { captureInviteFromFragment, inviteTokenFromFragment } from './utils/coordinates';
 import { formatSignatureDateTime } from './utils/datetime';
 import { SignatureDocumentPreview } from './components/SignatureDocumentPreview';
 
 export function AssinaturasPublicSignPage() {
-  const [token, setToken] = useState(() => captureInviteFromFragment(window.location, window.history));
+  // O inicializador pode ser executado mais de uma vez pelo React. A leitura precisa ser pura;
+  // o fragmento só é removido no efeito depois que a montagem foi confirmada.
+  const [token, setToken] = useState(() => inviteTokenFromFragment(window.location));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -36,6 +38,7 @@ export function AssinaturasPublicSignPage() {
     };
 
     window.addEventListener('hashchange', captureRenewedInvite);
+    captureRenewedInvite();
     return () => window.removeEventListener('hashchange', captureRenewedInvite);
   }, []);
 
