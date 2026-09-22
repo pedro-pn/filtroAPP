@@ -1009,7 +1009,7 @@ function workflowStageDate(workflow: ProjectWorkflow, stage: ProjectWorkflowStag
     : null;
 }
 
-export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus, onRemoveMission }: {
+export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
   detail: ProjectWorkflowDetail | null;
   leaders: WorkflowUserOption[];
   loading: boolean;
@@ -1021,12 +1021,13 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   onPatch: (payload: ProjectWorkflowPatch) => void;
   onMoveLegacyMission: (stage: ProjectOperationalMissionSummary['stage'], returnDate?: string | null) => void;
   onOpenTeamProgramming: () => void;
-  /** Somente o gestor do Efetivo confirma/cancela ou remove a programação da missão. Líder, datas e equipe são
-   * canônicos do fluxo de gestão (Handover, análise inicial, planejamento D-30) e não têm mais edição própria aqui. */
+  /** Somente o gestor do Efetivo confirma ou cancela a missão. Cancelar é reversível ("Reativar" na seção de
+   * canceladas do Kanban); remover a programação em definitivo só é possível a partir de lá, com a missão já
+   * cancelada. Líder, datas e equipe são canônicos do fluxo de gestão (Handover, análise inicial, planejamento
+   * D-30) e não têm mais edição própria aqui. */
   canManageMission: boolean;
   missionStatusSaving: boolean;
   onSetMissionStatus: (status: 'CONFIRMED' | 'CANCELLED') => void;
-  onRemoveMission: () => void;
 }) {
   const projectId = detail?.project.id || '';
   const projectDocuments = useQuery({
@@ -1135,7 +1136,6 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
                 disabled={saving || missionStatusSaving}
                 onSelect={value => onSetMissionStatus(value ? 'CONFIRMED' : 'CANCELLED')}
               />
-              <Button type="button" variant="danger" disabled={saving} onClick={onRemoveMission}>Remover programação</Button>
             </div>
           </div>
         ) : null}

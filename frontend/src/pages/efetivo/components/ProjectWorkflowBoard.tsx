@@ -1191,13 +1191,6 @@ export function ProjectWorkflowBoard({
           }
           setMissionStatus.mutate({ mission, status });
         }}
-        onRemoveMission={() => {
-          const missionId = detail.data?.project.operationalMission?.id;
-          if (!missionId) return;
-          onProjectSelect(undefined);
-          setDeletingMissionId(missionId);
-          if (planningMissions.isError) void planningMissions.refetch();
-        }}
       />
     </div>
   );
