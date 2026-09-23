@@ -12,7 +12,6 @@ import {
   createPlanningMission,
   deletePlanningMission,
   listPendingMissionProjects,
-  listPlanningCoordinators,
   listPlanningJobRoles,
   listPlanningMissions,
   movePlanningMission,
@@ -67,7 +66,7 @@ import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
 import { selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionAllocationModal } from './MissionAllocationModal';
-import { MissionFormModal } from './MissionFormModal';
+import { InitialTeamAvailabilityModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
 
@@ -427,10 +426,6 @@ export function ProjectWorkflowBoard({
   const planningRoles = useQuery({
     queryKey: ['efetivo-planning-job-roles'],
     queryFn: listPlanningJobRoles
-  });
-  const planningCoordinators = useQuery({
-    queryKey: ['efetivo-planning-coordinators'],
-    queryFn: listPlanningCoordinators
   });
   const leaders = useQuery({
     queryKey: ['project-workflow-leaders'],
@@ -1109,16 +1104,13 @@ export function ProjectWorkflowBoard({
         onPlanningMutated={() => queryClient.invalidateQueries({ queryKey: ['project-workflows'] })}
       />
       {canManage ? (
-        <MissionFormModal
+        <InitialTeamAvailabilityModal
           open={Boolean(missionFormProjectId && (missionFormMission || missionFormProject))}
           mission={missionFormMission}
           project={missionFormMission ? null : missionFormProject as PendingMissionProject | null}
-          initialTeamMode
           context={teamContext}
           roles={planningRoles.data || []}
           rolesLoading={planningRoles.isLoading}
-          coordinators={planningCoordinators.data || []}
-          coordinatorsLoading={planningCoordinators.isLoading}
           saving={saveInitialTeam.isPending}
           onClose={() => { setMissionFormProjectId(null); setTeamContext(undefined); }}
           onSubmit={payload => saveInitialTeam.mutate({ mission: missionFormMission, payload })}

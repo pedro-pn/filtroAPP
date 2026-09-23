@@ -45,7 +45,7 @@ function selectedAllocationCollaborator(mission: PlanningMission | null, collabo
   return mission?.allocations.find(allocation => allocation.collaboratorId === collaboratorId)?.collaborator || null;
 }
 
-export function MissionTeamSelector({ mission, planId, roles, plannedRoles, selectedIds, allocationPeriods, startDate, endDate, loading, disabled, allowIndividualPeriods = true, error, onChange, onAllocationPeriodsChange }: {
+export function MissionTeamSelector({ mission, planId, roles, plannedRoles, selectedIds, allocationPeriods, startDate, endDate, loading, disabled, allowIndividualPeriods = true, error, autoOpen = false, minSelected = 0, onChange, onAllocationPeriodsChange, onCancel }: {
   mission: PlanningMission | null;
   planId?: string;
   roles: PlanningJobRole[];
@@ -59,10 +59,17 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   disabled: boolean;
   allowIndividualPeriods?: boolean;
   error?: string;
+  /** Abre direto no diálogo de disponibilidade, sem passar pelo gatilho "Ver colaboradores". */
+  autoOpen?: boolean;
+  /** Quantidade mínima de colaboradores para liberar "Aplicar equipe" (ex.: 1 para confirmar equipe inicial). */
+  minSelected?: number;
   onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[]) => void;
   onAllocationPeriodsChange: (value: AllocationPeriodDraft[]) => void;
+  /** Presente só no modo direto (autoOpen): fecha o fluxo inteiro ao cancelar, em vez de voltar ao gatilho. */
+  onCancel?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
+  const closeDialog = () => { setOpen(false); onCancel?.(); };
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState<CollaboratorActivityFilter>('ACTIVE');
@@ -187,7 +194,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
 
   return (
     <>
-      <fieldset className={`efetivo-team-fieldset efetivo-form-wide ${error ? 'field-invalid' : ''}`}>
+      {autoOpen ? null : <fieldset className={`efetivo-team-fieldset efetivo-form-wide ${error ? 'field-invalid' : ''}`}>
         <legend>Equipe da missão</legend>
         <div className="efetivo-team-picker-trigger">
           <div><strong>{selectedIds.length} {selectedIds.length === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}</strong><span>Consulte a disponibilidade considerando todas as datas da programação.</span></div>
@@ -217,11 +224,11 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
           })}
         </div> : null}
         {error ? <span className="field-error" role="alert">{error}</span> : null}
-      </fieldset>
+      </fieldset>}
 
-      {typeof document === 'undefined' ? null : createPortal(<Modal open={open} onClose={() => setOpen(false)} ariaLabelledBy="mission-team-dialog-title" ariaDescribedBy="mission-team-dialog-description" backdropClassName="modal-backdrop efetivo-team-availability-backdrop" panelClassName="modal-card efetivo-modal efetivo-team-availability-modal efetivo-team-dialog">
+      {typeof document === 'undefined' ? null : createPortal(<Modal open={open} onClose={closeDialog} ariaLabelledBy="mission-team-dialog-title" ariaDescribedBy="mission-team-dialog-description" backdropClassName="modal-backdrop efetivo-team-availability-backdrop" panelClassName="modal-card efetivo-modal efetivo-team-availability-modal efetivo-team-dialog">
         <div className="efetivo-modal-layout">
-          <header className="efetivo-modal-header"><div><h3 id="mission-team-dialog-title">Colaboradores por disponibilidade</h3><p id="mission-team-dialog-description">{displayDateOnly(startDate)} a {displayDateOnly(endDate)} · pessoas já alocadas podem ser selecionadas mediante confirmação.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={() => setOpen(false)}>×</button></header>
+          <header className="efetivo-modal-header"><div><h3 id="mission-team-dialog-title">Colaboradores por disponibilidade</h3><p id="mission-team-dialog-description">{displayDateOnly(startDate)} a {displayDateOnly(endDate)} · pessoas já alocadas podem ser selecionadas mediante confirmação.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={closeDialog}>×</button></header>
           <div className="efetivo-modal-body efetivo-team-availability-body">
             <div className="efetivo-team-dialog-toolbar">
               <label className="field-group" htmlFor="mission-team-activity"><span>Situação cadastral</span><select id="mission-team-activity" value={activityFilter} onChange={event => setActivityFilter(event.target.value as CollaboratorActivityFilter)}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option><option value="ALL">Todos</option></select></label>
@@ -305,7 +312,8 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                   </section> : null}
                 </>}
           </div>
-          <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button><Button disabled={!validPeriod || queryLoading || queryError} onClick={requestApplyTeam}>Aplicar equipe</Button></footer>
+          {minSelected > 0 && draftIds.length < minSelected ? <p className="efetivo-availability-note">Selecione ao menos {minSelected === 1 ? 'um colaborador' : `${minSelected} colaboradores`} para aplicar a equipe.</p> : null}
+          <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={closeDialog}>Cancelar</Button><Button disabled={!validPeriod || queryLoading || queryError || draftIds.length < minSelected} onClick={requestApplyTeam}>Aplicar equipe</Button></footer>
         </div>
       </Modal>, document.body)}
       <ConfirmDialog

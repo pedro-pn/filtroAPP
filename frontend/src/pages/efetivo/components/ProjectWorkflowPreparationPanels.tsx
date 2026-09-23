@@ -19,6 +19,7 @@ import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
+import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
 import { initialsOf } from '../../../utils/projectWorkflowPresentation';
 
 function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS') {
@@ -157,33 +158,27 @@ export function ProjectWorkflowPreJobPanel({ workflow, saving, onPatch }: {
       data-project-workflow-pre-job
     >
       <div className="project-workflow-client-release-fields">
-        <label className="project-workflow-release-toggle">
-          <input
-            type="checkbox"
-            checked={Boolean(workflow.preJob.scheduledDate)}
-            disabled={saving || !workflow.preJob.canEdit}
-            onChange={event => onPatch({
-              action: 'pre_job',
-              version: workflow.version,
-              scheduledDate: event.target.checked ? todayDateOnly() : null,
-              ...(event.target.checked ? {} : { completedDate: null })
-            })}
-          />
-          <span>Agendado{workflow.preJob.scheduledDate ? ` em ${displayDateOnly(workflow.preJob.scheduledDate)}` : ''}</span>
-        </label>
-        <label className="project-workflow-release-toggle">
-          <input
-            type="checkbox"
-            checked={Boolean(workflow.preJob.completedDate)}
-            disabled={saving || !workflow.preJob.canEdit || !workflow.preJob.scheduledDate}
-            onChange={event => onPatch({
-              action: 'pre_job',
-              version: workflow.version,
-              completedDate: event.target.checked ? todayDateOnly() : null
-            })}
-          />
-          <span>Realizado{workflow.preJob.completedDate ? ` em ${displayDateOnly(workflow.preJob.completedDate)}` : ''}</span>
-        </label>
+        <ProjectWorkflowStatusToggle
+          checked={Boolean(workflow.preJob.scheduledDate)}
+          disabled={saving || !workflow.preJob.canEdit}
+          label={`Agendado${workflow.preJob.scheduledDate ? ` em ${displayDateOnly(workflow.preJob.scheduledDate)}` : ''}`}
+          onChange={checked => onPatch({
+            action: 'pre_job',
+            version: workflow.version,
+            scheduledDate: checked ? todayDateOnly() : null,
+            ...(checked ? {} : { completedDate: null })
+          })}
+        />
+        <ProjectWorkflowStatusToggle
+          checked={Boolean(workflow.preJob.completedDate)}
+          disabled={saving || !workflow.preJob.canEdit || !workflow.preJob.scheduledDate}
+          label={`Realizado${workflow.preJob.completedDate ? ` em ${displayDateOnly(workflow.preJob.completedDate)}` : ''}`}
+          onChange={checked => onPatch({
+            action: 'pre_job',
+            version: workflow.version,
+            completedDate: checked ? todayDateOnly() : null
+          })}
+        />
       </div>
       {workflow.preJob.canEdit ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
     </ProjectWorkflowCategory>
@@ -313,29 +308,23 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
           <header><strong>Hospedagem</strong><span>{travel.lodgingRequired ? 'Necessária' : 'Não necessária'}</span></header>
           {travel.lodgingRequired ? (
             <div className="project-workflow-client-release-fields">
-              <label className="project-workflow-release-toggle">
-                <input
-                  type="checkbox"
-                  checked={Boolean(travel.lodgingRequestedDate)}
-                  disabled={saving || !travel.canEditLodging}
-                  onChange={event => onPatch({
-                    action: 'travel',
-                    version: workflow.version,
-                    lodgingRequestedDate: event.target.checked ? todayDateOnly() : null,
-                    ...(event.target.checked ? {} : { lodgingConfirmedDate: null })
-                  })}
-                />
-                <span>Hospedagem solicitada{travel.lodgingRequestedDate ? ` em ${displayDateOnly(travel.lodgingRequestedDate)}` : ''}</span>
-              </label>
-              <label className="project-workflow-release-toggle">
-                <input
-                  type="checkbox"
-                  checked={Boolean(travel.lodgingConfirmedDate)}
-                  disabled={saving || !travel.canEditLodging || !travel.lodgingRequestedDate}
-                  onChange={event => onPatch({ action: 'travel', version: workflow.version, lodgingConfirmedDate: event.target.checked ? todayDateOnly() : null })}
-                />
-                <span>Hospedagem confirmada{travel.lodgingConfirmedDate ? ` em ${displayDateOnly(travel.lodgingConfirmedDate)}` : ''}</span>
-              </label>
+              <ProjectWorkflowStatusToggle
+                checked={Boolean(travel.lodgingRequestedDate)}
+                disabled={saving || !travel.canEditLodging}
+                label={`Hospedagem solicitada${travel.lodgingRequestedDate ? ` em ${displayDateOnly(travel.lodgingRequestedDate)}` : ''}`}
+                onChange={checked => onPatch({
+                  action: 'travel',
+                  version: workflow.version,
+                  lodgingRequestedDate: checked ? todayDateOnly() : null,
+                  ...(checked ? {} : { lodgingConfirmedDate: null })
+                })}
+              />
+              <ProjectWorkflowStatusToggle
+                checked={Boolean(travel.lodgingConfirmedDate)}
+                disabled={saving || !travel.canEditLodging || !travel.lodgingRequestedDate}
+                label={`Hospedagem confirmada${travel.lodgingConfirmedDate ? ` em ${displayDateOnly(travel.lodgingConfirmedDate)}` : ''}`}
+                onChange={checked => onPatch({ action: 'travel', version: workflow.version, lodgingConfirmedDate: checked ? todayDateOnly() : null })}
+              />
             </div>
           ) : <p className="project-workflow-category-note">O planejamento D-30 informa que não haverá hospedagem.</p>}
         </article>}
@@ -578,35 +567,23 @@ function ClientReleaseItem({ workflow, item, saving, onPatch }: {
     <article className={`project-workflow-client-release${complete ? ' is-complete' : ''}`}>
       <header><strong>{item.label}</strong><span>{complete ? 'Concluído' : values.requested ? 'Em andamento' : 'Pendente'}</span></header>
       <div className="project-workflow-client-release-fields">
-        <label className="project-workflow-release-toggle">
-          <input
-            type="checkbox"
-            checked={values.requested}
-            disabled={disabled}
-            onChange={event => {
-              const requested = event.target.checked;
-              save({
-                requested,
-                requestedAt: requested ? values.requestedAt || todayDateOnly() : '',
-                completed: requested ? values.completed : false,
-                completedAt: requested ? values.completedAt : ''
-              });
-            }}
-          />
-          <span>Solicitado{values.requestedAt ? ` em ${displayDateOnly(values.requestedAt)}` : ''}</span>
-        </label>
-        <label className="project-workflow-release-toggle">
-          <input
-            type="checkbox"
-            checked={values.completed}
-            disabled={disabled || !values.requested}
-            onChange={event => {
-              const completed = event.target.checked;
-              save({ ...values, completed, completedAt: completed ? values.completedAt || todayDateOnly() : '' });
-            }}
-          />
-          <span>Concluído{values.completedAt ? ` em ${displayDateOnly(values.completedAt)}` : ''}</span>
-        </label>
+        <ProjectWorkflowStatusToggle
+          checked={values.requested}
+          disabled={disabled}
+          label={`Solicitado${values.requestedAt ? ` em ${displayDateOnly(values.requestedAt)}` : ''}`}
+          onChange={requested => save({
+            requested,
+            requestedAt: requested ? values.requestedAt || todayDateOnly() : '',
+            completed: requested ? values.completed : false,
+            completedAt: requested ? values.completedAt : ''
+          })}
+        />
+        <ProjectWorkflowStatusToggle
+          checked={values.completed}
+          disabled={disabled || !values.requested}
+          label={`Concluído${values.completedAt ? ` em ${displayDateOnly(values.completedAt)}` : ''}`}
+          onChange={completed => save({ ...values, completed, completedAt: completed ? values.completedAt || todayDateOnly() : '' })}
+        />
       </div>
       {item.source === 'EXTERNAL' ? <small className="project-workflow-integration-note">Dados sincronizados pela integração externa.</small> : null}
     </article>

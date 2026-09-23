@@ -2222,14 +2222,6 @@
 .project-workflow-team-member > header span,
 .project-workflow-client-attendance > header span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
 .project-workflow-team-member-checks { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-width: 0; }
-/* Marcações do cliente (solicitado/concluído): chip com o checkbox nativo em verde */
-.project-workflow-release-toggle { align-items: center; align-self: start; background: var(--pw-surface, var(--wh)); border: 1px solid var(--pw-border, var(--br)); border-radius: 999px; color: var(--pw-muted, var(--mu)); cursor: pointer; display: inline-flex; font-size: 12.5px; font-weight: 500; gap: 7px; justify-self: start; min-height: 32px; min-width: 0; padding: 0 12px 0 9px; transition: background-color .15s, border-color .15s, color .15s; width: fit-content; }
-.project-workflow-release-toggle:hover:not(:has(input:disabled)) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
-.project-workflow-release-toggle:has(input:checked) { background: var(--pw-accent-soft, #ebf0ec); border-color: var(--pw-accent-line, var(--g)); color: var(--pw-accent, var(--g)); }
-.project-workflow-release-toggle:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, rgba(48, 80, 58, .22)); }
-.project-workflow-release-toggle input { accent-color: var(--pw-accent, var(--g)); flex: 0 0 15px; height: 15px; margin: 0; width: 15px; }
-.project-workflow-release-toggle input:focus-visible { outline: none; }
-.project-workflow-release-toggle span { min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-toggle-group-label { color: var(--pw-muted, var(--mu)); display: block; font-size: 12px; font-weight: 500; margin-bottom: 6px; }
 .project-workflow-toggle-row { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Chip de conferência: o checkbox nativo continua sendo o controle, invisível sobre o chip */
@@ -2515,12 +2507,14 @@
 .project-workflow-client-registration-confirm { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .project-workflow-client-registration-confirm span { font-size: .85em; }
 .project-workflow-registration-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-/* Mesmo padrão do botão de correção (Button + ícone + preenchimento sólido quando ativo), só que na cor de
-   sucesso em vez de âmbar — "Concluído" é um estado definitivo, não um alerta. */
-/* Antes de clicar fica neutro (cinza) de propósito: verde antes do clique passaria a impressão de já concluído. */
-.project-workflow-modal .project-workflow-registration-complete-button { background: var(--pw-surface, var(--wh)); border-color: var(--pw-border, var(--br)); color: var(--pw-muted, var(--mu)); }
-.project-workflow-modal .project-workflow-registration-complete-button:hover:not(:disabled) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
-.project-workflow-modal .project-workflow-registration-complete-button.is-active { background: var(--pw-accent, var(--g)); border-color: var(--pw-accent, var(--g)); color: var(--wh); }
+/* Botão de status com dois estados (Agendado/Realizado, Solicitado/Concluído etc.), padrão único do módulo:
+   mesmo padrão do botão de correção (Button + ícone + preenchimento sólido quando ativo), só que na cor de
+   sucesso em vez de âmbar — um status concluído é definitivo, não um alerta. Antes de clicar fica neutro
+   (cinza) de propósito: verde antes do clique passaria a impressão de já concluído. Substitui o antigo
+   checkbox em pílula com moldura, que quebrava linha feio com textos mais longos. */
+.project-workflow-modal .project-workflow-status-toggle { background: var(--pw-surface, var(--wh)); border-color: var(--pw-border, var(--br)); color: var(--pw-muted, var(--mu)); }
+.project-workflow-modal .project-workflow-status-toggle:hover:not(:disabled) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
+.project-workflow-modal .project-workflow-status-toggle.is-active { background: var(--pw-accent, var(--g)); border-color: var(--pw-accent, var(--g)); color: var(--wh); }
 /* Caixa de diálogo separada do checklist de verificação do contato com o cliente (16 perguntas): mesma
    sobreposição da confirmação de exclusão, já que abre por cima do modal do projeto. */
 .project-workflow-checklist-backdrop { z-index: 1200; }

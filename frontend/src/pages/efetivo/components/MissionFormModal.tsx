@@ -215,3 +215,134 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     </>
   );
 }
+
+/**
+ * Definição/edição da equipe inicial sem o formulário intermediário: abre direto no painel "Colaboradores por
+ * disponibilidade" (via `MissionTeamSelector` com `autoOpen`). Líder, datas e cargos vêm do fluxo de gestão
+ * (`context`); quando a análise inicial ainda não definiu as datas da obra, uma etapa mínima as pede antes.
+ */
+export function InitialTeamAvailabilityModal({ open, mission, project, planId, roles, rolesLoading, saving, context, onClose, onSubmit }: {
+  open: boolean;
+  mission: PlanningMission | null;
+  project: PendingMissionProject | null;
+  planId?: string;
+  roles: PlanningJobRole[];
+  rolesLoading: boolean;
+  saving: boolean;
+  context?: InitialTeamContext;
+  onClose: () => void;
+  onSubmit: (payload: MissionInput) => void;
+}) {
+  const initial = initialValues(mission, project, planId, true, context);
+  const [mobilizationDate, setMobilizationDate] = useState(initial.mobilizationDate);
+  const [executionStartDate, setExecutionStartDate] = useState(initial.executionStartDate);
+  const [executionEndDate, setExecutionEndDate] = useState(initial.executionEndDate);
+  const [datesConfirmed, setDatesConfirmed] = useState(Boolean(initial.mobilizationDate && initial.executionStartDate && initial.executionEndDate));
+  const [collaboratorIds, setCollaboratorIds] = useState<string[]>(initial.collaboratorIds);
+  const [allocationPeriods, setAllocationPeriods] = useState(initial.allocationPeriods);
+  const [pendingInactiveSubmission, setPendingInactiveSubmission] = useState<MissionInput | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const values = initialValues(mission, project, planId, true, context);
+    setMobilizationDate(values.mobilizationDate);
+    setExecutionStartDate(values.executionStartDate);
+    setExecutionEndDate(values.executionEndDate);
+    setDatesConfirmed(Boolean(values.mobilizationDate && values.executionStartDate && values.executionEndDate));
+    setCollaboratorIds(values.collaboratorIds);
+    setAllocationPeriods(values.allocationPeriods);
+    setPendingInactiveSubmission(null);
+  }, [context, mission, open, planId, project]);
+
+  if (!open) return null;
+
+  const identity = mission?.project || project;
+  const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false);
+  const datesValid = Boolean(mobilizationDate && executionStartDate && executionEndDate
+    && mobilizationDate <= executionStartDate && executionStartDate <= executionEndDate);
+  const showDateForm = !datesConfirmed || !datesValid;
+
+  const trySubmit = (ids: string[], periods: typeof allocationPeriods, confirmedOverlapIds: string[], confirmedInactiveIds: string[]) => {
+    const payload: MissionInput = {
+      projectId: identity?.id || '',
+      scheduleStatus: 'CONFIRMED',
+      headquartersResponsibleUserId: context?.leaderUserId || mission?.headquartersResponsibleUserId || '',
+      mobilizationDate,
+      executionStartDate,
+      executionEndDate,
+      returnDate: initial.returnDate || null,
+      collaboratorIds: ids,
+      allocationPeriods: periods,
+      planId,
+      confirmedMissionOverlapCollaboratorIds: confirmedOverlapIds,
+      confirmedInactiveCollaboratorIds: confirmedInactiveIds
+    };
+    if (inactiveAllocations.some(allocation => ids.includes(allocation.collaboratorId) && !confirmedInactiveIds.includes(allocation.collaboratorId))) {
+      setPendingInactiveSubmission(payload);
+      return;
+    }
+    onSubmit(payload);
+  };
+
+  return (
+    <>
+      <Modal open={showDateForm} onClose={onClose} ariaLabelledBy="initial-team-dates-title" panelClassName="modal-card efetivo-modal efetivo-team-dialog">
+        <div className="efetivo-modal-layout">
+          <header className="efetivo-modal-header"><div><h3 id="initial-team-dates-title">{mission ? 'Editar equipe inicial' : 'Definir equipe inicial'}</h3><p>{identity ? `${identity.code} · ${identity.name} · ` : ''}Confirme as datas da obra para consultar a disponibilidade dos colaboradores.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button></header>
+          <div className="efetivo-modal-body efetivo-form-grid">
+            {([['mobilizationDate', 'Previsão de mobilização', mobilizationDate, setMobilizationDate], ['executionStartDate', 'Início da execução', executionStartDate, setExecutionStartDate], ['executionEndDate', 'Fim da execução', executionEndDate, setExecutionEndDate]] as const).map(([name, label, value, setValue]) => (
+              <div className="field-group" key={name}>
+                <label htmlFor={`initial-team-${name}`}>{label} *</label>
+                <input id={`initial-team-${name}`} type="date" disabled={saving} value={value} onChange={event => setValue(event.target.value)} />
+              </div>
+            ))}
+            {mobilizationDate && executionStartDate && executionEndDate && !datesValid ? <span className="field-error efetivo-form-wide">Use a ordem mobilização ≤ início ≤ fim.</span> : null}
+          </div>
+          <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="button" disabled={!datesValid || saving} onClick={() => setDatesConfirmed(true)}>Continuar</Button></footer>
+        </div>
+      </Modal>
+      {showDateForm ? null : (
+        <MissionTeamSelector
+          mission={mission}
+          planId={planId}
+          roles={roles}
+          plannedRoles={context?.plannedRoles}
+          selectedIds={collaboratorIds}
+          allocationPeriods={allocationPeriods}
+          startDate={mobilizationDate}
+          endDate={executionEndDate}
+          loading={rolesLoading}
+          disabled={saving}
+          allowIndividualPeriods={false}
+          autoOpen
+          minSelected={1}
+          onCancel={onClose}
+          onAllocationPeriodsChange={setAllocationPeriods}
+          onChange={(ids, confirmedOverlapIds, confirmedInactiveIds) => {
+            const periodsById = new Map(allocationPeriods.map(period => [period.collaboratorId, period]));
+            const nextPeriods = ids.map(collaboratorId => periodsById.get(collaboratorId) || {
+              collaboratorId,
+              mobilizationDate,
+              demobilizationDate: executionEndDate
+            });
+            setCollaboratorIds(ids);
+            setAllocationPeriods(nextPeriods);
+            trySubmit(ids, nextPeriods, confirmedOverlapIds, confirmedInactiveIds);
+          }}
+        />
+      )}
+      <ConfirmDialog open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
+        description="A equipe contém colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão."
+        highlight={inactiveAllocations.filter(allocation => pendingInactiveSubmission?.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaborator?.name).join(', ')}
+        confirmLabel="Confirmar e salvar" confirmDisabled={saving} danger={false}
+        onConfirm={() => {
+          if (!pendingInactiveSubmission) return;
+          onSubmit({ ...pendingInactiveSubmission, confirmedInactiveCollaboratorIds: [...new Set([
+            ...(pendingInactiveSubmission.confirmedInactiveCollaboratorIds || []),
+            ...inactiveAllocations.filter(allocation => pendingInactiveSubmission.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaboratorId)
+          ])] });
+          setPendingInactiveSubmission(null);
+        }} onCancel={() => setPendingInactiveSubmission(null)} />
+    </>
+  );
+}
