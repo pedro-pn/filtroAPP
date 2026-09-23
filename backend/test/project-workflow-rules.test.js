@@ -475,6 +475,22 @@ test('seletor de veículo: "Locação de carro" dispensa o tipo, mas "Nosso"/"Fr
   assert.equal(gate.blockers.some(item => item.key === 'TRAVEL_FREIGHT'), true);
 });
 
+test('ônibus e avião servem à equipe, e escolhas individuais incompletas bloqueiam a logística', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, teamTransportMode: 'BUS' }).success, true);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, teamTransportMode: 'PLANE' }).success, true);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, freightMode: 'BUS' }).success, false);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, teamTransportMember: { collaboratorId: 'collaborator-1', mode: 'PLANE', vehicleType: null } }).success, true);
+  const workflow = readyMobilizationWorkflow({ logisticsPlan: { lodgingRequired: false, freightRequired: false } });
+  workflow.travelPlan.teamTransportMode = 'BUS';
+  workflow.travelPlan.teamTransportVehicleType = null;
+  assert.equal(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), false);
+  workflow.travelPlan.teamTransportOverrides = { 'collaborator-1': { mode: 'OWN', vehicleType: null } };
+  assert.equal(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), true);
+  workflow.travelPlan.teamTransportOverrides['collaborator-1'].vehicleType = 'PICKUP';
+  assert.equal(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), false);
+});
+
 test('somente requisitos documentais explícitos participam dos gates', () => {
   const workflow = readyMobilizationWorkflow({
     documentRequirements: {
@@ -730,9 +746,9 @@ test('a ação analysis_schedule exige fim depois do início', () => {
   assert.match(invalid.error.issues[0].message, /não pode ser anterior/);
 });
 
-test('checklist do contato com o cliente: 16 perguntas obrigatórias, sem repetir os itens críticos já existentes', () => {
+test('checklist do contato com o cliente: 17 perguntas obrigatórias, sem repetir os itens críticos já existentes', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
-  assert.equal(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.length, 16);
+  assert.equal(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.length, 17);
   const overlappingKeys = ['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION', 'SPECIAL_EQUIPMENT', 'LONG_LEAD_MATERIAL', 'MORE_THAN_TEN_FILTERS', 'SPECIFIC_HIRING'];
   const checklistKeys = new Set(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(item => item.key));
   for (const key of overlappingKeys) assert.equal(checklistKeys.has(key), false);
@@ -757,12 +773,12 @@ test('checklist do contato com o cliente: 16 perguntas obrigatórias, sem repeti
     clientContactChecklist: {},
     issues: []
   };
-  // nenhuma pergunta respondida: bloqueia as 16
-  assert.equal(analysisGateIssues(workflow).length, 16);
+  // nenhuma pergunta respondida: bloqueia as 17
+  assert.equal(analysisGateIssues(workflow).length, 17);
   assert.ok(analysisGateIssues(workflow).every(issue => issue.startsWith('Responder: ')));
-  // responder só uma libera as outras 15
+  // responder só uma libera as outras 16
   workflow.clientContactChecklist = { MULTI_DAY_INTEGRATION: { answer: false, note: null } };
-  assert.equal(analysisGateIssues(workflow).length, 15);
+  assert.equal(analysisGateIssues(workflow).length, 16);
   // todas respondidas libera de vez (observação é sempre opcional)
   workflow.clientContactChecklist = fullClientContactChecklist();
   assert.deepEqual(analysisGateIssues(workflow), []);

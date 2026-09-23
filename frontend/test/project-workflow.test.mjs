@@ -608,7 +608,7 @@ test('datas comerciais estimadas ficam editáveis (sem CRM) na Análise inicial 
   assert.match(schema, /field: z\.enum\(\['MOBILIZATION', 'START'\]\)/);
 });
 
-test('checklist de verificação do contato com o cliente: 16 perguntas em diálogo separado, obrigatórias, sem repetir os itens críticos', () => {
+test('checklist de verificação do contato com o cliente: 17 perguntas em diálogo separado, obrigatórias, sem repetir os itens críticos', () => {
   const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const api = fs.readFileSync(new URL('../src/api/projectWorkflow.ts', import.meta.url), 'utf8');
   const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
@@ -625,7 +625,8 @@ test('checklist de verificação do contato com o cliente: 16 perguntas em diál
   // não repete os itens já cobertos pelos itens críticos (cadastro no cliente, equipamento especial etc.)
   const checklistBlock = schema.slice(schema.indexOf('PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = ['), schema.indexOf('PROJECT_WORKFLOW_DOCUMENTATION_TYPES'));
   const keyMatches = [...checklistBlock.matchAll(/key: '([A-Z_0-9]+)'/g)].map(match => match[1]);
-  assert.equal(keyMatches.length, 16);
+  assert.equal(keyMatches.length, 17);
+  assert.match(checklistBlock, /POWER_PLUG_CONFIRMED', label: '[^']*plugue de tomada/);
   for (const key of ['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION', 'SPECIAL_EQUIPMENT', 'LONG_LEAD_MATERIAL', 'MORE_THAN_TEN_FILTERS', 'SPECIFIC_HIRING']) {
     assert.equal(keyMatches.includes(key), false);
   }

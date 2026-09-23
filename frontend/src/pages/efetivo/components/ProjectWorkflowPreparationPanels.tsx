@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import {
   PROJECT_WORKFLOW_TRANSPORT_MODES,
   PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS,
+  PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES,
+  PROJECT_WORKFLOW_TEAM_TRANSPORT_MODE_LABELS,
   PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES,
   PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPE_LABELS
 } from '../../../../../shared/schemas/project-workflow.js';
@@ -11,7 +13,8 @@ import type {
   ProjectWorkflowClientReleases,
   ProjectWorkflowPatch,
   ProjectWorkflowScheduleConfirmationField,
-  ProjectWorkflowTransportMode
+  ProjectWorkflowTransportMode,
+  ProjectWorkflowTeamTransportMode
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { DateInput } from '../../../components/ui/DateInput';
@@ -244,15 +247,15 @@ export function ProjectWorkflowQsmsPanel({ workflow, saving, onPatch }: {
   );
 }
 
-// Seletor de veículo/transporte usado tanto no transporte da equipe quanto no frete: "Nosso" e "Frete"
-// escolhem um tipo de veículo do catálogo daquele modo; "Locação de carro" não tem tipo, só quantidade.
-function TransportVehicleSelector({ idPrefix, mode, vehicleType, quantity, disabled, onModeChange, onVehicleTypeChange, onQuantityChange }: {
+// O catálogo da equipe inclui ônibus e avião; o frete conserva apenas modos de veículo.
+function TransportVehicleSelector({ idPrefix, mode, vehicleType, quantity, disabled, teamTransport = false, onModeChange, onVehicleTypeChange, onQuantityChange }: {
   idPrefix: string;
-  mode: ProjectWorkflowTransportMode | null;
+  mode: ProjectWorkflowTeamTransportMode | null;
   vehicleType: string | null;
   quantity: number | null;
   disabled: boolean;
-  onModeChange: (mode: ProjectWorkflowTransportMode) => void;
+  teamTransport?: boolean;
+  onModeChange: (mode: ProjectWorkflowTeamTransportMode) => void;
   onVehicleTypeChange: (vehicleType: string | null) => void;
   onQuantityChange: (quantity: number | null) => void;
 }) {
@@ -260,13 +263,13 @@ function TransportVehicleSelector({ idPrefix, mode, vehicleType, quantity, disab
   return (
     <div className="project-workflow-form-grid compact">
       <div className="field-group">
-        <label htmlFor={`${idPrefix}-mode`}>Veículo</label>
-        <select id={`${idPrefix}-mode`} value={mode || ''} disabled={disabled} onChange={event => onModeChange(event.target.value as ProjectWorkflowTransportMode)}>
+        <label htmlFor={`${idPrefix}-mode`}>{teamTransport ? 'Transporte' : 'Veículo'}</label>
+        <select id={`${idPrefix}-mode`} value={mode || ''} disabled={disabled} onChange={event => onModeChange(event.target.value as ProjectWorkflowTeamTransportMode)}>
           <option value="">Selecione</option>
-          {PROJECT_WORKFLOW_TRANSPORT_MODES.map((item: ProjectWorkflowTransportMode) => <option value={item} key={item}>{PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS[item]}</option>)}
+          {(teamTransport ? PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES : PROJECT_WORKFLOW_TRANSPORT_MODES).map(item => <option value={item} key={item}>{teamTransport ? PROJECT_WORKFLOW_TEAM_TRANSPORT_MODE_LABELS[item] : PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS[item as ProjectWorkflowTransportMode]}</option>)}
         </select>
       </div>
-      {mode && mode !== 'RENTAL' ? (
+      {vehicleOptions.length ? (
         <div className="field-group">
           <label htmlFor={`${idPrefix}-vehicle-type`}>Tipo</label>
           <select id={`${idPrefix}-vehicle-type`} value={vehicleType || ''} disabled={disabled} onChange={event => onVehicleTypeChange(event.target.value || null)}>
@@ -303,7 +306,7 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
       complete={complete}
       data-project-workflow-travel
     >
-      <div className="project-workflow-preparation-resource-list">
+      <div className="project-workflow-preparation-resource-list project-workflow-travel-list">
         {workflow.executedAtHeadquarters ? null : <article className="project-workflow-client-release">
           <header><strong>Hospedagem</strong><span>{travel.lodgingRequired ? 'Necessária' : 'Não necessária'}</span></header>
           {travel.lodgingRequired ? (
@@ -345,6 +348,7 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
           {travel.teamTransportDefined ? (
             <TransportVehicleSelector
               idPrefix="workflow-team-transport"
+              teamTransport
               mode={travel.teamTransportMode}
               vehicleType={travel.teamTransportVehicleType}
               quantity={travel.teamTransportQuantity}
@@ -353,11 +357,34 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
                 action: 'travel',
                 version: workflow.version,
                 teamTransportMode: mode,
-                ...(mode === 'RENTAL' ? { teamTransportVehicleType: null } : {})
+                ...(!['OWN', 'THIRD_PARTY'].includes(mode) ? { teamTransportVehicleType: null } : {})
               })}
               onVehicleTypeChange={vehicleType => onPatch({ action: 'travel', version: workflow.version, teamTransportVehicleType: vehicleType })}
               onQuantityChange={quantity => onPatch({ action: 'travel', version: workflow.version, teamTransportQuantity: quantity })}
             />
+          ) : null}
+          {travel.teamTransportDefined && workflow.teamPreparation.members.length ? (
+            <div className="project-workflow-team-transport-members">
+              <div className="project-workflow-team-transport-heading">
+                <strong>Transporte por colaborador</strong>
+                <button className="mini-btn alt" type="button" disabled={saving || !travel.canEditLogistics || !travel.teamTransportMode || !travel.teamTransportQuantity || (['OWN', 'THIRD_PARTY'].includes(travel.teamTransportMode) && !travel.teamTransportVehicleType)} onClick={() => onPatch({ action: 'travel', version: workflow.version, teamTransportApplyAll: true })}>Aplicar a todos</button>
+              </div>
+              {workflow.teamPreparation.members.map(member => {
+                const override = travel.teamTransportOverrides[member.collaboratorId];
+                const vehicleOptions = override?.mode === 'OWN' || override?.mode === 'THIRD_PARTY' ? PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES[override.mode] : [];
+                return <div className="project-workflow-team-transport-member" key={member.allocationId}>
+                  <div><strong>{member.name}</strong><small>{member.role}</small></div>
+                  <select aria-label={`Transporte de ${member.name}`} value={override?.mode || ''} disabled={saving || !travel.canEditLogistics} onChange={event => onPatch({ action: 'travel', version: workflow.version, teamTransportMember: { collaboratorId: member.collaboratorId, mode: event.target.value as ProjectWorkflowTeamTransportMode || null, vehicleType: null } })}>
+                    <option value="">Padrão da equipe{travel.teamTransportMode ? `: ${PROJECT_WORKFLOW_TEAM_TRANSPORT_MODE_LABELS[travel.teamTransportMode]}` : ''}</option>
+                    {PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES.map(mode => <option key={mode} value={mode}>{PROJECT_WORKFLOW_TEAM_TRANSPORT_MODE_LABELS[mode]}</option>)}
+                  </select>
+                  {override && vehicleOptions.length ? <select aria-label={`Tipo de veículo de ${member.name}`} value={override.vehicleType || ''} disabled={saving || !travel.canEditLogistics} onChange={event => onPatch({ action: 'travel', version: workflow.version, teamTransportMember: { collaboratorId: member.collaboratorId, mode: override.mode, vehicleType: event.target.value || null } })}>
+                    <option value="">Selecione o tipo</option>
+                    {vehicleOptions.map(item => <option value={item} key={item}>{PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPE_LABELS[item] || item}</option>)}
+                  </select> : null}
+                </div>;
+              })}
+            </div>
           ) : null}
         </article>
 
@@ -387,7 +414,7 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
                 onModeChange={mode => onPatch({
                   action: 'travel',
                   version: workflow.version,
-                  freightMode: mode,
+                  freightMode: mode as ProjectWorkflowTransportMode,
                   ...(mode === 'RENTAL' ? { freightVehicleType: null } : {})
                 })}
                 onVehicleTypeChange={vehicleType => onPatch({ action: 'travel', version: workflow.version, freightVehicleType: vehicleType })}

@@ -109,6 +109,8 @@ export const PROJECT_WORKFLOW_CLIENT_RELEASES = [
 // carro" não tem tipo (é sempre um carro alugado) — só a quantidade.
 export const PROJECT_WORKFLOW_TRANSPORT_MODES = ['OWN', 'RENTAL', 'THIRD_PARTY'];
 export const PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS = { OWN: 'Nosso', RENTAL: 'Locação de carro', THIRD_PARTY: 'Frete (terceiro)' };
+export const PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES = [...PROJECT_WORKFLOW_TRANSPORT_MODES, 'BUS', 'PLANE'];
+export const PROJECT_WORKFLOW_TEAM_TRANSPORT_MODE_LABELS = { ...PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS, BUS: 'Ônibus', PLANE: 'Avião' };
 export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES = {
   OWN: ['PICKUP', 'HR', 'VW10180', 'PASSENGER'],
   THIRD_PARTY: ['CARRETA', 'TRUCK', 'MUNCK', 'TOCO', 'HR', 'PICKUP']
@@ -240,6 +242,7 @@ export const PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = [
   { key: 'NON_STANDARD_PPE', label: 'É necessário utilizar algum EPI fora do padrão da empresa?' },
   { key: 'NR10_UNIFORM', label: 'É necessário usar uniforme conforme a NR-10?' },
   { key: 'UTILITIES_CONFIRMED', label: 'As utilidades do local (água, energia elétrica e ar comprimido, quando aplicável) foram confirmadas com o cliente?' },
+  { key: 'POWER_PLUG_CONFIRMED', label: 'O plugue de tomada utilizado no projeto foi confirmado com o cliente?' },
   { key: 'WORK_HOURS_CONFIRMED', label: 'Os horários de trabalho padrão do cliente foram confirmados?' },
   { key: 'SPECIFIC_PROGRAMS', label: 'São necessários programas específicos além dos padrão (PGR, PCMSO, LTCAT ou outros)?' },
   { key: 'DOCUMENT_CHANNEL_CONFIRMED', label: 'O canal de envio da documentação e o responsável pelo assunto no cliente foram confirmados?' },
@@ -483,9 +486,11 @@ export function makeProjectWorkflowSchemas(z) {
     lodgingRequestedDate: dateOnly.nullable().optional(),
     lodgingConfirmedDate: dateOnly.nullable().optional(),
     teamTransportDefined: z.boolean().nullable().optional(),
-    teamTransportMode: z.enum(PROJECT_WORKFLOW_TRANSPORT_MODES).nullable().optional(),
+    teamTransportMode: z.enum(PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES).nullable().optional(),
     teamTransportVehicleType: transportVehicleType,
     teamTransportQuantity: transportQuantity,
+    teamTransportMember: z.object({ collaboratorId: id, mode: z.enum(PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES).nullable(), vehicleType: transportVehicleType }).strict().optional(),
+    teamTransportApplyAll: z.literal(true).optional(),
     freightDefined: z.boolean().nullable().optional(),
     freightMode: z.enum(PROJECT_WORKFLOW_TRANSPORT_MODES).nullable().optional(),
     freightVehicleType: transportVehicleType,
@@ -495,7 +500,7 @@ export function makeProjectWorkflowSchemas(z) {
   }).strict().superRefine((value, ctx) => {
     const fields = [
       'lodgingRequestedDate', 'lodgingConfirmedDate',
-      'teamTransportDefined', 'teamTransportMode', 'teamTransportVehicleType', 'teamTransportQuantity',
+      'teamTransportDefined', 'teamTransportMode', 'teamTransportVehicleType', 'teamTransportQuantity', 'teamTransportMember', 'teamTransportApplyAll',
       'freightDefined', 'freightMode', 'freightVehicleType', 'freightQuantity',
       'freightDepartureDate', 'freightDepartureTime'
     ];
@@ -513,6 +518,7 @@ export function makeProjectWorkflowSchemas(z) {
       else if (!catalog.includes(vehicleType)) ctx.addIssue({ code: 'custom', path, message: 'Tipo de veículo inválido para o modo escolhido.' });
     };
     if (Object.hasOwn(value, 'teamTransportVehicleType')) checkVehicleType(value.teamTransportMode, value.teamTransportVehicleType, ['teamTransportVehicleType']);
+    if (value.teamTransportMember) checkVehicleType(value.teamTransportMember.mode, value.teamTransportMember.vehicleType, ['teamTransportMember', 'vehicleType']);
     if (Object.hasOwn(value, 'freightVehicleType')) checkVehicleType(value.freightMode, value.freightVehicleType, ['freightVehicleType']);
   });
   const critical = z.object({

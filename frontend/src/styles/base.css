@@ -2121,6 +2121,12 @@ a {
   min-width: 0;
 }
 
+.stock-movements-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.stock-summary-filters { display: grid; grid-template-columns: minmax(200px, 1.4fr) repeat(4, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; align-items: center; }
+.stock-summary-filters > * { min-width: 0; }
+@media (max-width: 1180px) { .stock-summary-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .stock-summary-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stock-summary-filters .app-search { grid-column: 1 / -1; } }
+
 .stock-movement-filters > * {
   min-width: 0;
 }
@@ -3937,7 +3943,11 @@ a {
 .acp-det-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .acp-det-block { display: flex; flex-direction: column; gap: 10px; }
 .acp-invoices { min-width: 0; }
+.acp-invoices-details[open] > .acp-det-collabs-summary::before { transform: rotate(90deg); }
+.acp-invoices-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .acp-invoices-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.acp-invoices-head::before { flex: 0 0 auto; margin-top: 3px; }
+.acp-invoices-head > div:first-child { flex: 1 1 auto; min-width: 0; }
 .acp-invoices-head h3 { margin: 0 0 4px; }
 .acp-invoices-head p, .acp-invoices p { margin: 0; font-size: 12px; color: var(--mu); }
 .acp-invoices-total { display: grid; gap: 4px; text-align: right; flex-shrink: 0; }
