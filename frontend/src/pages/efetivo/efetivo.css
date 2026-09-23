@@ -2238,6 +2238,7 @@
 .project-workflow-member-check small { color: var(--pw-accent, var(--g)); font-size: 11px; }
 .project-workflow-integration-note { color: var(--mu); overflow-wrap: anywhere; }
 .project-workflow-preparation-resource-list { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-travel-list { gap: 10px; }
 .project-workflow-preparation-resource { border-top: 1px solid var(--pw-border-soft, var(--br)); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 0; }
 .project-workflow-preparation-resource:first-child { border-top: 0; }
 .project-workflow-preparation-resource > header strong { font-size: 13.5px; font-weight: 600; }

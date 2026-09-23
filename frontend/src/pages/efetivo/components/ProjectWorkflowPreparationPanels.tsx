@@ -303,7 +303,7 @@ export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
       complete={complete}
       data-project-workflow-travel
     >
-      <div className="project-workflow-preparation-resource-list">
+      <div className="project-workflow-preparation-resource-list project-workflow-travel-list">
         {workflow.executedAtHeadquarters ? null : <article className="project-workflow-client-release">
           <header><strong>Hospedagem</strong><span>{travel.lodgingRequired ? 'Necessária' : 'Não necessária'}</span></header>
           {travel.lodgingRequired ? (
