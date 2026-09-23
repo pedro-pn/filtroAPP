@@ -5669,6 +5669,16 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   background-color: var(--error-bg) !important;
 }
 
+.service-finalized-field.field-invalid .rdo-tag-option {
+  border-color: var(--rd);
+  background-color: var(--error-bg);
+}
+
+.service-finalized-field .rdo-tag-option:focus-within {
+  outline: 2px solid var(--rd);
+  outline-offset: 2px;
+}
+
 .field-error {
   display: block;
   margin-top: 4px;
