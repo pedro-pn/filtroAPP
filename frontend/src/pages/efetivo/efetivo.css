@@ -2529,6 +2529,9 @@
 .project-workflow-checklist-dialog-header h3 { margin: 0; }
 .project-workflow-checklist-dialog-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
 .project-workflow-checklist-item { flex-wrap: wrap; }
+/* Com o card quebrando linha (label longo), o Sim/Não vira o único item da sua linha — e "justify-content:
+   space-between" jogaria um item sozinho pra esquerda. Fixa à direita independente de qual linha ele cair. */
+.project-workflow-checklist-item .project-workflow-documentation-choice { margin-left: auto; }
 /* Especificidade maior que ".project-workflow-critical > div" (que forçaria flex: 0 0 auto em qualquer <div>
    filho, inclusive esta observação) — sem isso, o campo ficava encolhido e empurrado para o canto. */
 .project-workflow-checklist-item > .project-workflow-checklist-note { display: flex; flex: 1 1 100%; flex-direction: column; margin: 6px 0 0; }

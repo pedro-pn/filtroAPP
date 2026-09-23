@@ -632,4 +632,7 @@ test('checklist de verificação do contato com o cliente: 16 perguntas em diál
   assert.match(styles, /\.project-workflow-checklist-item \{ flex-wrap: wrap; \}/);
   // seletor com especificidade maior que ".project-workflow-critical > div" (que forçaria flex: 0 0 auto)
   assert.match(styles, /\.project-workflow-checklist-item > \.project-workflow-checklist-note \{[^}]*flex: 1 1 100%/);
+  // com o label quebrando linha, o Sim/Não vira o único item da linha; sem isso "space-between" o jogaria
+  // pra esquerda em vez de manter à direita como os demais
+  assert.match(styles, /\.project-workflow-checklist-item \.project-workflow-documentation-choice \{ margin-left: auto; \}/);
 });
