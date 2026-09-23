@@ -46,6 +46,7 @@
 {{status}} - se foi finalizado ou ainda está em andamento
 {{infostatement}} - muda conforme o serviço, ver tabela
 {{info}} - muda conforme o serviço ver tabela
+{{tags}} - desenhos / TAGs informados para este serviço
 {{steps}} - etapas realizadas, pode separar por vírgula
 {{obs}} - observações do serviço
 

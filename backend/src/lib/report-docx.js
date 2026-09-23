@@ -196,6 +196,7 @@ function serviceTemplateData(service, index) {
     endtime: stringify(getField(fields, ['Hora de término/pausa'])),
     status: service.finalized === true ? 'Finalizado' : (service.finalized === false ? 'Em andamento' : ''),
     servicecollaborators: stringify(getField(fields, ['Colaboradores do serviço'])),
+    tags: stringify(getField(fields, ['Desenhos / TAGs', 'drawingsTags'])),
     steps: stringify(getField(fields, ['Etapas realizadas no dia'])),
     obs: stringify(getField(fields, ['Observações', 'OBS.', 'Desenho/observações']))
   };
