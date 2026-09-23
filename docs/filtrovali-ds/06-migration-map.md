@@ -1,5 +1,12 @@
 # 06 — Mapeamento do Projeto Atual → Design System
 
+> **Atualização de 23/09/2026:** a main `10599cf3` introduziu novas rotas,
+> estados e componentes nas áreas já migradas. Consulte o
+> [delta de integração](main-integration-2026-09-23.md) para a fila de revisão
+> R1–R3/A0/S1/X0 e as novas entregas. Os estados “migrado” abaixo registram
+> o baseline anterior; dependem dessa revisão para voltar a ser critério de
+> fechamento da branch.
+
 Baseado na auditoria inicial de `frontend/src` e atualizado em 11/09/2026 com o
 merge `1efe4639` de `origin/main` (`9586579f`). Preserva Efetivo em standby,
 Assinaturas e RDO migrados em seu baseline e A1/A2/A3a de Acompanhamento; acrescenta

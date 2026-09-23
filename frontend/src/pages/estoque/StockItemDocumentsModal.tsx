@@ -9,6 +9,7 @@ import {
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 
 interface Props {
   open: boolean;
@@ -40,6 +41,7 @@ function documentLabel(item: StockItem) {
 
 export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Props) {
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -93,7 +95,13 @@ export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Prop
   }
 
   async function removeDocument(documentId: string, fileName: string) {
-    if (!window.confirm(`Remover o documento “${fileName}”?`)) return;
+    const confirmed = await confirm({
+      title: 'Remover este documento?',
+      description: 'O arquivo deixa de ficar anexado ao item do estoque.',
+      highlight: fileName,
+      confirmLabel: 'Remover documento'
+    });
+    if (!confirmed) return;
     setRemovingId(documentId);
     setError(null);
     try {
@@ -201,6 +209,7 @@ export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Prop
           </button>
         </div>
       </div>
+      {confirmDialog}
     </Modal>
   );
 }

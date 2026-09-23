@@ -7,14 +7,12 @@ import type { EfetivoSectionDefinition } from './EfetivoAppShell';
 interface EfetivoSectionNavigationProps {
   current: EfetivoPlanningSection;
   sections: readonly EfetivoSectionDefinition[];
-  pendingMissions: number;
   onNavigate: (section: EfetivoPlanningSection) => void;
 }
 
 export function EfetivoSectionNavigation({
   current,
   sections,
-  pendingMissions,
   onNavigate
 }: EfetivoSectionNavigationProps) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -71,11 +69,6 @@ export function EfetivoSectionNavigation({
               }}
             >
               <span>{section.label}</span>
-              {section.id === 'missoes' && pendingMissions ? (
-                <strong aria-label={`${pendingMissions} missões com pendências`}>
-                  {pendingMissions}
-                </strong>
-              ) : null}
             </button>
           );
         })}
@@ -91,9 +84,6 @@ export function EfetivoSectionNavigation({
             {sections.map(section => (
               <option value={section.id} key={section.id}>
                 {section.label}
-                {section.id === 'missoes' && pendingMissions
-                  ? ` (${pendingMissions} pendências)`
-                  : ''}
               </option>
             ))}
           </Select>

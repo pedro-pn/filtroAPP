@@ -7,21 +7,21 @@ import { useAuth } from '../../auth/AuthContext';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../constants/privacy';
 import { BrandLogo } from '../../components/brand/BrandLogo';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Button, Card } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { downloadBlob } from '../../utils/download';
 import '../RdoPublicPage.css';
 
 export function ClientPrivacyConsentPage() {
   const { logout, replaceUser, user } = useAuth();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const showToast = useToast();
   const [accepted, setAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
-  const [deletionConfirmOpen, setDeletionConfirmOpen] = useState(false);
 
   async function handleAccept() {
     if (!accepted || isSubmitting) return;
@@ -60,7 +60,12 @@ export function ClientPrivacyConsentPage() {
   }
 
   async function handleDeletionRequest() {
-    setDeletionConfirmOpen(false);
+    const confirmed = await confirm({
+      title: 'Solicitar eliminação dos seus dados?',
+      description: 'A solicitação é registrada para análise manual e você recebe um protocolo de acompanhamento.',
+      confirmLabel: 'Registrar solicitação'
+    });
+    if (!confirmed) return;
     setIsRequestingDeletion(true);
     try {
       const request = await requestMyDataDeletion();
@@ -98,7 +103,7 @@ export function ClientPrivacyConsentPage() {
           <Button size="sm" variant="secondary" type="button" loading={isExportingData} onClick={() => void handleDataExport()}>
             {isExportingData ? 'Gerando...' : 'Exportar meus dados'}
           </Button>
-          <Button size="sm" variant="secondary" type="button" disabled={isRequestingDeletion} onClick={() => setDeletionConfirmOpen(true)}>
+          <Button size="sm" variant="secondary" type="button" disabled={isRequestingDeletion} onClick={() => void handleDeletionRequest()}>
             {isRequestingDeletion ? 'Registrando...' : 'Solicitar eliminação'}
           </Button>
         </div>
@@ -111,18 +116,7 @@ export function ClientPrivacyConsentPage() {
           </Button>
         </div>
       </Card>
-      <ConfirmDialog
-        open={deletionConfirmOpen}
-        appearance="design-system"
-        title="Solicitar eliminação de dados?"
-        description="A solicitação será registrada para análise manual. Você poderá acompanhar o atendimento pelo protocolo gerado."
-        confirmLabel="Registrar solicitação"
-        cancelLabel="Voltar"
-        danger
-        confirmDisabled={isRequestingDeletion}
-        onCancel={() => setDeletionConfirmOpen(false)}
-        onConfirm={() => void handleDeletionRequest()}
-      />
+      {confirmDialog}
     </main>
   );
 }

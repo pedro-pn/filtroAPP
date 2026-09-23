@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-09-09';
+export const DATA_CATALOG_VERSION = '2026-09-17';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -44,10 +44,11 @@ export const API_DATA_DOMAINS = Object.freeze([
     models: [
       ...modelEntries(['EfetivoPlan', 'EfetivoMissionPlan', 'EfetivoMissionCycle', 'EfetivoMissionDemand', 'WorkforceHoliday'], 'PLANNED'),
       ...modelEntries(['EfetivoMissionAllocation', 'EfetivoAllocationCycle', 'EfetivoPlannedHire'], 'SENSITIVE'),
-      ...modelEntries(['WorkforceCalendarState'], 'PROHIBITED'), ...modelEntries(['EfetivoAuditEvent'], 'RESERVED')
+      ...modelEntries(['WorkforceCalendarState'], 'PROHIBITED'),
+      ...modelEntries(['EfetivoAuditEvent', 'ProjectWorkflow', 'ProjectWorkflowChecklist', 'ProjectWorkflowTeamMemberCheck', 'ProjectWorkflowPreparationItemCheck', 'ProjectWorkflowClientRelease', 'ProjectWorkflowCriticalAnswer', 'ProjectWorkflowIssue', 'ProjectWorkflowCommercialFact', 'ProjectWorkflowDocumentationCategory', 'ProjectWorkflowDocumentationRequirement', 'ProjectWorkflowDocumentationHistory', 'ProjectWorkflowTeamDemand', 'ProjectWorkflowEquipmentCategoryPlan', 'ProjectWorkflowEvent', 'ProjectWorkflowPostJob', 'ProjectWorkflowMeasurement', 'ProjectWorkflowEmailNotification', 'ProjectDocument', 'ProjectDocumentVersion'], 'RESERVED')
     ],
     candidateScopes: ['efetivo.planos.read', 'efetivo.demandas.read', 'efetivo.alocacoes.read', 'efetivo.contratacoes.read', 'efetivo.feriados.read'], endpointFamilies: ['/efetivo/planos', '/efetivo/demandas', '/efetivo/alocacoes', '/efetivo/feriados'],
-    excludedFields: ['salários', 'custos pessoais', 'observações livres', 'estado técnico', 'evento bruto', 'ator']
+    excludedFields: ['salários', 'custos pessoais', 'observações livres', 'estado técnico', 'fatos comerciais', 'documentos e caminhos de arquivo', 'evento bruto', 'ator']
   }),
   domain({
     code: 'project-tracking', label: 'Acompanhamento e custos',
@@ -60,7 +61,7 @@ export const API_DATA_DOMAINS = Object.freeze([
     models: [
       ...modelEntries(['DdsTheme', 'Report', 'ReportVersion', 'ReportCollaborator', 'ReportService'], 'PLANNED'),
       ...modelEntries(['ClientReportReview', 'ReportSignature', 'ReportAuditLog', 'ReportAttachment'], 'SENSITIVE'),
-      ...modelEntries(['ReportApprovalPostProcessingJob', 'ReportDraft'], 'RESERVED'), ...modelEntries(['ProjectReportSeq'], 'PROHIBITED')
+      ...modelEntries(['ReportApprovalPostProcessingJob', 'ReportDraft', 'HistoricalServiceReport', 'ReportMeasurementLink'], 'RESERVED'), ...modelEntries(['ProjectReportSeq'], 'PROHIBITED')
     ],
     candidateScopes: ['rdo.relatorios.read', 'rdo.versoes.read', 'rdo.equipe.read', 'rdo.servicos.read', 'rdo.dds.read', 'rdo.anexos.metadata.read', 'rdo.anexos.download', 'rdo.assinaturas.read', 'rdo.auditoria.read'], endpointFamilies: ['/rdo/relatorios', '/rdo/versoes', '/rdo/servicos'],
     excludedFields: ['controle interno de sequências', 'jobs/payloads', 'rascunhos', 'caminho/token de arquivo', 'imagem de assinatura', 'IP', 'user-agent']
@@ -134,7 +135,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'commercial', label: 'Comercial, orçamento e planejamento',
-    models: [...modelEntries(['CommercialProposal', 'ProjectBudget', 'ProjectAdditionalProposal', 'ProjectPlannedService', 'ProjectPlannedServiceSystem', 'ProjectPlannedNormalHours', 'ProjectPlannedOvertime'], 'SENSITIVE'), ...modelEntries(['AccessImport'], 'RESERVED')],
+    models: [...modelEntries(['CommercialProposal', 'ProjectBudget', 'ProjectAdditionalProposal', 'ProjectPlannedService', 'ProjectPlannedServiceSystem', 'ProjectPlannedNormalHours', 'ProjectPlannedOvertime'], 'SENSITIVE'), ...modelEntries(['AccessImport', 'ProjectServiceSystem'], 'RESERVED')],
     candidateScopes: ['comercial.propostas.read', 'comercial.orcamentos.read', 'comercial.servicos-planejados.read', 'comercial.horas.read', 'comercial.contatos.read'], candidateAvailability: 'SENSITIVE', endpointFamilies: ['/comercial/propostas', '/comercial/orcamentos'],
     excludedFields: ['rawRow', 'arquivo/hash de importação', 'contato/CNPJ sem escopo', 'observações', 'custos/margens sem escopo']
   }),

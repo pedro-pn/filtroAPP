@@ -1,8 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router';
 
 import {
   getProjectRevisions,
+  getPlannedScope,
   setProjectSchedule,
   type CommercialRevision,
   type LaborCollaborator,
@@ -10,11 +12,13 @@ import {
   type ProjectSchedulePayload
 } from '../../api/acompanhamentoComercial';
 import { getActiveCollaborators } from '../../api/acompanhamentoPonto';
+import { systemReconciliationPath } from '../../api/systemReconciliation';
 import { useToast } from '../ui/ToastContext';
 import { HelpTip } from '../ui/HelpTip';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
+import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 
 export interface ScheduleEditorHandle { save: () => void }
 
@@ -123,10 +127,12 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   onDirtyChange?: (dirty: boolean) => void;
 }>(function ProjectScheduleEditor({ projectId, canManage = true, onDirtyChange }, ref) {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const showToast = useToast();
   const queryKey = ['commercial-revisions', projectId];
 
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => getProjectRevisions(projectId) });
+  const { data: plannedScope } = useQuery({ queryKey: ['planned-scope', projectId], queryFn: () => getPlannedScope(projectId), ...acompanhamentoRefreshQueryOptions });
   const activeCollaboratorsQuery = useQuery({
     queryKey: ['ponto-collaborators-active'],
     queryFn: getActiveCollaborators,
@@ -142,6 +148,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const [manualLaborIdsEdit, setManualLaborIdsEdit] = useState<string[] | null>(null);
   const [manualLaborAddId, setManualLaborAddId] = useState('');
   const [scopeDirty, setScopeDirty] = useState(false);
+  const [scopeSaving, setScopeSaving] = useState(false);
   const scopeRef = useRef<ScopeEditorHandle>(null);
 
   const scheduleMutation = useMutation({
@@ -191,6 +198,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     || sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)
     || collaboratorIdListKey(manualLaborIdsValue) !== collaboratorIdListKey(baseManualLaborIds);
   const dirty = scheduleDirty || scopeDirty;
+  const reconciliationBlocked = dirty || scopeSaving || scheduleMutation.isPending;
 
   function setCollaboratorSleepMode(collaboratorId: string, mode: LaborSleepMode) {
     const next = { ...sleepModeValue };
@@ -240,7 +248,11 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
 
   if (current == null || !currentRevision) {
-    return <div className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão.</div>;
+    return <>
+      <p className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão. A previsão manual permanece disponível.</p>
+      <ProjectPlannedScopeEditor ref={scopeRef} projectId={projectId} canManage={canManage}
+        onDirtyChange={setScopeDirty} onSavingChange={setScopeSaving} />
+    </>;
   }
 
   const leadDays = data?.mobilizationLeadDays ?? null;
@@ -362,8 +374,28 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     </>
   ) : null;
 
+  const reconciliationContent = <>
+    <span className="acp-reconciliation-icon" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" />
+      </svg>
+    </span>
+    <span className="acp-reconciliation-copy">
+      <strong>Conciliar sistemas</strong>
+      <span>{reconciliationBlocked
+        ? 'Salve as alterações do cronograma e do escopo antes de abrir a conciliação.'
+        : 'Vincule as medições dos relatórios aos sistemas previstos.'}</span>
+    </span>
+    <svg className="acp-reconciliation-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14m-6-6 6 6-6 6" />
+    </svg>
+  </>;
+
   return (
     <div className="det-section">
+      {plannedScope?.hoursPlan?.pending ? <div role="alert" className="acp-alert warn" style={{ marginBottom: 12 }}>
+        ⚠ Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
+      </div> : null}
       <div className="det-row"><span className="det-label">Previsto (comercial)</span>
         <span className="det-val acp-budget-value">
           <span>Venda {brl(plannedSalePrice)} · Custo {brl(plannedCost)} · Margem {pct(expectedMargin)}</span>
@@ -435,6 +467,11 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       </div>
 
       <div className="acp-scope-divider" />
+      {reconciliationBlocked ? (
+        <button type="button" className="acp-reconciliation-shortcut" disabled>{reconciliationContent}</button>
+      ) : (
+        <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)} state={{ scheduleReturnSearch: location.search }}>{reconciliationContent}</Link>
+      )}
       <div className="sec" style={{ marginTop: 4 }}>Avanço físico (RDO × previsto)</div>
       <ProjectProgressBreakdown projectId={projectId} />
 
@@ -442,7 +479,10 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       <ProjectPlannedScopeEditor
         ref={scopeRef}
         projectId={projectId}
+        canManage={canManage}
+        resolutionDisabled={scheduleDirty || scheduleMutation.isPending}
         onDirtyChange={setScopeDirty}
+        onSavingChange={setScopeSaving}
         beforeOvertime={collaboratorSleepSection}
       />
 

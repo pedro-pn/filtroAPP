@@ -156,13 +156,18 @@ export interface RomaneioDraftPayload {
   payload: Record<string, unknown>;
 }
 
-export async function listRomaneioProjects(active = true) {
-  const { data } = await apiClient.get<Project[]>(romaneioApiPath('/projects'), { params: { active } });
+export interface RomaneioProjectFilters {
+  active?: boolean;
+  type?: RomaneioType;
+}
+
+export async function listRomaneioProjects(filters: RomaneioProjectFilters = { active: true }) {
+  const { data } = await apiClient.get<Project[]>(romaneioApiPath('/projects'), { params: filters });
   return data;
 }
 
-export async function listRomaneios(filters: { search?: string; projectId?: string } = {}) {
-  const { data } = await apiClient.get<Romaneio[]>(romaneioApiPath('/'), { params: filters });
+export async function listRomaneios(filters: { search?: string; projectId?: string } = {}, signal?: AbortSignal) {
+  const { data } = await apiClient.get<Romaneio[]>(romaneioApiPath('/'), { params: filters, signal });
   return data;
 }
 

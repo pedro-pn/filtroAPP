@@ -2,27 +2,13 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 
 import { Modal } from '../../components/ui/Modal';
+import { canUseLiveCamera, cameraErrorMessage } from '../../utils/camera';
 import { parseRomaneioItemQrValue } from '../../utils/romaneioQr';
 
 interface RomaneioQrScannerModalProps {
   open: boolean;
   onClose: () => void;
   onDetectedCatalogItemId: (catalogItemId: string) => void;
-}
-
-function cameraErrorMessage(error: unknown) {
-  if (error instanceof DOMException) {
-    if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
-      return 'Permita o acesso à câmera para escanear o QR code.';
-    }
-    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-      return 'Nenhuma câmera foi encontrada neste dispositivo.';
-    }
-    if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-      return 'A câmera está sendo usada por outro aplicativo.';
-    }
-  }
-  return 'Não foi possível iniciar a câmera. Verifique a permissão e tente novamente.';
 }
 
 export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId }: RomaneioQrScannerModalProps) {
@@ -34,7 +20,7 @@ export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId 
   const [message, setMessage] = useState('Aponte a câmera para o QR code do equipamento.');
   const [hasError, setHasError] = useState(false);
   const [isDecodingPhoto, setIsDecodingPhoto] = useState(false);
-  const canUseLiveCamera = window.isSecureContext && Boolean(navigator.mediaDevices?.getUserMedia);
+  const liveCameraAvailable = canUseLiveCamera();
 
   useEffect(() => {
     onDetectedRef.current = onDetectedCatalogItemId;
@@ -149,7 +135,7 @@ export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId 
       panelClassName="modal-card romaneio-qr-scanner-modal"
     >
       <div className="section-title" id="romaneio-qr-scanner-title">Escanear equipamento</div>
-      {canUseLiveCamera ? (
+      {liveCameraAvailable ? (
         <div className="romaneio-qr-camera">
           <video ref={videoRef} muted playsInline aria-label="Imagem da câmera para leitura do QR code" />
           <span className="romaneio-qr-camera-frame" aria-hidden="true" />

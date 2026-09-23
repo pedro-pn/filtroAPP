@@ -5,12 +5,42 @@ services:
     image: postgres:16-alpine
     container_name: filtrovali-postgres
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - max_connections=50
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - track_io_timing=on
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - idle_in_transaction_session_timeout=60000
     environment:
       POSTGRES_DB: filtrovali
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - filtrovali_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d filtrovali"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+    cpus: 1.25
+    pids_limit: 200
     networks:
       - filtrovali-net
 
@@ -22,13 +52,55 @@ services:
     restart: unless-stopped
     env_file:
       - backend/.env.production
+    environment:
+      BACKGROUND_JOBS_IN_API: "false"
+      DATABASE_CONNECTION_LIMIT: ${BACKEND_DATABASE_CONNECTION_LIMIT:-8}
+      PRISMA_SLOW_QUERY_MS: ${PRISMA_SLOW_QUERY_MS:-1000}
+      SLOW_OPERATION_LOG_MS: ${SLOW_OPERATION_LOG_MS:-1000}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - filtrovali_relatorios:/data/relatorios
       - ${OPERATIONS_STATUS_DIR:-/root/backups/filtrovali/status}:/ops-status:ro
     networks:
       - filtrovali-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+    cpus: 1.5
+    pids_limit: 200
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: filtrovali-worker
+    restart: unless-stopped
+    command: ["node", "src/worker.js"]
+    env_file:
+      - backend/.env.production
+    environment:
+      BACKGROUND_JOBS_IN_API: "false"
+      DATABASE_CONNECTION_LIMIT: ${WORKER_DATABASE_CONNECTION_LIMIT:-2}
+      PRISMA_SLOW_QUERY_MS: ${PRISMA_SLOW_QUERY_MS:-1000}
+      SLOW_OPERATION_LOG_MS: ${SLOW_OPERATION_LOG_MS:-1000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    volumes:
+      - filtrovali_relatorios:/data/relatorios
+      - ${OPERATIONS_STATUS_DIR:-/root/backups/filtrovali/status}:/ops-status:ro
+    networks:
+      - filtrovali-net
+    mem_limit: 1536m
+    cpus: 0.75
+    pids_limit: 150
 
   nginx:
     build:
@@ -50,6 +122,9 @@ services:
     networks:
       - filtrovali-net
       - proxy-net
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 100
 
 volumes:
   filtrovali_pgdata:

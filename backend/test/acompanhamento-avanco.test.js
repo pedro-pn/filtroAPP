@@ -108,21 +108,21 @@ test('realizedFromExtraData tolera dados ausentes', () => {
   assert.deepEqual(realizedFromExtraData({ tubes: 'x' }), { tubulacaoM: 0, oleoL: 0 });
 });
 
-test('buildProgress: execução por sistema limitada a 100% e ponderada por peso', () => {
+test('buildProgress: permite avanço acima de 100% e pondera por peso', () => {
   const planned = [
     { serviceType: 'LIMPEZA_QUIMICA', weight: 3, systems: [{ systemType: 'TUBULACAO', quantity: 1000, unit: 'M' }] },
     { serviceType: 'FILTRAGEM', weight: 1, systems: [{ systemType: 'OLEO', quantity: 200, unit: 'L' }] }
   ];
   const realized = new Map([
     ['LIMPEZA_QUIMICA', { tubulacaoM: 500, oleoL: 0 }], // 50%
-    ['FILTRAGEM', { tubulacaoM: 0, oleoL: 400 }] // 200% -> cap 100%
+    ['FILTRAGEM', { tubulacaoM: 0, oleoL: 400 }] // 200%
   ]);
   const out = buildProgress(planned, realized);
   assert.equal(out.hasScope, true);
   assert.equal(out.services[0].executionPct, 50);
-  assert.equal(out.services[1].executionPct, 100); // cap
-  // (3*50 + 1*100) / (3+1) = 250/4 = 62.5
-  assert.equal(out.progressPct, 62.5);
+  assert.equal(out.services[1].executionPct, 200);
+  // (3*50 + 1*200) / (3+1) = 350/4 = 87.5
+  assert.equal(out.progressPct, 87.5);
 });
 
 test('buildProgress: serviço com sistema de múltiplas medidas usa a média', () => {

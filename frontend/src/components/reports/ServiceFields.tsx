@@ -3,6 +3,7 @@ import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibit
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
+import { cleaningModePatch } from '../../utils/cleaningMeasurement';
 
 const etapasPorTipo: Record<string, string[]> = {
   LIMPEZA: [
@@ -43,12 +44,6 @@ const PRESSURE_TESTED_EQUIPMENT_OPTIONS: Array<{ value: PressureTestedEquipment;
   { value: 'mangueira', label: 'Mangueiras' },
   { value: 'outro', label: 'Outro' }
 ];
-
-const RLQ_INSPECTION_OPTIONS = [
-  { value: 'Visual', label: 'Visual' },
-  { value: 'Corpo de prova', label: 'Corpo de prova' },
-  { value: 'Vídeo boroscopia', label: 'Boroscopia' }
-] as const;
 
 const commonInchDiameters = [
   '1/8',
@@ -317,7 +312,6 @@ interface ServiceFieldsProps {
   hideFinalization?: boolean;
   hideUploads?: boolean;
   hideNotes?: boolean;
-  appearance?: 'legacy' | 'design-system';
 }
 
 // Opções de um slot a partir do mapeamento configurável (categoryIds). Une os
@@ -413,7 +407,7 @@ function TubesBlock({
   const normalizedItemLabel = itemLabel.trim() || 'tubulação';
 
   return (
-    <div className={`${fieldClass(invalidKey, 'tubes')} service-measurements-block service-options-full`}>
+    <div className={fieldClass(invalidKey, 'tubes')}>
       <label>Diâmetros e comprimentos {required ? requiredMark() : null}</label>
       <div className="tube-stack">
         {rows.map((row, index) => (
@@ -602,12 +596,15 @@ function UnitMultiField({
 function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey'>) {
   const finalized = typeof data.finalized === 'boolean' ? data.finalized : null;
   const aprovadoCliente = getString(data.aprovadoCliente) || 'Sim';
+  const finalizationInvalid = invalidKey === 'finalized';
+  const finalizationLabelId = fieldId(groupKey, 'finalized-label');
+  const finalizationErrorId = fieldId(groupKey, 'finalized-error');
 
   return (
     <>
-      <div className={fieldClass(invalidKey, 'finalized')}>
-        <label>Serviço finalizado? {requiredMark()}</label>
-        <div className="rdo-tag-group">
+      <div className={`${fieldClass(invalidKey, 'finalized')} service-finalized-field`}>
+        <label id={finalizationLabelId}>Serviço finalizado? {requiredMark()}</label>
+        <div className="rdo-tag-group" role="radiogroup" aria-labelledby={finalizationLabelId} aria-describedby={finalizationInvalid ? finalizationErrorId : undefined}>
           {['Sim', 'Não'].map(label => {
             const value = label === 'Sim';
             const checked = finalized === value;
@@ -616,6 +613,8 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
                 <input
                   type="radio"
                   name={`finalizado-${groupKey}`}
+                  data-invalid-target={value ? `${groupKey}:finalized` : undefined}
+                  aria-invalid={finalizationInvalid || undefined}
                   checked={checked}
                   disabled={disabled}
                   onChange={() => onChange({ finalized: value })}
@@ -625,6 +624,7 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
             );
           })}
         </div>
+        {finalizationInvalid ? <small className="field-error" id={finalizationErrorId}>Selecione Sim ou Não.</small> : null}
       </div>
       {finalized ? (
         <div className="field-group">
@@ -809,7 +809,7 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, count
     : counters.filter(counter => counter.isActive !== false);
 
   return (
-    <div className="field-group service-analysis-block">
+    <div className="field-group">
       <label>Houve contagem de partículas?</label>
       <div className="rdo-tag-group">
         {['Sim', 'Não'].map(label => {
@@ -829,9 +829,9 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, count
         })}
       </div>
       {enabled ? (
-        <div className="collapse-section service-analysis-panel">
-          <div className="admin-form-grid rdo-analysis-grid rdo-analysis-grid--particles">
-            <div className={`${fieldClass(invalidKey, 'contadorUtilizado')} service-analysis-equipment`}>
+        <div className="collapse-section">
+          <div className="admin-form-grid">
+            <div className={fieldClass(invalidKey, 'contadorUtilizado')}>
               <label htmlFor={contadorId}>Contador utilizado {requiredMark()}</label>
               <select id={contadorId} value={getString(data.contadorUtilizado)} disabled={disabled} onChange={event => onChange({ contadorUtilizado: event.target.value })}>
                 <option value="">Selecionar...</option>
@@ -842,30 +842,24 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, count
                 ))}
               </select>
             </div>
-            <div className="rdo-reading-group" role="group" aria-label="Leituras NAS">
-              <div className="rdo-reading-group__title">Leituras NAS</div>
-              <div className="fg-r2">
-                <div className="field-group">
-                  <label htmlFor={fieldId(groupKey, 'contagemInicialNas')}>Inicial</label>
-                  <input id={fieldId(groupKey, 'contagemInicialNas')} value={getString(data.contagemInicialNas)} disabled={disabled} onChange={event => onChange({ contagemInicialNas: event.target.value })} />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={fieldId(groupKey, 'contagemFinalNas')}>Final</label>
-                  <input id={fieldId(groupKey, 'contagemFinalNas')} value={getString(data.contagemFinalNas)} disabled={disabled} onChange={event => onChange({ contagemFinalNas: event.target.value })} />
-                </div>
+            <div className="fg-r2">
+              <div className="field-group">
+                <label htmlFor={fieldId(groupKey, 'contagemInicialNas')}>NAS inicial</label>
+                <input id={fieldId(groupKey, 'contagemInicialNas')} value={getString(data.contagemInicialNas)} disabled={disabled} onChange={event => onChange({ contagemInicialNas: event.target.value })} />
+              </div>
+              <div className="field-group">
+                <label htmlFor={fieldId(groupKey, 'contagemFinalNas')}>NAS final</label>
+                <input id={fieldId(groupKey, 'contagemFinalNas')} value={getString(data.contagemFinalNas)} disabled={disabled} onChange={event => onChange({ contagemFinalNas: event.target.value })} />
               </div>
             </div>
-            <div className="rdo-reading-group" role="group" aria-label="Leituras ISO">
-              <div className="rdo-reading-group__title">Leituras ISO</div>
-              <div className="fg-r2">
-                <div className="field-group">
-                  <label htmlFor={fieldId(groupKey, 'contagemInicialIso')}>Inicial</label>
-                  <input id={fieldId(groupKey, 'contagemInicialIso')} value={getString(data.contagemInicialIso)} disabled={disabled} onChange={event => onChange({ contagemInicialIso: event.target.value })} />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={fieldId(groupKey, 'contagemFinalIso')}>Final</label>
-                  <input id={fieldId(groupKey, 'contagemFinalIso')} value={getString(data.contagemFinalIso)} disabled={disabled} onChange={event => onChange({ contagemFinalIso: event.target.value })} />
-                </div>
+            <div className="fg-r2">
+              <div className="field-group">
+                <label htmlFor={fieldId(groupKey, 'contagemInicialIso')}>ISO inicial</label>
+                <input id={fieldId(groupKey, 'contagemInicialIso')} value={getString(data.contagemInicialIso)} disabled={disabled} onChange={event => onChange({ contagemInicialIso: event.target.value })} />
+              </div>
+              <div className="field-group">
+                <label htmlFor={fieldId(groupKey, 'contagemFinalIso')}>ISO final</label>
+                <input id={fieldId(groupKey, 'contagemFinalIso')} value={getString(data.contagemFinalIso)} disabled={disabled} onChange={event => onChange({ contagemFinalIso: event.target.value })} />
               </div>
             </div>
             {upload('Foto do laudo')}
@@ -884,7 +878,7 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, unitOpti
     : units.filter(unit => unitMatchesCategory(unit, 'DESIDRATACAO'));
 
   return (
-    <div className="field-group service-analysis-block">
+    <div className="field-group">
       <label>Houve desidratação?</label>
       <div className="rdo-tag-group">
         {['Sim', 'Não'].map(label => {
@@ -904,9 +898,9 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, unitOpti
         })}
       </div>
       {enabled ? (
-        <div className="collapse-section service-analysis-panel">
-          <div className="admin-form-grid rdo-analysis-grid rdo-analysis-grid--dehydration">
-            <div className={`${fieldClass(invalidKey, 'desidratacaoUnit')} service-analysis-equipment`}>
+        <div className="collapse-section">
+          <div className="admin-form-grid">
+            <div className={fieldClass(invalidKey, 'desidratacaoUnit')}>
               <label htmlFor={fieldId(groupKey, 'desidratacaoUnit')}>Equipamento de desidratação {requiredMark()}</label>
               <select id={fieldId(groupKey, 'desidratacaoUnit')} value={getString(data.desidratacaoUnit)} disabled={disabled} onChange={event => onChange({ desidratacaoUnit: event.target.value })}>
                 <option value="">Selecionar...</option>
@@ -914,7 +908,7 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, unitOpti
               </select>
             </div>
             {upload('Fotos da desidratação')}
-            <div className="field-group service-analysis-question">
+            <div className="field-group">
               <label>Houve análise de umidade?</label>
               <div className="rdo-tag-group">
                 {['Sim', 'Não'].map(label => {
@@ -935,17 +929,14 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, unitOpti
               </div>
             </div>
             {hasHumidity ? (
-              <div className="rdo-reading-group rdo-reading-group--humidity" role="group" aria-label="Leituras de umidade">
-                <div className="rdo-reading-group__title">Leituras de umidade (ppm)</div>
-                <div className="fg-r2">
-                  <div className="field-group">
-                    <label htmlFor={fieldId(groupKey, 'umidadeInicial')}>Inicial</label>
-                    <input id={fieldId(groupKey, 'umidadeInicial')} type="number" min="0" value={getString(data.umidadeInicial)} disabled={disabled} onChange={event => onChange({ umidadeInicial: event.target.value })} />
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor={fieldId(groupKey, 'umidadeFinal')}>Final</label>
-                    <input id={fieldId(groupKey, 'umidadeFinal')} type="number" min="0" value={getString(data.umidadeFinal)} disabled={disabled} onChange={event => onChange({ umidadeFinal: event.target.value })} />
-                  </div>
+              <div className="fg-r2">
+                <div className="field-group">
+                  <label htmlFor={fieldId(groupKey, 'umidadeInicial')}>Umidade inicial (ppm)</label>
+                  <input id={fieldId(groupKey, 'umidadeInicial')} type="number" min="0" value={getString(data.umidadeInicial)} disabled={disabled} onChange={event => onChange({ umidadeInicial: event.target.value })} />
+                </div>
+                <div className="field-group">
+                  <label htmlFor={fieldId(groupKey, 'umidadeFinal')}>Umidade final (ppm)</label>
+                  <input id={fieldId(groupKey, 'umidadeFinal')} type="number" min="0" value={getString(data.umidadeFinal)} disabled={disabled} onChange={event => onChange({ umidadeFinal: event.target.value })} />
                 </div>
               </div>
             ) : null}
@@ -959,15 +950,15 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, unitOpti
 function DrawingsObsBlock({ data, onChange, disabled, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey'>) {
   return (
     <>
-      <div className="field-group service-drawings-field">
+      <div className="field-group">
         <label htmlFor={fieldId(groupKey, 'drawingsTags')}>Desenhos / TAGs</label>
         <input id={fieldId(groupKey, 'drawingsTags')} value={getString(data.drawingsTags)} disabled={disabled} onChange={event => onChange({ drawingsTags: event.target.value })} />
       </div>
-      <div className="field-group service-notes-field service-options-full">
+      <div className="field-group">
         <label htmlFor={fieldId(groupKey, 'notes')}>Observações</label>
         <textarea
           id={fieldId(groupKey, 'notes')}
-          rows={5}
+          rows={3}
           placeholder="Observações adicionais..."
           value={getString(data.notes)}
           disabled={disabled}
@@ -975,30 +966,6 @@ function DrawingsObsBlock({ data, onChange, disabled, groupKey }: Pick<ServiceFi
         />
       </div>
     </>
-  );
-}
-
-function ServiceFormSection({
-  title,
-  children,
-  appearance,
-  className = ''
-}: {
-  title: string;
-  children: ReactNode;
-  appearance: NonNullable<ServiceFieldsProps['appearance']>;
-  className?: string;
-}) {
-  if (appearance !== 'design-system') return <>{children}</>;
-
-  return (
-    <section
-      className={`rdo-service-section ${className}`.trim()}
-      aria-label={title}
-    >
-      <h4 className="rdo-service-section__title">{title}</h4>
-      <div className="rdo-service-section__grid">{children}</div>
-    </section>
   );
 }
 
@@ -1018,8 +985,7 @@ export function ServiceFields({
   invalidKey,
   hideFinalization = false,
   hideUploads = false,
-  hideNotes = false,
-  appearance = 'legacy'
+  hideNotes = false
 }: ServiceFieldsProps) {
   const normalizedType = normalizeServiceType(serviceType);
   const slotOptions = (slotKey: string) => slotOptionsFrom(equipments, rdoSlotMap, slotKey);
@@ -1031,7 +997,6 @@ export function ServiceFields({
         value={getGroup(data, label)}
         projectId={projectId}
         disabled={disabled}
-        appearance={appearance}
         onChange={files => setGroup(data, onChange, label, files)}
       />
     );
@@ -1045,76 +1010,76 @@ export function ServiceFields({
 
     return (
       <>
-        <ServiceFormSection title="Escopo e equipamentos" appearance={appearance}>
-          <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          <div className={fieldClass(invalidKey, 'metodos')}>
-            <label>Método de limpeza {requiredMark()}</label>
-            <div className="rdo-check-grid">
-              {['Circulação pressurizada', 'Pulverização', 'Enchimento e imersão'].map(m => (
-                <label className="rdo-check-row" key={m}>
-                  <input type="checkbox" checked={metodos.includes(m)} disabled={disabled} onChange={e => onChange({ metodos: toggleItem(metodos, m, e.target.checked) })} />
-                  <span>{m}</span>
-                </label>
-              ))}
-            </div>
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label={limpezaTubulacao === 'Não' ? 'Material do sistema' : 'Material da tubulação'} />
+        <div className={fieldClass(invalidKey, 'metodos')}>
+          <label>Método de limpeza {requiredMark()}</label>
+          <div className="rdo-check-grid">
+            {['Circulação pressurizada', 'Pulverização', 'Enchimento e imersão'].map(m => (
+              <label className="rdo-check-row" key={m}>
+                <input type="checkbox" checked={metodos.includes(m)} disabled={disabled} onChange={e => onChange({ metodos: toggleItem(metodos, m, e.target.checked) })} />
+                <span>{m}</span>
+              </label>
+            ))}
           </div>
-          <UnitMultiField groupKey={groupKey} label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} options={slotOptions('limpeza.ulq')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-          <div className={fieldClass(invalidKey, 'local')}>
-            <label>Local de limpeza {requiredMark()}</label>
-            <div className="rdo-pill-list">
-              {['Interna', 'Externa'].map(l => (
-                <label className={pillOptionClass(local.includes(l))} key={l}>
-                  <input type="checkbox" checked={local.includes(l)} disabled={disabled} onChange={e => onChange({ local: toggleItem(local, l, e.target.checked) })} />
-                  <span>{l}</span>
-                </label>
-              ))}
-            </div>
+        </div>
+        <UnitMultiField groupKey={groupKey} label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} options={slotOptions('limpeza.ulq')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <div className={fieldClass(invalidKey, 'local')}>
+          <label>Local de limpeza {requiredMark()}</label>
+          <div className="rdo-pill-list">
+            {['Interna', 'Externa'].map(l => (
+              <label className={pillOptionClass(local.includes(l))} key={l}>
+                <input type="checkbox" checked={local.includes(l)} disabled={disabled} onChange={e => onChange({ local: toggleItem(local, l, e.target.checked) })} />
+                <span>{l}</span>
+              </label>
+            ))}
           </div>
-          <div className={fieldClass(invalidKey, 'limpezaTubulacao')}>
-            <label>Limpeza de tubulação? {requiredMark()}</label>
-            <div className="rdo-tag-group">
-              {['Sim', 'Não'].map(label => (
-                <label className={radioOptionClass(limpezaTubulacao === label, label === 'Não')} key={label}>
-                  <input
-                    type="radio"
-                    name={`limpeza-tubulacao-${groupKey}`}
-                    checked={limpezaTubulacao === label}
-                    disabled={disabled}
-                    onChange={() => onChange({ limpezaTubulacao: label, 'Limpeza de tubulação?': label })}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
+        </div>
+        <div className={fieldClass(invalidKey, 'limpezaTubulacao')}>
+          <label>Limpeza de tubulação? {requiredMark()}</label>
+          <div className="rdo-tag-group">
+            {['Sim', 'Não'].map(label => (
+              <label className={radioOptionClass(limpezaTubulacao === label, label === 'Não')} key={label}>
+                <input
+                  type="radio"
+                  name={`limpeza-tubulacao-${groupKey}`}
+                  checked={limpezaTubulacao === label}
+                  disabled={disabled}
+                  onChange={() => onChange(cleaningModePatch(label as 'Sim' | 'Não'))}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
           </div>
-          {limpezaTubulacao === 'Sim' ? (
-            <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          ) : null}
-        </ServiceFormSection>
-        <ServiceFormSection title="Execução e inspeção" appearance={appearance}>
-          {hideFinalization ? null : (
-            <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-          )}
-          <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-          <div className={fieldClass(invalidKey, 'tipoInspecao')}>
-            <label>Tipo de inspeção {requiredMark()}</label>
-            <div className="rdo-pill-list rdo-inspection-type-options">
-              {RLQ_INSPECTION_OPTIONS.map(option => (
-                <label className={pillOptionClass(tipoInspecao.includes(option.value))} key={option.value}>
-                  <input type="checkbox" checked={tipoInspecao.includes(option.value)} disabled={disabled} onChange={e => onChange({ tipoInspecao: toggleItem(tipoInspecao, option.value, e.target.checked) })} />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
+        </div>
+        {limpezaTubulacao === 'Sim' ? (
+          <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        ) : <div className={fieldClass(invalidKey, 'quantidadeSistemas')}>
+          <label htmlFor={`cleaning-quantity-${groupKey}`}>Quantidade executada (unidades) {requiredMark()}</label>
+          <input id={`cleaning-quantity-${groupKey}`} type="number" min="1" max="999999999999" step="1" inputMode="numeric" disabled={disabled}
+            value={String(data.quantidadeSistemas ?? data['Quantidade de sistemas (un)'] ?? '')}
+            onChange={event => onChange({ quantidadeSistemas: event.target.value })} />
+          <small className="muted">Informe unidades inteiras. Entra no avanço quando o serviço estiver finalizado.</small>
+        </div>}
+        {hideFinalization ? null : (
+          <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        )}
+        <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <div className={fieldClass(invalidKey, 'tipoInspecao')}>
+          <label>Tipo de inspeção {requiredMark()}</label>
+          <div className="rdo-pill-list">
+            {['Visual', 'Corpo de prova', 'Vídeo boroscopia'].map(t => (
+              <label className={pillOptionClass(tipoInspecao.includes(t))} key={t}>
+                <input type="checkbox" checked={tipoInspecao.includes(t)} disabled={disabled} onChange={e => onChange({ tipoInspecao: toggleItem(tipoInspecao, t, e.target.checked) })} />
+                <span>{t}</span>
+              </label>
+            ))}
           </div>
-        </ServiceFormSection>
-        <ServiceFormSection title="Evidências e observações" appearance={appearance}>
-          {upload('Imagens — corpo de prova')}
-          {upload('Imagens — tubulação')}
-          {hideNotes ? null : (
-            <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
-          )}
-        </ServiceFormSection>
+        </div>
+        {upload('Imagens — corpo de prova')}
+        {upload('Imagens — tubulação')}
+        {hideNotes ? null : (
+          <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        )}
       </>
     );
   }
@@ -1134,10 +1099,9 @@ export function ServiceFields({
 
     return (
       <>
-        <ServiceFormSection title="Escopo e equipamentos" appearance={appearance}>
-          <div className={fieldClass(invalidKey, 'equipamentoTestado')}>
+        <div className={fieldClass(invalidKey, 'equipamentoTestado')}>
           <label>Equipamento testado {requiredMark()}</label>
-          <div className="rdo-tag-group rdo-tested-equipment-options">
+          <div className="rdo-tag-group">
             {PRESSURE_TESTED_EQUIPMENT_OPTIONS.map(option => (
               <label className={radioOptionClass(equipamentoTestado === option.value)} key={option.value}>
                 <input
@@ -1159,9 +1123,9 @@ export function ServiceFields({
               </label>
             ))}
           </div>
-          </div>
-          {equipamentoTestado === 'outro' ? (
-            <div className={fieldClass(invalidKey, 'equipamentoTestadoOutro')}>
+        </div>
+        {equipamentoTestado === 'outro' ? (
+          <div className={fieldClass(invalidKey, 'equipamentoTestadoOutro')}>
             <label htmlFor={fieldId(groupKey, 'equipamento-testado-outro')}>Outro equipamento testado {requiredMark()}</label>
             <input
               id={fieldId(groupKey, 'equipamento-testado-outro')}
@@ -1173,65 +1137,60 @@ export function ServiceFields({
                 'Outro equipamento testado': event.target.value
               })}
             />
-            </div>
-          ) : null}
-          {showMaterialField ? (
-            <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          ) : null}
-          <TubesBlock
-            data={data}
-            onChange={onChange}
-            disabled={disabled}
-            invalidKey={invalidKey}
-            groupKey={groupKey}
-            itemLabel={tubeItemLabel}
-            required={equipamentoTestado !== 'outro'}
-          />
-        </ServiceFormSection>
-        <ServiceFormSection title="Execução e medições" appearance={appearance}>
-          {hideFinalization ? null : (
-            <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-          )}
-          <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-          <UnitMultiField groupKey={groupKey} label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} options={slotOptions('pressao.uth')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-          <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
-          <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTeste" unitField="pressaoTesteUnit" label="Pressão de teste" />
-          <div className={fieldClass(invalidKey, 'manometroIds')}>
-            <label>Fluido de teste</label>
-            <div className="rdo-tag-group">
-              {[['agua', 'Água'], ['oleo', 'Óleo']].map(([val, label]) => (
-                <label className={radioOptionClass(fluidoTeste === val)} key={val}>
-                  <input type="radio" name={`fluido-${groupKey}`} checked={fluidoTeste === val} disabled={disabled} onChange={() => onChange({ fluidoTeste: val })} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
           </div>
-          {fluidoTeste === 'oleo' ? (
-            <div className="field-group">
-              <label htmlFor={fieldId(groupKey, 'qualOleo')}>Qual óleo?</label>
-              <input id={fieldId(groupKey, 'qualOleo')} value={qualOleo} placeholder="Especificar óleo..." disabled={disabled} onChange={e => onChange({ qualOleo: e.target.value })} />
-            </div>
-          ) : null}
-          <div className="field-group service-options-full">
-            <label>Manômetros utilizados {requiredMark()}</label>
-            <div className="rdo-check-grid">
-              {activeManometers.map(m => (
-                <label className="rdo-check-row" key={m.id}>
-                  <input type="checkbox" checked={manometroIds.includes(m.id)} disabled={disabled} onChange={e => onChange({ manometroIds: toggleItem(manometroIds, m.id, e.target.checked) })} />
-                  <span>{m.code}</span>
-                </label>
-              ))}
-            </div>
+        ) : null}
+        {showMaterialField ? (
+          <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        ) : null}
+        <TubesBlock
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          invalidKey={invalidKey}
+          groupKey={groupKey}
+          itemLabel={tubeItemLabel}
+          required={equipamentoTestado !== 'outro'}
+        />
+        {hideFinalization ? null : (
+          <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        )}
+        <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} options={slotOptions('pressao.uth')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
+        <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTeste" unitField="pressaoTesteUnit" label="Pressão de teste" />
+        <div className={fieldClass(invalidKey, 'manometroIds')}>
+          <label>Fluido de teste</label>
+          <div className="rdo-tag-group">
+            {[['agua', 'Água'], ['oleo', 'Óleo']].map(([val, label]) => (
+              <label className={radioOptionClass(fluidoTeste === val)} key={val}>
+                <input type="radio" name={`fluido-${groupKey}`} checked={fluidoTeste === val} disabled={disabled} onChange={() => onChange({ fluidoTeste: val })} />
+                <span>{label}</span>
+              </label>
+            ))}
           </div>
-        </ServiceFormSection>
-        <ServiceFormSection title="Evidências e observações" appearance={appearance}>
-          {upload('Fotos do manômetro')}
-          {upload('Fotos do sistema')}
-          {hideNotes ? null : (
-            <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
-          )}
-        </ServiceFormSection>
+        </div>
+        {fluidoTeste === 'oleo' ? (
+          <div className="field-group">
+            <label htmlFor={fieldId(groupKey, 'qualOleo')}>Qual óleo?</label>
+            <input id={fieldId(groupKey, 'qualOleo')} value={qualOleo} placeholder="Especificar óleo..." disabled={disabled} onChange={e => onChange({ qualOleo: e.target.value })} />
+          </div>
+        ) : null}
+        <div className="field-group">
+          <label>Manômetros utilizados {requiredMark()}</label>
+          <div className="rdo-check-grid">
+            {activeManometers.map(m => (
+              <label className="rdo-check-row" key={m.id}>
+                <input type="checkbox" checked={manometroIds.includes(m.id)} disabled={disabled} onChange={e => onChange({ manometroIds: toggleItem(manometroIds, m.id, e.target.checked) })} />
+                <span>{m.code}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {upload('Fotos do manômetro')}
+        {upload('Fotos do sistema')}
+        {hideNotes ? null : (
+          <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        )}
       </>
     );
   }
@@ -1243,8 +1202,7 @@ export function ServiceFields({
 
     return (
       <>
-        <ServiceFormSection title="Escopo e equipamentos" appearance={appearance}>
-          <div className={fieldClass(invalidKey, 'flushingTubulacao')}>
+        <div className={fieldClass(invalidKey, 'flushingTubulacao')}>
           <label>Flushing em tubulação? {requiredMark()}</label>
           <div className="rdo-tag-group">
             {['Sim', 'Não'].map(label => (
@@ -1264,43 +1222,36 @@ export function ServiceFields({
               </label>
             ))}
           </div>
+        </div>
+        {flushingTubulacao === 'Sim' ? (
+          <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        ) : null}
+        <div className={fieldClass(invalidKey, 'tipoOleo')}>
+          <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
+          <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
+        </div>
+        <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <div className={fieldClass(invalidKey, 'uf')}>
+          <label>Tipo de flushing</label>
+          <div className="rdo-tag-group">
+            {[['primario', 'Primário'], ['secundario', 'Secundário']].map(([val, label]) => (
+              <label className={radioOptionClass(tipoFlushing === val)} key={val}>
+                <input type="radio" name={`flushing-tipo-${groupKey}`} checked={tipoFlushing === val} disabled={disabled} onChange={() => onChange({ tipoFlushing: val, uf: [''] })} />
+                <span>{label}</span>
+              </label>
+            ))}
           </div>
-          {flushingTubulacao === 'Sim' ? (
-            <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          ) : null}
-          <div className={fieldClass(invalidKey, 'tipoOleo')}>
-            <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
-            <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
-          </div>
-          <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          <div className={fieldClass(invalidKey, 'uf')}>
-            <label>Tipo de flushing</label>
-            <div className="rdo-tag-group">
-              {[['primario', 'Primário'], ['secundario', 'Secundário']].map(([val, label]) => (
-                <label className={radioOptionClass(tipoFlushing === val)} key={val}>
-                  <input type="radio" name={`flushing-tipo-${groupKey}`} checked={tipoFlushing === val} disabled={disabled} onChange={() => onChange({ tipoFlushing: val, uf: [''] })} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <UnitMultiField groupKey={groupKey} label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} options={slotOptions(tipoFlushing === 'secundario' ? 'flushing.secundario' : 'flushing.primario')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Execução" appearance={appearance}>
-          {hideFinalization ? null : (
-            <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-          )}
-          <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Análises complementares" appearance={appearance} className="rdo-service-section--analysis">
-          <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} counterOptions={slotOptions('flushing.particulas')} upload={upload} />
-          <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} unitOptions={slotOptions('flushing.desidratacao')} invalidKey={invalidKey} upload={upload} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Observações" appearance={appearance}>
-          {hideNotes ? null : (
-            <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
-          )}
-        </ServiceFormSection>
+        </div>
+        <UnitMultiField groupKey={groupKey} label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} options={slotOptions(tipoFlushing === 'secundario' ? 'flushing.secundario' : 'flushing.primario')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        {hideFinalization ? null : (
+          <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        )}
+        <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} counterOptions={slotOptions('flushing.particulas')} upload={upload} />
+        <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} unitOptions={slotOptions('flushing.desidratacao')} invalidKey={invalidKey} upload={upload} />
+        {hideNotes ? null : (
+          <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        )}
       </>
     );
   }
@@ -1308,29 +1259,21 @@ export function ServiceFields({
   if (normalizedType === 'filtragem') {
     return (
       <>
-        <ServiceFormSection title="Óleo e equipamentos" appearance={appearance}>
-          <div className={fieldClass(invalidKey, 'tipoOleo')}>
-            <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
-            <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
-          </div>
-          <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          <UnitMultiField groupKey={groupKey} label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} options={slotOptions('filtragem.ufg')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Execução" appearance={appearance}>
-          {hideFinalization ? null : (
-            <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-          )}
-          <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Análises complementares" appearance={appearance} className="rdo-service-section--analysis">
-          <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} counterOptions={slotOptions('filtragem.particulas')} upload={upload} />
-          <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} unitOptions={slotOptions('filtragem.desidratacao')} invalidKey={invalidKey} upload={upload} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Observações" appearance={appearance}>
-          {hideNotes ? null : (
-            <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
-          )}
-        </ServiceFormSection>
+        <div className={fieldClass(invalidKey, 'tipoOleo')}>
+          <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
+          <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
+        </div>
+        <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} options={slotOptions('filtragem.ufg')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        {hideFinalization ? null : (
+          <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        )}
+        <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} counterOptions={slotOptions('filtragem.particulas')} upload={upload} />
+        <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} unitOptions={slotOptions('filtragem.desidratacao')} invalidKey={invalidKey} upload={upload} />
+        {hideNotes ? null : (
+          <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        )}
       </>
     );
   }
@@ -1338,21 +1281,15 @@ export function ServiceFields({
   if (normalizedType === 'mecanica') {
     return (
       <>
-        <ServiceFormSection title="Equipamento" appearance={appearance}>
-          <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label="Material do equipamento" />
-        </ServiceFormSection>
-        <ServiceFormSection title="Execução" appearance={appearance}>
-          {hideFinalization ? null : (
-            <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-          )}
-          <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        </ServiceFormSection>
-        <ServiceFormSection title="Evidências e observações" appearance={appearance}>
-          {upload('Imagens da limpeza')}
-          {hideNotes ? null : (
-            <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
-          )}
-        </ServiceFormSection>
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label="Material do equipamento" />
+        {hideFinalization ? null : (
+          <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        )}
+        <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        {upload('Imagens da limpeza')}
+        {hideNotes ? null : (
+          <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        )}
       </>
     );
   }
@@ -1362,8 +1299,7 @@ export function ServiceFields({
 
     return (
       <>
-        <ServiceFormSection title="Equipamento e sistema" appearance={appearance}>
-          <div className={fieldClass(invalidKey, 'equipmentId')}>
+        <div className={fieldClass(invalidKey, 'equipmentId')}>
           <label htmlFor={fieldId(groupKey, 'equipmentId')}>Embarcação {requiredMark()}</label>
           <select id={fieldId(groupKey, 'equipmentId')} value={getString(data.equipmentId)} disabled={disabled} onChange={event => onChange({ equipmentId: event.target.value })}>
             <option value="">Selecionar...</option>
@@ -1371,8 +1307,8 @@ export function ServiceFields({
               <option value={vessel.code} key={vessel.id || vessel.code}>{vessel.code}</option>
             ))}
           </select>
-          </div>
-          <div className={fieldClass(invalidKey, 'system')}>
+        </div>
+        <div className={fieldClass(invalidKey, 'system')}>
           <label htmlFor={fieldId(groupKey, 'system')}>Sistema {requiredMark()}</label>
           <select id={fieldId(groupKey, 'system')} value={getString(data.system)} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
             <option value="">Selecionar...</option>
@@ -1381,68 +1317,63 @@ export function ServiceFields({
               return <option value={value} key={system.id || system.code}>{value}</option>;
             })}
           </select>
+        </div>
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <div className="field-group">
+          <label htmlFor={fieldId(groupKey, 'linhas')}>Linhas</label>
+          <textarea id={fieldId(groupKey, 'linhas')} value={getString(data.linhas)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ linhas: event.target.value })} style={{ resize: 'vertical' }} />
+        </div>
+        <div className={fieldClass(invalidKey, 'steps')}>
+          <label htmlFor={fieldId(groupKey, 'steps')}>Steps {requiredMark()}</label>
+          <textarea id={fieldId(groupKey, 'steps')} value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} style={{ resize: 'none' }} />
+        </div>
+        <div className="fg-r2 service-time-grid">
+          <div className={fieldClass(invalidKey, 'startTime')}>
+            <label htmlFor={fieldId(groupKey, 'startTime')}>Hora de início {requiredMark()}</label>
+            <input
+              id={fieldId(groupKey, 'startTime')}
+              type="time"
+              required
+              value={getString(data.startTime)}
+              disabled={disabled}
+              onChange={event => onChange({ startTime: event.target.value })}
+            />
           </div>
-          <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-          <div className="field-group service-options-full">
-            <label htmlFor={fieldId(groupKey, 'linhas')}>Linhas</label>
-            <textarea id={fieldId(groupKey, 'linhas')} value={getString(data.linhas)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ linhas: event.target.value })} style={{ resize: 'vertical' }} />
+          <div className={fieldClass(invalidKey, 'endTime')}>
+            <label htmlFor={fieldId(groupKey, 'endTime')}>Hora de término/pausa {requiredMark()}</label>
+            <input
+              id={fieldId(groupKey, 'endTime')}
+              type="time"
+              required
+              value={getString(data.endTime)}
+              disabled={disabled}
+              onChange={event => onChange({ endTime: event.target.value })}
+            />
           </div>
-        </ServiceFormSection>
-        <ServiceFormSection title="Execução e horários" appearance={appearance}>
-          <div className={`${fieldClass(invalidKey, 'steps')} service-options-full`}>
-            <label htmlFor={fieldId(groupKey, 'steps')}>Steps {requiredMark()}</label>
-            <textarea id={fieldId(groupKey, 'steps')} value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} style={{ resize: 'none' }} />
+        </div>
+        {hideFinalization ? null : (
+          <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        )}
+        <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <div className={fieldClass(invalidKey, 'tipoRelatorio')}>
+          <label>Tipo de relatório {requiredMark()}</label>
+          <div className="rdo-pill-list">
+            {['RLI', 'RLF'].map(tipo => (
+              <label className={pillOptionClass(tipoRelatorio.includes(tipo))} key={tipo}>
+                <input type="checkbox" checked={tipoRelatorio.includes(tipo)} disabled={disabled} onChange={event => onChange({ tipoRelatorio: toggleItem(tipoRelatorio, tipo, event.target.checked) })} />
+                <span>{tipo}</span>
+              </label>
+            ))}
           </div>
-          <div className="fg-r2 service-time-grid">
-            <div className={fieldClass(invalidKey, 'startTime')}>
-              <label htmlFor={fieldId(groupKey, 'startTime')}>Hora de início {requiredMark()}</label>
-              <input
-                id={fieldId(groupKey, 'startTime')}
-                type="time"
-                required
-                value={getString(data.startTime)}
-                disabled={disabled}
-                onChange={event => onChange({ startTime: event.target.value })}
-              />
-            </div>
-            <div className={fieldClass(invalidKey, 'endTime')}>
-              <label htmlFor={fieldId(groupKey, 'endTime')}>Hora de término/pausa {requiredMark()}</label>
-              <input
-                id={fieldId(groupKey, 'endTime')}
-                type="time"
-                required
-                value={getString(data.endTime)}
-                disabled={disabled}
-                onChange={event => onChange({ endTime: event.target.value })}
-              />
-            </div>
+        </div>
+        {upload('Fotos do filtro')}
+        {upload('Fotos das plaquetas')}
+        {hideNotes ? null : (
+          <div className={`${fieldClass(invalidKey, 'notes')} fg-r2`}>
+            <label htmlFor={fieldId(groupKey, 'notes')}>Observações</label>
+            <textarea id={fieldId(groupKey, 'notes')} value={getString(data.notes)} disabled={disabled} onChange={event => onChange({ notes: event.target.value })} />
           </div>
-          {hideFinalization ? null : (
-            <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-          )}
-          <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-          <div className={fieldClass(invalidKey, 'tipoRelatorio')}>
-            <label>Tipo de relatório {requiredMark()}</label>
-            <div className="rdo-pill-list">
-              {['RLI', 'RLF'].map(tipo => (
-                <label className={pillOptionClass(tipoRelatorio.includes(tipo))} key={tipo}>
-                  <input type="checkbox" checked={tipoRelatorio.includes(tipo)} disabled={disabled} onChange={event => onChange({ tipoRelatorio: toggleItem(tipoRelatorio, tipo, event.target.checked) })} />
-                  <span>{tipo}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </ServiceFormSection>
-        <ServiceFormSection title="Evidências e observações" appearance={appearance}>
-          {upload('Fotos do filtro')}
-          {upload('Fotos das plaquetas')}
-          {hideNotes ? null : (
-            <div className={`${fieldClass(invalidKey, 'notes')} service-notes-field service-options-full`}>
-              <label htmlFor={fieldId(groupKey, 'notes')}>Observações</label>
-              <textarea id={fieldId(groupKey, 'notes')} rows={5} placeholder="Observações adicionais..." value={getString(data.notes)} disabled={disabled} onChange={event => onChange({ notes: event.target.value })} />
-            </div>
-          )}
-        </ServiceFormSection>
+        )}
       </>
     );
   }

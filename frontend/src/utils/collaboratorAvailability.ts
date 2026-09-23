@@ -13,6 +13,13 @@ export interface AvailabilityEntry {
 
 export type AvailabilityColumns = Record<AvailabilityStatus, AvailabilityEntry[]>;
 
+/** Colaborador que não pode ser alocado no período: afastamento (exceto férias) ou fora do vínculo. */
+export interface UnavailableEntry {
+  collaborator: PlanningCollaborator;
+  reason: 'ABSENCE' | 'OUTSIDE_EMPLOYMENT';
+  absence: PlanningAbsence | null;
+}
+
 function dateKey(value: string) {
   return value.slice(0, 10);
 }
@@ -89,7 +96,7 @@ export function buildMissionAvailabilityColumns(
   startDate: string,
   endDate: string,
   ignoredMissionId?: string
-): { columns: AvailabilityColumns; otherUnavailable: number } {
+): { columns: AvailabilityColumns; otherUnavailable: number; unavailable: UnavailableEntry[] } {
   const columns: AvailabilityColumns = {
     AVAILABLE: [],
     AWAITING_MOBILIZATION: [],
@@ -97,6 +104,7 @@ export function buildMissionAvailabilityColumns(
     ON_VACATION: []
   };
   let otherUnavailable = 0;
+  const unavailable: UnavailableEntry[] = [];
 
   for (const collaborator of collaborators) {
     const overlappingAbsence = absences.find(absence => absence.collaboratorId === collaborator.id
@@ -106,6 +114,7 @@ export function buildMissionAvailabilityColumns(
         columns.ON_VACATION.push({ collaborator, status: 'ON_VACATION', mission: null, absence: overlappingAbsence });
       } else {
         otherUnavailable += 1;
+        unavailable.push({ collaborator, reason: 'ABSENCE', absence: overlappingAbsence });
       }
       continue;
     }
@@ -132,11 +141,15 @@ export function buildMissionAvailabilityColumns(
       && (!terminationDate || terminationDate >= endDate)
       && (collaborator.isActive || Boolean(terminationDate && terminationDate >= endDate));
     if (employedThroughout) columns.AVAILABLE.push({ collaborator, status: 'AVAILABLE', mission: null, absence: null });
-    else otherUnavailable += 1;
+    else {
+      otherUnavailable += 1;
+      unavailable.push({ collaborator, reason: 'OUTSIDE_EMPLOYMENT', absence: null });
+    }
   }
 
   for (const status of AVAILABILITY_STATUSES) {
     columns[status].sort((left, right) => left.collaborator.name.localeCompare(right.collaborator.name, 'pt-BR'));
   }
-  return { columns, otherUnavailable };
+  unavailable.sort((left, right) => left.collaborator.name.localeCompare(right.collaborator.name, 'pt-BR'));
+  return { columns, otherUnavailable, unavailable };
 }

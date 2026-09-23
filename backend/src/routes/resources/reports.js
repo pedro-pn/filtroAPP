@@ -8,6 +8,7 @@ import { ClientReviewAction, Prisma, ReportSignatureStatus, ReportStatus, Report
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import { resolveReportCounter, resolveReportManometers, resolveReportUnits } from '../../lib/report-equipment-resolve.js';
@@ -70,7 +71,7 @@ import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { logSlowOperation } from '../../lib/performance-logging.js';
 import { activeReportProjectWhere, assertProjectReadyForReports } from '../../lib/project-visibility.js';
-import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
 import {
   normalizeReportUploadReference,
@@ -94,9 +95,14 @@ import {
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { createProjectSystemsRouter } from './project-systems.js';
+import { assertReportServicesProject } from '../../lib/reports/service-project-validation.js';
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
+import historicalServicesRouter from './historical-services.js';
+import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
+import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -798,7 +804,7 @@ export function markManualDerivedServiceReportEdit(specialConditions, userId) {
 }
 
 export function canDirectEditDerivedServiceReport(user, report, parentRdo) {
-  return user?.role === 'MANAGER'
+  return canReviewRdoReports(user)
     && isDerivedServiceReport(report)
     && report?.status !== ReportStatus.SIGNED
     && !hasActiveSignedInternalSignature(report)
@@ -1557,7 +1563,7 @@ function applyReportReviewQueueFilter(where, reviewQueue) {
 
 function parseReportSearchTerm(query) {
   const term = String(query.search || '').trim();
-  return term.length >= 2 ? term.slice(0, 120) : '';
+  return term.slice(0, 120);
 }
 
 function parseReportSortDirection(query) {
@@ -1602,65 +1608,6 @@ function buildReportSearchWhere(term) {
     or.push({ sequenceNumber: numericTerm });
   }
   return { OR: or };
-}
-
-function normalizeReportSearchValue(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
-function compactReportSearchValue(value) {
-  return value.replace(/[^\p{L}\p{N}]+/gu, '');
-}
-
-function reportSearchTokens(term) {
-  return normalizeReportSearchValue(term)
-    .trim()
-    .split(/\s+/)
-    .map(token => token.trim())
-    .filter(Boolean);
-}
-
-function reportSearchParts(report) {
-  const serviceData = plainObject(report.specialConditions?.serviceData);
-  const manualUpload = plainObject(report.specialConditions?.[MANUAL_REPORT_UPLOAD_KEY]);
-  return [
-    report.reportType,
-    report.sequenceNumber,
-    report.status,
-    report.reportDate,
-    report.project?.code,
-    report.project?.name,
-    report.project?.clientName,
-    report.project?.clientCnpj,
-    report.createdBy?.name,
-    report.createdBy?.collaborator?.name,
-    report.overtimeReason,
-    report.dailyDescription,
-    report.reviewNotes,
-    ...Object.values(serviceData),
-    manualUpload.originalFileName,
-    ...(report.collaborators || []).map(item => item.collaborator?.name),
-    ...(report.services || []).flatMap(service => [
-      service.serviceType,
-      service.equipment?.code,
-      service.equipment?.name,
-      service.system,
-      service.material
-    ])
-  ];
-}
-
-function reportMatchesSearch(report, term) {
-  const tokens = reportSearchTokens(term);
-  if (!tokens.length) return true;
-  const searchable = normalizeReportSearchValue(reportSearchParts(report).join(' '));
-  const compactSearchable = compactReportSearchValue(searchable);
-  return tokens.every(token => (
-    searchable.includes(token) || compactSearchable.includes(compactReportSearchValue(token))
-  ));
 }
 
 export function approvedRdoHistoryWhere(projectId) {
@@ -2592,7 +2539,7 @@ function pdfCacheMetadataForReport(report) {
   return {
     // Bump whenever DOCX/PDF layout rules change so previously rendered files
     // are not served indefinitely with stale pagination or conditional blocks.
-    version: 3,
+    version: report.reportType === ReportType.RDO ? 4 : 3,
     reportId: report.id,
     reportUpdatedAt: reportUpdatedAtToken(report),
     fingerprint: sha256Hex(JSON.stringify({
@@ -3374,7 +3321,7 @@ async function processReportApprovalPostProcessingJob(job) {
       }
     }
 
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.COMPLETED, { error: null });
   } catch (error) {
     console.error('Falha no pós-processamento da aprovação do relatório.', {
@@ -3506,14 +3453,6 @@ export function assertCompleteTubeRows(services) {
   if (!invalid) return;
   const error = new Error(`Preencha diâmetro e comprimento para cada ${serviceTubeItemLabel(invalid)}.`);
   error.status = 400;
-  throw error;
-}
-
-function assertProjectAllowsInhibition(project, services) {
-  const hasInhibition = (services || []).some(service => service.serviceType === 'inibicao');
-  if (!hasInhibition || project?.inhibitionServiceEnabled) return;
-  const error = new Error('Serviço de inibição não está habilitado para este projeto.');
-  error.statusCode = 400;
   throw error;
 }
 
@@ -4196,10 +4135,7 @@ async function syncApprovedRtpReports(tx, report) {
     if (special.parentRdoId !== report.id) {
       return;
     }
-    const linkKey = String(special.serviceLinkKey || special.serviceId || '').trim();
-    if (linkKey) {
-      existingByLinkKey.set(linkKey, item);
-    }
+    indexExistingDerivedReportLinkKeys(existingByLinkKey, item);
   });
 
   const allApprovedRdos = await tx.report.findMany({
@@ -4385,13 +4321,7 @@ async function syncApprovedRlqReports(tx, report) {
   });
 
   const existingByLinkKey = new Map();
-  existingRlqs.forEach(item => {
-    const special = item.specialConditions || {};
-    const linkKey = String(special.serviceLinkKey || '').trim();
-    const serviceId = String(special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
-    if (serviceId) existingByLinkKey.set(serviceId, item);
-  });
+  existingRlqs.forEach(item => indexExistingDerivedReportLinkKeys(existingByLinkKey, item));
 
   const allApprovedRdos = await tx.report.findMany({
     where: approvedRdoHistoryWhere(report.projectId),
@@ -4579,6 +4509,25 @@ function firstHistoryKeyPart(fields, names) {
   return historyKeyPart(value);
 }
 
+function oilVolumeHistoryKeyPart(fields) {
+  const displayValue = firstHistoryKeyPart(fields, [
+    'Volume de óleo',
+    'Volume de oleo',
+    'Volume de Ã³leo'
+  ]);
+  const rawValue = firstHistoryKeyPart(fields, ['volumeOleo']);
+  const value = displayValue || rawValue;
+  if (!value) return '';
+
+  const valueWithUnit = value.match(/^(.+?)\s*(ml|l)$/i);
+  if (valueWithUnit?.[1]?.trim()) {
+    return `${valueWithUnit[1].trim()} ${valueWithUnit[2].toLowerCase()}`;
+  }
+
+  const explicitUnit = firstHistoryKeyPart(fields, ['volumeOleoUnit', 'Unidade de volume de óleo']);
+  return `${value} ${explicitUnit || 'l'}`;
+}
+
 function serviceHistoryDisambiguatorParts(service) {
   const fields = service?.extraData || {};
   const type = String(service?.serviceType || '').trim().toLowerCase();
@@ -4591,7 +4540,7 @@ function serviceHistoryDisambiguatorParts(service) {
 
   if (type === 'filtragem' || type === 'flushing') {
     const oilType = firstHistoryKeyPart(fields, ['Tipo de óleo', 'Tipo de oleo', 'Tipo de Ã³leo', 'tipoOleo']);
-    const oilVolume = firstHistoryKeyPart(fields, ['Volume de óleo', 'Volume de oleo', 'Volume de Ã³leo', 'volumeOleo']);
+    const oilVolume = oilVolumeHistoryKeyPart(fields);
     if (oilType) parts.push(`oleo:${oilType}`);
     if (oilVolume) parts.push(`volume:${oilVolume}`);
     if (type === 'flushing') {
@@ -4706,7 +4655,36 @@ function serviceWantsReportType(service, reportType) {
   return serviceSelectedReportTypes(service).includes(String(reportType).toUpperCase());
 }
 
-function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
+export function existingDerivedReportLinkKeys(report) {
+  const special = report?.specialConditions || {};
+  const serviceData = special.serviceData || {};
+  const keys = new Set();
+  [
+    special.serviceLinkKey,
+    special.serviceId,
+    serviceData.__ongoingKey,
+    serviceData.__serviceLinkKey,
+    serviceData.__sourceServiceId,
+    serviceData.serviceId
+  ].forEach(value => {
+    const key = String(value || '').trim();
+    if (key) keys.add(key);
+  });
+  for (const service of report?.services || []) {
+    for (const key of serviceHistoryKeys(service)) {
+      if (key) keys.add(key);
+    }
+  }
+  return Array.from(keys);
+}
+
+function indexExistingDerivedReportLinkKeys(existingByLinkKey, report) {
+  for (const key of existingDerivedReportLinkKeys(report)) {
+    existingByLinkKey.set(key, report);
+  }
+}
+
+export function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
   for (const key of serviceHistoryKeys(service)) {
     const existing = existingByLinkKey.get(key);
     if (existing) return existing;
@@ -4979,17 +4957,29 @@ async function syncApprovedRcpReports(tx, report) {
       project: activeReportProjectWhere(),
       reportType: ReportType.RCPU
     },
-    select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, reportDate: true, specialConditions: true }
+    select: {
+      id: true,
+      projectId: true,
+      reportType: true,
+      sequenceNumber: true,
+      status: true,
+      reportDate: true,
+      specialConditions: true,
+      services: {
+        select: {
+          id: true,
+          serviceType: true,
+          equipmentId: true,
+          system: true,
+          material: true,
+          extraData: true
+        }
+      }
+    }
   });
 
   const existingByLinkKey = new Map();
-  existingRcps.forEach(item => {
-    const special = item.specialConditions || {};
-    const linkKey = String(special.serviceLinkKey || '').trim();
-    const serviceId = String(special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
-    if (serviceId) existingByLinkKey.set(serviceId, item);
-  });
+  existingRcps.forEach(item => indexExistingDerivedReportLinkKeys(existingByLinkKey, item));
 
   // Fetch all approved RDOs once for totalMinutes calculation.
   const allApprovedRdos = await tx.report.findMany({
@@ -5181,8 +5171,7 @@ async function syncApprovedRlmReports(tx, report) {
   existingRlms.forEach(item => {
     const special = item.specialConditions || {};
     if (special.parentRdoId !== report.id) return;
-    const linkKey = String(special.serviceLinkKey || special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
+    indexExistingDerivedReportLinkKeys(existingByLinkKey, item);
   });
 
   const allApprovedRdos = await tx.report.findMany({
@@ -5340,13 +5329,7 @@ async function syncApprovedInhibitionReports(tx, report, targetReportType) {
   });
 
   const existingByLinkKey = new Map();
-  existingReports.forEach(item => {
-    const special = item.specialConditions || {};
-    const linkKey = String(special.serviceLinkKey || '').trim();
-    const serviceId = String(special.serviceId || '').trim();
-    if (linkKey) existingByLinkKey.set(linkKey, item);
-    if (serviceId) existingByLinkKey.set(serviceId, item);
-  });
+  existingReports.forEach(item => indexExistingDerivedReportLinkKeys(existingByLinkKey, item));
 
   const allApprovedRdos = await tx.report.findMany({
     where: approvedRdoHistoryWhere(report.projectId),
@@ -5787,6 +5770,9 @@ async function buildReportListWhere(auth, query) {
   return { where, searchTerm };
 }
 
+router.use('/historical-services', historicalServicesRouter);
+
+router.use('/project-systems', createProjectSystemsRouter(prisma, collaboratorCanAccessProject));
 router.get('/planning-context', requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
 router.get('/collaborator-prefill', requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
 
@@ -5796,6 +5782,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   const reportSortDirection = parseReportSortDirection(req.query);
   const projectSortDirection = parseProjectSortDirection(req.query);
   const { where, searchTerm } = await buildReportListWhere(req.auth, req.query);
+  const matchesSearch = createReportSearchMatcher(searchTerm);
 
   const tGet0 = Date.now();
   const orderBy = reportSortDirection
@@ -5832,6 +5819,18 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     total = result.total;
     groups = result.groups;
     projectTotal = result.projectTotal;
+  } else if (searchTerm && canPaginateInDatabase) {
+    const candidates = await prisma.report.findMany({ where, select: reportSearchSelect, orderBy });
+    const matches = candidates.filter(matchesSearch);
+    total = matches.length;
+    groups = reportGroupTotalsFromItems(matches);
+    projectTotal = reportProjectTotalFromItems(matches);
+    const pageIds = matches.slice(pagination.skip, pagination.skip + pagination.take).map(item => item.id);
+    items = pageIds.length ? await prisma.report.findMany({
+      where: { ...where, id: { in: pageIds } },
+      ...reportListQueryShape,
+      orderBy
+    }) : [];
   } else {
     items = await prisma.report.findMany({
       where,
@@ -5839,7 +5838,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
       orderBy
     });
     if (searchTerm && req.auth.user.role !== 'CLIENT') {
-      items = items.filter(item => reportMatchesSearch(item, searchTerm));
+      items = items.filter(matchesSearch);
     }
     if (pagination && canPaginateInDatabase) {
       total = items.length;
@@ -5857,7 +5856,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
       : new Map(items.map(item => [item.id, item]));
     const visibleItems = items
       .filter(item => canClientSeeReport(item, byId))
-      .filter(item => reportMatchesSearch(item, searchTerm));
+      .filter(matchesSearch);
     if (pagination) {
       const pageItems = visibleItems.slice(pagination.skip, pagination.skip + pagination.take);
       const groups = reportGroupTotalsFromItems(visibleItems);
@@ -5900,8 +5899,8 @@ router.post('/counts', requireAuth, requireRdoAccess, asyncHandler(async (req, r
 
 router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const data = batchDownloadSchema.parse(req.body);
-  if (data.format === 'docx' && req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode baixar DOCX em lote.' });
+  if (data.format === 'docx' && !canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode baixar DOCX em lote.' });
   }
 
   const ids = uniqueIds(data.ids);
@@ -6050,7 +6049,7 @@ router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
     item = await prisma.report.findUniqueOrThrow({ where: { id: item.id }, include });
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
@@ -6067,7 +6066,7 @@ router.put('/:id/manual-data', requireAuth, requireRdoManager, asyncHandler(asyn
   });
   if (result.status) return res.status(result.status).json(result.body);
 
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(result.item);
 }));
 
@@ -6178,7 +6177,7 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, { allowLinkedServiceReport: true });
     item = await prisma.report.findUniqueOrThrow({ where: { id: item.id }, include });
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
@@ -6391,8 +6390,8 @@ router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, 
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode baixar o DOCX.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode baixar o DOCX.' });
   }
 
   item = await refreshDerivedReportSource(item);
@@ -6440,7 +6439,7 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
   });
 
   await organizeAndSyncReportUploadAttachments(item);
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(item);
 }));
 
@@ -6466,7 +6465,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
       include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
     });
     assertProjectReadyForReports(project);
-    assertProjectAllowsInhibition(project, data.services);
+    await assertReportServicesProject(tx, project, data.services);
 
     return createIndependentServiceReports(tx, project, {
       ...data,
@@ -6479,7 +6478,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
     await ensureInternalSignatureRoundAndNotify(organized, req.auth.user.id, signatureEvidenceFromRequest(req));
   }
 
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(201).json(createdReports);
 }));
 
@@ -6501,7 +6500,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
     });
     assertProjectReadyForReports(project);
-    assertProjectAllowsInhibition(project, data.services);
+    await assertReportServicesProject(tx, project, data.services);
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
       const error = new Error('Este projeto é visível somente para o gestor.');
       error.statusCode = 403;
@@ -6621,7 +6620,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, signatureEvidenceFromRequest(req));
     queueApprovedReportNotification(organizedItem);
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(201).json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
@@ -6642,8 +6641,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
   const isDirectDerivedServiceReport = isDerivedServiceReport(existing);
   const manualUploadedReport = isManualUploadedReport(existing);
-  if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
+  if (isServiceOnlyReport && !canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode editar relatórios somente de serviço.' });
   }
   let parentRdoForDirectServiceEdit = null;
   if (isDirectDerivedServiceReport) {
@@ -6656,8 +6655,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         deletedAt: true
       }
     });
-    if (req.auth.user.role !== 'MANAGER') {
-      return res.status(403).json({ error: 'Apenas o gestor pode editar diretamente relatórios de serviço vinculados ao RDO.' });
+    if (!canReviewRdoReports(req.auth.user)) {
+      return res.status(403).json({ error: 'Apenas quem revisa relatórios pode editar diretamente relatórios de serviço vinculados ao RDO.' });
     }
     if (!canDirectEditDerivedServiceReport(req.auth.user, existing, parentRdoForDirectServiceEdit)) {
       return res.status(409).json({
@@ -6672,7 +6671,9 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       return res.status(400).json({ error: 'Tipo de serviço incompatível com este relatório independente.' });
     }
   }
-  if (req.auth.user.role === 'COORDINATOR' && existing.createdByUserId !== req.auth.user.id) {
+  if (req.auth.user.role === 'COORDINATOR'
+    && !canReviewRdoReports(req.auth.user)
+    && existing.createdByUserId !== req.auth.user.id) {
     return res.status(403).json({ error: 'O coordenador só pode editar relatórios criados por ele.' });
   }
   assertReportMutable(existing);
@@ -6694,7 +6695,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         authorizedUsers: true
       }
     });
-    assertProjectReadyForReports(targetProject);
+    // O revisor edita como o gestor, mas projetos managerOnly seguem restritos a ele.
+    if (!canReviewRdoReports(req.auth.user)) assertProjectReadyForReports(targetProject);
     if (targetProject.managerOnly) {
       return res.status(403).json({ error: 'Este projeto é visível somente para o gestor.' });
     }
@@ -6703,7 +6705,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     }
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
-  const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
+  const isManagerFixingClientRejection = canReviewRdoReports(req.auth.user) && hasActiveClientRejection(existing);
   const evidence = signatureEvidenceFromRequest(req);
   const unfinalizedDerivedRefs = existing.reportType === ReportType.RDO && data.deleteUnfinalizedDerivedReports === true
     ? demotedFinalizedServiceRefs(existing.services || [], data.services || [])
@@ -6717,7 +6719,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
     });
     assertProjectReadyForReports(project);
-    assertProjectAllowsInhibition(project, data.services);
+    await assertReportServicesProject(tx, project, data.services);
     if (!manualUploadedReport) {
       await assertUniqueReportDate(tx, {
         projectId: data.projectId,
@@ -6745,7 +6747,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
           }
         )
       : null;
-    const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
+    const managerProvidedSequence = canReviewRdoReports(req.auth.user) && data.sequenceNumber;
     const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
     const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
     const specialConditions = stripAuthoritativeExecutionContext(
@@ -6760,7 +6762,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       justification: specialConditions.workforceJustification
     });
     const planningContext = await getOfficialMissionContext({ projectId: data.projectId, date: data.reportDate }, { database: tx });
-    const internalEditState = req.auth.user.role === 'MANAGER'
+    const internalEditState = canReviewRdoReports(req.auth.user)
       ? extractInternalEditState(existing.specialConditions)
       : (hasApprovedVersion
           ? {
@@ -6774,7 +6776,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
           : {});
     const overtimeRejected = specialConditions?.overtimeAccepted === false;
     const storedSpecialConditionsBaseSeed = {
-      ...(req.auth.user.role === 'MANAGER'
+      ...(canReviewRdoReports(req.auth.user)
         ? withClientRejectionCleared(stripInternalEditState(specialConditions))
         : stripInternalEditState(specialConditions)),
       ...(serviceOnlySpecialConditions || {}),
@@ -6815,7 +6817,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
       });
     }
-    const nextStatus = req.auth.user.role === 'MANAGER'
+    const nextStatus = canReviewRdoReports(req.auth.user)
       ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
       : ReportStatus.PENDING;
     await assertApprovedReportSignatureEmailPreflight({
@@ -6848,14 +6850,14 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         specialConditions: withLeaderSnapshot(storedSpecialConditions, leaderSnapshot),
         pendingDerivedTypes: isServiceOnlyReport || isDirectDerivedServiceReport ? [] : collectPendingDerivedTypes(data.services),
         status: nextStatus,
-        reviewNotes: req.auth.user.role === 'MANAGER'
+        reviewNotes: canReviewRdoReports(req.auth.user)
           ? existing.reviewNotes
           : (hasApprovedVersion ? COLLABORATOR_EDIT_NOTE : null),
-        reviewedByUserId: req.auth.user.role === 'MANAGER'
+        reviewedByUserId: canReviewRdoReports(req.auth.user)
           ? (isManagerFixingClientRejection ? req.auth.user.id : existing.reviewedByUserId)
           : null,
-        returnedAt: req.auth.user.role === 'MANAGER' ? existing.returnedAt : null,
-        approvedAt: req.auth.user.role === 'MANAGER'
+        returnedAt: canReviewRdoReports(req.auth.user) ? existing.returnedAt : null,
+        approvedAt: canReviewRdoReports(req.auth.user)
           ? (isManagerFixingClientRejection ? new Date() : existing.approvedAt)
           : null,
         collaborators: {
@@ -6917,13 +6919,13 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, evidence);
     if (isManagerFixingClientRejection) queueReapprovedReportNotification(organizedItem);
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(await withDerivedServiceReportParentMeta(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation)));
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode alterar a numeração dos relatórios.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode alterar a numeração dos relatórios.' });
   }
 
   const data = sequenceSchema.parse(req.body);
@@ -6932,6 +6934,7 @@ router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async 
     include
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, existing)) return undefined;
   assertReportMutable(existing);
 
   const item = await prisma.$transaction(async tx => {
@@ -6956,7 +6959,7 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode desfazer edições de relatórios.` });
   }
-  if (req.auth.user.role === 'MANAGER') {
+  if (canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a própria edição pendente.' });
   }
 
@@ -6997,8 +7000,8 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
 }));
 
 router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edição pendente.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode descartar uma edição pendente.' });
   }
 
   const existing = await prisma.report.findUniqueOrThrow({
@@ -7006,6 +7009,7 @@ router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(asy
     include
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, existing)) return undefined;
   assertReportMutable(existing);
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
@@ -7087,13 +7091,13 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
     }
   });
 
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.status(204).end();
 }));
 
 router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode revisar relatórios.' });
+  if (!canReviewRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Apenas quem revisa relatórios pode revisar relatórios.' });
   }
 
   const data = statusSchema.parse(req.body);
@@ -7103,6 +7107,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
     include
   });
   if (!previous || isReportUnavailable(previous)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, previous)) return undefined;
   if (previous?.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
@@ -7182,7 +7187,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
     scheduleReportApprovalPostProcessing();
   }
   logSlowOperation('reports.status.update', Date.now() - tPatch0, { txMs: tPatchTx - tPatch0, newStatus: data.status });
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   res.json(reportWithSignatureEmailDelivery(item, null));
 }));
 
@@ -7394,16 +7399,13 @@ router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async 
   res.json(item.reportSignatures || []);
 }));
 
-router.get('/:id/audit', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode consultar a auditoria do relatório.' });
-  }
-
+router.get('/:id/audit', requireAuth, requireRdoReviewer, asyncHandler(async (req, res) => {
   const auditReport = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
-    select: { id: true, deletedAt: true, project: { select: { deletedAt: true } } }
+    select: { id: true, deletedAt: true, project: { select: { deletedAt: true, managerOnly: true } } }
   });
   if (isReportUnavailable(auditReport)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!assertReviewerReachesReport(req, res, auditReport)) return undefined;
 
   const logs = await prisma.reportAuditLog.findMany({
     where: { reportId: req.params.id },

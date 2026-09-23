@@ -14,6 +14,8 @@ import { rolesForAccountType } from './accountRoleRules';
 import type { UserDeletionImpact, UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
+import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions, type AcompanhamentoExtraPermission } from '../../../../shared/modules/acompanhamento-permissions.js';
+import { REVIEW_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions, type RdoExtraPermission } from '../../../../shared/modules/rdo-permissions.js';
 
 type AccountFilter = 'all' | AccountType;
 type ModuleFilter = 'all' | string;
@@ -28,6 +30,8 @@ interface AccountFormState {
   collaboratorId: string;
   moduleRoles: ModuleRole[];
   reportEmissionPermissions: ReportEmissionPermission[];
+  acompanhamentoExtraPermissions: AcompanhamentoExtraPermission[];
+  rdoExtraPermissions: RdoExtraPermission[];
 }
 
 interface ManualPasswordSetup {
@@ -44,7 +48,9 @@ const emptyForm: AccountFormState = {
   isActive: true,
   collaboratorId: '',
   moduleRoles: [],
-  reportEmissionPermissions: []
+  reportEmissionPermissions: [],
+  acompanhamentoExtraPermissions: [],
+  rdoExtraPermissions: []
 };
 
 const reportPermissionOptions: Array<{
@@ -55,6 +61,12 @@ const reportPermissionOptions: Array<{
   { value: 'MAINTENANCE', label: 'Acessar manutenção e emitir relatórios' },
   { value: 'PRODUCTION', label: 'Acessar produção e emitir relatórios' }
 ];
+
+const INTERNAL_RDO_ROLES: ModuleRole[] = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
+
+function impliedReportPermission(form: Pick<AccountFormState, 'accountType' | 'moduleRoles'>, permission: ReportEmissionPermission) {
+  return permission === 'SITE_RDO' && form.accountType !== 'CLIENT' && form.moduleRoles.some(role => INTERNAL_RDO_ROLES.includes(role));
+}
 
 function accountTypeLabel(accountType?: AccountType) {
   if (accountType === 'ADMIN') return 'Admin';
@@ -84,7 +96,9 @@ function userToForm(user: InternalUserSummary): AccountFormState {
     isActive: user.isActive,
     collaboratorId: user.collaboratorId || '',
     moduleRoles: rolesForAccountType(accountType, user.moduleRoles || []),
-    reportEmissionPermissions: accountType === 'CLIENT' ? [] : user.reportEmissionPermissions || []
+    reportEmissionPermissions: accountType === 'CLIENT' ? [] : user.reportEmissionPermissions || [],
+    acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(user.acompanhamentoExtraPermissions, { accountType, moduleRoles: user.moduleRoles }),
+    rdoExtraPermissions: normalizeRdoExtraPermissions(user.rdoExtraPermissions, { accountType, moduleRoles: user.moduleRoles })
   };
 }
 
@@ -179,6 +193,8 @@ export function AdminAccountsPage() {
       accountType,
       collaboratorId: accountType === 'CLIENT' ? '' : current.collaboratorId,
       moduleRoles: rolesForAccountType(accountType, current.moduleRoles),
+      acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType, moduleRoles: current.moduleRoles }),
+      rdoExtraPermissions: normalizeRdoExtraPermissions(current.rdoExtraPermissions, { accountType, moduleRoles: current.moduleRoles }),
       reportEmissionPermissions: accountType === 'CLIENT' ? [] : current.reportEmissionPermissions
     }));
   }
@@ -196,7 +212,9 @@ export function AdminAccountsPage() {
       const nextRoles = hasRole ? current.moduleRoles.filter(item => item !== role) : [...current.moduleRoles.filter(item => !sameModuleRoles(role).includes(item)), role];
       return {
         ...current,
-        moduleRoles: rolesForAccountType(current.accountType, nextRoles)
+        moduleRoles: rolesForAccountType(current.accountType, nextRoles),
+        acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(current.acompanhamentoExtraPermissions, { accountType: current.accountType, moduleRoles: nextRoles }),
+        rdoExtraPermissions: normalizeRdoExtraPermissions(current.rdoExtraPermissions, { accountType: current.accountType, moduleRoles: nextRoles })
       };
     });
   }
@@ -228,6 +246,8 @@ export function AdminAccountsPage() {
           accountType: form.accountType,
           moduleRoles: rolesForAccountType(form.accountType, form.moduleRoles),
           reportEmissionPermissions: form.accountType === 'CLIENT' ? [] : form.reportEmissionPermissions,
+          acompanhamentoExtraPermissions: normalizeAcompanhamentoExtraPermissions(form.acompanhamentoExtraPermissions, form),
+          rdoExtraPermissions: normalizeRdoExtraPermissions(form.rdoExtraPermissions, form),
           isActive: form.isActive,
           collaboratorId: form.accountType === 'CLIENT' ? null : form.collaboratorId || null
         };
@@ -404,14 +424,68 @@ export function AdminAccountsPage() {
               )}
             </div>
           ) : null}
+          {!isEditingClient && (form.accountType === 'ADMIN' || canReceiveAcompanhamentoExtraPermissions(form)) ? (
+            <div className="field-group field-group-wide">
+              <label>Permissões adicionais do Acompanhamento</label>
+              {form.accountType === 'ADMIN' ? (
+                <div className="form-hint">Administradores têm acesso automático aos impostos e faturamentos dos projetos.</div>
+              ) : (
+                <label className="admin-role-option">
+                  <input
+                    type="checkbox"
+                    checked={form.acompanhamentoExtraPermissions.includes(PROJECT_TAXES_AND_BILLING)}
+                    onChange={event => setForm(current => ({
+                      ...current,
+                      acompanhamentoExtraPermissions: event.target.checked ? [PROJECT_TAXES_AND_BILLING] : []
+                    }))}
+                  />
+                  <span>Visualizar impostos pagos e faturamentos realizados no projeto</span>
+                </label>
+              )}
+            </div>
+          ) : null}
+          {!isEditingClient && (form.accountType === 'ADMIN' || canReceiveRdoExtraPermissions(form)) ? (
+            <div className="field-group field-group-wide">
+              <label>Permissões adicionais do RDO</label>
+              {form.accountType === 'ADMIN' ? (
+                <div className="form-hint">Administradores já revisam, editam e aprovam relatórios de qualquer projeto.</div>
+              ) : (
+                <>
+                  <label className="admin-role-option">
+                    <input
+                      type="checkbox"
+                      checked={form.rdoExtraPermissions.includes(REVIEW_REPORTS)}
+                      onChange={event => setForm(current => ({
+                        ...current,
+                        rdoExtraPermissions: event.target.checked ? [REVIEW_REPORTS] : []
+                      }))}
+                    />
+                    <span>Revisar relatórios: abrir a tela de edição do gestor, aprovar e devolver</span>
+                  </label>
+                  <div className="form-hint">
+                    Inclui baixar DOCX, alterar a numeração, descartar edições pendentes e consultar a auditoria.
+                    Não inclui excluir relatórios nem acessar projetos visíveis somente para o gestor.
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
           {!isEditingClient && form.accountType !== 'CLIENT' ? (
             <div className="field-group field-group-wide">
               <label>Emissão de relatórios</label>
               <div className="admin-role-grid">
                 {reportPermissionOptions.map(option => (
                   <label className="admin-role-option" key={option.value}>
-                    <input type="checkbox" checked={form.reportEmissionPermissions.includes(option.value)} onChange={() => toggleReportPermission(option.value)} />
-                    <span>{option.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={impliedReportPermission(form, option.value) || form.reportEmissionPermissions.includes(option.value)}
+                      disabled={impliedReportPermission(form, option.value)}
+                      onChange={() => toggleReportPermission(option.value)}
+                    />
+                    <span>
+                      {option.label}
+                      {impliedReportPermission(form, option.value) ? ' (incluída no papel RDO)' : ''}
+                    </span>
                   </label>
                 ))}
               </div>

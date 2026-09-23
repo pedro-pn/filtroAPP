@@ -19,6 +19,7 @@ import { Alert, Badge, Button, Card, EmptyState, Field, MetricCard, SearchInput,
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
+import { jobRoleFamilyKey, jobRoleFamilyName } from '../../../utils/jobRoleDisplay';
 import { refreshMissionPlanningQueries } from '../../../utils/efetivoPlanningQueries';
 import { missionPendencies, PENDING_PROJECT_PENDENCIES } from '../../../utils/missionPendencies';
 import { missionCoveredDemand, missionFinalAllocations, missionRolePeakCount } from '../../../utils/missionAllocationPeriod';
@@ -146,6 +147,15 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
               ))}
               {rows.map(mission => {
                 const required = mission.demands.reduce((sum, demand) => sum + demand.requiredCount, 0);
+                const demandGroups = new Map<string, { name: string; color: string; allocated: number; required: number }>();
+                for (const demand of mission.demands) {
+                  const name = demand.jobRole?.name || 'Cargo não informado';
+                  const key = jobRoleFamilyKey(name);
+                  const current = demandGroups.get(key) || { name: jobRoleFamilyName(name), color: demand.jobRole?.calendarColor || 'var(--mu)', allocated: 0, required: 0 };
+                  current.allocated += missionRolePeakCount(mission, demand.jobRoleId);
+                  current.required += demand.requiredCount;
+                  demandGroups.set(key, current);
+                }
                 const finalAllocations = missionFinalAllocations(mission);
                 const pendencies = missionPendencies(mission);
                 return (
@@ -168,10 +178,7 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
                       <div><dt>Desmobilização</dt><dd>{displayDateOnly(mission.returnDate)}</dd></div>
                       <div><dt>Participantes</dt><dd>{finalAllocations.length}</dd></div>
                     </dl>
-                    <div className="efetivo-demand-chips">{mission.demands.map(demand => {
-                      const allocated = missionRolePeakCount(mission, demand.jobRoleId);
-                      return <span className={allocated < demand.requiredCount ? 'missing' : ''} key={demand.jobRoleId}><i style={{ background: demand.jobRole?.calendarColor || 'var(--mu)' }} aria-hidden="true" />{demand.jobRole?.name}: <strong>{allocated}/{demand.requiredCount}</strong></span>;
-                    })}</div>
+                    <div className="efetivo-demand-chips">{[...demandGroups].map(([key, demand]) => <span className={demand.allocated < demand.required ? 'missing' : ''} key={key}><i style={{ background: demand.color }} aria-hidden="true" />{demand.name}: <strong>{demand.allocated}/{demand.required}</strong></span>)}</div>
                     <p className={`efetivo-team-status ${required - missionCoveredDemand(mission) > 0 ? 'danger' : 'success'}`}>{required - missionCoveredDemand(mission) > 0 ? `${required - missionCoveredDemand(mission)} vagas ainda precisam de pessoas nos ciclos da missão` : 'Equipe completa e sem conflitos'}</p>
                     {pendencies.length ? <ul className="efetivo-pending-list">{pendencies.map(item => <li key={item}>{item}</li>)}</ul> : null}
                     {!planId && selectedMissionId === mission.id ? <MissionExecutionPanel missionId={mission.id} /> : null}

@@ -107,6 +107,7 @@ export async function loadCollaboratorConflictData(tx, collaboratorId, period, p
         mission: {
           planId,
           deletedAt: null,
+          project: { deletedAt: null },
           scheduleStatus: 'CONFIRMED',
           mobilizationDate: { lte: new Date(`${parseDateKey(period.endDate)}T00:00:00.000Z`) },
           ...missionEndsOnOrAfter(new Date(`${parseDateKey(period.startDate)}T00:00:00.000Z`))

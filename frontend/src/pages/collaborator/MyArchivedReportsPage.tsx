@@ -12,7 +12,6 @@ import { Button, Card, SearchInput } from '../../components/ui/ds';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../layout/PageHeader';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { currentPageScrollState, saveCurrentPageScroll } from '../../hooks/usePageScrollRestoration';
@@ -26,14 +25,13 @@ export function MyArchivedReportsPage() {
   const { user } = useAuth();
   // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
   const [search, setSearch] = usePersistentSearch(`my-archived-search:${user?.id || user?.username || 'anonymous'}`);
-  const debouncedSearch = useDebouncedValue(search, 300);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const reportsQuery = useAccumulatedReportsPage({
     mine: true,
     summary: true,
     projectActive: false,
     statuses: ['APPROVED', 'SIGNED'],
-    search: debouncedSearch,
+    search,
     projectSort: 'asc',
     pageSize: REPORT_PAGE_SIZE
   });

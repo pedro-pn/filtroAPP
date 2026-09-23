@@ -180,7 +180,7 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
     database.efetivoMissionAllocation.findMany({
       where: {
         deletedAt: null,
-        mission: { planId: mission.planId, deletedAt: null, scheduleStatus: 'CONFIRMED', id: { not: mission.id }, mobilizationDate: { lte: new Date(`${period.endDate}T00:00:00.000Z`) }, ...missionEndsOnOrAfter(new Date(`${period.startDate}T00:00:00.000Z`)) }
+        mission: { planId: mission.planId, deletedAt: null, project: { deletedAt: null }, scheduleStatus: 'CONFIRMED', id: { not: mission.id }, mobilizationDate: { lte: new Date(`${period.endDate}T00:00:00.000Z`) }, ...missionEndsOnOrAfter(new Date(`${period.startDate}T00:00:00.000Z`)) }
       }, include: {
         cycles: { orderBy: { mobilizationDate: 'asc' } },
         mission: { include: { cycles: { orderBy: { mobilizationDate: 'asc' } } } }

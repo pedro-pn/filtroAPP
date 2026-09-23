@@ -76,6 +76,10 @@ app.use(cors({
 }));
 
 export function jsonBodyLimitForRequest(method, requestPath) {
+  const isProjectDocumentUpload = method === 'POST'
+    && /^\/api\/efetivo\/project-workflow\/[^/]+\/documents(?:\/[^/]+\/versions)?$/.test(requestPath);
+  if (isProjectDocumentUpload) return `${Math.ceil((env.projectDocumentMaxMb * 4) / 3) + 2}mb`;
+
   const isStandaloneSignatureUpload = method === 'POST'
     && requestPath === '/api/assinaturas/documentos';
   if (isStandaloneSignatureUpload) return '30mb';
@@ -99,8 +103,10 @@ export function jsonBodyLimitForRequest(method, requestPath) {
     || requestPath === '/api/rdo/reports/manual-upload'
     || /^\/api(?:\/rdo)?\/reports\/[^/]+\/manual-pdf$/.test(requestPath);
   const isSignatureApi = requestPath.includes('/request-signature') || requestPath.includes('/public-sign');
+  // Relatórios operacionais (manutenção etc.) levam as fotos em base64 no próprio corpo (até 10 por cartão).
+  const isOperationalReportApi = /^\/api(?:\/rdo)?\/operational-reports(?:\/|$)/.test(requestPath);
   if (isStockDocumentUploadApi) return '30mb';
-  if (isUploadsApi || isEquipmentUploadApi || isManualReportUploadApi) return '25mb';
+  if (isUploadsApi || isEquipmentUploadApi || isManualReportUploadApi || isOperationalReportApi) return '25mb';
   if (isSignatureApi) return '3mb';
   return '1mb';
 }

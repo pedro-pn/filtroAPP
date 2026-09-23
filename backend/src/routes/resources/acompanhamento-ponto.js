@@ -36,6 +36,7 @@ import {
 } from '../../lib/pontomais/sync.js';
 import { normalizeName } from '../../lib/pontomais/normalize.js';
 import prisma from '../../lib/prisma.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import {
   AllocationAuditError,
   getAllocationAudit,
@@ -94,6 +95,11 @@ export const externalEmployeeLinkSchema = z.object({
 export const externalEmployeeIgnoreSchema = z.object({
   externalEmployeeId: z.string().trim().min(1).max(200),
   ignored: z.boolean()
+}).strict();
+
+export const rdoSimulationExclusionSchema = z.object({
+  collaboratorId: z.string().trim().min(1).max(200),
+  excluded: z.boolean()
 }).strict();
 
 export const projectTagLinkSchema = z.object({
@@ -169,6 +175,49 @@ export function createPontoMaisIntegrationRouter({
   const routes = Router();
   const integration = { ...defaultPontoMaisIntegration, ...services };
 
+  routes.get(
+    '/rdo-simulation-exclusions',
+    authenticate,
+    authorizeManager,
+    asyncHandler(async (_req, res) => {
+      // Inclui quem nunca teve ponto e inativos com participação em RDOs antigos.
+      res.json(await db.collaborator.findMany({
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true, code: true, name: true, isActive: true,
+          jobRole: { select: { name: true } },
+          rdoCostSimulationExcluded: true
+        }
+      }));
+    })
+  );
+
+  routes.post(
+    '/rdo-simulation-exclusions',
+    authenticate,
+    authorizeManager,
+    asyncHandler(async (req, res) => {
+      const parsed = rdoSimulationExclusionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Preferência de simulação inválida.', code: 'INVALID_PREFERENCE' });
+      }
+      try {
+        const updated = await db.collaborator.update({
+          where: { id: parsed.data.collaboratorId },
+          data: { rdoCostSimulationExcluded: parsed.data.excluded },
+          select: { id: true, rdoCostSimulationExcluded: true }
+        });
+        clearProjectDerivedCaches();
+        return res.json(updated);
+      } catch (error) {
+        if (error.code === 'P2025') {
+          return res.status(404).json({ error: 'Colaborador não encontrado.', code: 'COLLABORATOR_NOT_FOUND' });
+        }
+        throw error;
+      }
+    })
+  );
+
   routes.post(
     '/sync',
     authenticate,
@@ -187,6 +236,7 @@ export function createPontoMaisIntegrationRouter({
           requestedByUserId: req.auth?.user?.id ?? null,
           trigger: 'MANUAL'
         });
+        clearProjectDerivedCaches();
         return res.status(result.skippedDuplicate ? 200 : 201).json(result);
       } catch (error) {
         const mapped = mapPontoSyncHttpError(error);
@@ -262,6 +312,7 @@ export function createPontoMaisIntegrationRouter({
     authorizeManager,
     asyncHandler(async (_req, res) => {
       const projects = await db.project.findMany({
+        where: { deletedAt: null },
         orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
         select: { id: true, code: true, name: true, isActive: true, deletedAt: true }
       });
@@ -283,10 +334,12 @@ export function createPontoMaisIntegrationRouter({
       const parsed = externalEmployeeLinkSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: 'Vínculo de colaborador inválido.', code: 'INVALID_LINK' });
       try {
-        return res.json(await integration.linkExternalEmployee({
+        const result = await integration.linkExternalEmployee({
           ...parsed.data,
           createdByUserId: req.auth?.user?.id ?? null
-        }));
+        });
+        clearProjectDerivedCaches();
+        return res.json(result);
       } catch (error) {
         if (error instanceof PontoSyncError && error.code === 'COLLABORATOR_NOT_FOUND') {
           return res.status(404).json({ error: error.message, code: error.code });
@@ -304,10 +357,12 @@ export function createPontoMaisIntegrationRouter({
       const parsed = projectTagLinkSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: 'Vínculo de etiqueta inválido.', code: 'INVALID_LINK' });
       try {
-        return res.json(await integration.linkProjectTag({
+        const result = await integration.linkProjectTag({
           ...parsed.data,
           createdByUserId: req.auth?.user?.id ?? null
-        }));
+        });
+        clearProjectDerivedCaches();
+        return res.json(result);
       } catch (error) {
         if (error instanceof PontoSyncError && ['PROJECT_NOT_FOUND', 'INVALID_TAG'].includes(error.code)) {
           return res.status(error.code === 'PROJECT_NOT_FOUND' ? 404 : 400).json({ error: error.message, code: error.code });
@@ -334,10 +389,12 @@ export function createPontoMaisIntegrationRouter({
       const parsed = projectTagIgnoreSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: 'Etiqueta inválida.', code: 'INVALID_TAG' });
       try {
-        return res.json(await integration.setProjectTagIgnored({
+        const result = await integration.setProjectTagIgnored({
           ...parsed.data,
           ignoredByUserId: req.auth?.user?.id ?? null
-        }));
+        });
+        clearProjectDerivedCaches();
+        return res.json(result);
       } catch (error) {
         if (error instanceof PontoSyncError && error.code === 'INVALID_TAG') {
           return res.status(400).json({ error: error.message, code: error.code });
@@ -360,10 +417,12 @@ export function createPontoMaisIntegrationRouter({
         });
       }
       try {
-        return res.json(await integration.setDayProjectOverride({
+        const result = await integration.setDayProjectOverride({
           ...parsed.data,
           createdByUserId: req.auth?.user?.id ?? null
-        }));
+        });
+        clearProjectDerivedCaches();
+        return res.json(result);
       } catch (error) {
         if (error instanceof PontoSyncError) {
           if (['PENDING_NOT_FOUND', 'PROJECT_NOT_FOUND', 'COLLABORATOR_NOT_FOUND'].includes(error.code)) {
@@ -391,10 +450,12 @@ export function createPontoMaisIntegrationRouter({
         });
       }
       try {
-        return res.json(await integration.setDayProjectOverridesBatch({
+        const result = await integration.setDayProjectOverridesBatch({
           ...parsed.data,
           createdByUserId: req.auth?.user?.id ?? null
-        }));
+        });
+        clearProjectDerivedCaches();
+        return res.json(result);
       } catch (error) {
         if (error instanceof PontoSyncError) {
           if (['PENDING_NOT_FOUND', 'PROJECT_NOT_FOUND', 'COLLABORATOR_NOT_FOUND'].includes(error.code)) {
@@ -435,6 +496,7 @@ router.post(
     const fileName = String(req.headers['x-file-name'] || 'PontoMais_resumo.xlsx');
     try {
       const summary = await importPonto({ buffer, fileName, importedByUserId: req.auth?.user?.id ?? null });
+      clearProjectDerivedCaches();
       return res.status(summary.skippedDuplicate ? 200 : 201).json(summary);
     } catch (error) {
       return res.status(422).json({ error: `Falha ao importar o ponto: ${error.message}` });
@@ -478,6 +540,7 @@ router.delete(
         return res.status(409).json({ error: 'Snapshots sincronizados pela API não podem ser excluídos manualmente.' });
       }
       await prisma.pontoImport.delete({ where: { id: req.params.id } });
+      clearProjectDerivedCaches();
       res.json({ ok: true });
     } catch {
       res.status(404).json({ error: 'Importação não encontrada.' });
@@ -556,6 +619,7 @@ router.post(
     const data = linkSchema.parse(req.body);
     try {
       const result = await linkPontoName({ ...data, createdByUserId: req.auth?.user?.id ?? null });
+      clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -646,10 +710,12 @@ router.post(
       });
     }
     try {
-      return res.json(await resolveUnallocatedDays({
+      const result = await resolveUnallocatedDays({
         items: parsed.data.items,
         createdByUserId: req.auth?.user?.id ?? null
-      }));
+      });
+      clearProjectDerivedCaches();
+      return res.json(result);
     } catch (error) {
       if (error instanceof AllocationAuditError) {
         const status = error.code === 'PROJECT_NOT_FOUND' ? 404 : 400;

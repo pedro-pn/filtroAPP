@@ -8,7 +8,8 @@ export function missionPendencies(mission: PlanningMission): string[] {
   const pendencies: string[] = [];
   const required = mission.demands.reduce((sum, demand) => sum + demand.requiredCount, 0);
   const coveredDemand = missionCoveredDemand(mission);
-  if (!mission.headquartersResponsibleUserId || !mission.headquartersResponsibleCollaboratorId) pendencies.push('Vincular o líder');
+  // O Líder de Projetos do fluxo pode responder pela missão sem colaborador vinculado; basta haver responsável.
+  if (!mission.headquartersResponsibleUserId) pendencies.push('Vincular o líder');
   if (!required) pendencies.push('Selecionar a equipe');
   else if (coveredDemand < required) pendencies.push(`Completar a equipe (${coveredDemand}/${required})`);
   if (mission.scheduleStatus === 'DRAFT') pendencies.push('Confirmar a programação');

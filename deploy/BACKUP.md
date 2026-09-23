@@ -51,6 +51,8 @@ Por padrão ele usa:
 - `BACKUP_LOCK_TIMEOUT_SECONDS=0`
 - `BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json`
 - `LOCAL_BACKUP_KEEP` vazio, sem retenção local por quantidade
+- `BACKUP_NICE_LEVEL=19`, reduzindo a prioridade da compressão local
+- `BACKUP_DOCKER_CPUS=0.5`, limitando CPU dos arquivos tar executados em containers auxiliares
 - mantém localmente o backup mais recente em `latest`
 
 ## Variáveis opcionais
@@ -215,9 +217,9 @@ crontab -e
 ```
 
 ```cron
-# Horário — banco + relatórios + certificados
+# Horário — somente banco, sem recomprimir o volume de relatórios
 # Evita a janela dos backups mensal/diário; se outro backup ainda estiver rodando, pula esta execução.
-0 0,3-23 * * * B2_URI=b2://filtrovali-backups/hourly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 0,3-23 * * * B2_URI=b2://filtrovali-backups/hourly-db INCLUDE_REPORTS=false INCLUDE_CERTS=false INCLUDE_PROXY=false BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Diário às 02h — banco + relatórios + certificados
 # Espera até 2h se houver outro backup finalizando.

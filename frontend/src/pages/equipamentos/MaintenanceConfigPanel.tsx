@@ -29,6 +29,7 @@ import {
   type MaintenanceCategoryIntervalFormValues,
   type MaintenanceProfileFormValues
 } from '../../schemas/operationalReport';
+import { buildMaintenanceProfilePayload } from '../../utils/maintenanceProfilePayload';
 
 interface MaintenanceConfigPanelProps {
   equipment: CompanyEquipment[];
@@ -441,15 +442,7 @@ export function MaintenanceConfigPanel({
   function saveProfile(values: MaintenanceProfileFormValues) {
     profileMutation.mutate({
       id: editingProfileId,
-      payload: {
-        name: values.name.trim(),
-        isActive: values.isActive,
-        items: values.items.map((item, index) => ({
-          ...item,
-          label: item.label.trim(),
-          order: index + 1
-        }))
-      }
+      payload: buildMaintenanceProfilePayload(values)
     });
   }
 

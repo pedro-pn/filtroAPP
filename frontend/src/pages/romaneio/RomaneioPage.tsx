@@ -27,6 +27,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useToast } from '../../components/ui/ToastContext';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -131,6 +132,7 @@ export function RomaneioPage() {
     parse: parseRomaneioTab
   });
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 200);
   const [projectId, setProjectId] = useState('');
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogForm, setCatalogForm] = useState<RomaneioCatalogPayload>(catalogEmpty());
@@ -146,10 +148,11 @@ export function RomaneioPage() {
   const [isDownloadingCatalogPdf, setIsDownloadingCatalogPdf] = useState(false);
   const [qrLabelSelection, setQrLabelSelection] = useState<QrLabelSelection | null>(null);
 
-  const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
+  const projectsQuery = useQuery({ queryKey: ['romaneio-projects', 'overview'], queryFn: () => listRomaneioProjects({ active: true }) });
   const romaneiosQuery = useQuery({
     queryKey: ['romaneios', { search, projectId }],
-    queryFn: () => listRomaneios({ search: search || undefined, projectId: projectId || undefined })
+    queryFn: ({ signal }) => listRomaneios({ search: search || undefined, projectId: projectId || undefined }, signal),
+    enabled: search === debouncedSearch
   });
   const catalogQuery = useQuery({ queryKey: ['romaneio-catalog'], queryFn: listRomaneioCatalog, enabled: isManager || tab !== 'notificacoes' });
   const draftsQuery = useQuery({ queryKey: ['romaneio-drafts'], queryFn: listRomaneioDrafts });
@@ -462,7 +465,7 @@ export function RomaneioPage() {
               <div className="admin-form-grid manager-header-grid">
                 <label className="field-group">
                   <span>Pesquisa</span>
-                  <SearchBar value={search} onChange={setSearch} placeholder="Projeto, placa, motorista ou item" />
+                  <SearchBar loading={search !== debouncedSearch || romaneiosQuery.isFetching} value={search} onChange={setSearch} placeholder="Projeto, placa, motorista ou item" />
                 </label>
                 <label className="field-group">
                   <span>Projeto</span>
@@ -476,8 +479,8 @@ export function RomaneioPage() {
               </div>
             </section>
 
-            {romaneiosQuery.isLoading && <section className="page-card romaneio-panel">Carregando romaneios...</section>}
-            {!romaneiosQuery.isLoading && !groupedRomaneios.length && <section className="page-card romaneio-panel">Nenhum romaneio encontrado.</section>}
+            {(search !== debouncedSearch || romaneiosQuery.isLoading) && <section className="page-card romaneio-panel">Carregando romaneios...</section>}
+            {search === debouncedSearch && !romaneiosQuery.isLoading && !groupedRomaneios.length && <section className="page-card romaneio-panel">Nenhum romaneio encontrado.</section>}
             {groupedRomaneios.map(([projectName, items]) => (
               <section className="page-card romaneio-panel" key={projectName}>
                 <div className="admin-section-head">

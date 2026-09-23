@@ -20,7 +20,6 @@ import { useToast } from '../../components/ui/ToastContext';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportCounts } from '../../hooks/useReports';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
@@ -40,6 +39,7 @@ import { reportDraftDateLabel, reportDraftServiceCount, reportDraftToRdoState, S
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { RdoAppShell } from '../RdoAppShell';
 import { RdoSectionNavigation } from '../gestor/RdoSectionNavigation';
+import { coordinatorPendingCountQuery, coordinatorPendingReportFilters } from './pendingReportFilters';
 
 type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas' | 'dds';
 const COORDINATOR_TABS: CoordinatorTab[] = ['pending', 'approved', 'archived', 'nps', 'estatisticas', 'dds'];
@@ -158,8 +158,6 @@ export function CoordinatorPage() {
   });
   // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
   const [search, setSearch] = usePersistentSearch(`coordinator-search:${user?.id || 'anonymous'}:${tab}`);
-  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
-  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
@@ -172,20 +170,16 @@ export function CoordinatorPage() {
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const showToast = useToast();
-  const pendingReportFilters = {
-    summary: true,
-    statuses: ['PENDING', 'RETURNED'],
-    projectActive: true,
-    createdByUserId: user?.id || '',
-    search: debouncedSearch,
+  const pendingReportFilters = coordinatorPendingReportFilters(user, {
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
-  };
+  });
   const approvedReportFilters = {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -193,7 +187,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search: debouncedSearch,
+    search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -211,9 +205,7 @@ export function CoordinatorPage() {
     onLoadMore: reportsQuery.loadMore
   });
   // P7 — total de pendentes do coordenador via endpoint único de contadores.
-  const pendingCountQuery = useReportCounts([
-    { statuses: ['PENDING', 'RETURNED'], projectActive: true, createdByUserId: user?.id || '' }
-  ]);
+  const pendingCountQuery = useReportCounts([coordinatorPendingCountQuery(user)]);
   const archivedProjectsQuery = useProjects(false);
   const surveysQuery = useSurveys();
   const draftsQuery = useDrafts();
@@ -592,7 +584,7 @@ export function CoordinatorPage() {
   function renderArchivedTab() {
     const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
 
-    if (archivedProjectsQuery.isLoading || reportsQuery.isLoading) {
+    if (archivedProjectsQuery.isLoading || reportsQuery.isLoadingInitial) {
       return <div className="page-card placeholder-copy">Carregando projetos arquivados...</div>;
     }
 
@@ -680,7 +672,7 @@ export function CoordinatorPage() {
     if (tab === 'estatisticas') return renderEstatisticasTab();
     if (tab === 'dds') return <DdsThemeManager appearance="design-system" />;
 
-    if (reportsQuery.isLoading) return <ReportListSkeleton />;
+    if (reportsQuery.isLoadingInitial) return <ReportListSkeleton />;
 
     const drafts = (draftsQuery.data || []).filter(draft => draft.projectId || draft.payload?.projectId);
     const draftsBlock = tab === 'pending' && drafts.length ? (
@@ -906,6 +898,7 @@ export function CoordinatorPage() {
                 aria-label={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
                 placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
                 value={search}
+                loading={tab !== 'nps' && reportsQuery.isSearching}
                 onChange={setSearch}
               />
             </div>

@@ -185,10 +185,10 @@ test('project intake schema rejects missing, extra, invalid CNPJ and invalid rev
   assert.match(missingProposal.error.issues[0].message, /Proposta/);
 });
 
-test('projectIntakeCreateData keeps a new project pending and operationally restricted', () => {
+test('projectIntakeCreateData keeps a new project pending and visible to responsible collaborators', () => {
   const data = projectIntakeCreateData(projectIntakeSchema.parse(validPayload));
   assert.equal(data.registrationPending, true);
-  assert.equal(data.visibleToCollaborators, false);
+  assert.equal(data.visibleToCollaborators, true);
   assert.equal(data.managerOnly, false);
   assert.equal(data.clientEmailPrimary, '');
   assert.deepEqual(data.clientEmailCc, []);

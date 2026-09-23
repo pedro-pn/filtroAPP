@@ -1,26 +1,26 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
-import { AppIcon } from '../../components/icons/AppIcon';
 import { serviceTypeLabels } from '../../components/reports/serviceTypes';
 import { useReportMutations, useReports } from '../../hooks/useReports';
-import { Button, Card, SearchInput, StatusPill } from '../../components/ui/ds';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { DS_ICONS } from '../../components/ui/ds/icons';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
-import { PageHeader } from '../../layout/PageHeader';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
+import { Shell } from '../../layout/Shell';
+import { TopBar } from '../../layout/TopBar';
 import { collectOngoingServices } from '../../utils/ongoingServices';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
-import { RdoAppShell } from '../RdoAppShell';
 
 export function OngoingServicesPage() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const reportsQuery = useReports({ mine: true, summary: true });
   const reportMutations = useReportMutations();
   const [search, setSearch] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<{ reportId: string; serviceId: string; label: string } | null>(null);
   const services = useMemo(
     () => collectOngoingServices(reportsQuery.data || []).filter(item => matchesSearch([
       item.projectTitle,
@@ -39,16 +39,21 @@ export function OngoingServicesPage() {
       return acc;
     }, {});
   }, [services]);
-  const navigationSections = useMemo(() => [
-    { id: 'home', label: 'Início', href: rdoPath('/home'), active: false },
-    { id: 'pending', label: 'Pendentes', href: `${rdoPath('/meus-relatorios')}?tab=pending`, active: false },
-    { id: 'approved', label: 'Aprovados', href: `${rdoPath('/meus-relatorios')}?tab=approved`, active: false },
-    { id: 'ongoing', label: 'Em andamento', href: rdoPath('/andamento'), active: true },
-    { id: 'archived', label: 'Arquivados', href: rdoPath('/meus-relatorios/arquivados'), active: false }
-  ], []);
 
-  async function handleDeleteService(reportId: string, serviceId: string) {
-    setDeleteTarget(null);
+  async function handleLogout() {
+    await logout();
+    navigate('/', { replace: true });
+  }
+
+  async function handleDeleteService(item: (typeof services)[number]) {
+    const confirmed = await confirm({
+      title: 'Excluir serviço em andamento?',
+      description: 'O serviço é removido do RDO de origem e deixa de aparecer como pendente para todos os usuários do projeto.',
+      highlight: `${serviceTypeLabels[item.serviceType] || item.serviceType} · RDO ${item.report.sequenceNumber || '---'}`,
+      confirmLabel: 'Excluir serviço'
+    });
+    if (!confirmed) return;
+    const { report: { id: reportId }, service: { id: serviceId } } = item;
     try {
       await reportMutations.deleteService.mutateAsync({ reportId, serviceId });
       showToast('Serviço excluído.', 'success');
@@ -58,80 +63,67 @@ export function OngoingServicesPage() {
   }
 
   return (
-    <RdoAppShell
-      title="Serviços em andamento"
-      sectionLabel="Em andamento"
-      subNavigation={navigationSections}
-    >
-      <main className="fv-ds rdo-role-page rdo-ongoing-services-page">
-        <PageHeader
-          title="Serviços em andamento"
-          description="Acompanhe serviços ainda abertos e remova registros que não serão continuados."
-          actions={(
-            <Button variant="secondary" size="sm" onClick={() => navigate(rdoPath('/home'))}>
-              Voltar ao início
-            </Button>
-          )}
+    <Shell>
+      <TopBar
+        title="Serviços em andamento"
+        subtitle={user?.name}
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate(rdoPath('/home'))}>
+              Voltar
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
       />
-        <Card className="rdo-role-toolbar" padding="sm">
-          <div className="rdo-role-toolbar__controls">
-            <SearchInput value={search} onChange={setSearch} placeholder="Buscar em serviços em andamento" aria-label="Buscar em serviços em andamento" />
+      <main className="page-scroll">
+        <section className="page-card">
+          <div className="admin-search-row">
+            <SearchBar value={search} onChange={setSearch} placeholder="Buscar em serviços em andamento" />
           </div>
-        </Card>
+        </section>
         {reportsQuery.isLoading ? (
-          <Card className="placeholder-copy" padding="lg">Carregando serviços em andamento...</Card>
+          <div className="page-card placeholder-copy">Carregando serviços em andamento...</div>
         ) : null}
         {!reportsQuery.isLoading && !services.length ? (
-          <Card className="placeholder-copy" padding="lg">
+          <div className="page-card placeholder-copy">
             {search.trim() ? 'Nenhum serviço em andamento encontrado.' : 'Nenhum serviço em andamento.'}
-          </Card>
+          </div>
         ) : null}
         {Object.entries(groups).map(([projectTitle, items]) => (
-          <Card className="rdo-ongoing-project" key={projectTitle} title={projectTitle} padding="md">
-            <div className="rdo-ongoing-project__list">
+          <section className="page-card" key={projectTitle}>
+            <div className="section-title">{projectTitle}</div>
+            <div className="admin-stack">
               {items.map(item => (
-                <Card className="rdo-ongoing-service" padding="sm" key={`${item.report.id}-${item.service.id}`}>
-                  <div className="rdo-ongoing-service__main">
-                    <span className="rdo-ongoing-service__icon"><AppIcon icon={DS_ICONS.servicePressure} size="md" /></span>
-                    <div className="rdo-ongoing-service__copy">
+                <article className="ongoing-item-react" key={`${item.report.id}-${item.service.id}`}>
+                  <div className="admin-item-row">
+                    <div className="admin-item-main">
                       <div className="admin-item-title">{serviceTypeLabels[item.serviceType] || item.serviceType}</div>
-                      <div className="rdo-ongoing-service__meta">
+                      <div className="admin-item-sub">
                         {item.equipment}{item.system ? ` - ${item.system}` : ''} - RDO {item.report.sequenceNumber || '---'}
                       </div>
                     </div>
-                    <div className="rdo-ongoing-service__actions">
-                      <StatusPill status="pending" label="Em andamento" tone="warning" />
-                      <Button
-                        variant="danger"
-                        size="sm"
+                    <div className="admin-card-actions">
+                      <span className="status-pill status-pending">Em andamento</span>
+                      <button
+                        className="mini-btn danger"
+                        type="button"
                         disabled={reportMutations.deleteService.isPending}
-                        onClick={() => setDeleteTarget({
-                          reportId: item.report.id,
-                          serviceId: item.service.id,
-                          label: serviceTypeLabels[item.serviceType] || item.serviceType
-                        })}
+                        onClick={() => void handleDeleteService(item)}
                       >
                         Excluir
-                      </Button>
+                      </button>
                     </div>
                   </div>
-                </Card>
+                </article>
               ))}
             </div>
-          </Card>
+          </section>
         ))}
-        <ConfirmDialog
-          open={Boolean(deleteTarget)}
-          appearance="design-system"
-          title="Excluir serviço em andamento?"
-          description="O serviço será removido deste relatório e não poderá ser recuperado por esta tela."
-          highlight={deleteTarget?.label}
-          confirmLabel="Excluir serviço"
-          confirmDisabled={reportMutations.deleteService.isPending}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => deleteTarget && void handleDeleteService(deleteTarget.reportId, deleteTarget.serviceId)}
-        />
       </main>
-    </RdoAppShell>
+      {confirmDialog}
+    </Shell>
   );
 }

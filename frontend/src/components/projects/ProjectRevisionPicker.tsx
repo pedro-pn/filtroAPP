@@ -39,6 +39,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
     queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['project-cards'] });
     queryClient.invalidateQueries({ queryKey: ['project-detail'] });
+    queryClient.invalidateQueries({ queryKey: ['planned-scope'] });
     queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
   }
 

@@ -36,7 +36,8 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
 
   return (
     <section className="page-card acp-det-block acp-invoices" aria-labelledby={titleId} data-acp-project-invoices>
-      <header className="acp-invoices-head">
+      <details className="acp-invoices-details" open>
+      <summary className="acp-det-collabs-summary acp-invoices-head">
         <div>
           <h3 className="acp-det-sub" id={titleId}>Faturamentos realizados</h3>
           <p>Notas fiscais emitidas no Omie{groupId ? ' para as missões do grupo' : ' para este projeto'}.</p>
@@ -47,7 +48,8 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
             <strong>{brl(data.total)}</strong>
           </div>
         ) : null}
-      </header>
+      </summary>
+      <div className="acp-invoices-body">
       {query.isLoading ? <p className="placeholder-copy" role="status">Carregando faturamentos…</p> : query.isError ? (
         <div className="acp-invoices-feedback" role="alert">
           <span>Não foi possível carregar os faturamentos.</span>
@@ -110,6 +112,8 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
           )}
         </>
       ) : null}
+      </div>
+      </details>
     </section>
   );
 }

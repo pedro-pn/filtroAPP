@@ -11,15 +11,16 @@
 
 import { listCommercialDashboard } from './access-import.js';
 import { computeAlerts } from './alerts.js';
+import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
-import { laborCostByProject } from './labor-cost.js';
+import { getRoleParamsResolver, laborCostByProject } from './labor-cost.js';
+import { estimateReportLaborCostByDate, summarizeReportLaborCost } from './report-labor-cost.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
 import { buildWorkedHoursProgress } from './project-cards.js';
 import {
   buildRequiredWeeklyProgress,
-  computeProgressHistoryForProjects,
-  computeProjectProgress,
+  computeProjectProgressDetails,
   isConfirmedReportParticipant,
   selectRealizedSourceReportData
 } from './avanco.js';
@@ -29,6 +30,7 @@ import {
   reportPersonTimeMetrics,
   reportWorkedMinutesByCollaborator
 } from './report-time.js';
+import { getAnnualCollaboratorCosts } from './settings.js';
 import { isSalaryCategory } from './salary.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
@@ -211,6 +213,29 @@ export function buildProjectReportHours(reports, collaboratorIdsByReport, projec
   return byCollaborator;
 }
 
+async function getReportLaborCostEstimates(project, hoursByCollaborator) {
+  if (!hoursByCollaborator.size) return new Map();
+  const [collaborators, roleParams, annualCosts] = await Promise.all([
+    prisma.collaborator.findMany({
+      where: { id: { in: [...hoursByCollaborator.keys()] } },
+      select: {
+        id: true,
+        rdoCostSimulationExcluded: true,
+        jobRole: { select: { id: true, name: true } },
+        jobRoleHistory: {
+          select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } }
+        }
+      }
+    }),
+    getRoleParamsResolver(),
+    getAnnualCollaboratorCosts()
+  ]);
+  return new Map(collaborators.map(collaborator => [collaborator.id, estimateReportLaborCostByDate({
+    collaborator, roleParams, project, annualCosts,
+    workedMinutesByDate: hoursByCollaborator.get(collaborator.id).workedMinutesByDate
+  })]));
+}
+
 export function buildProjectDetailCollaborator({
   name = '',
   role = '',
@@ -220,6 +245,7 @@ export function buildProjectDetailCollaborator({
   workedMinutes = 0,
   workedMinutesByDate = new Map(),
   reportSourcesByDate = new Map(),
+  reportCostsByDate = new Map(),
   includeCollaboratorCosts = false
 } = {}) {
   const custo = allocation?.cost ?? null;
@@ -238,6 +264,8 @@ export function buildProjectDetailCollaborator({
     .map(([data, minutes]) => ({
       data,
       horas: minutes / 60,
+      ...(includeCollaboratorCosts && horasApropriadas <= 0
+        ? { custoEstimado: reportCostsByDate.get(data) ?? null } : {}),
       relatorios: reportSourcesByDate.get(data) || []
     }));
   const diasApropriados = projectId && rate
@@ -258,7 +286,8 @@ export function buildProjectDetailCollaborator({
     // Custo é dado sensível (salário): só para gestores.
     custo: includeCollaboratorCosts ? custo : null,
     custoHora: includeCollaboratorCosts ? custoHora : null,
-    custoDeslocamento: includeCollaboratorCosts ? custoDeslocamento : null
+    custoDeslocamento: includeCollaboratorCosts ? custoDeslocamento : null,
+    ...summarizeReportLaborCost(horasRelatoriosPorData)
   };
 }
 
@@ -320,9 +349,15 @@ export function buildRecentReportDays(byDay, project, limit = 10) {
 
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
-  includeAdminOnlyCategories = true
+  includeAdminOnlyCategories = true,
+  progressDetails: preloadedProgressDetails = null,
+  plannedHoursByProject: preloadedPlannedHoursByProject = null
 } = {}) {
-  const rows = await listCommercialDashboard({ includeAdminOnlyCategories });
+  const rows = await listCommercialDashboard({
+    includeAdminOnlyCategories,
+    projectIds: [projectId],
+    includeProgress: false
+  });
   const row = rows.find(r => r.projectId === projectId);
   if (!row) throw new Error('Projeto não encontrado no acompanhamento comercial.');
   const categoryWhere = await buildOmieCostCategoryWhere({
@@ -330,7 +365,6 @@ export async function getProjectDetail(projectId, {
   });
 
   const [
-    project,
     queriedReports,
     queriedCollaborators,
     costGroups,
@@ -339,15 +373,9 @@ export async function getProjectDetail(projectId, {
     equipmentByProject,
     stockCosts,
     manualCostsByProject,
-    plannedNormalHours,
-    plannedOvertime,
-    progressHistoryByProject,
-    projectProgress
+    hoursByProject,
+    loadedProgressDetails
   ] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: projectId },
-      select: { clientSegment: true, mobilizationDate: true, workdayHours: true, weekendWorkdayHours: true }
-    }),
     prisma.report.findMany({
       where: { projectId, deletedAt: null },
       select: {
@@ -386,17 +414,15 @@ export async function getProjectDetail(projectId, {
     getEquipmentUsageByProject([projectId]),
     getStockConsumptionCostByProject([projectId]),
     getManualProjectCostsByProject([projectId], { includeEntries: true }),
-    prisma.projectPlannedNormalHours.findMany({
-      where: { projectId },
-      select: { hours: true, roleName: true, jobRole: { select: { name: true } } }
-    }),
-    prisma.projectPlannedOvertime.findMany({
-      where: { projectId },
-      select: { hours: true, roleName: true, jobRole: { select: { name: true } } }
-    }),
-    computeProgressHistoryForProjects([projectId]),
-    computeProjectProgress(projectId)
+    preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
+    preloadedProgressDetails ?? computeProjectProgressDetails(projectId)
   ]);
+  const {
+    project,
+    progress: projectProgress,
+    progressHistory,
+    progressSlices
+  } = loadedProgressDetails;
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
 
   // Mão de obra (HH) do ponto — mantido SEPARADO do gasto Omie (em validação, não somado).
@@ -447,7 +473,9 @@ export async function getProjectDetail(projectId, {
 
   for (const r of reports) {
     const key = dateKey(r.reportDate);
-    if (!lastRdoDate || new Date(r.reportDate) > new Date(lastRdoDate)) lastRdoDate = r.reportDate;
+    if (r.reportType === 'RDO' && (!lastRdoDate || new Date(r.reportDate) > new Date(lastRdoDate))) {
+      lastRdoDate = r.reportDate;
+    }
     const sc = r.specialConditions || {};
     const dayCollaboratorIds = dayCollaboratorIdsByReport.get(r.id) || [];
     const metrics = reportPersonTimeMetrics(r, dayCollaboratorIds);
@@ -480,6 +508,11 @@ export async function getProjectDetail(projectId, {
   const hasAllocatedHours = collaboratorId => (
     Math.max(0, toNum(projectAllocation(collaboratorId)?.hours) ?? 0) > 0
   );
+  const reportCostEstimates = includeCollaboratorCosts
+    ? await getReportLaborCostEstimates(project, new Map(
+        [...reportHoursByCollaborator].filter(([id]) => !hasAllocatedHours(id))
+      ))
+    : new Map();
   const confirmedReportParticipantIds = new Set();
   for (const item of collaborators) {
     if (isConfirmedReportParticipant(reportById.get(item.reportId), hasAllocatedHours(item.collaboratorId))) {
@@ -505,6 +538,7 @@ export async function getProjectDetail(projectId, {
       allocation: alloc,
       projectId,
       ...reportHoursByCollaborator.get(collaboratorId),
+      reportCostsByDate: reportCostEstimates.get(collaboratorId),
       includeCollaboratorCosts
     }));
   };
@@ -567,6 +601,9 @@ export async function getProjectDetail(projectId, {
     planned: plannedWorkedDays,
     pct: plannedWorkedDays ? Math.round((workedDays / plannedWorkedDays) * 100) : null
   };
+  const hours = hoursByProject.get(projectId);
+  const plannedNormalHours = hours?.normalHours ?? [];
+  const plannedOvertime = hours?.overtime ?? [];
   const plannedNormalHoursTotal = plannedNormalHours.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
   const plannedOvertimeHoursTotal = plannedOvertime.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
   const workedHours = buildWorkedHoursProgress({
@@ -583,7 +620,7 @@ export async function getProjectDetail(projectId, {
   );
 
   const expectedEndDate = row.startDate && plannedDays ? addCalendarDays(row.startDate, plannedDays) : null;
-  const avancoPct = row.progressPct ?? null;
+  const avancoPct = projectProgress.progressPct ?? null;
   const projectedEndByPace = (row.startDate && elapsedCorridos && elapsedCorridos > 0 && avancoPct && avancoPct > 0)
     ? addCalendarDays(row.startDate, elapsedCorridos * (100 / avancoPct))
     : null;
@@ -592,8 +629,23 @@ export async function getProjectDetail(projectId, {
     expectedEndDate,
     referenceDate: projectReferenceDate
   });
+  // Avanço por recorte (escopo e/ou Equipamento/UG do cliente); só projetos com o que filtrar.
+  const progressFilters = progressSlices ? {
+    scopes: progressSlices.scopes,
+    equipments: progressSlices.equipments,
+    lookup: progressSlices.lookup,
+    slices: progressSlices.slices.map(({ progress, progressHistory }) => ({
+      avancoPct: progress.progressPct,
+      progressHistory,
+      requiredWeeklyProgress: buildRequiredWeeklyProgress(progress, {
+        startDate: row.startDate,
+        expectedEndDate,
+        referenceDate: projectReferenceDate
+      })
+    }))
+  } : null;
 
-  const alerts = computeAlerts({
+  const alerts = [...plannedHoursAlerts(hours?.hoursPlan), ...computeAlerts({
     startDate: row.startDate ?? null,
     plannedDays,
     gasto: gasto + (maoDeObra.custo ?? 0), // realizado total = compras Omie + mão de obra
@@ -602,7 +654,7 @@ export async function getProjectDetail(projectId, {
     lastDayStatus: ultimosDias.length ? ultimosDias[ultimosDias.length - 1].status : null,
     progressPct: avancoPct,
     now: projectReferenceDate
-  });
+  })];
 
   return {
     header: {
@@ -642,9 +694,10 @@ export async function getProjectDetail(projectId, {
     maioresGastos,
     manualCosts: manualCost.entries,
     avancoPct,
-    avancoMethod: row.progressMethod ?? null,
-    progressHistory: progressHistoryByProject.get(projectId) ?? [],
+    avancoMethod: projectProgress.progressMethod ?? null,
+    progressHistory,
     requiredWeeklyProgress,
+    progressFilters,
     standby: { count: standbyCount, minutes: standbyMinutesTotal },
     ultimosDias,
     overtimeMinutes: overtimeMinutesTotal,

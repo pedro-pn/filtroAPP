@@ -1,16 +1,21 @@
 import { forwardRef, type ReactNode, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiClientError } from '../../api/client';
 
 import {
   getPlannedScope,
   setPlannedScope,
+  resolvePlannedHours,
   type PlannedDiameterUnit,
   type PlannedMeasureUnit,
   type PlannedScope,
+  type PlannedScopeInput,
   type PlannedSystemType
 } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { HelpTip } from '../ui/HelpTip';
+import { ProjectSystemInput } from './ProjectSystemInput';
+import { PlannedHoursReview } from './PlannedHoursReview';
 import { useToast } from '../ui/ToastContext';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
@@ -23,15 +28,16 @@ const SERVICE_TYPES: Array<{ value: string; label: string }> = [
 
 const SYSTEM_LABELS: Record<PlannedSystemType, string> = {
   TUBULACAO: 'Tubulações',
-  OLEO: 'Óleo'
+  OLEO: 'Óleo',
+  SISTEMA: 'Sistemas completos (unidades)'
 };
 
 // Unidade única de cada sistema — escolhida para casar com o que o RDO registra como realizado:
-// tubulação por comprimento (m, soma de tubes[].c) e óleo por volume (L, volumeOleo). Por isso não
-// há peso (kg/t) nem tanques aqui: o RDO não captura esses quantitativos.
+// tubulação por comprimento (m), óleo por volume (L) e limpeza de sistemas completos por unidades.
 const SYSTEM_UNIT: Record<PlannedSystemType, PlannedMeasureUnit> = {
   TUBULACAO: 'M',
-  OLEO: 'L'
+  OLEO: 'L',
+  SISTEMA: 'UN'
 };
 const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 const DIAMETER_UNIT_LABELS: Record<PlannedDiameterUnit, string> = { pol: 'pol', mm: 'mm' };
@@ -62,7 +68,7 @@ const COMMON_INCH_DIAMETERS = [
 
 // Tipos de sistema permitidos por serviço (alinhados ao que cada serviço registra no RDO).
 const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
-  LIMPEZA_QUIMICA: ['TUBULACAO'],
+  LIMPEZA_QUIMICA: ['TUBULACAO', 'SISTEMA'],
   TESTE_PRESSAO: ['TUBULACAO'],
   FLUSHING: ['TUBULACAO', 'OLEO'],
   FILTRAGEM: ['OLEO']
@@ -75,6 +81,9 @@ const allowedSystems = (serviceType: string) => SERVICE_SYSTEMS[serviceType] ?? 
 // A unidade é derivada do systemType (SYSTEM_UNIT), não editável.
 interface SystemRow {
   key: string;
+  projectSystemId: string | null;
+  equipment: string;
+  systemName: string;
   systemType: PlannedSystemType;
   description: string;
   diameter: string;
@@ -83,6 +92,8 @@ interface SystemRow {
 }
 interface ServiceRow {
   key: string;
+  scopeKey: string;
+  scopeName: string;
   serviceType: string;
   weight: string;
   systems: SystemRow[];
@@ -90,6 +101,7 @@ interface ServiceRow {
 interface HoursRow {
   key: string;
   jobRoleId: string;
+  roleName?: string | null;
   hours: string;
 }
 
@@ -143,17 +155,23 @@ function rescaleTo100(services: ServiceRow[]): ServiceRow[] {
 }
 
 function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: HoursRow[]; overtime: HoursRow[] } {
+  const scopeKeys = new Map<string, string>();
   const services = scope.services.map(s => {
+    const scopeName = s.scopeName?.trim() || '';
+    if (!scopeKeys.has(scopeName)) scopeKeys.set(scopeName, nextKey());
     const serviceType = s.serviceType || 'LIMPEZA_QUIMICA';
     const allowed = allowedSystems(serviceType);
     return {
       key: nextKey(),
+      scopeKey: scopeKeys.get(scopeName)!, scopeName,
       serviceType,
       weight: s.weight === null || s.weight === undefined ? '' : toStr(s.weight),
       systems: (s.systems ?? [])
         .filter(sys => allowed.includes(sys.systemType))
         .map(sys => ({
           key: nextKey(),
+          projectSystemId: sys.projectSystemId || null,
+          equipment: toStr(sys.equipment), systemName: toStr(sys.systemName),
           systemType: sys.systemType,
           description: toStr(sys.description),
           diameter: sys.systemType === 'TUBULACAO' ? toStr(sys.diameter) : '',
@@ -167,11 +185,13 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
     normalHours: (scope.normalHours ?? []).map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
+      roleName: o.roleName,
       hours: toStr(o.hours)
     })),
     overtime: (scope.overtime ?? []).map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
+      roleName: o.roleName,
       hours: toStr(o.hours)
     }))
   };
@@ -180,9 +200,11 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
 function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: HoursRow[]) {
   return JSON.stringify({
     services: services.map(s => ({
+      scopeName: (s.scopeName ?? '').trim(),
       serviceType: s.serviceType,
       weight: s.weight,
       systems: s.systems.map(sys => ({
+        projectSystemId: sys.projectSystemId, equipment: sys.equipment.trim(), systemName: sys.systemName.trim(),
         systemType: sys.systemType,
         description: sys.description.trim(),
         diameter: sys.systemType === 'TUBULACAO' ? sys.diameter.trim() : '',
@@ -198,39 +220,60 @@ function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: Ho
 export interface ScopeEditorHandle { save: () => void }
 
 // Editor do escopo previsto (vendido): serviços com seus sistemas + previsão de horas.
-// Preenchimento manual — esses dados ainda não vêm do banco comercial. Sem botão próprio de salvar:
+// Horas comerciais automáticas ou cadastro manual. Sem botão próprio de salvar:
 // expõe save() via ref e reporta dirty; o modal do cronograma tem o único Salvar/Cancelar.
 export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   projectId: string;
   onDirtyChange?: (dirty: boolean) => void;
+  onSavingChange?: (saving: boolean) => void;
   beforeOvertime?: ReactNode;
-}>(function ProjectPlannedScopeEditor({ projectId, onDirtyChange, beforeOvertime }, ref) {
+  canManage?: boolean;
+  resolutionDisabled?: boolean;
+}>(function ProjectPlannedScopeEditor({ projectId, onDirtyChange, onSavingChange, beforeOvertime, canManage = true, resolutionDisabled = false }, ref) {
   const queryClient = useQueryClient();
   const showToast = useToast();
   const queryKey = ['planned-scope', projectId];
 
-  const { data, isLoading } = useQuery({ queryKey, queryFn: () => getPlannedScope(projectId) });
+  const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => getPlannedScope(projectId) });
   const { data: roles } = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
 
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [collapsedServices, setCollapsedServices] = useState<Set<string>>(new Set());
   const [normalHours, setNormalHours] = useState<HoursRow[]>([]);
   const [overtime, setOvertime] = useState<HoursRow[]>([]);
   const [baseline, setBaseline] = useState('');
+  const [loadedFingerprint, setLoadedFingerprint] = useState<string>();
+  const dirtyRef = useRef(false);
+  const forceLoadRef = useRef(false);
   // Serviços cujo peso o usuário já editou manualmente (ficam fixos no reequilíbrio).
   const touchedWeights = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || (dirtyRef.current && !forceLoadRef.current)) return;
+    forceLoadRef.current = false;
     const next = fromScope(data);
     setServices(next.services);
+    setCollapsedServices(new Set(next.services.map(service => service.key)));
     setNormalHours(next.normalHours);
     setOvertime(next.overtime);
     setBaseline(normalize(next.services, next.normalHours, next.overtime));
+    setLoadedFingerprint(data.hoursPlan?.fingerprint);
     // Dados carregados já têm pesos definidos: trata como fixos (edição livre, sem "brigar").
     touchedWeights.current = new Set(next.services.map(s => s.key));
   }, [data]);
 
-  const dirty = useMemo(() => normalize(services, normalHours, overtime) !== baseline, [services, normalHours, overtime, baseline]);
+  const dirty = useMemo(() => baseline !== '' && normalize(services, normalHours, overtime) !== baseline, [services, normalHours, overtime, baseline]);
+  dirtyRef.current = dirty;
+  const staleHours = dirty && loadedFingerprint !== data?.hoursPlan?.fingerprint;
+  const commercialHours = data?.hoursPlan?.source === 'COMMERCIAL';
+  const scopeGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; name: string; services: ServiceRow[] }>();
+    for (const service of services) {
+      if (!groups.has(service.scopeKey)) groups.set(service.scopeKey, { key: service.scopeKey, name: service.scopeName, services: [] });
+      groups.get(service.scopeKey)!.services.push(service);
+    }
+    return [...groups.values()];
+  }, [services]);
 
   // Handle estável que sempre chama o save mais recente (só quando há mudança).
   const runSave = useRef<() => void>(() => {});
@@ -239,24 +282,68 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   const mutation = useMutation({
-    mutationFn: (payload: PlannedScope) => setPlannedScope(projectId, payload),
+    mutationFn: (payload: PlannedScopeInput) => setPlannedScope(projectId, payload),
     onSuccess: (saved) => {
       showToast('Escopo previsto salvo.');
+      forceLoadRef.current = true;
       queryClient.setQueryData(queryKey, saved);
       queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['project-cards'] });
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-systems'] });
+      queryClient.invalidateQueries({ queryKey: ['system-reconciliation', projectId] });
     },
-    onError: () => showToast('Não foi possível salvar o escopo previsto.')
+    onError: (error: Error) => {
+      if (error instanceof ApiClientError && error.status === 409) queryClient.invalidateQueries({ queryKey });
+      showToast(error.message || 'Não foi possível salvar o escopo previsto.', 'error');
+    }
   });
 
+  const resolutionMutation = useMutation({
+    mutationFn: (choice: 'COMMERCIAL' | 'MANUAL') => resolvePlannedHours(projectId, choice, data!.hoursPlan!.fingerprint),
+    onSuccess: saved => {
+      forceLoadRef.current = true;
+      queryClient.setQueryData(queryKey, saved);
+      queryClient.invalidateQueries({ queryKey: ['project-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['project-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
+      showToast('Previsão de horas confirmada.');
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey });
+      showToast(error.message, 'error');
+    }
+  });
+
+  useEffect(() => { onSavingChange?.(mutation.isPending || resolutionMutation.isPending); }, [mutation.isPending, resolutionMutation.isPending, onSavingChange]);
+
   function save() {
-    const payload: PlannedScope = {
+    if (!canManage || !data || staleHours || resolutionMutation.isPending) return;
+    const names = new Set<string>();
+    for (const group of scopeGroups) {
+      const name = group.name.trim();
+      if (names.has(name)) {
+        showToast('Há escopos com o mesmo nome ou mais de um sem nome. Renomeie-os ou mova os serviços para um único escopo.', 'error');
+        return;
+      }
+      names.add(name);
+    }
+    if (services.some(service => service.systems.some(row => row.systemType === 'SISTEMA' && (
+      !row.equipment.trim() || !row.systemName.trim() || !Number.isSafeInteger(toNum(row.quantity)) || (toNum(row.quantity) ?? 0) <= 0
+    )))) {
+      showToast('Sistemas por unidade exigem equipamento/UG, nome do sistema e quantidade inteira positiva.');
+      return;
+    }
+    const payload: PlannedScopeInput = {
+      hoursFingerprint: loadedFingerprint,
       services: services.map(s => ({
+        scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
         weight: toNum(s.weight) ?? 0,
         systems: s.systems.map(sys => ({
+          projectSystemId: sys.projectSystemId, equipment: sys.equipment.trim() || null, systemName: sys.systemName.trim() || null,
           systemType: sys.systemType,
           description: sys.description.trim() || null,
           diameter: sys.systemType === 'TUBULACAO' ? (sys.diameter.trim() || null) : null,
@@ -266,18 +353,24 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         }))
       })),
       normalHours: normalHours
-        .filter(o => o.jobRoleId || toNum(o.hours))
+        .filter(o => o.jobRoleId || toNum(o.hours) !== null)
         .map(o => ({
           jobRoleId: o.jobRoleId || null,
+          roleName: o.jobRoleId ? null : o.roleName,
           hours: toNum(o.hours) ?? 0
         })),
       overtime: overtime
-        .filter(o => o.jobRoleId || toNum(o.hours))
+        .filter(o => o.jobRoleId || toNum(o.hours) !== null)
         .map(o => ({
           jobRoleId: o.jobRoleId || null,
+          roleName: o.jobRoleId ? null : o.roleName,
           hours: toNum(o.hours) ?? 0
         }))
     };
+    if (commercialHours) {
+      delete payload.normalHours;
+      delete payload.overtime;
+    }
     mutation.mutate(payload);
   }
 
@@ -295,16 +388,63 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
 
   // Adiciona um serviço (não editado): os não editados dividem igualmente o que sobra dos fixos.
   // Sem nenhum fixo, dá a divisão igual clássica (1→100, 2→50/50, 3→34/33/33…).
-  function addService() {
+  function addService(scopeKey?: string) {
+    const group = scopeGroups.find(item => item.key === scopeKey) ?? scopeGroups.at(-1);
     setServices(prev => rebalanceUntouched(
-      [...prev, { key: nextKey(), serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
+      [...prev, { key: nextKey(), scopeKey: group?.key ?? nextKey(), scopeName: group?.name ?? '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
       touchedWeights.current
     ));
+  }
+
+  function addScope() {
+    const scopeKey = nextKey();
+    setServices(prev => rebalanceUntouched(
+      [...prev, { key: nextKey(), scopeKey, scopeName: '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] }],
+      touchedWeights.current
+    ));
+  }
+
+  function changeScopeName(scopeKey: string, name: string) {
+    setServices(prev => prev.map(service => service.scopeKey === scopeKey ? { ...service, scopeName: name } : service));
+  }
+
+  function moveService(key: string, scopeKey: string) {
+    const group = scopeGroups.find(item => item.key === scopeKey);
+    if (!group) return;
+    setServices(prev => prev.map(service => service.key === key ? { ...service, scopeKey, scopeName: group.name } : service));
+  }
+
+  function duplicateService(key: string) {
+    const source = services.find(s => s.key === key);
+    if (!source) return;
+    const copy: ServiceRow = {
+      ...source,
+      key: nextKey(),
+      systems: source.systems.map(sys => ({ ...sys, key: nextKey() }))
+    };
+    // A cópia mantém o peso preenchido, sem redistribuir os pesos dos serviços existentes.
+    // O aviso da soma continua orientando o ajuste manual para 100%.
+    touchedWeights.current.add(copy.key);
+    setServices(prev => prev.flatMap(s => s.key === key ? [s, copy] : [s]));
+  }
+
+  function toggleService(key: string) {
+    setCollapsedServices(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   // Remove um serviço e deixa os não editados reabsorverem o que sobra.
   function removeService(key: string) {
     touchedWeights.current.delete(key);
+    setCollapsedServices(prev => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setServices(prev => rebalanceUntouched(prev.filter(s => s.key !== key), touchedWeights.current));
   }
 
@@ -319,13 +459,13 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   function addSystem(serviceKey: string) {
     setServices(prev => prev.map(s => {
       if (s.key !== serviceKey) return s;
-      const used = new Set(s.systems.map(sys => sys.systemType));
-      const next = allowedSystems(s.serviceType).find(t => !used.has(t)) ?? allowedSystems(s.serviceType)[0];
+      // A primeira modalidade é a padrão; não alternar conforme as linhas já existentes.
+      const next = allowedSystems(s.serviceType)[0];
       return {
         ...s,
         systems: [
           ...s.systems,
-          { key: nextKey(), systemType: next, description: '', diameter: '', diameterUnit: 'pol', quantity: '' }
+          { key: nextKey(), projectSystemId: null, equipment: s.systems.at(-1)?.equipment || '', systemName: '', systemType: next, description: '', diameter: '', diameterUnit: 'pol', quantity: '' }
         ]
       };
     }));
@@ -341,6 +481,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 ? {
                     ...sys,
                     systemType,
+                    quantity: sys.systemType === systemType ? sys.quantity : '',
                     diameter: systemType === 'TUBULACAO' ? sys.diameter : '',
                     diameterUnit: systemType === 'TUBULACAO' && sys.diameterUnit === 'mm' ? 'mm' : 'pol'
                   }
@@ -366,6 +507,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   }
 
   if (isLoading) return <div className="placeholder-copy">Carregando escopo…</div>;
+  if (isError || !data) return <div role="alert" className="acp-alert warn">Não foi possível carregar o escopo. Reabra o cronograma para tentar novamente.</div>;
 
   const weightSum = services.reduce((sum, s) => sum + (toNum(s.weight) ?? 0), 0);
 
@@ -379,9 +521,37 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       {services.length === 0 ? (
         <div className="placeholder-copy">Nenhum serviço previsto.</div>
       ) : (
-        <div className="acp-svc-list">
-          {services.map(svc => (
+        <div className="acp-scope-groups">
+          {scopeGroups.map(group => <section className="acp-scope-group" key={group.key}>
+            <div className="field-group acp-scope-group-name">
+              <label htmlFor={`scope-name-${group.key}`}>Escopo <HelpTip icon help="Nome livre para organizar os serviços no cronograma, no avanço e no ritmo necessário. Não é usado nos relatórios nem altera o cálculo geral." /></label>
+              <input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
+              {!group.name.trim() ? <small>Sem escopo definido — os serviços existentes foram preservados.</small> : null}
+            </div>
+            <div className="acp-svc-list">
+          {group.services.map(svc => {
+            const collapsed = collapsedServices.has(svc.key);
+            const serviceLabel = SERVICE_TYPES.find(type => type.value === svc.serviceType)?.label ?? svc.serviceType;
+            return (
             <div className="acp-svc-card" key={svc.key}>
+              <button
+                type="button"
+                className="acp-svc-toggle"
+                aria-expanded={!collapsed}
+                aria-controls={`scope-service-${svc.key}`}
+                aria-label={`${collapsed ? 'Expandir' : 'Recolher'} serviço ${serviceLabel}`}
+                onClick={() => toggleService(svc.key)}
+              >
+                <svg className="acp-svc-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="m9 5 7 7-7 7" />
+                </svg>
+                <span className="acp-svc-summary">
+                  <strong>{serviceLabel}</strong>
+                  <span>Peso: {svc.weight || '0'}% · {svc.systems.length} {svc.systems.length === 1 ? 'sistema' : 'sistemas'}</span>
+                </span>
+                <span className="acp-svc-toggle-label" aria-hidden="true">{collapsed ? 'Expandir' : 'Recolher'}</span>
+              </button>
+              <div id={`scope-service-${svc.key}`} className="acp-svc-content" hidden={collapsed}>
               <div className="acp-svc-head">
                 <div className="field-group acp-svc-type-fg">
                   <label>Serviço <HelpTip icon help="Tipo de serviço vendido nesta obra (limpeza química, teste de pressão, flushing, filtragem)." /></label>
@@ -390,9 +560,10 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                   </select>
                 </div>
                 <div className="field-group acp-svc-weight-fg">
-                  <label>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). O ideal é somar 100%." /></label>
+                  <label htmlFor={`scope-weight-${svc.key}`}>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). Ao duplicar, o peso é copiado sem alterar os demais. O ideal é somar 100%." /></label>
                   <div className="acp-pct-field">
                     <input
+                      id={`scope-weight-${svc.key}`}
                       type="number" min="0" max="100" step="1" inputMode="numeric" placeholder="0"
                       value={svc.weight}
                       onChange={e => changeWeight(svc.key, e.target.value)}
@@ -400,11 +571,22 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                     <span className="acp-pct-suffix">%</span>
                   </div>
                 </div>
-                <button type="button" className="mini-btn alt" onClick={() => removeService(svc.key)}>
-                  Remover serviço
-                </button>
+                <div className="acp-svc-actions">
+                  <button type="button" className="mini-btn alt" onClick={() => duplicateService(svc.key)}>
+                    Duplicar serviço
+                  </button>
+                  <button type="button" className="mini-btn alt" onClick={() => removeService(svc.key)}>
+                    Remover serviço
+                  </button>
+                </div>
               </div>
 
+              {scopeGroups.length > 1 ? <div className="field-group acp-svc-move">
+                <label htmlFor={`scope-move-${svc.key}`}>Mover serviço para outro escopo</label>
+                <select id={`scope-move-${svc.key}`} value={svc.scopeKey} onChange={event => moveService(svc.key, event.target.value)}>
+                  {scopeGroups.map((item, index) => <option key={item.key} value={item.key}>{item.name.trim() || `Sem escopo definido (${index + 1})`}</option>)}
+                </select>
+              </div> : null}
               {svc.systems.length === 0 ? (
                 <div className="placeholder-copy" style={{ margin: '4px 0' }}>Nenhum sistema adicionado.</div>
               ) : (
@@ -415,9 +597,23 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       ? [sys.diameter, ...COMMON_INCH_DIAMETERS]
                       : COMMON_INCH_DIAMETERS;
                     return (
-                      <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`} key={sys.key}>
+                      <div key={sys.key}>
+                      <div className="acp-system-identity" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, padding: '8px 0' }}>
+                        {(['equipmentId', 'system'] as const).map(field => <div className="field-group" key={field}>
+                          <label>{field === 'equipmentId' ? 'Equipamento do cliente / UG' : 'Sistema do cliente'}</label>
+                          <ProjectSystemInput projectId={projectId} source="scope" field={field}
+                            data={{ equipmentId: sys.equipment, system: sys.systemName, __projectSystemId: sys.projectSystemId }}
+                            suggestions={services.flatMap(s => s.systems).filter(row => row.equipment && row.systemName).map(row => ({ id: row.projectSystemId || '', projectId, equipment: row.equipment, name: row.systemName, revision: 1 }))}
+                            onChange={patch => changeSystem(svc.key, sys.key, {
+                              ...(typeof patch.equipmentId === 'string' ? { equipment: patch.equipmentId } : {}),
+                              ...(typeof patch.system === 'string' ? { systemName: patch.system } : {}),
+                              projectSystemId: typeof patch.__projectSystemId === 'string' ? patch.__projectSystemId : null
+                            })} />
+                        </div>)}
+                      </div>
+                      <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`}>
                         <div className="field-group">
-                          <label>Sistema <HelpTip icon help="O que será medido neste serviço: tubulação (em metros) ou óleo (em litros)." /></label>
+                          <label>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros ou limpeza de sistemas completos em unidades." /></label>
                           <select
                             value={sys.systemType}
                             onChange={e => changeSystemType(svc.key, sys.key, e.target.value as PlannedSystemType)}
@@ -426,7 +622,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                           </select>
                         </div>
                         <div className="field-group acp-sys-desc">
-                          <label>Descrição do sistema</label>
+                          <label>Detalhes / trecho (opcional)</label>
                           <input
                             type="text"
                             maxLength={180}
@@ -436,10 +632,11 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                         </div>
                         {isTube ? (
                           <div className="field-group acp-sys-diameter">
-                            <label>Diâmetro <HelpTip icon help="Mesmo padrão do RDO: polegadas por seleção comum ou milímetros digitados." /></label>
+                            <label htmlFor={`scope-diameter-${sys.key}`}>Diâmetro <HelpTip icon help="Mesmo padrão do RDO: polegadas por seleção comum ou milímetros digitados." /></label>
                             <div className="num-unit acp-diameter-field">
                               {sys.diameterUnit === 'pol' ? (
                                 <select
+                                  id={`scope-diameter-${sys.key}`}
                                   value={sys.diameter}
                                   onChange={e => changeSystem(svc.key, sys.key, { diameter: e.target.value })}
                                   aria-label="Diâmetro em polegadas"
@@ -449,6 +646,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                                 </select>
                               ) : (
                                 <input
+                                  id={`scope-diameter-${sys.key}`}
                                   type="number"
                                   min="0"
                                   step="any"
@@ -471,12 +669,13 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                           </div>
                         ) : null}
                         <div className="field-group">
-                          <label>
-                            {isTube ? 'Comprimento (m)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
+                          <label htmlFor={`scope-quantity-${sys.key}`}>
+                            {isTube ? 'Comprimento (m)' : sys.systemType === 'SISTEMA' ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
                           </label>
                           <div className="num-unit">
                             <input
-                              type="number" min="0" step="any" inputMode="decimal" placeholder="0"
+                              id={`scope-quantity-${sys.key}`}
+                              type="number" min={sys.systemType === 'SISTEMA' ? '1' : '0'} step={sys.systemType === 'SISTEMA' ? '1' : 'any'} inputMode={sys.systemType === 'SISTEMA' ? 'numeric' : 'decimal'} placeholder="0"
                               value={sys.quantity}
                               onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
                             />
@@ -484,6 +683,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                           </div>
                         </div>
                         <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">✕</button>
+                      </div>
                       </div>
                     );
                   })}
@@ -493,17 +693,22 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               <button type="button" className="mini-btn alt acp-add-sys" onClick={() => addSystem(svc.key)}>
                 + Adicionar sistema
               </button>
+              </div>
             </div>
-          ))}
+            );
+          })}
+            </div>
+            <button type="button" className="mini-btn acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</button>
+          </section>)}
         </div>
       )}
       <button
         type="button"
         className="mini-btn"
         style={{ marginTop: 8 }}
-        onClick={addService}
+        onClick={addScope}
       >
-        + Adicionar serviço
+        + Adicionar escopo
       </button>
       {services.length > 0 ? (
         <div className={`acp-weight-sum ${Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>
@@ -512,11 +717,28 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         </div>
       ) : null}
 
+      <p className="placeholder-copy">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
       {beforeOvertime}
 
+      {staleHours ? <div role="alert" className="acp-alert warn">
+        As horas ou a proposta mudaram durante a edição. Atualize antes de salvar.
+        <button type="button" className="mini-btn alt" onClick={() => {
+          const next = fromScope(data);
+          dirtyRef.current = false;
+          setServices(next.services); setNormalHours(next.normalHours); setOvertime(next.overtime);
+          setCollapsedServices(new Set(next.services.map(service => service.key)));
+          touchedWeights.current = new Set(next.services.map(service => service.key));
+          setBaseline(normalize(next.services, next.normalHours, next.overtime));
+          setLoadedFingerprint(data.hoursPlan?.fingerprint);
+        }}>Descartar alterações do escopo e atualizar</button>
+      </div> : null}
+      <PlannedHoursReview plan={data.hoursPlan} canManage={canManage}
+        disabled={dirty || resolutionDisabled || mutation.isPending || resolutionMutation.isPending}
+        onResolve={choice => resolutionMutation.mutate(choice)} />
+      <fieldset disabled={!canManage || commercialHours || staleHours || resolutionMutation.isPending} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="sec" style={{ marginTop: 18 }}>Previsão de horas normais</div>
       <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
-        Informe o total de horas normais previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.
+        {commercialHours ? 'Total de horas normais da equipe, fornecido pelo comercial.' : 'Informe o total de horas normais previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
       </p>
 
       {normalHours.length === 0 ? (
@@ -533,8 +755,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 </select>
               </div>
               <div className="field-group">
-                <label>Horas previstas <HelpTip icon help="Total de horas normais previstas (vendidas). Não multiplica por colaborador." /></label>
+                <label htmlFor={`scope-normal-hours-${row.key}`}>Horas previstas <HelpTip icon help="Total de horas normais previstas (vendidas). Não multiplica por colaborador." /></label>
                 <input
+                  id={`scope-normal-hours-${row.key}`}
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
                   value={row.hours}
                   onChange={e => updateRow(setNormalHours, row.key, { hours: e.target.value })}
@@ -556,7 +779,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
 
       <div className="sec" style={{ marginTop: 18 }}>Previsão de hora extra</div>
       <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
-        Informe o total de horas extras previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.
+        {commercialHours ? 'Total comercial de horas extras e de fim de semana da equipe.' : 'Informe o total de horas extras previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
       </p>
 
       {overtime.length === 0 ? (
@@ -573,8 +796,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 </select>
               </div>
               <div className="field-group">
-                <label>Horas previstas <HelpTip icon help="Total de horas extras previstas (vendidas). Não multiplica por colaborador." /></label>
+                <label htmlFor={`scope-overtime-hours-${row.key}`}>Horas previstas <HelpTip icon help="Total de horas extras previstas (vendidas). Não multiplica por colaborador." /></label>
                 <input
+                  id={`scope-overtime-hours-${row.key}`}
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
                   value={row.hours}
                   onChange={e => updateRow(setOvertime, row.key, { hours: e.target.value })}
@@ -593,6 +817,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       >
         + Adicionar hora extra
       </button>
+      </fieldset>
     </div>
   );
 });

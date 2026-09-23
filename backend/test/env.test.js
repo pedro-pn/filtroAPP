@@ -11,7 +11,12 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.nodeEnv, 'development');
   assert.equal(env.port, 4000);
   assert.equal(env.databaseUrl, databaseUrl);
-  assert.equal(env.databaseConnectionLimit, 0);
+  assert.equal(env.databaseConnectionLimit, 10);
+  assert.equal(env.databaseConnectTimeoutMs, 5000);
+  assert.equal(env.databaseIdleTimeoutMs, 30000);
+  assert.equal(env.databaseStatementTimeoutMs, 30000);
+  assert.equal(env.databaseLockTimeoutMs, 5000);
+  assert.equal(env.databaseIdleTransactionTimeoutMs, 30000);
   assert.equal(env.smtpPort, 587);
   assert.equal(env.smtpSecure, false);
   assert.equal(env.smtpAuthMode, 'password');
@@ -29,11 +34,14 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.projectIntakeWebhookToken, '');
   assert.equal(env.pontomaisApiToken, '');
   assert.equal(env.assinaturasMaxPdfMb, 20);
+  assert.equal(env.projectDocumentMaxMb, 20);
   assert.equal(env.assinaturasMaxPages, 50);
   assert.equal(env.assinaturasMaxSigners, 20);
   assert.equal(env.assinaturasTokenMaxDays, 90);
   assert.equal(env.assinaturasDeletedRetentionDays, 90);
   assert.equal(env.assinaturasPreviewScale, 1.5);
+  assert.equal(env.assinaturasPreviewConcurrency, 1);
+  assert.equal(env.backgroundJobsInApi, true);
   assert.deepEqual(env.apiTokenHashKeys, { 1: '' });
   assert.equal(env.apiTokenActiveKeyVersion, 1);
   assert.equal(env.apiTokenGlobalMaxPageSize, 500);
@@ -109,7 +117,8 @@ test('loadEnv rejects invalid numeric and boolean values', () => {
     ['ASSINATURAS_MAX_SIGNERS', '0'],
     ['ASSINATURAS_TOKEN_MAX_DAYS', '0'],
     ['ASSINATURAS_DELETED_RETENTION_DAYS', '-1'],
-    ['ASSINATURAS_PREVIEW_SCALE', '0']
+    ['ASSINATURAS_PREVIEW_SCALE', '0'],
+    ['PROJECT_DOCUMENT_MAX_MB', '0']
   ]) {
     assert.throws(
       () => loadEnv({ DATABASE_URL: databaseUrl, [name]: value }),

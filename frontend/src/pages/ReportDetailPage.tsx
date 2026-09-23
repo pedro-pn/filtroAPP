@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { listDdsThemes } from '../api/ddsThemes';
-import { downloadReportDocx, downloadReportPdf } from '../api/reports';
+import { downloadReportDocx, downloadReportPdf, listReports } from '../api/reports';
 
 import { useAuth } from '../auth/AuthContext';
 import { accountPageStateFromPath, backPathFromState, hasBackPathInState } from '../auth/moduleNavigation';
@@ -10,9 +11,8 @@ import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
 import { ManualReportOperationalFields, type ManualReportOperationalFieldsValue } from '../components/reports/ManualReportOperationalFields';
 import { DdsCustomThemeReviewAlert } from '../components/reports/DdsCustomThemeReviewAlert';
+import { PhotoCaptureNovelty } from '../components/reports/PhotoCaptureNovelty';
 import { ReportDdsSummarySection } from '../components/reports/ReportDdsSummarySection';
-import { ReportDetailActions } from '../components/reports/ReportDetailActions';
-import { AppIcon } from '../components/icons/AppIcon';
 import {
   buildManualReportOperationalData,
   validateManualReportOperationalFields
@@ -20,52 +20,43 @@ import {
 import { ServiceCollaboratorsBlock, ServiceFields } from '../components/reports/ServiceFields';
 import { serviceTypeLabels } from '../components/reports/serviceTypes';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
+import { SignatureDialog } from '../components/reports/SignatureDialog';
+import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { useToast } from '../components/ui/ToastContext';
+import { useConfirmDialog } from '../components/ui/useConfirmDialog';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useReportDetailBootstrap } from '../hooks/useBootstrap';
 import { pageScrollRestoreStateFromNavigation } from '../hooks/usePageScrollRestoration';
 import { useReport, useReportAudit, useReportMutations } from '../hooks/useReports';
-import { AppShell } from '../layout/AppShell';
-import { createNavigationModel } from '../layout/navigationModel';
-import { PageHeader } from '../layout/PageHeader';
+import { Shell } from '../layout/Shell';
+import { TopBar } from '../layout/TopBar';
 import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  IconButton,
-  Input,
-  Select,
-  StatusPill,
-  Switch,
-  Textarea,
-  type StatusToneMap
-} from '../components/ui/ds';
-import { DS_ICONS } from '../components/ui/ds/icons';
 import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../components/ui/photoDeletionStaging';
+import type { AuthUser } from '../types/auth';
 import type { Collaborator, Equipment, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
+import { clientCanSignReport, clientSignerPrefillNameForReport } from '../utils/clientSignature';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
+import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
 import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
+import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
 import { reportEditorOperationalMode } from './reportEditorOperationalMode';
 import { REPORT_DETAIL_TEXT as TEXT } from './reportDetailText';
-import { hubModulesForUser } from './hubModules';
-import './collaborator/NewReportPage.css';
-import './ReportDetailPage.css';
+import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js';
 
 const serviceTypeModalOptions = [
-  { type: 'limpeza', icon: DS_ICONS.serviceChemical, name: 'Limpeza química' },
-  { type: 'pressao', icon: DS_ICONS.servicePressure, name: 'Teste de pressão' },
-  { type: 'filtragem', icon: DS_ICONS.serviceFilter, name: 'Filtragem' },
-  { type: 'flushing', icon: DS_ICONS.serviceFlushing, name: 'Flushing' },
-  { type: 'mecanica', icon: DS_ICONS.serviceMechanical, name: 'Limpeza mecânica' },
-  { type: 'inibicao', icon: DS_ICONS.serviceInhibition, name: 'Inibição' },
+  { type: 'limpeza', icon: '🧪', name: 'Limpeza química' },
+  { type: 'pressao', icon: '🔴', name: 'Teste de pressão' },
+  { type: 'filtragem', icon: '🔵', name: 'Filtragem' },
+  { type: 'flushing', icon: '💧', name: 'Flushing' },
+  { type: 'mecanica', icon: '⚙️', name: 'Limpeza mecânica' },
+  { type: 'inibicao', icon: '🛡️', name: 'Inibição' },
 ] as const;
 const serviceOnlySupportedTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica']);
 const derivedServiceReportTypes = new Set(['RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI']);
@@ -174,101 +165,6 @@ function manualServiceDataFromForm(report: ReportSummary, form: RdoFormState) {
   return { serviceData };
 }
 
-function getIdsFromField(value: unknown) {
-  if (Array.isArray(value)) return value.filter((id): id is string => typeof id === 'string');
-  if (typeof value === 'string' && value) return [value];
-  if (!value || typeof value !== 'object') return [];
-  const record = value as Record<string, unknown>;
-  return Array.isArray(record.ids) ? record.ids.filter((id): id is string => typeof id === 'string') : [];
-}
-
-function isEmptyLegacyValue(value: unknown) {
-  if (value === undefined || value === null) return true;
-  if (typeof value === 'string') return !value.trim();
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'object') return Object.keys(value).length === 0;
-  return false;
-}
-
-function getLegacyValue(extra: Record<string, unknown>, names: string[]) {
-  for (const name of names) {
-    if (Object.prototype.hasOwnProperty.call(extra, name) && !isEmptyLegacyValue(extra[name])) return extra[name];
-  }
-  return undefined;
-}
-
-function getLegacyString(extra: Record<string, unknown>, names: string[]) {
-  const value = getLegacyValue(extra, names);
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string') || '';
-  return '';
-}
-
-function getLegacyStrings(extra: Record<string, unknown>, names: string[]) {
-  const value = getLegacyValue(extra, names);
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
-  if (typeof value === 'string' && value.trim()) return [value.trim()];
-  return [];
-}
-
-function getLegacyChoice(extra: Record<string, unknown>, names: string[]) {
-  return getLegacyStrings(extra, names)[0] || getLegacyString(extra, names);
-}
-
-function normalizeYesNo(value: string, fallback = 'Não') {
-  const normalized = value.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  if (normalized === 'sim' || normalized === 'true') return 'Sim';
-  if (normalized === 'nao' || normalized === 'false') return 'Não';
-  return fallback;
-}
-
-function normalizeChoiceText(value: string) {
-  return value.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-}
-
-function parseValueWithUnit(value: unknown, units: string[], fallbackUnit: string) {
-  const text = typeof value === 'string' ? value.trim() : '';
-  if (!text) return { value: '', unit: fallbackUnit };
-  const escapedUnits = [...units]
-    .sort((a, b) => b.length - a.length)
-    .map(unit => unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  const match = text.match(new RegExp(`^(.+?)\\s*(${escapedUnits})$`, 'i'));
-  if (!match) return { value: text, unit: fallbackUnit };
-  const unit = units.find(item => item.toLowerCase() === match[2].toLowerCase()) || match[2];
-  return { value: match[1].trim(), unit };
-}
-
-function firstIdFromLegacy(value: unknown) {
-  return getIdsFromField(value)[0] || '';
-}
-
-function normalizeUnitField(extra: Record<string, unknown>, names: string[]) {
-  const value = getLegacyValue(extra, names);
-  const ids = getIdsFromField(value);
-  return ids.length ? ids : getLegacyStrings(extra, names);
-}
-
-function serviceCollaboratorField(extra: Record<string, unknown>) {
-  const names = ['Colaboradores do serviço', 'Colaboradores do serviÃ§o', 'Colaboradores do servico'];
-  for (const name of names) {
-    if (Object.prototype.hasOwnProperty.call(extra, name)) return extra[name];
-  }
-  return undefined;
-}
-
-function serviceFinalizedValue(service: NonNullable<ReportSummary['services']>[number]) {
-  if (typeof service.finalized === 'boolean') return service.finalized;
-  const extra = service.extraData || {};
-  const stored = extra['Serviço finalizado?'] || extra['Serviço finalizado'] || extra['Servico finalizado?'] || extra['Servico finalizado'];
-  if (typeof stored === 'string') {
-    const normalized = stored.trim().toLowerCase();
-    if (['sim', 'true', 'finalizado'].includes(normalized)) return true;
-    if (['não', 'nao', 'false', 'em andamento'].includes(normalized)) return false;
-  }
-  return undefined;
-}
-
 const derivedReportServiceTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica', 'inibicao']);
 
 function hasFinalizedServiceDemotion(report: ReportSummary, form: RdoFormState) {
@@ -306,8 +202,8 @@ function isDerivedServiceReport(report: ReportSummary) {
     && Boolean(report.specialConditions.parentRdoId);
 }
 
-function canEditDerivedServiceReport(report: ReportSummary, role?: string) {
-  return role === 'MANAGER'
+function canEditDerivedServiceReport(report: ReportSummary, user?: AuthUser | null) {
+  return canReviewRdoReports(user)
     && isDerivedServiceReport(report)
     && report.status !== 'SIGNED'
     && report.parentRdoStatus === 'SIGNED';
@@ -357,7 +253,6 @@ function asUploadedFiles(value: unknown): UploadedFile[] {
 
 function GeneralUploadThumb({ file }: { file: UploadedFile }) {
   const [href, setHref] = useState('');
-  const displayName = file.fileName || file.label || 'Abrir foto';
 
   useEffect(() => {
     let cancelled = false;
@@ -385,128 +280,14 @@ function GeneralUploadThumb({ file }: { file: UploadedFile }) {
   if (!href) return null;
 
   return (
-    <a
-      className="report-upload-link"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`Abrir ${displayName}`}
-      title={displayName}
-    >
-      <img src={href} alt="" className="upload-thumb" />
-      <span className="report-upload-name">{displayName}</span>
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      <img src={href} alt={file.fileName || 'foto'} className="upload-thumb" />
     </a>
   );
 }
 
-function serviceEquipmentValue(service: NonNullable<ReportSummary['services']>[number]) {
-  const extra = service.extraData || {};
-  const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['Embarcação'] || extra.Embarcacao || extra['ID da embarcação'] || extra['ID da embarcacao'];
-  if (Array.isArray(value)) return value.filter(Boolean).join(', ');
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    if (Array.isArray(record.labels)) return record.labels.filter(Boolean).join(', ');
-    return getString(record.name) || getString(record.nome) || getString(record.code) || getString(record.codigo) || getString(record.id);
-  }
-  return getString(value) || service.equipmentId || '';
-}
-
 function serviceId() {
   return `svc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function legacyServiceData(service: NonNullable<ReportSummary['services']>[number]) {
-  const extra = service.extraData || {};
-  const type = normalizeServiceType(service.serviceType || '');
-  const collaboratorField = serviceCollaboratorField(extra);
-  const pressureWork = parseValueWithUnit(getLegacyValue(extra, ['pressaoTrabalho', 'Pressão de trabalho', 'Pressao de trabalho']), ['bar', 'psi', 'kg/cm²', 'MPa', 'kPa'], 'bar');
-  const pressureTest = parseValueWithUnit(getLegacyValue(extra, ['pressaoTeste', 'Pressão de teste', 'Pressao de teste']), ['bar', 'psi', 'kg/cm²', 'MPa', 'kPa'], 'bar');
-  const volume = parseValueWithUnit(getLegacyValue(extra, ['volumeOleo', 'Volume de óleo', 'Volume de oleo']), ['L', 'mL'], 'L');
-  const fluidoTeste = getLegacyChoice(extra, ['fluidoTeste', 'Fluido de teste']);
-  const equipamentoTestado = getLegacyChoice(extra, ['equipamentoTestado', 'Equipamento testado']);
-  const tipoFlushing = getLegacyChoice(extra, ['tipoFlushing', 'Tipo de flushing']);
-  const houveParticulas = getLegacyChoice(extra, ['houveParticulas', 'Houve contagem de partículas?', 'Houve contagem de particulas?']);
-  const houveDesidratacao = getLegacyChoice(extra, ['houveDesidratacao', 'Houve desidratação?', 'Houve desidratacao?']);
-  const houveUmidade = getLegacyChoice(extra, ['houveUmidade', 'Houve análise de umidade?', 'Houve analise de umidade?']);
-
-  const data: Record<string, unknown> = {
-    ...extra,
-    ...(collaboratorField !== undefined ? { serviceCollaboratorIds: getIdsFromField(collaboratorField) } : {}),
-    equipmentId: serviceEquipmentValue(service),
-    system: service.system || getLegacyString(extra, ['system', 'Sistema']),
-    material: service.material || getLegacyString(extra, ['material', 'Material da tubulação', 'Material da tubulacao', 'Material do equipamento']),
-    startTime: service.startTime || getLegacyString(extra, ['startTime', 'Hora de início', 'Hora de inicio']),
-    endTime: service.endTime || getLegacyString(extra, ['endTime', 'Hora de término/pausa', 'Hora de termino/pausa']),
-    finalized: serviceFinalizedValue(service),
-    aprovadoCliente: getLegacyChoice(extra, ['aprovadoCliente', 'Aprovado pelo cliente?']) || 'Sim',
-    etapas: getLegacyStrings(extra, ['etapas', 'Etapas realizadas no dia']),
-    notes: getLegacyString(extra, ['notes', 'Observações', 'Observacoes']),
-    drawingsTags: getLegacyString(extra, ['drawingsTags', 'Desenhos / TAGs']),
-    tubes: Array.isArray(extra.tubes)
-      ? extra.tubes
-      : (Array.isArray(extra['Diâmetros e comprimentos']) ? extra['Diâmetros e comprimentos'] : [])
-  };
-
-  if (type === 'limpeza') {
-    data.metodos = getLegacyStrings(extra, ['metodos', 'Método de limpeza', 'Metodo de limpeza']);
-    data.ulq = normalizeUnitField(extra, ['ulq', 'Unidade de Limpeza Química', 'Unidade de Limpeza Quimica']);
-    data.local = getLegacyStrings(extra, ['local', 'Local de limpeza']);
-    data.limpezaTubulacao = normalizeYesNo(getLegacyChoice(extra, ['limpezaTubulacao', 'Limpeza de tubulação?', 'Limpeza de tubulacao?']), 'Sim');
-    data.tipoInspecao = getLegacyStrings(extra, ['tipoInspecao', 'Tipo de inspeção', 'Tipo de inspecao']);
-  }
-
-  if (type === 'pressao') {
-    const normalizedChoice = normalizeChoiceText(equipamentoTestado);
-    const normalizedTestedEquipment = normalizedChoice === 'mangueira' || normalizedChoice === 'mangueiras'
-      ? 'mangueira'
-      : normalizedChoice === 'outro'
-      ? 'outro'
-      : 'tubulacao';
-    data.equipamentoTestado = normalizedTestedEquipment;
-    data.equipamentoTestadoOutro = getLegacyString(extra, ['equipamentoTestadoOutro', 'Outro equipamento testado']);
-    if (normalizedTestedEquipment !== 'tubulacao') data.material = '';
-    data.uth = normalizeUnitField(extra, ['uth', 'Unidade de Teste Hidrostático (UTH)', 'Unidade de Teste Hidrostatico (UTH)']);
-    data.pressaoTrabalho = getLegacyString(extra, ['pressaoTrabalho']) || pressureWork.value;
-    data.pressaoTrabalhoUnit = getLegacyString(extra, ['pressaoTrabalhoUnit']) || pressureWork.unit;
-    data.pressaoTeste = getLegacyString(extra, ['pressaoTeste']) || pressureTest.value;
-    data.pressaoTesteUnit = getLegacyString(extra, ['pressaoTesteUnit']) || pressureTest.unit;
-    data.fluidoTeste = fluidoTeste.toLowerCase().includes('óleo') || fluidoTeste.toLowerCase().includes('oleo') ? 'oleo' : 'agua';
-    data.qualOleo = getLegacyString(extra, ['qualOleo', 'Qual óleo?', 'Qual oleo?']);
-    data.manometroIds = normalizeUnitField(extra, ['manometroIds', 'Manômetros utilizados', 'Manometros utilizados']);
-  }
-
-  if (type === 'flushing' || type === 'filtragem') {
-    data.tipoOleo = getLegacyString(extra, ['tipoOleo', 'Tipo de óleo', 'Tipo de oleo']);
-    data.volumeOleo = getLegacyString(extra, ['volumeOleo']) || volume.value;
-    data.volumeOleoUnit = getLegacyString(extra, ['volumeOleoUnit']) || volume.unit;
-    data.houveParticulas = normalizeYesNo(houveParticulas);
-    data.contadorUtilizado = getLegacyString(extra, ['contadorUtilizado', 'Contador utilizado']);
-    data.contagemInicialNas = getLegacyString(extra, ['contagemInicialNas', 'Contagem inicial NAS']);
-    data.contagemFinalNas = getLegacyString(extra, ['contagemFinalNas', 'Contagem final NAS']);
-    data.contagemInicialIso = getLegacyString(extra, ['contagemInicialIso', 'Contagem inicial ISO']);
-    data.contagemFinalIso = getLegacyString(extra, ['contagemFinalIso', 'Contagem final ISO']);
-    data.houveDesidratacao = normalizeYesNo(houveDesidratacao);
-    data.desidratacaoUnit = firstIdFromLegacy(getLegacyValue(extra, ['desidratacaoUnit', 'Equipamento de desidratação', 'Equipamento de desidratacao']));
-    data.houveUmidade = normalizeYesNo(houveUmidade);
-    data.umidadeInicial = getLegacyString(extra, ['umidadeInicial', 'Umidade inicial (ppm)']);
-    data.umidadeFinal = getLegacyString(extra, ['umidadeFinal', 'Umidade final (ppm)']);
-    if (type === 'flushing') {
-      data.flushingTubulacao = normalizeYesNo(getLegacyChoice(extra, ['flushingTubulacao', 'Flushing em tubulação?', 'Flushing em tubulacao?']), 'Sim');
-      data.tipoFlushing = tipoFlushing.toLowerCase().includes('secund') ? 'secundario' : 'primario';
-      data.uf = normalizeUnitField(extra, ['uf', 'Unidade de Flushing', 'Unidade de filtragem']);
-    } else {
-      data.ufg = normalizeUnitField(extra, ['ufg', 'Unidade de filtragem']);
-    }
-  }
-
-  if (type === 'inibicao') {
-    data.equipmentId = getLegacyString(extra, ['equipmentId', 'Embarcação', 'Embarcacao', 'embarcacaoId', 'ID da embarcação', 'ID da embarcacao']);
-    data.linhas = getLegacyString(extra, ['linhas', 'Linhas']);
-    data.steps = getLegacyString(extra, ['steps', 'Steps']);
-    data.tipoRelatorio = getLegacyStrings(extra, ['tipoRelatorio', 'Tipo de relatório', 'Tipo de relatorio']);
-  }
-
-  return data;
 }
 
 function asDdsThemeSnapshots(value: unknown): { id: string; name: string; custom?: boolean }[] {
@@ -686,7 +467,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const bootstrapQuery = useReportDetailBootstrap(report.id);
   const reportMutations = useReportMutations();
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
+  const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
@@ -700,12 +483,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const manualReport = isManualUploadedReport(report);
   const manualServiceReport = manualReport && report.reportType !== 'RDO';
   const operationalMode = reportEditorOperationalMode({ manualReport, serviceOnly, derivedServiceReport });
-  const isManager = user?.role === 'MANAGER';
-  const canEditSequence = isManager && !readOnly && !manualReport;
+  const canReview = canReviewRdoReports(user);
+  const canEditSequence = canReview && !readOnly && !manualReport;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
 
   useEffect(() => {
     setForm(reportToForm(report));
+    setInvalidFinalizationServiceId(null);
     // Descarta exclusões de fotos encenadas e não salvas ao (re)carregar o relatório.
     clearStagedUploadDeletions();
     if (currentReportIdRef.current !== report.id) {
@@ -762,7 +546,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const rdoSlotMap = bootstrapQuery.data?.rdoSlotMap;
   const inhibitionOptions = bootstrapQuery.data?.inhibitionOptions;
   const overtimeApproval = overtimeMinutesFromReport(report);
-  const showOvertimeApproval = isManager && canApproveInEditor && !serviceReportMode && overtimeApproval.total > 0;
+  const showOvertimeApproval = canReview && canApproveInEditor && !serviceReportMode && overtimeApproval.total > 0;
   const showDdsFields = report.reportType === 'RDO' && !manualReport && !serviceReportMode;
   const ddsThemesQuery = useQuery({ queryKey: ['dds-themes'], queryFn: () => listDdsThemes(), enabled: showDdsFields, staleTime: 60_000 });
 
@@ -843,12 +627,44 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }
 
-  function addService(type = 'limpeza') {
+  // Histórico do projeto para sugerir a continuação de serviços não finalizados também durante a
+  // revisão/edição — o mesmo comportamento da criação do RDO (compartilha o cache da query).
+  const continuityProjectId = form.projectId || report.projectId;
+  const showServiceContinuity = !readOnly && !serviceReportMode && !manualReport && report.reportType === 'RDO';
+  const projectHistoryQuery = useQuery({
+    queryKey: ['reports', 'last-project', continuityProjectId],
+    queryFn: () => listReports({ projectId: continuityProjectId, summary: true }),
+    enabled: showServiceContinuity && !!continuityProjectId,
+    staleTime: 30_000
+  });
+
+  const pendingProjectServices = useMemo(() => {
+    if (!showServiceContinuity || !continuityProjectId) return [];
+    const cutoffDate = form.reportDate || report.reportDate;
+    const cutoff = cutoffDate ? new Date(`${String(cutoffDate).slice(0, 10)}T23:59:59`) : new Date();
+    const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
+    // Só os RDOs anteriores do projeto: o relatório em revisão entra pelos serviços do formulário.
+    const previousReports = (projectHistoryQuery.data || []).filter(item => (
+      item.id !== report.id
+      && item.reportType === 'RDO'
+      && item.projectId === continuityProjectId
+      && !item.deletedAt
+      && new Date(item.reportDate || item.createdAt || 0).getTime() <= cutoffTime
+    ));
+    return collectPendingProjectServices(previousReports);
+  }, [continuityProjectId, form.reportDate, projectHistoryQuery.data, report.id, report.reportDate, showServiceContinuity]);
+
+  const visiblePendingProjectServices = useMemo(() => {
+    const activeKeys = new Set(form.services.flatMap(service => formServiceOngoingKeys(service.data || {})));
+    return pendingProjectServices.filter(item => !activeKeys.has(item.key));
+  }, [form.services, pendingProjectServices]);
+
+  function addService(type = 'limpeza', data: Record<string, unknown> = {}) {
     if (manualReport) return;
     const id = serviceId();
     setForm(current => ({
       ...current,
-      services: [...current.services, { id, type, data: {} }]
+      services: [...current.services, { id, type, data }]
     }));
     setShowServiceModal(false);
     window.setTimeout(() => {
@@ -856,7 +672,39 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }, 80);
   }
 
+  function continueService(service: NonNullable<ReportSummary['services']>[number], ongoingKey: string) {
+    addService(normalizeServiceType(service.serviceType || ''), buildContinuedServiceData(service, ongoingKey, legacyServiceData(service)));
+  }
+
+  // Excluir remove o serviço do RDO de origem, então o pendente some para todos os usuários do
+  // projeto. Restrito ao gestor, e o backend recusa RDO assinado ou com assinatura em andamento.
+  const canDeleteOngoingService = user?.role === 'MANAGER';
+
+  async function handleDeletePendingService(sourceReport: ReportSummary, service: NonNullable<ReportSummary['services']>[number]) {
+    if (!canDeleteOngoingService) return;
+    const confirmed = await confirm({
+      title: 'Excluir serviço em andamento?',
+      description: 'O serviço é removido do RDO de origem e deixa de aparecer como pendente para todos os usuários do projeto.',
+      highlight: `${serviceTypeLabels[normalizeServiceType(service.serviceType || '')] || service.serviceType} · RDO ${sourceReport.sequenceNumber || '---'}`,
+      confirmLabel: 'Excluir serviço'
+    });
+    if (!confirmed) return;
+    try {
+      await reportMutations.deleteService.mutateAsync({ reportId: sourceReport.id, serviceId: service.id });
+      showToast('Serviço excluído.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível excluir o serviço.', 'error');
+    }
+  }
+
+  function continueAllPendingServices() {
+    visiblePendingProjectServices.forEach(({ service, key }) => continueService(service, key));
+  }
+
   function updateService(id: string, data: Partial<RdoServiceForm>) {
+    if (id === invalidFinalizationServiceId && typeof data.data?.finalized === 'boolean') {
+      setInvalidFinalizationServiceId(null);
+    }
     setForm(current => ({
       ...current,
       services: current.services.map(service => (
@@ -868,6 +716,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function removeService(id: string) {
+    if (id === invalidFinalizationServiceId) setInvalidFinalizationServiceId(null);
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
@@ -906,6 +755,22 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       showToast(`Informe a ${label} do serviço ${missingServiceTime.serviceIndex + 1}.`, 'error');
       return false;
     }
+    if (!serviceReportMode) {
+      const missingFinalizationIndex = form.services.findIndex(service => typeof service.data.finalized !== 'boolean');
+      if (missingFinalizationIndex >= 0) {
+        const serviceId = form.services[missingFinalizationIndex].id;
+        setInvalidFinalizationServiceId(serviceId);
+        showToast(`Selecione se o serviço ${missingFinalizationIndex + 1} foi finalizado.`, 'error');
+        window.setTimeout(() => {
+          const input = Array.from(document.querySelectorAll<HTMLInputElement>('[data-invalid-target]'))
+            .find(element => element.dataset.invalidTarget === `${serviceId}:finalized`);
+          (input?.closest('.service-finalized-field') || input)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          input?.focus({ preventScroll: true });
+        }, 120);
+        return false;
+      }
+    }
+    setInvalidFinalizationServiceId(null);
     if (!validateSequence()) return false;
     if (showDdsFields) {
       if (form.ddsDay && (!form.ddsDayStart.trim() || !form.ddsDayEnd.trim())) {
@@ -985,7 +850,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     const saved = await handleSave({ navigateAfter: false, showSuccess: false });
     if (!saved) return;
     const updated = await handleStatus(status, reviewNotes);
-    if (updated && status === 'APPROVED' && user?.role === 'MANAGER') {
+    if (updated && status === 'APPROVED' && canReview) {
       navigate(reportBackPath, { replace: true, state: reportBackState });
     }
   }
@@ -1002,14 +867,15 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   return (
-    <div className="rdo-form-stage rdo-edit-form">
-      {readOnly ? <Alert tone="warning">{TEXT.signedLocked}</Alert> : null}
+    <>
+      {readOnly ? <div className="page-card inline-success">{TEXT.signedLocked}</div> : null}
 
-      <Card className="rdo-form-card rdo-form-card--identification" title={TEXT.generalInfo}>
-        <div className="rdo-field-grid rdo-field-grid--identification rdo-edit-general-grid">
+      <section className="page-card">
+        <div className="section-title">{TEXT.generalInfo}</div>
+        <div className="admin-inline-grid manager-header-grid">
           <div className="field-group">
             <label htmlFor="rdo-project">{TEXT.project}</label>
-            <Select
+            <select
               id="rdo-project"
               value={form.projectId || ''}
               disabled={readOnly || derivedServiceReport || manualReport}
@@ -1022,12 +888,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                   {project.code} - {project.name}
                 </option>
               ))}
-            </Select>
-            <span className="placeholder-copy rdo-edit-field-hint">{projectLeaderHint}</span>
+            </select>
+            <span className="placeholder-copy" style={{ marginTop: 4 }}>{projectLeaderHint}</span>
           </div>
           <div className="field-group">
             <label htmlFor="rdo-sequence">Número do relatório</label>
-            <Input
+            <input
               id="rdo-sequence"
               type="number"
               min={1}
@@ -1037,9 +903,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               onChange={event => setField('sequenceNumber', event.target.value)}
               required
             />
-            {isManager ? (
+            {canReview ? (
               <span
                 className={sequenceConflict ? 'inline-error' : 'placeholder-copy'}
+                style={{ marginTop: 4 }}
               >
                 {sequenceHint}
               </span>
@@ -1047,7 +914,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           </div>
           <div className="field-group">
             <label htmlFor="rdo-date">Data do relatório</label>
-            <Input
+            <input
               id="rdo-date"
               type="date"
               value={form.reportDate}
@@ -1060,7 +927,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             <>
               <div className="field-group">
                 <label htmlFor="manual-service-equipment">Equipamento</label>
-                <Input
+                <input
                   id="manual-service-equipment"
                   value={form.serviceEquipment}
                   disabled
@@ -1070,7 +937,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               </div>
               <div className="field-group">
                 <label htmlFor="manual-service-system">Sistema</label>
-                <Input
+                <input
                   id="manual-service-system"
                   value={form.serviceSystem}
                   disabled
@@ -1081,13 +948,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             </>
           ) : null}
         </div>
-      </Card>
+      </section>
 
       {operationalMode !== 'hidden' ? (
-        <Card
-          className="rdo-form-card rdo-edit-operational-card"
-          title={operationalMode === 'team-only' ? 'Equipe' : 'Horários e equipe'}
-        >
+        <section className="page-card">
+          <div className="section-title">{operationalMode === 'team-only' ? 'Equipe' : 'Horários e equipe'}</div>
           <ManualReportOperationalFields
             value={manualOperationalFormValue}
             collaborators={collaborators}
@@ -1113,101 +978,130 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             }
             onChange={updateManualOperationalFields}
           />
-        </Card>
+        </section>
       ) : null}
 
-      <Card className="rdo-form-card report-services-step" title={TEXT.services}>
+      {showServiceContinuity && visiblePendingProjectServices.length > 0 ? (
+        <section className="page-card continuity-card">
+          <div className="section-title">Serviços em andamento</div>
+          <p className="placeholder-copy">
+            Serviços não finalizados em RDOs anteriores deste projeto que ainda não foram continuados neste relatório.
+          </p>
+          <div className="admin-list" style={{ marginTop: 10 }}>
+            {visiblePendingProjectServices.map(({ key, report: sourceReport, service }) => {
+              const type = normalizeServiceType(service.serviceType || '');
+              const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
+              const system = service.system || getString((service.extraData || {}).Sistema);
+              return (
+                <article className="ongoing-item-react" key={`${sourceReport.id}-${service.id}`}>
+                  <div className="admin-item-row">
+                    <div className="admin-item-main">
+                      <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
+                      <div className="admin-item-sub">
+                        {equipment}
+                        {system ? ` · ${system}` : ''} · RDO {sourceReport.sequenceNumber || '---'}
+                      </div>
+                    </div>
+                    <div className="admin-card-actions">
+                      <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
+                        Continuar
+                      </button>
+                      {canDeleteOngoingService ? (
+                        <button
+                          className="mini-btn danger"
+                          type="button"
+                          disabled={reportMutations.deleteService.isPending}
+                          onClick={() => void handleDeletePendingService(sourceReport, service)}
+                        >
+                          Excluir
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {visiblePendingProjectServices.length > 1 ? (
+            <div className="admin-form-actions" style={{ marginTop: 10 }}>
+              <button className="secondary-button" type="button" onClick={continueAllPendingServices}>
+                Continuar todos
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="page-card report-services-step">
+        <div className="section-title">{TEXT.services}</div>
         {form.services.length ? (
-          <div className="admin-stack">
+          <div className="admin-stack" style={{ marginTop: 12 }}>
             {form.services.map((service, index) => (
-              <Card
-                className="rdo-service-card"
-                key={service.id}
-                data-service-id={service.id}
-                title={
+              <article className="admin-card-react" key={service.id} data-service-id={service.id}>
+                <div className="svc-card-header">
                   <div className="svc-card-title">
                     <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
-                    <Badge tone="brand">{TEXT.service} {index + 1}</Badge>
+                    <span className="svc-card-badge">{TEXT.service} {index + 1}</span>
                   </div>
-                }
-                actions={!readOnly && !serviceReportMode && !manualReport ? (
-                  <IconButton
-                    icon={DS_ICONS.trash}
-                    label={`Remover serviço ${index + 1}`}
-                    variant="danger"
-                    size="sm"
-                    onClick={() => removeService(service.id)}
-                  />
-                ) : undefined}
-              >
+                  {!readOnly && !serviceReportMode && !manualReport ? (
+                    <div className="admin-card-actions">
+                      <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
+                        Remover
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="admin-form-grid">
                   {normalizeServiceType(service.type) !== 'inibicao' ? (
-                    <>
-                      <section className="rdo-service-section" aria-label="Equipamento e sistema">
-                        <h4 className="rdo-service-section__title">Equipamento e sistema</h4>
-                        <div className="rdo-service-section__grid">
-                          <div className="field-group">
-                            <label htmlFor={`service-equipment-${service.id}`}>Equipamento(s)</label>
-                            <Input
-                              id={`service-equipment-${service.id}`}
-                              value={getString(service.data.equipmentId)}
-                              disabled={readOnly || manualReport}
-                              placeholder="Informar equipamento do cliente..."
-                              onChange={event => updateService(service.id, { data: { equipmentId: event.target.value } })}
-                            />
-                          </div>
-                          <div className="field-group">
-                            <label htmlFor={`service-system-${service.id}`}>Sistema</label>
-                            <Input
-                              id={`service-system-${service.id}`}
-                              value={getString(service.data.system)}
-                              disabled={readOnly || manualReport}
-                              onChange={event => updateService(service.id, { data: { system: event.target.value } })}
-                            />
-                          </div>
-                        </div>
-                      </section>
-                      {!manualReport ? (
-                        <section className="rdo-service-section" aria-label="Equipe do serviço">
-                          <h4 className="rdo-service-section__title">Equipe do serviço</h4>
-                          <div className="rdo-service-section__grid">
-                            <ServiceCollaboratorsBlock
-                              data={service.data}
-                              onChange={update => updateService(service.id, { data: update })}
-                              disabled={readOnly}
-                              collaboratorOptions={serviceCollaboratorOptions}
-                            />
-                          </div>
-                        </section>
-                      ) : null}
-                      <section className="rdo-service-section" aria-label="Horários do serviço">
-                        <h4 className="rdo-service-section__title">Horários do serviço</h4>
-                        <div className="rdo-service-section__grid">
-                          <div className="fg-r2 service-time-grid">
-                            <div className="field-group">
-                              <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
-                              <Input
-                                type="time"
-                                required
-                                value={getString(service.data.startTime)}
-                                disabled={readOnly || manualReport}
-                                onChange={event => updateService(service.id, { data: { startTime: event.target.value } })}
-                              />
-                            </div>
-                            <div className="field-group">
-                              <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
-                              <Input
-                                type="time"
-                                required
-                                value={getString(service.data.endTime)}
-                                disabled={readOnly || manualReport}
-                                onChange={event => updateService(service.id, { data: { endTime: event.target.value } })}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </section>
-                    </>
+                  <div className="field-group">
+                    <label htmlFor={`service-equipment-${service.id}`}>Equipamento(s)</label>
+                    <ProjectSystemInput projectId={form.projectId} data={service.data} serviceType={service.type} field="equipmentId"
+                      id={`service-equipment-${service.id}`}
+                      disabled={readOnly || manualReport}
+                      onChange={patch => updateService(service.id, { data: patch })}
+                    />
+                  </div>
+                  ) : null}
+                  {normalizeServiceType(service.type) !== 'inibicao' ? (
+                    <div className="field-group">
+                      <label>Sistema</label>
+                      <ProjectSystemInput projectId={form.projectId} data={service.data} serviceType={service.type} field="system"
+                        disabled={readOnly || manualReport}
+                        onChange={patch => updateService(service.id, { data: patch })}
+                      />
+                    </div>
+                  ) : null}
+                  {!manualReport && normalizeServiceType(service.type) !== 'inibicao' ? (
+                    <ServiceCollaboratorsBlock
+                      data={service.data}
+                      onChange={update => updateService(service.id, { data: update })}
+                      disabled={readOnly}
+                      collaboratorOptions={serviceCollaboratorOptions}
+                    />
+                  ) : null}
+                  {normalizeServiceType(service.type) !== 'inibicao' ? (
+                  <div className="fg-r2 service-time-grid">
+                    <div className="field-group">
+                      <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
+                      <input
+                        type="time"
+                        required
+                        value={getString(service.data.startTime)}
+                        disabled={readOnly || manualReport}
+                        onChange={event => updateService(service.id, { data: { startTime: event.target.value } })}
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
+                      <input
+                        type="time"
+                        required
+                        value={getString(service.data.endTime)}
+                        disabled={readOnly || manualReport}
+                        onChange={event => updateService(service.id, { data: { endTime: event.target.value } })}
+                      />
+                    </div>
+                  </div>
                   ) : null}
                   <ServiceFields
                     serviceType={service.type}
@@ -1223,81 +1117,82 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
+                    invalidKey={invalidFinalizationServiceId === service.id ? 'finalized' : null}
                     hideFinalization={serviceReportMode}
                     hideUploads={manualReport}
                     hideNotes={manualReport}
-                    appearance="design-system"
                   />
                 </div>
-              </Card>
+              </article>
             ))}
           </div>
         ) : (
           <p className="placeholder-copy">{TEXT.noService}</p>
         )}
         {!readOnly && !serviceReportMode && !manualReport ? (
-          <div className="admin-form-actions rdo-add-service-action">
-            <Button
-              variant="secondary"
+          <div className="admin-form-actions" style={{ marginTop: 12 }}>
+            <button
+              className="secondary-button"
               type="button"
-              fullWidth
-              iconLeft={<AppIcon icon={DS_ICONS.plus} size="sm" />}
+              style={{ width: '100%', borderStyle: 'dashed', color: 'var(--g)', fontWeight: 700 }}
               onClick={() => setShowServiceModal(true)}
             >
-              {TEXT.addService}
-            </Button>
+              ＋ {TEXT.addService}
+            </button>
           </div>
         ) : null}
-      </Card>
+      </section>
 
       {!serviceReportMode && !manualReport ? (
-      <div className="rdo-form-grid rdo-form-grid--finalization rdo-edit-finalization">
-        <Card className="rdo-form-card rdo-form-card--overtime" title="Horas extras">
+      <section className="page-card">
+        <div className="section-title">{TEXT.finalization}</div>
+        <div className="admin-form-grid">
           {showOvertimeApproval ? (
             <div className="overtime-review-inline">
               <div className="overtime-review-main">
-                <Alert tone="warning" title={`Hora extra identificada: ${formatMinutes(overtimeApproval.total)}`} />
-                <Switch
-                  label={acceptOvertime ? 'Aceitar hora extra' : 'Não aceitar hora extra'}
-                  checked={acceptOvertime}
-                  disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
-                  onChange={event => setAcceptOvertime(event.target.checked)}
-                />
+                <div className="overtime-review-summary">
+                  <span className="detail-label">Hora extra identificada</span>
+                  <span className="detail-value">{formatMinutes(overtimeApproval.total)}</span>
+                </div>
+                <div className="tog-row overtime-review-toggle">
+                  <span className="tog-lbl">{acceptOvertime ? 'Aceitar hora extra' : 'Não aceitar hora extra'}</span>
+                  <label className="tog">
+                    <input
+                      type="checkbox"
+                      checked={acceptOvertime}
+                      disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+                      onChange={event => setAcceptOvertime(event.target.checked)}
+                    />
+                    <span className="tog-sl" />
+                  </label>
+                </div>
               </div>
               {!acceptOvertime ? (
-                <Alert tone="danger" className="overtime-review-warning">
+                <div className="inline-error overtime-review-warning">
                   A hora extra e a justificativa não serão exibidas no relatório aprovado.
-                </Alert>
+                </div>
               ) : null}
             </div>
           ) : null}
           <div className="field-group">
             <label htmlFor="rdo-overtime">Motivo da hora extra</label>
-            <Textarea
+            <input
               id="rdo-overtime"
-              rows={3}
               value={form.overtimeReason}
               disabled={readOnly || (showOvertimeApproval && !acceptOvertime)}
               onChange={event => setField('overtimeReason', event.target.value)}
             />
           </div>
-        </Card>
-
-        <Card className="rdo-form-card rdo-form-card--activities" title="Atividades do dia">
           <div className="field-group">
             <label htmlFor="rdo-description">{TEXT.description}</label>
-            <Textarea
+            <textarea
               id="rdo-description"
-              className="rdo-activities-textarea"
               rows={5}
               value={form.dailyDescription}
               disabled={readOnly}
               onChange={event => setField('dailyDescription', event.target.value)}
             />
           </div>
-        </Card>
-
-        <Card className="rdo-form-card rdo-form-card--photos" title="Fotos de registro">
           <div className="upload-final-note">
             Não é necessário adicionar novamente as fotos já adicionadas nos serviços na página anterior.
           </div>
@@ -1306,10 +1201,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             value={form.generalUploads}
             projectId={form.projectId}
             disabled={readOnly}
-            appearance="design-system"
             onChange={files => setField('generalUploads', files)}
           />
-        </Card>
+        </div>
         <ReasonDialog
           open={returnDialogOpen}
           title={TEXT.reject}
@@ -1318,94 +1212,100 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           confirmLabel={TEXT.reject}
           requiredMessage={TEXT.rejectRequired}
           isSubmitting={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
-          appearance="design-system"
           onCancel={() => setReturnDialogOpen(false)}
           onConfirm={reason => void handleSaveAndStatus('RETURNED', reason)}
         />
-      </div>
+      </section>
       ) : null}
 
       {!readOnly ? (
-        <section className="rdo-edit-actions" aria-label="Ações do formulário de edição">
-          <Button
-            variant="primary"
+        <div className="detail-action-bar detail-manager-action-bar">
+          <button
+            className="primary-button"
             type="button"
-            loading={reportMutations.updateReport.isPending || reportMutations.updateManualReportData.isPending}
-            loadingLabel="Salvando relatório"
+            disabled={reportMutations.updateReport.isPending || reportMutations.updateManualReportData.isPending}
             onClick={() => void handleSave()}
           >
-            {TEXT.save}
-          </Button>
-          <Button variant="secondary" type="button" onClick={() => void handleDownload('pdf')}>
+            {reportMutations.updateManualReportData.isPending ? 'Salvando...' : TEXT.save}
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void handleDownload('pdf')}>
             PDF
-          </Button>
-          {isManager && !manualReport ? (
-            <Button variant="secondary" type="button" onClick={() => void handleDownload('docx')}>
+          </button>
+          {canReview && !manualReport ? (
+            <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
               DOCX
-            </Button>
+            </button>
           ) : null}
-          {isManager && canApproveInEditor ? (
-            <Button
-              variant="primary"
+          {canReview && canApproveInEditor ? (
+            <button
+              className="primary-button"
               type="button"
               disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
               onClick={() => void handleSaveAndStatus('APPROVED')}
             >
               {hasActiveClientRejection(report) ? 'Salvar e Reenviar' : 'Salvar e Aprovar'}
-            </Button>
+            </button>
           ) : null}
-          {isManager && !serviceReportMode && !manualReport ? (
-            <Button
-              variant="danger"
+          {canReview && !serviceReportMode && !manualReport ? (
+            <button
+              className="danger-button"
               type="button"
               disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
               onClick={() => setReturnDialogOpen(true)}
             >
               Salvar e Devolver
-            </Button>
+            </button>
           ) : null}
-        </section>
+        </div>
       ) : null}
+
+      {confirmDialog}
 
       <Modal
         open={derivedDeletionPromptOpen}
         onClose={() => resolveDerivedDeletionPrompt(null)}
-        appearance="design-system"
-        title="Excluir relatório de serviço?"
-        size="sm"
-        fullscreenOnMobile={false}
+        ariaLabelledBy="derived-deletion-title"
         ariaDescribedBy="derived-deletion-description"
         closeOnBackdrop={false}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => resolveDerivedDeletionPrompt(null)}>
-              Cancelar
-            </Button>
-            <Button variant="secondary" onClick={() => resolveDerivedDeletionPrompt(false)}>
-              Manter
-            </Button>
-            <Button variant="danger" onClick={() => resolveDerivedDeletionPrompt(true)}>
-              Excluir vinculados
-            </Button>
-          </>
-        }
       >
+        <h2 id="derived-deletion-title">Excluir relatório de serviço?</h2>
         <p className="placeholder-copy" id="derived-deletion-description">
           Um ou mais serviços finalizados foram alterados para não finalizados. Deseja excluir os relatórios de serviço vinculados?
         </p>
+        <div className="admin-form-actions segment-dialog-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => resolveDerivedDeletionPrompt(null)}
+          >
+            Cancelar
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => resolveDerivedDeletionPrompt(false)}
+          >
+            Manter
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => resolveDerivedDeletionPrompt(true)}
+          >
+            Excluir vinculados
+          </button>
+        </div>
       </Modal>
 
       <Modal
         open={showServiceModal && !manualReport}
         onClose={() => setShowServiceModal(false)}
-        appearance="design-system"
-        title="Tipo de serviço"
-        size="md"
-        fullscreenOnMobile={false}
-        closeOnBackdrop
-        backdropClassName="rdo-service-picker-backdrop"
-        panelClassName="rdo-service-picker"
+        backdropClassName="stype-modal-ov"
+        panelClassName="stype-modal-sh"
+        ariaLabelledBy="detail-service-type-title"
       >
+            <div className="stype-modal-handle" />
+            <div className="stype-modal-title" id="detail-service-type-title">Tipo de serviço</div>
             <div className="stype-grid">
               {serviceOptions.map(({ type, icon, name }) => (
                 <button
@@ -1414,13 +1314,238 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                   type="button"
                   onClick={() => addService(type)}
                 >
-                  <div className="stype-icon"><AppIcon icon={icon} /></div>
+                  <div className="stype-icon">{icon}</div>
                   <div className="stype-name">{name}</div>
                 </button>
               ))}
             </div>
       </Modal>
-    </div>
+      <PhotoCaptureNovelty user={user} placement="rdo-edit" enabled={!readOnly} />
+    </>
+  );
+}
+
+function ReportDetailActions({ report, role }: { report: ReportSummary; role?: string }) {
+  const { user } = useAuth();
+  const reportMutations = useReportMutations();
+  const showToast = useToast();
+  const [clientRejectOpen, setClientRejectOpen] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [sequenceEditOpen, setSequenceEditOpen] = useState(false);
+  const [sequenceEditValue, setSequenceEditValue] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [clientComment, setClientComment] = useState('');
+  const manualReport = isManualUploadedReport(report);
+  const canDownloadDocx = canReviewRdoReports(user) && !manualReport;
+  const canClientSign = role === 'CLIENT' && clientCanSignReport(report, user, hasActiveClientRejection(report));
+  const canEditSequence = canReviewRdoReports(user) && report.status !== 'SIGNED';
+
+  async function handleDownload(format: 'pdf' | 'docx') {
+    showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
+    try {
+      const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
+      downloadBlob(blob, reportDownloadFileName(report, format));
+      showToast(format === 'pdf' ? 'PDF gerado com sucesso.' : 'DOCX baixado com sucesso.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : TEXT.downloadError, 'error');
+    }
+  }
+
+  const initialSignerName = useMemo(() => {
+    return clientSignerPrefillNameForReport(report, user);
+  }, [report, user]);
+
+  async function handleRequestSignature({
+    signerName,
+    signatureImageDataUrl
+  }: {
+    signerName: string;
+    signatureImageDataUrl: string;
+  }) {
+    try {
+      const response = await reportMutations.requestSignature.mutateAsync({
+        id: report.id,
+        comment: clientComment.trim() || null,
+        signerName,
+        signatureImageDataUrl,
+        privacyNoticeAccepted: true,
+        privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+      });
+      setSignatureOpen(false);
+      setPrivacyAccepted(false);
+      showToast(response.completed ? 'Relatório assinado e bloqueado.' : 'Assinatura eletrônica registrada.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : TEXT.requestSignatureError, 'error');
+    }
+  }
+
+  async function handleClientReject(comment: string) {
+    try {
+      await reportMutations.clientReview.mutateAsync({
+        id: report.id,
+        payload: { action: 'REJECTED', comment }
+      });
+      setClientRejectOpen(false);
+      showToast('Avaliação registrada.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
+    }
+  }
+
+  function openSequenceEdit() {
+    setSequenceEditValue(report.sequenceNumber ? String(report.sequenceNumber) : '');
+    setSequenceEditOpen(true);
+  }
+
+  function closeSequenceEdit() {
+    setSequenceEditOpen(false);
+    setSequenceEditValue('');
+  }
+
+  async function handleSequenceEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedValue = sequenceEditValue.trim();
+    const sequenceNumber = /^\d+$/.test(normalizedValue) ? Number.parseInt(normalizedValue, 10) : NaN;
+    if (!Number.isInteger(sequenceNumber) || sequenceNumber < 1) {
+      showToast('Informe um número maior que zero.', 'error');
+      return;
+    }
+    if (sequenceNumber === report.sequenceNumber) {
+      closeSequenceEdit();
+      return;
+    }
+
+    try {
+      await reportMutations.updateSequence.mutateAsync({
+        id: report.id,
+        payload: { sequenceNumber }
+      });
+      closeSequenceEdit();
+      showToast('Numeração atualizada.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível alterar a numeração.', 'error');
+    }
+  }
+
+  return (
+    <>
+      <div className="detail-action-bar">
+        <button className="primary-button" type="button" onClick={() => void handleDownload('pdf')}>
+          PDF
+        </button>
+        {canDownloadDocx ? (
+          <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
+            DOCX
+          </button>
+        ) : null}
+        {canEditSequence ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={reportMutations.updateSequence.isPending}
+            onClick={openSequenceEdit}
+          >
+            Alterar nº
+          </button>
+        ) : null}
+        {canClientSign ? (
+          <>
+            <div className="field-group client-report-comment detail-client-comment">
+              <label htmlFor={`detail-client-review-comment-${report.id}`}>Comentário do cliente</label>
+              <textarea
+                id={`detail-client-review-comment-${report.id}`}
+                rows={3}
+                placeholder="Comentário opcional que será exibido no relatório final"
+                value={clientComment}
+                onChange={event => setClientComment(event.target.value)}
+              />
+            </div>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setSignatureOpen(true)}
+            >
+              Assinar digitalmente
+            </button>
+            <button className="secondary-button" type="button" onClick={() => setClientRejectOpen(true)}>
+              {TEXT.rejectClient}
+            </button>
+          </>
+        ) : null}
+      </div>
+      <ReasonDialog
+        open={clientRejectOpen}
+        title={TEXT.rejectClient}
+        description={TEXT.rejectClientPrompt}
+        label="Motivo"
+        confirmLabel={TEXT.rejectClient}
+        requiredMessage={TEXT.rejectClientRequired}
+        isSubmitting={reportMutations.clientReview.isPending}
+        onCancel={() => setClientRejectOpen(false)}
+        onConfirm={reason => void handleClientReject(reason)}
+      />
+      <SignatureDialog
+        open={signatureOpen}
+        title="Assinar relatório"
+        initialSignerName={initialSignerName}
+        allowCachedSignerName={Boolean(initialSignerName)}
+        cacheIdentity={user?.email || user?.username || user?.id || ''}
+        isSubmitting={reportMutations.requestSignature.isPending}
+        confirmDisabled={!privacyAccepted}
+        confirmDisabledMessage="Confirme a ciência do aviso de privacidade para assinar."
+        notice={(
+          <PrivacyNotice
+            variant="signatureRdo"
+            checked={privacyAccepted}
+            onCheckedChange={setPrivacyAccepted}
+            disabled={reportMutations.requestSignature.isPending}
+          />
+        )}
+        onCancel={() => {
+          setSignatureOpen(false);
+          setPrivacyAccepted(false);
+        }}
+        onConfirm={payload => void handleRequestSignature(payload)}
+      />
+      <Modal
+        open={sequenceEditOpen}
+        onClose={closeSequenceEdit}
+        ariaLabelledBy="detail-sequence-edit-title"
+      >
+        <form className="admin-form" onSubmit={handleSequenceEditSubmit}>
+          <div className="section-title" id="detail-sequence-edit-title">Alterar numeração</div>
+          <p className="placeholder-copy">
+            Informe o novo número para {report.reportType}{report.sequenceNumber ? ` ${report.sequenceNumber}` : ''}.
+          </p>
+          <div className="field-group">
+            <label htmlFor="detail-sequence-edit-input">Novo número</label>
+            <input
+              id="detail-sequence-edit-input"
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={sequenceEditValue}
+              onChange={event => setSequenceEditValue(event.target.value)}
+              required
+            />
+          </div>
+          <div className="admin-form-actions sequence-dialog-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={reportMutations.updateSequence.isPending}
+              onClick={closeSequenceEdit}
+            >
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={reportMutations.updateSequence.isPending}>
+              {reportMutations.updateSequence.isPending ? 'Salvando...' : 'Salvar número'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }
 
@@ -1429,13 +1554,6 @@ const statusLabels: Record<string, string> = {
   RETURNED: 'Devolvido',
   APPROVED: 'Aprovado',
   SIGNED: 'Assinado'
-};
-
-const reportStatusTones: StatusToneMap = {
-  pending: 'warning',
-  returned: 'danger',
-  approved: 'success',
-  signed: 'info'
 };
 
 function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSummary['services']>[number]; index: number }) {
@@ -1491,7 +1609,7 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
   if (notes) rows.push({ label: 'Observações', value: notes });
 
   return (
-    <Card className="rdo-report-detail-service" padding="sm" elevation="none">
+    <article className="admin-card-react">
       <div className="admin-card-title">{index + 1}. {label}</div>
       {rows.length ? (
         <div className="detail-grid" style={{ marginTop: 8 }}>
@@ -1503,7 +1621,7 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
           ))}
         </div>
       ) : null}
-    </Card>
+    </article>
   );
 }
 
@@ -1559,7 +1677,8 @@ function ReportAuditHistory({ reportId }: { reportId: string }) {
   const logs = auditQuery.data || [];
 
   return (
-    <Card className="rdo-report-detail-card report-audit-section" padding="md" title={TEXT.reportAudit}>
+    <section className="page-card report-audit-section">
+      <div className="section-title">{TEXT.reportAudit}</div>
       {auditQuery.isLoading ? <p className="placeholder-copy">Carregando auditoria...</p> : null}
       {auditQuery.isError ? (
         <p className="inline-error">
@@ -1600,7 +1719,7 @@ function ReportAuditHistory({ reportId }: { reportId: string }) {
           })}
         </div>
       ) : null}
-    </Card>
+    </section>
   );
 }
 
@@ -1661,7 +1780,8 @@ function DerivedReportDetails({ report }: { report: ReportSummary }) {
   if (!rows.length) return null;
 
   return (
-    <Card className="rdo-report-detail-card" padding="md" title={`Dados do ${report.reportType}`}>
+    <section className="page-card">
+      <div className="section-title">Dados do {report.reportType}</div>
       <div className="detail-grid">
         {rows.map(row => (
           <div key={row.label}>
@@ -1670,7 +1790,7 @@ function DerivedReportDetails({ report }: { report: ReportSummary }) {
           </div>
         ))}
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -1714,31 +1834,23 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
 
   return (
     <>
-      <Card className="rdo-report-detail-card" padding="md" title={TEXT.generalInfo}>
+      <section className="page-card">
+        <div className="section-title">{TEXT.generalInfo}</div>
         <div className="detail-grid">
           <div><span className="detail-label">{TEXT.project}</span><span className="detail-value">{report.project.name}</span></div>
           <div><span className="detail-label">{TEXT.code}</span><span className="detail-value">{report.project.code}</span></div>
           <div><span className="detail-label">Data</span><span className="detail-value">{formatDateOnlyPtBr(report.reportDate)}</span></div>
           <div><span className="detail-label">{TEXT.time}</span><span className="detail-value">{report.arrivalTime} às {report.departureTime}</span></div>
           <div><span className="detail-label">{TEXT.interval}</span><span className="detail-value">{report.lunchBreak || '-'}</span></div>
-          <div>
-            <span className="detail-label">Status</span>
-            <span className="detail-value">
-              <StatusPill
-                status={report.status}
-                label={statusLabels[report.status] || report.status}
-                toneMap={reportStatusTones}
-                dot={false}
-              />
-            </span>
-          </div>
+          <div><span className="detail-label">Status</span><span className="detail-value">{statusLabels[report.status] || report.status}</span></div>
           {isStandby ? <div><span className="detail-label">Standby</span><span className="detail-value">Sim</span></div> : null}
           {isNoturno ? <div><span className="detail-label">Turno noturno</span><span className="detail-value">Sim</span></div> : null}
         </div>
         <SignatureProgress report={report} />
-      </Card>
+      </section>
 
-      <Card className="rdo-report-detail-card" padding="md" title={TEXT.collaborators}>
+      <section className="page-card">
+        <div className="section-title">{TEXT.collaborators}</div>
         {daytimeCollaborators.length ? (
           <ul className="detail-list">
             {daytimeCollaborators.map(name => <li key={name}>{name}</li>)}
@@ -1752,23 +1864,25 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
             </ul>
           </>
         ) : null}
-      </Card>
+      </section>
 
       <ReportDdsSummarySection blocks={ddsBlocks} />
 
       {(report.services?.length ?? 0) > 0 ? (
-        <Card className="rdo-report-detail-card" padding="md" title={TEXT.services}>
-          <div className="rdo-report-detail-services">
+        <section className="page-card">
+          <div className="section-title">{TEXT.services}</div>
+          <div className="admin-stack" style={{ marginTop: 8 }}>
             {(report.services || []).map((service, i) => (
               <ServiceSummaryRow key={service.id} service={service} index={i} />
             ))}
           </div>
-        </Card>
+        </section>
       ) : null}
 
       <DerivedReportDetails report={report} />
 
-      <Card className="rdo-report-detail-card" padding="md" title={TEXT.reportSummary}>
+      <section className="page-card">
+        <div className="section-title">{TEXT.reportSummary}</div>
         <div className="detail-grid report-summary-detail-grid">
           <div><span className="detail-label">Motivo hora extra</span><span className="detail-value">{report.overtimeReason || '-'}</span></div>
           <div><span className="detail-label">{TEXT.description}</span><span className="detail-value">{report.dailyDescription || '-'}</span></div>
@@ -1779,17 +1893,18 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
         {generalUploads.length > 0 ? (
           <div style={{ marginTop: 12 }}>
             <div className="detail-label">Fotos de registro</div>
-            <div className="upload-thumbs report-upload-list">
+            <div className="upload-thumbs">
               {generalUploads.map(file => (
                 <GeneralUploadThumb key={file.url} file={file} />
               ))}
             </div>
           </div>
         ) : null}
-      </Card>
+      </section>
 
       {report.clientReviews?.length ? (
-        <Card className="rdo-report-detail-card" padding="md" title="Retorno do cliente">
+        <section className="page-card">
+          <div className="section-title">Retorno do cliente</div>
           <div className="det-section">
             {report.clientReviews.slice(0, 3).map(review => (
               <div className="det-row" key={review.id}>
@@ -1798,7 +1913,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
               </div>
             ))}
           </div>
-        </Card>
+        </section>
       ) : null}
     </>
   );
@@ -1822,19 +1937,6 @@ export function ReportDetailPage() {
   const reportBackPath = backPathFromState(location.state, roleHomePath(user?.role));
   const reportBackState = pageScrollRestoreStateFromNavigation(location.state);
   const canUseHistoryBack = hasBackPathInState(location.state);
-  const navigationModules = useMemo(() => hubModulesForUser(user), [user]);
-  const navigation = useMemo(
-    () => createNavigationModel({ modules: navigationModules, pathname: location.pathname }),
-    [location.pathname, navigationModules]
-  );
-  const profileInitials = user?.name
-    ? user.name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(part => part[0].toUpperCase())
-        .join('')
-    : 'U';
 
   async function handleLogout() {
     await logout();
@@ -1850,140 +1952,62 @@ export function ReportDetailPage() {
   }
 
   const report = reportQuery.data;
-  const canEditLinkedServiceReport = report ? canEditDerivedServiceReport(report, user?.role) : false;
+  const canReviewReports = canReviewRdoReports(user);
+  const canEditLinkedServiceReport = report ? canEditDerivedServiceReport(report, user) : false;
   const showRdoEditor =
     !!report
     && (
       (report.status !== 'SIGNED' && report.reportType === 'RDO' && (
-        user?.role === 'MANAGER'
+        canReviewReports
         || collaboratorCanEditReport(user, report)
         || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
       ))
-      || (report.status !== 'SIGNED' && user?.role === 'MANAGER' && isServiceOnlyReport(report))
+      || (report.status !== 'SIGNED' && canReviewReports && isServiceOnlyReport(report))
       || canEditLinkedServiceReport
     );
 
-  if (showRdoEditor && report) {
-    const reportLabel = `${report.reportType}${report.sequenceNumber ? ` ${report.sequenceNumber}` : ''}`;
-
-    return (
-      <AppShell
-        navigation={navigation}
-        title={`Editar ${reportLabel}`}
-        breadcrumb={[
-          { label: 'Filtrovali', href: '/modulos' },
-          { label: 'RDO', href: reportBackPath },
-          { label: `Editar ${reportLabel}` }
-        ]}
-        contentWidth="fluid"
-        profile={
-          user
-            ? {
-                name: user.name,
-                description: user.email || user.username,
-                initials: profileInitials,
-                onOpen: () =>
-                  navigate('/conta', {
-                    state: accountPageStateFromPath(location)
-                  })
-              }
-            : undefined
-        }
-        onLogout={handleLogout}
-      >
-        <main className="fv-ds rdo-form-page rdo-edit-page">
-          <PageHeader
-            title={`Editar ${reportLabel}`}
-            description={`${report.project.code} · ${report.project.name}`}
-            breadcrumb={[
-              { label: 'RDO', href: reportBackPath },
-              { label: `Editar ${reportLabel}` }
-            ]}
-            actions={
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft={<AppIcon icon={DS_ICONS.previous} size="sm" />}
-                onClick={handleBack}
-              >
-                Voltar aos relatórios
-              </Button>
-            }
-          />
-          <ManagerRdoEditor report={report} />
-          {user?.role === 'MANAGER' ? <ReportAuditHistory reportId={report.id} /> : null}
-        </main>
-      </AppShell>
-    );
-  }
-
-  const reportLabel = report
-    ? `${report.reportType}${report.sequenceNumber ? ` ${report.sequenceNumber}` : ''}`
-    : TEXT.details;
-
   return (
-    <AppShell
-      navigation={navigation}
-      title={report ? `Detalhes do ${reportLabel}` : TEXT.details}
-      breadcrumb={[
-        { label: 'Filtrovali', href: '/modulos' },
-        { label: 'RDO', href: reportBackPath },
-        { label: reportLabel }
-      ]}
-      contentWidth="fluid"
-      profile={
-        user
-          ? {
-              name: user.name,
-              description: user.email || user.username,
-              initials: profileInitials,
-              onOpen: () => navigate('/conta', { state: accountPageStateFromPath(location) })
-            }
-          : undefined
-      }
-      onLogout={handleLogout}
-    >
-      <main className="fv-ds rdo-report-detail-page">
-        <PageHeader
-          title={reportLabel}
-          description={report ? `${report.project.code} · ${report.project.name}` : 'Consulte as informações do relatório.'}
-          breadcrumb={[
-            { label: 'RDO', href: reportBackPath },
-            { label: reportLabel }
-          ]}
-          actions={(
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={<AppIcon icon={DS_ICONS.previous} size="sm" />}
-              onClick={handleBack}
-            >
-              Voltar aos relatórios
-            </Button>
-          )}
-        />
+    <Shell>
+      <TopBar
+        title={TEXT.details}
+        subtitle={report ? `${report.reportType}${report.sequenceNumber ? ` ${report.sequenceNumber}` : ''}` : user?.name}
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={handleBack}>
+              {TEXT.back}
+            </button>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
+      />
 
-        {reportQuery.isLoading ? <Card className="placeholder-copy" padding="lg">{TEXT.loading}</Card> : null}
+      <main className="page-scroll">
+        {reportQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
         {reportQuery.isError ? (
-          <Card className="inline-error" padding="lg">
+          <div className="page-card inline-error">
             {reportQuery.error instanceof Error ? reportQuery.error.message : TEXT.loadError}
-          </Card>
+          </div>
         ) : null}
 
         {report ? (
           <>
-            <ReportSummaryView report={report} />
-            {user?.role === 'MANAGER' ? <ReportAuditHistory reportId={report.id} /> : null}
-            <ReportDetailActions report={report} role={user?.role} />
+            {showRdoEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
+            {canReviewReports ? <ReportAuditHistory reportId={report.id} /> : null}
+            {!showRdoEditor ? <ReportDetailActions report={report} role={user?.role} /> : null}
           </>
         ) : null}
 
         {!reportQuery.isLoading && !reportQuery.isError && !report ? (
-          <Card className="placeholder-copy" padding="lg">
+          <div className="page-card placeholder-copy">
             {TEXT.missing}
-          </Card>
+          </div>
         ) : null}
       </main>
-    </AppShell>
+    </Shell>
   );
 }

@@ -27,6 +27,47 @@ test('edição pré-seleciona colaboradores alocados sem duplicar IDs', async ()
   assert.deepEqual(team.toggleMissionCollaborator(['c2', 'c1'], 'c2', false), ['c1']);
 });
 
+test('troca de colaborador remove o período antigo e cria o novo dentro da missão', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const periods = [{
+    collaboratorId: 'old-member',
+    mobilizationDate: '2026-09-07',
+    demobilizationDate: '2026-11-26'
+  }];
+
+  assert.deepEqual(team.synchronizeMissionAllocationPeriods(
+    ['new-member'],
+    periods,
+    '2026-09-07',
+    '2026-11-26'
+  ), [{
+    collaboratorId: 'new-member',
+    mobilizationDate: '2026-09-07',
+    demobilizationDate: '2026-11-26'
+  }]);
+});
+
+test('edição da equipe preserva as datas oficiais quando a previsão do fluxo mudou', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const mission = {
+    mobilizationDate: '2026-09-07',
+    executionStartDate: '2026-09-08',
+    executionEndDate: '2026-11-26',
+    returnDate: null
+  };
+  const workflow = {
+    mobilizationDate: '2026-10-01',
+    executionStartDate: '2026-10-01',
+    executionEndDate: '2026-11-26'
+  };
+
+  assert.deepEqual(team.resolveMissionTeamScheduleDates(mission, workflow, { returnDate: '2026-12-01' }), {
+    ...mission,
+    returnDate: ''
+  });
+  assert.deepEqual(team.resolveMissionTeamScheduleDates(null, workflow), { ...workflow, returnDate: '' });
+});
+
 test('filtro da seleção permite ativos, inativos e todos sem perder a equipe selecionada', async () => {
   const team = await load('/src/utils/missionTeam.ts');
   const people = [...collaborators, { id: 'c3', name: 'Pessoa desligada', role: 'Mantenedor I', jobRoleId: 'r2', isActive: false }];
@@ -34,4 +75,11 @@ test('filtro da seleção permite ativos, inativos e todos sem perder a equipe s
   assert.deepEqual(team.filterCollaboratorsByActivity(people, 'INACTIVE').map(person => person.id), ['c3']);
   assert.deepEqual(team.filterCollaboratorsByActivity(people, 'ALL').map(person => person.id), ['c1', 'c2', 'c3']);
   assert.deepEqual(team.toggleMissionCollaborator(['c1'], 'c3', true), ['c1', 'c3']);
+});
+
+test('definição da equipe inicial reativa uma programação cancelada', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  assert.equal(team.missionTeamScheduleStatus('CANCELLED', true), 'CONFIRMED');
+  assert.equal(team.missionTeamScheduleStatus('CANCELLED', false), 'CANCELLED');
+  assert.equal(team.missionTeamScheduleStatus('DRAFT', false), 'CONFIRMED');
 });

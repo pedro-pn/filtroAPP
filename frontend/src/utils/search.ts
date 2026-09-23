@@ -23,14 +23,21 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+export function createSearchMatcher(query: string) {
+  const tokens = searchTokens(query).map(value => ({ value, compact: compactSearchValue(value) }));
+  return (parts: unknown[]) => {
+    if (!tokens.length) return true;
+    const fields = parts.map(normalizeSearchValue);
+    const searchable = fields.join(' ');
+    // Preserve field boundaries: report 58 + project 00 must never match 5800.
+    const compactFields = fields.map(compactSearchValue);
+    return tokens.every(token => searchable.includes(token.value)
+      || (token.compact.length > 0 && compactFields.some(field => field.includes(token.compact))));
+  };
+}
+
 export function matchesSearch(parts: unknown[], query: string) {
-  const tokens = searchTokens(query);
-  if (!tokens.length) return true;
-  const searchable = normalizeSearchValue(parts.join(' '));
-  const compactSearchable = compactSearchValue(searchable);
-  return tokens.every(token => (
-    searchable.includes(token) || compactSearchable.includes(compactSearchValue(token))
-  ));
+  return createSearchMatcher(query)(parts);
 }
 
 export function projectSearchParts(project: Project) {

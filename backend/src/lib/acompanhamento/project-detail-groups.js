@@ -15,6 +15,7 @@ import {
 import { sameClientName } from './client-identity.js';
 import { getActiveMissionGroup } from './mission-groups.js';
 import { combineProgressBreakdowns, progressContributionWeight } from './progress-groups.js';
+import { summarizeReportLaborCost } from './report-labor-cost.js';
 
 const DAY_STATUS_ORDER = {
   TRABALHADO: 0,
@@ -49,6 +50,7 @@ function memberSummary(member, detail) {
     name: project.name ?? '',
     clientName: detail?.header?.clientName ?? project.clientName ?? '',
     clientCnpj: detail?.header?.clientCnpj ?? project.clientCnpj ?? '',
+    progressPct: detail?.avancoPct ?? null,
     order: member.order ?? 0,
     visible: Boolean(detail)
   };
@@ -200,6 +202,13 @@ function combineCollaborators(details) {
         if (!day?.data) continue;
         const horas = toNumber(day.horas) ?? 0;
         const currentDay = existing.horasRelatoriosPorData.get(day.data) ?? { horas: 0, relatorios: new Map() };
+        // O custo acompanha a mesma missão escolhida para a maior jornada do dia.
+        if (horas > currentDay.horas) {
+          delete currentDay.custoEstimado;
+          if ('custoEstimado' in day) currentDay.custoEstimado = day.custoEstimado;
+        } else if (horas === currentDay.horas && day.custoEstimado != null) {
+          currentDay.custoEstimado = Math.max(currentDay.custoEstimado ?? 0, day.custoEstimado);
+        }
         currentDay.horas = Math.max(currentDay.horas, horas);
         for (const report of day.relatorios ?? []) {
           currentDay.relatorios.set(report.id, report);
@@ -222,6 +231,8 @@ function combineCollaborators(details) {
         .map(([data, day]) => ({
           data,
           horas: day.horas,
+          ...(!(item.horasApropriadas > 0) && 'custoEstimado' in day
+            ? { custoEstimado: day.custoEstimado } : {}),
           relatorios: [...day.relatorios.values()].sort((a, b) => (
             String(a.projetoCodigo || '').localeCompare(String(b.projetoCodigo || ''), 'pt-BR', { numeric: true })
             || String(a.tipo).localeCompare(String(b.tipo))
@@ -256,6 +267,7 @@ function combineCollaborators(details) {
         horasRelatoriosPorData,
         custo: item.custo,
         custoHora,
+        ...summarizeReportLaborCost(horasRelatoriosPorData),
         custoDeslocamento: item.custoDeslocamento
       };
     })
@@ -292,9 +304,12 @@ function combinePlannedServices(scopes) {
   const byService = new Map();
   for (const scope of scopes) {
     for (const service of scope?.services ?? []) {
-      const key = service.serviceType || 'SERVICO';
+      const serviceType = service.serviceType || 'SERVICO';
+      const scopeName = service.scopeName?.trim() || null;
+      const key = JSON.stringify([scopeName, serviceType]);
       const existing = byService.get(key) ?? {
-        serviceType: key,
+        serviceType,
+        scopeName,
         weightSum: 0,
         weightCount: 0,
         systems: new Map()
@@ -306,6 +321,7 @@ function combinePlannedServices(scopes) {
       }
       for (const system of service.systems ?? []) {
         const systemKey = [
+          system.projectSystemId ?? '',
           system.systemType ?? '',
           system.description ?? '',
           system.diameter ?? '',
@@ -313,6 +329,7 @@ function combinePlannedServices(scopes) {
           system.unit ?? ''
         ].join('|');
         const current = existing.systems.get(systemKey) ?? {
+          ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName } : {}),
           systemType: system.systemType,
           description: system.description ?? null,
           diameter: system.diameter ?? null,
@@ -335,9 +352,11 @@ function combinePlannedServices(scopes) {
   return Array.from(byService.values())
     .map(service => ({
       serviceType: service.serviceType,
+      ...(service.scopeName ? { scopeName: service.scopeName } : {}),
       weight: service.weightCount > 0 ? round1(service.weightSum / service.weightCount) : null,
       note: null,
       systems: Array.from(service.systems.values()).map(system => ({
+        ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName } : {}),
         systemType: system.systemType,
         description: system.description,
         diameter: system.diameter,
@@ -489,24 +508,46 @@ export async function getMissionGroupDetail(groupId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true
 } = {}) {
-  const [{ getProjectDetail }, { getPlannedScope }, { computeProjectProgress }] = await Promise.all([
+  const [
+    { getProjectDetail },
+    { buildPlannedScope },
+    { computeProgressDetailsForProjects },
+    { loadPlannedHours }
+  ] = await Promise.all([
     import('./project-detail.js'),
     import('./planned-scope.js'),
-    import('./avanco.js')
+    import('./avanco.js'),
+    import('./planned-hours.js')
   ]);
   const group = await getActiveMissionGroup({ groupId });
+  const members = (group.members ?? [])
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const memberIds = members.map(member => member.projectId);
+  const [progressDetailsByProject, plannedHoursByProject] = await Promise.all([
+    computeProgressDetailsForProjects(memberIds),
+    loadPlannedHours(memberIds)
+  ]);
   const entries = await Promise.all(
-    (group.members ?? [])
-      .slice()
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map(async member => {
-        const [detail, plannedScope, progress] = await Promise.all([
-          getProjectDetail(member.projectId, { includeCollaboratorCosts, includeAdminOnlyCategories }),
-          getPlannedScope(member.projectId).catch(() => null),
-          computeProjectProgress(member.projectId).catch(() => null)
-        ]);
-        return { projectId: member.projectId, member, detail, plannedScope, progress };
-      })
+    members.map(async member => {
+      const progressDetails = progressDetailsByProject.get(member.projectId) ?? null;
+      const plannedHours = plannedHoursByProject.get(member.projectId) ?? null;
+      const detail = await getProjectDetail(member.projectId, {
+        includeCollaboratorCosts,
+        includeAdminOnlyCategories,
+        progressDetails,
+        plannedHoursByProject
+      });
+      return {
+        projectId: member.projectId,
+        member,
+        detail,
+        plannedScope: progressDetails && plannedHours
+          ? buildPlannedScope(progressDetails.plannedServices, plannedHours)
+          : null,
+        progress: progressDetails?.progress ?? null
+      };
+    })
   );
   return groupProjectDetails(group, entries);
 }

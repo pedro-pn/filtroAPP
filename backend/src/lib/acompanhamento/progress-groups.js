@@ -29,8 +29,9 @@ export function combineProgressBreakdowns(progresses = []) {
         const planned = Math.max(0, toNumber(system.plannedQty) ?? 0);
         if (planned > 0) hasPlannedSystem = true;
         const realized = Math.max(0, toNumber(system.realizedQty) ?? 0);
-        const systemKey = `${system.systemType ?? ''}|${system.unit ?? ''}`;
+        const systemKey = JSON.stringify([system.projectSystemId ?? '', system.systemType ?? '', system.unit ?? '', system.diameter ?? '', system.diameterUnit ?? '']);
         const systemAcc = serviceAcc.systems.get(systemKey) ?? {
+          ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName, diameter: system.diameter, diameterUnit: system.diameterUnit } : {}),
           systemType: system.systemType,
           unit: system.unit ?? null,
           plannedQty: 0,
@@ -51,8 +52,9 @@ export function combineProgressBreakdowns(progresses = []) {
     .map(service => {
       const systems = Array.from(service.systems.values())
         .map(system => {
-          const pct = system.plannedQty > 0 ? Math.min(system.realizedQty / system.plannedQty, 1) * 100 : null;
+          const pct = system.plannedQty > 0 ? system.realizedQty / system.plannedQty * 100 : null;
           return {
+            ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName, diameter: system.diameter, diameterUnit: system.diameterUnit } : {}),
             systemType: system.systemType,
             unit: system.unit,
             plannedQty: system.plannedQty > 0 ? round2(system.plannedQty) : null,
@@ -61,9 +63,19 @@ export function combineProgressBreakdowns(progresses = []) {
           };
         });
       const measurable = systems.filter(system => system.pct !== null);
-      const executionPct = measurable.length
+      let executionPct = measurable.length
         ? round1(measurable.reduce((sum, system) => sum + system.pct, 0) / measurable.length)
         : null;
+      if (measurable.some(system => system.projectSystemId)) {
+        const metrics = new Map();
+        for (const system of measurable) {
+          const metric = metrics.get(system.systemType) ?? { planned: 0, completed: 0 };
+          metric.planned += system.plannedQty;
+          metric.completed += system.realizedQty;
+          metrics.set(system.systemType, metric);
+        }
+        executionPct = round1([...metrics.values()].reduce((sum, metric) => sum + metric.completed / metric.planned * 100, 0) / metrics.size);
+      }
       return {
         serviceType: service.serviceType,
         weight: service.weight,
@@ -84,6 +96,20 @@ export function combineProgressBreakdowns(progresses = []) {
     hasScope: services.length > 0,
     progressPct,
     progressMethod: progressPct !== null ? 'GROUP_SCOPE' : null,
+    ...(scoped.some(progress => progress.pendingMeasurements) ? { pendingMeasurements: scoped.flatMap(progress => progress.pendingMeasurements ?? []) } : {}),
+    ...(scoped.some(progress => progress.scopeGroups) ? { scopeGroups: combineScopeGroups(scoped) } : {}),
     services
   };
+}
+
+function combineScopeGroups(progresses) {
+  const groups = new Map();
+  for (const progress of progresses) {
+    for (const group of progress.scopeGroups ?? [{ scopeName: null, services: progress.services }]) {
+      if (!groups.has(group.scopeName)) groups.set(group.scopeName, []);
+      // Somente a projeção do grupo: não propaga scopeGroups para a agregação recursiva.
+      groups.get(group.scopeName).push({ hasScope: true, services: group.services });
+    }
+  }
+  return [...groups].map(([scopeName, items]) => ({ scopeName, services: combineProgressBreakdowns(items)?.services ?? [] }));
 }

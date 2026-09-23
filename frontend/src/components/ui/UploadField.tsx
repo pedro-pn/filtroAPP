@@ -1,21 +1,17 @@
-import { RotateCcw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
+import { prepareImageForUpload } from '../../utils/imageUpload';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
-import { AppIcon } from '../icons/AppIcon';
-import { ConfirmDialog } from './ConfirmDialog';
-import { IconButton } from './ds/Button';
-import { DS_ICONS } from './ds/icons';
+import { PhotoCaptureButton } from './PhotoCaptureButton';
 import { stageUploadDeletion } from './photoDeletionStaging';
-import './UploadField.css';
+import { useConfirmDialog } from './useConfirmDialog';
 
 interface UploadFieldProps {
   label: string;
   value: UploadedFile[];
   projectId?: string | null;
   disabled?: boolean;
-  appearance?: 'legacy' | 'design-system';
   onChange: (files: UploadedFile[]) => void;
 }
 
@@ -35,7 +31,6 @@ interface UploadPreviewListItemProps {
   disabled: boolean;
   file: UploadPreviewFile;
   index: number;
-  appearance?: 'legacy' | 'design-system';
   onRemove: (index: number) => void;
   removed?: boolean;
 }
@@ -76,7 +71,13 @@ function uploadFileKey(file: UploadPreviewFile) {
   return rawFileUrl(file) || `${file.fileName}-${file.mimeType || ''}`;
 }
 
-export function UploadPreviewListItem({ disabled, file, index, appearance = 'legacy', onRemove, removed = false }: UploadPreviewListItemProps) {
+export function UploadPreviewListItem({
+  disabled,
+  file,
+  index,
+  onRemove,
+  removed = false
+}: UploadPreviewListItemProps) {
   const [href, setHref] = useState('');
   const source = rawFileUrl(file);
 
@@ -106,24 +107,12 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
   return (
     <div className={`upload-list-item ${removed ? 'removed' : ''}`}>
       {href && isImageFile(file) ? (
-        <a
-          className="upload-list-preview"
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`Abrir ${file.fileName}`}
-        >
-          <img className="upload-list-thumb" src={href} alt="" />
+        <a href={href} target="_blank" rel="noreferrer" aria-label={`Abrir ${file.fileName}`}>
+          <img className="upload-list-thumb" src={href} alt={file.fileName} />
         </a>
       ) : null}
       {href ? (
-        <a
-          className="upload-list-name"
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          title={file.fileName}
-        >
+        <a className="upload-list-name" href={href} target="_blank" rel="noreferrer">
           {file.fileName}
         </a>
       ) : (
@@ -131,41 +120,30 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
       )}
       {wasPreviouslyAdded(file) ? <span className="upload-previous-badge">Adicionada anteriormente</span> : null}
       {!disabled ? (
-        appearance === 'design-system' ? (
-          <IconButton
-            className="upload-remove-button"
-            icon={removed ? RotateCcw : DS_ICONS.trash}
-            label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
-            variant="secondary"
-            size="sm"
-            onClick={() => onRemove(index)}
-          />
-        ) : (
-          <button
-            className="upload-remove-button"
-            type="button"
-            onClick={() => onRemove(index)}
-            aria-label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
-            title={removed ? 'Restaurar' : 'Remover'}
-          >
-            {removed ? '↶' : 'X'}
-          </button>
-        )
+        <button
+          className="upload-remove-button"
+          type="button"
+          onClick={() => onRemove(index)}
+          aria-label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
+          title={removed ? 'Restaurar' : 'Remover'}
+        >
+          {removed ? '↶' : 'X'}
+        </button>
       ) : null}
     </div>
   );
 }
 
-export function UploadField({ label, value, projectId, disabled = false, appearance = 'legacy', onChange }: UploadFieldProps) {
+export function UploadField({ label, value, projectId, disabled = false, onChange }: UploadFieldProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<{ index: number; ref: string; fileName: string } | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: ArrayLike<File> | null) {
     const selected = Array.from(files || []);
     if (!selected.length) return;
 
@@ -173,14 +151,18 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
     setError('');
 
     try {
+      // Fotos grandes do celular são reduzidas no aparelho antes de irem em base64 no envio.
       const items = await Promise.all(
-        selected.map(async file => ({
-          label: uploadLabel,
-          fileName: file.name,
-          mimeType: file.type || (/\.(hei[cf])$/i.test(file.name) ? 'image/heic' : 'image/jpeg'),
-          dataUrl: await fileToDataUrl(file),
-          projectId
-        }))
+        selected.map(async original => {
+          const file = await prepareImageForUpload(original);
+          return {
+            label: uploadLabel,
+            fileName: file.name,
+            mimeType: file.type || (/\.(hei[cf])$/i.test(file.name) ? 'image/heic' : 'image/jpeg'),
+            dataUrl: await fileToDataUrl(file),
+            projectId
+          };
+        })
       );
       const uploaded = await uploadFiles(items);
       onChange([...value, ...uploaded]);
@@ -197,24 +179,23 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
     return raw && !raw.startsWith('data:') ? raw : '';
   }
 
-  function removeFile(index: number) {
+  async function removeFile(index: number) {
     const file = value[index] as UploadPreviewFile | undefined;
     if (!file) return;
     const ref = serverReference(file);
     // A exclusão é global, mas só é efetivada ao SALVAR o relatório. Aqui apenas
     // encenamos a remoção (some da lista); se o usuário não salvar, nada é apagado.
     if (ref) {
-      setRemoveTarget({ index, ref, fileName: file.fileName });
-      return;
+      const confirmed = await confirm({
+        title: 'Remover esta imagem?',
+        description: 'Ao salvar o relatório, ela será excluída de TODOS os relatórios em que aparece e apagada do servidor.',
+        highlight: file.fileName || undefined,
+        confirmLabel: 'Remover imagem'
+      });
+      if (!confirmed) return;
+      stageUploadDeletion(ref);
     }
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
-  }
-
-  function confirmRemoveFile() {
-    if (!removeTarget) return;
-    stageUploadDeletion(removeTarget.ref);
-    onChange(value.filter((_, itemIndex) => itemIndex !== removeTarget.index));
-    setRemoveTarget(null);
   }
 
   const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadPreviewFile));
@@ -224,7 +205,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
   }
 
   return (
-    <div className={`upload-field ${appearance === 'design-system' ? 'upload-field--ds' : ''}`}>
+    <div className="upload-field">
       {displayLabel ? <label className="upload-field-label">{displayLabel}</label> : null}
       <div
         className={`upload-dropzone ${dragOver ? 'drag-over' : ''} ${isUploading ? 'busy' : ''} ${value.length ? 'has-file' : ''}`}
@@ -246,14 +227,17 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           disabled={disabled || isUploading}
           onChange={event => void handleFiles(event.target.files)}
         />
-        <span className="upload-dropzone-icon" aria-hidden="true">
-          {appearance === 'design-system' ? <AppIcon icon={DS_ICONS.upload} /> : '⤓'}
-        </span>
+        <span className="upload-dropzone-icon" aria-hidden="true">⤓</span>
         <span className="upload-dropzone-text">
           <strong>{isUploading ? 'Enviando…' : 'Arraste as fotos aqui'}</strong>
           <small>{value.length ? `${value.length} arquivo(s) · clique ou solte para adicionar` : 'ou clique para selecionar'}</small>
         </span>
       </div>
+      {!disabled ? (
+        <div className="upload-field-actions">
+          <PhotoCaptureButton disabled={isUploading} onFiles={files => void handleFiles(files)} />
+        </div>
+      ) : null}
       {error ? <div className="inline-error">{error}</div> : null}
       {hasPreviouslyAddedFiles ? (
         <div className="upload-previous-note">Estas fotos foram adicionadas anteriormente neste serviço. Se removidas, sairão do relatório.</div>
@@ -266,22 +250,12 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
               disabled={disabled}
               file={file}
               index={index}
-              appearance={appearance}
-              onRemove={removeFile}
+              onRemove={index => void removeFile(index)}
             />
           ))}
         </div>
       ) : null}
-      <ConfirmDialog
-        open={Boolean(removeTarget)}
-        appearance={appearance}
-        title="Remover imagem?"
-        description="Ao salvar, ela será removida de todos os relatórios em que aparece e apagada do servidor."
-        highlight={removeTarget?.fileName}
-        confirmLabel="Remover imagem"
-        onCancel={() => setRemoveTarget(null)}
-        onConfirm={confirmRemoveFile}
-      />
+      {confirmDialog}
     </div>
   );
 }

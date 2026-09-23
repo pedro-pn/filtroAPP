@@ -6,21 +6,16 @@ import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
 import { accountBackPath } from '../../auth/moduleNavigation';
 import { roleHomePath } from '../../auth/rolePath';
-import { AppIcon } from '../../components/icons/AppIcon';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { Alert, Button, Card, Field, Input, Switch } from '../../components/ui/ds';
-import { DS_ICONS } from '../../components/ui/ds/icons';
-import { AppShell } from '../../layout/AppShell';
-import { createNavigationModel } from '../../layout/navigationModel';
-import { PageHeader } from '../../layout/PageHeader';
-import { hubModulesForUser } from '../hubModules';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
+import { Shell } from '../../layout/Shell';
+import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
-import './AccountPage.css';
 
 export function AccountPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, replaceUser } = useAuth();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [email, setEmail] = useState(user?.email || '');
   const [emailMessage, setEmailMessage] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -45,22 +40,8 @@ export function AccountPage() {
   const [isExportingData, setIsExportingData] = useState(false);
   const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
-  const [deletionConfirmOpen, setDeletionConfirmOpen] = useState(false);
 
   const backPath = useMemo(() => accountBackPath(user, location.state, roleHomePath(user?.role)), [location.state, user]);
-  const modules = useMemo(() => hubModulesForUser(user), [user]);
-  const navigation = useMemo(
-    () => createNavigationModel({ modules, pathname: location.pathname }),
-    [location.pathname, modules]
-  );
-  const profileInitials = user?.name
-    ? user.name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(part => part[0].toUpperCase())
-        .join('')
-    : 'U';
 
   async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -156,7 +137,12 @@ export function AccountPage() {
   async function handleDeletionRequest() {
     setPrivacyMessage('');
     setPrivacyError('');
-    setDeletionConfirmOpen(false);
+    const confirmed = await confirm({
+      title: 'Solicitar eliminação dos seus dados?',
+      description: 'A solicitação é registrada para análise manual e você recebe um protocolo de acompanhamento.',
+      confirmLabel: 'Registrar solicitação'
+    });
+    if (!confirmed) return;
     setIsRequestingDeletion(true);
     try {
       const request = await requestMyDataDeletion();
@@ -169,174 +155,151 @@ export function AccountPage() {
   }
 
   return (
-    <AppShell
-      navigation={navigation}
-      title="Minha conta"
-      breadcrumb={[{ label: 'Filtrovali', href: '/modulos' }, { label: 'Conta' }]}
-      contentWidth="contained"
-      profile={
-        user
-          ? {
-              name: user.name,
-              description: user.email || user.username,
-              initials: profileInitials
-            }
-          : undefined
-      }
-      onLogout={handleLogout}
-    >
-      <main className="fv-ds account-page">
-        <PageHeader
-          title="Minha conta"
-          description="Gerencie seus dados de acesso, notificações e opções de privacidade."
-          breadcrumb={[{ label: 'Conta' }]}
-          actions={(
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={<AppIcon icon={DS_ICONS.previous} size="sm" />}
-              onClick={() => navigate(backPath, { replace: true })}
-            >
+    <Shell>
+      <TopBar
+        title="Conta"
+        subtitle={user?.name}
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate(backPath, { replace: true })}>
               Voltar
-            </Button>
-          )}
-        />
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
+      />
 
-        <Card className="account-card" padding="md" title="E-mail">
-          <form className="account-form" onSubmit={handleEmailSubmit}>
-            <Field id="account-email" label="E-mail cadastrado" optionalText="">
-              <Input
-                id="account-email-control"
+      <main className="page-scroll">
+        <section className="page-card">
+          <div className="section-title">E-mail</div>
+          <form className="auth-form" onSubmit={handleEmailSubmit}>
+            <div className="field-group">
+              <label htmlFor="account-email">E-mail cadastrado</label>
+              <input
+                id="account-email"
                 type="email"
-                autoComplete="email"
                 value={email}
                 placeholder="email@empresa.com"
                 onChange={event => setEmail(event.target.value)}
               />
-            </Field>
-            {emailMessage ? <Alert tone="success">{emailMessage}</Alert> : null}
-            {emailError ? <Alert tone="danger">{emailError}</Alert> : null}
-            <div className="account-form__actions">
-              <Button variant="primary" size="sm" type="submit" disabled={isSavingEmail}>
-                {isSavingEmail ? 'Salvando...' : 'Salvar e-mail'}
-              </Button>
             </div>
+            {emailMessage ? <div className="inline-success">{emailMessage}</div> : null}
+            {emailError ? <div className="inline-error">{emailError}</div> : null}
+            <button className="primary-button" type="submit" disabled={isSavingEmail}>
+              {isSavingEmail ? 'Salvando...' : 'Salvar e-mail'}
+            </button>
           </form>
-        </Card>
+        </section>
 
-        <Card className="account-card" padding="md" title="Alterar senha">
-          <form className="account-form" onSubmit={handlePasswordSubmit}>
-            <div className="account-password-fields">
-              <Field id="current-password" label="Senha atual" optionalText="" className="account-password-current">
-                <Input
-                  id="current-password-control"
-                  type="password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={event => setCurrentPassword(event.target.value)}
-                />
-              </Field>
-              <Field id="new-password" label="Nova senha" optionalText="">
-                <Input
-                  id="new-password-control"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={event => setNewPassword(event.target.value)}
-                />
-              </Field>
-              <Field id="confirm-password" label="Confirmar nova senha" optionalText="">
-                <Input
-                  id="confirm-password-control"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={event => setConfirmPassword(event.target.value)}
-                />
-              </Field>
+        <section className="page-card">
+          <div className="section-title">Alterar senha</div>
+          <form className="auth-form" onSubmit={handlePasswordSubmit}>
+            <div className="field-group">
+              <label htmlFor="current-password">Senha atual</label>
+              <input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={event => setCurrentPassword(event.target.value)}
+              />
             </div>
-            {passwordMessage ? <Alert tone="success">{passwordMessage}</Alert> : null}
-            {passwordError ? <Alert tone="danger">{passwordError}</Alert> : null}
-            <div className="account-form__actions">
-              <Button variant="primary" size="sm" type="submit" disabled={isSavingPassword}>
-                {isSavingPassword ? 'Salvando...' : 'Alterar senha'}
-              </Button>
+            <div className="field-group">
+              <label htmlFor="new-password">Nova senha</label>
+              <input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={event => setNewPassword(event.target.value)}
+              />
             </div>
+            <div className="field-group">
+              <label htmlFor="confirm-password">Confirmar nova senha</label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={event => setConfirmPassword(event.target.value)}
+              />
+            </div>
+            {passwordMessage ? <div className="inline-success">{passwordMessage}</div> : null}
+            {passwordError ? <div className="inline-error">{passwordError}</div> : null}
+            <button className="primary-button" type="submit" disabled={isSavingPassword}>
+              {isSavingPassword ? 'Salvando...' : 'Alterar senha'}
+            </button>
           </form>
-        </Card>
+        </section>
 
-        <Card className="account-card" padding="md" title="Notificações por e-mail">
-          <form className="account-form" onSubmit={handleNotificationSubmit}>
-            <div className="account-notification-grid">
-              <Switch
-                id="account-notification-reports"
-                label="Relatórios"
+        <section className="page-card">
+          <div className="section-title">Notificações por e-mail</div>
+          <form className="auth-form" onSubmit={handleNotificationSubmit}>
+            <label className="notification-option">
+              <input
+                type="checkbox"
                 checked={notificationPreferences.reports}
                 onChange={event => setNotificationPreference('reports', event.target.checked)}
               />
-              <Switch
-                id="account-notification-signatures"
-                label="Assinaturas"
+              <span>Relatórios</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
                 checked={notificationPreferences.signatures}
                 onChange={event => setNotificationPreference('signatures', event.target.checked)}
               />
-              <Switch
-                id="account-notification-signature-reminders"
-                label="Lembretes de assinatura"
+              <span>Assinaturas</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
                 checked={notificationPreferences.signatureReminders}
                 onChange={event => setNotificationPreference('signatureReminders', event.target.checked)}
               />
-              <Switch
-                id="account-notification-survey-reminders"
-                label="Pesquisas de satisfação"
+              <span>Lembretes de assinatura</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
                 checked={notificationPreferences.surveyReminders}
                 onChange={event => setNotificationPreference('surveyReminders', event.target.checked)}
               />
-              <Switch
-                id="account-notification-calibration-reminders"
-                label="Calibração de equipamentos"
+              <span>Pesquisas de satisfação</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
                 checked={notificationPreferences.calibrationReminders}
                 onChange={event => setNotificationPreference('calibrationReminders', event.target.checked)}
               />
-            </div>
-            {notificationMessage ? <Alert tone="success">{notificationMessage}</Alert> : null}
-            {notificationError ? <Alert tone="danger">{notificationError}</Alert> : null}
-            <div className="account-form__actions">
-              <Button variant="primary" size="sm" type="submit" disabled={isSavingNotifications}>
-                {isSavingNotifications ? 'Salvando...' : 'Salvar notificações'}
-              </Button>
-            </div>
+              <span>Calibração de equipamentos</span>
+            </label>
+            {notificationMessage ? <div className="inline-success">{notificationMessage}</div> : null}
+            {notificationError ? <div className="inline-error">{notificationError}</div> : null}
+            <button className="primary-button" type="submit" disabled={isSavingNotifications}>
+              {isSavingNotifications ? 'Salvando...' : 'Salvar notificações'}
+            </button>
           </form>
-        </Card>
+        </section>
 
-        <Card className="account-card account-privacy-card" padding="md" title="Privacidade">
-          <p className="account-card__description">
+        <section className="page-card">
+          <div className="section-title">Privacidade</div>
+          <p className="placeholder-copy">
             Exporte os dados associados à sua conta ou registre uma solicitação de eliminação/análise manual.
           </p>
-          {privacyMessage ? <Alert tone="success">{privacyMessage}</Alert> : null}
-          {privacyError ? <Alert tone="danger">{privacyError}</Alert> : null}
-          <div className="account-privacy-actions">
-            <Button variant="secondary" size="sm" type="button" onClick={() => void handleDataExport()} disabled={isExportingData}>
+          {privacyMessage ? <div className="inline-success">{privacyMessage}</div> : null}
+          {privacyError ? <div className="inline-error">{privacyError}</div> : null}
+          <div className="admin-form-actions">
+            <button className="secondary-button" type="button" onClick={() => void handleDataExport()} disabled={isExportingData}>
               {isExportingData ? 'Gerando...' : 'Exportar meus dados'}
-            </Button>
-            <Button variant="danger" size="sm" type="button" onClick={() => setDeletionConfirmOpen(true)} disabled={isRequestingDeletion}>
+            </button>
+            <button className="danger-button" type="button" onClick={() => void handleDeletionRequest()} disabled={isRequestingDeletion}>
               {isRequestingDeletion ? 'Registrando...' : 'Solicitar eliminação'}
-            </Button>
+            </button>
           </div>
-        </Card>
-        <ConfirmDialog
-          open={deletionConfirmOpen}
-          appearance="design-system"
-          title="Solicitar eliminação de dados?"
-          description="A solicitação será registrada para análise manual. Você poderá acompanhar o atendimento pelo protocolo gerado."
-          confirmLabel="Registrar solicitação"
-          cancelLabel="Voltar"
-          danger
-          confirmDisabled={isRequestingDeletion}
-          onCancel={() => setDeletionConfirmOpen(false)}
-          onConfirm={() => void handleDeletionRequest()}
-        />
+        </section>
       </main>
-    </AppShell>
+      {confirmDialog}
+    </Shell>
   );
 }

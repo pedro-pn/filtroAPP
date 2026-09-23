@@ -218,6 +218,7 @@ export interface CreateMissionGroupRequest {
 }
 
 export interface DashboardRow {
+  canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
   code: string;
@@ -443,10 +444,13 @@ export async function setProjectSchedule(projectId: string, payload: ProjectSche
 // --- Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra ---
 
 export type PlannedMeasureUnit = 'M' | 'KG' | 'T' | 'UN' | 'L';
-export type PlannedSystemType = 'TUBULACAO' | 'OLEO';
+export type PlannedSystemType = 'TUBULACAO' | 'OLEO' | 'SISTEMA';
 export type PlannedDiameterUnit = 'pol' | 'mm';
 
 export interface PlannedServiceSystem {
+  projectSystemId?: string | null;
+  equipment?: string | null;
+  systemName?: string | null;
   systemType: PlannedSystemType;
   description?: string | null;
   diameter?: string | null;
@@ -458,6 +462,7 @@ export interface PlannedServiceSystem {
 export interface PlannedService {
   id?: string;
   serviceType: string;
+  scopeName?: string | null;
   weight?: string | number | null;
   note?: string | null;
   systems: PlannedServiceSystem[];
@@ -475,21 +480,50 @@ export interface PlannedScope {
   services: PlannedService[];
   normalHours: PlannedOvertime[];
   overtime: PlannedOvertime[];
+  hoursPlan?: PlannedHoursPlan;
 }
+
+export interface PlannedHoursPlan {
+  source: 'COMMERCIAL' | 'MANUAL' | 'NONE';
+  pending: boolean;
+  thresholdPct: number;
+  manual: { normal: number; overtime: number; total: number } | null;
+  commercial: { normal: number; overtime: number; total: number } | null;
+  differences: Array<{ kind: 'normal' | 'overtime' | 'total'; hours: number; percent: number | null; significant: boolean }>;
+  issues: string[];
+  decision: 'COMMERCIAL' | 'MANUAL' | null;
+  resolvedAt: string | null;
+  fingerprint: string;
+  proposals: Array<{ codBd: number; codProp?: number; nRev?: number; status: string }>;
+}
+
+export type PlannedScopeInput = Pick<PlannedScope, 'services'> & Partial<Pick<PlannedScope, 'normalHours' | 'overtime'>> & { hoursFingerprint?: string };
 
 export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
   const { data } = await apiClient.get<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`);
   return data;
 }
 
-export async function setPlannedScope(projectId: string, payload: PlannedScope): Promise<PlannedScope> {
+export async function setPlannedScope(projectId: string, payload: PlannedScopeInput): Promise<PlannedScope> {
   const { data } = await apiClient.put<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`, payload);
+  return data;
+}
+
+export async function resolvePlannedHours(projectId: string, choice: 'COMMERCIAL' | 'MANUAL', fingerprint: string): Promise<PlannedScope> {
+  const { data } = await apiClient.post<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/horas-previstas/resolver`, { choice, fingerprint });
   return data;
 }
 
 // --- Avanço físico (RDO ponderado por serviço) ---
 
-export interface ProgressSystem {
+export interface ProgressSystemIdentity {
+  projectSystemId?: string | null;
+  equipment?: string | null;
+  systemName?: string | null;
+  diameter?: string | null;
+  diameterUnit?: string | null;
+}
+export interface ProgressSystem extends ProgressSystemIdentity {
   systemType: PlannedSystemType;
   unit: PlannedMeasureUnit | null;
   plannedQty: number | null;
@@ -508,11 +542,20 @@ export interface ProjectProgress {
   hasScope: boolean;
   progressPct: number | null;
   services: ProgressService[];
+  pendingMeasurements?: PendingSystemMeasurement[];
+  scopeGroups?: Array<{ scopeName: string | null; services: ProgressService[] }>;
+}
+
+export interface PendingSystemMeasurement {
+  serviceType: string; equipment: string; system: string; systemType: string;
+  unit: string; diameter: string | null; diameterUnit: string | null; quantity: number;
+  projectSystemId?: string | null;
+  matchedSystem?: { id: string; equipment: string; name: string } | null;
 }
 
 export type RequiredWeeklyProgressStatus = 'REQUIRED' | 'COMPLETED' | 'DUE_TODAY' | 'OVERDUE' | 'UNAVAILABLE';
 
-export interface RequiredWeeklyProgressSystem {
+export interface RequiredWeeklyProgressSystem extends ProgressSystemIdentity {
   systemType: PlannedSystemType;
   unit: PlannedMeasureUnit | null;
   plannedQty: number | null;
@@ -532,6 +575,23 @@ export interface RequiredWeeklyProgress {
     executionPct: number | null;
     systems: RequiredWeeklyProgressSystem[];
   }>;
+  scopeGroups?: Array<{ scopeName: string | null; services: RequiredWeeklyProgress['services'] }>;
+}
+
+// Avanço de um recorte do projeto (escopo e/ou Equipamento/UG do cliente).
+export interface ProgressSlice {
+  avancoPct: number | null;
+  progressHistory: ProgressHistoryPoint[];
+  requiredWeeklyProgress: RequiredWeeklyProgress;
+}
+
+// Filtros do avanço: `lookup["escopo|equipamento"]` ('' = todos) aponta para `slices`; null = igual
+// ao projeto inteiro; ausente = combinação sem escopo medível.
+export interface ProgressFilters {
+  scopes: Array<{ key: string; name: string }>;
+  equipments: Array<{ key: string; name: string }>;
+  slices: ProgressSlice[];
+  lookup: Record<string, number | null>;
 }
 
 export async function getProjectProgress(projectId: string): Promise<ProjectProgress> {
@@ -568,6 +628,7 @@ export interface ProgressHistoryPoint {
 }
 
 export interface ProjectCard {
+  canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
   code: string;
@@ -594,9 +655,9 @@ export interface ProjectCard {
   originalSalePrice?: number | null;
   additionalSalePrice?: number | null;
   budgetBreakdown?: BudgetBreakdown | null;
-  invoicedRevenue: number | null;
-  invoiceCount: number;
-  presumedProfitTaxes: PresumedProfitTaxEstimate | null;
+  invoicedRevenue?: number | null;
+  invoiceCount?: number;
+  presumedProfitTaxes?: PresumedProfitTaxEstimate | null;
   realizedCost: number;
   costConsumedPct: number | null;
   lastDay: { date: string | null; status: LastDayStatus };
@@ -699,6 +760,8 @@ export interface ManualProjectCostPayload {
 export interface ProjectDetailCollaborator {
   name: string;
   role: string;
+  /** Indica que a pessoa veio do planejamento do Efetivo, antes do primeiro RDO. */
+  planned?: boolean;
   /** Jornada dos RDOs; em grupos, usa o maior lançamento por data para evitar duplicidade entre missões. */
   horas: number;
   /** Soma bruta das jornadas de todas as missões, inclusive quando elas se sobrepõem. */
@@ -724,6 +787,8 @@ export interface ProjectDetailCollaborator {
   horasRelatoriosPorData: Array<{
     data: string;
     horas: number;
+    /** Estimativa pelo custo/hora do cargo vigente na data; somente para gestores. */
+    custoEstimado?: number | null;
     /** Relatórios-fonte, preservados mesmo quando o grupo deduplica a jornada por data. */
     relatorios?: Array<{
       id: string;
@@ -736,6 +801,9 @@ export interface ProjectDetailCollaborator {
   }>;
   custo: number | null;
   custoHora: number | null;
+  /** Estimativa dos RDOs quando não há horas apropriadas pelo ponto. */
+  custoEstimadoRdo: number | null;
+  custoHoraEstimadoRdo: number | null;
   /** Parcela proporcional do custo apropriado correspondente às horas de deslocamento. */
   custoDeslocamento: number | null;
 }
@@ -776,6 +844,7 @@ export async function getMissionGroupInvoices(groupId: string) {
 }
 
 export interface ProjectDetail {
+  canViewProjectFinancials?: boolean;
   group?: {
     id: string;
     name: string;
@@ -819,8 +888,8 @@ export interface ProjectDetail {
     previsto: string | number | null;
     previstoOriginal?: string | number | null;
     previstoAdicional?: string | number | null;
-    realizado: string | number | null;
-    notas: number;
+    realizado?: string | number | null;
+    notas?: number;
   };
   budgetBreakdown?: BudgetBreakdown | null;
   maoDeObra: {
@@ -830,13 +899,14 @@ export interface ProjectDetail {
     periodStart: string | null;
     periodEnd: string | null;
   };
-  presumedProfitTaxes: PresumedProfitTaxEstimate | null;
+  presumedProfitTaxes?: PresumedProfitTaxEstimate | null;
   workedHours: WorkedHoursProgress;
   maioresGastos: Array<{ categoria: string; total: number }>;
   manualCosts?: ManualProjectCost[];
   avancoPct: number | null;
   progressHistory?: ProgressHistoryPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
+  progressFilters?: ProgressFilters | null;
   standby: { count: number; minutes: number };
   ultimosDias: Array<{
     date: string;

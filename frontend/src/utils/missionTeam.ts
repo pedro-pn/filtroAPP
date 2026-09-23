@@ -1,6 +1,12 @@
-import type { PlanningMission } from '../api/efetivoPlanning';
+import type { MissionScheduleStatus, PlanningMission } from '../api/efetivoPlanning';
 
 export type CollaboratorActivityFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
+
+export type MissionAllocationPeriodDraft = {
+  collaboratorId: string;
+  mobilizationDate: string;
+  demobilizationDate: string;
+};
 
 export function filterCollaboratorsByActivity<T extends { isActive?: boolean }>(people: T[], filter: CollaboratorActivityFilter): T[] {
   return people.filter(person => filter === 'ALL' || (filter === 'INACTIVE' ? person.isActive === false : person.isActive !== false));
@@ -27,7 +33,87 @@ export function selectedMissionCollaboratorIds(mission: Pick<PlanningMission, 'a
   return [...new Set(mission.allocations.map(allocation => allocation.collaboratorId))];
 }
 
+export function missionTeamScheduleStatus(status: MissionScheduleStatus | null | undefined, initialTeamMode: boolean): 'CONFIRMED' | 'CANCELLED' {
+  if (initialTeamMode) return 'CONFIRMED';
+  return status === 'CANCELLED' ? 'CANCELLED' : 'CONFIRMED';
+}
+
+/** Cargo previsto no planejamento D-30 da obra; `roleIds` reúne os cargos da mesma família. */
+export interface PlannedTeamRole {
+  id: string;
+  name: string;
+  requiredCount: number;
+  roleIds: string[];
+}
+
+/** Dados já definidos no fluxo de gestão (Handover, análise inicial e planejamento D-30) que a equipe apenas reflete. */
+export interface InitialTeamContext {
+  leaderUserId: string;
+  leaderName: string;
+  mobilizationDate: string;
+  executionStartDate: string;
+  executionEndDate: string;
+  plannedRoles: PlannedTeamRole[];
+}
+
+export type MissionTeamScheduleDates = Pick<InitialTeamContext,
+  'mobilizationDate' | 'executionStartDate' | 'executionEndDate'> & { returnDate: string };
+
+type MissionTeamContextDates = Pick<InitialTeamContext,
+  'mobilizationDate' | 'executionStartDate' | 'executionEndDate'>;
+
+/**
+ * Ao editar uma missão existente, suas datas oficiais são a fonte de verdade. O fluxo de gestão e as datas
+ * sugeridas pelo projeto servem somente para preencher uma missão que ainda não foi criada.
+ */
+export function resolveMissionTeamScheduleDates(
+  mission: Pick<PlanningMission, 'mobilizationDate' | 'executionStartDate' | 'executionEndDate' | 'returnDate'> | null,
+  context?: MissionTeamContextDates,
+  suggested?: Partial<MissionTeamScheduleDates> | null
+): MissionTeamScheduleDates {
+  return {
+    mobilizationDate: mission?.mobilizationDate?.slice(0, 10) || context?.mobilizationDate || suggested?.mobilizationDate || '',
+    executionStartDate: mission?.executionStartDate?.slice(0, 10) || context?.executionStartDate || suggested?.executionStartDate || '',
+    executionEndDate: mission?.executionEndDate?.slice(0, 10) || context?.executionEndDate || suggested?.executionEndDate || '',
+    returnDate: mission ? mission.returnDate?.slice(0, 10) || '' : suggested?.returnDate || ''
+  };
+}
+
+export function plannedRoleIdSet(plannedRoles: PlannedTeamRole[] | undefined) {
+  return new Set((plannedRoles || []).flatMap(role => role.roleIds.length ? role.roleIds : [role.id]));
+}
+
+export function isPlannedRole(jobRoleId: string | null | undefined, plannedRoles: PlannedTeamRole[] | undefined) {
+  return Boolean(jobRoleId && plannedRoleIdSet(plannedRoles).has(jobRoleId));
+}
+
+/** Quantos colaboradores selecionados cobrem cada cargo previsto (e quantos foram escolhidos fora do plano). */
+export function plannedRoleCoverage(plannedRoles: PlannedTeamRole[] | undefined, selected: Array<{ jobRoleId?: string | null }>) {
+  const roles = plannedRoles || [];
+  const rows = roles.map(role => {
+    const ids = new Set(role.roleIds.length ? role.roleIds : [role.id]);
+    return { role, selected: selected.filter(person => person.jobRoleId && ids.has(person.jobRoleId)).length };
+  });
+  const planned = plannedRoleIdSet(roles);
+  const outsidePlan = selected.filter(person => !person.jobRoleId || !planned.has(person.jobRoleId)).length;
+  return { rows, outsidePlan };
+}
+
 export function toggleMissionCollaborator(selectedIds: string[], collaboratorId: string, selected: boolean): string[] {
   if (selected) return selectedIds.includes(collaboratorId) ? selectedIds : [...selectedIds, collaboratorId];
   return selectedIds.filter(id => id !== collaboratorId);
+}
+
+export function synchronizeMissionAllocationPeriods(
+  selectedIds: string[],
+  periods: MissionAllocationPeriodDraft[],
+  missionStartDate: string,
+  missionEndDate: string
+): MissionAllocationPeriodDraft[] {
+  const periodByCollaboratorId = new Map(periods.map(period => [period.collaboratorId, period]));
+  return [...new Set(selectedIds)].map(collaboratorId => periodByCollaboratorId.get(collaboratorId) || {
+    collaboratorId,
+    mobilizationDate: missionStartDate,
+    demobilizationDate: missionEndDate
+  });
 }

@@ -14,6 +14,8 @@ import {
   updatePlanningJobRole,
   updatePlanningSettings
 } from '../lib/efetivo/planning/administration.js';
+import { listNotificationEmailSettings, setNotificationEmailSetting } from '../lib/efetivo/notification-email-settings.js';
+import { makeNotificationEmailSettingSchema } from '../../../shared/schemas/notification-email-settings.js';
 import {
   addMissionAllocation,
   listEligibleCollaborators,
@@ -109,7 +111,16 @@ const absenceListQuerySchema = z.object({
   startDate: dateOnlySchema.optional(),
   endDate: dateOnlySchema.optional()
 });
-const scenarioCompareSchema = datePositionQuerySchema;
+const scenarioCompareSchema = z
+  .object({
+    date: dateOnlySchema.optional(),
+    returnDate: dateOnlySchema.optional(),
+    jobRoleId: idSchema.optional(),
+  })
+  .refine((value) => !value.date || !value.returnDate || value.returnDate >= value.date, {
+    path: ['returnDate'],
+    message: 'A data de retorno deve ser igual ou posterior à data de posição',
+  });
 const holidayListSchema = z.object({ startDate: dateOnlySchema.optional(), endDate: dateOnlySchema.optional() });
 const activitySchema = z.object({ cursor: z.string().datetime().optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
 const eligibleCollaboratorsQuerySchema = z.object({
@@ -350,6 +361,17 @@ router.get('/admin/settings', requireEfetivoViewer, asyncHandler(async (_req, re
 
 router.patch('/admin/settings', requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updatePlanningSettings(planningSettingsInputSchema.parse(req.body), context(req)));
+}));
+
+const notificationEmailSettingSchema = makeNotificationEmailSettingSchema(z);
+
+router.get('/admin/notification-emails', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+  res.json(await listNotificationEmailSettings());
+}));
+
+router.patch('/admin/notification-emails', requireEfetivoManager, asyncHandler(async (req, res) => {
+  const payload = notificationEmailSettingSchema.parse(req.body);
+  res.json(await setNotificationEmailSetting(payload.purpose, payload.email, context(req).actorUserId));
 }));
 
 router.get('/admin/activity', requireEfetivoViewer, asyncHandler(async (req, res) => {

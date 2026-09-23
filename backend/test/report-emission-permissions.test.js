@@ -80,3 +80,35 @@ test("backfill preserves site RDO only for existing internal RDO actors", () => 
     [],
   );
 });
+
+test("internal RDO roles always include site RDO emission", () => {
+  assert.deepEqual(
+    normalizeReportEmissionPermissions([], "INTERNAL", ["rdo:collaborator"]),
+    ["SITE_RDO"],
+  );
+  assert.deepEqual(
+    normalizeReportEmissionPermissions(["MAINTENANCE"], "INTERNAL", [
+      { role: "RDO_COORDINATOR" },
+    ]),
+    ["SITE_RDO", "MAINTENANCE"],
+  );
+  assert.deepEqual(
+    normalizeReportEmissionPermissions([], "INTERNAL", ["equipamentos:viewer"]),
+    [],
+  );
+  assert.deepEqual(
+    normalizeReportEmissionPermissions([], "CLIENT", ["rdo:client"]),
+    [],
+  );
+  assert.equal(
+    hasReportEmissionPermission(
+      {
+        accountType: "INTERNAL",
+        reportEmissionPermissions: [],
+        moduleRoles: [{ role: "RDO_COLLABORATOR" }],
+      },
+      "SITE_RDO",
+    ),
+    true,
+  );
+});

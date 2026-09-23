@@ -483,7 +483,7 @@ test('GET /reports applies normalized multi-term search before pagination for in
     assert.equal(args.skip, undefined);
     assert.equal(args.take, undefined);
     assert.equal(args.where.AND, undefined);
-    return [
+    const reports = [
       activeReport({
         id: 'report-search',
         project: {
@@ -511,6 +511,7 @@ test('GET /reports applies normalized multi-term search before pagination for in
         }
       })
     ];
+    return args.where.id ? reports.filter(report => args.where.id.in.includes(report.id)) : reports;
   };
   prisma.report.count = async () => {
     throw new Error('search pagination should use in-memory filtered totals');

@@ -1,10 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {
-  keepPreviousData,
-  QueryClient,
-  QueryClientProvider
-} from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 import '@fontsource-variable/inter/wght.css';
 
@@ -34,10 +30,9 @@ const queryClient = new QueryClient({
       // signatários / finaliza assinatura) apareçam para o cliente sem recarregar a página.
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
-      retry: 1,
-      // Durante um refetch (ex.: busca, troca de filtro), manter os dados anteriores
-      // visíveis em vez de desmontar a lista e mostrar spinner.
-      placeholderData: keepPreviousData
+      // O cache já preserva dados ao revalidar a mesma consulta. Uma chave diferente
+      // (busca, filtro ou conta) precisa dos próprios resultados.
+      retry: 1
     }
   }
 });

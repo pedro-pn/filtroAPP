@@ -34,6 +34,7 @@ import { useToast } from '../ui/ToastContext';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { PontoMaisSyncNovelty } from './PontoMaisSyncNovelty';
 import { UnallocatedDaysPanel } from './UnallocatedDaysPanel';
+import { RdoSimulationExclusionsPanel } from './RdoSimulationExclusionsPanel';
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
@@ -68,9 +69,10 @@ function importSourceLabel(item: PontoImportRow) {
   return item.source === 'PONTOMAIS_API' ? 'API Ponto Mais' : 'Planilha XLSX';
 }
 
-type PontoDetailTab = 'sync' | 'unallocated' | 'missing-projects' | 'employees';
+type PontoDetailTab = 'sync' | 'unallocated' | 'missing-projects' | 'employees' | 'rdo-simulation';
 
 function parsePontoDetailTab(value: string | null): PontoDetailTab {
+  if (value === 'rdo-simulation') return 'rdo-simulation';
   if (value === 'missing-projects') return 'missing-projects';
   if (value === 'unallocated') return 'unallocated';
   return value === 'employees' ? 'employees' : 'sync';
@@ -336,6 +338,15 @@ export function PontoImportPanel() {
             >
               Colaboradores encontrados
               <span className="acp-seg-count">{externalEmployees?.length ?? 0}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={detailTab === 'rdo-simulation'}
+              className={`acp-seg-btn${detailTab === 'rdo-simulation' ? ' active' : ''}`}
+              onClick={() => setDetailTab('rdo-simulation')}
+            >
+              Simulação por RDO
             </button>
           </div>
         ) : null}
@@ -755,6 +766,8 @@ export function PontoImportPanel() {
             </div>
           </section>
         ) : null}
+
+        {detailTab === 'rdo-simulation' && isManager ? <RdoSimulationExclusionsPanel /> : null}
 
         {detailTab === 'employees' && isManager ? (
           <section className="det-section ponto-employee-section" aria-labelledby="ponto-employees-title">

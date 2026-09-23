@@ -123,6 +123,50 @@ test('grupo mantém RDOs das duas missões e considera somente a maior jornada p
   ]);
 });
 
+test('grupo mantém sem valor o colaborador excluído manualmente da estimativa', () => {
+  const input = group().members.map(member => ({
+    projectId: member.projectId, member,
+    detail: detail({ colaboradores: [{
+      name: 'Coordenador sem ponto', role: 'Coordenador', horas: 8, horasLancadas: 8,
+      horasApropriadas: null, custo: null, custoHora: null,
+      custoEstimadoRdo: null, custoHoraEstimadoRdo: null,
+      horasRelatoriosPorData: [{ data: '2026-09-02', horas: 8, custoEstimado: null }]
+    }] })
+  }));
+  const collaborator = groupProjectDetails(group(), input).colaboradores[0];
+  assert.equal(collaborator.horas, 8);
+  assert.equal(collaborator.custo, null);
+  assert.equal(collaborator.custoHora, null);
+  assert.equal(collaborator.custoEstimadoRdo, null);
+  assert.equal(collaborator.custoHoraEstimadoRdo, null);
+  assert.equal(collaborator.horasRelatoriosPorData[0].custoEstimado, null);
+});
+
+test('estimativa do grupo acompanha a maior jornada por data, sem somar sobreposição', () => {
+  const input = group().members.map((member, index) => ({
+    projectId: member.projectId, member,
+    detail: detail({ colaboradores: [{
+      name: 'Ana', role: 'Operador', horasApropriadas: null, custo: null,
+      horas: index ? 7 : 8, horasLancadas: index ? 7 : 8,
+      horasRelatoriosPorData: index ? [
+        { data: '2026-09-02', horas: 5, custoEstimado: 150 },
+        { data: '2026-09-04', horas: 2, custoEstimado: 40 }
+      ] : [{ data: '2026-09-02', horas: 8, custoEstimado: 160 }]
+    }] })
+  }));
+  for (const details of [input, [...input].reverse()]) {
+    const result = groupProjectDetails(group(), details).colaboradores[0];
+    assert.equal(result.horas, 10);
+    assert.equal(result.custoEstimadoRdo, 200);
+    assert.equal(result.custoHoraEstimadoRdo, 20);
+  }
+  input[0].detail.colaboradores[0].horasApropriadas = 8;
+  input[0].detail.colaboradores[0].custo = 250;
+  const withPoint = groupProjectDetails(group(), input).colaboradores[0];
+  assert.equal(withPoint.custo, 250);
+  assert.equal(withPoint.custoEstimadoRdo, null);
+});
+
 test('combineRecentDays mantém até 10 dias distintos nos grupos', () => {
   const recentDays = Array.from({ length: 12 }, (_, index) => {
     const day = String(index + 1).padStart(2, '0');
@@ -247,6 +291,7 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
   assert.equal(result.header.code, '1001 + 1002');
   assert.equal(result.header.clientName, 'Cliente A');
   assert.equal(result.header.proposalCode, 'PROP-1 + PROP-2');
+  assert.deepEqual(result.group.members.map(member => member.progressPct), [25, 75]);
   assert.equal(result.header.lastRdoDate, '2026-07-12T00:00:00.000Z');
   assert.deepEqual(result.diasCorridos, { elapsed: 10, planned: 30, pct: 33 });
   assert.deepEqual(result.diasTrabalhados, { worked: 7, planned: 20, pct: 35 });
@@ -311,6 +356,18 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
   assert.equal(result.footer.expectedEndDate, '2026-07-22T00:00:00.000Z');
 });
 
+test('groupProjectDetails exposes each mission progress for completed schedule highlighting', () => {
+  const g = group();
+  const result = groupProjectDetails(g, g.members.map((member, index) => ({
+    projectId: member.projectId,
+    member,
+    detail: detail({ avancoPct: index === 0 ? 100 : 99.9 }),
+    progress: { hasScope: false, progressPct: index === 0 ? 100 : 99.9, progressMethod: 'RDO', services: [] }
+  })));
+
+  assert.deepEqual(result.group.members.map(member => member.progressPct), [100, 99.9]);
+});
+
 test('groupProjectDetails compares grouped client by CNPJ and recalculates physical scope progress', () => {
   const g = group();
   g.members[0].project.clientName = 'Cliente Matriz';
@@ -356,4 +413,15 @@ test('groupProjectDetails compares grouped client by CNPJ and recalculates physi
   assert.equal(result.header.clientName, 'Cliente Matriz');
   assert.equal(result.avancoMethod, 'GROUP_SCOPE');
   assert.equal(result.avancoPct, 70);
+});
+
+test('grouped planned scope preserves the umbrella name instead of merging equal service types across scopes', () => {
+  const g = group();
+  const result = groupProjectDetails(g, g.members.map((member, index) => ({
+    projectId: member.projectId, member, detail: detail({ code: member.project.code }),
+    plannedScope: { services: [{ scopeName: index === 0 ? 'Principal' : 'Adicional', serviceType: 'LIMPEZA_QUIMICA', weight: 100,
+      systems: [{ systemType: 'TUBULACAO', unit: 'M', quantity: 100 }] }], normalHours: [], overtime: [] }
+  })));
+  assert.deepEqual(result.plannedScope.services.map(service => service.scopeName), ['Principal', 'Adicional']);
+  assert.deepEqual(result.plannedScope.services.map(service => service.systems[0].quantity), [100, 100]);
 });

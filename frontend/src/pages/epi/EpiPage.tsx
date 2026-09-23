@@ -28,6 +28,7 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
@@ -131,6 +132,7 @@ export function EpiPage() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const showToast = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const queryClient = useQueryClient();
   const isTechnician = user?.accountType === 'ADMIN' || user?.moduleRoles?.includes('epi:technician');
   const [tab, setTab] = useUrlParamState<Tab>({
@@ -413,7 +415,7 @@ export function EpiPage() {
     else removeCatalogMutation.mutate(current.id);
   }
 
-  function confirmArchiveRecords(collaborator: EpiCollaborator, records: EpiRecord[], archived = true) {
+  async function confirmArchiveRecords(collaborator: EpiCollaborator, records: EpiRecord[], archived = true) {
     const selectedIds = archived ? selectedRecordIds : selectedArchivedRecordIds;
     const selected = records.filter(record => selectedIds.has(record.id));
     if (!selected.length) {
@@ -424,8 +426,16 @@ export function EpiPage() {
       showToast('EPI assinado não pode ser restaurado.', 'error');
       return;
     }
-    const action = archived ? 'Arquivar' : 'Restaurar';
-    if (!window.confirm(`${action} ${selected.length} EPI(s) de ${collaborator.name}?`)) return;
+    const confirmed = await confirm({
+      title: archived ? 'Arquivar EPIs selecionados?' : 'Restaurar EPIs selecionados?',
+      description: archived
+        ? 'Os registros saem da ficha ativa do colaborador e passam a aparecer apenas entre os arquivados.'
+        : 'Os registros voltam a aparecer na ficha ativa do colaborador.',
+      highlight: `${selected.length} EPI(s) · ${collaborator.name}`,
+      confirmLabel: archived ? 'Arquivar' : 'Restaurar',
+      danger: archived
+    });
+    if (!confirmed) return;
     archiveRecordsMutation.mutate({
       collaboratorId: collaborator.id,
       recordIds: selected.map(record => record.id),
@@ -636,7 +646,7 @@ export function EpiPage() {
                               className="secondary-button"
                               type="button"
                               disabled={!selectedRecordIds.size || archiveRecordsMutation.isPending}
-                              onClick={() => confirmArchiveRecords(collaborator, activeRecords, true)}
+                              onClick={() => void confirmArchiveRecords(collaborator, activeRecords, true)}
                             >
                               Arquivar selecionados
                             </button>
@@ -655,7 +665,7 @@ export function EpiPage() {
                             className="secondary-button epi-restore-button"
                             type="button"
                             disabled={!selectedArchivedRecordIds.size || hasSelectedArchivedSigned || archiveRecordsMutation.isPending}
-                            onClick={() => confirmArchiveRecords(collaborator, archivedRecords, false)}
+                            onClick={() => void confirmArchiveRecords(collaborator, archivedRecords, false)}
                           >
                             Restaurar selecionados
                           </button>
@@ -777,6 +787,7 @@ export function EpiPage() {
           </button>
         </div>
       </Modal>
+      {confirmDialog}
     </Shell>
   );
 }

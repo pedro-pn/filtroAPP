@@ -205,7 +205,7 @@ router.get('/documentos/:id/pdf-final', asyncHandler(async (req, res) => {
 router.get('/documentos/:id/paginas/:n.png', asyncHandler(async (req, res) => {
   const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req));
   const png = await renderPage(document, req.params.n);
-  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('Cache-Control', 'private, no-cache');
   res.type('image/png');
   return res.send(png);
 }));

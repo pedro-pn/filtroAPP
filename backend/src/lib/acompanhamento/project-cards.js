@@ -9,11 +9,13 @@
 
 import { listCommercialDashboard } from './access-import.js';
 import { computeAlerts } from './alerts.js';
+import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
 import { isConfirmedReportParticipant, selectRealizedSourceReportData } from './avanco.js';
 import { laborCostByProject } from './labor-cost.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
 import { reportAllCollaboratorIds, reportPersonTimeMetrics } from './report-time.js';
 import prisma from '../prisma.js';
+import { projectCardsCache } from '../resource-list-cache.js';
 
 function toNum(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -131,11 +133,16 @@ export function lastDayStatus(lastReport, project) {
 
 // Cards da aba Projetos (previsto x realizado por projeto).
 export async function listProjectCards({ includeAdminOnlyCategories = true } = {}) {
+  const cacheKey = includeAdminOnlyCategories ? 'admin' : 'standard';
+  return projectCardsCache.get(cacheKey, () => listProjectCardsUncached({ includeAdminOnlyCategories }));
+}
+
+async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = {}) {
   const rows = await listCommercialDashboard({ includeAdminOnlyCategories });
   const projectIds = rows.map(r => r.projectId);
   if (projectIds.length === 0) return [];
 
-  const [projects, queriedReports, queriedCollaborators, labor, plannedNormalHours, plannedOvertime] = await Promise.all([
+  const [projects, queriedReports, queriedCollaborators, labor, hoursByProject] = await Promise.all([
     prisma.project.findMany({
       where: { id: { in: projectIds } },
       select: { id: true, workdayHours: true, weekendWorkdayHours: true }
@@ -162,14 +169,7 @@ export async function listProjectCards({ includeAdminOnlyCategories = true } = {
       select: { reportId: true, collaboratorId: true }
     }),
     laborCostByProject(), // custo de mão de obra (HH) do ponto vigente — separado do realizado Omie
-    prisma.projectPlannedNormalHours.findMany({
-      where: { projectId: { in: projectIds } },
-      select: { projectId: true, hours: true }
-    }),
-    prisma.projectPlannedOvertime.findMany({
-      where: { projectId: { in: projectIds } },
-      select: { projectId: true, hours: true }
-    })
+    loadPlannedHours(projectIds)
   ]);
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
   const laborByProject = labor.byProjectId;
@@ -217,16 +217,6 @@ export async function listProjectCards({ includeAdminOnlyCategories = true } = {
     }
   }
 
-  const sumHoursByProject = (items) => {
-    const out = new Map();
-    for (const item of items) {
-      out.set(item.projectId, (out.get(item.projectId) || 0) + (toNum(item.hours) ?? 0));
-    }
-    return out;
-  };
-  const plannedNormalByProject = sumHoursByProject(plannedNormalHours);
-  const plannedOvertimeByProject = sumHoursByProject(plannedOvertime);
-
   return rows.map(row => {
     const a = agg.get(row.projectId) || {
       dates: new Set(),
@@ -260,7 +250,8 @@ export async function listProjectCards({ includeAdminOnlyCategories = true } = {
     const plannedCost = toNum(row.plannedTotalCost);
     const gastoTotal = (toNum(row.realizedCost) ?? 0) + (laborCost ?? 0);
     const costConsumedPct = plannedCost && plannedCost > 0 ? Math.round((gastoTotal / plannedCost) * 100) : null;
-    const alerts = computeAlerts({
+    const hours = hoursByProject.get(row.projectId);
+    const alerts = [...plannedHoursAlerts(hours?.hoursPlan), ...computeAlerts({
       startDate: row.startDate ?? null,
       plannedDays,
       gasto: gastoTotal,
@@ -269,12 +260,12 @@ export async function listProjectCards({ includeAdminOnlyCategories = true } = {
       lastDayStatus: lastDay.status,
       progressPct: row.progressPct ?? null,
       now: projectReferenceDate
-    });
+    })];
     const workedHours = buildWorkedHoursProgress({
       normalWorkedMinutes: a.normalWorkedMinutes,
       overtimeWorkedMinutes: a.overtimeWorkedMinutes,
-      plannedNormalHours: plannedNormalByProject.get(row.projectId) || 0,
-      plannedOvertimeHours: plannedOvertimeByProject.get(row.projectId) || 0
+      plannedNormalHours: hours?.normalHours.reduce((sum, item) => sum + Number(item.hours), 0) ?? 0,
+      plannedOvertimeHours: hours?.overtime.reduce((sum, item) => sum + Number(item.hours), 0) ?? 0
     });
     const trackingState = deriveProjectTrackingState({
       archivedInReports: row.archived,

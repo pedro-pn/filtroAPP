@@ -29,6 +29,8 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
       accountType: 'ADMIN',
       moduleRoles: ['rdo:manager'],
       reportEmissionPermissions: ['SITE_RDO'],
+      acompanhamentoExtraPermissions: [],
+      rdoExtraPermissions: [],
       isActive: true,
       clientCnpj: null,
       privacyPolicyAcceptedAt: null,

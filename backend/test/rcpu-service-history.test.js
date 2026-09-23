@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   buildHistoricalServiceData,
+  existingDerivedReportLinkKeys,
+  findExistingByLinkKeys,
   hasSharedServiceHistoryKey,
   serviceHistoryKey
 } from '../src/routes/resources/reports.js';
@@ -91,6 +93,49 @@ test('RCPU service history separates filtration by oil type and volume', () => {
   assert.equal(hasSharedServiceHistoryKey(pendingFiltration, finalizedFiltration), false);
 });
 
+test('RCPU service history canonicalizes a missing oil-volume unit as liters', () => {
+  const firstSave = {
+    serviceType: 'flushing',
+    system: 'Linha de lubrificação',
+    extraData: {
+      'Equipamento(s)': 'LAMINADOR',
+      Sistema: 'Linha de lubrificação',
+      'Tipo de óleo': 'VG32',
+      'Volume de óleo': '400',
+      volumeOleo: '400',
+      'Flushing em tubulação?': 'Sim',
+      'Tipo de flushing': 'Primário'
+    }
+  };
+  const secondSave = {
+    serviceType: 'flushing',
+    system: 'Linha de lubrificação',
+    extraData: {
+      'Equipamento(s)': 'LAMINADOR',
+      Sistema: 'Linha de lubrificação',
+      'Tipo de óleo': 'VG32',
+      'Volume de óleo': '400 L',
+      volumeOleo: '400',
+      volumeOleoUnit: 'L',
+      'Flushing em tubulação?': 'Sim',
+      'Tipo de flushing': 'Primário'
+    }
+  };
+
+  assert.equal(serviceHistoryKey(firstSave), serviceHistoryKey(secondSave));
+  assert.equal(hasSharedServiceHistoryKey(firstSave, secondSave), true);
+
+  const milliliters = {
+    ...secondSave,
+    extraData: {
+      ...secondSave.extraData,
+      'Volume de óleo': '400 mL',
+      volumeOleoUnit: 'mL'
+    }
+  };
+  assert.notEqual(serviceHistoryKey(firstSave), serviceHistoryKey(milliliters));
+});
+
 test('RCPU service history treats old semantic explicit keys as aliases only', () => {
   const initialFiltration = {
     serviceType: 'filtragem',
@@ -127,4 +172,42 @@ test('RCPU service history treats old semantic explicit keys as aliases only', (
 
   assert.equal(hasSharedServiceHistoryKey(sameFiltrationWithLegacyKey, initialFiltration), true);
   assert.equal(hasSharedServiceHistoryKey(otherFiltrationWithLegacyKey, initialFiltration), false);
+});
+
+test('all derived report types retain every legacy service alias during reconciliation', () => {
+  const reportTypes = ['RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF'];
+
+  for (const reportType of reportTypes) {
+    const existingReport = {
+      id: `report-${reportType}`,
+      reportType,
+      specialConditions: {
+        serviceLinkKey: `legacy-semantic-${reportType}`,
+        serviceId: `source-row-${reportType}`,
+        serviceData: {
+          __sourceServiceId: `source-field-${reportType}`
+        }
+      }
+    };
+    const aliases = existingDerivedReportLinkKeys(existingReport);
+    const existingByLinkKey = new Map(aliases.map(key => [key, existingReport]));
+    const editedService = {
+      id: `new-database-row-${reportType}`,
+      serviceType: 'mecanica',
+      extraData: {
+        __serviceLinkKey: `source-row-${reportType}`
+      }
+    };
+
+    assert.deepEqual(aliases, [
+      `legacy-semantic-${reportType}`,
+      `source-row-${reportType}`,
+      `source-field-${reportType}`
+    ], reportType);
+    assert.equal(
+      findExistingByLinkKeys(existingByLinkKey, editedService, editedService.id),
+      existingReport,
+      reportType
+    );
+  }
 });

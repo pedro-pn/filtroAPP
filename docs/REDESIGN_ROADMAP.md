@@ -1,5 +1,12 @@
 # Roadmap do redesign do frontend
 
+> **Delta de 23/09/2026:** `origin/main` em `10599cf3` foi incorporada à
+> `feat/frontend-redesign-2`. O [plano desta integração](filtrovali-ds/main-integration-2026-09-23.md)
+> separa a revisão das telas já migradas da entrada de superfícies novas. O
+> histórico de entregas abaixo descreve o baseline anterior ao merge; R1–R3,
+> A0, S1 e X0 são agora a primeira fila para restaurar o visual com os fluxos
+> novos. O build passa, mas a suíte visual anterior ainda tem falhas.
+
 Atualizado em 11/09/2026 após integrar `origin/main` em `9586579f`, pelo merge
 `1efe4639` na branch `feat/frontend-redesign-2`. O trabalho local de redesign foi
 preservado, com backup em stash. A integração anterior (`703cb0f6`, merge
@@ -950,6 +957,11 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1/X2
   `npm run lint`, `npm test` e `npm run build`.
 
 ## Ordem recomendada dos próximos lotes
+
+Antes da ordem histórica abaixo, executar os lotes **P0 R1–R3, A0, S1 e X0**
+do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md). A nova
+gestão de projetos F2.5/F2.6 segue o standby do Efetivo; as demais novidades
+estão vinculadas às fases A3b/A4/A5/A6, Estoque, Romaneio, M3/EQ2 e X1/X2.
 
 1. **A3a.1** e os novos gatilhos/diálogos de **A4**, para fechar as inserções da main
    nas telas de Acompanhamento já redesenhadas.

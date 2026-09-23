@@ -27,6 +27,8 @@ const PROJECT_INTAKE_NOVELTY_KEY_PREFIX = 'filtrovali:project-intake-novelty:v1:
 const PONTOMAIS_SYNC_NOVELTY_KEY_PREFIX = 'filtrovali:pontomais-sync-novelty:v1:';
 const ACOMPANHAMENTO_LABOR_POLICY_NOVELTY_KEY_PREFIX = 'filtrovali:acompanhamento-labor-policy-novelty:v1:';
 const ROMANEIO_QR_NOVELTY_KEY_PREFIX = 'filtrovali:romaneio-qr-novelty:v1:';
+const ROMANEIO_PROJECT_AVAILABILITY_NOVELTY_KEY_PREFIX = 'filtrovali:romaneio-project-availability-novelty:v1:';
+const PHOTO_CAPTURE_NOVELTY_KEY_PREFIX = 'filtrovali:photo-capture-novelty:v1:';
 
 function storageKey(user: Pick<AuthUser, 'id'>) {
   return `${LAST_MODULE_KEY_PREFIX}${user.id}`;
@@ -83,6 +85,34 @@ export function shouldShowRomaneioQrNovelty(user: Pick<AuthUser, 'id'> | null | 
 
 export function markRomaneioQrNoveltySeen(user: Pick<AuthUser, 'id'> | null | undefined) {
   if (user) safeLocalStorageSet(`${ROMANEIO_QR_NOVELTY_KEY_PREFIX}${user.id}`, '1');
+}
+
+// Campanha do filtro de obras no romaneio implantada em 09/09/2026 e válida por 10 dias corridos.
+export const ROMANEIO_PROJECT_AVAILABILITY_IMPLEMENTED_AT = '2026-09-09';
+const ROMANEIO_PROJECT_AVAILABILITY_EXPIRES_AT = new Date('2026-09-19T23:59:59-03:00');
+
+export function shouldShowRomaneioProjectAvailabilityNovelty(user: Pick<AuthUser, 'id'> | null | undefined) {
+  if (!user || Date.now() > ROMANEIO_PROJECT_AVAILABILITY_EXPIRES_AT.getTime()) return false;
+  return safeLocalStorageGet(`${ROMANEIO_PROJECT_AVAILABILITY_NOVELTY_KEY_PREFIX}${user.id}`) !== '1';
+}
+
+export function markRomaneioProjectAvailabilityNoveltySeen(user: Pick<AuthUser, 'id'> | null | undefined) {
+  if (user) safeLocalStorageSet(`${ROMANEIO_PROJECT_AVAILABILITY_NOVELTY_KEY_PREFIX}${user.id}`, '1');
+}
+
+// Campanha do botão "Tirar foto" nos relatórios implantada em 21/09/2026 e válida por 5 dias corridos.
+// Aparece uma vez por usuário em cada tela onde o botão existe (RDO novo, edição do RDO e manutenção).
+export const PHOTO_CAPTURE_NOVELTY_IMPLEMENTED_AT = '2026-09-21';
+export const PHOTO_CAPTURE_NOVELTY_EXPIRES_AT = new Date('2026-09-25T23:59:59-03:00');
+export type PhotoCaptureNoveltyPlacement = 'rdo-new' | 'rdo-edit' | 'maintenance';
+
+export function shouldShowPhotoCaptureNovelty(user: Pick<AuthUser, 'id'> | null | undefined, placement: PhotoCaptureNoveltyPlacement) {
+  if (!user || Date.now() > PHOTO_CAPTURE_NOVELTY_EXPIRES_AT.getTime()) return false;
+  return safeLocalStorageGet(`${PHOTO_CAPTURE_NOVELTY_KEY_PREFIX}${placement}:${user.id}`) !== '1';
+}
+
+export function markPhotoCaptureNoveltySeen(user: Pick<AuthUser, 'id'> | null | undefined, placement: PhotoCaptureNoveltyPlacement) {
+  if (user) safeLocalStorageSet(`${PHOTO_CAPTURE_NOVELTY_KEY_PREFIX}${placement}:${user.id}`, '1');
 }
 
 function safeLocalStorageGet(key: string) {

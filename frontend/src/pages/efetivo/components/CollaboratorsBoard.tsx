@@ -12,7 +12,9 @@ import {
   type PlanningCollaborator
 } from '../../../api/efetivoPlanning';
 import type { EfetivoAbsencePayload } from '../../../api/efetivo';
-import { Button, SearchInput } from '../../../components/ui/ds';
+import { Button } from '../../../components/ui/Button';
+import { SearchBar } from '../../../components/ui/SearchBar';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { AbsenceFormModal } from './AbsenceFormModal';
@@ -34,7 +36,12 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
   const [editing, setEditing] = useState<PlanningCollaborator | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [absencePerson, setAbsencePerson] = useState<PlanningCollaborator | null>(null);
-  const collaborators = useQuery({ queryKey: ['efetivo-planning-collaborators', date, jobRoleId || 'all', search], queryFn: () => listPlanningCollaborators({ date, jobRoleId, search: search || undefined }) });
+  const debouncedSearch = useDebouncedValue(search, 200);
+  const collaborators = useQuery({
+    queryKey: ['efetivo-planning-collaborators', date, jobRoleId || 'all', search],
+    queryFn: ({ signal }) => listPlanningCollaborators({ date, jobRoleId, search: search || undefined }, signal),
+    enabled: search === debouncedSearch
+  });
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['efetivo-planning-collaborators'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-overview'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-calendar'] })]);
   const save = useMutation({
@@ -59,10 +66,10 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
   }, [rows.length, selectedCollaboratorId]);
   return (
     <div className="efetivo-board" data-efetivo-collaborators>
-      <section className="page-card efetivo-list-toolbar efetivo-people-toolbar"><SearchInput size="sm" value={search} onChange={onSearchChange} label="Buscar colaborador" placeholder="Buscar colaborador" resultCount={{ shown: rows.length, total: rows.length }} /><span className="efetivo-toolbar-copy">Situação em {displayDateOnly(date)}</span>{canManage ? <Button variant="primary" size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>Novo colaborador</Button> : null}</section>
+      <section className="page-card efetivo-list-toolbar"><SearchBar loading={search !== debouncedSearch || collaborators.isFetching} value={search} onChange={onSearchChange} placeholder="Buscar colaborador" count={{ shown: rows.length, total: rows.length }} /><span className="efetivo-toolbar-copy">Situação em {displayDateOnly(date)}</span>{canManage ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}>Novo colaborador</Button> : null}</section>
       <section className="page-card">
-        {collaborators.isLoading ? <p className="placeholder-copy">Carregando colaboradores…</p> : collaborators.isError ? <p className="placeholder-copy">Não foi possível carregar o efetivo.</p> : !rows.length ? <p className="placeholder-copy">Nenhum colaborador neste recorte.</p> : (
-          <div className="efetivo-table-wrap"><table className="efetivo-table efetivo-planning-table"><thead><tr><th>Colaborador</th><th>Função</th><th>Situação</th><th>Alocação 90d</th><th>Admissão</th><th>Alerta</th><th>Ações</th></tr></thead><tbody>{rows.map(row => <tr className={selectedCollaboratorId === row.id ? 'selected' : ''} data-collaborator-id={row.id} aria-current={selectedCollaboratorId === row.id ? 'true' : undefined} onClick={() => onCollaboratorSelect?.(row.id)} key={row.id}><td data-label="Colaborador"><strong>{row.name}</strong></td><td data-label="Função">{row.role}</td><td data-label="Situação"><span className={`efetivo-status status-${row.status.toLocaleLowerCase('pt-BR')}`}>{statusLabel[row.status]}</span></td><td data-label="Alocação 90d">{row.plannedUtilization90d == null ? 'Indisponível' : `${row.plannedUtilization90d.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}</td><td data-label="Admissão">{row.admissionDate ? displayDateOnly(row.admissionDate) : 'Não informada'}</td><td data-label="Alerta">{row.vacationAlert ? <span className="efetivo-badge warning" title="Alerta operacional; valide também com folha/jurídico.">{row.vacationAlert.label} · {displayDateOnly(row.vacationAlert.concessionDeadline)}</span> : '—'}</td><td data-label="Ações" className="efetivo-people-actions-cell"><div className="efetivo-action-row efetivo-people-actions" onClick={event => event.stopPropagation()}>{canManage ? <><Button variant="secondary" size="sm" onClick={() => { setEditing(row); setFormOpen(true); }}>Editar</Button><Button variant="secondary" size="sm" onClick={() => setAbsencePerson(row)}>Indisponibilidade</Button></> : <span>Somente leitura</span>}</div></td></tr>)}</tbody></table></div>
+        {search !== debouncedSearch || collaborators.isLoading ? <p className="placeholder-copy">Carregando colaboradores…</p> : collaborators.isError ? <p className="placeholder-copy">Não foi possível carregar o efetivo.</p> : !rows.length ? <p className="placeholder-copy">Nenhum colaborador neste recorte.</p> : (
+          <div className="efetivo-table-wrap"><table className="efetivo-table efetivo-planning-table"><thead><tr><th>Colaborador</th><th>Função</th><th>Situação</th><th>Alocação 90d</th><th>Admissão</th><th>Alerta</th><th>Ações</th></tr></thead><tbody>{rows.map(row => <tr className={selectedCollaboratorId === row.id ? 'selected' : ''} data-collaborator-id={row.id} aria-current={selectedCollaboratorId === row.id ? 'true' : undefined} onClick={() => onCollaboratorSelect?.(row.id)} key={row.id}><td data-label="Colaborador"><strong>{row.name}</strong></td><td data-label="Função">{row.role}</td><td data-label="Situação"><span className={`efetivo-status status-${row.status.toLocaleLowerCase('pt-BR')}`}>{statusLabel[row.status]}</span></td><td data-label="Alocação 90d">{row.plannedUtilization90d == null ? 'Indisponível' : `${row.plannedUtilization90d.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}</td><td data-label="Admissão">{row.admissionDate ? displayDateOnly(row.admissionDate) : 'Não informada'}</td><td data-label="Alerta">{row.vacationAlert ? <span className="efetivo-badge warning" title="Alerta operacional; valide também com folha/jurídico.">{row.vacationAlert.label} · {displayDateOnly(row.vacationAlert.concessionDeadline)}</span> : '—'}</td><td data-label="Ações"><div className="efetivo-action-row">{canManage ? <><Button variant="mini" onClick={() => { setEditing(row); setFormOpen(true); }}>Editar</Button><Button variant="mini" onClick={() => setAbsencePerson(row)}>Indisponibilidade</Button></> : <span>Somente leitura</span>}</div></td></tr>)}</tbody></table></div>
         )}
         {rows.some(row => row.vacationAlert) ? <p className="efetivo-operational-disclaimer">Alertas de férias são operacionais e devem ser validados com folha e jurídico.</p> : null}
       </section>

@@ -1,4 +1,4 @@
-import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from './auth';
+import type { AccountType, AcompanhamentoExtraPermission, ModuleRole, RdoExtraPermission, ReportEmissionPermission, UserRole } from './auth';
 
 export type UnitCategory = string;
 export type ReportType = 'RDO' | 'RDO_MAINTENANCE' | 'RDO_PRODUCTION' | 'RTP' | 'RLQ' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
@@ -184,6 +184,8 @@ export interface InternalUserSummary {
   accountType?: AccountType;
   moduleRoles?: ModuleRole[];
   reportEmissionPermissions?: ReportEmissionPermission[];
+  acompanhamentoExtraPermissions?: AcompanhamentoExtraPermission[];
+  rdoExtraPermissions?: RdoExtraPermission[];
   isActive: boolean;
   collaboratorId?: string | null;
   collaborator?: Collaborator | null;

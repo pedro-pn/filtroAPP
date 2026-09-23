@@ -80,13 +80,6 @@ export function AssinaturasPage() {
     setParams(next, { replace: true });
   }
 
-  function setDetailPage(page: number) {
-    const next = new URLSearchParams(params);
-    next.set('page', String(Math.max(1, page)));
-    next.set('tab', 'setup');
-    setParams(next, { replace: true });
-  }
-
   async function create(payload: { fileName: string; pdfDataUrl: string; title?: string }) {
     try {
       const document = await mutations.create.mutateAsync(payload);
@@ -116,7 +109,6 @@ export function AssinaturasPage() {
                 tab={detailTab}
                 pageNumber={detailPage}
                 onTabChange={setDetailTab}
-                onPageChange={setDetailPage}
                 onBack={closeDocument}
               />
         ) : (

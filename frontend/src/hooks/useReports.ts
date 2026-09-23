@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -32,6 +32,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 import { matchesSearch, reportSearchParts } from '../utils/search';
 import { queryKeys } from './queryKeys';
+import { useDebouncedValue } from './useDebouncedValue';
 
 interface LoadMoreReportGroupOptions {
   projectId: string;
@@ -55,7 +56,7 @@ interface ReportGroupTotalEntry {
 }
 
 interface AccumulatedReportsSnapshot {
-  version: 1;
+  version: 2;
   savedAt: number;
   page: number;
   items: ReportSummary[];
@@ -63,7 +64,7 @@ interface AccumulatedReportsSnapshot {
   groupTotals: Record<string, number>;
 }
 
-const ACCUMULATED_REPORTS_STORAGE_VERSION = 1;
+const ACCUMULATED_REPORTS_STORAGE_VERSION = 2;
 const ACCUMULATED_REPORTS_STORAGE_TTL_MS = 30 * 60 * 1000;
 const accumulatedReportsSnapshots = new Map<string, AccumulatedReportsSnapshot>();
 const ACOMPANHAMENTO_REPORT_QUERY_KEYS = [
@@ -257,7 +258,8 @@ export function useReports(filters?: ReportFilters) {
   const { user } = useAuth();
   return useQuery({
     queryKey: queryKeys.reports(filters, user?.id),
-    queryFn: () => listReports(filters)
+    queryFn: ({ signal }) => listReports(filters, signal),
+    placeholderData: undefined
   });
 }
 
@@ -265,7 +267,8 @@ export function useReportsPage(filters: ReportPageFilters, enabled = true, optio
   const { user } = useAuth();
   return useQuery({
     queryKey: queryKeys.reportPage(filters, user?.id),
-    queryFn: () => listReportsPage(filters),
+    queryFn: ({ signal }) => listReportsPage(filters, signal),
+    placeholderData: undefined,
     enabled,
     ...options
   });
@@ -352,6 +355,9 @@ export function useAccumulatedReportsPage(
   options: ReportPageQueryOptions = {}
 ) {
   const { user } = useAuth();
+  const search = filters.search?.trim() || '';
+  const debouncedSearch = useDebouncedValue(search, 200);
+  const isDebouncing = search !== debouncedSearch;
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
   const storageUserId = user?.id || user?.username || null;
   const storageKey = useMemo(() => accumulatedReportsStorageKey(filtersKey, storageUserId), [filtersKey, storageUserId]);
@@ -360,19 +366,31 @@ export function useAccumulatedReportsPage(
   const [items, setItems] = useState<ReportSummary[]>(() => initialSnapshot?.items || []);
   const itemsRef = useRef<ReportSummary[]>(initialSnapshot?.items || []);
   const groupLoadedCountsRef = useRef<Record<string, number>>(initialSnapshot?.groupLoadedCounts || {});
-  const groupPageLoadingKeysRef = useRef<Set<string>>(new Set());
   const [groupLoadingKeys, setGroupLoadingKeys] = useState<string[]>([]);
   const [groupErrorKeys, setGroupErrorKeys] = useState<string[]>([]);
   const [groupTotals, setGroupTotals] = useState<Record<string, number>>(() => initialSnapshot?.groupTotals || {});
-  const [activeFiltersKey, setActiveFiltersKey] = useState(filtersKey);
+  const [activeFiltersKey, setActiveFiltersKey] = useState(storageKey);
   const activeStorageKeyRef = useRef(storageKey);
   const skipNextSnapshotWriteRef = useRef(false);
-  const effectivePage = activeFiltersKey === filtersKey ? page : 1;
-  const query = useReportsPage({ ...filters, page: effectivePage }, enabled, options);
+  const isCurrentScope = activeFiltersKey === storageKey;
+  const effectivePage = isCurrentScope ? page : initialSnapshot?.page || 1;
+  const query = useReportsPage({ ...filters, page: effectivePage }, enabled && !isDebouncing, options);
+  const requestScope = useMemo(() => ({ storageKey, enabled, controllers: new Map<string, AbortController>(), active: false }), [storageKey, enabled]);
+  useLayoutEffect(() => {
+    requestScope.active = enabled;
+    setGroupLoadingKeys([]);
+    setGroupErrorKeys([]);
+    return () => {
+      requestScope.active = false;
+      requestScope.controllers.forEach(controller => controller.abort());
+      requestScope.controllers.clear();
+    };
+  }, [requestScope, enabled]);
+  const visibleItems = useMemo(() => isCurrentScope ? items : initialSnapshot?.items || [], [isCurrentScope, items, initialSnapshot]);
   const pagination = query.data?.pagination;
   const loadedProjectCount = useMemo(
-    () => new Set(items.map(report => report.projectId).filter(Boolean)).size,
-    [items]
+    () => new Set(visibleItems.map(report => report.projectId).filter(Boolean)).size,
+    [visibleItems]
   );
   const projectTotal = query.data?.meta?.projectTotal;
   const hasMoreProjects = hasMoreReportProjects(pagination, loadedProjectCount, projectTotal);
@@ -382,15 +400,14 @@ export function useAccumulatedReportsPage(
   }, [items]);
 
   useEffect(() => {
-    if (activeFiltersKey === filtersKey && activeStorageKeyRef.current === storageKey) return;
+    if (activeFiltersKey === storageKey) return;
     const snapshot = readAccumulatedReportsSnapshot(storageKey);
     activeStorageKeyRef.current = storageKey;
     skipNextSnapshotWriteRef.current = true;
-    setActiveFiltersKey(filtersKey);
+    setActiveFiltersKey(storageKey);
     setPage(snapshot?.page || 1);
     itemsRef.current = snapshot?.items || [];
     groupLoadedCountsRef.current = snapshot?.groupLoadedCounts || {};
-    groupPageLoadingKeysRef.current = new Set();
     setItems(snapshot?.items || []);
     setGroupTotals(snapshot?.groupTotals || {});
     setGroupLoadingKeys([]);
@@ -398,7 +415,7 @@ export function useAccumulatedReportsPage(
   }, [activeFiltersKey, filtersKey, storageKey]);
 
   useEffect(() => {
-    if (!enabled || activeFiltersKey !== filtersKey) return;
+    if (!enabled || isDebouncing || activeFiltersKey !== storageKey) return;
     if (skipNextSnapshotWriteRef.current) {
       skipNextSnapshotWriteRef.current = false;
       return;
@@ -409,7 +426,7 @@ export function useAccumulatedReportsPage(
       groupLoadedCounts: groupLoadedCountsRef.current,
       groupTotals
     });
-  }, [activeFiltersKey, enabled, filtersKey, groupTotals, items, page, storageKey]);
+  }, [activeFiltersKey, enabled, isDebouncing, groupTotals, items, page, storageKey]);
 
   // Re-sincroniza a lista visível quando uma mutação altera o snapshot (aprovar/devolver/
   // assinar/excluir direto da lista). O snapshot já foi atualizado pela mutação; aqui só
@@ -431,7 +448,7 @@ export function useAccumulatedReportsPage(
 
   useEffect(() => {
     const data = query.data;
-    if (!data || !enabled || activeFiltersKey !== filtersKey) return;
+    if (!data || query.isPlaceholderData || !enabled || isDebouncing || activeFiltersKey !== storageKey) return;
     const currentItems = itemsRef.current;
     const mergedCoveredFirstPage = mergeCoveredFirstReportPage(currentItems, data.items, data.pagination.page);
 
@@ -472,10 +489,10 @@ export function useAccumulatedReportsPage(
     if (shouldAdvanceToNextProjectPage) {
       setPage(current => Math.max(current, data.pagination.page + 1));
     }
-  }, [activeFiltersKey, enabled, filtersKey, query.data]);
+  }, [activeFiltersKey, enabled, isDebouncing, storageKey, query.data, query.isPlaceholderData]);
 
   function loadMore() {
-    if (!pagination || pagination.page >= pagination.totalPages) return;
+    if (!isCurrentScope || isDebouncing || query.isFetching || !pagination || pagination.page >= pagination.totalPages) return;
     setPage(current => Math.min(pagination.totalPages, current + 1));
   }
 
@@ -503,9 +520,11 @@ export function useAccumulatedReportsPage(
     const loadingKey = groupKey(projectId, reportType);
     const pageKey = groupPageKey(projectId, reportType, pageSize, sortDirection);
     const requestKey = `${pageKey}-${page}`;
-    if (groupPageLoadingKeysRef.current.has(requestKey)) return null;
+    if (!requestScope.active || !isCurrentScope || isDebouncing || requestScope.controllers.has(requestKey)) return null;
+    const controller = new AbortController();
+    requestScope.controllers.set(requestKey, controller);
+    const isCurrentRequest = () => requestScope.active && !controller.signal.aborted;
 
-    groupPageLoadingKeysRef.current.add(requestKey);
     setGroupLoadingKeys(current => current.includes(loadingKey) ? current : [...current, loadingKey]);
     setGroupErrorKeys(current => current.filter(key => key !== loadingKey));
     try {
@@ -516,7 +535,8 @@ export function useAccumulatedReportsPage(
         reportSort: sortDirection || 'asc',
         page,
         pageSize
-      });
+      }, controller.signal);
+      if (!isCurrentRequest()) return null;
       groupLoadedCountsRef.current[pageKey] = Math.max(
         groupLoadedCountsRef.current[pageKey] || 0,
         Math.min(data.pagination.total, ((page - 1) * pageSize) + data.items.length)
@@ -535,11 +555,15 @@ export function useAccumulatedReportsPage(
       });
       return data;
     } catch {
+      if (!isCurrentRequest()) return null;
       setGroupErrorKeys(current => current.includes(loadingKey) ? current : [...current, loadingKey]);
       return null;
     } finally {
-      groupPageLoadingKeysRef.current.delete(requestKey);
-      setGroupLoadingKeys(current => current.filter(key => key !== loadingKey));
+      if (requestScope.controllers.get(requestKey) === controller) requestScope.controllers.delete(requestKey);
+      if (isCurrentRequest()) {
+        const groupStillLoading = Array.from(requestScope.controllers.keys()).some(key => key.startsWith(`${loadingKey}-`));
+        if (!groupStillLoading) setGroupLoadingKeys(current => current.filter(key => key !== loadingKey));
+      }
     }
   }
 
@@ -604,9 +628,9 @@ export function useAccumulatedReportsPage(
 
   return {
     ...query,
-    items,
+    items: visibleItems,
     pagination,
-    hasMore: hasMoreProjects,
+    hasMore: isCurrentScope && !isDebouncing && hasMoreProjects,
     loadMore,
     loadMoreGroup,
     ensureGroupPage,
@@ -617,8 +641,9 @@ export function useAccumulatedReportsPage(
     isGroupError,
     groupTotal,
     projectTypeTotals,
-    isLoadingInitial: query.isLoading && items.length === 0,
-    isLoadingMore: query.isFetching && items.length > 0
+    isSearching: enabled && (isDebouncing || query.isFetching),
+    isLoadingInitial: enabled && (isDebouncing || query.isLoading) && visibleItems.length === 0,
+    isLoadingMore: query.isFetching && visibleItems.length > 0
   };
 }
 

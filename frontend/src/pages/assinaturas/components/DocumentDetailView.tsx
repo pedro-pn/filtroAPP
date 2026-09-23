@@ -30,14 +30,12 @@ export function DocumentDetailView({
   tab,
   pageNumber,
   onTabChange,
-  onPageChange,
   onBack
 }: {
   document: SignatureDocument;
   tab: 'details' | 'setup' | 'audit';
   pageNumber: number;
   onTabChange: (tab: 'details' | 'setup' | 'audit') => void;
-  onPageChange: (page: number) => void;
   onBack: () => void;
 }) {
   const showToast = useToast();
@@ -104,7 +102,7 @@ export function DocumentDetailView({
           <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} title={document.status === 'FINALIZANDO' ? 'Aguarde a geração do PDF final.' : undefined} onClick={() => setPendingAction('delete')}>Excluir</Button>
         </div>
       </div>
-      {activeTab === 'setup' ? <DocumentSetupView document={document} pageNumber={pageNumber} onPageChange={onPageChange} /> : activeTab === 'audit' ? <AuditTrail key={document.id} documentId={document.id} /> : (
+      {activeTab === 'setup' ? <DocumentSetupView key={document.id} document={document} initialPage={pageNumber} /> : activeTab === 'audit' ? <AuditTrail documentId={document.id} /> : (
         <>
           <DocumentTrackingSummary document={document} downloading={downloading} onDownload={download} />
           <SignerStatusList documentId={document.id} signers={document.signers} />

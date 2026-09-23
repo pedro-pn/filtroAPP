@@ -92,9 +92,10 @@ function exportRows(movements: StockMovement[]) {
 
 interface Props {
   isManager: boolean;
+  onRegisterMovement: () => void;
 }
 
-export function StockMovementsTab({ isManager }: Props) {
+export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
   const showToast = useToast();
   const queryClient = useQueryClient();
   const [itemId, setItemId] = useState('');
@@ -177,6 +178,8 @@ export function StockMovementsTab({ isManager }: Props) {
     <section className="page-card">
       <div className="admin-toolbar">
         <div className="sec">Movimentações</div>
+        <div className="stock-movements-actions">
+        {isManager ? <button className="mini-btn" type="button" onClick={onRegisterMovement}>Registrar movimentação</button> : null}
         <button
           className="mini-btn alt"
           type="button"
@@ -185,6 +188,7 @@ export function StockMovementsTab({ isManager }: Props) {
         >
           {exportMutation.isPending ? 'Exportando...' : 'Exportar CSV'}
         </button>
+        </div>
       </div>
 
       <div className="stock-movement-filters">

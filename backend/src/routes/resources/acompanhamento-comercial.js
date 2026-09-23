@@ -18,6 +18,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { importCommercialAccess, listCommercialDashboard, listCommercialPendencias, listProjectRevisions, removeProjectAdditionalProposal, setProjectAdditionalProposalRevision, setProjectBudgetRevision, setProjectSchedule } from '../../lib/acompanhamento/access-import.js';
 import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acompanhamento/manual-costs.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
+import { resolvePlannedHoursDecision } from '../../lib/acompanhamento/planned-hours.js';
 import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
@@ -36,8 +37,14 @@ import { listSedeCosts } from '../../lib/acompanhamento/sede-costs.js';
 import { listSedeOperationalMetrics } from '../../lib/acompanhamento/sede-operational-metrics.js';
 import prisma from '../../lib/prisma.js';
 import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
+import { projectSystemScopeInclude, projectSystemWithMeasurements, saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
+import { assertHistoricalProject } from '../../lib/reports/historical-services-store.js';
+import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
+import { createSystemReconciliationRouter } from './system-reconciliation.js';
+import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
 
 const router = Router();
+router.use('/projetos/:projectId/conciliacao', createSystemReconciliationRouter());
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB (arquivo real ~1 MB)
 const monthParamSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mês inválido. Use o formato YYYY-MM.');
@@ -190,6 +197,7 @@ router.post(
         importedByUserId: null,
         source: 'SCRIPT'
       });
+      clearProjectDerivedCaches();
       return res.status(summary.skippedDuplicate ? 200 : 201).json(summary);
     } catch (error) {
       return res.status(422).json({ error: `Falha ao importar o banco Access: ${error.message}` });
@@ -222,7 +230,7 @@ router.get(
     const categoryCode = typeof req.query.category === 'string' && req.query.category ? req.query.category : null;
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
     const [rows, groups] = await Promise.all([listCommercialDashboard({ categoryCode, includeAdminOnlyCategories }), loadActiveMissionGroups()]);
-    res.json(groupDashboardRows(rows, groups));
+    res.json(projectFinancialsForUser(groupDashboardRows(rows, groups), req.auth.user));
   })
 );
 
@@ -234,7 +242,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
     const [cards, groups] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups()]);
-    res.json(groupProjectCards(cards, groups));
+    res.json(projectFinancialsForUser(groupProjectCards(cards, groups), req.auth.user));
   })
 );
 
@@ -343,6 +351,7 @@ router.patch(
         acompanhamentoReviewedAt: true
       }
     });
+    clearProjectDerivedCaches();
     res.json({
       projectId: updated.id,
       archived: !updated.isActive || Boolean(updated.acompanhamentoArchivedAt),
@@ -413,7 +422,7 @@ router.get(
         includeCollaboratorCosts,
         includeAdminOnlyCategories
       });
-      res.json(detail);
+      res.json(projectFinancialsForUser(detail, req.auth.user));
     } catch (error) {
       return missionGroupErrorResponse(error, res);
     }
@@ -525,6 +534,7 @@ router.post(
     const { codBd } = revisionSchema.parse(req.body);
     try {
       const budget = await setProjectBudgetRevision(req.params.projectId, codBd);
+      clearProjectDerivedCaches();
       res.json(budget);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -542,6 +552,7 @@ router.post(
       const selection = await setProjectAdditionalProposalRevision(req.params.projectId, codBd, {
         selectedByUserId: req.auth?.user?.id ?? null
       });
+      clearProjectDerivedCaches();
       res.json(selection);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -557,6 +568,7 @@ router.delete(
     const codProp = proposalCodeParamSchema.parse(req.params.codProp);
     try {
       const result = await removeProjectAdditionalProposal(req.params.projectId, codProp);
+      clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -595,6 +607,7 @@ router.patch(
     const data = scheduleSchema.parse(req.body);
     try {
       await setProjectSchedule(req.params.projectId, data);
+      clearProjectDerivedCaches();
       res.json({ ok: true });
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -612,6 +625,7 @@ router.post(
       const cost = await createManualProjectCost(req.params.projectId, data, {
         userId: req.auth?.user?.id ?? null
       });
+      clearProjectDerivedCaches();
       res.status(201).json(cost);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -626,6 +640,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     try {
       const result = await deleteManualProjectCost(req.params.projectId, req.params.costId);
+      clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
       res.status(404).json({ error: error.message });
@@ -635,22 +650,25 @@ router.delete(
 
 // === Escopo previsto: quantitativo de serviços vendidos + previsão de horas (manual) ===
 
-// Só tubulação (m) e óleo (L): são os quantitativos que o RDO registra como realizado, para o
-// previsto poder entrar no cálculo de avanço. Tanques e peso (kg/t) não têm fonte no RDO.
+// Quantitativos com fonte no RDO: tubulação (m), óleo (L) e limpeza de sistemas completos (un).
 const plannedSystemSchema = z.object({
-  systemType: z.enum(['TUBULACAO', 'OLEO']),
+  projectSystemId: z.string().max(100).nullable().optional(),
+  equipment: z.string().trim().max(180).nullable().optional(),
+  systemName: z.string().trim().max(180).nullable().optional(),
+  systemType: z.enum(['TUBULACAO', 'OLEO', 'SISTEMA']),
   description: z.string().trim().max(180).nullable().optional(),
   diameter: z.string().trim().max(40).nullable().optional(),
   diameterUnit: z.enum(['pol', 'mm']).nullable().optional(),
   quantity: z.number().nonnegative().nullable().optional(),
-  unit: z.enum(['M', 'L']).nullable().optional()
+  unit: z.enum(['M', 'L', 'UN']).nullable().optional()
 });
 
 const plannedServiceSchema = z.object({
   serviceType: z.string().trim().min(1).max(60),
+  scopeName: z.string().trim().max(180).nullable().optional(),
   weight: z.number().nonnegative().max(100).optional(), // peso do serviço no avanço, em % (0–100)
   note: z.string().max(300).nullable().optional(),
-  systems: z.array(plannedSystemSchema).max(20).default([])
+  systems: z.array(plannedSystemSchema).max(500).default([])
 });
 
 const plannedHoursSchema = z.object({
@@ -662,8 +680,9 @@ const plannedHoursSchema = z.object({
 
 const plannedScopeSchema = z.object({
   services: z.array(plannedServiceSchema).max(50).default([]),
-  normalHours: z.array(plannedHoursSchema).max(50).default([]),
-  overtime: z.array(plannedHoursSchema).max(50).default([])
+  normalHours: z.array(plannedHoursSchema).max(50).optional(),
+  overtime: z.array(plannedHoursSchema).max(50).optional(),
+  hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional()
 });
 
 router.get(
@@ -683,17 +702,49 @@ router.get(
 router.put(
   '/projetos/:projectId/escopo-previsto',
   requireAuth,
-  requireAcompanhamentoAccess,
+  requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const data = plannedScopeSchema.parse(req.body);
     try {
       const scope = await setPlannedScope(req.params.projectId, data);
+      clearProjectDerivedCaches();
       res.json(scope);
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(error.code === 'P2034' ? 409 : error.status ?? 400).json({ error: error.code === 'P2034' ? 'Os dados mudaram. Atualize o cronograma e tente novamente.' : error.message });
     }
   })
 );
+
+router.post('/projetos/:projectId/horas-previstas/resolver', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const data = z.object({ choice: z.enum(['COMMERCIAL', 'MANUAL']), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.body);
+  try {
+    await resolvePlannedHoursDecision(req.params.projectId, data, req.auth.user.id);
+    clearProjectDerivedCaches();
+    res.json(await getPlannedScope(req.params.projectId));
+  } catch (error) {
+    res.status(error.code === 'P2034' ? 409 : error.status ?? 400).json({ error: error.code === 'P2034' ? 'Os dados mudaram. Atualize o cronograma e tente novamente.' : error.message });
+  }
+}));
+
+router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  await assertHistoricalProject(prisma, req.params.projectId);
+  const systems = await prisma.projectServiceSystem.findMany({
+    where: { projectId: req.params.projectId }, orderBy: [{ equipment: 'asc' }, { name: 'asc' }], include: projectSystemScopeInclude
+  });
+  res.json(systems.map(projectSystemWithMeasurements));
+}));
+
+router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const data = z.object({
+    equipment: z.string().trim().min(1).max(180), system: z.string().trim().min(1).max(180),
+    serviceType: z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM']),
+    revision: z.number().int().positive(), remove: z.boolean().optional()
+  }).parse(req.body);
+  await assertHistoricalProject(prisma, req.params.projectId);
+  const item = await saveSystemAlias(prisma, { ...data, ...req.params });
+  clearProjectDerivedCaches();
+  res.json(item);
+}));
 
 // Dashboard detalhado de um projeto (aberto ao clicar no card da aba Projetos).
 router.get(
@@ -715,6 +766,7 @@ router.get(
   '/projetos/:projectId/faturamentos',
   requireAuth,
   requireAcompanhamentoAccess,
+  requireProjectFinancials,
   asyncHandler(async (req, res) => {
     const result = await getProjectInvoices(req.params.projectId);
     if (!result) return res.status(404).json({ error: 'Projeto não encontrado.' });
@@ -726,6 +778,7 @@ router.get(
   '/grupos-missoes/:groupId/faturamentos',
   requireAuth,
   requireAcompanhamentoAccess,
+  requireProjectFinancials,
   asyncHandler(async (req, res) => {
     try {
       res.json(await getMissionGroupInvoices(req.params.groupId));
@@ -747,7 +800,7 @@ router.get(
         includeCollaboratorCosts,
         includeAdminOnlyCategories
       });
-      res.json(detail);
+      res.json(projectFinancialsForUser(detail, req.auth.user));
     } catch (error) {
       res.status(404).json({ error: error.message });
     }

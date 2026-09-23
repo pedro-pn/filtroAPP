@@ -39,6 +39,9 @@ export interface PlanningJobRole {
   calendarColor: string;
   continuousWorkLimitDays: number | null;
   order?: number;
+  familyKey?: string;
+  familyName?: string;
+  familyRoleIds?: string[];
 }
 
 export interface PlanningCoordinator {
@@ -62,6 +65,7 @@ export interface RoleCapacity {
   projectedFree?: number;
   projectedDeficit?: number;
   projectedUtilization90d?: number | null;
+  jobRoleIds?: string[];
 }
 
 export interface MissionDemand {
@@ -180,6 +184,7 @@ export interface ContinuousStayAlert {
 
 export interface PlanningOverview {
   date: DateOnly;
+  returnDate?: DateOnly;
   plan: { id: string; revision: number; calendarRevision: number };
   totals: RoleCapacity;
   byRole: RoleCapacity[];
@@ -251,6 +256,8 @@ export interface PlanningScenario {
   status: 'DRAFT' | 'APPLIED' | 'DISCARDED' | 'SUPERSEDED';
   name: string;
   objective: string | null;
+  simulationPositionDate: string | null;
+  simulationReturnDate: string | null;
   revision: number;
   baseOfficialRevision: number;
   appliedPlanId: string | null;
@@ -295,8 +302,8 @@ export async function getPlanningOverview(date: DateOnly, jobRoleId?: string) {
 export async function getPlanningCalendar(startDate: DateOnly, endDate: DateOnly, jobRoleId?: string) {
   return (await apiClient.get<{ events: CalendarEvent[]; conflicts: PlanningConflict[] }>(`${base}/calendar`, { params: { startDate, endDate, jobRoleId } })).data;
 }
-export async function listPlanningCollaborators(params: { date: DateOnly; jobRoleId?: string; search?: string; includeInactive?: boolean }) {
-  return (await apiClient.get<PlanningCollaborator[]>(`${base}/collaborators`, { params })).data;
+export async function listPlanningCollaborators(params: { date: DateOnly; jobRoleId?: string; search?: string; includeInactive?: boolean }, signal?: AbortSignal) {
+  return (await apiClient.get<PlanningCollaborator[]>(`${base}/collaborators`, { params, signal })).data;
 }
 export async function createPlanningCollaborator(payload: CollaboratorInput) {
   return (await apiClient.post<PlanningCollaborator>(`${base}/collaborators`, payload)).data;
@@ -382,13 +389,15 @@ export async function listPlanningScenarios() {
 export interface ScenarioInput {
   name: string;
   objective?: string | null;
+  simulationPositionDate: string;
+  simulationReturnDate: string;
   initialHire?: { jobRoleId: string; quantity: number; availableFrom: string } | null;
 }
 export async function createPlanningScenario(payload: ScenarioInput) {
   return (await apiClient.post<PlanningScenario>(`${base}/scenarios`, payload)).data;
 }
-export async function comparePlanningScenario(id: string, date: string, jobRoleId?: string) {
-  return (await apiClient.get<{ official: PlanningOverview; scenario: PlanningOverview & { projectedHireCapacity: number }; isStale: boolean }>(`${base}/scenarios/${encodeURIComponent(id)}/compare`, { params: { date, jobRoleId } })).data;
+export async function comparePlanningScenario(id: string, date: string, returnDate?: string, jobRoleId?: string) {
+  return (await apiClient.get<{ official: PlanningOverview; scenario: PlanningOverview & { projectedHireCapacity: number }; isStale: boolean }>(`${base}/scenarios/${encodeURIComponent(id)}/compare`, { params: { date, returnDate, jobRoleId } })).data;
 }
 export async function savePlanningScenarioHire(id: string, payload: { jobRoleId: string; quantity: number; availableFrom: string }) {
   return (await apiClient.post(`${base}/scenarios/${encodeURIComponent(id)}/hires`, payload)).data;
@@ -424,4 +433,19 @@ export async function getPlanningActivity(cursor?: string) {
 }
 export async function listEfetivoRoleUsers() {
   return (await apiClient.get<Array<{ id: string; name: string; accountType: string; moduleRoles: Array<{ role: string }> }>>(`${base}/admin/users`)).data;
+}
+
+export interface NotificationEmailSetting {
+  key: string;
+  label: string;
+  description: string;
+  email: string | null;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+}
+export async function listNotificationEmailSettings() {
+  return (await apiClient.get<NotificationEmailSetting[]>(`${base}/admin/notification-emails`)).data;
+}
+export async function updateNotificationEmailSetting(purpose: string, email: string) {
+  return (await apiClient.patch<Pick<NotificationEmailSetting, 'email' | 'updatedAt' | 'updatedByUserId'>>(`${base}/admin/notification-emails`, { purpose, email })).data;
 }

@@ -134,12 +134,13 @@ function integrationRouteFixture() {
   };
   const db = {
     project: {
-      async findMany() {
-        calls.push(['projects']);
+      async findMany({ where }) {
+        calls.push(['projects', where]);
         return [
           { id: 'project-active', code: '5745', name: 'Projeto ativo', isActive: true, deletedAt: null },
+          { id: 'project-archived', code: '5740', name: 'Projeto arquivado', isActive: false, deletedAt: null },
           { id: 'project-history', code: '5700', name: 'Projeto histórico', isActive: false, deletedAt: new Date('2025-01-01T00:00:00.000Z') }
-        ];
+        ].filter(project => where?.deletedAt !== null || !project.deletedAt);
       }
     }
   };
@@ -212,6 +213,8 @@ test('rotas HTTP exigem sessão e restringem sincronização, auditoria e víncu
     ['/sync-runs', {}],
     ['/pending', {}],
     ['/external-employees', {}],
+    ['/rdo-simulation-exclusions', {}],
+    ['/rdo-simulation-exclusions', { method: 'POST', body: { collaboratorId: 'c1', excluded: true } }],
     ['/external-employees/ignore', { method: 'POST', body: { externalEmployeeId: '101', ignored: true } }],
     ['/external-employees/link', { method: 'POST', body: { externalEmployeeId: '101', collaboratorId: 'collaborator-1' } }],
     ['/project-tags/link', { method: 'POST', body: { rawTag: 'Equipe Ilha', projectId: 'project-active' } }],
@@ -227,6 +230,58 @@ test('rotas HTTP exigem sessão e restringem sincronização, auditoria e víncu
     assert.equal(response.status, 403, path);
   }
   assert.deepEqual(calls, [['status']]);
+});
+
+test('gestor lista todos os colaboradores e pode excluir e reincluir na simulação sem alterar ponto ou cadastro', async () => {
+  const collaborators = [
+    { id: 'c1', code: '001', name: 'Pessoa sem ponto', isActive: true, jobRole: { name: 'Coordenador' }, rdoCostSimulationExcluded: false },
+    { id: 'c2', code: '002', name: 'Pessoa inativa', isActive: false, jobRole: { name: 'Operador' }, rdoCostSimulationExcluded: false }
+  ];
+  let writes = 0;
+  const router = createPontoMaisIntegrationRouter({
+    authenticate: testAuthentication,
+    db: { collaborator: {
+      async findMany(args) {
+        assert.equal(args.where, undefined, 'não filtra colaboradores por ponto ou situação');
+        assert.equal(args.select.rdoCostSimulationExcluded, true);
+        assert.equal(args.select.cpf, undefined);
+        return collaborators.map(item => ({ ...item }));
+      },
+      async update({ where, data, select }) {
+        const collaborator = collaborators.find(item => item.id === where.id);
+        if (!collaborator) throw Object.assign(new Error('Registro ausente'), { code: 'P2025' });
+        assert.deepEqual(Object.keys(data), ['rdoCostSimulationExcluded']);
+        assert.deepEqual(select, { id: true, rdoCostSimulationExcluded: true });
+        writes += 1;
+        Object.assign(collaborator, data);
+        return { id: collaborator.id, ...data };
+      }
+    } }
+  });
+  const path = '/rdo-simulation-exclusions';
+  const request = (options = {}) => dispatch(router, path, { headers: { 'x-test-role': 'manager' }, ...options });
+  assert.equal((await dispatch(router, path)).status, 401);
+  assert.equal((await dispatch(router, path, { method: 'POST', body: { collaboratorId: 'c1', excluded: true } })).status, 401);
+  assert.equal((await request()).body.length, 2);
+  for (const excluded of [true, false]) {
+    const saved = await request({ method: 'POST', body: { collaboratorId: 'c1', excluded } });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.body, { id: 'c1', rdoCostSimulationExcluded: excluded });
+    const reloaded = await request();
+    assert.equal(reloaded.body[0].rdoCostSimulationExcluded, excluded);
+    assert.equal(reloaded.body[1].rdoCostSimulationExcluded, false);
+    assert.equal(reloaded.body[0].isActive, true);
+  }
+  for (const body of [
+    { collaboratorId: 'c1', excluded: 'false' }, { collaboratorId: 'c1' },
+    { collaboratorId: '', excluded: true }, { collaboratorId: 'c1', excluded: true, isActive: false }
+  ]) {
+    assert.equal((await request({ method: 'POST', body })).status, 400);
+  }
+  const missing = await request({ method: 'POST', body: { collaboratorId: 'missing', excluded: true } });
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, 'COLLABORATOR_NOT_FOUND');
+  assert.equal(writes, 2);
 });
 
 test('gestor executa contratos HTTP e recebe catálogo seguro com projetos históricos', async () => {
@@ -271,7 +326,7 @@ test('gestor executa contratos HTTP e recebe catálogo seguro com projetos hist�
   assert.equal(projectResponse.status, 200);
   assert.deepEqual(projectResponse.body, [
     { id: 'project-active', code: '5745', name: 'Projeto ativo', isActive: true, historical: false },
-    { id: 'project-history', code: '5700', name: 'Projeto histórico', isActive: false, historical: true }
+    { id: 'project-archived', code: '5740', name: 'Projeto arquivado', isActive: false, historical: false }
   ]);
 
   assert.ok(calls.some(([name, input]) => name === 'sync'

@@ -10,6 +10,7 @@ import {
   renameMissionGroup,
   setProjectTrackingState,
   updateMissionGroupLaborPolicy,
+  type LastDayStatus,
   type MissionGroupCard,
   type MissionGroupLaborAllocationMode,
   type ProjectCardItem
@@ -31,11 +32,42 @@ import {
   markAcompanhamentoFinalizedMissionSeen
 } from '../../auth/moduleNavigation';
 
-import { Alert, EmptyState, Skeleton } from '../ui/ds';
-import { isGroupCard, cardKey } from './projectCardFormatting';
-import { ProjectOverviewCard } from './ProjectOverviewCard';
-import { ProjectCardsToolbar } from './ProjectCardsToolbar';
-import './ProjectCardsBoard.ds.css';
+function formatDate(iso?: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+}
+function pct(value?: number | null) {
+  return value === null || value === undefined ? '—' : `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+}
+function brl(value?: number | null) {
+  return value === null || value === undefined ? '—'
+    : value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+}
+function fmtHours(value?: number | null) {
+  return value === null || value === undefined ? '—'
+    : `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h`;
+}
+function clampPct(value?: number | null, max = 100) {
+  return Math.min(Math.max(value ?? 0, 0), max);
+}
+
+function isGroupCard(card: ProjectCardItem): card is MissionGroupCard {
+  return card.kind === 'GROUP';
+}
+
+function cardKey(card: ProjectCardItem) {
+  return isGroupCard(card) ? `group-${card.groupId}` : card.projectId;
+}
+
+function memberOriginalLabel(member: MissionGroupCard['members'][number]) {
+  return [member.code, member.name || member.clientName].filter(Boolean).join(' — ');
+}
 
 function mutationErrorMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError<{ error?: string }>(error)) {
@@ -43,6 +75,447 @@ function mutationErrorMessage(error: unknown, fallback: string) {
     if (message) return message;
   }
   return fallback;
+}
+
+const STATUS_META: Record<LastDayStatus, { label: string; cls: string }> = {
+  TRABALHADO: { label: 'Último dia trabalhado', cls: 'ok' },
+  PARADO: { label: 'Parado (standby)', cls: 'warn' },
+  SEM_RDO: { label: 'Sem RDO', cls: 'muted' }
+};
+
+function Bar({ value }: { value: number | null }) {
+  return (
+    <div className="acp-prog-bar"><span style={{ width: `${clampPct(value)}%` }} /></div>
+  );
+}
+
+function HoursBar({ normalPct, overtimePct }: { normalPct: number | null; overtimePct: number | null }) {
+  const normalWidth = clampPct(normalPct);
+  const overtimeWidth = clampPct(overtimePct, 100 - normalWidth);
+  return (
+    <div className="acp-prog-bar acp-hours-bar">
+      {normalWidth > 0 ? <span className="normal" style={{ width: `${normalWidth}%` }} /> : null}
+      {overtimeWidth > 0 ? <span className="overtime" style={{ width: `${overtimeWidth}%` }} /> : null}
+    </div>
+  );
+}
+
+function Card({
+  card,
+  selected = false,
+  canSelect = false,
+  canManageGroups = false,
+  renaming = false,
+  renameValue = '',
+  renameError = null,
+  renameSaving = false,
+  onOpen,
+  onToggleSelect,
+  onStartRename,
+  onRenameValueChange,
+  onSubmitRename,
+  onCancelRename,
+  onDissolve,
+  laborPolicySaving = false,
+  onLaborPolicyChange,
+  canManage = false,
+  trackingSaving = false,
+  onArchive,
+  onReview,
+  recentlyFinalized = false
+}: {
+  card: ProjectCardItem;
+  selected?: boolean;
+  canSelect?: boolean;
+  canManageGroups?: boolean;
+  renaming?: boolean;
+  renameValue?: string;
+  renameError?: string | null;
+  renameSaving?: boolean;
+  onOpen: () => void;
+  onToggleSelect?: () => void;
+  onStartRename?: () => void;
+  onRenameValueChange?: (value: string) => void;
+  onSubmitRename?: () => void;
+  onCancelRename?: () => void;
+  onDissolve?: () => void;
+  laborPolicySaving?: boolean;
+  onLaborPolicyChange?: (mode: MissionGroupLaborAllocationMode, primaryProjectId: string | null) => void;
+  canManage?: boolean;
+  trackingSaving?: boolean;
+  onArchive?: () => void;
+  onReview?: () => void;
+  recentlyFinalized?: boolean;
+}) {
+  const grouped = isGroupCard(card);
+  const status = STATUS_META[card.lastDay.status];
+  const originalNames = grouped
+    ? card.members
+      .map(memberOriginalLabel)
+      .filter(Boolean)
+      .join(' · ')
+    : '';
+  const workedHours = card.workedHours ?? {
+    normalWorkedHours: 0,
+    overtimeWorkedHours: 0,
+    totalWorkedHours: 0,
+    plannedNormalHours: 0,
+    plannedOvertimeHours: 0,
+    plannedTotalHours: null,
+    normalPct: null,
+    overtimePct: null,
+    totalPct: null
+  };
+  const handleOpen = () => {
+    if (canSelect && !grouped) {
+      onToggleSelect?.();
+      return;
+    }
+    onOpen();
+  };
+  return (
+    <div
+      className={`acp-pcard acp-pcard-click${grouped ? ' acp-pcard-group' : ''}${selected ? ' selected' : ''}${card.reviewed ? ' reviewed' : ''}${recentlyFinalized ? ' recently-finalized' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={handleOpen}
+      onKeyDown={e => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleOpen();
+        }
+      }}
+    >
+      <div className="acp-pcard-head">
+        {canSelect && !grouped ? (
+          <label className="acp-pcard-select" onClick={event => event.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelect}
+              aria-label={`Selecionar missão ${card.code}`}
+            />
+          </label>
+        ) : null}
+        {!grouped ? <strong>{card.code}</strong> : null}
+        {renaming ? (
+          <form
+            className="acp-pcard-name-edit"
+            onClick={event => event.stopPropagation()}
+            onSubmit={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              onSubmitRename?.();
+            }}
+          >
+            <input
+              type="text"
+              aria-label="Nome do card"
+              maxLength={120}
+              value={renameValue}
+              disabled={renameSaving}
+              autoFocus
+              onFocus={event => event.currentTarget.select()}
+              onChange={event => onRenameValueChange?.(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  onCancelRename?.();
+                }
+              }}
+              required
+            />
+            <button
+              type="submit"
+              className="acp-pcard-icon-action"
+              title="Salvar nome"
+              aria-label="Salvar nome"
+              disabled={renameSaving}
+            >
+              <span aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              className="acp-pcard-icon-action muted"
+              title="Cancelar edição"
+              aria-label="Cancelar edição"
+              disabled={renameSaving}
+              onClick={onCancelRename}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
+          </form>
+        ) : (
+          <span className="acp-pcard-name">{card.name || '—'}</span>
+        )}
+        {grouped && canManageGroups && !renaming ? (
+          <button
+            type="button"
+            className="acp-pcard-icon-action"
+            data-acp-group-rename-start
+            title="Editar nome do card"
+            aria-label="Editar nome do card"
+            onClick={event => {
+              event.stopPropagation();
+              onStartRename?.();
+            }}
+          >
+            <span aria-hidden="true">✎</span>
+          </button>
+        ) : null}
+      </div>
+      {grouped && renaming && renameError ? (
+        <div className="form-error acp-pcard-rename-error" onClick={event => event.stopPropagation()}>{renameError}</div>
+      ) : null}
+      {grouped && originalNames ? (
+        <div className="acp-pcard-original-names" title={originalNames}>{originalNames}</div>
+      ) : null}
+      {card.clientName ? <div className="acp-pcard-client">{card.clientName}</div> : null}
+      {card.reviewed ? (
+        <div className="acp-reviewed-badge" title={card.reviewedAt ? `Conferido em ${formatDate(card.reviewedAt)}` : 'Conferido'}>
+          <span aria-hidden="true">✓</span> Conferido
+        </div>
+      ) : null}
+      {recentlyFinalized ? (
+        <div className="acp-finalized-notice" data-acp-finalized-notice>
+          <span aria-hidden="true">●</span> Missão finalizada recentemente
+        </div>
+      ) : null}
+
+      {grouped ? (
+        <div className="acp-group-members" aria-label="Missões unificadas">
+          {card.members.map(member => (
+            <span
+              key={member.projectId}
+              className={`acp-group-member${member.progressPct != null && member.progressPct >= 100 ? ' is-complete' : ''}`}
+              title={`${member.code} · ${member.name || member.clientName || 'Missão'}`}
+            >
+              <strong>{member.code}</strong>
+              <span>{member.name || member.clientName || 'Missão'}</span>
+              {member.progressPct != null ? <em>{pct(member.progressPct)}</em> : null}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {card.alerts.length > 0 ? (
+        <div className="acp-alerts">
+          {card.alerts.map((a, i) => <span key={i} className={`acp-alert ${a.level}`}>⚠ {a.label}</span>)}
+        </div>
+      ) : null}
+
+      <div className="acp-pcard-metric">
+        <div className="acp-pcard-metric-top">
+          <span>Avanço de escopo{card.progressMethod === 'MANUAL' ? ' (manual)' : ''}</span>
+          <span className="acp-pcard-metric-val">{pct(card.progressPct)}</span>
+        </div>
+        <Bar value={card.progressPct} />
+      </div>
+
+      <div className="acp-pcard-metric">
+        <div className="acp-pcard-metric-top">
+          <span>Custo previsto/realizado</span>
+          <span className="acp-pcard-metric-val">
+            {brl(card.realizedCost)}/{brl(card.plannedCost)}
+            {card.costConsumedPct != null ? ` · ${card.costConsumedPct}% consumido` : ''}
+          </span>
+        </div>
+        {card.additionalPlannedCost != null && Math.abs(card.additionalPlannedCost) > 0.005 ? (
+          <div className="acp-budget-split">
+            Original {brl(card.originalPlannedCost)} · Adicional {brl(card.additionalPlannedCost)}
+          </div>
+        ) : null}
+        <Bar value={card.costConsumedPct} />
+      </div>
+
+      <div className="acp-pcard-metric">
+        <div className="acp-pcard-metric-top">
+          <span>Dias trabalhados</span>
+          <span className="acp-pcard-metric-val">
+            {card.workedDays}/{card.totalDays ?? '—'}{card.daysConsumedPct != null ? ` · ${card.daysConsumedPct}% consumido` : ''}
+          </span>
+        </div>
+        <Bar value={card.daysConsumedPct} />
+      </div>
+
+      <div className="acp-pcard-metric">
+        <div className="acp-pcard-metric-top">
+          <span>Horas trabalhadas</span>
+          <span className="acp-pcard-metric-val">
+            {fmtHours(workedHours.totalWorkedHours)}/{fmtHours(workedHours.plannedTotalHours)}
+            {workedHours.totalPct != null ? ` · ${workedHours.totalPct}% consumido` : ''}
+          </span>
+        </div>
+        <HoursBar normalPct={workedHours.normalPct} overtimePct={workedHours.overtimePct} />
+        <div className="acp-hours-split">
+          <span>
+            <i className="acp-hours-dot normal" />Normais {fmtHours(workedHours.normalWorkedHours)}
+            {workedHours.normalPct != null ? ` · ${workedHours.normalPct}%` : ''}
+          </span>
+          <span>
+            <i className="acp-hours-dot overtime" />HE {fmtHours(workedHours.overtimeWorkedHours)}
+            {workedHours.overtimePct != null ? ` · ${workedHours.overtimePct}%` : ''}
+          </span>
+        </div>
+      </div>
+
+      <div className="acp-pcard-row">
+        <span>Status último relatório</span>
+        <span className={`acp-pcard-status ${status.cls}`}>
+          {status.label}{card.lastDay.date ? ` · ${formatDate(card.lastDay.date)}` : ''}
+        </span>
+      </div>
+
+      <div className="acp-pcard-row">
+        <span>Colaboradores em obra</span>
+        <span className="acp-pcard-strong">{card.collaboratorsCount}</span>
+      </div>
+
+      {card.canViewProjectFinancials && card.presumedProfitTaxes ? (
+        <div className="acp-pcard-row">
+          <span>
+            IRPJ/CSLL fora da NF
+            <sup title={`${card.presumedProfitTaxes.basisSource === 'OMIE_INVOICED' ? `Base: faturamento real do Omie. ISS Omie: ${brl(card.presumedProfitTaxes.omieIss)}.` : `Base: venda prevista. Impostos previstos na NF: ${brl(card.presumedProfitTaxes.invoiceTaxTotal)}.`} Código ${(card.presumedProfitTaxes.omieServiceTaxCodes?.length ? card.presumedProfitTaxes.omieServiceTaxCodes : card.presumedProfitTaxes.serviceTaxCode === 'MIXED' ? card.presumedProfitTaxes.serviceTaxCodes : [card.presumedProfitTaxes.serviceTaxCode])?.join(', ')}${card.presumedProfitTaxes.equivalentServiceTaxCode ? ` (regra ${card.presumedProfitTaxes.equivalentServiceTaxCode})` : ''}. ISS ${card.presumedProfitTaxes.issRatePct}%. INSS ${card.presumedProfitTaxes.inssRatePct}%.`}> *</sup>
+          </span>
+          <span className="acp-pcard-strong">{brl(card.presumedProfitTaxes.outOfInvoiceTaxTotal)}</span>
+        </div>
+      ) : null}
+
+      {card.laborCost != null ? (() => {
+        const hasOffshore = card.laborCostBase != null && Math.round(card.laborCost) !== Math.round(card.laborCostBase);
+        return (
+          <>
+            <div className="acp-pcard-row">
+              <span>Horas apropriadas do Ponto<sup title="Jornada do Ponto Mais apropriada analiticamente a este projeto. Em execução compartilhada, ela pode aparecer integralmente em mais de uma missão."> *</sup></span>
+              <span className="acp-pcard-strong">{fmtHours(card.laborHours)}</span>
+            </div>
+            <div className="acp-pcard-row">
+              <span>Custo MO{hasOffshore ? ' c/ offshore' : ''}<sup title="Valor gasto com mão de obra do ponto, rateado para este projeto."> *</sup></span>
+              <span className="acp-pcard-strong">{brl(card.laborCost)}</span>
+            </div>
+            {hasOffshore ? (
+              <div className="acp-pcard-row">
+                <span>Custo MO sem offshore</span>
+                <span className="acp-pcard-strong">{brl(card.laborCostBase)}</span>
+              </div>
+            ) : null}
+          </>
+        );
+      })() : null}
+
+      {card.stockCost > 0 ? (
+        <div className="acp-pcard-row">
+          <span>Estoque quím./filtros</span>
+          <span className="acp-pcard-strong">{brl(card.stockCost)}</span>
+        </div>
+      ) : null}
+
+      {card.equipment.length ? (
+        <div className="acp-pcard-equip">
+          <div className="acp-pcard-row acp-pcard-equip-head">
+            <span>Equipamentos em obra</span>
+            <span className="acp-pcard-strong">{card.equipment.length}</span>
+          </div>
+          {card.equipment.slice(0, 6).map((e, i) => (
+            <div className="acp-pcard-row acp-pcard-equip-item" key={i}>
+              <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
+              <span>{e.days} dia{e.days === 1 ? '' : 's'}</span>
+            </div>
+          ))}
+          {card.equipment.length > 6 ? (
+            <div className="acp-pcard-row acp-pcard-equip-item">
+              <span className="placeholder-copy">+{card.equipment.length - 6} equipamento(s)</span>
+              <span />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="acp-pcard-dates">
+        <div><span>Início</span><strong>{formatDate(card.startDate)}</strong></div>
+        <div><span>Previsão de término</span><strong>{formatDate(card.expectedEndDate)}</strong></div>
+      </div>
+
+      {grouped && canManageGroups ? (
+        <div className="acp-group-actions" data-acp-labor-policy onClick={event => event.stopPropagation()}>
+          <div className="field-group acp-group-labor-policy">
+            <label htmlFor={`group-labor-mode-${card.groupId}`}>Apropriação da mão de obra</label>
+            <select
+              id={`group-labor-mode-${card.groupId}`}
+              value={card.laborAllocationMode || 'VISUAL_ONLY'}
+              disabled={laborPolicySaving}
+              onChange={event => {
+                const mode = event.target.value as MissionGroupLaborAllocationMode;
+                const primaryProjectId = mode === 'CONSOLIDATE_PRIMARY'
+                  ? card.primaryLaborProjectId || card.members[0]?.projectId || null
+                  : null;
+                onLaborPolicyChange?.(mode, primaryProjectId);
+              }}
+            >
+              <option value="VISUAL_ONLY">Somente mesclar o card</option>
+              <option value="SHARED_EXECUTION">Repetir jornada em cada missão</option>
+              <option value="CONSOLIDATE_PRIMARY">Consolidar em uma missão principal</option>
+            </select>
+            <span className="placeholder-copy">
+              {card.laborAllocationMode === 'SHARED_EXECUTION'
+                ? 'Cada RDO confirmado recebe a jornada integral do Ponto Mais; a folha mensal continua única.'
+                : card.laborAllocationMode === 'CONSOLIDATE_PRIMARY'
+                  ? 'Os RDOs deste grupo são apropriados uma única vez na missão principal.'
+                  : 'O agrupamento não altera a regra de apropriação da jornada.'}
+            </span>
+          </div>
+          {card.laborAllocationMode === 'CONSOLIDATE_PRIMARY' ? (
+            <div className="field-group acp-group-labor-policy">
+              <label htmlFor={`group-labor-primary-${card.groupId}`}>Missão principal</label>
+              <select
+                id={`group-labor-primary-${card.groupId}`}
+                value={card.primaryLaborProjectId || card.members[0]?.projectId || ''}
+                disabled={laborPolicySaving}
+                onChange={event => onLaborPolicyChange?.('CONSOLIDATE_PRIMARY', event.target.value || null)}
+              >
+                {card.members.map(member => (
+                  <option key={member.projectId} value={member.projectId}>
+                    {member.code} — {member.name || member.clientName || 'Missão'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="mini-btn alt"
+            onClick={event => {
+              event.stopPropagation();
+              onDissolve?.();
+            }}
+          >
+            Desmesclar
+          </button>
+        </div>
+      ) : null}
+      {canManage ? (
+        <div className="acp-tracking-actions" data-acp-tracking-action onClick={event => event.stopPropagation()}>
+          {card.archived ? (
+            <>
+              <button type="button" className={`mini-btn${card.reviewed ? ' alt' : ''}`} data-acp-review-action disabled={trackingSaving} onClick={onReview}>
+                {card.reviewed ? 'Desmarcar conferência' : 'Marcar como conferido'}
+              </button>
+              {card.archivedInAcompanhamento ? (
+                <button type="button" className="mini-btn alt" disabled={trackingSaving} onClick={onArchive}>
+                  Restaurar no acompanhamento
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <button type="button" className="mini-btn alt" disabled={trackingSaving} onClick={onArchive}>
+              Arquivar no acompanhamento
+            </button>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 type SelectedDetail = { kind: 'PROJECT'; id: string } | { kind: 'GROUP'; id: string };
@@ -83,7 +556,7 @@ export function ProjectCardsBoard({
   const [dissolveTarget, setDissolveTarget] = useState<MissionGroupCard | null>(null);
   const [trackingTarget, setTrackingTarget] = useState<{ card: ProjectCardItem; action: 'archive' | 'restore' } | null>(null);
   const [seenFinalizations, setSeenFinalizations] = useState<Set<string>>(() => new Set());
-  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['project-cards'],
     queryFn: () => getProjectCards(),
     ...acompanhamentoRefreshQueryOptions
@@ -219,6 +692,7 @@ export function ProjectCardsBoard({
       const nextParams = new URLSearchParams(currentParams);
       nextParams.delete('project');
       nextParams.delete('group');
+      nextParams.delete('schedule');
       if (nextSelected?.kind === 'GROUP') {
         nextParams.set('section', 'projetos');
         nextParams.set('group', nextSelected.id);
@@ -265,7 +739,6 @@ export function ProjectCardsBoard({
     setGroupError(null);
   };
   const toggleSelected = (projectId: string) => {
-    if (createGroupMutation.isPending) return;
     setGroupError(null);
     setSelectedForGroup(current => {
       const next = new Set(current);
@@ -275,7 +748,6 @@ export function ProjectCardsBoard({
     });
   };
   const createSelectedGroup = () => {
-    if (createGroupMutation.isPending) return;
     const projectIds = Array.from(selectedForGroup);
     if (projectIds.length < 2) {
       setGroupError('Selecione pelo menos duas missões para unificar.');
@@ -291,33 +763,111 @@ export function ProjectCardsBoard({
       : <ProjectDetailDashboard projectId={selected.id} canManage={canManage} canManageManualCosts={canManageManualCosts} canManageProjectNotes={canManageProjectNotes} progressHistoryNoveltyUser={progressHistoryNoveltyUser} onBack={() => setSelected(null)} />;
   }
 
+  if (isLoading) return <div className="page-card placeholder-copy">Carregando projetos…</div>;
+
+  if ((data ?? []).length === 0) {
+    return (
+      <div className="page-card placeholder-copy">
+        Nenhum projeto com proposta comercial importada. Importe o banco do comercial e cadastre a
+        missão com o número da proposta.
+      </div>
+    );
+  }
+
   return (
-    <div className="fv-ds acp-projects" data-acp-cards>
-      <header className="acp-projects__heading"><h1>Projetos</h1>
-        <p className="acp-projects__description">Execução, custos e equipes por missão. Consulte os detalhes e organize os grupos.</p>
-      </header>
-      <ProjectCardsToolbar view={view} counts={counts} search={search} onSearch={setSearch} onView={setView}
-        canManageGroups={canManageGroups} selectionMode={selectionMode} selectedCount={selectedCount}
-        loading={data === undefined} busy={createGroupMutation.isPending}
-        onStartSelection={() => { setSelectionMode(true); setSelectedForGroup(new Set()); setGroupError(null); }}
-        onConfirm={createSelectedGroup} onCancel={cancelSelection} />
-      {groupError && !trackingTarget && !dissolveTarget ? <Alert tone="danger">{groupError}</Alert> : null}
-      {isError ? <Alert tone="danger" title={data ? 'Não foi possível atualizar os projetos' : 'Não foi possível carregar os projetos'}
-        action={{ label: 'Tentar novamente', onClick: () => { void refetch(); } }}>
-        {data ? 'Exibindo a última consulta disponível. Os dados podem estar desatualizados.' : 'Tente novamente para consultar os projetos.'}
-      </Alert> : null}
-      <div aria-busy={isFetching}>
-        {isLoading ? <div className="acp-projects__grid" role="status" aria-label="Carregando projetos">
-          {[0, 1, 2].map(id => <Skeleton key={id} variant="card" height="24rem" decorative />)}
-        </div> : data ? cards.length === 0 ? <EmptyState variant={search.trim() ? 'search' : 'default'}
-          title={search.trim() ? 'Nenhum projeto encontrado para a busca nesta situação.'
-            : data.length === 0 ? 'Nenhum projeto com proposta comercial importada.'
-              : view === 'conferidas' ? 'Nenhuma missão conferida.' : view === 'arquivados' ? 'Nenhum projeto arquivado aguardando conferência.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
-          description={data.length === 0 ? 'Importe o banco do comercial e cadastre a missão com o número da proposta.' : 'Altere a situação ou a busca para consultar outros projetos.'}
-          action={search.trim() ? { label: 'Limpar busca', onClick: () => setSearch('') } : undefined} />
-          : <div className="acp-projects__grid">
+    <div className="acp-pcards-wrap" data-acp-cards>
+      <div className="page-card acp-filters acp-pcards-filters">
+        <div className="acp-seg" role="tablist" aria-label="Situação dos projetos" data-acp-cards-seg>
+          <button
+            type="button" role="tab" aria-selected={view === 'andamento'}
+            className={`acp-seg-btn${view === 'andamento' ? ' active' : ''}`}
+            onClick={() => setView('andamento')}
+          >
+            Em andamento <span className="acp-seg-count">{counts.andamento}</span>
+          </button>
+          <button
+            type="button" role="tab" aria-selected={view === 'futuros'}
+            className={`acp-seg-btn${view === 'futuros' ? ' active' : ''}`}
+            onClick={() => setView('futuros')}
+          >
+            Futuros <span className="acp-seg-count">{counts.futuros}</span>
+          </button>
+          <button
+            type="button" role="tab" aria-selected={view === 'arquivados'}
+            className={`acp-seg-btn${view === 'arquivados' ? ' active' : ''}`}
+            onClick={() => setView('arquivados')}
+          >
+            Arquivados <span className="acp-seg-count">{counts.arquivados}</span>
+          </button>
+          <button
+            type="button" role="tab" aria-selected={view === 'conferidas'}
+            className={`acp-seg-btn${view === 'conferidas' ? ' active' : ''}`}
+            onClick={() => setView('conferidas')}
+          >
+            Conferidas <span className="acp-seg-count">{counts.conferidas}</span>
+          </button>
+        </div>
+        <div className="field-group acp-pcards-search">
+          <label htmlFor="acp-pcards-search">Buscar</label>
+          <input
+            id="acp-pcards-search"
+            type="search"
+            placeholder="Código, missão ou cliente"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        {canManageGroups ? (
+          <div className="acp-group-toolbar" aria-label="Ações de unificação" data-acp-group-toolbar>
+            {!selectionMode ? (
+              <button
+                type="button"
+                className="mini-btn"
+                data-acp-group-start
+                onClick={() => {
+                  setSelectionMode(true);
+                  setSelectedForGroup(new Set());
+                  setGroupError(null);
+                }}
+              >
+                Unificar projetos
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="mini-btn"
+                  data-acp-group-confirm
+                  disabled={selectedCount < 2 || createGroupMutation.isPending}
+                  onClick={createSelectedGroup}
+                >
+                  {createGroupMutation.isPending ? 'Unificando…' : `Confirmar (${selectedCount})`}
+                </button>
+                <button
+                  type="button"
+                  className="mini-btn alt"
+                  disabled={createGroupMutation.isPending}
+                  onClick={cancelSelection}
+                >
+                  Cancelar
+                </button>
+              </>
+            )}
+            {groupError ? <div className="form-error acp-group-error">{groupError}</div> : null}
+          </div>
+        ) : null}
+      </div>
+
+      {cards.length === 0 ? (
+        <div className="page-card placeholder-copy">
+          {search.trim()
+            ? 'Nenhum projeto encontrado para a busca nesta situação.'
+            : view === 'conferidas' ? 'Nenhuma missão conferida.' : view === 'arquivados' ? 'Nenhum projeto arquivado aguardando conferência.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
+        </div>
+      ) : (
+        <div className="acp-pcards-grid">
           {cards.map(card => (
-            <ProjectOverviewCard
+            <Card
               key={cardKey(card)}
               card={card}
               selected={!isGroupCard(card) && selectedForGroup.has(card.projectId)}
@@ -347,22 +897,19 @@ export function ProjectCardsBoard({
               }}
               onSubmitRename={submitRenameGroup}
               onCancelRename={closeRenameGroup}
-              onDissolve={isGroupCard(card) ? () => { setGroupError(null); setDissolveTarget(card); } : undefined}
+              onDissolve={isGroupCard(card) ? () => setDissolveTarget(card) : undefined}
               laborPolicySaving={laborPolicyMutation.isPending}
               onLaborPolicyChange={isGroupCard(card) ? (laborAllocationMode, primaryLaborProjectId) => {
                 laborPolicyMutation.mutate({ groupId: card.groupId, laborAllocationMode, primaryLaborProjectId });
               } : undefined}
-              onArchive={() => { setGroupError(null); setTrackingTarget({ card, action: card.archivedInAcompanhamento ? 'restore' : 'archive' }); }}
+              onArchive={() => setTrackingTarget({ card, action: card.archivedInAcompanhamento ? 'restore' : 'archive' })}
               onReview={() => trackingMutation.mutate({ card, payload: { reviewed: !card.reviewed } })}
             />
           ))}
-        </div> : null}
-      </div>
+        </div>
+      )}
       <ConfirmDialog
-        appearance="design-system"
-        errorMessage={groupError}
         open={trackingTarget !== null}
-        confirmDisabled={trackingMutation.isPending}
         title={trackingTarget?.action === 'restore' ? 'Restaurar no acompanhamento' : 'Arquivar no acompanhamento'}
         description={trackingTarget?.action === 'restore'
           ? 'O projeto voltará à situação correspondente no Acompanhamento. O status em Relatórios não será alterado.'
@@ -381,10 +928,7 @@ export function ProjectCardsBoard({
         }}
       />
       <ConfirmDialog
-        appearance="design-system"
-        errorMessage={groupError}
         open={dissolveTarget !== null}
-        confirmDisabled={dissolveGroupMutation.isPending}
         title="Desmesclar missões"
         description="As missões voltarão a aparecer como cards individuais no Acompanhamento. Relatórios e dados originais não serão alterados."
         highlight={dissolveTarget?.name}
@@ -414,7 +958,6 @@ export function ProjectCardsBoard({
         hasFinalizedNotice={hasFinalizedNotice}
         hasReviewAction={hasReviewAction}
       />
-
     </div>
   );
 }

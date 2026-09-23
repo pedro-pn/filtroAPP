@@ -18,6 +18,14 @@ enum ReportType {
   RLI
 }
 
+enum AcompanhamentoExtraPermission {
+  VIEW_PROJECT_TAXES_AND_BILLING
+}
+
+enum RdoExtraPermission {
+  REVIEW_REPORTS
+}
+
 enum ReportEmissionPermission {
   SITE_RDO
   MAINTENANCE
@@ -131,6 +139,12 @@ enum ModuleRoleCode {
   QUALIDADE_VIEWER
   EFETIVO_MANAGER
   EFETIVO_VIEWER
+  EFETIVO_COMMERCIAL
+  EFETIVO_OPERATIONS
+  EFETIVO_ASSETS
+  EFETIVO_SUPPLIES
+  EFETIVO_ADMINISTRATIVE
+  EFETIVO_QSMS
   ASSINATURAS_USER
 }
 
@@ -235,8 +249,110 @@ enum EfetivoMissionStage {
   STANDBY
   MOBILIZATION
   EXECUTION
+  DEMOBILIZATION
   FINAL_MEASUREMENT
   FINISHED
+}
+
+enum ProjectWorkflowStage {
+  HANDOVER
+  INITIAL_ANALYSIS
+  WAITING_PLANNING
+  MOBILIZATION_PLANNING
+  PREPARATION
+  MOBILIZATION
+  EXECUTION
+  DEMOBILIZATION
+  POST_JOB
+  FINAL_MEASUREMENT
+  FINISHED
+}
+
+enum ProjectWorkflowChecklistStatus {
+  PENDING
+  DONE
+  NOT_APPLICABLE
+}
+
+enum ProjectWorkflowIssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ProjectWorkflowCriticality {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ProjectWorkflowCommercialFactStatus {
+  PENDING
+  CONFIRMED
+  NOT_APPLICABLE
+}
+
+enum ProjectWorkflowCommercialFactSource {
+  MANUAL
+  CRM
+}
+
+enum ProjectWorkflowDocumentationType {
+  DOCUMENT
+  EXAM
+  TRAINING
+  QUALITY
+  CERTIFICATION
+}
+
+enum ProjectWorkflowDocumentationStatus {
+  PENDING
+  REQUESTED
+  CONFIRMED
+}
+
+enum ProjectDocumentType {
+  COMMERCIAL_PROPOSAL
+  TECHNICAL_PROPOSAL
+  PURCHASE_ORDER
+  CONTRACT
+  DRAWING
+  SPECIFICATION
+  CERTIFICATE
+  CLIENT_REQUIREMENT
+  TECHNICAL_EVIDENCE
+  OTHER
+}
+
+enum ProjectDocumentRequirementStage {
+  HANDOVER
+  MOBILIZATION
+  CLOSEOUT
+}
+
+enum ProjectDocumentAcceptanceMode {
+  NONE
+  INTERNAL
+  CLIENT
+  SIGNATURE
+}
+
+enum ProjectDocumentSource {
+  MANUAL
+  CRM
+  SYSTEM
+}
+
+enum ProjectDocumentContentKind {
+  MANAGED_FILE
+  EXTERNAL_REFERENCE
+}
+
+enum ProjectDocumentAcceptanceStatus {
+  NOT_REQUIRED
+  PENDING
+  ACCEPTED
+  REJECTED
 }
 
 enum EfetivoAllocationSource {
@@ -439,6 +555,7 @@ model Collaborator {
   signatureNoticeAcceptedAt      DateTime?
   signatureNoticeVersion         String?
   isActive                       Boolean                          @default(true)
+  rdoCostSimulationExcluded      Boolean                          @default(false)
   createdAt                      DateTime                         @default(now())
   updatedAt                      DateTime                         @updatedAt
   projectsLed                    Project[]                        @relation("ProjectOperator")
@@ -457,6 +574,7 @@ model Collaborator {
   jobRoleHistory                 CollaboratorJobRoleHistory[]
   efetivoMissionResponsibilities EfetivoMissionPlan[]             @relation("EfetivoMissionResponsible")
   efetivoMissionAllocations      EfetivoMissionAllocation[]
+  projectWorkflowTeamChecks      ProjectWorkflowTeamMemberCheck[]
   maintenanceSupervisorConfigs   MaintenanceConfiguration[]       @relation("MaintenanceSupervisor")
 
   @@index([jobRoleId])
@@ -543,6 +661,7 @@ model AcompanhamentoSetting {
 model EfetivoSetting {
   key             String   @id
   numberValue     Float?
+  textValue       String?
   updatedByUserId String?
   updatedAt       DateTime @default(now()) @updatedAt
 }
@@ -619,6 +738,7 @@ model PontoPeriodSummary {
   @@unique([importId, sourceKey])
   @@index([collaboratorId])
   @@index([importId])
+  @@index([importId, collaboratorId])
 }
 
 // Lembra vínculos manuais nome-do-ponto → colaborador (variações de caixa/apelido entre imports).
@@ -778,6 +898,7 @@ model JobRole {
   collaborators               Collaborator[]               @relation("CollaboratorJobRole")
   collaboratorHistory         CollaboratorJobRoleHistory[]
   efetivoMissionDemands       EfetivoMissionDemand[]
+  projectWorkflowTeamDemands  ProjectWorkflowTeamDemand[]
   efetivoMissionAllocations   EfetivoMissionAllocation[]
   efetivoPlannedHires         EfetivoPlannedHire[]
   epiProfiles                 EpiCollaboratorProfile[]     @relation("EpiRoleOverride")
@@ -836,6 +957,7 @@ model Project {
   demobilizationDate         DateTime? // data de desmobilização (manual); fecha a janela de alocação
   startDate                  DateTime? // início real da execução (manual, gestor/coordenador)
   manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão (fallback quando não há escopo)
+  plannedHoursResolution     Json? // decisão manual vinculada aos valores/revisões comerciais e às horas manuais conferidas
   createdAt                  DateTime                           @default(now())
   updatedAt                  DateTime                           @updatedAt
   deletedAt                  DateTime?
@@ -843,6 +965,7 @@ model Project {
   reportSequences            ProjectReportSeq[]
   authorizedUsers            ProjectAuthorizedUser[]
   reports                    Report[]
+  historicalServiceReports   HistoricalServiceReport[]
   drafts                     ReportDraft[]
   surveys                    SatisfactionSurvey[]
   romaneios                  Romaneio[]
@@ -851,6 +974,7 @@ model Project {
   omiePurchases              OmiePurchase[]
   omieReceivables            OmieReceivable[]
   plannedServices            ProjectPlannedService[]
+  serviceSystems             ProjectServiceSystem[]
   plannedNormalHours         ProjectPlannedNormalHours[]
   plannedOvertime            ProjectPlannedOvertime[]
   stockMovements             StockMovement[]
@@ -865,6 +989,8 @@ model Project {
   pontoProjectTagAliases     PontoProjectTagAlias[]
   pontoDayProjectOverrides   PontoDayProjectOverride[]
   efetivoMissionPlans        EfetivoMissionPlan[]
+  workflow                   ProjectWorkflow?
+  documents                  ProjectDocument[]
 
   @@index([deletedAt])
   @@index([registrationPending])
@@ -879,6 +1005,8 @@ model EfetivoPlan {
   status               EfetivoPlanStatus
   name                 String
   objective            String?
+  simulationPositionDate DateTime?
+  simulationReturnDate   DateTime?
   revision             Int                  @default(1)
   basePlanId           String?
   baseOfficialRevision Int?
@@ -902,6 +1030,463 @@ model EfetivoPlan {
   @@index([kind, status])
   @@index([basePlanId])
   @@index([createdAt])
+}
+
+model ProjectWorkflow {
+  projectId                          String                                 @id
+  stage                              ProjectWorkflowStage                   @default(HANDOVER)
+  leaderUserId                       String
+  plannerUserId                      String?
+  acceptedAt                         DateTime?
+  plannedMobilizationDate            DateTime?                              @db.Date
+  isCritical                         Boolean?
+  executedAtHeadquarters             Boolean?
+  preparationLeadTimeDays            Int                                    @default(15)
+  commercialExpectedMobilizationDate DateTime?                              @db.Date
+  commercialExpectedStartDate        DateTime?                              @db.Date
+  commercialExpectedDurationDays     Int?
+  commercialWhatsappGroupCreated     Boolean?
+  commercialWhatsappGroupUrl         String?
+  commercialParticipantsIncluded     Boolean?
+  commercialClientContactName        String?
+  commercialClientContactPhone       String?
+  commercialClientContactEmail       String?
+  commercialAssumptions              String?
+  commercialSourceUpdatedAt          DateTime?
+  // Enquanto não existe integração com o CRM, as datas comerciais estimadas acima são digitadas manualmente; este
+  // campo guarda a confirmação (ou correção) de cada uma no D-15, antes da mobilização.
+  commercialScheduleConfirmation     Json                                   @default("{}")
+  analysisClientContactMade          Boolean?
+  analysisClientContactName          String?
+  analysisClientContactPhone         String?
+  analysisClientContactDate          DateTime?                              @db.Date
+  // Checklist de verificação obrigatória do contato inicial com o cliente (chave -> {answer, note, updatedAt,
+  // updatedByUserId}); ver PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.
+  clientContactChecklist             Json                                   @default("{}")
+  plannedExecutionStartDate          DateTime?                              @db.Date
+  plannedExecutionEndDate            DateTime?                              @db.Date
+  teamPlanDefined                    Boolean?
+  equipmentPlanDefined               Boolean?
+  supplyPlanDefined                  Boolean?
+  supplyPlan                         Json                                   @default("[]")
+  logisticsPlan                      Json                                   @default("{}")
+  travelPlan                         Json                                   @default("{}")
+  preJobScheduledDate                DateTime?                              @db.Date
+  preJobCompletedDate                DateTime?                              @db.Date
+  qsmsVerified                       Boolean?
+  qsmsVerificationNote               String?
+  mobilizationAuthorizedAt           DateTime?
+  mobilizationAuthorizationVersion   Int?
+  fieldCompletionDate                DateTime?                              @db.Date
+  executionReportTargets             Json                                   @default("{}")
+  closedAt                           DateTime?
+  closedByUserId                     String?
+  version                            Int                                    @default(1)
+  createdAt                          DateTime                               @default(now())
+  updatedAt                          DateTime                               @updatedAt
+  project                            Project                                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  leader                             User                                   @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  planner                            User?                                  @relation("ProjectWorkflowPlanner", fields: [plannerUserId], references: [id], onDelete: SetNull)
+  closedBy                           User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  checklists                         ProjectWorkflowChecklist[]
+  teamMemberChecks                   ProjectWorkflowTeamMemberCheck[]
+  preparationItemChecks              ProjectWorkflowPreparationItemCheck[]
+  clientReleases                     ProjectWorkflowClientRelease[]
+  criticalAnswers                    ProjectWorkflowCriticalAnswer[]
+  issues                             ProjectWorkflowIssue[]
+  commercialFacts                    ProjectWorkflowCommercialFact[]
+  documentationCategories            ProjectWorkflowDocumentationCategory[]
+  teamDemands                        ProjectWorkflowTeamDemand[]
+  equipmentCategoryPlans             ProjectWorkflowEquipmentCategoryPlan[]
+  events                             ProjectWorkflowEvent[]
+  emailNotifications                 ProjectWorkflowEmailNotification[]
+  postJob                            ProjectWorkflowPostJob?
+  measurement                        ProjectWorkflowMeasurement?
+
+  @@index([stage, plannedMobilizationDate])
+  @@index([leaderUserId])
+  @@index([plannerUserId])
+  @@index([closedByUserId])
+}
+
+model ProjectWorkflowTeamDemand {
+  id            String          @id @default(cuid())
+  projectId     String
+  jobRoleId     String
+  requiredCount Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  workflow      ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  jobRole       JobRole         @relation(fields: [jobRoleId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, jobRoleId])
+  @@index([jobRoleId])
+}
+
+model ProjectWorkflowEquipmentCategoryPlan {
+  id           String            @id @default(cuid())
+  projectId    String
+  categoryId   String
+  equipmentIds Json              @default("[]")
+  exceptionReasons Json           @default("{}")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  workflow     ProjectWorkflow   @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  category     EquipmentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, categoryId])
+  @@index([categoryId])
+}
+
+model ProjectWorkflowEmailNotification {
+  id                      String          @id @default(cuid())
+  projectId               String
+  milestone               String
+  plannedMobilizationDate DateTime        @db.Date
+  recipientUserId         String?
+  recipientEmail          String
+  status                  String          @default("PENDING")
+  attempts                Int             @default(0)
+  lastAttemptAt           DateTime?
+  sentAt                  DateTime?
+  error                   String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  workflow                ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  recipient               User?           @relation("ProjectWorkflowEmailNotificationRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, milestone, plannedMobilizationDate, recipientEmail])
+  @@index([status, lastAttemptAt])
+  @@index([recipientUserId])
+}
+
+model ProjectWorkflowDocumentationCategory {
+  id              String                                    @id @default(cuid())
+  projectId       String
+  type            ProjectWorkflowDocumentationType
+  required        Boolean?
+  updatedByUserId String?
+  createdAt       DateTime                                  @default(now())
+  updatedAt       DateTime                                  @updatedAt
+  workflow        ProjectWorkflow                           @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?                                     @relation("ProjectWorkflowDocumentationCategoryUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  requirements    ProjectWorkflowDocumentationRequirement[]
+
+  @@unique([projectId, type])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowDocumentationRequirement {
+  id              String                                @id @default(cuid())
+  categoryId      String
+  name            String
+  status          ProjectWorkflowDocumentationStatus    @default(PENDING)
+  requestedAt     DateTime?                             @db.Date
+  confirmedAt     DateTime?                             @db.Date
+  archivedAt      DateTime?
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime                              @default(now())
+  updatedAt       DateTime                              @updatedAt
+  category        ProjectWorkflowDocumentationCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdBy       User?                                 @relation("ProjectWorkflowDocumentationRequirementCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy       User?                                 @relation("ProjectWorkflowDocumentationRequirementUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  history         ProjectWorkflowDocumentationHistory[]
+
+  @@index([categoryId, archivedAt, status])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowDocumentationHistory {
+  id            String                                  @id @default(cuid())
+  requirementId String
+  actorUserId   String?
+  changes       Json
+  createdAt     DateTime                                @default(now())
+  requirement   ProjectWorkflowDocumentationRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  actor         User?                                   @relation("ProjectWorkflowDocumentationHistoryActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([requirementId, createdAt])
+  @@index([actorUserId])
+}
+
+model ProjectWorkflowCommercialFact {
+  id                 String                              @id @default(cuid())
+  projectId          String
+  key                String
+  status             ProjectWorkflowCommercialFactStatus @default(PENDING)
+  source             ProjectWorkflowCommercialFactSource @default(MANUAL)
+  reference          String?
+  note               String?
+  occurredOn         DateTime?                           @db.Date
+  externalId         String?
+  externalUrl        String?
+  sourceVersion      String?
+  sourceUpdatedAt    DateTime?
+  lastSyncedAt       DateTime?
+  updatedByUserId    String?
+  evidenceDocumentId String?
+  createdAt          DateTime                            @default(now())
+  updatedAt          DateTime                            @updatedAt
+  workflow           ProjectWorkflow                     @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy          User?                               @relation("ProjectWorkflowCommercialFactUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  evidenceDocument   ProjectDocument?                    @relation("ProjectWorkflowCommercialFactEvidence", fields: [evidenceDocumentId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([projectId, status])
+  @@index([source])
+  @@index([updatedByUserId])
+  @@index([evidenceDocumentId])
+}
+
+model ProjectDocument {
+  id                       String                           @id @default(cuid())
+  projectId                String
+  type                     ProjectDocumentType
+  title                    String
+  description              String?
+  responsibleUserId        String?
+  requirementStage         ProjectDocumentRequirementStage?
+  acceptanceMode           ProjectDocumentAcceptanceMode    @default(NONE)
+  currentVersionId         String?                          @unique
+  version                  Int                              @default(1)
+  archivedAt               DateTime?
+  archivedByUserId         String?
+  createdByUserId          String?
+  updatedByUserId          String?
+  createdAt                DateTime                         @default(now())
+  updatedAt                DateTime                         @updatedAt
+  project                  Project                          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  currentVersion           ProjectDocumentVersion?          @relation("ProjectDocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions                 ProjectDocumentVersion[]         @relation("ProjectDocumentVersions")
+  responsible              User?                            @relation("ProjectDocumentResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  archivedBy               User?                            @relation("ProjectDocumentArchiver", fields: [archivedByUserId], references: [id], onDelete: SetNull)
+  createdBy                User?                            @relation("ProjectDocumentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy                User?                            @relation("ProjectDocumentUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  evidencedCommercialFacts ProjectWorkflowCommercialFact[]  @relation("ProjectWorkflowCommercialFactEvidence")
+
+  @@index([projectId, archivedAt, type])
+  @@index([responsibleUserId])
+}
+
+model ProjectDocumentVersion {
+  id                         String                          @id @default(cuid())
+  documentId                 String
+  sequence                   Int
+  versionLabel               String?
+  source                     ProjectDocumentSource
+  contentKind                ProjectDocumentContentKind
+  originalFileName           String?
+  mimeType                   String?
+  fileSizeBytes              Int?
+  storagePath                String?
+  sha256                     String?
+  externalId                 String?
+  externalUrl                String?
+  sourceVersion              String?
+  sourceUpdatedAt            DateTime?
+  lastSyncedAt               DateTime?
+  signatureDocumentId        String?                         @unique
+  acceptanceStatus           ProjectDocumentAcceptanceStatus @default(NOT_REQUIRED)
+  acceptanceOccurredOn       DateTime?                       @db.Date
+  acceptanceReference        String?
+  acceptanceNote             String?
+  acceptanceRecordedAt       DateTime?
+  acceptanceRecordedByUserId String?
+  createdByUserId            String?
+  createdAt                  DateTime                        @default(now())
+  document                   ProjectDocument                 @relation("ProjectDocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  currentFor                 ProjectDocument?                @relation("ProjectDocumentCurrentVersion")
+  signatureDocument          SignatureDocument?              @relation("ProjectDocumentSignature", fields: [signatureDocumentId], references: [id], onDelete: SetNull)
+  acceptanceRecordedBy       User?                           @relation("ProjectDocumentAcceptanceRecorder", fields: [acceptanceRecordedByUserId], references: [id], onDelete: SetNull)
+  createdBy                  User?                           @relation("ProjectDocumentVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, sequence])
+  @@unique([documentId, source, sourceVersion])
+  @@index([documentId, createdAt])
+  @@index([source, externalId, sourceUpdatedAt])
+  @@index([acceptanceRecordedByUserId])
+  @@index([createdByUserId])
+}
+
+model ProjectWorkflowChecklist {
+  id              String                         @id @default(cuid())
+  projectId       String
+  key             String
+  status          ProjectWorkflowChecklistStatus @default(PENDING)
+  note            String?
+  updatedByUserId String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  workflow        ProjectWorkflow                @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?                          @relation("ProjectWorkflowChecklistUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowTeamMemberCheck {
+  id              String                         @id @default(cuid())
+  projectId       String
+  collaboratorId  String
+  key             String
+  status          ProjectWorkflowChecklistStatus @default(PENDING)
+  source          String                         @default("MANUAL")
+  sourceRecordId  String?
+  sourceUpdatedAt DateTime?
+  updatedByUserId String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  workflow        ProjectWorkflow                @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  collaborator    Collaborator                   @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+  updatedBy       User?                          @relation("ProjectWorkflowTeamMemberCheckUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, collaboratorId, key])
+  @@index([collaboratorId])
+  @@index([updatedByUserId])
+  @@index([source, sourceUpdatedAt])
+}
+
+model ProjectWorkflowPreparationItemCheck {
+  id              String                         @id @default(cuid())
+  projectId       String
+  itemType        String
+  itemId          String
+  key             String
+  status          ProjectWorkflowChecklistStatus @default(PENDING)
+  updatedByUserId String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  workflow        ProjectWorkflow                @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?                          @relation("ProjectWorkflowPreparationItemCheckUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, itemType, itemId, key])
+  @@index([projectId, itemType, itemId])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowClientRelease {
+  id                    String          @id @default(cuid())
+  projectId             String
+  key                   String
+  attendanceDate        DateTime?       @db.Date
+  attendanceConfirmedAt DateTime?
+  requested             Boolean         @default(false)
+  requestedAt           DateTime?       @db.Date
+  requestedTo           String?
+  completed             Boolean         @default(false)
+  completedAt           DateTime?       @db.Date
+  source                String          @default("MANUAL")
+  sourceRecordId        String?
+  sourceUpdatedAt       DateTime?
+  updatedByUserId       String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  workflow              ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy             User?           @relation("ProjectWorkflowClientReleaseUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([updatedByUserId])
+  @@index([source, sourceUpdatedAt])
+}
+
+model ProjectWorkflowCriticalAnswer {
+  id              String          @id @default(cuid())
+  projectId       String
+  key             String
+  answer          Boolean
+  updatedByUserId String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workflow        ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?           @relation("ProjectWorkflowCriticalAnswerUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowIssue {
+  id             String                     @id @default(cuid())
+  projectId      String
+  sourceQuestion String?
+  description    String
+  area           String
+  ownerName      String?
+  requiredLeadTimeDays Int?
+  dueDate        DateTime?                  @db.Date
+  criticality    ProjectWorkflowCriticality @default(HIGH)
+  status         ProjectWorkflowIssueStatus @default(OPEN)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  workflow       ProjectWorkflow            @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+
+  @@unique([projectId, sourceQuestion])
+  @@index([projectId, status, dueDate])
+}
+
+model ProjectWorkflowEvent {
+  id          String          @id @default(cuid())
+  projectId   String
+  actorUserId String?
+  action      String
+  data        Json?
+  createdAt   DateTime        @default(now())
+  workflow    ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  actor       User?           @relation("ProjectWorkflowEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([actorUserId])
+}
+
+model ProjectWorkflowPostJob {
+  projectId                String          @id
+  meetingDate              DateTime?       @db.Date
+  fieldLeaderFeedback      String?
+  teamFeedback             String?
+  problemsFound            String?
+  solutionsAdopted         String?
+  improvementOpportunities String?
+  lessonsLearned           String?
+  equipmentFeedback        String?
+  planningFeedback         String?
+  serviceTypes             String[]        @default([])
+  qualityRecordId          String?         @unique
+  createdByUserId          String?
+  updatedByUserId          String?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  workflow                 ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  qualityRecord            QualityRecord?  @relation(fields: [qualityRecordId], references: [id], onDelete: SetNull)
+  createdBy                User?           @relation("ProjectWorkflowPostJobCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy                User?           @relation("ProjectWorkflowPostJobUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([meetingDate])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowMeasurement {
+  projectId              String          @id
+  quantitiesSummary      String?
+  additionalServicesNote String?
+  evidenceNote           String?
+  executedAmount         Decimal?        @db.Decimal(14, 2)
+  measuredAmount         Decimal?        @db.Decimal(14, 2)
+  approvedAmount         Decimal?        @db.Decimal(14, 2)
+  preparedAt             DateTime?       @db.Date
+  sentAt                 DateTime?       @db.Date
+  approvedAt             DateTime?       @db.Date
+  createdByUserId        String?
+  updatedByUserId        String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  workflow               ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  createdBy              User?           @relation("ProjectWorkflowMeasurementCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy              User?           @relation("ProjectWorkflowMeasurementUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
 }
 
 model EfetivoMissionPlan {
@@ -943,6 +1528,7 @@ model EfetivoMissionPlan {
   @@index([headquartersResponsibleCollaboratorId])
   @@index([headquartersResponsibleUserId])
   @@index([planId, projectId, scheduleStatus, mobilizationDate, returnDate])
+  @@index([projectId, deletedAt])
 }
 
 model EfetivoMissionCycle {
@@ -1222,6 +1808,7 @@ model Report {
   maintenanceRecords         MaintenanceRecord[]
   chemicalCleanings          ChemicalCleaning[]
   operationalReviewAudits    OperationalReviewAudit[]
+  measurementLinks           ReportMeasurementLink[]
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])
@@ -1369,7 +1956,44 @@ model ReportCollaborator {
   jobRoleSnapshot   JobRole?     @relation("ReportCollaboratorJobRoleSnapshot", fields: [jobRoleIdSnapshot], references: [id], onDelete: Restrict)
 
   @@id([reportId, collaboratorId])
+  @@index([collaboratorId])
   @@index([jobRoleIdSnapshot])
+}
+
+// Quantitativos finais transcritos de relatórios antigos. O documento de origem é
+// identificado por projeto/tipo/número, mesmo quando seu PDF ainda não foi enviado.
+model HistoricalServiceReport {
+  id              String     @id @default(cuid())
+  projectId       String
+  reportType      ReportType
+  sequenceNumber  Int
+  reportDate      DateTime
+  items           Json
+  fingerprint     String
+  sourceFileName  String?
+  createdByUserId String?
+  updatedByUserId String?
+  revision        Int        @default(1)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, reportType, sequenceNumber])
+  @@index([projectId, reportDate])
+}
+
+// Vínculos de Acompanhamento separados do conteúdo e dos PDFs dos relatórios.
+model ReportMeasurementLink {
+  id                String   @id @default(cuid())
+  reportId          String
+  measurementKey    String
+  projectSystemId   String
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  report            Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, measurementKey])
 }
 
 model ReportService {
@@ -1390,6 +2014,7 @@ model ReportService {
   attachments ReportAttachment[]
 
   @@index([reportId])
+  @@index([equipmentId])
 }
 
 model MaintenanceProfile {
@@ -1640,29 +2265,30 @@ model CalibrationNotificationLog {
 // === Módulo Equipamentos ===
 
 model EquipmentCategory {
-  id                      String              @id @default(cuid())
-  systemKey               String              @unique // slug imutável usado pelo RDO/romaneio
+  id                      String                                 @id @default(cuid())
+  systemKey               String                                 @unique // slug imutável usado pelo RDO/romaneio
   name                    String // rótulo editável (vira a aba)
   maintenanceProfileId    String?
   maintenanceIntervalDays Int?
-  showInMaintenance       Boolean             @default(true)
-  order                   Int                 @default(0)
-  fieldSchema             Json                @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
-  technicalSchema         Json                @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
-  checklistEnabled        Boolean             @default(false)
-  checklistItems          Json                @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
-  checklistDisplayMode    String              @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
-  technicalDocEnabled     Boolean             @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
+  showInMaintenance       Boolean                                @default(true)
+  order                   Int                                    @default(0)
+  fieldSchema             Json                                   @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
+  technicalSchema         Json                                   @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
+  checklistEnabled        Boolean                                @default(false)
+  checklistItems          Json                                   @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
+  checklistDisplayMode    String                                 @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
+  technicalDocEnabled     Boolean                                @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
   technicalTemplateId     String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
-  supportsCalibration     Boolean             @default(false)
-  supportsTechnicalDoc    Boolean             @default(true) // anexo PDF legado (mantido como histórico)
-  syncToRomaneio          Boolean             @default(false)
-  isSystemManaged         Boolean             @default(false) // categorias consumidas pelo RDO (não removíveis)
-  isActive                Boolean             @default(true)
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @updatedAt
-  maintenanceProfile      MaintenanceProfile? @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
+  supportsCalibration     Boolean                                @default(false)
+  supportsTechnicalDoc    Boolean                                @default(true) // anexo PDF legado (mantido como histórico)
+  syncToRomaneio          Boolean                                @default(false)
+  isSystemManaged         Boolean                                @default(false) // categorias consumidas pelo RDO (não removíveis)
+  isActive                Boolean                                @default(true)
+  createdAt               DateTime                               @default(now())
+  updatedAt               DateTime                               @updatedAt
+  maintenanceProfile      MaintenanceProfile?                    @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
   equipment               CompanyEquipment[]
+  projectWorkflowPlans    ProjectWorkflowEquipmentCategoryPlan[]
 
   @@index([maintenanceProfileId])
 }
@@ -1873,6 +2499,8 @@ model User {
   role                                 UserRole
   accountType                          AccountType                         @default(INTERNAL)
   reportEmissionPermissions            ReportEmissionPermission[]          @default([])
+  acompanhamentoExtraPermissions       AcompanhamentoExtraPermission[]     @default([])
+  rdoExtraPermissions                  RdoExtraPermission[]                @default([])
   isActive                             Boolean                             @default(true)
   clientCnpj                           String?
   privacyPolicyAcceptedAt              DateTime?
@@ -1914,6 +2542,31 @@ model User {
   stockMovements                       StockMovement[]                     @relation("StockMovementCreator")
   projectManualCosts                   ProjectManualCost[]                 @relation("ProjectManualCostCreator")
   projectManagementNotes               ProjectManagementNote[]             @relation("ProjectManagementNoteCreator")
+  ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
+  plannedProjectWorkflows              ProjectWorkflow[]                    @relation("ProjectWorkflowPlanner")
+  closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
+  projectWorkflowEmailNotifications    ProjectWorkflowEmailNotification[]   @relation("ProjectWorkflowEmailNotificationRecipient")
+  updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
+  updatedProjectWorkflowTeamChecks     ProjectWorkflowTeamMemberCheck[]     @relation("ProjectWorkflowTeamMemberCheckUpdater")
+  updatedProjectWorkflowPreparationItemChecks ProjectWorkflowPreparationItemCheck[] @relation("ProjectWorkflowPreparationItemCheckUpdater")
+  updatedProjectWorkflowClientReleases ProjectWorkflowClientRelease[]       @relation("ProjectWorkflowClientReleaseUpdater")
+  updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
+  updatedProjectWorkflowCommercialFacts ProjectWorkflowCommercialFact[]     @relation("ProjectWorkflowCommercialFactUpdater")
+  workflowDocCategoriesUpdated          ProjectWorkflowDocumentationCategory[]    @relation("ProjectWorkflowDocumentationCategoryUpdater")
+  workflowDocRequirementsCreated        ProjectWorkflowDocumentationRequirement[] @relation("ProjectWorkflowDocumentationRequirementCreator")
+  workflowDocRequirementsUpdated        ProjectWorkflowDocumentationRequirement[] @relation("ProjectWorkflowDocumentationRequirementUpdater")
+  workflowDocHistory                    ProjectWorkflowDocumentationHistory[]     @relation("ProjectWorkflowDocumentationHistoryActor")
+  projectWorkflowEvents                ProjectWorkflowEvent[]               @relation("ProjectWorkflowEventActor")
+  createdProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobCreator")
+  updatedProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobUpdater")
+  createdProjectWorkflowMeasurements  ProjectWorkflowMeasurement[]        @relation("ProjectWorkflowMeasurementCreator")
+  updatedProjectWorkflowMeasurements  ProjectWorkflowMeasurement[]        @relation("ProjectWorkflowMeasurementUpdater")
+  responsibleProjectDocuments         ProjectDocument[]                   @relation("ProjectDocumentResponsible")
+  archivedProjectDocuments            ProjectDocument[]                   @relation("ProjectDocumentArchiver")
+  createdProjectDocuments             ProjectDocument[]                   @relation("ProjectDocumentCreator")
+  updatedProjectDocuments             ProjectDocument[]                   @relation("ProjectDocumentUpdater")
+  createdProjectDocumentVersions      ProjectDocumentVersion[]            @relation("ProjectDocumentVersionCreator")
+  recordedProjectDocumentAcceptances ProjectDocumentVersion[]            @relation("ProjectDocumentAcceptanceRecorder")
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")
   createdQualityRecords                QualityRecord[]                     @relation("QualityRecordCreator")
@@ -1953,8 +2606,8 @@ model QualityNature {
 }
 
 model QualityRecord {
-  id                 String              @id @default(cuid())
-  number             String              @unique
+  id                 String                  @id @default(cuid())
+  number             String                  @unique
   type               QualityRecordType
   seq                Int
   year               Int
@@ -1977,14 +2630,15 @@ model QualityRecord {
   updatedById        String?
   deletedById        String?
   deletedAt          DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  project            Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  nature             QualityNature?      @relation(fields: [natureId], references: [id], onDelete: Restrict)
-  createdBy          User?               @relation("QualityRecordCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy          User?               @relation("QualityRecordUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-  deletedBy          User?               @relation("QualityRecordDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  project            Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  nature             QualityNature?          @relation(fields: [natureId], references: [id], onDelete: Restrict)
+  createdBy          User?                   @relation("QualityRecordCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy          User?                   @relation("QualityRecordUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  deletedBy          User?                   @relation("QualityRecordDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   evidences          QualityEvidence[]
+  projectPostJob     ProjectWorkflowPostJob?
 
   @@unique([type, year, seq])
   @@index([projectId, type])
@@ -2607,6 +3261,7 @@ model ReportDraft {
   project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([updatedAt])
+  @@index([userId, updatedAt])
 }
 
 model UserSession {
@@ -2618,6 +3273,7 @@ model UserSession {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
+  @@index([userId])
 }
 
 model DataSubjectRequest {
@@ -2829,6 +3485,7 @@ model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
   serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  scopeName   String?                       @db.VarChar(180) // agrupamento visual exclusivo do Acompanhamento
   weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)
   note        String?
   order       Int                           @default(0)
@@ -2844,7 +3501,8 @@ model ProjectPlannedService {
 model ProjectPlannedServiceSystem {
   id           String                @id @default(cuid())
   serviceId    String
-  systemType   String // TUBULACAO | OLEO
+  projectSystemId String?
+  systemType   String // TUBULACAO | OLEO | SISTEMA (limpeza por UN)
   description  String?
   diameter     String?
   diameterUnit String?
@@ -2852,8 +3510,31 @@ model ProjectPlannedServiceSystem {
   unit         PlannedMeasureUnit? // unidade do sistema (TUBULACAO=M, OLEO=L)
   order        Int                   @default(0)
   service      ProjectPlannedService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  projectSystem ProjectServiceSystem? @relation(fields: [projectSystemId], references: [id], onDelete: Restrict)
+
+  @@index([projectSystemId])
 
   @@index([serviceId])
+}
+
+// Equipamento/UG e sistema DO CLIENTE, sem vínculo com o cadastro de Equipment.
+// Identidade estável: salvar novamente o cronograma não recria este cadastro.
+model ProjectServiceSystem {
+  id           String @id @default(cuid())
+  projectId    String
+  equipment    String
+  name         String
+  equipmentKey String
+  nameKey      String
+  aliases      Json @default("[]")
+  revision     Int @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  plannedRows  ProjectPlannedServiceSystem[]
+
+  @@unique([projectId, equipmentKey, nameKey])
+  @@index([projectId])
 }
 
 // Previsão de horas normais vendidas: por cargo e total de horas previstas.
@@ -2947,6 +3628,7 @@ model OmiePurchase {
   project               Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([projectId, statusTitulo])
   @@index([codigoProjeto])
   @@index([categoriaCodigo])
   @@index([statusTitulo])
@@ -2987,6 +3669,7 @@ model OmieReceivable {
   project               Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([projectId, codigoTipoDocumento])
   @@index([codigoProjeto])
   @@index([codigoTipoDocumento])
   @@index([statusTitulo])
@@ -3066,6 +3749,7 @@ model SignatureDocument {
   fields                    SignatureDocumentField[]
   auditLogs                 SignatureDocumentAuditLog[]
   completionNotification    SignatureDocumentCompletionNotification?
+  projectDocumentVersion    ProjectDocumentVersion?                  @relation("ProjectDocumentSignature")
 
   @@index([ownerUserId, deletedAt, archivedAt, createdAt])
   @@index([ownerUserId])

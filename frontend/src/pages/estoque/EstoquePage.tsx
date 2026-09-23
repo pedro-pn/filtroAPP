@@ -15,7 +15,7 @@ import { useUrlParamState } from '../../hooks/useUrlParamState';
 type EstoqueTab = 'resumo' | 'movimentacoes' | 'itens' | 'categorias';
 
 const TABS: Array<{ key: EstoqueTab; label: string }> = [
-  { key: 'resumo', label: 'Resumo' },
+  { key: 'resumo', label: 'Estoque' },
   { key: 'movimentacoes', label: 'Movimentações' },
   { key: 'itens', label: 'Itens' },
   { key: 'categorias', label: 'Categorias' }
@@ -74,7 +74,7 @@ export function EstoquePage() {
         </section>
 
         {tab === 'resumo' && <StockSummaryTab isManager={isManager} onRegisterMovement={() => setMovementModalOpen(true)} />}
-        {tab === 'movimentacoes' && <StockMovementsTab isManager={isManager} />}
+        {tab === 'movimentacoes' && <StockMovementsTab isManager={isManager} onRegisterMovement={() => setMovementModalOpen(true)} />}
         {tab === 'itens' && <StockItemsTab isManager={isManager} />}
         {tab === 'categorias' && <StockCategoriesTab isManager={isManager} />}
       </main>

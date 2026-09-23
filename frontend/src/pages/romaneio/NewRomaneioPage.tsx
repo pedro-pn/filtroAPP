@@ -39,6 +39,7 @@ import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity
 import { mergeRomaneioReturnSelection, romaneioReturnKey } from '../../utils/romaneioReturnItems';
 import { RomaneioChecklistModal } from './RomaneioChecklistModal';
 import { romaneioQrRequiresQuantity } from '../../utils/romaneioQr';
+import { RomaneioProjectAvailabilityNovelty } from './RomaneioProjectAvailabilityNovelty';
 import { RomaneioQrNovelty } from './RomaneioQrNovelty';
 import { RomaneioQrScannerModal } from './RomaneioQrScannerModal';
 
@@ -237,7 +238,10 @@ export function NewRomaneioPage() {
   const draftParam = searchParams.get('draft') || '';
   const editId = searchParams.get('edit') || '';
   const isEditing = Boolean(editId);
-  const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
+  const projectsQuery = useQuery({
+    queryKey: ['romaneio-projects', romaneioType],
+    queryFn: () => listRomaneioProjects({ type: romaneioType })
+  });
   const catalogQuery = useQuery({
     queryKey: ['romaneio-catalog'],
     queryFn: listRomaneioCatalog,
@@ -263,9 +267,13 @@ export function NewRomaneioPage() {
   const projectOptions = useMemo(() => {
     const projects = [...(projectsQuery.data || [])];
     const editProject = editQuery.data?.project;
+    // Preserve the project attached to an existing romaneio while editing.
+    // Archived or temporarily unavailable outbound projects may be absent from
+    // the selectable-projects endpoint, but the backend still returns them with
+    // the romaneio and permits the edit for authorized users.
     if (editProject && !projects.some(project => project.id === editProject.id)) projects.push(editProject);
     return projects;
-  }, [editQuery.data?.project, projectsQuery.data]);
+  }, [editQuery.data?.project, projectsQuery.data, romaneioType]);
 
   const selectedProject = useMemo(
     () => projectOptions.find(project => project.id === projectId) || null,
@@ -355,8 +363,21 @@ export function NewRomaneioPage() {
   function handleRomaneioTypeChange(nextType: RomaneioType) {
     if (nextType === romaneioType) return;
     setRomaneioType(nextType);
+    setProjectId('');
+    setManualProjectMode(false);
+    setManualProjectCode('');
     clearSelectedItemsForContextChange();
   }
+
+  useEffect(() => {
+    if (romaneioType !== 'OUTBOUND' || projectsQuery.isLoading || !projectId) return;
+    if (projectOptions.some(project => project.id === projectId)) return;
+    setProjectId('');
+    setSelectedItems([]);
+    setQuantities({});
+    setChecklistStatuses({});
+    hydratedReturnItemsKeyRef.current = '';
+  }, [projectId, projectOptions, projectsQuery.isLoading, romaneioType]);
 
   function updateSelectedItemQuantity(key: string, quantityText: string) {
     const quantity = Number(quantityText);
@@ -630,8 +651,9 @@ export function NewRomaneioPage() {
     const nextType = payload.romaneioType === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
     setRomaneioType(nextType);
     setProjectId(nextProjectId);
-    setManualProjectMode(!nextProjectId && Boolean(nextProjectCode));
-    setManualProjectCode(nextProjectId ? '' : nextProjectCode);
+    const usesManualProjectCode = nextType === 'INBOUND' && !nextProjectId && Boolean(nextProjectCode);
+    setManualProjectMode(usesManualProjectCode);
+    setManualProjectCode(usesManualProjectCode ? nextProjectCode : '');
     setRomaneioDate(nextDate.slice(0, 10));
     setDriverName(typeof payload.driverName === 'string' ? payload.driverName : '');
     setVehiclePlate(typeof payload.vehiclePlate === 'string' ? payload.vehiclePlate : '');
@@ -957,14 +979,14 @@ export function NewRomaneioPage() {
             <button className="secondary-button" type="button" onClick={() => navigate('/romaneio')}>Voltar</button>
           </div>
           <div className="admin-form-grid manager-header-grid">
-            <label className="field-group">
+            <label className="field-group" data-romaneio-project-type>
               <span>Tipo</span>
               <select value={romaneioType} onChange={event => handleRomaneioTypeChange(event.target.value as RomaneioType)}>
                 <option value="OUTBOUND">Saída</option>
                 <option value="INBOUND">Entrada</option>
               </select>
             </label>
-            <label className="field-group field-group-wide">
+            <label className="field-group field-group-wide" data-romaneio-project-select>
               <span>Projeto</span>
               <select value={projectSelectValue} onChange={event => {
                 const value = event.target.value;
@@ -983,8 +1005,13 @@ export function NewRomaneioPage() {
                 {projectOptions.map(project => (
                   <option key={project.id} value={project.id}>{projectLabel(project)}</option>
                 ))}
-                <option value={MANUAL_PROJECT_OPTION}>Não encontrei a missão na lista</option>
+                {romaneioType === 'INBOUND' ? <option value={MANUAL_PROJECT_OPTION}>Não encontrei a missão na lista</option> : null}
               </select>
+              <small className="form-hint">
+                {romaneioType === 'OUTBOUND'
+                  ? 'Somente obras autorizadas para mobilização e obras antigas não concluídas.'
+                  : 'Todas as obras acessíveis ficam disponíveis para entrada.'}
+              </small>
             </label>
             {manualProjectMode ? (
               <label className="field-group">
@@ -1224,6 +1251,7 @@ export function NewRomaneioPage() {
         enabled={romaneioType === 'OUTBOUND' && !catalogQuery.isLoading}
         variant="form"
       />
+      <RomaneioProjectAvailabilityNovelty user={user} enabled={!projectsQuery.isLoading} />
       <RomaneioQrScannerModal
         open={qrScannerOpen}
         onClose={() => setQrScannerOpen(false)}

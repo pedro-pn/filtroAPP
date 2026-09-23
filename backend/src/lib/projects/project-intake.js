@@ -5,7 +5,7 @@ import {
   setProjectBudgetRevisionWithClient
 } from '../acompanhamento/access-import.js';
 import prisma from '../prisma.js';
-import { statisticsProjectsCache } from '../resource-list-cache.js';
+import { clearProjectDerivedCaches } from '../resource-list-cache.js';
 
 const MISSING_REVISION_SENTINEL = -1;
 const INITIAL_COMMERCIAL_REVISION = 0;
@@ -96,7 +96,7 @@ export function projectIntakeCreateData(data) {
   return {
     ...projectData,
     isActive: true,
-    visibleToCollaborators: false,
+    visibleToCollaborators: true,
     managerOnly: false,
     registrationPending: true,
     inhibitionServiceEnabled: false,
@@ -129,7 +129,7 @@ async function resolveExistingProject(project, intake, client) {
   if (!projectMatchesIntake(project, intake)) {
     throw new ProjectIntakeConflictError();
   }
-  statisticsProjectsCache.clear();
+  clearProjectDerivedCaches();
   const commercialRevision = await selectProjectIntakeCommercialRevision(project, intake, client);
   return projectIntakeResult('already_exists', project, commercialRevision);
 }
@@ -158,7 +158,7 @@ export async function receiveProjectIntake(rawInput, client = prisma) {
       data: projectIntakeCreateData(intake),
       select: projectIntakePublicSelect
     });
-    statisticsProjectsCache.clear();
+    clearProjectDerivedCaches();
     const commercialRevision = await selectProjectIntakeCommercialRevision(project, intake, client);
     return projectIntakeResult('created', project, commercialRevision);
   } catch (error) {

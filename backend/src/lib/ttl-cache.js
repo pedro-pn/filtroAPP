@@ -5,12 +5,26 @@ export function createTtlCache(ttlMs) {
     async get(loader) {
       const now = Date.now();
       if (entry && entry.expiresAt > now) return entry.value;
-      const value = await loader();
+
+      const pending = Promise.resolve().then(loader);
       entry = {
-        value,
+        value: pending,
         expiresAt: now + ttlMs
       };
-      return value;
+
+      try {
+        const value = await pending;
+        if (entry?.value === pending) {
+          entry = {
+            value,
+            expiresAt: Date.now() + ttlMs
+          };
+        }
+        return value;
+      } catch (error) {
+        if (entry?.value === pending) entry = null;
+        throw error;
+      }
     },
     clear() {
       entry = null;
@@ -43,11 +57,13 @@ export function createKeyedTtlCache(ttlMs, maxEntries = 100) {
 
       try {
         const value = await pending;
-        entries.set(key, {
-          value,
-          expiresAt: Date.now() + ttlMs
-        });
-        prune();
+        if (entries.get(key)?.value === pending) {
+          entries.set(key, {
+            value,
+            expiresAt: Date.now() + ttlMs
+          });
+          prune();
+        }
         return value;
       } catch (error) {
         if (entries.get(key)?.value === pending) entries.delete(key);

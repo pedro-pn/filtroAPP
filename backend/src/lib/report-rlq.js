@@ -14,6 +14,7 @@ import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
+import { cleaningSystemQuantity, isSystemCleaning } from './reports/cleaning-measurement.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -373,16 +374,19 @@ function buildRlqBaseData(report) {
   };
 }
 
-function shouldShowTubeTable(sd) {
-  const raw = stringify(getField(sd, ['Limpeza de tubulação?', 'Limpeza de tubulacao?']));
-  return !/n[ãa]o/i.test(raw);
-}
-
 function expandTubeRows(doc, sd) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{diameter}}');
   if (!templateRow) return;
-  if (!shouldShowTubeTable(sd)) {
-    removeNode(closestAncestor(templateRow, 'w:tbl') || templateRow);
+  if (isSystemCleaning(sd)) {
+    const table = closestAncestor(templateRow, 'w:tbl');
+    const quantity = cleaningSystemQuantity(sd);
+    // Relatórios legados sem quantidade continuam legíveis, sem inventar uma unidade executada.
+    if (!quantity) { removeNode(table || templateRow); return; }
+    for (const [from, to] of [['TUBULAÇÕES', 'SISTEMAS'], ['Diâmetro', 'Sistema'], ['Comprimento', 'Quantidade (un)']]) {
+      const paragraph = findFirstByText(table, 'w:p', from);
+      if (paragraph) replaceTokenInElement(paragraph, from, to);
+    }
+    replacePlaceholders(templateRow, { diameter: stringify(getField(sd, ['Sistema', 'system'])), length: `${quantity} un` });
     return;
   }
   const tubesRaw = getField(sd, ['Diâmetros e comprimentos', 'Diametros e comprimentos']);

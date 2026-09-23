@@ -569,26 +569,8 @@ function TimelineChart({
   const serviceColor = isDesignSystem ? 'var(--brand)' : '#30503a';
 
   return (
-    <div
-      className={isDesignSystem ? 'rdo-stats-dashboard__chart' : undefined}
-      style={isDesignSystem ? undefined : { overflowX: 'auto' }}
-    >
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{
-          width: '100%',
-          minWidth: `${Math.max(W, slots.length * 30)}px`,
-          height: 'auto'
-        }}
-        role={isDesignSystem ? 'img' : undefined}
-        aria-label={
-          isDesignSystem
-            ? mode === 'hours'
-              ? 'Evolução das horas trabalhadas'
-              : 'Evolução dos serviços realizados'
-            : undefined
-        }
-      >
+    <div className="stats-timeline-chart" style={{ overflowX: 'auto' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: `${Math.max(W, slots.length * 30)}px`, height: 'auto' }}>
         {/* Y gridlines */}
         {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
           const y = PAD_T + chartH * (1 - pct);
@@ -2567,12 +2549,7 @@ export function StatsDashboardOverlay({
   }
 
   return (
-    <div
-      className="survey-dash-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Dashboard de Estatísticas"
-    >
+    <div className="survey-dash-overlay survey-dash-overlay-wide" role="dialog" aria-modal="true" aria-label="Dashboard de Estatísticas">
       <div className="survey-dash-overlay-topbar">
         <img
           className="survey-dash-overlay-logo"

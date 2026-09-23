@@ -2,19 +2,7 @@ import http from 'node:http';
 
 import app from './app.js';
 import env from './config/env.js';
-import { startMonthlyAllocationReportJob } from './lib/allocation-monthly-report.js';
-import { startCalibrationReminderJob } from './lib/calibration-reminders.js';
-import { startDataRetentionJob } from './lib/data-retention.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
-import { startOperationalAlertJob } from './lib/operations/alerts.js';
-import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
-import { startSignatureReminderJob } from './lib/signature-reminders.js';
-import { startSurveyReminderJob } from './lib/survey-reminders.js';
-import { startOmieSyncJob } from './lib/omie/sync.js';
-import { startPontoMaisSyncJob } from './lib/pontomais/job.js';
-import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
-import { startReportApprovalPostProcessingJob } from './lib/reports/jobs.js';
-import { startAssinaturasJobs } from './lib/assinaturas/jobs.js';
 
 const server = http.createServer(app);
 
@@ -52,18 +40,9 @@ server.listen(env.port, () => {
   if (!env.surveyTokenSecret) {
     console.warn('[AVISO] SURVEY_TOKEN_SECRET não definido. Os tokens de pesquisa estão usando um fallback inseguro. Defina essa variável em produção.');
   }
-  startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
-  startSurveyReminderJob();
-  startSignatureReminderJob();
-  startCalibrationReminderJob();
-  startMonthlyAllocationReportJob();
-  startLegacyZapSignReconciliationJob();
-  startOmieSyncJob();
-  startPontoMaisSyncJob();
-  startReportApprovalPostProcessingJob();
-  startAssinaturasJobs();
-  startOperationalAlertJob();
-  syncRomaneioCatalog().catch(error => {
-    console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);
-  });
+  if (env.backgroundJobsInApi) {
+    import('./jobs/background-jobs.js')
+      .then(({ startBackgroundJobs }) => startBackgroundJobs())
+      .catch(error => reportProcessError(error, 'backend.backgroundJobs'));
+  }
 });

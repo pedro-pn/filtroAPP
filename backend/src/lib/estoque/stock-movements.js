@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { makeEstoqueSchemas } from '../../../../shared/schemas/estoque.js';
+import { assertProjectMobilizationAuthorized } from '../efetivo/project-workflow/operational-gate.js';
 import { getBatchBalances, getItemBalances, getProjectBatchBalances } from './stock-balance.js';
 
 const estoqueSchemas = makeEstoqueSchemas(z);
@@ -233,7 +234,7 @@ export async function createMovementInTransaction(tx, { data, createdById, roman
     await projectOrThrow(tx, parsed.projectId);
   }
   if (parsed.reason === 'USO_EM_PROJETO') {
-    await projectOrThrow(tx, parsed.projectId);
+    await assertProjectMobilizationAuthorized(tx, parsed.projectId);
     if (isExpired(batch.expiryDate) && !parsed.confirmExpired) {
       throw appError('Lote vencido. Confirme para registrar a saída.', 422, { requiresConfirmation: true });
     }
@@ -378,7 +379,8 @@ export async function createAutomaticRomaneioStockMovementsInTransaction(tx, {
   notes = null,
   excludeFromProjectCost = false,
   createdById,
-  romaneioId
+  romaneioId,
+  mobilizationDecision = null
 }) {
   if (!createdById) throw appError('Usuário autenticado não identificado.', 401);
   const item = await itemOrThrow(tx, itemId);
@@ -387,6 +389,9 @@ export async function createAutomaticRomaneioStockMovementsInTransaction(tx, {
   const parsedDate = parseDate(date, 'data');
 
   if (romaneioType === 'OUTBOUND') {
+    if (!mobilizationDecision?.allowed || mobilizationDecision.projectId !== projectId) {
+      await assertProjectMobilizationAuthorized(tx, projectId);
+    }
     const movements = [];
     const allocations = await allocateFefoBatches(tx, item, parsedQuantity);
     for (const allocation of allocations) {

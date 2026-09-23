@@ -35,3 +35,27 @@ WHERE "deletedAt" IS NULL;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_project_date_created_idx"
 ON "Report"("projectId", "reportDate" DESC, "createdAt" DESC)
 WHERE "deletedAt" IS NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "PontoPeriodSummary_importId_collaboratorId_idx"
+ON "PontoPeriodSummary"("importId", "collaboratorId");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "EfetivoMissionPlan_projectId_deletedAt_idx"
+ON "EfetivoMissionPlan"("projectId", "deletedAt");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "ReportCollaborator_collaboratorId_idx"
+ON "ReportCollaborator"("collaboratorId");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "ReportService_equipmentId_idx"
+ON "ReportService"("equipmentId");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "ReportDraft_userId_updatedAt_idx"
+ON "ReportDraft"("userId", "updatedAt");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "UserSession_userId_idx"
+ON "UserSession"("userId");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "OmiePurchase_projectId_statusTitulo_idx"
+ON "OmiePurchase"("projectId", "statusTitulo");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "OmieReceivable_projectId_codigoTipoDocumento_idx"
+ON "OmieReceivable"("projectId", "codigoTipoDocumento");
