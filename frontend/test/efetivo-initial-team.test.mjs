@@ -124,3 +124,26 @@ test('diálogo de equipe inicial reflete o fluxo e segue o UI atual', () => {
   assert.match(analysis, /Fim da execução previsto/);
   assert.match(styles, /\.efetivo-team-dialog,\s*\.project-workflow-stage-tip-balloon/);
 });
+
+test('equipe inicial abre direto em "Colaboradores por disponibilidade", sem o formulário antigo como etapa intermediária', () => {
+  const form = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionFormModal.tsx', import.meta.url), 'utf8');
+  const selector = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionTeamSelector.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  // o board usa o componente direto, não mais o MissionFormModal completo, para "Definir/Editar equipe inicial"
+  assert.match(board, /import \{ InitialTeamAvailabilityModal \} from '\.\/MissionFormModal';/);
+  assert.match(board, /<InitialTeamAvailabilityModal/);
+  assert.doesNotMatch(board, /<MissionFormModal/);
+  // o novo componente abre o MissionTeamSelector direto (autoOpen), sem o gatilho "Ver colaboradores"
+  const directComponent = form.slice(form.indexOf('export function InitialTeamAvailabilityModal'));
+  assert.match(directComponent, /<MissionTeamSelector/);
+  assert.match(directComponent, /autoOpen/);
+  assert.match(directComponent, /minSelected=\{1\}/);
+  assert.match(directComponent, /onCancel=\{onClose\}/);
+  // sem as datas da obra ainda não há como consultar disponibilidade: uma etapa mínima as pede antes
+  assert.match(directComponent, /Confirme as datas da obra para consultar a disponibilidade/);
+  assert.match(directComponent, /showDateForm/);
+  // MissionTeamSelector esconde o fieldset/gatilho "Ver colaboradores" quando aberto direto
+  assert.match(selector, /autoOpen \? null : <fieldset/);
+  assert.match(selector, /minSelected = 0/);
+  assert.match(selector, /draftIds\.length < minSelected/);
+});

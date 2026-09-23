@@ -132,7 +132,7 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /MissionAllocationModal/);
   assert.match(board, /Definir equipe inicial/);
   assert.match(board, /Editar equipe inicial/);
-  assert.match(board, /MissionFormModal/);
+  assert.match(board, /InitialTeamAvailabilityModal/);
   assert.match(board, /createPlanningMission/);
   assert.match(board, /updatePlanningMission/);
   assert.match(preparation, /primeiro ciclo/);
