@@ -596,12 +596,15 @@ function UnitMultiField({
 function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey'>) {
   const finalized = typeof data.finalized === 'boolean' ? data.finalized : null;
   const aprovadoCliente = getString(data.aprovadoCliente) || 'Sim';
+  const finalizationInvalid = invalidKey === 'finalized';
+  const finalizationLabelId = fieldId(groupKey, 'finalized-label');
+  const finalizationErrorId = fieldId(groupKey, 'finalized-error');
 
   return (
     <>
-      <div className={fieldClass(invalidKey, 'finalized')}>
-        <label>Serviço finalizado? {requiredMark()}</label>
-        <div className="rdo-tag-group">
+      <div className={`${fieldClass(invalidKey, 'finalized')} service-finalized-field`}>
+        <label id={finalizationLabelId}>Serviço finalizado? {requiredMark()}</label>
+        <div className="rdo-tag-group" role="radiogroup" aria-labelledby={finalizationLabelId} aria-describedby={finalizationInvalid ? finalizationErrorId : undefined}>
           {['Sim', 'Não'].map(label => {
             const value = label === 'Sim';
             const checked = finalized === value;
@@ -610,6 +613,8 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
                 <input
                   type="radio"
                   name={`finalizado-${groupKey}`}
+                  data-invalid-target={value ? `${groupKey}:finalized` : undefined}
+                  aria-invalid={finalizationInvalid || undefined}
                   checked={checked}
                   disabled={disabled}
                   onChange={() => onChange({ finalized: value })}
@@ -619,6 +624,7 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
             );
           })}
         </div>
+        {finalizationInvalid ? <small className="field-error" id={finalizationErrorId}>Selecione Sim ou Não.</small> : null}
       </div>
       {finalized ? (
         <div className="field-group">

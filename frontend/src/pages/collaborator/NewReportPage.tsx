@@ -361,7 +361,7 @@ function SiteRdoFormPage() {
       const [serviceId] = target.split(':');
       const selectors = target.includes(':') ? [`[data-invalid-target="${target}"]`, `[data-service-id="${serviceId}"] .field-invalid input`, `[data-service-id="${serviceId}"] .field-invalid select`, `[data-service-id="${serviceId}"] .field-invalid textarea`, `[data-service-id="${serviceId}"] .field-invalid`, `[data-service-id="${serviceId}"]`] : [`[data-invalid-target="${target}"]`];
       const element = selectors.map((selector) => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
-      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (element?.closest('.service-finalized-field') || element)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (element && typeof element.focus === 'function') element.focus({ preventScroll: true });
     }, 120);
     return false;
@@ -1137,7 +1137,10 @@ function SiteRdoFormPage() {
                         <ServiceFields
                           serviceType={service.type}
                           data={service.data}
-                          onChange={(update) => updateService(service.id, update)}
+                          onChange={(update) => {
+                            updateService(service.id, update);
+                            if (invalidTarget === `${service.id}:finalized` && typeof update.finalized === 'boolean') setInvalidTarget(null);
+                          }}
                           units={units}
                           manometers={manometers}
                           counters={bootstrapQuery.data?.counters || []}

@@ -469,6 +469,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const showToast = useToast();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
+  const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
@@ -488,6 +489,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   useEffect(() => {
     setForm(reportToForm(report));
+    setInvalidFinalizationServiceId(null);
     // Descarta exclusões de fotos encenadas e não salvas ao (re)carregar o relatório.
     clearStagedUploadDeletions();
     if (currentReportIdRef.current !== report.id) {
@@ -700,6 +702,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function updateService(id: string, data: Partial<RdoServiceForm>) {
+    if (id === invalidFinalizationServiceId && typeof data.data?.finalized === 'boolean') {
+      setInvalidFinalizationServiceId(null);
+    }
     setForm(current => ({
       ...current,
       services: current.services.map(service => (
@@ -711,6 +716,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function removeService(id: string) {
+    if (id === invalidFinalizationServiceId) setInvalidFinalizationServiceId(null);
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
@@ -749,6 +755,22 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       showToast(`Informe a ${label} do serviço ${missingServiceTime.serviceIndex + 1}.`, 'error');
       return false;
     }
+    if (!serviceReportMode) {
+      const missingFinalizationIndex = form.services.findIndex(service => typeof service.data.finalized !== 'boolean');
+      if (missingFinalizationIndex >= 0) {
+        const serviceId = form.services[missingFinalizationIndex].id;
+        setInvalidFinalizationServiceId(serviceId);
+        showToast(`Selecione se o serviço ${missingFinalizationIndex + 1} foi finalizado.`, 'error');
+        window.setTimeout(() => {
+          const input = Array.from(document.querySelectorAll<HTMLInputElement>('[data-invalid-target]'))
+            .find(element => element.dataset.invalidTarget === `${serviceId}:finalized`);
+          (input?.closest('.service-finalized-field') || input)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          input?.focus({ preventScroll: true });
+        }, 120);
+        return false;
+      }
+    }
+    setInvalidFinalizationServiceId(null);
     if (!validateSequence()) return false;
     if (showDdsFields) {
       if (form.ddsDay && (!form.ddsDayStart.trim() || !form.ddsDayEnd.trim())) {
@@ -1095,6 +1117,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
+                    invalidKey={invalidFinalizationServiceId === service.id ? 'finalized' : null}
                     hideFinalization={serviceReportMode}
                     hideUploads={manualReport}
                     hideNotes={manualReport}
