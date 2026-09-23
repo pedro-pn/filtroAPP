@@ -96,7 +96,7 @@ export function projectIntakeCreateData(data) {
   return {
     ...projectData,
     isActive: true,
-    visibleToCollaborators: false,
+    visibleToCollaborators: true,
     managerOnly: false,
     registrationPending: true,
     inhibitionServiceEnabled: false,
