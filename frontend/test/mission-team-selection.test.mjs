@@ -27,6 +27,26 @@ test('edição pré-seleciona colaboradores alocados sem duplicar IDs', async ()
   assert.deepEqual(team.toggleMissionCollaborator(['c2', 'c1'], 'c2', false), ['c1']);
 });
 
+test('troca de colaborador remove o período antigo e cria o novo dentro da missão', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const periods = [{
+    collaboratorId: 'old-member',
+    mobilizationDate: '2026-09-07',
+    demobilizationDate: '2026-11-26'
+  }];
+
+  assert.deepEqual(team.synchronizeMissionAllocationPeriods(
+    ['new-member'],
+    periods,
+    '2026-09-07',
+    '2026-11-26'
+  ), [{
+    collaboratorId: 'new-member',
+    mobilizationDate: '2026-09-07',
+    demobilizationDate: '2026-11-26'
+  }]);
+});
+
 test('filtro da seleção permite ativos, inativos e todos sem perder a equipe selecionada', async () => {
   const team = await load('/src/utils/missionTeam.ts');
   const people = [...collaborators, { id: 'c3', name: 'Pessoa desligada', role: 'Mantenedor I', jobRoleId: 'r2', isActive: false }];

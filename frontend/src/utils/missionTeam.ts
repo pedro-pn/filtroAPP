@@ -2,6 +2,12 @@ import type { MissionScheduleStatus, PlanningMission } from '../api/efetivoPlann
 
 export type CollaboratorActivityFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
 
+export type MissionAllocationPeriodDraft = {
+  collaboratorId: string;
+  mobilizationDate: string;
+  demobilizationDate: string;
+};
+
 export function filterCollaboratorsByActivity<T extends { isActive?: boolean }>(people: T[], filter: CollaboratorActivityFilter): T[] {
   return people.filter(person => filter === 'ALL' || (filter === 'INACTIVE' ? person.isActive === false : person.isActive !== false));
 }
@@ -73,4 +79,18 @@ export function plannedRoleCoverage(plannedRoles: PlannedTeamRole[] | undefined,
 export function toggleMissionCollaborator(selectedIds: string[], collaboratorId: string, selected: boolean): string[] {
   if (selected) return selectedIds.includes(collaboratorId) ? selectedIds : [...selectedIds, collaboratorId];
   return selectedIds.filter(id => id !== collaboratorId);
+}
+
+export function synchronizeMissionAllocationPeriods(
+  selectedIds: string[],
+  periods: MissionAllocationPeriodDraft[],
+  missionStartDate: string,
+  missionEndDate: string
+): MissionAllocationPeriodDraft[] {
+  const periodByCollaboratorId = new Map(periods.map(period => [period.collaboratorId, period]));
+  return [...new Set(selectedIds)].map(collaboratorId => periodByCollaboratorId.get(collaboratorId) || {
+    collaboratorId,
+    mobilizationDate: missionStartDate,
+    demobilizationDate: missionEndDate
+  });
 }
