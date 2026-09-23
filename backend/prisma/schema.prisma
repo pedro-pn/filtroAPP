@@ -1060,6 +1060,9 @@ model ProjectWorkflow {
   analysisClientContactName          String?
   analysisClientContactPhone         String?
   analysisClientContactDate          DateTime?                              @db.Date
+  // Checklist de verificação obrigatória do contato inicial com o cliente (chave -> {answer, note, updatedAt,
+  // updatedByUserId}); ver PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.
+  clientContactChecklist             Json                                   @default("{}")
   plannedExecutionStartDate          DateTime?                              @db.Date
   plannedExecutionEndDate            DateTime?                              @db.Date
   teamPlanDefined                    Boolean?

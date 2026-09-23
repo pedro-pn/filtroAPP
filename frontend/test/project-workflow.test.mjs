@@ -316,6 +316,17 @@ test('análise inicial mostra as datas comerciais estimadas, contato estruturado
   assert.match(styles, /\.project-workflow-check-controls \{[^}]*grid-template-columns: auto minmax\(0, 1fr\)/);
 });
 
+test('Análise inicial: checagem da proposta (itens críticos) vem antes do contato com o cliente', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const analysisBranch = modal.slice(modal.indexOf("activeStage === 'INITIAL_ANALYSIS'"), modal.indexOf("activeStage === 'WAITING_PLANNING'"));
+  const criticalIndex = analysisBranch.indexOf('renderCriticalItems()');
+  const contactIndex = analysisBranch.indexOf('ProjectWorkflowInitialAnalysisData');
+  assert.ok(criticalIndex >= 0 && contactIndex >= 0);
+  assert.ok(criticalIndex < contactIndex, 'Itens críticos deve renderizar antes de Datas e contato inicial');
+  // WAITING_PLANNING não duplica os itens críticos (já mostrados na Análise inicial acima)
+  assert.match(modal, /renderAnalysisMonitoring\(false\)/);
+});
+
 test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const planning = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowResourcePlanning.tsx', import.meta.url), 'utf8');
@@ -584,4 +595,44 @@ test('datas comerciais estimadas ficam editáveis (sem CRM) na Análise inicial 
   assert.match(schema, /action: z\.literal\('commercial_dates'\)/);
   assert.match(schema, /action: z\.literal\('commercial_schedule_confirm'\)/);
   assert.match(schema, /field: z\.enum\(\['MOBILIZATION', 'START'\]\)/);
+});
+
+test('checklist de verificação do contato com o cliente: 16 perguntas em diálogo separado, obrigatórias, sem repetir os itens críticos', () => {
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../src/api/projectWorkflow.ts', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  // diálogo separado (não polui a tela principal), portalizado como as demais caixas de diálogo do módulo
+  assert.match(intake, /function ClientContactChecklistDialog/);
+  assert.match(intake, /createPortal\(dialog, document\.body\)/);
+  assert.match(intake, /Checklist de verificação \(\{checklistAnsweredCount\}\/\{workflow\.clientContactChecklist\.length\}\)/);
+  // cada pergunta exige Sim/Não; a observação só aparece depois de respondida e é sempre opcional
+  assert.match(intake, /function ClientContactChecklistRow/);
+  assert.match(intake, /action: 'client_contact_check'/);
+  assert.match(intake, /item\.answer !== null \? \(/);
+  assert.match(intake, /Observação \(opcional\)/);
+  // não repete os itens já cobertos pelos itens críticos (cadastro no cliente, equipamento especial etc.)
+  const checklistBlock = schema.slice(schema.indexOf('PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = ['), schema.indexOf('PROJECT_WORKFLOW_DOCUMENTATION_TYPES'));
+  const keyMatches = [...checklistBlock.matchAll(/key: '([A-Z_0-9]+)'/g)].map(match => match[1]);
+  assert.equal(keyMatches.length, 16);
+  for (const key of ['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION', 'SPECIAL_EQUIPMENT', 'LONG_LEAD_MATERIAL', 'MORE_THAN_TEN_FILTERS', 'SPECIFIC_HIRING']) {
+    assert.equal(keyMatches.includes(key), false);
+  }
+  // amostra de perguntas formalizadas
+  assert.match(checklistBlock, /UNLOADING_CRANE_TRUCK', label: '[^']*Munck/);
+  assert.match(checklistBlock, /LODGING_CONDITIONS_CONFIRMED', label: '[^']*alojamento/);
+  // tipos e schema
+  assert.match(api, /ProjectWorkflowClientContactChecklistItem/);
+  assert.match(api, /action: 'client_contact_check'/);
+  assert.match(schema, /action: z\.literal\('client_contact_check'\)/);
+  assert.match(schema, /key: z\.enum\(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST\.map\(item => item\.key\)\)/);
+  assert.match(styles, /project-workflow-checklist-dialog/);
+  // a observação, quando aparece, ocupa a linha inteira abaixo da pergunta (não espremida ao lado do Sim/Não)
+  assert.match(intake, /project-workflow-critical project-workflow-checklist-item/);
+  assert.match(styles, /\.project-workflow-checklist-item \{ flex-wrap: wrap; \}/);
+  // seletor com especificidade maior que ".project-workflow-critical > div" (que forçaria flex: 0 0 auto)
+  assert.match(styles, /\.project-workflow-checklist-item > \.project-workflow-checklist-note \{[^}]*flex: 1 1 100%/);
+  // com o label quebrando linha, o Sim/Não vira o único item da linha; sem isso "space-between" o jogaria
+  // pra esquerda em vez de manter à direita como os demais
+  assert.match(styles, /\.project-workflow-checklist-item \.project-workflow-documentation-choice \{ margin-left: auto; \}/);
 });

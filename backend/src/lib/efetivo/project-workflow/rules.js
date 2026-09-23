@@ -1,5 +1,6 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
@@ -832,6 +833,15 @@ function analysisChecks(workflow) {
     if (!workflow.analysisClientContactDate) contactIssues.push('Informar a data do contato inicial com o cliente');
   }
   checks.push({ key: 'ANALYSIS_CLIENT_CONTACT', issues: contactIssues });
+  // Checklist de verificação obrigatória do contato com o cliente: cada pergunta exige Sim/Não (a observação é
+  // sempre opcional). Guardado como objeto simples (chave -> {answer, note}) direto no workflow.
+  const contactChecklist = workflow.clientContactChecklist && typeof workflow.clientContactChecklist === 'object' && !Array.isArray(workflow.clientContactChecklist)
+    ? workflow.clientContactChecklist
+    : {};
+  for (const item of PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST) {
+    const answered = typeof contactChecklist[item.key]?.answer === 'boolean';
+    checks.push({ key: `CLIENT_CONTACT_CHECK_${item.key}`, issues: answered ? [] : [`Responder: ${item.label}`] });
+  }
   const criticalityIssues = [];
   if (workflow.isCritical == null) {
     criticalityIssues.push('Informar se a obra é crítica');
