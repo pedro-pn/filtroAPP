@@ -119,7 +119,7 @@ function ClientContactChecklistRow({ workflow, item, saving, onPatch }: {
     onPatch({ action: 'client_contact_check', version: workflow.version, key: item.key, answer: Boolean(item.answer), note: normalized || null });
   };
   return (
-    <article className="project-workflow-critical">
+    <article className="project-workflow-critical project-workflow-checklist-item">
       <span>{item.label}</span>
       <ProjectWorkflowBooleanChoice
         value={item.answer}

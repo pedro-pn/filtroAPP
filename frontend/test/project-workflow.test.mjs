@@ -627,4 +627,8 @@ test('checklist de verificação do contato com o cliente: 16 perguntas em diál
   assert.match(schema, /action: z\.literal\('client_contact_check'\)/);
   assert.match(schema, /key: z\.enum\(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST\.map\(item => item\.key\)\)/);
   assert.match(styles, /project-workflow-checklist-dialog/);
+  // a observação, quando aparece, ocupa a linha inteira abaixo da pergunta (não espremida ao lado do Sim/Não)
+  assert.match(intake, /project-workflow-critical project-workflow-checklist-item/);
+  assert.match(styles, /\.project-workflow-checklist-item \{ flex-wrap: wrap; \}/);
+  assert.match(styles, /\.project-workflow-checklist-note \{ flex: 1 1 100%/);
 });
