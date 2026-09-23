@@ -412,12 +412,17 @@ function travelProgress(workflow) {
 
   const logisticsBlockers = [];
   let logisticsCompleted = 0;
-  // Modo "Locação de carro" não tem tipo de veículo (só a quantidade); "Nosso"/"Frete" exigem o tipo escolhido.
+  // Locação, ônibus e avião não exigem tipo de veículo; Nosso/Frete exigem o tipo escolhido.
   const transportModeComplete = (mode, vehicleType, quantity) => Boolean(
-    mode && (mode === 'RENTAL' || vehicleType) && Number.isInteger(quantity) && quantity >= 1
+    mode && (['RENTAL', 'BUS', 'PLANE'].includes(mode) || vehicleType) && Number.isInteger(quantity) && quantity >= 1
   );
+  const memberTransportComplete = (workflow?.teamPreparation?.members || []).every(member => {
+    const override = travel.teamTransportOverrides?.[member.collaboratorId];
+    return !override || transportModeComplete(override.mode, override.vehicleType, 1);
+  });
   const transportComplete = travel.teamTransportDefined === true
-    && transportModeComplete(travel.teamTransportMode, travel.teamTransportVehicleType, travel.teamTransportQuantity);
+    && transportModeComplete(travel.teamTransportMode, travel.teamTransportVehicleType, travel.teamTransportQuantity)
+    && memberTransportComplete;
   if (transportComplete) logisticsCompleted += 1;
   else logisticsBlockers.push({
     key: 'TRAVEL_TEAM_TRANSPORT',
@@ -426,7 +431,7 @@ function travelProgress(workflow) {
       ? 'Definir Sim ou Não'
       : travel.teamTransportDefined === false
         ? 'Definir o transporte da equipe'
-        : 'Selecionar o veículo e a quantidade'
+        : memberTransportComplete ? 'Selecionar o transporte e a quantidade' : 'Completar o transporte de cada colaborador'
   });
   if (freightRequired) {
     const freightComplete = travel.freightDefined === true && Boolean(

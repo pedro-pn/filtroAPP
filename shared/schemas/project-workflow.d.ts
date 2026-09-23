@@ -64,6 +64,8 @@ export const PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CLIENT_RELEASES: readonly stri
 export const PROJECT_WORKFLOW_HEADQUARTERS_OPTIONAL_SECTIONS: readonly string[];
 export const PROJECT_WORKFLOW_TRANSPORT_MODES: readonly ['OWN', 'RENTAL', 'THIRD_PARTY'];
 export const PROJECT_WORKFLOW_TRANSPORT_MODE_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_TRANSPORT_MODES)[number], string>>;
+export const PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES: readonly ['OWN', 'RENTAL', 'THIRD_PARTY', 'BUS', 'PLANE'];
+export const PROJECT_WORKFLOW_TEAM_TRANSPORT_MODE_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES)[number], string>>;
 export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES: Readonly<{ OWN: readonly string[]; THIRD_PARTY: readonly string[] }>;
 export const PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPE_LABELS: Readonly<Record<string, string>>;
 export function isHeadquartersWorkflow(workflow: { executedAtHeadquarters?: boolean | null } | null | undefined): boolean;

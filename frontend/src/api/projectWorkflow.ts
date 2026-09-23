@@ -8,6 +8,7 @@ export type ProjectWorkflowPreparationItemType = 'EQUIPMENT' | 'MATERIAL';
 export type ProjectWorkflowPreparationItemCheckKey = 'TESTED' | 'ACCESSORIES_SEPARATED' | 'SEPARATED';
 export type ProjectWorkflowClientReleaseKey = 'CUSTOMER_REGISTRATION' | 'DOCUMENTS_SENT' | 'INTEGRATION_REQUEST';
 export type ProjectWorkflowTransportMode = 'OWN' | 'RENTAL' | 'THIRD_PARTY';
+export type ProjectWorkflowTeamTransportMode = ProjectWorkflowTransportMode | 'BUS' | 'PLANE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
@@ -642,9 +643,10 @@ export interface ProjectWorkflow {
     lodgingRequestedDate: string | null;
     lodgingConfirmedDate: string | null;
     teamTransportDefined: boolean | null;
-    teamTransportMode: ProjectWorkflowTransportMode | null;
+    teamTransportMode: ProjectWorkflowTeamTransportMode | null;
     teamTransportVehicleType: string | null;
     teamTransportQuantity: number | null;
+    teamTransportOverrides: Record<string, { mode: ProjectWorkflowTeamTransportMode; vehicleType: string | null }>;
     freightDefined: boolean | null;
     freightMode: ProjectWorkflowTransportMode | null;
     freightVehicleType: string | null;
@@ -842,7 +844,7 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo?: string | null; completed: boolean; completedAt: string | null; notificationEmail?: string; makeDefaultEmail?: boolean }
   | { action: 'pre_job'; version: number; scheduledDate?: string | null; completedDate?: string | null }
   | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
-  | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportMode?: ProjectWorkflowTransportMode | null; teamTransportVehicleType?: string | null; teamTransportQuantity?: number | null; freightDefined?: boolean | null; freightMode?: ProjectWorkflowTransportMode | null; freightVehicleType?: string | null; freightQuantity?: number | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
+  | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportMode?: ProjectWorkflowTeamTransportMode | null; teamTransportVehicleType?: string | null; teamTransportQuantity?: number | null; teamTransportMember?: { collaboratorId: string; mode: ProjectWorkflowTeamTransportMode | null; vehicleType: string | null }; teamTransportApplyAll?: true; freightDefined?: boolean | null; freightMode?: ProjectWorkflowTransportMode | null; freightVehicleType?: string | null; freightQuantity?: number | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'client_contact_check'; version: number; key: string; answer: boolean; note?: string | null }
   | { action: 'analysis_schedule'; version: number; plannedExecutionStartDate: string | null; plannedExecutionEndDate: string | null }

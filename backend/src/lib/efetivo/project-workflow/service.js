@@ -12,6 +12,7 @@ import {
   PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_CRITICAL_QUESTIONS,
   PROJECT_WORKFLOW_HEADQUARTERS_HIDDEN_TEAM_CHECKS,
   PROJECT_WORKFLOW_TRANSPORT_MODES,
+  PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES,
   PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES,
   isHeadquartersWorkflow,
   projectWorkflowMilestones,
@@ -582,8 +583,14 @@ function publicTravel(workflow, context) {
   const plan = workflow?.travelPlan && typeof workflow.travelPlan === 'object' && !Array.isArray(workflow.travelPlan)
     ? workflow.travelPlan
     : {};
-  const teamTransportMode = PROJECT_WORKFLOW_TRANSPORT_MODES.includes(plan.teamTransportMode) ? plan.teamTransportMode : null;
+  const teamTransportMode = PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES.includes(plan.teamTransportMode) ? plan.teamTransportMode : null;
   const freightMode = PROJECT_WORKFLOW_TRANSPORT_MODES.includes(plan.freightMode) ? plan.freightMode : null;
+  const rawOverrides = plan.teamTransportOverrides && typeof plan.teamTransportOverrides === 'object' && !Array.isArray(plan.teamTransportOverrides)
+    ? plan.teamTransportOverrides : {};
+  const teamTransportOverrides = Object.fromEntries(Object.entries(rawOverrides).filter(([, entry]) => PROJECT_WORKFLOW_TEAM_TRANSPORT_MODES.includes(entry?.mode)).map(([collaboratorId, entry]) => [collaboratorId, {
+    mode: entry.mode,
+    vehicleType: publicTransportVehicleType(entry.mode, entry.vehicleType)
+  }]));
   return {
     lodgingRequestedDate: plan.lodgingRequestedDate || null,
     lodgingConfirmedDate: plan.lodgingConfirmedDate || null,
@@ -591,6 +598,7 @@ function publicTravel(workflow, context) {
     teamTransportMode,
     teamTransportVehicleType: publicTransportVehicleType(teamTransportMode, plan.teamTransportVehicleType),
     teamTransportQuantity: Number.isInteger(plan.teamTransportQuantity) ? plan.teamTransportQuantity : null,
+    teamTransportOverrides,
     freightDefined: typeof plan.freightDefined === 'boolean' ? plan.freightDefined : null,
     freightMode,
     freightVehicleType: publicTransportVehicleType(freightMode, plan.freightVehicleType),
@@ -1303,11 +1311,29 @@ async function applyTravel(tx, workflow, payload) {
   for (const field of fields) {
     if (Object.hasOwn(payload, field)) plan[field] = payload[field];
   }
+  if (payload.teamTransportMember) {
+    const mission = await tx.efetivoMissionPlan.findFirst({ ...OPERATIONAL_MISSION_QUERY, where: { ...OPERATIONAL_MISSION_QUERY.where, projectId: workflow.projectId } });
+    if (!mission?.allocations?.some(allocation => allocation.collaboratorId === payload.teamTransportMember.collaboratorId)) {
+      throw planningError('O colaborador não pertence à equipe atual do projeto.', { code: 'PROJECT_WORKFLOW_TEAM_TRANSPORT_MEMBER_INVALID' });
+    }
+    const overrides = { ...plan.teamTransportOverrides };
+    const { collaboratorId, mode, vehicleType } = payload.teamTransportMember;
+    if (mode === null) delete overrides[collaboratorId];
+    else overrides[collaboratorId] = { mode, vehicleType: publicTransportVehicleType(mode, vehicleType) };
+    plan.teamTransportOverrides = overrides;
+  }
+  if (payload.teamTransportApplyAll) {
+    if (!plan.teamTransportMode || !Number.isInteger(plan.teamTransportQuantity) || plan.teamTransportQuantity < 1 || ((plan.teamTransportMode === 'OWN' || plan.teamTransportMode === 'THIRD_PARTY') && !publicTransportVehicleType(plan.teamTransportMode, plan.teamTransportVehicleType))) {
+      throw planningError('Selecione o transporte e a quantidade antes de aplicar à equipe.', { code: 'PROJECT_WORKFLOW_TEAM_TRANSPORT_INCOMPLETE' });
+    }
+    plan.teamTransportOverrides = {};
+  }
   if (plan.teamTransportDefined === false) {
     plan.teamTransportMode = null;
     plan.teamTransportVehicleType = null;
     plan.teamTransportQuantity = null;
-  } else if (plan.teamTransportMode === 'RENTAL') {
+    plan.teamTransportOverrides = {};
+  } else if (!PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES[plan.teamTransportMode]) {
     plan.teamTransportVehicleType = null;
   }
   if (plan.freightDefined === false) {
@@ -2239,7 +2265,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     } else if (payload.action === 'travel') {
       const lodgingFields = ['lodgingRequestedDate', 'lodgingConfirmedDate'];
       const logisticsFields = [
-        'teamTransportDefined', 'teamTransportMode', 'teamTransportVehicleType', 'teamTransportQuantity',
+        'teamTransportDefined', 'teamTransportMode', 'teamTransportVehicleType', 'teamTransportQuantity', 'teamTransportMember', 'teamTransportApplyAll',
         'freightDefined', 'freightMode', 'freightVehicleType', 'freightQuantity',
         'freightDepartureDate', 'freightDepartureTime'
       ];

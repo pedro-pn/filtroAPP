@@ -475,6 +475,22 @@ test('seletor de veículo: "Locação de carro" dispensa o tipo, mas "Nosso"/"Fr
   assert.equal(gate.blockers.some(item => item.key === 'TRAVEL_FREIGHT'), true);
 });
 
+test('ônibus e avião servem à equipe, e escolhas individuais incompletas bloqueiam a logística', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, teamTransportMode: 'BUS' }).success, true);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, teamTransportMode: 'PLANE' }).success, true);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, freightMode: 'BUS' }).success, false);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, teamTransportMember: { collaboratorId: 'collaborator-1', mode: 'PLANE', vehicleType: null } }).success, true);
+  const workflow = readyMobilizationWorkflow({ logisticsPlan: { lodgingRequired: false, freightRequired: false } });
+  workflow.travelPlan.teamTransportMode = 'BUS';
+  workflow.travelPlan.teamTransportVehicleType = null;
+  assert.equal(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), false);
+  workflow.travelPlan.teamTransportOverrides = { 'collaborator-1': { mode: 'OWN', vehicleType: null } };
+  assert.equal(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), true);
+  workflow.travelPlan.teamTransportOverrides['collaborator-1'].vehicleType = 'PICKUP';
+  assert.equal(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), false);
+});
+
 test('somente requisitos documentais explícitos participam dos gates', () => {
   const workflow = readyMobilizationWorkflow({
     documentRequirements: {

@@ -2239,6 +2239,13 @@
 .project-workflow-integration-note { color: var(--mu); overflow-wrap: anywhere; }
 .project-workflow-preparation-resource-list { display: flex; flex-direction: column; min-width: 0; }
 .project-workflow-travel-list { gap: 10px; }
+.project-workflow-team-transport-members { display: grid; gap: 8px; margin-top: 4px; }
+.project-workflow-team-transport-heading { align-items: center; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.project-workflow-team-transport-member { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, 1fr); }
+.project-workflow-team-transport-member > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-team-transport-member small { color: var(--mu); }
+.project-workflow-team-transport-member select { min-width: 0; }
+@media (max-width: 700px) { .project-workflow-team-transport-member { grid-template-columns: minmax(0, 1fr); } }
 .project-workflow-preparation-resource { border-top: 1px solid var(--pw-border-soft, var(--br)); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 0; }
 .project-workflow-preparation-resource:first-child { border-top: 0; }
 .project-workflow-preparation-resource > header strong { font-size: 13.5px; font-weight: 600; }

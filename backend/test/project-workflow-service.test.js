@@ -1154,6 +1154,27 @@ test('preparação registra pré-job e viagem em campos estruturados com salvame
   assert.equal(state.events.at(-1).action, 'WORKFLOW_TRAVEL');
 });
 
+test('transporte da equipe aceita ônibus, escolhas individuais e aplicação geral', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  state.workflow.stage = 'PREPARATION';
+  state.operationalMission = {
+    id: 'mission-1', stage: 'STANDBY', scheduleStatus: 'CONFIRMED', version: 1, kanbanOrder: 0,
+    allocations: [
+      { id: 'allocation-1', collaboratorId: 'collaborator-1', collaborator: { id: 'collaborator-1', name: 'Ana', isActive: true }, jobRole: { name: 'Técnica' } },
+      { id: 'allocation-2', collaboratorId: 'collaborator-2', collaborator: { id: 'collaborator-2', name: 'Bruno', isActive: true }, jobRole: { name: 'Técnico' } }
+    ]
+  };
+  let detail = await updateProjectWorkflow('project-1', { action: 'travel', version: 1, teamTransportDefined: true, teamTransportMode: 'BUS', teamTransportQuantity: 1 }, operations, { database });
+  assert.equal(detail.workflow.travel.teamTransportMode, 'BUS');
+  assert.equal(detail.workflow.teamPreparation.members.length, 2);
+  detail = await updateProjectWorkflow('project-1', { action: 'travel', version: 2, teamTransportMember: { collaboratorId: 'collaborator-2', mode: 'PLANE', vehicleType: null } }, operations, { database });
+  assert.deepEqual(detail.workflow.travel.teamTransportOverrides['collaborator-2'], { mode: 'PLANE', vehicleType: null });
+  await assert.rejects(updateProjectWorkflow('project-1', { action: 'travel', version: 3, teamTransportMember: { collaboratorId: 'outsider', mode: 'PLANE', vehicleType: null } }, operations, { database }), error => error.code === 'PROJECT_WORKFLOW_TEAM_TRANSPORT_MEMBER_INVALID');
+  detail = await updateProjectWorkflow('project-1', { action: 'travel', version: 3, teamTransportApplyAll: true }, operations, { database });
+  assert.deepEqual(detail.workflow.travel.teamTransportOverrides, {});
+});
+
 test('datas comerciais destravadas (sem CRM) editáveis a qualquer momento; D-15 exige confirmar ou corrigir', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
