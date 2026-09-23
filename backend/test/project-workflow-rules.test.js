@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
@@ -41,6 +42,12 @@ import {
 
 function completed(stage) {
   return PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === stage).map(item => ({ key: item.key, status: 'DONE' }));
+}
+
+// Checklist de verificação do contato com o cliente todo respondido (fixture padrão para não poluir os testes
+// que não são sobre esse checklist especificamente).
+function fullClientContactChecklist() {
+  return Object.fromEntries(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(item => [item.key, { answer: false, note: null, updatedAt: '2026-09-01' }]));
 }
 
 test('contrato exige justificativa para não aplicável, valida documentação e exige versão', () => {
@@ -151,6 +158,7 @@ test('análise exige todas as respostas e encaminhamento para cada resposta posi
     executedAtHeadquarters: false,
     preparationLeadTimeDays: 15,
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(question => ({ key: question.key, answer: question.key === 'SPECIAL_EQUIPMENT' })),
+    clientContactChecklist: fullClientContactChecklist(),
     issues: [{ sourceQuestion: 'SPECIAL_EQUIPMENT', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null }]
   };
   assert.deepEqual(analysisGateIssues(workflow), [
@@ -669,10 +677,11 @@ test('progresso da análise inicial só chega a 100% quando o gate não tem pend
     analysisClientContactPhone: null,
     analysisClientContactDate: null,
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ key: item.key, answer: false })),
+    clientContactChecklist: fullClientContactChecklist(),
     issues: []
   };
   const checklistCount = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').length;
-  const expectedTotal = checklistCount + 2 + PROJECT_WORKFLOW_CRITICAL_QUESTIONS.length;
+  const expectedTotal = checklistCount + 2 + PROJECT_WORKFLOW_CRITICAL_QUESTIONS.length + PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.length;
 
   // tudo preenchido, exceto o contato com o cliente: pendência no gate e progresso abaixo de 100%
   let readiness = projectWorkflowAnalysisReadiness(workflow);
@@ -719,6 +728,44 @@ test('a ação analysis_schedule exige fim depois do início', () => {
   const invalid = patch.safeParse({ ...base, plannedExecutionStartDate: '2027-04-30', plannedExecutionEndDate: '2027-02-20' });
   assert.equal(invalid.success, false);
   assert.match(invalid.error.issues[0].message, /não pode ser anterior/);
+});
+
+test('checklist do contato com o cliente: 16 perguntas obrigatórias, sem repetir os itens críticos já existentes', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.length, 16);
+  const overlappingKeys = ['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION', 'SPECIAL_EQUIPMENT', 'LONG_LEAD_MATERIAL', 'MORE_THAN_TEN_FILTERS', 'SPECIFIC_HIRING'];
+  const checklistKeys = new Set(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(item => item.key));
+  for (const key of overlappingKeys) assert.equal(checklistKeys.has(key), false);
+
+  const base = { action: 'client_contact_check', version: 1, key: 'MULTI_DAY_INTEGRATION' };
+  assert.equal(patch.safeParse({ ...base, answer: true }).success, true);
+  assert.equal(patch.safeParse({ ...base, answer: true, note: 'Três dias, presencial.' }).success, true);
+  assert.equal(patch.safeParse({ ...base, answer: null }).success, false);
+  assert.equal(patch.safeParse({ ...base }).success, false);
+  assert.equal(patch.safeParse({ action: 'client_contact_check', version: 1, key: 'NAO_EXISTE', answer: true }).success, false);
+
+  const workflow = {
+    checklists: completed('INITIAL_ANALYSIS'),
+    analysisClientContactMade: true,
+    analysisClientContactName: 'Marina',
+    analysisClientContactPhone: '(11) 99999-9999',
+    analysisClientContactDate: '2026-09-10',
+    isCritical: false,
+    executedAtHeadquarters: false,
+    preparationLeadTimeDays: 15,
+    criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ key: item.key, answer: false })),
+    clientContactChecklist: {},
+    issues: []
+  };
+  // nenhuma pergunta respondida: bloqueia as 16
+  assert.equal(analysisGateIssues(workflow).length, 16);
+  assert.ok(analysisGateIssues(workflow).every(issue => issue.startsWith('Responder: ')));
+  // responder só uma libera as outras 15
+  workflow.clientContactChecklist = { MULTI_DAY_INTEGRATION: { answer: false, note: null } };
+  assert.equal(analysisGateIssues(workflow).length, 15);
+  // todas respondidas libera de vez (observação é sempre opcional)
+  workflow.clientContactChecklist = fullClientContactChecklist();
+  assert.deepEqual(analysisGateIssues(workflow), []);
 });
 
 test('datas comerciais estimadas: editáveis a qualquer momento (sem CRM) e início não pode ser antes da mobilização', () => {
@@ -820,6 +867,7 @@ test('na Sede, a análise dispensa a pergunta de exigências do cliente (Sede/ca
     isCritical: false,
     preparationLeadTimeDays: 15,
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.filter(item => item.key !== 'CLIENT_REQUIREMENTS').map(item => ({ key: item.key, answer: false })),
+    clientContactChecklist: fullClientContactChecklist(),
     issues: []
   };
   // sem resposta (projeto legado anterior à feature, já dentro da análise) a análise não trava por isso:
@@ -843,6 +891,7 @@ test('na Sede, a análise também dispensa a pergunta de cadastro no cliente', (
     isCritical: false,
     preparationLeadTimeDays: 15,
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.filter(item => !['CLIENT_REQUIREMENTS', 'CLIENT_REGISTRATION'].includes(item.key)).map(item => ({ key: item.key, answer: false })),
+    clientContactChecklist: fullClientContactChecklist(),
     issues: []
   };
   // sem resposta de CLIENT_REGISTRATION, em campo a análise trava; na Sede não, porque a pergunta some

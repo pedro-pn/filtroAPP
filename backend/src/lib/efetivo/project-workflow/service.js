@@ -1,5 +1,6 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_CUSTOMER_REGISTRATION_RELEASE,
   PROJECT_WORKFLOW_STAGES,
@@ -536,6 +537,26 @@ function publicClientReleases(workflow, context) {
   };
 }
 
+// Checklist de verificação obrigatória do contato inicial com o cliente (16 perguntas Sim/Não + observação
+// opcional), guardado como objeto simples (chave -> {answer, note}) direto no workflow.
+function publicClientContactChecklist(workflow, context) {
+  const raw = workflow?.clientContactChecklist && typeof workflow.clientContactChecklist === 'object' && !Array.isArray(workflow.clientContactChecklist)
+    ? workflow.clientContactChecklist
+    : {};
+  const canEdit = canEditWorkflow(workflow, context);
+  return PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(definition => {
+    const entry = raw[definition.key];
+    return {
+      key: definition.key,
+      label: definition.label,
+      answer: typeof entry?.answer === 'boolean' ? entry.answer : null,
+      note: entry?.note || null,
+      updatedAt: entry?.updatedAt || null,
+      canEdit
+    };
+  });
+}
+
 function publicPreJob(workflow, context) {
   return {
     scheduledDate: dateKey(workflow?.preJobScheduledDate),
@@ -728,6 +749,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     demobilizationDate: dateKey(demobilizationDate),
     checklists,
     criticalAnswers,
+    clientContactChecklist: publicClientContactChecklist(workflow, context),
     commercialFacts,
     commercialReadiness,
     documentationCategories,
@@ -1546,6 +1568,19 @@ async function applyCriticalAnswer(tx, workflow, payload, context) {
   });
 }
 
+async function applyClientContactCheck(tx, workflow, payload, now) {
+  const raw = workflow.clientContactChecklist && typeof workflow.clientContactChecklist === 'object' && !Array.isArray(workflow.clientContactChecklist)
+    ? workflow.clientContactChecklist
+    : {};
+  const checklist = { ...raw };
+  checklist[payload.key] = {
+    answer: payload.answer,
+    note: Object.hasOwn(payload, 'note') ? (payload.note || null) : (checklist[payload.key]?.note || null),
+    updatedAt: dateKey(now)
+  };
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data: { clientContactChecklist: checklist } });
+}
+
 async function applyAnalysisContact(tx, workflow, payload) {
   await tx.projectWorkflow.update({
     where: { projectId: workflow.projectId },
@@ -2236,6 +2271,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'qsms') await applyQsms(tx, workflowForMutation, payload);
     else if (payload.action === 'travel') await applyTravel(tx, workflowForMutation, payload);
     else if (payload.action === 'critical') clientRegistrationNotice = await applyCriticalAnswer(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'client_contact_check') await applyClientContactCheck(tx, workflowForMutation, payload, now);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflowForMutation, payload);
     else if (payload.action === 'analysis_schedule') await applyAnalysisSchedule(tx, workflowForMutation, payload);
     else if (payload.action === 'commercial_dates') await applyCommercialDates(tx, workflowForMutation, payload);

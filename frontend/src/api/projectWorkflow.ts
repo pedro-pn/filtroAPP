@@ -525,6 +525,15 @@ export interface ProjectWorkflowCriticalAnswer {
   updatedBy: { id: string; name: string } | null;
 }
 
+export interface ProjectWorkflowClientContactChecklistItem {
+  key: string;
+  label: string;
+  answer: boolean | null;
+  note: string | null;
+  updatedAt: string | null;
+  canEdit: boolean;
+}
+
 export interface ProjectWorkflowIssue {
   id: string;
   sourceQuestion: string | null;
@@ -658,6 +667,7 @@ export interface ProjectWorkflow {
   version: number;
   checklists: ProjectWorkflowChecklist[];
   criticalAnswers: ProjectWorkflowCriticalAnswer[];
+  clientContactChecklist: ProjectWorkflowClientContactChecklistItem[];
   commercialFacts: ProjectWorkflowCommercialFact[];
   commercialReadiness: ProjectWorkflowCommercialReadiness;
   documentationCategories: ProjectWorkflowDocumentationCategory[];
@@ -834,6 +844,7 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportMode?: ProjectWorkflowTransportMode | null; teamTransportVehicleType?: string | null; teamTransportQuantity?: number | null; freightDefined?: boolean | null; freightMode?: ProjectWorkflowTransportMode | null; freightVehicleType?: string | null; freightQuantity?: number | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
+  | { action: 'client_contact_check'; version: number; key: string; answer: boolean; note?: string | null }
   | { action: 'analysis_schedule'; version: number; plannedExecutionStartDate: string | null; plannedExecutionEndDate: string | null }
   | { action: 'commercial_dates'; version: number; expectedMobilizationDate?: string | null; expectedStartDate?: string | null }
   | { action: 'commercial_schedule_confirm'; version: number; field: 'MOBILIZATION' | 'START'; date?: string | null }

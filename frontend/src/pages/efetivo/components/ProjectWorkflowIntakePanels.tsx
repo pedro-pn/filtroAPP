@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { DEFAULT_PHONE_COUNTRY, PHONE_COUNTRIES, formatPhoneLocal, formatPhoneValue, parsePhoneValue, phoneCountryFlag, phoneDigits, type PhoneCountry } from '../../../utils/phoneCountries';
 
 import type { ProjectDocument } from '../../../api/projectDocuments';
 import type {
   ProjectWorkflow,
+  ProjectWorkflowClientContactChecklistItem,
   ProjectWorkflowCommercialFact,
   ProjectWorkflowDetail,
   ProjectWorkflowDocumentationCategory,
@@ -13,10 +15,12 @@ import type {
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { DateInput } from '../../../components/ui/DateInput';
+import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedule';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
+import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 
@@ -98,6 +102,68 @@ export function ProjectWorkflowCommercialSignals({ workflow }: { workflow: Proje
   );
 }
 
+// Uma pergunta do checklist: Sim/Não obrigatório, com observação opcional (salva ao sair do campo, como as
+// outras notas de texto do módulo). A observação só aparece depois de respondido, para não poluir a lista.
+function ClientContactChecklistRow({ workflow, item, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  item: ProjectWorkflowClientContactChecklistItem;
+  saving: boolean;
+  onPatch: PatchHandler;
+}) {
+  const [note, setNote] = useState(item.note || '');
+  useEffect(() => setNote(item.note || ''), [item.note]);
+  const disabled = saving || !item.canEdit;
+  const saveNote = () => {
+    const normalized = note.trim();
+    if (normalized === (item.note || '')) return;
+    onPatch({ action: 'client_contact_check', version: workflow.version, key: item.key, answer: Boolean(item.answer), note: normalized || null });
+  };
+  return (
+    <article className="project-workflow-critical">
+      <span>{item.label}</span>
+      <ProjectWorkflowBooleanChoice
+        value={item.answer}
+        label={item.label}
+        disabled={disabled}
+        onSelect={answer => { if (item.answer !== answer) onPatch({ action: 'client_contact_check', version: workflow.version, key: item.key, answer, note: item.note }); }}
+      />
+      {item.answer !== null ? (
+        <div className="field-group project-workflow-checklist-note">
+          <label htmlFor={`client-contact-check-note-${item.key}`}>Observação (opcional)</label>
+          <input id={`client-contact-check-note-${item.key}`} value={note} disabled={disabled} onChange={event => setNote(event.target.value)} onBlur={saveNote} />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+// Checklist em caixa de diálogo separada (não polui a tela principal da Análise inicial): obrigatório antes de
+// avançar para o Planejamento (D-30).
+function ClientContactChecklistDialog({ open, workflow, saving, onPatch, onClose }: {
+  open: boolean;
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: PatchHandler;
+  onClose: () => void;
+}) {
+  const dialog = (
+    <Modal open={open} onClose={onClose} ariaLabelledBy="client-contact-checklist-title" backdropClassName="modal-backdrop project-workflow-checklist-backdrop" panelClassName="modal-card project-workflow-checklist-dialog">
+      <header className="project-workflow-checklist-dialog-header">
+        <h3 id="client-contact-checklist-title">Checklist de verificação do contato com o cliente</h3>
+        <button className="project-workflow-icon-button" type="button" aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
+      </header>
+      <p className="placeholder-copy">Responda Sim ou Não para cada item durante a ligação com o cliente; a observação é opcional.</p>
+      <div className="project-workflow-checklist-dialog-list">
+        {workflow.clientContactChecklist.map(item => <ClientContactChecklistRow workflow={workflow} item={item} saving={saving} onPatch={onPatch} key={item.key} />)}
+      </div>
+      <div className="admin-form-actions confirm-dialog-actions">
+        <Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>
+      </div>
+    </Modal>
+  );
+  return typeof document === 'undefined' ? null : createPortal(dialog, document.body);
+}
+
 export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }: {
   workflow: ProjectWorkflow;
   saving: boolean;
@@ -109,6 +175,7 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
   const [contactPhone, setContactPhone] = useState(parsePhoneValue(workflow.analysisClientContactPhone || '').local);
   const [contactDate, setContactDate] = useState(workflow.analysisClientContactDate || '');
   const [countryListOpen, setCountryListOpen] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
   const [countryListPosition, setCountryListPosition] = useState({ top: 0, left: 0, width: 280 });
   const countryTriggerRef = useRef<HTMLButtonElement>(null);
   const countryListRef = useRef<HTMLDivElement>(null);
@@ -137,6 +204,7 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [countryListOpen]);
+  const checklistAnsweredCount = workflow.clientContactChecklist.filter(item => item.answer !== null).length;
   const schedule = projectExecutionSchedule(workflow);
   const saveSchedule = (start: string, end: string) => onPatch({
     action: 'analysis_schedule',
@@ -230,6 +298,10 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
         </div> : null}
         {contactMade === true && (!contactName.trim() || !phoneDigits(contactPhone)) ? <small>Preencha nome e telefone para registrar o contato.</small> : null}
       </article>
+      <Button type="button" variant="secondary" onClick={() => setChecklistOpen(true)}>
+        Checklist de verificação ({checklistAnsweredCount}/{workflow.clientContactChecklist.length})
+      </Button>
+      <ClientContactChecklistDialog open={checklistOpen} workflow={workflow} saving={saving} onPatch={onPatch} onClose={() => setChecklistOpen(false)} />
     </ProjectWorkflowCategory>
   );
 }

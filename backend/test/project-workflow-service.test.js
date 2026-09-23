@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
@@ -16,6 +17,12 @@ import {
   startProjectWorkflow,
   updateProjectWorkflow
 } from '../src/lib/efetivo/project-workflow/service.js';
+
+// Checklist de verificação do contato com o cliente todo respondido (fixture padrão para não poluir os testes
+// que não são sobre esse checklist especificamente).
+function fullClientContactChecklist() {
+  return Object.fromEntries(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(item => [item.key, { answer: false, note: null, updatedAt: '2026-09-01' }]));
+}
 
 function fakeDatabase() {
   const state = {
@@ -585,6 +592,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
   state.workflow.analysisClientContactDate = new Date('2026-09-10T00:00:00Z');
   state.workflow.isCritical = false;
   state.workflow.executedAtHeadquarters = false;
+  state.workflow.clientContactChecklist = fullClientContactChecklist();
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').map(item => ({ id: item.key, projectId: 'project-1', key: item.key, status: 'DONE' })));
   state.answers.push(...PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ id: item.key, projectId: 'project-1', key: item.key, answer: item.key === 'SPECIAL_EQUIPMENT' })));
   state.issues.push({ id: 'issue-1', projectId: 'project-1', sourceQuestion: 'SPECIAL_EQUIPMENT', description: 'Equipamento', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null, criticality: 'HIGH', status: 'OPEN' });
@@ -745,6 +753,28 @@ test('Líder registra o contato inicial com nome e data sem editar as datas do C
   assert.equal(detail.workflow.analysisClientContactName, null);
   assert.equal(detail.workflow.analysisClientContactPhone, null);
   assert.equal(detail.workflow.analysisClientContactDate, null);
+});
+
+test('checklist do contato com o cliente: responde Sim/Não com observação opcional e persiste por chave', async () => {
+  const { database } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'client_contact_check', version: 1, key: 'MULTI_DAY_INTEGRATION', answer: true, note: 'Três dias, presencial.'
+  }, leader, { database });
+  let item = detail.workflow.clientContactChecklist.find(entry => entry.key === 'MULTI_DAY_INTEGRATION');
+  assert.equal(item.answer, true);
+  assert.equal(item.note, 'Três dias, presencial.');
+  assert.equal(detail.workflow.clientContactChecklist.filter(entry => entry.answer !== null).length, 1);
+  // outra pergunta não fica contaminada pela primeira resposta
+  const untouched = detail.workflow.clientContactChecklist.find(entry => entry.key === 'ONSITE_MEALS');
+  assert.equal(untouched.answer, null);
+  // responder sem nota preserva a nota já registrada
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'client_contact_check', version: detail.workflow.version, key: 'MULTI_DAY_INTEGRATION', answer: false
+  }, leader, { database });
+  item = detail.workflow.clientContactChecklist.find(entry => entry.key === 'MULTI_DAY_INTEGRATION');
+  assert.equal(item.answer, false);
+  assert.equal(item.note, 'Três dias, presencial.');
 });
 
 test('papel Comercial não pode ser designado Líder nem aparece nos candidatos', async () => {

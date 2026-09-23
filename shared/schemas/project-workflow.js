@@ -230,6 +230,29 @@ export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
   }
 ];
 
+// Checklist de verificação obrigatória do contato inicial com o cliente: cada item exige Sim/Não (com observação
+// opcional para registrar o dado, quando houver — ex.: quantos dias de integração, qual o horário). Itens que já
+// existem em PROJECT_WORKFLOW_CRITICAL_QUESTIONS (documentos/treinamentos do cliente, cadastro da Filtrovali,
+// equipamento especial, material fora do padrão, mais de 10 filtros, contratação específica) não se repetem aqui.
+export const PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = [
+  { key: 'EXECUTION_DATE_CONFIRMED', label: 'A previsão de data de execução foi confirmada com o cliente?' },
+  { key: 'MULTI_DAY_INTEGRATION', label: 'A integração terá mais de um dia (presencial ou on-line)?' },
+  { key: 'NON_STANDARD_PPE', label: 'É necessário utilizar algum EPI fora do padrão da empresa?' },
+  { key: 'NR10_UNIFORM', label: 'É necessário usar uniforme conforme a NR-10?' },
+  { key: 'UTILITIES_CONFIRMED', label: 'As utilidades do local (água, energia elétrica e ar comprimido, quando aplicável) foram confirmadas com o cliente?' },
+  { key: 'WORK_HOURS_CONFIRMED', label: 'Os horários de trabalho padrão do cliente foram confirmados?' },
+  { key: 'SPECIFIC_PROGRAMS', label: 'São necessários programas específicos além dos padrão (PGR, PCMSO, LTCAT ou outros)?' },
+  { key: 'DOCUMENT_CHANNEL_CONFIRMED', label: 'O canal de envio da documentação e o responsável pelo assunto no cliente foram confirmados?' },
+  { key: 'VERIFICATION_DEADLINE_CONFIRMED', label: 'O prazo de verificação do cliente após o envio da documentação (cadastro, programas e colaboradores) foi confirmado?' },
+  { key: 'ONSITE_MEALS', label: 'A alimentação dentro da obra será fornecida pelo cliente?' },
+  { key: 'CLIENT_SUPPORT_TEAM', label: 'Há necessidade de equipe de apoio fornecida pelo cliente?' },
+  { key: 'PROVISIONAL_MATERIAL', label: 'Há necessidade de material provisório?' },
+  { key: 'EFFLUENT_DISPOSAL', label: 'A destinação de efluentes da obra foi definida?' },
+  { key: 'SPECIAL_VEHICLE_ACCESS', label: 'É necessário algum acesso especial com veículo (4x4, balsa, etc.)?' },
+  { key: 'LODGING_CONDITIONS_CONFIRMED', label: 'Havendo necessidade de alojamento, as condições padrão previstas na proposta foram confirmadas com o cliente?' },
+  { key: 'UNLOADING_CRANE_TRUCK', label: 'É necessário caminhão Munck para descarregamento?' }
+];
+
 export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES = ['DOCUMENT', 'EXAM', 'TRAINING', 'QUALITY', 'CERTIFICATION'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES = ['PENDING', 'REQUESTED', 'CONFIRMED'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS = [
@@ -498,6 +521,14 @@ export function makeProjectWorkflowSchemas(z) {
     correctionStage,
     key: z.enum(PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => item.key)),
     answer: z.boolean()
+  }).strict();
+  const clientContactCheck = z.object({
+    action: z.literal('client_contact_check'),
+    version,
+    correctionStage,
+    key: z.enum(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(item => item.key)),
+    answer: z.boolean(),
+    note: z.string().trim().max(500, 'A observação deve ter no máximo 500 caracteres.').nullable().optional()
   }).strict();
   const analysisContact = z.object({
     action: z.literal('analysis_contact'),
@@ -812,7 +843,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

@@ -2521,6 +2521,14 @@
 .project-workflow-modal .project-workflow-registration-complete-button { background: var(--pw-surface, var(--wh)); border-color: var(--pw-border, var(--br)); color: var(--pw-muted, var(--mu)); }
 .project-workflow-modal .project-workflow-registration-complete-button:hover:not(:disabled) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
 .project-workflow-modal .project-workflow-registration-complete-button.is-active { background: var(--pw-accent, var(--g)); border-color: var(--pw-accent, var(--g)); color: var(--wh); }
+/* Caixa de diálogo separada do checklist de verificação do contato com o cliente (16 perguntas): mesma
+   sobreposição da confirmação de exclusão, já que abre por cima do modal do projeto. */
+.project-workflow-checklist-backdrop { z-index: 1200; }
+.modal-card.project-workflow-checklist-dialog { display: flex; flex-direction: column; gap: 12px; max-width: 720px; width: min(94vw, 720px); }
+.project-workflow-checklist-dialog-header { align-items: start; display: flex; gap: 10px; justify-content: space-between; }
+.project-workflow-checklist-dialog-header h3 { margin: 0; }
+.project-workflow-checklist-dialog-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
+.project-workflow-checklist-note { flex: 1 1 100%; margin: 0; }
 .project-workflow-issue { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .project-workflow-issue.is-overdue { border-color: var(--rd); }
 .project-workflow-category-content :is(.project-workflow-analysis-contact, .project-workflow-signal, .project-workflow-documentation-type, .project-workflow-resource-question, .project-workflow-resource-summary > article, .project-workflow-supply-draft > article, .project-workflow-preparation-resource, .project-workflow-client-attendance, .project-workflow-client-release, .project-workflow-issue) { background: var(--wh); border-color: color-mix(in srgb, var(--tx) 18%, var(--br)); box-shadow: 0 1px 3px rgba(20, 20, 20, .045); }

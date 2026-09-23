@@ -810,10 +810,10 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
         : <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><ProjectWorkflowBooleanChoice value={item.answer} label={item.label} disabled={stageSaving || !workflow.permissions.canEdit} onSelect={answer => { if (item.answer !== answer) stagePatch({ action: 'critical', version: workflow.version, key: item.key, answer }); }} /></article>)}
     </ProjectWorkflowCategory>
   );
-  const renderAnalysisMonitoring = () => (
+  const renderAnalysisMonitoring = (includeCritical = true) => (
     <>
       <ProjectWorkflowDocumentationTracking workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
-      {renderCriticalItems()}
+      {includeCritical ? renderCriticalItems() : null}
       {analysisIssues.length ? <ProjectWorkflowCategory
         title="Pendências"
         description="Itens levantados na análise que precisam ser resolvidos antes da mobilização."
@@ -889,7 +889,9 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   } else if (activeStage === 'HANDOVER') {
     stageContent = <><WorkflowSettingsForm detail={detail} leaders={leaders} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowCommercialSignals workflow={workflow} /><ProjectDocumentsCategory projectId={workflow.projectId} users={leaders} /><ProjectWorkflowHandoverSignals detail={detail} documents={documents} /></>;
   } else if (activeStage === 'INITIAL_ANALYSIS') {
-    stageContent = <><ProjectWorkflowInitialAnalysisData workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><WorkflowChecklistSection title="Entendimento da análise inicial" area="Análise" items={workflow.checklists.filter(item => item.section === 'INITIAL_ANALYSIS')} version={workflow.version} saving={stageSaving} onPatch={stagePatch} />{renderAnalysisMonitoring()}<ProjectWorkflowCriticalityDecision workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
+    // A checagem da proposta (itens críticos: equipamento especial, material fora do padrão, >10 filtros etc.)
+    // vem antes do contato com o cliente: o Líder revisa a proposta primeiro, depois liga confirmando o que for preciso.
+    stageContent = <>{renderCriticalItems()}<ProjectWorkflowInitialAnalysisData workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><WorkflowChecklistSection title="Entendimento da análise inicial" area="Análise" items={workflow.checklists.filter(item => item.section === 'INITIAL_ANALYSIS')} version={workflow.version} saving={stageSaving} onPatch={stagePatch} />{renderAnalysisMonitoring(false)}<ProjectWorkflowCriticalityDecision workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
   } else if (activeStage === 'WAITING_PLANNING') {
     stageContent = <>{renderAnalysisMonitoring()}</>;
   } else if (activeStage === 'MOBILIZATION_PLANNING') {
