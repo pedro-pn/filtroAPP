@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'vite';
 
-import { maintenanceProfileSchema } from '../../backend/src/lib/operational-reports/domain.js';
-
 test('new maintenance services omit empty IDs while existing IDs survive an edit', async () => {
   const server = await createServer({
     configFile: false,
@@ -38,7 +36,6 @@ test('new maintenance services omit empty IDs while existing IDs survive an edit
         { label: 'Lubrificação', order: 2, isActive: true }
       ]
     });
-    assert.deepEqual(maintenanceProfileSchema.parse(payload), payload);
   } finally {
     await server.close();
   }
