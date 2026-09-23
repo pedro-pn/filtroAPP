@@ -10,7 +10,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { prefillDatesFromProject } from '../../../utils/missionPendencies';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
-import { missionTeamScheduleStatus, selectedMissionCollaboratorIds, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
+import { missionTeamScheduleStatus, resolveMissionTeamScheduleDates, selectedMissionCollaboratorIds, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionTeamSelector } from './MissionTeamSelector';
 
 const schema = z.object({
@@ -55,21 +55,19 @@ type FormValues = z.infer<typeof schema>;
 
 function initialValues(mission: PlanningMission | null, project: PendingMissionProject | null, planId?: string, initialTeamMode = false, context?: InitialTeamContext): FormValues & { planId?: string } {
   const suggested = project ? prefillDatesFromProject(project) : null;
-  const mobilizationDate = context?.mobilizationDate || mission?.mobilizationDate?.slice(0, 10) || suggested?.mobilizationDate || '';
-  const executionEndDate = context?.executionEndDate || mission?.executionEndDate?.slice(0, 10) || suggested?.executionEndDate || '';
-  const returnDate = mission?.returnDate?.slice(0, 10)
-    || mission?.project.demobilizationDate?.slice(0, 10)
-    || project?.demobilizationDate?.slice(0, 10)
-    || '';
+  const schedule = resolveMissionTeamScheduleDates(mission, context, {
+    ...suggested,
+    returnDate: project?.demobilizationDate?.slice(0, 10) || ''
+  });
   return {
     planId,
     projectId: mission?.projectId || project?.id || '',
     scheduleStatus: missionTeamScheduleStatus(mission?.scheduleStatus, initialTeamMode),
     headquartersResponsibleUserId: context?.leaderUserId || mission?.headquartersResponsibleUserId || '',
-    mobilizationDate,
-    executionStartDate: context?.executionStartDate || mission?.executionStartDate?.slice(0, 10) || suggested?.executionStartDate || '',
-    executionEndDate,
-    returnDate,
+    mobilizationDate: schedule.mobilizationDate,
+    executionStartDate: schedule.executionStartDate,
+    executionEndDate: schedule.executionEndDate,
+    returnDate: schedule.returnDate,
     collaboratorIds: selectedMissionCollaboratorIds(mission),
     allocationPeriods: (mission?.allocations || []).map(allocation => {
       const period = missionAllocationPeriod(allocation, mission!);

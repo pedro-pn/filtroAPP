@@ -47,6 +47,27 @@ test('troca de colaborador remove o período antigo e cria o novo dentro da miss
   }]);
 });
 
+test('edição da equipe preserva as datas oficiais quando a previsão do fluxo mudou', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const mission = {
+    mobilizationDate: '2026-09-07',
+    executionStartDate: '2026-09-08',
+    executionEndDate: '2026-11-26',
+    returnDate: null
+  };
+  const workflow = {
+    mobilizationDate: '2026-10-01',
+    executionStartDate: '2026-10-01',
+    executionEndDate: '2026-11-26'
+  };
+
+  assert.deepEqual(team.resolveMissionTeamScheduleDates(mission, workflow, { returnDate: '2026-12-01' }), {
+    ...mission,
+    returnDate: ''
+  });
+  assert.deepEqual(team.resolveMissionTeamScheduleDates(null, workflow), { ...workflow, returnDate: '' });
+});
+
 test('filtro da seleção permite ativos, inativos e todos sem perder a equipe selecionada', async () => {
   const team = await load('/src/utils/missionTeam.ts');
   const people = [...collaborators, { id: 'c3', name: 'Pessoa desligada', role: 'Mantenedor I', jobRoleId: 'r2', isActive: false }];
