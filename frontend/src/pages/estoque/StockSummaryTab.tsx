@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getStockSummary, type StockSummaryItem } from '../../api/estoque';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 
 interface Props {
@@ -48,11 +49,33 @@ function batchStatus(batch: StockSummaryItem['batches'][number]) {
 
 export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [search, setSearch] = useState('');
+  const [itemId, setItemId] = useState('');
+  const [type, setType] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [status, setStatus] = useState('');
   const summaryQuery = useQuery({
     queryKey: ['estoque', 'resumo'],
     queryFn: getStockSummary
   });
   const rows = useMemo(() => summaryQuery.data || [], [summaryQuery.data]);
+  const categories = useMemo(() => [...new Map(rows.filter(row => row.item.category).map(row => [row.item.category!.id, row.item.category!.name])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')), [rows]);
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase('pt-BR');
+    return rows.filter(row => {
+      if (itemId && row.item.id !== itemId) return false;
+      if (type && row.item.type !== type) return false;
+      if (categoryId && row.item.category?.id !== categoryId) return false;
+      if (status === 'BELOW_MIN' && !row.belowMin) return false;
+      if (status === 'EXPIRED' && !row.batches.some(batch => batch.expired)) return false;
+      if (status === 'EXPIRING' && !row.batches.some(batch => batch.expiringSoon)) return false;
+      if (status === 'INACTIVE' && row.item.isActive) return false;
+      if (status === 'REGULAR' && (!row.item.isActive || alertBadges(row).length)) return false;
+      if (!term) return true;
+      return [row.item.code, row.item.name, row.item.category?.name, row.item.manufacturer, row.item.location, ...row.batches.flatMap(batch => [batch.lotNumber, batch.nfNumber, batch.supplier])]
+        .some(value => value?.toLocaleLowerCase('pt-BR').includes(term));
+    });
+  }, [rows, search, itemId, type, categoryId, status]);
 
   function toggle(itemId: string) {
     setExpanded(current => {
@@ -66,17 +89,42 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
   return (
     <section className="page-card">
       <div className="admin-toolbar">
-        <div className="sec">Resumo</div>
+        <div className="sec">Estoque</div>
         {isManager ? (
           <button className="mini-btn" type="button" onClick={onRegisterMovement}>Registrar movimentação</button>
         ) : null}
       </div>
 
+      <div className="stock-summary-filters">
+        <SearchBar value={search} onChange={setSearch} placeholder="Buscar item, código ou lote" ariaLabel="Buscar no estoque" count={{ shown: filteredRows.length, total: rows.length }} />
+        <select aria-label="Filtrar item" value={itemId} onChange={event => setItemId(event.target.value)}>
+          <option value="">Todos os itens</option>
+          {rows.map(row => <option key={row.item.id} value={row.item.id}>{row.item.code} — {row.item.name}</option>)}
+        </select>
+        <select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value)}>
+          <option value="">Todos os tipos</option>
+          <option value="FILTRO">Filtros</option>
+          <option value="PRODUTO_QUIMICO">Produtos químicos</option>
+        </select>
+        <select aria-label="Filtrar categoria" value={categoryId} onChange={event => setCategoryId(event.target.value)}>
+          <option value="">Todas as categorias</option>
+          {categories.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        <select aria-label="Filtrar situação do estoque" value={status} onChange={event => setStatus(event.target.value)}>
+          <option value="">Todas as situações</option>
+          <option value="REGULAR">Regular</option>
+          <option value="BELOW_MIN">Abaixo do mínimo</option>
+          <option value="EXPIRING">Vencendo</option>
+          <option value="EXPIRED">Lote vencido</option>
+          <option value="INACTIVE">Inativo</option>
+        </select>
+      </div>
+
       {summaryQuery.isLoading ? <p className="placeholder-copy">Carregando resumo...</p> : null}
       {summaryQuery.isError ? <p className="equip-form-error">Não foi possível carregar o resumo.</p> : null}
-      {!summaryQuery.isLoading && !rows.length ? <p className="placeholder-copy">Nenhum item cadastrado.</p> : null}
+      {!summaryQuery.isLoading && !filteredRows.length ? <p className="placeholder-copy">{rows.length ? 'Nenhum item corresponde aos filtros.' : 'Nenhum item cadastrado.'}</p> : null}
 
-      {rows.length ? (
+      {filteredRows.length ? (
         <div className="equip-table-wrap stock-summary-table-wrap">
           <table className="equip-table stock-summary-table">
             <thead>
@@ -93,7 +141,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => {
+              {filteredRows.map(row => {
                 const isExpanded = expanded.has(row.item.id);
                 const badges = alertBadges(row);
                 const detailId = `stock-summary-detail-${row.item.id}`;
