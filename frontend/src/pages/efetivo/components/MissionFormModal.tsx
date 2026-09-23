@@ -10,7 +10,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { prefillDatesFromProject } from '../../../utils/missionPendencies';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
-import { missionTeamScheduleStatus, selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
+import { missionTeamScheduleStatus, selectedMissionCollaboratorIds, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionTeamSelector } from './MissionTeamSelector';
 
 const schema = z.object({
@@ -37,8 +37,10 @@ const schema = z.object({
     const selectedIds = new Set(value.collaboratorIds);
     const missionEndDate = value.returnDate || value.executionEndDate;
     value.allocationPeriods.forEach((period, index) => {
-      if (!selectedIds.has(period.collaboratorId)
-        || period.mobilizationDate < value.mobilizationDate
+      // Uma troca de equipe pode manter o período removido durante um ciclo do formulário.
+      // O envio o descarta; somente períodos da seleção atual devem validar as datas.
+      if (!selectedIds.has(period.collaboratorId)) return;
+      if (period.mobilizationDate < value.mobilizationDate
         || period.demobilizationDate > missionEndDate) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -143,7 +145,13 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     || invalidAllocationPeriod?.demobilizationDate?.message;
   const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false);
   const submit = (values: FormValues) => {
-    const payload: MissionInput = { ...values, returnDate: values.returnDate || null, planId, confirmedMissionOverlapCollaboratorIds, confirmedInactiveCollaboratorIds };
+    const allocationPeriods = synchronizeMissionAllocationPeriods(
+      values.collaboratorIds,
+      values.allocationPeriods,
+      values.mobilizationDate,
+      values.returnDate || values.executionEndDate
+    );
+    const payload: MissionInput = { ...values, allocationPeriods, returnDate: values.returnDate || null, planId, confirmedMissionOverlapCollaboratorIds, confirmedInactiveCollaboratorIds };
     if (inactiveAllocations.some(allocation => values.collaboratorIds.includes(allocation.collaboratorId)
       && !confirmedInactiveCollaboratorIds.includes(allocation.collaboratorId))) {
       setPendingInactiveSubmission(payload);
@@ -185,12 +193,12 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
           <div className={`field-group ${errors.returnDate ? 'field-invalid' : ''}`}><label htmlFor="mission-returnDate">Desmobilização</label><input id="mission-returnDate" type="date" disabled={saving} aria-invalid={Boolean(errors.returnDate)} {...register('returnDate')} /><span className="field-hint">Opcional. Informe somente a data em que a desmobilização de fato ocorreu.</span>{errors.returnDate ? <span className="field-error">{errors.returnDate.message}</span> : null}</div>
           )}
           <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} plannedRoles={context?.plannedRoles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} allowIndividualPeriods={!initialTeamMode} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds) => {
-            const periodsById = new Map((allocationPeriods || []).map(period => [period.collaboratorId, period]));
-            const nextPeriods = ids.map(collaboratorId => periodsById.get(collaboratorId) || {
-              collaboratorId,
-              mobilizationDate: teamStartDate || '',
-              demobilizationDate: teamEndDate
-            });
+            const nextPeriods = synchronizeMissionAllocationPeriods(
+              ids,
+              allocationPeriods || [],
+              teamStartDate || '',
+              teamEndDate
+            );
             field.onChange(ids);
             setValue('allocationPeriods', nextPeriods, { shouldDirty: true, shouldValidate: true });
             setConfirmedMissionOverlapCollaboratorIds(confirmedIds);
@@ -263,6 +271,12 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
   const showDateForm = !datesConfirmed || !datesValid;
 
   const trySubmit = (ids: string[], periods: typeof allocationPeriods, confirmedOverlapIds: string[], confirmedInactiveIds: string[]) => {
+    const synchronizedPeriods = synchronizeMissionAllocationPeriods(
+      ids,
+      periods,
+      mobilizationDate,
+      initial.returnDate || executionEndDate
+    );
     const payload: MissionInput = {
       projectId: identity?.id || '',
       scheduleStatus: 'CONFIRMED',
@@ -272,7 +286,7 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
       executionEndDate,
       returnDate: initial.returnDate || null,
       collaboratorIds: ids,
-      allocationPeriods: periods,
+      allocationPeriods: synchronizedPeriods,
       planId,
       confirmedMissionOverlapCollaboratorIds: confirmedOverlapIds,
       confirmedInactiveCollaboratorIds: confirmedInactiveIds
@@ -319,12 +333,12 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
           onCancel={onClose}
           onAllocationPeriodsChange={setAllocationPeriods}
           onChange={(ids, confirmedOverlapIds, confirmedInactiveIds) => {
-            const periodsById = new Map(allocationPeriods.map(period => [period.collaboratorId, period]));
-            const nextPeriods = ids.map(collaboratorId => periodsById.get(collaboratorId) || {
-              collaboratorId,
+            const nextPeriods = synchronizeMissionAllocationPeriods(
+              ids,
+              allocationPeriods,
               mobilizationDate,
-              demobilizationDate: executionEndDate
-            });
+              initial.returnDate || executionEndDate
+            );
             setCollaboratorIds(ids);
             setAllocationPeriods(nextPeriods);
             trySubmit(ids, nextPeriods, confirmedOverlapIds, confirmedInactiveIds);

@@ -16,19 +16,13 @@ import { displayDateOnly } from '../../../utils/calendarGrid';
 import { AVAILABILITY_STATUSES, buildMissionAvailabilityColumns, type AvailabilityStatus } from '../../../utils/collaboratorAvailability';
 import { allocationOverlapsPeriod } from '../../../utils/missionAllocationPeriod';
 import { groupJobRoles } from '../../../utils/jobRoleDisplay';
-import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, plannedRoleCoverage, plannedRoleIdSet, toggleMissionCollaborator, type CollaboratorActivityFilter, type PlannedTeamRole } from '../../../utils/missionTeam';
+import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, plannedRoleCoverage, plannedRoleIdSet, toggleMissionCollaborator, type CollaboratorActivityFilter, type MissionAllocationPeriodDraft, type PlannedTeamRole } from '../../../utils/missionTeam';
 
 const COLUMN_META: Record<AvailabilityStatus, { label: string; description: string }> = {
   AVAILABLE: { label: 'Disponíveis', description: 'Livres durante todo o período' },
   AWAITING_MOBILIZATION: { label: 'Aguardando mobilização', description: 'Já previstos em outra missão' },
   MOBILIZED: { label: 'Mobilizados', description: 'Alocados em missão no período' },
   ON_VACATION: { label: 'De férias', description: 'Férias sobrepostas às datas' }
-};
-
-type AllocationPeriodDraft = {
-  collaboratorId: string;
-  mobilizationDate: string;
-  demobilizationDate: string;
 };
 
 function initials(name: string) {
@@ -52,7 +46,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   /** Cargos previstos no planejamento da obra: definem o filtro inicial da lista de colaboradores. */
   plannedRoles?: PlannedTeamRole[];
   selectedIds: string[];
-  allocationPeriods: AllocationPeriodDraft[];
+  allocationPeriods: MissionAllocationPeriodDraft[];
   startDate: string;
   endDate: string;
   loading: boolean;
@@ -64,7 +58,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   /** Quantidade mínima de colaboradores para liberar "Aplicar equipe" (ex.: 1 para confirmar equipe inicial). */
   minSelected?: number;
   onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[]) => void;
-  onAllocationPeriodsChange: (value: AllocationPeriodDraft[]) => void;
+  onAllocationPeriodsChange: (value: MissionAllocationPeriodDraft[]) => void;
   /** Presente só no modo direto (autoOpen): fecha o fluxo inteiro ao cancelar, em vez de voltar ao gatilho. */
   onCancel?: () => void;
 }) {
