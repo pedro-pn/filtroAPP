@@ -41,7 +41,7 @@ Um redirect para HTTPS dentro do app criaria um loop infinito.
 
 ```yaml
 ports:
-  - "172.17.0.1:8081:3000"   # 3000 = porta que o app escuta no container
+  - "172.17.0.1:8081:CONTAINER_PORT"
 ```
 
 `172.17.0.1` é o gateway da bridge do Docker: alcançável pelo proxy, inalcançável
@@ -49,6 +49,28 @@ pela internet. **Não publique em `0.0.0.0`** — isso exporia o app sem HTTPS
 diretamente na internet, contornando o proxy.
 
 A porta `8081` está fixada no proxy. Trocar exige PR no repositório do filtroAPP.
+
+#### Qual componente vai na 8081
+
+O proxy manda **todo** o tráfego do domínio para esse endereço único. Então a 8081
+tem que apontar para o **ponto de entrada HTTP do app**: quem serve o HTML e roteia
+as chamadas de API. Não é possível publicar frontend numa porta e backend em outra
+sob o mesmo domínio.
+
+Depende de como o filtroboard é construído:
+
+| Arquitetura | O que vai na 8081 |
+|---|---|
+| Um container só que serve frontend e API (Next.js, Rails, backend servindo o build) | esse container |
+| Frontend e backend separados | o **frontend** (ou o nginx que serve o build e faz proxy de `/api`) |
+
+No segundo caso, o backend **não leva `ports`** — fica alcançável apenas pela rede
+interna do stack. É a mesma topologia do filtroAPP:
+
+```
+Caddy → filtrovali-nginx:80   # ponto de entrada: serve o frontend, faz proxy de /api
+             └→ backend:4000  # nunca publicado, so na rede interna
+```
 
 ### 3. Confiar nos headers encaminhados
 
@@ -94,6 +116,7 @@ services:
     restart: unless-stopped
     depends_on: [postgres]
     ports:
+      # o ponto de entrada HTTP do app; troque 3000 pela porta que ele escuta
       - "172.17.0.1:8081:3000"
     environment:
       DATABASE_URL: postgres://filtroboard:${POSTGRES_PASSWORD}@postgres:5432/filtroboard
