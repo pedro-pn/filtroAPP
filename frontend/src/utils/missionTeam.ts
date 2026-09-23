@@ -56,6 +56,29 @@ export interface InitialTeamContext {
   plannedRoles: PlannedTeamRole[];
 }
 
+export type MissionTeamScheduleDates = Pick<InitialTeamContext,
+  'mobilizationDate' | 'executionStartDate' | 'executionEndDate'> & { returnDate: string };
+
+type MissionTeamContextDates = Pick<InitialTeamContext,
+  'mobilizationDate' | 'executionStartDate' | 'executionEndDate'>;
+
+/**
+ * Ao editar uma missão existente, suas datas oficiais são a fonte de verdade. O fluxo de gestão e as datas
+ * sugeridas pelo projeto servem somente para preencher uma missão que ainda não foi criada.
+ */
+export function resolveMissionTeamScheduleDates(
+  mission: Pick<PlanningMission, 'mobilizationDate' | 'executionStartDate' | 'executionEndDate' | 'returnDate'> | null,
+  context?: MissionTeamContextDates,
+  suggested?: Partial<MissionTeamScheduleDates> | null
+): MissionTeamScheduleDates {
+  return {
+    mobilizationDate: mission?.mobilizationDate?.slice(0, 10) || context?.mobilizationDate || suggested?.mobilizationDate || '',
+    executionStartDate: mission?.executionStartDate?.slice(0, 10) || context?.executionStartDate || suggested?.executionStartDate || '',
+    executionEndDate: mission?.executionEndDate?.slice(0, 10) || context?.executionEndDate || suggested?.executionEndDate || '',
+    returnDate: mission ? mission.returnDate?.slice(0, 10) || '' : suggested?.returnDate || ''
+  };
+}
+
 export function plannedRoleIdSet(plannedRoles: PlannedTeamRole[] | undefined) {
   return new Set((plannedRoles || []).flatMap(role => role.roleIds.length ? role.roleIds : [role.id]));
 }
