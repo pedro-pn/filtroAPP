@@ -2529,7 +2529,9 @@
 .project-workflow-checklist-dialog-header h3 { margin: 0; }
 .project-workflow-checklist-dialog-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
 .project-workflow-checklist-item { flex-wrap: wrap; }
-.project-workflow-checklist-note { flex: 1 1 100%; margin: 6px 0 0; }
+/* Especificidade maior que ".project-workflow-critical > div" (que forçaria flex: 0 0 auto em qualquer <div>
+   filho, inclusive esta observação) — sem isso, o campo ficava encolhido e empurrado para o canto. */
+.project-workflow-checklist-item > .project-workflow-checklist-note { display: flex; flex: 1 1 100%; flex-direction: column; margin: 6px 0 0; }
 .project-workflow-issue { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .project-workflow-issue.is-overdue { border-color: var(--rd); }
 .project-workflow-category-content :is(.project-workflow-analysis-contact, .project-workflow-signal, .project-workflow-documentation-type, .project-workflow-resource-question, .project-workflow-resource-summary > article, .project-workflow-supply-draft > article, .project-workflow-preparation-resource, .project-workflow-client-attendance, .project-workflow-client-release, .project-workflow-issue) { background: var(--wh); border-color: color-mix(in srgb, var(--tx) 18%, var(--br)); box-shadow: 0 1px 3px rgba(20, 20, 20, .045); }

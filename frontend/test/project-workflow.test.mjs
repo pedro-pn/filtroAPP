@@ -630,5 +630,6 @@ test('checklist de verificação do contato com o cliente: 16 perguntas em diál
   // a observação, quando aparece, ocupa a linha inteira abaixo da pergunta (não espremida ao lado do Sim/Não)
   assert.match(intake, /project-workflow-critical project-workflow-checklist-item/);
   assert.match(styles, /\.project-workflow-checklist-item \{ flex-wrap: wrap; \}/);
-  assert.match(styles, /\.project-workflow-checklist-note \{ flex: 1 1 100%/);
+  // seletor com especificidade maior que ".project-workflow-critical > div" (que forçaria flex: 0 0 auto)
+  assert.match(styles, /\.project-workflow-checklist-item > \.project-workflow-checklist-note \{[^}]*flex: 1 1 100%/);
 });
