@@ -240,6 +240,7 @@ export const PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = [
   { key: 'NON_STANDARD_PPE', label: 'É necessário utilizar algum EPI fora do padrão da empresa?' },
   { key: 'NR10_UNIFORM', label: 'É necessário usar uniforme conforme a NR-10?' },
   { key: 'UTILITIES_CONFIRMED', label: 'As utilidades do local (água, energia elétrica e ar comprimido, quando aplicável) foram confirmadas com o cliente?' },
+  { key: 'POWER_PLUG_CONFIRMED', label: 'O plugue de tomada utilizado no projeto foi confirmado com o cliente?' },
   { key: 'WORK_HOURS_CONFIRMED', label: 'Os horários de trabalho padrão do cliente foram confirmados?' },
   { key: 'SPECIFIC_PROGRAMS', label: 'São necessários programas específicos além dos padrão (PGR, PCMSO, LTCAT ou outros)?' },
   { key: 'DOCUMENT_CHANNEL_CONFIRMED', label: 'O canal de envio da documentação e o responsável pelo assunto no cliente foram confirmados?' },

@@ -537,7 +537,7 @@ function publicClientReleases(workflow, context) {
   };
 }
 
-// Checklist de verificação obrigatória do contato inicial com o cliente (16 perguntas Sim/Não + observação
+// Checklist de verificação obrigatória do contato inicial com o cliente (17 perguntas Sim/Não + observação
 // opcional), guardado como objeto simples (chave -> {answer, note}) direto no workflow.
 function publicClientContactChecklist(workflow, context) {
   const raw = workflow?.clientContactChecklist && typeof workflow.clientContactChecklist === 'object' && !Array.isArray(workflow.clientContactChecklist)
