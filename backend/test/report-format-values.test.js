@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import AdmZip from 'adm-zip';
+import { DOMParser } from '@xmldom/xmldom';
 
 import { buildReportDocx, stringifyReportDocxValue } from '../src/lib/report-docx.js';
 import { stringifyValue, wrapPdfText } from '../src/lib/report-pdf.js';
@@ -75,6 +76,41 @@ test('buildReportDocx converts service observation line breaks to Word breaks', 
 
   assert.match(xml, /Primeira linha[\s\S]*<w:br\s*\/>[\s\S]*Segunda linha/);
   assert.doesNotMatch(xml, /Primeira linha\r?\nSegunda linha/);
+});
+
+test('buildReportDocx prints the tags of each service in its own table', async () => {
+  const report = {
+    reportType: 'RDO',
+    sequenceNumber: 1,
+    reportDate: '2026-09-23',
+    project: {
+      code: 'P-1',
+      name: 'Projeto',
+      clientName: 'Cliente',
+      clientCnpj: '',
+      location: 'Local',
+      contractCode: '',
+      operator: {}
+    },
+    services: [
+      { serviceType: 'limpeza', extraData: { 'Desenhos / TAGs': 'TAG-01; TAG-02' } },
+      { serviceType: 'pressao', extraData: { drawingsTags: 'TAG-03' } },
+      { serviceType: 'mecanica', extraData: {} }
+    ],
+    collaborators: []
+  };
+
+  const zip = new AdmZip(await buildReportDocx(report));
+  const doc = new DOMParser().parseFromString(zip.readAsText('word/document.xml'), 'text/xml');
+  const serviceTables = Array.from(doc.getElementsByTagName('w:tbl'))
+    .filter(table => /Serviço [123]/.test(table.textContent || ''));
+
+  assert.equal(serviceTables.length, 3);
+  assert.match(serviceTables[0].textContent, /Tags: TAG-01; TAG-02/);
+  assert.doesNotMatch(serviceTables[0].textContent, /TAG-03/);
+  assert.match(serviceTables[1].textContent, /Tags: TAG-03/);
+  assert.doesNotMatch(serviceTables[1].textContent, /TAG-01/);
+  assert.match(serviceTables[2].textContent, /Tags:\s*Etapas:/);
 });
 
 test('buildReportDocx allows a long activities row to continue on following PDF pages', async () => {
