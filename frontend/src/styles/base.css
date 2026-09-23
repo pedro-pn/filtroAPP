@@ -3937,7 +3937,11 @@ a {
 .acp-det-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .acp-det-block { display: flex; flex-direction: column; gap: 10px; }
 .acp-invoices { min-width: 0; }
+.acp-invoices-details[open] > .acp-det-collabs-summary::before { transform: rotate(90deg); }
+.acp-invoices-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .acp-invoices-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.acp-invoices-head::before { flex: 0 0 auto; margin-top: 3px; }
+.acp-invoices-head > div:first-child { flex: 1 1 auto; min-width: 0; }
 .acp-invoices-head h3 { margin: 0 0 4px; }
 .acp-invoices-head p, .acp-invoices p { margin: 0; font-size: 12px; color: var(--mu); }
 .acp-invoices-total { display: grid; gap: 4px; text-align: right; flex-shrink: 0; }
