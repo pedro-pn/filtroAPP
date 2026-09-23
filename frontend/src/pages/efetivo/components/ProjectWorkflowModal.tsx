@@ -47,6 +47,7 @@ import {
   ProjectWorkflowTravelPanel
 } from './ProjectWorkflowPreparationPanels';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
+import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
 import {
   ProjectWorkflowEquipmentPlanningCard,
   ProjectWorkflowResourceConflicts,
@@ -692,16 +693,12 @@ function ClientRegistrationCriticalItem({ workflow, item, saving, onPatch }: {
                   ? <Button type="button" variant="mini" disabled={releaseDisabled} onClick={handleSendClick}>Salvar e-mail</Button>
                   : null}
               {release.requested ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className={`project-workflow-registration-complete-button${release.completed ? ' is-active' : ''}`}
+                <ProjectWorkflowStatusToggle
+                  checked={release.completed}
                   disabled={releaseDisabled}
-                  onClick={toggleCompleted}
-                >
-                  {release.completed ? <ProjectWorkflowIcon name="check" /> : null}
-                  {release.completed ? `Concluído em ${displayDateOnly(release.completedAt)}` : 'Marcar como concluído'}
-                </Button>
+                  label={release.completed ? `Concluído em ${displayDateOnly(release.completedAt)}` : 'Marcar como concluído'}
+                  onChange={() => toggleCompleted()}
+                />
               ) : null}
             </div>
           )}

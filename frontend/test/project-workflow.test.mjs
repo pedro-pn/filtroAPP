@@ -177,8 +177,8 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(panel, /futura integração externa/);
   assert.match(panel, /Confirmação do atendimento/);
   assert.doesNotMatch(panel, /Data da solicitação|Data da conclusão/);
-  assert.match(panel, /Solicitado\{values\.requestedAt/);
-  assert.match(panel, /Concluído\{values\.completedAt/);
+  assert.match(panel, /Solicitado\$\{values\.requestedAt/);
+  assert.match(panel, /Concluído\$\{values\.completedAt/);
   assert.match(panel, /completedAt: completed \? values\.completedAt \|\| todayDateOnly\(\) : ''/);
   assert.doesNotMatch(panel, /Solicitado para quem|requestedTo/);
   assert.match(panel, /disabled=\{disabled \|\| !values\.requested\}/);
@@ -190,8 +190,8 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(schema, /Material separado/);
   assert.match(panel, /Disponível em estoque/);
   assert.match(panel, /preparation_item_check/);
-  assert.match(panel, /Agendado\{workflow\.preJob\.scheduledDate/);
-  assert.match(panel, /Realizado\{workflow\.preJob\.completedDate/);
+  assert.match(panel, /Agendado\$\{workflow\.preJob\.scheduledDate/);
+  assert.match(panel, /Realizado\$\{workflow\.preJob\.completedDate/);
   assert.match(panel, /Hospedagem solicitada/);
   assert.match(panel, /Hospedagem confirmada/);
   assert.match(panel, /Transporte da equipe definido/);
@@ -259,7 +259,7 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(intake, /Documentação antecipada/);
   assert.doesNotMatch(intake, /Data da solicitação|Data da confirmação/);
-  assert.match(intake, /Solicitado\{item\.requestedAt \? ` em \$\{displayDateOnly\(item\.requestedAt\)\}` : ''\}/);
+  assert.match(intake, /Solicitado\$\{item\.requestedAt \? ` em \$\{displayDateOnly\(item\.requestedAt\)\}` : ''\}/);
   assert.match(intake, /disabled=\{saving \|\| !canEdit \|\| item\.status === 'PENDING'\}/);
   assert.match(intake, /Data do contato: \{contactDate/);
   assert.match(intake, /Histórico/);
@@ -472,7 +472,7 @@ test('campos de data com salvamento automático só confirmam datas completas e 
   assert.match(dateInput, /validity\.badInput/);
   assert.match(dateInput, /onCommit/);
   assert.match(efetivoPage, /<DateInput id="efetivo-position-date"/);
-  assert.match(preparation, /Agendado\{workflow\.preJob\.scheduledDate/);
+  assert.match(preparation, /Agendado\$\{workflow\.preJob\.scheduledDate/);
   assert.match(preparation, /<DateInput id="workflow-freight-departure-date"/);
   const settings = modal.slice(modal.indexOf('function WorkflowSettingsForm('), modal.indexOf('function DemobilizationDatesForm('));
   assert.match(settings, /<ProjectWorkflowCategory[\s\S]*title="Responsáveis e cronograma"/);
@@ -530,14 +530,25 @@ test('cadastro no cliente: "Sim" só pré-preenche o e-mail, "Solicitar cadastro
   // solicitado sem e-mail configurado não falha silenciosamente: avisa na tela
   assert.match(modal, /release\.requested && !release\.email/);
   assert.match(modal, /Nenhum e-mail de aviso configurado/);
-  // "Concluído" é um Button com preenchimento sólido quando ativo (mesmo padrão do botão "Fazer correção"), não um checkbox com moldura
+  // "Concluído" usa o componente compartilhado de status (mesmo padrão do botão "Fazer correção"), não um checkbox com moldura
   const registrationComponent = modal.slice(modal.indexOf('function ClientRegistrationCriticalItem'), modal.indexOf('function IssueEditor'));
-  assert.match(registrationComponent, /project-workflow-registration-complete-button\$\{release\.completed \? ' is-active' : ''\}/);
+  assert.match(registrationComponent, /<ProjectWorkflowStatusToggle/);
   assert.doesNotMatch(registrationComponent, /type="checkbox"/);
-  // antes de clicar não mostra o ícone de check nem usa cor de destaque (evita parecer já concluído)
-  assert.match(registrationComponent, /\{release\.completed \? <ProjectWorkflowIcon name="check" \/> : null\}/);
-  assert.match(styles, /project-workflow-registration-complete-button \{ background: var\(--pw-surface/);
-  assert.match(styles, /project-workflow-registration-complete-button\.is-active/);
+  const statusToggle = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowStatusToggle.tsx', import.meta.url), 'utf8');
+  assert.match(statusToggle, /project-workflow-status-toggle\$\{checked \? ' is-active' : ''\}/);
+  // antes de marcado não mostra o ícone de check nem usa cor de destaque (evita parecer já concluído)
+  assert.match(statusToggle, /\{checked \? <ProjectWorkflowIcon name="check" \/> : null\}/);
+  assert.match(styles, /project-workflow-status-toggle \{ background: var\(--pw-surface/);
+  assert.match(styles, /project-workflow-status-toggle\.is-active/);
+  // padrão único: o antigo checkbox em pílula (Agendado\/Realizado, Solicitado\/Concluído etc.) não existe mais
+  assert.doesNotMatch(styles, /project-workflow-release-toggle/);
+  const preparation = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowPreparationPanels.tsx', import.meta.url), 'utf8');
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
+  const supplyLogistics = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowSupplyLogisticsPlanning.tsx', import.meta.url), 'utf8');
+  for (const source of [preparation, intake, supplyLogistics]) {
+    assert.doesNotMatch(source, /project-workflow-release-toggle/);
+    assert.match(source, /<ProjectWorkflowStatusToggle/);
+  }
 });
 
 test('transporte da equipe e frete usam o mesmo seletor de veículo (Nosso/Locação/Frete + tipo + quantidade)', () => {

@@ -21,6 +21,7 @@ import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedul
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
+import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 
@@ -407,14 +408,18 @@ function DocumentationRequirementEditor({ item, version, saving, canEdit, onPatc
         <div className="field-group">
           <span className="project-workflow-toggle-group-label">Acompanhamento</span>
           <div className="project-workflow-toggle-row">
-            <label className="project-workflow-release-toggle">
-              <input type="checkbox" checked={item.status !== 'PENDING'} disabled={saving || !canEdit} onChange={event => changeStatus(event.target.checked ? 'REQUESTED' : 'PENDING')} />
-              <span>Solicitado{item.requestedAt ? ` em ${displayDateOnly(item.requestedAt)}` : ''}</span>
-            </label>
-            <label className="project-workflow-release-toggle">
-              <input type="checkbox" checked={item.status === 'CONFIRMED'} disabled={saving || !canEdit || item.status === 'PENDING'} onChange={event => changeStatus(event.target.checked ? 'CONFIRMED' : 'REQUESTED')} />
-              <span>Confirmado{item.confirmedAt ? ` em ${displayDateOnly(item.confirmedAt)}` : ''}</span>
-            </label>
+            <ProjectWorkflowStatusToggle
+              checked={item.status !== 'PENDING'}
+              disabled={saving || !canEdit}
+              label={`Solicitado${item.requestedAt ? ` em ${displayDateOnly(item.requestedAt)}` : ''}`}
+              onChange={checked => changeStatus(checked ? 'REQUESTED' : 'PENDING')}
+            />
+            <ProjectWorkflowStatusToggle
+              checked={item.status === 'CONFIRMED'}
+              disabled={saving || !canEdit || item.status === 'PENDING'}
+              label={`Confirmado${item.confirmedAt ? ` em ${displayDateOnly(item.confirmedAt)}` : ''}`}
+              onChange={checked => changeStatus(checked ? 'CONFIRMED' : 'REQUESTED')}
+            />
           </div>
         </div>
       </div>
