@@ -10,6 +10,7 @@ import {
   assertUniqueReportDate,
   approvedRdoHistoryWhere,
   canAccessReport,
+  canAccessReportPdf,
   canClientSeeReport,
   derivedReportsForProjectWhere,
   restoreReportFromSnapshot
@@ -150,6 +151,33 @@ test('client report guards reject reports from soft-deleted projects', async () 
 
   assert.equal(canClientSeeReport(report, new Map([[report.id, report]])), false);
   assert.equal(await canAccessReport(clientAuth(), report), false);
+});
+
+test('PDF preview allows Efetivo viewers only for active projects with workflow', async () => {
+  const viewer = {
+    user: { id: 'efetivo-viewer', role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: [{ role: 'EFETIVO_VIEWER' }] }
+  };
+  const report = activeReport();
+  let lookups = 0;
+  const database = { project: { findFirst: async args => {
+    lookups += 1;
+    assert.equal(args.where.id, report.projectId);
+    assert.equal(args.where.deletedAt, null);
+    assert.deepEqual(args.where.workflow, { isNot: null });
+    return { id: report.projectId };
+  } } };
+
+  assert.equal(await canAccessReportPdf(viewer, report, { database }), true);
+  assert.equal(lookups, 1);
+  assert.equal(await canAccessReportPdf(viewer, report, {
+    database: { project: { findFirst: async () => null } }
+  }), false);
+  assert.equal(await canAccessReportPdf({ user: managerSession().user }, report, {
+    database: { project: { findFirst: async () => { throw new Error('RDO manager access must not query project'); } } }
+  }), true);
+  assert.equal(await canAccessReportPdf(viewer, activeReport({ deletedAt: new Date() }), {
+    database: { project: { findFirst: async () => { throw new Error('Deleted report must not query project'); } } }
+  }), false);
 });
 
 function reportPayload(overrides = {}) {

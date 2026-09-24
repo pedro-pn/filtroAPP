@@ -1,6 +1,7 @@
 import {
   PROJECT_EXECUTION_DEVIATION_CATEGORIES,
-  PROJECT_EXECUTION_REPORT_TYPES
+  PROJECT_EXECUTION_REPORT_TYPES,
+  PROJECT_EXECUTION_WEEKLY_CHECKS
 } from '../../../../../shared/schemas/project-execution.js';
 import { getProjectDetail } from '../../acompanhamento/project-detail.js';
 import { createRecord, listProjectDeviations } from '../../qualidade/service.js';
@@ -8,9 +9,13 @@ import { efetivoProjectWhere } from '../project-visibility.js';
 import { notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
 import { canEditWorkflow } from './service.js';
+import { addDays, buildProjectExecutionWeeklyReview, mondayOfWeek, normalizeWeeklyChecks, reviewStartDate } from './weekly-review.js';
+
+export { buildProjectExecutionWeeklyReview } from './weekly-review.js';
 
 const INTEGRATED_REPORT_TYPES = new Set(PROJECT_EXECUTION_REPORT_TYPES.filter(item => item.source === 'SYSTEM').map(item => item.key));
 const RDO_REPORT_TYPES = ['RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION'];
+const WEEKLY_CHECK_KEYS = PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => item.key);
 const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
 });
@@ -23,6 +28,34 @@ function dateKey(value) {
 
 function todayKey(now = new Date()) {
   return SAO_PAULO_DATE_FORMATTER.format(now);
+}
+
+export function overdueRdoDays(startDate, reportDates, now = new Date()) {
+  const start = dateKey(startDate);
+  if (!start) return { count: 0, recentDates: [] };
+  // A entrega de um dia D vence ao fim de D+1. À meia-noite de D+2, passa a estar atrasada.
+  const lastOverdueDay = addDays(todayKey(now), -2);
+  const submittedDays = new Set(reportDates.map(dateKey).filter(Boolean));
+  let count = 0;
+  const recentDates = [];
+  for (let day = start; day <= lastOverdueDay; day = addDays(day, 1)) {
+    if (submittedDays.has(day)) continue;
+    count += 1;
+    recentDates.unshift(day);
+    if (recentDates.length > 5) recentDates.pop();
+  }
+  return { count, recentDates };
+}
+
+function reportSummary(report) {
+  return {
+    id: report.id,
+    reportType: report.reportType,
+    sequenceNumber: report.sequenceNumber ?? null,
+    status: report.status,
+    reportDate: dateKey(report.reportDate),
+    createdAt: report.createdAt || null
+  };
 }
 
 function finiteNumber(value) {
@@ -59,10 +92,19 @@ export function buildTechnicalReports(reports, targetData) {
   });
 }
 
-export function buildProjectExecutionDashboard({ tracking = null, reports = [], targetData = {}, deviations = [], canEdit = false } = {}) {
+export function buildProjectExecutionDashboard({ tracking = null, reports = [], targetData = {}, deviations = [], canEdit = false, canVerifyWeekly = false, scope = null, progress = null, mission = null, stage = null, legacyStartDate = null, workflowCreatedAt = null, weeklyReviewRows = [], now = new Date() } = {}) {
   const validReports = Array.isArray(reports) ? reports : [];
   const rdos = validReports.filter(report => RDO_REPORT_TYPES.includes(report.reportType));
   const lastReportDate = rdos.map(report => dateKey(report.reportDate)).filter(Boolean).sort().at(-1) || null;
+  const byDate = [...validReports].sort((left, right) =>
+    String(dateKey(right.reportDate) || '').localeCompare(String(dateKey(left.reportDate) || ''))
+      || String(right.createdAt ? new Date(right.createdAt).toISOString() : '').localeCompare(String(left.createdAt ? new Date(left.createdAt).toISOString() : '')));
+  const missionStartDate = dateKey(mission?.executionStartDate || tracking?.footer?.startDate);
+  const overdueStartDate = legacyStartDate && (!missionStartDate || legacyStartDate > missionStartDate) ? legacyStartDate : missionStartDate;
+  const overdue = stage === 'EXECUTION'
+    ? overdueRdoDays(overdueStartDate, rdos.map(report => report.reportDate), now)
+    : { count: 0, recentDates: [] };
+  const unsignedReports = byDate.filter(report => report.status !== 'SIGNED');
   return {
     schedule: {
       plannedProgressPct: finiteNumber(tracking?.diasCorridos?.pct),
@@ -76,6 +118,9 @@ export function buildProjectExecutionDashboard({ tracking = null, reports = [], 
     },
     rdo: {
       receivedCount: rdos.length,
+      overdueCount: overdue.count,
+      overdueDates: overdue.recentDates,
+      recent: byDate.filter(report => RDO_REPORT_TYPES.includes(report.reportType)).slice(0, 5).map(reportSummary),
       pendingOrReturnedCount: rdos.filter(report => ['PENDING', 'RETURNED'].includes(report.status)).length,
       releasedToClientCount: rdos.filter(report => ['APPROVED', 'SIGNED'].includes(report.status)).length,
       signedCount: rdos.filter(report => report.status === 'SIGNED').length,
@@ -84,6 +129,22 @@ export function buildProjectExecutionDashboard({ tracking = null, reports = [], 
       evidenceCount: rdos.reduce((sum, report) => sum + (Array.isArray(report.attachments) ? report.attachments.length : 0), 0),
       lastReportDate
     },
+    reports: byDate.map(reportSummary),
+    signatures: {
+      signedCount: validReports.length - unsignedReports.length,
+      pendingCount: unsignedReports.length,
+      signedReports: byDate.filter(report => report.status === 'SIGNED').map(reportSummary),
+      pendingReports: unsignedReports.map(reportSummary)
+    },
+    scope: scope || null,
+    progress: progress || null,
+    weeklyReview: buildProjectExecutionWeeklyReview({
+      stage,
+      startDate: reviewStartDate(mission, tracking, workflowCreatedAt, legacyStartDate),
+      rows: weeklyReviewRows,
+      now,
+      canVerify: canVerifyWeekly
+    }),
     technicalReports: buildTechnicalReports(validReports, targetData),
     deviations: Array.isArray(deviations) ? deviations : [],
     permissions: { canEdit: Boolean(canEdit) }
@@ -95,7 +156,7 @@ async function requireProjectWorkflow(database, projectId) {
     where: { id: projectId, isActive: true, deletedAt: null, ...efetivoProjectWhere() },
     select: {
       id: true,
-      workflow: { select: { projectId: true, stage: true, leaderUserId: true, executionReportTargets: true } }
+      workflow: { select: { projectId: true, stage: true, leaderUserId: true, plannerUserId: true, executionReportTargets: true, legacySummaryEntryStage: true, createdAt: true } }
     }
   });
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
@@ -126,10 +187,36 @@ async function loadTracking(projectId, dependency) {
   }
 }
 
+async function loadScope(projectId, dependency) {
+  try {
+    const loader = dependency || (await import('../../acompanhamento/planned-scope.js')).getPlannedScope;
+    return await loader(projectId);
+  } catch {
+    return null;
+  }
+}
+
+async function loadProgress(projectId, dependency) {
+  try {
+    const loader = dependency || (await import('../../acompanhamento/avanco.js')).computeProjectProgress;
+    return await loader(projectId);
+  } catch {
+    return null;
+  }
+}
+
+function loadOfficialMission(database, projectId) {
+  return database.efetivoMissionPlan?.findFirst({
+    where: { projectId, deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+    orderBy: { updatedAt: 'desc' },
+    select: { executionStartDate: true }
+  }) || Promise.resolve(null);
+}
+
 export async function getProjectExecutionDashboard(projectId, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const workflow = await requireProjectWorkflow(database, projectId);
-  const [tracking, reports, deviations] = await Promise.all([
+  const [tracking, reports, deviations, scope, progress, mission, weeklyReviewRows] = await Promise.all([
     loadTracking(projectId, dependencies.getProjectDetail || getProjectDetail),
     database.report.findMany({
       where: {
@@ -140,21 +227,103 @@ export async function getProjectExecutionDashboard(projectId, context = {}, depe
       select: {
         id: true,
         reportType: true,
+        sequenceNumber: true,
         status: true,
         reportDate: true,
+        createdAt: true,
         services: { select: { id: true } },
         attachments: { select: { id: true } }
       }
     }),
-    (dependencies.listProjectDeviations || listProjectDeviations)(database, projectId)
+    (dependencies.listProjectDeviations || listProjectDeviations)(database, projectId),
+    loadScope(projectId, dependencies.getPlannedScope),
+    loadProgress(projectId, dependencies.computeProjectProgress),
+    loadOfficialMission(database, projectId),
+    database.projectExecutionWeeklyReview?.findMany({
+      where: { projectId },
+      select: {
+        weekStartDate: true,
+        checks: true,
+        note: true,
+        completedAt: true,
+        completedBy: { select: { id: true, name: true } }
+      }
+    }) || Promise.resolve([])
   ]);
   return buildProjectExecutionDashboard({
     tracking,
     reports,
+    scope,
+    progress,
+    mission,
+    weeklyReviewRows,
+    stage: workflow.stage,
+    legacyStartDate: workflow.legacySummaryEntryStage && workflow.createdAt ? todayKey(workflow.createdAt) : null,
+    workflowCreatedAt: workflow.createdAt,
+    now: dependencies.now || new Date(),
     targetData: workflow.executionReportTargets,
     deviations,
-    canEdit: canEditWorkflow(workflow, context)
+    canEdit: canEditWorkflow(workflow, context),
+    canVerifyWeekly: canEditWorkflow(workflow, context)
   });
+}
+
+export async function saveProjectExecutionWeeklyReview(projectId, payload, context = {}, dependencies = {}) {
+  const database = await resolvePlanningDatabase(dependencies.database);
+  const workflow = await requireProjectWorkflow(database, projectId);
+  if (workflow.stage !== 'EXECUTION') {
+    throw planningError('A verificação semanal está disponível durante a execução da obra.', {
+      statusCode: 409, code: 'PROJECT_EXECUTION_WEEKLY_REVIEW_STAGE_FORBIDDEN'
+    });
+  }
+  if (!canEditWorkflow(workflow, context)) {
+    throw planningError('A verificação semanal é restrita aos responsáveis pela gestão do projeto.', {
+      statusCode: 403, code: 'PROJECT_EXECUTION_WEEKLY_REVIEW_FORBIDDEN'
+    });
+  }
+  const now = dependencies.now || new Date();
+  const weekStartDate = dateKey(payload.weekStartDate);
+  const dueDate = weekStartDate && addDays(weekStartDate, 3);
+  const [mission, tracking] = await Promise.all([
+    loadOfficialMission(database, projectId),
+    loadTracking(projectId, dependencies.getProjectDetail || getProjectDetail)
+  ]);
+  const start = reviewStartDate(mission, tracking, workflow.createdAt);
+  if (!weekStartDate || mondayOfWeek(weekStartDate) !== weekStartDate || dueDate < start || dueDate > todayKey(now)) {
+    throw planningError('Esta semana ainda não está disponível para verificação.', {
+      statusCode: 409, code: 'PROJECT_EXECUTION_WEEKLY_REVIEW_NOT_DUE'
+    });
+  }
+  const checks = normalizeWeeklyChecks(payload.checks);
+  const completed = WEEKLY_CHECK_KEYS.every(key => checks[key]);
+  const note = payload.note?.trim() || null;
+  const weekDate = new Date(`${weekStartDate}T00:00:00.000Z`);
+  await runPlanningTransaction(database, async tx => {
+    const where = { projectId_weekStartDate: { projectId, weekStartDate: weekDate } };
+    const previous = await tx.projectExecutionWeeklyReview.findUnique({
+      where, select: { completedAt: true, completedByUserId: true }
+    });
+    const data = {
+      checks,
+      note,
+      completedAt: completed ? previous?.completedAt || now : null,
+      completedByUserId: completed ? previous?.completedByUserId || context.actorUserId : null
+    };
+    await tx.projectExecutionWeeklyReview.upsert({
+      where,
+      create: { projectId, weekStartDate: weekDate, ...data },
+      update: data
+    });
+    await tx.projectWorkflowEvent.create({
+      data: {
+        projectId,
+        actorUserId: context.actorUserId,
+        action: 'WORKFLOW_EXECUTION_WEEKLY_REVIEW',
+        data: { weekStartDate, dueDate, checks, note, completed }
+      }
+    });
+  }, { required: true });
+  return getProjectExecutionDashboard(projectId, context, { ...dependencies, database });
 }
 
 function targetMap(targets) {

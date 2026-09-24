@@ -23,6 +23,15 @@ export const PROJECT_EXECUTION_DEVIATION_CATEGORIES = [
 export const PROJECT_EXECUTION_IMPACTS = ['ALTO', 'MEDIO', 'BAIXO'];
 export const PROJECT_EXECUTION_DEVIATION_STATUSES = ['ABERTO', 'EM_TRIAGEM', 'EM_OBSERVACAO', 'EM_ACAO', 'FECHADO', 'DIVULGADO'];
 
+export const PROJECT_EXECUTION_WEEKLY_CHECKS = [
+  { key: 'PROGRESS', label: 'Verificar o avanço físico e o cumprimento do cronograma da obra.' },
+  { key: 'SERVICE_FRONTS', label: 'Confirmar a situação das frentes de serviço, incluindo liberações e eventuais paralisações.' },
+  { key: 'DIFFICULTIES', label: 'Registrar as dificuldades e restrições identificadas durante a semana.' },
+  { key: 'DEVIATIONS_INCIDENTS', label: 'Confirmar a ocorrência ou ausência de desvios e incidentes e as providências adotadas.' },
+  { key: 'REPORT_DELIVERY', label: 'Verificar se os RDOs e demais relatórios estão atualizados e dentro do prazo.' },
+  { key: 'REPORT_SIGNATURES', label: 'Conferir a situação das assinaturas dos relatórios emitidos.' }
+];
+
 function dateOnlySchema(z) {
   return z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.').refine(value => {
     const date = new Date(`${value}T00:00:00.000Z`);
@@ -61,5 +70,10 @@ export function makeProjectExecutionSchemas(z) {
     status: z.enum(PROJECT_EXECUTION_DEVIATION_STATUSES)
   }).strict();
   const deviationStatus = z.object({ status: z.enum(PROJECT_EXECUTION_DEVIATION_STATUSES) }).strict();
-  return { reportTargets, deviationCreate, deviationStatus };
+  const weeklyReview = z.object({
+    weekStartDate: dateOnlySchema(z),
+    checks: z.object(Object.fromEntries(PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => [item.key, z.boolean()]))).strict(),
+    note: z.string().trim().max(2000).nullable().optional()
+  }).strict();
+  return { reportTargets, deviationCreate, deviationStatus, weeklyReview };
 }

@@ -600,6 +600,9 @@ export type ProjectWorkflowStageTimeline = Partial<Record<ProjectWorkflowStage, 
 export interface ProjectWorkflow {
   projectId: string;
   stage: ProjectWorkflowStage;
+  /** Setado quando a gestão nasceu pelo fluxo legado resumido: etapa de entrada, usada para tratar as etapas
+   * anteriores como "não se aplica" em vez de pendência real. `null` em todo projeto do handover normal. */
+  legacySummaryEntryStage: ProjectWorkflowStage | null;
   stageTimeline: ProjectWorkflowStageTimeline;
   leaderUserId: string;
   leader: { id: string; name: string; email: string | null; isActive: boolean };
@@ -720,6 +723,7 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     milestones: ProjectWorkflowMilestones;
     issueCount: number;
     overdueIssueCount: number;
+    weeklyReviewPendingCount: number;
     commercialReadiness: ProjectWorkflowCommercialReadiness;
     documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
     documentationReadiness: ProjectWorkflowDocumentationReadiness;
@@ -761,6 +765,43 @@ export interface ProjectExecutionDeviation {
   occurrences12m?: number;
 }
 
+export interface ProjectExecutionReportSummary {
+  id: string;
+  reportType: string;
+  sequenceNumber: number | null;
+  status: 'PENDING' | 'APPROVED' | 'RETURNED' | 'SIGNED';
+  reportDate: string | null;
+  createdAt: string | null;
+}
+
+export type ProjectExecutionWeeklyCheckKey = 'PROGRESS' | 'SERVICE_FRONTS' | 'DIFFICULTIES' | 'DEVIATIONS_INCIDENTS' | 'REPORT_DELIVERY' | 'REPORT_SIGNATURES';
+export type ProjectExecutionWeeklyChecks = Record<ProjectExecutionWeeklyCheckKey, boolean>;
+
+export interface ProjectExecutionWeeklyReviewWeek {
+  weekStartDate: string;
+  dueDate: string;
+  checks: ProjectExecutionWeeklyChecks;
+  checkedCount: number;
+  note: string;
+  completedAt: string | null;
+  completedBy: { id: string; name: string } | null;
+}
+
+export interface ProjectExecutionWeeklyReview {
+  active: boolean;
+  pendingCount: number;
+  pending: ProjectExecutionWeeklyReviewWeek[];
+  recentCompleted: ProjectExecutionWeeklyReviewWeek[];
+  nextDueDate: string | null;
+  permissions: { canVerify: boolean };
+}
+
+export interface ProjectExecutionWeeklyReviewInput {
+  weekStartDate: string;
+  checks: ProjectExecutionWeeklyChecks;
+  note: string | null;
+}
+
 export interface ProjectExecutionDashboard {
   schedule: {
     plannedProgressPct: number | null;
@@ -774,6 +815,9 @@ export interface ProjectExecutionDashboard {
   };
   rdo: {
     receivedCount: number;
+    overdueCount: number;
+    overdueDates: string[];
+    recent: ProjectExecutionReportSummary[];
     pendingOrReturnedCount: number;
     releasedToClientCount: number;
     signedCount: number;
@@ -782,6 +826,16 @@ export interface ProjectExecutionDashboard {
     evidenceCount: number;
     lastReportDate: string | null;
   };
+  reports: ProjectExecutionReportSummary[];
+  signatures: {
+    signedCount: number;
+    pendingCount: number;
+    signedReports: ProjectExecutionReportSummary[];
+    pendingReports: ProjectExecutionReportSummary[];
+  };
+  scope: import('./acompanhamentoComercial').PlannedScope | null;
+  progress: import('./acompanhamentoComercial').ProjectProgress | null;
+  weeklyReview: ProjectExecutionWeeklyReview;
   technicalReports: Array<{
     reportType: ProjectExecutionReportType;
     label: string;
@@ -889,12 +943,50 @@ export async function startProjectWorkflow(projectId: string, input: { leaderUse
   return (await apiClient.post<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`, input)).data;
 }
 
+// Fluxo legado resumido: só serve para projetos "Fluxo legado" (missão oficial já existente, sem gestão
+// iniciada) que entram direto numa etapa de campo, pulando handover/análise/planejamento/preparação.
+export type ProjectWorkflowLegacySummaryStage = 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
+
+export interface ProjectWorkflowLegacySummaryEquipmentCategory {
+  id: string;
+  name: string;
+  equipment: Array<{ id: string; code: string; name: string }>;
+}
+
+export interface ProjectWorkflowLegacySummaryEquipmentCatalog {
+  categories: ProjectWorkflowLegacySummaryEquipmentCategory[];
+  /** Equipamentos que, pelo histórico de romaneios do projeto, ainda estão em campo hoje — vêm pré-marcados. */
+  currentEquipmentIds: string[];
+}
+
+export interface ProjectWorkflowLegacySummaryInput {
+  stage: ProjectWorkflowLegacySummaryStage;
+  leaderUserId: string;
+  plannerUserId: string;
+  startDate: string;
+  endDate?: string | null;
+  demobilizationDate?: string | null;
+  equipmentSelections: Array<{ categoryId: string; equipmentIds: string[] }>;
+}
+
+export async function listProjectWorkflowLegacySummaryEquipment(projectId: string) {
+  return (await apiClient.get<ProjectWorkflowLegacySummaryEquipmentCatalog>(`${base}/${encodeURIComponent(projectId)}/legacy-summary/equipment`)).data;
+}
+
+export async function startLegacyProjectWorkflowSummary(projectId: string, input: ProjectWorkflowLegacySummaryInput) {
+  return (await apiClient.post<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}/legacy-summary`, input)).data;
+}
+
 export async function updateProjectWorkflow(projectId: string, input: ProjectWorkflowPatch) {
   return (await apiClient.patch<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`, input)).data;
 }
 
 export async function getProjectExecutionDashboard(projectId: string) {
   return (await apiClient.get<ProjectExecutionDashboard>(`${base}/${encodeURIComponent(projectId)}/execution`)).data;
+}
+
+export async function saveProjectExecutionWeeklyReview(projectId: string, input: ProjectExecutionWeeklyReviewInput) {
+  return (await apiClient.put<ProjectExecutionDashboard>(`${base}/${encodeURIComponent(projectId)}/execution/weekly-review`, input)).data;
 }
 
 export async function getProjectCloseoutDashboard(projectId: string) {

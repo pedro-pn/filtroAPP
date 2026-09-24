@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { PROJECT_EXECUTION_WEEKLY_CHECKS } from '../../shared/schemas/project-execution.js';
 
 import {
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
@@ -12,8 +13,10 @@ import {
 } from '../../shared/schemas/project-workflow.js';
 import {
   getProjectWorkflow,
+  listProjectWorkflowLegacySummaryEquipment,
   listProjectWorkflows,
   listProjectWorkflowLeaders,
+  startLegacyProjectWorkflowSummary,
   startProjectWorkflow,
   updateProjectWorkflow
 } from '../src/lib/efetivo/project-workflow/service.js';
@@ -35,6 +38,7 @@ function fakeDatabase() {
     efetivoSettings: [],
     answers: [],
     issues: [],
+    weeklyReviews: [],
     commercialFacts: [],
     documentationCategories: [],
     documentationRequirements: [],
@@ -93,6 +97,7 @@ function fakeDatabase() {
     teamDemands: state.teamDemands.map(item => ({ ...item, jobRole: state.jobRoles.find(role => role.id === item.jobRoleId) })),
     equipmentCategoryPlans: state.equipmentCategoryPlans.map(item => ({ ...item, category: state.equipmentCategories.find(category => category.id === item.categoryId) })),
     issues: state.issues.map(item => ({ ...item })),
+    weeklyExecutionReviews: state.weeklyReviews.map(item => ({ ...item })),
     events: state.events.map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse(),
     postJob: state.postJob ? {
       ...state.postJob,
@@ -142,7 +147,10 @@ function fakeDatabase() {
         if (state.workflow) throw Object.assign(new Error('duplicate'), { code: 'P2002' });
         state.workflow = {
           projectId: input.data.projectId,
-          stage: 'HANDOVER',
+          stage: input.data.stage || 'HANDOVER',
+          // Fluxo legado resumido: guarda a etapa de nascimento quando o projeto entra direto numa etapa de
+          // campo (ver `startLegacyProjectWorkflowSummary`); `null` no handover normal.
+          legacySummaryEntryStage: input.data.legacySummaryEntryStage || null,
           leaderUserId: input.data.leaderUserId,
           plannerUserId: input.data.plannerUserId,
           acceptedAt: null,
@@ -154,6 +162,7 @@ function fakeDatabase() {
           analysisClientContactPhone: null,
           analysisClientContactDate: null,
           isCritical: null,
+          executedAtHeadquarters: Object.hasOwn(input.data, 'executedAtHeadquarters') ? input.data.executedAtHeadquarters : null,
           preparationLeadTimeDays: 15,
           teamPlanDefined: null,
           equipmentPlanDefined: null,
@@ -165,9 +174,9 @@ function fakeDatabase() {
           preJobCompletedDate: null,
           qsmsVerified: null,
           qsmsVerificationNote: null,
-          fieldCompletionDate: null,
-          closedAt: null,
-          closedByUserId: null,
+          fieldCompletionDate: input.data.fieldCompletionDate || null,
+          closedAt: input.data.closedAt || null,
+          closedByUserId: input.data.closedByUserId || null,
           version: 1,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -640,6 +649,24 @@ test('listagem usa ordenação aceita pelo Prisma, o dia civil de São Paulo e m
   assert.equal(result.items[0].workflow.commercialReadiness.status, 'NOT_RELEASED');
 });
 
+test('card da execução mostra verificações semanais vencidas até serem concluídas', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-01' }, manager, { database });
+  state.workflow.stage = 'EXECUTION';
+  state.workflow.createdAt = new Date('2026-09-01T12:00:00Z');
+  const beforeThursday = await listProjectWorkflows({}, manager, { database, now: new Date('2026-09-10T02:59:59Z') });
+  assert.equal(beforeThursday.items[0].workflow.weeklyReviewPendingCount, 1);
+  const onThursday = await listProjectWorkflows({}, manager, { database, now: new Date('2026-09-10T03:00:00Z') });
+  assert.equal(onThursday.items[0].workflow.weeklyReviewPendingCount, 2);
+  state.weeklyReviews.push({
+    weekStartDate: new Date('2026-08-31T00:00:00Z'),
+    checks: Object.fromEntries(PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => [item.key, true])),
+    completedAt: new Date('2026-09-10T12:00:00Z')
+  });
+  const afterReview = await listProjectWorkflows({}, manager, { database, now: new Date('2026-09-10T12:00:00Z') });
+  assert.equal(afterReview.items[0].workflow.weeklyReviewPendingCount, 1);
+});
+
 test('listagem preserva líder e equipe da programação operacional no card do projeto', async () => {
   const { database, state } = fakeDatabase();
   state.operationalMission = {
@@ -676,6 +703,90 @@ test('listagem preserva líder e equipe da programação operacional no card do 
   assert.equal(mission.allocations[0].collaborator.name, 'Líder de Campo');
   assert.equal(mission.allocations[0].collaborator.role, 'Supervisor');
   assert.equal(state.lastProjectFindManyInput.select.efetivoMissionPlans.select.allocations.select.collaborator.select.jobRole.select.name, true);
+});
+
+test('fluxo legado resumido nasce direto na etapa escolhida, sincroniza a missão oficial e libera o gate de mobilização', async () => {
+  const { database, state } = fakeDatabase();
+  state.operationalMission = {
+    id: 'mission-1', stage: 'STANDBY', scheduleStatus: 'CONFIRMED', version: 3, kanbanOrder: 0,
+    mobilizationDate: new Date('2026-09-01T00:00:00Z'),
+    executionStartDate: new Date('2026-09-02T00:00:00Z'),
+    executionEndDate: new Date('2026-09-10T00:00:00Z'),
+    returnDate: null,
+    headquartersResponsibleName: 'Líder de Campo', headquartersResponsibleRole: 'Supervisor', headquartersResponsibleCollaboratorId: 'collaborator-1',
+    allocations: [{ id: 'allocation-1', collaboratorId: 'collaborator-1', jobRoleId: 'role-1', collaborator: { id: 'collaborator-1', name: 'Líder de Campo', isActive: true, jobRole: { id: 'role-1', name: 'Supervisor' } }, jobRole: { id: 'role-1', name: 'Supervisor' } }]
+  };
+  const synchronizedStages = [];
+  const result = await startLegacyProjectWorkflowSummary('project-1', {
+    stage: 'EXECUTION',
+    leaderUserId: 'leader-1',
+    plannerUserId: 'leader-2',
+    startDate: '2026-09-02',
+    endDate: null,
+    demobilizationDate: null,
+    equipmentSelections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'] }]
+  }, manager, { database, synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage) });
+  assert.equal(result.workflow.stage, 'EXECUTION');
+  assert.equal(result.workflow.legacySummaryEntryStage, 'EXECUTION');
+  assert.deepEqual(synchronizedStages, ['EXECUTION']);
+  assert.equal(state.project.startDate.toISOString().slice(0, 10), '2026-09-02');
+  assert.equal(state.equipmentCategoryPlans.length, 1);
+  assert.deepEqual(state.equipmentCategoryPlans[0].equipmentIds, ['equipment-1']);
+  assert.equal(result.workflow.equipmentPlanDefined, true);
+  // Preparação foi deliberadamente pulada: o gate não pode bloquear romaneios/retiradas do Estoque por frentes
+  // que nunca existiram para este projeto.
+  assert.equal(result.workflow.mobilizationGate.ready, true);
+  assert.deepEqual(result.workflow.mobilizationGate.blockers, []);
+  assert.equal(result.workflow.mobilizationAuthorization.authorized, true);
+  // Etapas anteriores à de entrada (Handover, Análise inicial, Planejamento, Preparação, Mobilização) somem da
+  // pendência real — a régua de etapas do front trata isso via `legacySummaryEntryStage`.
+  assert.equal(result.workflow.handoverGate.ready, true);
+});
+
+test('fluxo legado resumido fecha o projeto direto quando a etapa escolhida é Encerrada', async () => {
+  const { database, state } = fakeDatabase();
+  state.operationalMission = {
+    id: 'mission-1', stage: 'STANDBY', scheduleStatus: 'CONFIRMED', version: 1, kanbanOrder: 0,
+    mobilizationDate: new Date('2026-08-01T00:00:00Z'),
+    executionStartDate: new Date('2026-08-02T00:00:00Z'),
+    executionEndDate: new Date('2026-08-10T00:00:00Z'),
+    returnDate: new Date('2026-08-12T00:00:00Z'),
+    headquartersResponsibleName: 'Líder de Campo', headquartersResponsibleRole: 'Supervisor', headquartersResponsibleCollaboratorId: 'collaborator-1',
+    allocations: [{ id: 'allocation-1', collaboratorId: 'collaborator-1', jobRoleId: 'role-1', collaborator: { id: 'collaborator-1', name: 'Líder de Campo', isActive: true, jobRole: { id: 'role-1', name: 'Supervisor' } }, jobRole: { id: 'role-1', name: 'Supervisor' } }]
+  };
+  const result = await startLegacyProjectWorkflowSummary('project-1', {
+    stage: 'FINISHED',
+    leaderUserId: 'leader-1',
+    plannerUserId: 'leader-2',
+    startDate: '2026-08-02',
+    endDate: '2026-08-10',
+    demobilizationDate: '2026-08-12',
+    equipmentSelections: []
+  }, manager, { database, synchronizeOfficialMissionStage: async () => null });
+  assert.equal(result.workflow.stage, 'FINISHED');
+  assert.equal(result.workflow.fieldCompletionDate, '2026-08-10');
+  assert.ok(result.workflow.closedAt);
+  assert.equal(state.project.demobilizationDate.toISOString().slice(0, 10), '2026-08-12');
+});
+
+test('fluxo legado resumido exige uma programação oficial já existente', async () => {
+  const { database } = fakeDatabase();
+  await assert.rejects(
+    startLegacyProjectWorkflowSummary('project-1', {
+      stage: 'EXECUTION', leaderUserId: 'leader-1', plannerUserId: 'leader-2', startDate: '2026-09-02', endDate: null, demobilizationDate: null, equipmentSelections: []
+    }, manager, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_LEGACY_SUMMARY_MISSION_REQUIRED'
+  );
+});
+
+test('fluxo legado resumido: catálogo de equipamentos traz todas as categorias ativas para adicionar, não só as do romaneio', async () => {
+  const { database } = fakeDatabase();
+  const result = await listProjectWorkflowLegacySummaryEquipment('project-1', manager, { database });
+  assert.equal(result.categories.length, 1);
+  assert.equal(result.categories[0].id, 'category-1');
+  assert.deepEqual(result.categories[0].equipment.map(item => item.id), ['equipment-1']);
+  // Sem romaneio cadastrado no banco fake, nada aparece pré-marcado — só o catálogo para adicionar manualmente.
+  assert.deepEqual(result.currentEquipmentIds, []);
 });
 
 test('Comercial consulta os sinais sem receber campos de edição ou permissão operacional', async () => {

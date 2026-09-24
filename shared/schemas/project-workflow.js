@@ -26,6 +26,12 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   FINISHED: 'Encerrado'
 };
 
+// Fluxo legado resumido: projetos que já vinham do Efetivo antigo (com missão oficial, sem gestão iniciada)
+// podem nascer direto numa destas etapas, pulando Handover/Análise/Planejamento/Preparação por completo.
+export const PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES = PROJECT_WORKFLOW_STAGES.slice(
+  PROJECT_WORKFLOW_STAGES.indexOf('MOBILIZATION')
+);
+
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
   'INITIAL_ANALYSIS',
   'D30_TEAM',
@@ -381,6 +387,37 @@ export function makeProjectWorkflowSchemas(z) {
     plannerUserId: id,
     plannedMobilizationDate: dateOnly.optional()
   }).strict();
+  const equipmentSelections = z.array(z.object({
+    categoryId: id,
+    equipmentIds: z.array(id).min(1, 'Selecione ao menos um equipamento da categoria.').max(500, 'Selecione no máximo 500 equipamentos por categoria.')
+  }).strict()).max(100, 'Selecione no máximo 100 categorias.').default([]);
+  // Fluxo legado resumido: cria a gestão do projeto já numa etapa de campo, pulando handover, análise,
+  // planejamento e preparação por completo — só os dados mínimos abaixo são pedidos, independente da etapa.
+  const startLegacySummary = z.object({
+    stage: z.enum(PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES),
+    leaderUserId: id,
+    plannerUserId: id,
+    startDate: dateOnly,
+    endDate: dateOnly.nullable().optional(),
+    demobilizationDate: dateOnly.nullable().optional(),
+    equipmentSelections
+  }).strict().superRefine((value, ctx) => {
+    const stageIndex = PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES.indexOf(value.stage);
+    const executionIndex = PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES.indexOf('EXECUTION');
+    if (stageIndex > executionIndex && !value.demobilizationDate) {
+      ctx.addIssue({ code: 'custom', path: ['demobilizationDate'], message: 'Informe a data de desmobilização.' });
+    }
+    if (value.demobilizationDate && value.demobilizationDate < value.startDate) {
+      ctx.addIssue({ code: 'custom', path: ['demobilizationDate'], message: 'A desmobilização não pode ser anterior ao início da obra.' });
+    }
+    if (value.endDate && value.endDate < value.startDate) {
+      ctx.addIssue({ code: 'custom', path: ['endDate'], message: 'O término não pode ser anterior ao início da obra.' });
+    }
+    const equipmentIds = value.equipmentSelections.flatMap(item => item.equipmentIds);
+    if (new Set(equipmentIds).size !== equipmentIds.length) {
+      ctx.addIssue({ code: 'custom', path: ['equipmentSelections'], message: 'Cada equipamento deve aparecer uma única vez.' });
+    }
+  });
   const settings = z.object({
     action: z.literal('settings'),
     version,
@@ -847,6 +884,7 @@ export function makeProjectWorkflowSchemas(z) {
   });
   return {
     start,
+    startLegacySummary,
     postJob,
     measurement,
     patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),

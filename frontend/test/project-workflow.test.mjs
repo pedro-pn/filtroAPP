@@ -151,8 +151,11 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /suppressCardClickUntilRef/);
   assert.match(board, /managedMove\.isPending \? managedMove\.variables\?\.project\.id : undefined/);
   assert.match(dragStart, /const startedFromInteractiveControl = interactiveMouseRef\.current;\s+interactiveMouseRef\.current = false;/);
-  assert.match(modal, /Compatibilidade do projeto antigo/);
-  assert.match(modal, /Atualizar etapa antiga/);
+  assert.match(modal, /Como deseja tratar este projeto\?/);
+  assert.match(modal, /Fluxo completo/);
+  assert.match(modal, /Fluxo resumido/);
+  assert.match(modal, /ProjectLegacySummaryStartForm/);
+  assert.doesNotMatch(modal, /Compatibilidade do projeto antigo/);
   assert.match(modal, /onOpenTeamProgramming/);
   assert.doesNotMatch(modal, /section=missoes/);
   assert.match(navigation, /projeto/);
@@ -429,16 +432,21 @@ test('etapa Em execução mostra painel operacional e desvios integrados', () =>
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(modal, /ProjectExecutionDashboard/);
+  assert.match(modal, /Histórico da execução/);
   assert.match(modal, /Iniciar execução/);
   assert.match(modal, /Iniciar mobilização/);
   assert.match(modal, /Voltar para mobilização/);
   assert.match(dashboard, /Dashboard de execução/);
   assert.match(dashboard, /Registrar desvio/);
-  assert.match(dashboard, /Relatórios técnicos/);
-  assert.match(dashboard, /RLR permanece manual/);
+  assert.match(dashboard, /Últimos RDOs/);
+  assert.match(dashboard, /RDO atrasado/);
+  assert.match(dashboard, /Relatórios e assinaturas/);
+  assert.match(dashboard, /Abrir relatórios/);
+  assert.match(dashboard, /Escopo e avanço físico/);
+  assert.doesNotMatch(dashboard, /Salvar metas/);
   assert.match(board, /data-project-workflow-execution/);
   assert.match(styles, /project-execution-deviation-form/);
-  assert.match(styles, /project-execution-report-grid/);
+  assert.match(styles, /project-execution-scope-columns/);
 });
 
 test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
@@ -647,4 +655,55 @@ test('checklist de verificação do contato com o cliente: 17 perguntas em diál
   // com o label quebrando linha, o Sim/Não vira o único item da linha; sem isso "space-between" o jogaria
   // pra esquerda em vez de manter à direita como os demais
   assert.match(styles, /\.project-workflow-checklist-item \.project-workflow-documentation-choice \{ margin-left: auto; \}/);
+});
+
+test('fluxo legado resumido: escolha completo/resumido no clique, e o formulário resumido pré-preenche equipamentos do romaneio e bloqueia sem equipe', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const form = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectLegacySummaryStartForm.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../src/api/projectWorkflow.ts', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+
+  // clicar num projeto "Fluxo legado" oferece a escolha, em vez de abrir o handover comercial direto.
+  assert.match(modal, /Como deseja tratar este projeto\?/);
+  assert.match(modal, /Fluxo completo/);
+  assert.match(modal, /Fluxo resumido/);
+  assert.match(modal, /legacyChoice === 'summary'/);
+  assert.match(modal, /ProjectLegacySummaryStartForm/);
+  assert.match(modal, /stageIndex < legacyEntryIndex/);
+  assert.match(modal, /isLegacySkippedStage/);
+  assert.match(modal, /Não se aplica ao fluxo resumido legado/);
+  assert.doesNotMatch(modal, /Compatibilidade do projeto antigo/);
+  assert.doesNotMatch(modal, /LegacyMissionStageForm/);
+
+  // wiring do board até o backend.
+  assert.match(board, /startLegacyProjectWorkflowSummary/);
+  assert.match(board, /onStartLegacySummary=\{payload => startLegacySummary\.mutate\(payload\)\}/);
+  assert.doesNotMatch(board, /onMoveLegacyMission/);
+
+  // o resumido só pede a partir da Mobilização.
+  assert.match(schema, /PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES = PROJECT_WORKFLOW_STAGES\.slice\(/);
+  assert.match(api, /ProjectWorkflowLegacySummaryStage = 'MOBILIZATION' \| 'EXECUTION' \| 'DEMOBILIZATION' \| 'POST_JOB' \| 'FINAL_MEASUREMENT' \| 'FINISHED'/);
+
+  // equipamentos: catálogo completo (não só o do romaneio), pré-marcado automaticamente e editável.
+  assert.match(form, /listProjectWorkflowLegacySummaryEquipment/);
+  assert.match(form, /equipment\.data\.currentEquipmentIds\.filter\(id => activeIds\.has\(id\)\)/);
+  assert.match(form, /setSelectedEquipmentIds\(new Set\(suggestedIds\)\)/);
+  assert.match(form, /categories\.map\(category => \(/);
+  assert.match(form, /type="checkbox".*checked=\{Boolean\(selectedEquipmentIds\?\.has\(item\.id\)\)\}/);
+  assert.match(api, /categories: ProjectWorkflowLegacySummaryEquipmentCategory\[\]/);
+
+  // equipe em campo é editável na própria tela (mesmo seletor de "Editar equipe inicial"), sem sair daqui.
+  assert.match(form, /Equipe em campo/);
+  assert.match(form, /import \{ MissionTeamSelector \} from '\.\/MissionTeamSelector';/);
+  assert.match(form, /<MissionTeamSelector/);
+  assert.match(form, /updatePlanningMission\(fullMission!\.id, fullMission!\.version, payload\)/);
+  assert.match(form, /if \(!collaboratorIds\.length\) \{ showError/);
+
+  // o formulário continua rolável; o avanço usa o rodapé fixo do diálogo.
+  assert.match(form, /<form id=\{LEGACY_SUMMARY_FORM_ID\}/);
+  assert.match(modal, /<Button type="submit" form=\{LEGACY_SUMMARY_FORM_ID\}/);
+
+  // desmobilização só é pedida a partir da própria Desmobilização em diante.
+  assert.match(form, /demobilizationRelevant = stageIndex > EXECUTION_INDEX/);
 });
