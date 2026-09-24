@@ -20,6 +20,7 @@ import { loadHistoricalRealizedServices } from '../reports/historical-services-s
 import { buildSystemProgress } from './system-progress.js';
 import { systemNameKey } from './project-systems.js';
 import { extractServiceMeasurements, realizedFromExtraData } from './realized-measurements.js';
+import { applyDailyTubeCorrections } from './realized-corrections.js';
 import { withNativeMeasurementLinks } from './native-measurement-links.js';
 export { realizedFromExtraData } from './realized-measurements.js';
 import { withScopeGroups } from './scope-groups.js';
@@ -473,29 +474,14 @@ export function realizedReportWhere(projectIds) {
 async function aggregateRealized(projectIds) {
   const byProject = new Map(); // projectId -> Map<serviceType, {tubulacaoM, oleoL}>
   if (projectIds.length === 0) return byProject;
-
-  const [nativeServices, historicalServices] = await Promise.all([prisma.reportService.findMany({
-    where: realizedReportWhere(projectIds),
-    select: {
-      id: true,
-      finalized: true,
-      serviceType: true,
-      system: true,
-      extraData: true,
-      report: { select: { id: true, projectId: true, reportType: true, specialConditions: true, measurementLinks: true } }
+  const servicesByProject = await loadReportServicesByProject(projectIds);
+  for (const [projectId, services] of servicesByProject) {
+    const byType = new Map();
+    for (const service of services) {
+      if (!isServiceFinalized(service) || !isRealizedSourceReport(service)) continue;
+      addRealizedService(byType, service);
     }
-  }), loadHistoricalRealizedServices(prisma, projectIds)]);
-
-  for (const svc of [...withNativeMeasurementLinks(nativeServices), ...historicalServices]) {
-    if (!isServiceFinalized(svc)) continue; // só serviços finalizados entram no avanço
-    if (!isRealizedSourceReport(svc.report)) continue;
-    const canonical = normalizeRdoServiceType(svc.serviceType);
-    if (!canonical) continue;
-    const projectId = svc.report?.projectId;
-    if (!projectId) continue;
-    if (!byProject.has(projectId)) byProject.set(projectId, new Map());
-    const byType = byProject.get(projectId);
-    addRealizedService(byType, svc, canonical);
+    byProject.set(projectId, byType);
   }
   return byProject;
 }
@@ -543,8 +529,9 @@ export async function computeProgressForProjects(projectIds) {
 
 // Serviços de relatório (nativos + históricos) de cada projeto, no formato consumido pela linha do
 // tempo do avanço. Compartilhado pelo histórico do projeto e pelo avanço por equipamento.
-async function loadReportServicesByProject(projectIds) {
-  const [reportServices, historicalServices] = await Promise.all([
+export async function loadReportServicesByProject(projectIds, { applyCorrections = true } = {}) {
+  if (!projectIds?.length) return new Map();
+  const [reportServices, historicalServices, corrections] = await Promise.all([
     prisma.reportService.findMany({
       where: {
         report: {
@@ -561,7 +548,10 @@ async function loadReportServicesByProject(projectIds) {
         report: { select: { id: true, projectId: true, reportType: true, reportDate: true, specialConditions: true, measurementLinks: true } }
       }
     }),
-    loadHistoricalRealizedServices(prisma, projectIds)
+    loadHistoricalRealizedServices(prisma, projectIds),
+    applyCorrections ? prisma.projectRealizedCorrection.findMany({
+      where: { projectId: { in: projectIds } }, orderBy: [{ revision: 'asc' }]
+    }) : []
   ]);
 
   const servicesByProject = new Map();
@@ -579,6 +569,18 @@ async function loadReportServicesByProject(projectIds) {
       reportType: service.report?.reportType,
       specialConditions: service.report?.specialConditions
     });
+  }
+  if (!applyCorrections || corrections.length === 0) return servicesByProject;
+  const correctionsByProject = new Map();
+  for (const row of corrections) {
+    if (!correctionsByProject.has(row.projectId)) correctionsByProject.set(row.projectId, []);
+    correctionsByProject.get(row.projectId).push(row);
+  }
+  for (const [projectId, revisions] of correctionsByProject) {
+    servicesByProject.set(projectId, applyDailyTubeCorrections(
+      servicesByProject.get(projectId) ?? [], revisions,
+      service => isServiceFinalized(service) && isRealizedSourceReport(service)
+    ));
   }
   return servicesByProject;
 }

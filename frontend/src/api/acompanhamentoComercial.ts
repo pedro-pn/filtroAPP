@@ -599,6 +599,52 @@ export async function getProjectProgress(projectId: string): Promise<ProjectProg
   return data;
 }
 
+export type TubeCorrectionService = 'TESTE_PRESSAO' | 'LIMPEZA_QUIMICA' | 'FLUSHING';
+
+export interface RealizedCorrectionRevision {
+  revision: number;
+  sourceQuantityM: number;
+  quantityM: number | null;
+  reason: string;
+  reference: string | null;
+  createdAt: string;
+  createdByUserId: string | null;
+}
+
+export interface RealizedCorrectionRow {
+  date: string;
+  serviceType: TubeCorrectionService;
+  sourceMeters: number;
+  correctedMeters: number | null;
+  effectiveMeters: number;
+  sourceChanged: boolean;
+  revision: number;
+  reason: string | null;
+  reference: string | null;
+  createdAt: string | null;
+  createdByUserId: string | null;
+  history: RealizedCorrectionRevision[];
+}
+
+export interface RealizedCorrectionPayload {
+  date: string;
+  serviceType: TubeCorrectionService;
+  quantityM: number | null;
+  reason: string;
+  reference?: string | null;
+  expectedRevision: number;
+  expectedSourceMeters: number;
+}
+
+export async function listRealizedCorrections(projectId: string): Promise<{ rows: RealizedCorrectionRow[] }> {
+  const { data } = await apiClient.get<{ rows: RealizedCorrectionRow[] }>(`/acompanhamento/comercial/projetos/${projectId}/correcoes-realizado`);
+  return data;
+}
+
+export async function saveRealizedCorrection(projectId: string, payload: RealizedCorrectionPayload): Promise<void> {
+  await apiClient.put(`/acompanhamento/comercial/projetos/${projectId}/correcoes-realizado`, payload);
+}
+
 // --- Cards da aba Projetos ---
 
 export type LastDayStatus = 'TRABALHADO' | 'PARADO' | 'SEM_RDO';

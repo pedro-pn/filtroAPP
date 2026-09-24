@@ -59,6 +59,7 @@ function fixture(t) {
     return state.native.filter(record => inProjects(record.report, where.report.projectId.in));
   });
   stubFindMany('projectManualProgressHistory', async () => []);
+  stubFindMany('projectRealizedCorrection', async () => []);
   return state;
 }
 
@@ -81,7 +82,8 @@ test('pacote de avanço consolida dados atuais, histórico e recortes em uma rod
     'projectManualProgressHistory',
     'report',
     'reportService',
-    'historicalServiceReport'
+    'historicalServiceReport',
+    'projectRealizedCorrection'
   ]) {
     assert.equal(state.queryCounts.get(model), 1, `${model} deve ser consultado uma vez`);
   }

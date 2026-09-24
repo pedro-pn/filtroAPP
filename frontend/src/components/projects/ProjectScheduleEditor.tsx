@@ -473,7 +473,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)} state={{ scheduleReturnSearch: location.search }}>{reconciliationContent}</Link>
       )}
       <div className="sec" style={{ marginTop: 4 }}>Avanço físico (RDO × previsto)</div>
-      <ProjectProgressBreakdown projectId={projectId} />
+      <ProjectProgressBreakdown projectId={projectId} canManage={canManage} />
 
       <div className="acp-scope-divider" />
       <ProjectPlannedScopeEditor

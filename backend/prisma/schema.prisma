@@ -979,6 +979,7 @@ model Project {
   plannedOvertime            ProjectPlannedOvertime[]
   stockMovements             StockMovement[]
   manualProgressHistory      ProjectManualProgressHistory[]
+  realizedCorrections        ProjectRealizedCorrection[]
   manualCosts                ProjectManualCost[]
   managementNotes            ProjectManagementNote[]
   additionalProposals        ProjectAdditionalProposal[]
@@ -3538,6 +3539,27 @@ model ProjectPlannedServiceSystem {
   @@index([projectSystemId])
 
   @@index([serviceId])
+}
+
+// Revisões do realizado validado para o Acompanhamento. A última revisão por
+// dia/serviço substitui apenas a metragem de tubulação daquele dia; quantidade
+// nula restaura a leitura original dos RDOs. Revisões antigas nunca são apagadas.
+model ProjectRealizedCorrection {
+  id              String   @id @default(cuid())
+  projectId       String
+  measureDate     DateTime @db.Date
+  serviceType     String
+  revision        Int
+  sourceQuantityM Decimal  @db.Decimal(14, 2)
+  quantityM       Decimal? @db.Decimal(14, 2)
+  reason          String   @db.VarChar(1000)
+  reference       String?  @db.VarChar(500)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, measureDate, serviceType, revision])
+  @@index([projectId, measureDate])
 }
 
 // Equipamento/UG e sistema DO CLIENTE, sem vínculo com o cadastro de Equipment.

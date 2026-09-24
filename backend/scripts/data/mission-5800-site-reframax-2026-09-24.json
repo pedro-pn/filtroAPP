@@ -1,0 +1,33 @@
+{
+  "projectCode": "5800",
+  "validatedThrough": "2026-09-22",
+  "reference": "https://pulso-da-obra-2026.erikesimas.chatgpt.site/",
+  "sourceTotalsM": { "TESTE_PRESSAO": 7487.6, "LIMPEZA_QUIMICA": 7769.6, "FLUSHING": 7348.6 },
+  "validatedTotalsM": { "TESTE_PRESSAO": 6609.6, "LIMPEZA_QUIMICA": 6584.97, "FLUSHING": 6534 },
+  "corrections": [
+    { "date": "2026-08-03", "serviceType": "FLUSHING", "originalMeters": 167, "quantityM": 267 },
+    { "date": "2026-08-18", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 164.6, "quantityM": 66 },
+    { "date": "2026-08-21", "serviceType": "FLUSHING", "originalMeters": 488.6, "quantityM": 306.6 },
+    { "date": "2026-08-21", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 46, "quantityM": 26 },
+    { "date": "2026-08-23", "serviceType": "TESTE_PRESSAO", "originalMeters": 416, "quantityM": 263 },
+    { "date": "2026-08-24", "serviceType": "FLUSHING", "originalMeters": 102.6, "quantityM": 0 },
+    { "date": "2026-08-25", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 627.8, "quantityM": 527.8 },
+    { "date": "2026-09-01", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 368, "quantityM": 158 },
+    { "date": "2026-09-01", "serviceType": "TESTE_PRESSAO", "originalMeters": 368, "quantityM": 158 },
+    { "date": "2026-09-02", "serviceType": "FLUSHING", "originalMeters": 118, "quantityM": 328 },
+    { "date": "2026-09-03", "serviceType": "FLUSHING", "originalMeters": 210, "quantityM": 105 },
+    { "date": "2026-09-03", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 560, "quantityM": 280 },
+    { "date": "2026-09-03", "serviceType": "TESTE_PRESSAO", "originalMeters": 560, "quantityM": 280 },
+    { "date": "2026-09-04", "serviceType": "FLUSHING", "originalMeters": 560, "quantityM": 380 },
+    { "date": "2026-09-09", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 320, "quantityM": 250 },
+    { "date": "2026-09-10", "serviceType": "FLUSHING", "originalMeters": 320, "quantityM": 0 },
+    { "date": "2026-09-10", "serviceType": "TESTE_PRESSAO", "originalMeters": 235, "quantityM": 0 },
+    { "date": "2026-09-11", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 235, "quantityM": 0 },
+    { "date": "2026-09-14", "serviceType": "FLUSHING", "originalMeters": 235, "quantityM": 0 },
+    { "date": "2026-09-14", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 0, "quantityM": 235 },
+    { "date": "2026-09-18", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 196, "quantityM": 0 },
+    { "date": "2026-09-21", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 196, "quantityM": 0 },
+    { "date": "2026-09-22", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 130.4, "quantityM": 130.37 },
+    { "date": "2026-09-23", "serviceType": "LIMPEZA_QUIMICA", "originalMeters": 14, "quantityM": 0 }
+  ]
+}
