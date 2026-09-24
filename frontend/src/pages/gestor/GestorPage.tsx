@@ -6,9 +6,10 @@ import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
+import { fileToDataUrl } from '../../utils/fileToDataUrl';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
-import { isReportManuallyReleased } from '../../utils/reportClientRelease';
+import { isReportManuallyReleased, toggleReportClientRelease } from '../../utils/reportClientRelease';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   createPointerDragGhost,
@@ -53,6 +54,7 @@ import {
   replicateManualReportCollaborators,
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
+import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import { CollaboratorForm, type CollaboratorFormState } from './CollaboratorForm';
@@ -445,15 +447,6 @@ function signerFirstName(signer: ClientSigner) {
 
 function signerLastName(signer: ClientSigner) {
   return signer.lastName || splitSignerName(signer.name).lastName;
-}
-
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function normalizeSignatureImage(value?: string | null) {
@@ -1167,7 +1160,6 @@ export function GestorPage() {
   const [manualReportSubmitting, setManualReportSubmitting] = useState(false);
   const [manualReportCollaboratorPrompts, setManualReportCollaboratorPrompts] = useState<ManualReportCollaboratorReplicationPrompt[]>([]);
   const [physicalSignatureReport, setPhysicalSignatureReport] = useState<ReportSummary | null>(null);
-  const [physicalSignatureFile, setPhysicalSignatureFile] = useState<File | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
@@ -2055,38 +2047,6 @@ export function GestorPage() {
     }
   }
 
-  async function handleClientRelease(report: ReportSummary) {
-    const release = !isReportManuallyReleased(report);
-    try {
-      await reportMutations.clientRelease.mutateAsync({ id: report.id, release });
-      showToast(release ? 'Relatório de serviço liberado para o cliente.' : 'Liberação individual revogada.', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível alterar a liberação.', 'error');
-    }
-  }
-
-  async function handlePhysicalSignatureSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!physicalSignatureReport || !physicalSignatureFile) return;
-    if (physicalSignatureFile.size > 20 * 1024 * 1024) {
-      showToast('O PDF assinado deve ter até 20 MB.', 'error');
-      return;
-    }
-    try {
-      const pdfDataUrl = await fileToDataUrl(physicalSignatureFile);
-      await reportMutations.uploadPhysicalSignature.mutateAsync({
-        id: physicalSignatureReport.id,
-        fileName: physicalSignatureFile.name,
-        pdfDataUrl
-      });
-      setPhysicalSignatureReport(null);
-      setPhysicalSignatureFile(null);
-      showToast('RDO assinado em papel registrado. Relatórios de serviço vinculados foram atualizados.', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível registrar o PDF assinado.', 'error');
-    }
-  }
-
   async function handleReportDownload(report: ReportSummary, format: 'pdf' | 'docx') {
     const fileName = reportDownloadFileName(report, format);
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
@@ -2493,7 +2453,7 @@ export function GestorPage() {
             className="mini-btn alt"
             type="button"
             disabled={reportMutations.clientRelease.isPending}
-            onClick={() => void handleClientRelease(report)}
+            onClick={() => void toggleReportClientRelease(report, release => reportMutations.clientRelease.mutateAsync({ id: report.id, release }), showToast)}
           >
             {isReportManuallyReleased(report) ? 'Revogar liberação' : 'Liberar ao cliente'}
           </button>
@@ -2502,7 +2462,7 @@ export function GestorPage() {
           <button
             className="mini-btn alt"
             type="button"
-            onClick={() => { setPhysicalSignatureReport(report); setPhysicalSignatureFile(null); }}
+            onClick={() => setPhysicalSignatureReport(report)}
           >
             Enviar assinado
           </button>
@@ -4353,34 +4313,12 @@ export function GestorPage() {
 
       {renderManualReportModal()}
 
-      <Modal
-        open={Boolean(physicalSignatureReport)}
-        onClose={() => { if (!reportMutations.uploadPhysicalSignature.isPending) { setPhysicalSignatureReport(null); setPhysicalSignatureFile(null); } }}
-        ariaLabelledBy="physical-signature-title"
-        ariaDescribedBy="physical-signature-description"
-      >
-        <form className="admin-form" onSubmit={event => void handlePhysicalSignatureSubmit(event)}>
-          <h2 className="section-title" id="physical-signature-title">Registrar RDO assinado em papel</h2>
-          <p className="placeholder-copy" id="physical-signature-description">
-            Envie a digitalização assinada de {physicalSignatureReport?.reportType} {physicalSignatureReport?.sequenceNumber || '—'}.
-            O PDF enviado será a versão final, o RDO ficará bloqueado e os relatórios de serviço vinculados seguirão a liberação por assinatura.
-          </p>
-          <PdfDropzone
-            id="physical-signature-pdf"
-            label="PDF assinado pelo cliente"
-            file={physicalSignatureFile}
-            onFile={setPhysicalSignatureFile}
-            disabled={reportMutations.uploadPhysicalSignature.isPending}
-            emptyHint="PDF de até 20 MB"
-          />
-          <div className="admin-form-actions physical-signature-actions">
-            <button className="secondary-button" type="button" disabled={reportMutations.uploadPhysicalSignature.isPending} onClick={() => { setPhysicalSignatureReport(null); setPhysicalSignatureFile(null); }}>Cancelar</button>
-            <button className="primary-button" type="submit" disabled={!physicalSignatureFile || reportMutations.uploadPhysicalSignature.isPending}>
-              {reportMutations.uploadPhysicalSignature.isPending ? 'Enviando...' : 'Registrar assinatura física'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {physicalSignatureReport ? <PhysicalSignatureDialog
+        report={physicalSignatureReport}
+        onClose={() => setPhysicalSignatureReport(null)}
+        upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)}
+        uploadPending={reportMutations.uploadPhysicalSignature.isPending}
+      /> : null}
 
       <Modal
         open={showSegmentForm}
