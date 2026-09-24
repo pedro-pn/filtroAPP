@@ -1842,7 +1842,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           <div><span className="detail-label">Data</span><span className="detail-value">{formatDateOnlyPtBr(report.reportDate)}</span></div>
           <div><span className="detail-label">{TEXT.time}</span><span className="detail-value">{report.arrivalTime} às {report.departureTime}</span></div>
           <div><span className="detail-label">{TEXT.interval}</span><span className="detail-value">{report.lunchBreak || '-'}</span></div>
-          <div><span className="detail-label">Status</span><span className="detail-value">{statusLabels[report.status] || report.status}</span></div>
+          <div><span className="detail-label">Status</span><span className="detail-value">{report.status === 'SIGNED' && report.physicalSignedAt ? 'Assinado em papel' : statusLabels[report.status] || report.status}</span></div>
           {isStandby ? <div><span className="detail-label">Standby</span><span className="detail-value">Sim</span></div> : null}
           {isNoturno ? <div><span className="detail-label">Turno noturno</span><span className="detail-value">Sim</span></div> : null}
         </div>

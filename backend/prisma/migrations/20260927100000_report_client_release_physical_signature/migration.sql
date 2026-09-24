@@ -1,0 +1,9 @@
+ALTER TYPE "ReportAuditAction" ADD VALUE 'CLIENT_RELEASED';
+ALTER TYPE "ReportAuditAction" ADD VALUE 'CLIENT_RELEASE_REVOKED';
+ALTER TYPE "ReportAuditAction" ADD VALUE 'PHYSICAL_SIGNATURE_UPLOADED';
+
+ALTER TABLE "Report"
+  ADD COLUMN "clientReleasedAt" TIMESTAMP(3),
+  ADD COLUMN "clientReleasedByUserId" TEXT,
+  ADD COLUMN "physicalSignedAt" TIMESTAMP(3),
+  ADD COLUMN "physicalSignedByUserId" TEXT;

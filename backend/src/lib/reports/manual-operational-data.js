@@ -356,6 +356,9 @@ export async function updateManualReportOperationalData({
   if (isReportUnavailable(existing)) {
     return { status: 404, body: { error: 'Relatório não encontrado.' } };
   }
+  if (existing.physicalSignedAt) {
+    return { status: 409, body: { error: 'Relatório assinado em papel não pode mais ser alterado.' } };
+  }
   if (!isManualUploaded(existing)) {
     return {
       status: 400,

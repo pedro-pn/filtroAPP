@@ -226,6 +226,18 @@ export async function replaceManualReportPdf(id: string, payload: ManualReportPd
   return response.data;
 }
 
+export async function setServiceReportClientRelease(id: string, release: boolean) {
+  const response = await apiClient.patch<ReportSummary>(rdoApiPath(`/reports/${id}/client-release`), { release });
+  return response.data;
+}
+
+export async function uploadPhysicalSignedReport(id: string, payload: { fileName: string; pdfDataUrl: string }) {
+  const response = await apiClient.post<{ report: ReportSummary; releasedServiceReports: ReleasedServiceReportNotification[] }>(
+    rdoApiPath(`/reports/${id}/physical-signature`), payload
+  );
+  return response.data;
+}
+
 export async function updateReport(id: string, payload: Omit<ReportPayload, 'createdByUserId' | 'status'>) {
   const response = await apiClient.put<ReportSummary>(rdoApiPath(`/reports/${id}`), payload);
   return response.data;
