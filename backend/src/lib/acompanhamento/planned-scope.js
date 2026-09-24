@@ -10,6 +10,7 @@
 import prisma from '../prisma.js';
 import { resolvePlannedSystem } from './project-systems.js';
 import { normalizeRdoServiceType } from './avanco.js';
+import { latestRealizedCorrections } from './realized-corrections.js';
 import { assertDistinctScopeMeasurements } from './scope-groups.js';
 import { loadPlannedHours, plannedHoursConflict } from './planned-hours.js';
 
@@ -88,6 +89,15 @@ export async function getPlannedScope(projectId) {
 // Substitui todo o escopo previsto do projeto pelos conjuntos informados (já validados pela rota).
 export async function setPlannedScope(projectId, { services = [], normalHours, overtime, hoursFingerprint } = {}) {
   assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
+  const currentCorrections = latestRealizedCorrections(await prisma.projectRealizedCorrection.findMany({ where: { projectId } }));
+  for (const correction of currentCorrections.values()) {
+    if (correction.quantityM == null) continue;
+    const tubeRows = services.filter(service => normalizeRdoServiceType(service.serviceType) === correction.serviceType)
+      .flatMap(service => service.systems ?? []).filter(row => row.systemType === 'TUBULACAO');
+    if (!tubeRows.some(row => Number(row.quantity) > 0) || tubeRows.some(row => row.projectSystemId || row.equipment || row.systemName)) {
+      throw new Error('Há correções de metragem neste serviço. Restaure-as antes de trocar a meta global por metas por sistema ou remover o serviço.');
+    }
+  }
   const modes = new Map();
   for (const service of services) for (const row of service.systems ?? []) {
     if (row.systemType === 'SISTEMA' && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_QUIMICA'

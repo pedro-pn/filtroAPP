@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { getProjectProgress, type ProgressSystem } from '../../api/acompanhamentoComercial';
 import { scopeKeyOf, systemNameKey } from '../../utils/projectSystemSelection';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import { ProjectRealizedCorrections } from './ProjectRealizedCorrections';
 
 const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -28,10 +29,11 @@ function systemLine(sys: ProgressSystem) {
 // `filter`/`progressPct` são opcionais: quando o dashboard já filtra por Escopo e/ou Equipamento/UG,
 // ele controla o recorte (chaves normalizadas, '' = todos, e o percentual do topo) e o seletor
 // interno deixa de aparecer.
-export function ProjectProgressBreakdown({ projectId, filter, progressPct }: {
+export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false }: {
   projectId: string;
   filter?: { scopeKey: string; equipmentKey: string };
   progressPct?: number | null;
+  canManage?: boolean;
 }) {
   const [ownEquipment, setEquipment] = useState('');
   const controlled = filter !== undefined;
@@ -89,6 +91,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct }: {
           {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
         </li>)}</ul>
       </details> : null}
+      <ProjectRealizedCorrections projectId={projectId} canManage={canManage} />
       <p className="placeholder-copy" style={{ marginTop: 6, fontSize: 11 }}>
         Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados.
         Metas por sistema consideram equipamento/UG, sistema e bitola. Em cada tipo de medição, a execução

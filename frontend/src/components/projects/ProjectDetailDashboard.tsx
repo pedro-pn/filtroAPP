@@ -1240,6 +1240,7 @@ export function ProjectDetailDashboard({
               <summary>Previsto × realizado por UG e sistema</summary>
               <ProjectProgressBreakdown
                 projectId={projectId}
+                canManage={canManage}
                 filter={progressFilters ? { scopeKey: activeScopeKey, equipmentKey: activeEquipmentKey } : undefined}
                 progressPct={selectedProgressSlice ? selectedProgressSlice.avancoPct : undefined}
               />

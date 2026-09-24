@@ -165,7 +165,7 @@ export function ProjectSystemReconciliation({ projectId, canManage, onBack }: {
             onSave={id => void save([selection(report, item)], id)} /> : null}
         </article>)}
       </section>)}
-    <details className="reconciliation-progress"><summary>Conferir avanço do escopo</summary><ProjectProgressBreakdown projectId={projectId} /></details>
+    <details className="reconciliation-progress"><summary>Conferir avanço do escopo</summary><ProjectProgressBreakdown projectId={projectId} canManage={canManage} /></details>
     </div>
   </div>;
 }
