@@ -103,11 +103,11 @@ export async function setPlannedScope(projectId, { services = [], normalHours, o
     if (row.systemType === 'SISTEMA' && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_QUIMICA'
       || !row.equipment?.trim() || !row.systemName?.trim() || !Number.isSafeInteger(row.quantity)
       || row.quantity <= 0 || row.quantity > 999999999999)) {
-      throw new Error('Sistemas por unidade exigem limpeza química, equipamento/UG, nome do sistema e quantidade inteira positiva.');
+      throw new Error('Sistemas por unidade exigem limpeza química, equipamento do cliente, nome do sistema e quantidade inteira positiva.');
     }
     const key = `${normalizeRdoServiceType(service.serviceType) ?? service.serviceType}:${row.systemType}`;
     const linked = Boolean(row.projectSystemId || row.equipment || row.systemName);
-    if (modes.has(key) && modes.get(key) !== linked) throw new Error('Para o mesmo serviço e tipo de medição, preencha UG e sistema em todas as linhas ou mantenha todas globais. Não misture uma meta total com suas partes.');
+    if (modes.has(key) && modes.get(key) !== linked) throw new Error('Para o mesmo serviço e tipo de medição, preencha equipamento do cliente e sistema em todas as linhas ou mantenha todas globais. Não misture uma meta total com suas partes.');
     modes.set(key, linked);
   }
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });

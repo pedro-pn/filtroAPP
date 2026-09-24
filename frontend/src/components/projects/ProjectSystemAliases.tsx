@@ -67,7 +67,7 @@ export function ProjectSystemAliases({ projectId }: { projectId: string }) {
     finally { setBusy(null); }
   }
   return <details style={{ marginTop: 16 }}>
-    <summary>Correspondência de nomes antigos por UG e sistema</summary>
+    <summary>Correspondência de nomes antigos por equipamento e sistema</summary>
     <p>Salve o escopo primeiro. Confirme apenas nomes equivalentes: a associação vale para esse nome, equipamento e serviço neste projeto. Um nome que reúne dois sistemas não deve ser associado integralmente a um deles. Para uma linha específica, use Serviços históricos.</p>
     <p role="status" aria-live="polite">{busy ? (busy === 'refresh' ? 'Atualizando a lista…' : 'Salvando equivalência e atualizando as pendências…') : feedback}</p>
     {error || unavailable ? <div>

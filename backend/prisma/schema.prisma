@@ -3562,7 +3562,7 @@ model ProjectRealizedCorrection {
   @@index([projectId, measureDate])
 }
 
-// Equipamento/UG e sistema DO CLIENTE, sem vínculo com o cadastro de Equipment.
+// Equipamento e sistema DO CLIENTE, sem vínculo com o cadastro de Equipment.
 // Identidade estável: salvar novamente o cronograma não recria este cadastro.
 model ProjectServiceSystem {
   id           String @id @default(cuid())

@@ -801,7 +801,7 @@ export function ProjectDetailDashboard({
     : data.avancoMethod === 'GROUP_SCOPE' || data.avancoMethod === 'GROUP_WEIGHTED' || data.avancoMethod === 'GROUP_AVERAGE'
       ? ' (consolidado)'
       : '';
-  // Avanço por Escopo e/ou Equipamento/UG do cliente: o recorte troca o percentual, o ritmo e o
+  // Avanço por Escopo e/ou equipamento do cliente: o recorte troca o percentual, o ritmo e o
   // histórico. A combinação escolhida aponta para um recorte já calculado pelo backend.
   const progressFilters = isGroup ? null : data.progressFilters ?? null;
   const progressScopes = progressFilters?.scopes ?? [];
@@ -1237,7 +1237,7 @@ export function ProjectDetailDashboard({
             <RequiredWeeklyProgressCard key={`${activeScopeKey}|${activeEquipmentKey}`} target={shownRequiredWeeklyProgress} />
             <ProgressHistoryChart key={`${activeScopeKey}|${activeEquipmentKey}`} points={shownProgressHistory} />
             {!isGroup && projectId ? <details style={{ marginTop: 12 }}>
-              <summary>Previsto × realizado por UG e sistema</summary>
+              <summary>Previsto × realizado por equipamento e sistema</summary>
               <ProjectProgressBreakdown
                 projectId={projectId}
                 canManage={canManage}

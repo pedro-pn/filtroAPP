@@ -578,7 +578,7 @@ export interface RequiredWeeklyProgress {
   scopeGroups?: Array<{ scopeName: string | null; services: RequiredWeeklyProgress['services'] }>;
 }
 
-// Avanço de um recorte do projeto (escopo e/ou Equipamento/UG do cliente).
+// Avanço de um recorte do projeto (escopo e/ou equipamento do cliente).
 export interface ProgressSlice {
   avancoPct: number | null;
   progressHistory: ProgressHistoryPoint[];

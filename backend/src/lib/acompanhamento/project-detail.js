@@ -629,7 +629,7 @@ export async function getProjectDetail(projectId, {
     expectedEndDate,
     referenceDate: projectReferenceDate
   });
-  // Avanço por recorte (escopo e/ou Equipamento/UG do cliente); só projetos com o que filtrar.
+  // Avanço por recorte (escopo e/ou equipamento do cliente); só projetos com o que filtrar.
   const progressFilters = progressSlices ? {
     scopes: progressSlices.scopes,
     equipments: progressSlices.equipments,
