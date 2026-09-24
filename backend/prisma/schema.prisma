@@ -1035,6 +1035,10 @@ model EfetivoPlan {
 model ProjectWorkflow {
   projectId                          String                                 @id
   stage                              ProjectWorkflowStage                   @default(HANDOVER)
+  // Projeto de "fluxo legado" iniciado pelo resumido: guarda a etapa em que a gestão nasceu, para tratar as
+  // etapas anteriores como "não se aplica" (régua de etapas e gate de mobilização) em vez de pendência real —
+  // elas nunca existiram de fato para este projeto. Nulo em todo projeto que passou pelo handover normal.
+  legacySummaryEntryStage             ProjectWorkflowStage?
   leaderUserId                       String
   plannerUserId                      String?
   acceptedAt                         DateTime?
@@ -1089,6 +1093,7 @@ model ProjectWorkflow {
   planner                            User?                                  @relation("ProjectWorkflowPlanner", fields: [plannerUserId], references: [id], onDelete: SetNull)
   closedBy                           User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   checklists                         ProjectWorkflowChecklist[]
+  weeklyExecutionReviews             ProjectExecutionWeeklyReview[]
   teamMemberChecks                   ProjectWorkflowTeamMemberCheck[]
   preparationItemChecks              ProjectWorkflowPreparationItemCheck[]
   clientReleases                     ProjectWorkflowClientRelease[]
@@ -1324,6 +1329,23 @@ model ProjectWorkflowChecklist {
 
   @@unique([projectId, key])
   @@index([updatedByUserId])
+}
+
+model ProjectExecutionWeeklyReview {
+  projectId         String
+  weekStartDate     DateTime        @db.Date
+  checks            Json            @default("{}")
+  note              String?         @db.Text
+  completedAt       DateTime?
+  completedByUserId String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  workflow          ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  completedBy       User?           @relation("ProjectExecutionWeeklyReviewCompleter", fields: [completedByUserId], references: [id], onDelete: SetNull)
+
+  @@id([projectId, weekStartDate])
+  @@index([projectId, completedAt])
+  @@index([completedByUserId])
 }
 
 model ProjectWorkflowTeamMemberCheck {
@@ -2547,6 +2569,7 @@ model User {
   closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
   projectWorkflowEmailNotifications    ProjectWorkflowEmailNotification[]   @relation("ProjectWorkflowEmailNotificationRecipient")
   updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
+  completedProjectExecutionWeeklyReviews ProjectExecutionWeeklyReview[]     @relation("ProjectExecutionWeeklyReviewCompleter")
   updatedProjectWorkflowTeamChecks     ProjectWorkflowTeamMemberCheck[]     @relation("ProjectWorkflowTeamMemberCheckUpdater")
   updatedProjectWorkflowPreparationItemChecks ProjectWorkflowPreparationItemCheck[] @relation("ProjectWorkflowPreparationItemCheckUpdater")
   updatedProjectWorkflowClientReleases ProjectWorkflowClientRelease[]       @relation("ProjectWorkflowClientReleaseUpdater")

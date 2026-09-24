@@ -61,11 +61,13 @@ export function Modal({
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       if (closeOnEscape) onClose();
       return;
     }
 
     if (event.key !== 'Tab') return;
+    event.stopPropagation();
     const panel = panelRef.current;
     if (!panel) return;
     const focusable = visibleFocusableElements(panel);

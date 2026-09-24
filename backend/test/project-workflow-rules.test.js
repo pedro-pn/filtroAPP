@@ -50,6 +50,38 @@ function fullClientContactChecklist() {
   return Object.fromEntries(PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST.map(item => [item.key, { answer: false, note: null, updatedAt: '2026-09-01' }]));
 }
 
+test('fluxo legado resumido: schema exige desmobilização a partir de Desmobilização, cronologia e equipamentos sem repetição', () => {
+  const { startLegacySummary } = makeProjectWorkflowSchemas(z);
+  const base = {
+    stage: 'EXECUTION',
+    leaderUserId: 'leader-1',
+    plannerUserId: 'leader-2',
+    startDate: '2026-09-02',
+    equipmentSelections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'] }]
+  };
+  assert.equal(startLegacySummary.safeParse(base).success, true);
+  // Antes da Desmobilização, a data não é exigida.
+  assert.equal(startLegacySummary.safeParse({ ...base, stage: 'MOBILIZATION' }).success, true);
+  // A partir da Desmobilização, é obrigatória.
+  const missingDemob = startLegacySummary.safeParse({ ...base, stage: 'DEMOBILIZATION' });
+  assert.equal(missingDemob.success, false);
+  assert.equal(startLegacySummary.safeParse({ ...base, stage: 'DEMOBILIZATION', demobilizationDate: '2026-09-10' }).success, true);
+  // Cronologia: nada pode ser anterior ao início.
+  assert.equal(startLegacySummary.safeParse({ ...base, stage: 'DEMOBILIZATION', demobilizationDate: '2026-09-01' }).success, false);
+  assert.equal(startLegacySummary.safeParse({ ...base, endDate: '2026-09-01' }).success, false);
+  // Equipamento repetido entre categorias diferentes é rejeitado.
+  const duplicated = startLegacySummary.safeParse({
+    ...base,
+    equipmentSelections: [
+      { categoryId: 'category-1', equipmentIds: ['equipment-1'] },
+      { categoryId: 'category-2', equipmentIds: ['equipment-1'] }
+    ]
+  });
+  assert.equal(duplicated.success, false);
+  // Só serve para etapas a partir da Mobilização — Handover/Análise/Planejamento/Preparação ficam fora.
+  assert.equal(startLegacySummary.safeParse({ ...base, stage: 'PREPARATION' }).success, false);
+});
+
 test('contrato exige justificativa para não aplicável, valida documentação e exige versão', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
   const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
@@ -416,6 +448,16 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   gate = projectWorkflowMobilizationGate(workflow);
   assert.equal(gate.ready, false);
   assert.equal(gate.blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), true);
+});
+
+test('fluxo legado resumido: gate de mobilização não bloqueia romaneios/retiradas — a Preparação foi pulada de propósito', () => {
+  // Mesmo com um workflow praticamente vazio (nenhuma frente preenchida), `legacySummaryEntryStage` garante que
+  // o gate nunca cobre uma etapa que este projeto nunca passou.
+  const gate = projectWorkflowMobilizationGate({ legacySummaryEntryStage: 'EXECUTION', stage: 'EXECUTION' });
+  assert.equal(gate.ready, true);
+  assert.deepEqual(gate.fronts, []);
+  assert.deepEqual(gate.blockers, []);
+  assert.equal(gate.deadlineStatus, 'READY');
 });
 
 test('hospedagem e frete dispensados no D-30 não criam campos obrigatórios no D-15', () => {

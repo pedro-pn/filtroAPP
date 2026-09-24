@@ -95,6 +95,8 @@ import {
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
+import { createReportPdfAccessChecker, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
 import { createProjectSystemsRouter } from './project-systems.js';
 import { assertReportServicesProject } from '../../lib/reports/service-project-validation.js';
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
@@ -1780,11 +1782,6 @@ async function reportProjectTotal(where, client = prisma) {
   return groups.length;
 }
 
-function reportListUsesSummarySelect(query) {
-  const value = String(query.summary || '').trim().toLowerCase();
-  return value === 'true' || value === '1';
-}
-
 export async function canAccessReport(auth, report, options = {}) {
   if (isReportUnavailable(report)) return false;
   if (auth.user.role === 'MANAGER') return true;
@@ -1802,6 +1799,8 @@ export async function canAccessReport(auth, report, options = {}) {
   if (collaboratorHasAuthorizedProjectLink(auth, report.project)) return true;
   return false;
 }
+
+export const canAccessReportPdf = createReportPdfAccessChecker({ canAccessReport, isReportUnavailable, database: prisma });
 
 export function collaboratorCanMutateReport(auth, report) {
   if (auth.user?.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
@@ -6348,7 +6347,7 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   res.json(await withDerivedServiceReportParentMeta(item));
 }));
 
-router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   res.on('close', () => {
     if (!res.writableEnded) abortController.abort();
@@ -6363,7 +6362,7 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   const clientVisibilityById = req.auth.user.role === 'CLIENT'
     ? await clientVisibilityMapForReports([item])
     : null;
-  if (!(await canAccessReport(req.auth, item, { clientVisibilityById }))) {
+  if (!(await canAccessReportPdf(req.auth, item, { clientVisibilityById }))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 

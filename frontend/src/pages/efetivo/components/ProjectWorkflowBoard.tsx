@@ -27,9 +27,11 @@ import {
   listProjectWorkflowLeaders,
   listProjectWorkflows,
   projectWorkflowErrorIssues,
+  startLegacyProjectWorkflowSummary,
   startProjectWorkflow,
   updateProjectWorkflow,
   type ProjectOperationalMissionSummary,
+  type ProjectWorkflowLegacySummaryInput,
   type ProjectWorkflowPatch,
   type ProjectWorkflowStage,
   type ProjectWorkflowSummary
@@ -299,6 +301,7 @@ function ProjectCard({
           </small>
         ) : null}
         {workflow.stage === 'EXECUTION' ? <small className="project-workflow-execution-badge">Acompanhamento operacional ativo</small> : null}
+        {workflow.stage === 'EXECUTION' && workflow.weeklyReviewPendingCount ? <small className="project-workflow-deadline-alert">Verificação semanal: {workflow.weeklyReviewPendingCount} pendente(s)</small> : null}
         {workflow.stage === 'MOBILIZATION' ? <small className="project-workflow-execution-badge">Mobilização operacional em andamento</small> : null}
         {workflow.stage === 'DEMOBILIZATION' ? <small className="project-workflow-execution-badge">Desmobilização: {workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</small> : null}
         {workflow.stage === 'POST_JOB' ? <small className="project-workflow-execution-badge">Pós-job: {workflow.postJobReadiness.completed}/{workflow.postJobReadiness.total} · {workflow.postJobReadiness.percentage}%</small> : null}
@@ -415,6 +418,17 @@ export function ProjectWorkflowBoard({
     queryKey: ['project-workflows', search, page],
     queryFn: () => listProjectWorkflows(search, page)
   });
+  useEffect(() => {
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+    let currentDay = formatter.format(new Date());
+    const timer = window.setInterval(() => {
+      const nextDay = formatter.format(new Date());
+      if (nextDay === currentDay) return;
+      currentDay = nextDay;
+      void queryClient.invalidateQueries({ queryKey: ['project-workflows'] });
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [queryClient]);
   const planningMissions = useQuery({
     queryKey: ['efetivo-planning-missions', 'kanban'],
     queryFn: () => listPlanningMissions()
@@ -535,6 +549,19 @@ export function ProjectWorkflowBoard({
       toast('Handover iniciado.', 'success');
     },
     onError: (error: Error) => toast(error.message, 'error')
+  });
+
+  const startLegacySummary = useMutation({
+    mutationFn: (payload: ProjectWorkflowLegacySummaryInput) => startLegacyProjectWorkflowSummary(selectedProjectId!, payload),
+    onSuccess: async data => {
+      await refresh(data);
+      await queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] });
+      toast('Gestão resumida iniciada.', 'success');
+    },
+    onError: (error: Error) => {
+      const issues = projectWorkflowErrorIssues(error);
+      toast([...new Set([error.message, ...issues])].join(' · '), 'error');
+    }
   });
 
   const update = useMutation({
@@ -900,18 +927,6 @@ export function ProjectWorkflowBoard({
     endDrag();
   }
 
-  function moveLegacyFromDetail(stage: MissionStage, returnDate?: string | null) {
-    const project = list.data?.items.find(item => item.id === selectedProjectId);
-    if (!project?.operationalMission) return;
-    const target = (
-      Object.entries(LEGACY_PROJECT_STAGE_TO_MISSION)
-        .find(([, missionStage]) => missionStage === stage)?.[0] || 'HANDOVER'
-    ) as ProjectKanbanStage;
-    const snapshot = cloneProjectKanbanColumns(columns);
-    setColumns(moveProjectInColumns(columns, project.id, target));
-    moveLegacyMission.mutate({ project, stage, order: legacyOrder(stage), returnDate, snapshot });
-  }
-
   if (list.isLoading) {
     return <section className="page-card placeholder-copy">Carregando gestão de projetos…</section>;
   }
@@ -926,6 +941,7 @@ export function ProjectWorkflowBoard({
 
   const managedCount = list.data.items.filter(item => item.workflow).length;
   const overdueCount = list.data.items.reduce((sum, item) => sum + (item.workflow?.overdueIssueCount || 0), 0);
+  const weeklyPendingCount = list.data.items.reduce((sum, item) => sum + (item.workflow?.weeklyReviewPendingCount || 0), 0);
   const movingProjectId = (managedMove.isPending ? managedMove.variables?.project.id : undefined)
     || (moveLegacyMission.isPending ? moveLegacyMission.variables?.project.id : undefined);
 
@@ -935,6 +951,7 @@ export function ProjectWorkflowBoard({
         <span><strong>{list.data.total}</strong> projetos elegíveis</span>
         <span><strong>{managedCount}</strong> com gestão iniciada nesta página</span>
         <span><strong>{overdueCount}</strong> pendências vencidas</span>
+        {weeklyPendingCount ? <span><strong>{weeklyPendingCount}</strong> verificações semanais pendentes</span> : null}
       </section>
       <section className="page-card project-workflow-toolbar">
         <div>
@@ -1145,12 +1162,18 @@ export function ProjectWorkflowBoard({
         leaders={leaders.data || []}
         loading={Boolean(selectedProjectId && detail.isLoading)}
         error={Boolean(selectedProjectId && detail.isError)}
-        saving={start.isPending || update.isPending || saveInitialTeam.isPending || managedMove.isPending || moveLegacyMission.isPending}
+        saving={start.isPending || startLegacySummary.isPending || update.isPending || saveInitialTeam.isPending || managedMove.isPending || moveLegacyMission.isPending}
         onRetry={() => void detail.refetch()}
         onClose={() => onProjectSelect(undefined)}
         onStart={values => start.mutate(values)}
         onPatch={payload => update.mutate(payload)}
-        onMoveLegacyMission={moveLegacyFromDetail}
+        onStartLegacySummary={payload => startLegacySummary.mutate(payload)}
+        legacySummaryMission={
+          detail.data?.project.operationalMission
+            ? (planningMissions.data || []).find(mission => mission.id === detail.data!.project.operationalMission!.id) || null
+            : null
+        }
+        legacySummaryRoles={planningRoles.data || []}
         onOpenTeamProgramming={() => {
           if (!detail.data) return;
           const stage = detail.data.workflow?.stage;
