@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 
+import { PortalTip } from '../../../components/ui/PortalTip';
 import { getPlanningAvailability, type PeriodAvailabilityStatus, type PlanningAvailabilityPeriod } from '../../../api/efetivoPlanning';
 import { displayDateOnly, parseDateOnly } from '../../../utils/calendarGrid';
 import { buildCalendarBuckets, type CalendarBucket, type CalendarScale } from '../../../utils/availabilityCalendar';
@@ -52,6 +53,45 @@ function bucketPeriod(bucket: CalendarBucket) {
 function statusStripe(statuses: Array<PeriodAvailabilityStatus | 'OUTSIDE_EMPLOYMENT'>) {
   const width = 100 / statuses.length;
   return `linear-gradient(to right, ${statuses.map((status, index) => `${STATUS_COLOR[status]} ${(index * width).toFixed(3)}% ${((index + 1) * width).toFixed(3)}%`).join(', ')})`;
+}
+
+function AvailabilityCalendarCell({ personName, bucket, byDate }: {
+  personName: string;
+  bucket: CalendarBucket;
+  byDate: Map<string, Person['days'][number]>;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState(0);
+  const states = bucket.dates.map(date => byDate.get(date));
+  const statuses = states.map(state => state?.status || 'OUTSIDE_EMPLOYMENT');
+  const hoveredDate = bucket.dates[hoveredIndex] || bucket.start;
+  const hoveredState = states[hoveredIndex];
+  const summary = `${personName} · ${bucketPeriod(bucket)} · ${[...new Set(statuses)].map(status => `${statuses.filter(item => item === status).length} ${status === 'OUTSIDE_EMPLOYMENT' ? 'fora do vínculo' : STATUS_META[status].short.toLocaleLowerCase('pt-BR')}`).join(', ')}`;
+  const updateHoveredDate = (event: MouseEvent<HTMLElement>) => {
+    if (bucket.dates.length === 1) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const index = Math.max(0, Math.min(bucket.dates.length - 1, Math.floor((event.clientX - bounds.left) / bounds.width * bucket.dates.length)));
+    setHoveredIndex(current => current === index ? current : index);
+  };
+
+  return <PortalTip
+    triggerClassName="efetivo-period-cell"
+    balloonClassName="efetivo-period-cell-tip"
+    ariaLabel={summary}
+    triggerTabIndex={-1}
+    content={<div className="efetivo-period-tooltip">
+      <strong>{personName}</strong>
+      <span>{dayLabel(hoveredDate)} · {displayDateOnly(hoveredDate)}</span>
+      <p>{hoveredState ? STATUS_META[hoveredState.status].short : 'Fora do vínculo'}</p>
+      {hoveredState?.detail ? <small>{hoveredState.detail}</small> : null}
+    </div>}
+  >
+    <i
+      aria-hidden="true"
+      style={{ background: statusStripe(statuses) }}
+      onMouseEnter={updateHoveredDate}
+      onMouseMove={updateHoveredDate}
+    />
+  </PortalTip>;
 }
 
 export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange }: {
@@ -164,14 +204,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
             const byDate = new Map(person.days.map(day => [day.date, day]));
             return <div className="efetivo-period-row" key={person.id} data-collaborator-id={person.id}>
               <div className="efetivo-period-name"><strong>{person.name}</strong><small>{person.role}</small></div>
-              {calendar.buckets.map(bucket => {
-                const states = bucket.dates.map(date => byDate.get(date));
-                const statuses = states.map(state => state?.status || 'OUTSIDE_EMPLOYMENT');
-                const counts = [...new Set(statuses)].map(status => `${statuses.filter(item => item === status).length} ${status === 'OUTSIDE_EMPLOYMENT' ? 'fora do vínculo' : STATUS_META[status].short.toLocaleLowerCase('pt-BR')}`);
-                const details = [...new Set(states.map(state => state?.detail).filter(Boolean))];
-                const label = `${person.name} · ${bucketPeriod(bucket)} · ${counts.join(', ')}${details.length ? ` · ${details.join(' · ')}` : ''}`;
-                return <span className="efetivo-period-cell" title={label} aria-label={label} key={bucket.key}><i style={{ background: statusStripe(statuses) }} /></span>;
-              })}
+              {calendar.buckets.map(bucket => <AvailabilityCalendarCell personName={person.name} bucket={bucket} byDate={byDate} key={bucket.key} />)}
             </div>;
           })}
         </div></div>
