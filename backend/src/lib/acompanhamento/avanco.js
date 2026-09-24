@@ -386,10 +386,10 @@ const scopeKeyOf = service => {
   return name ? systemNameKey(name) : NO_SCOPE_KEY;
 };
 
-// Recortes do escopo previsto por Escopo (nome do agrupamento) e por Equipamento/UG do cliente,
+// Recortes do escopo previsto por Escopo (nome do agrupamento) e por equipamento do cliente,
 // combináveis entre si. Cada recorte mantém os serviços com o próprio peso e só as linhas do
 // equipamento escolhido, então o avanço usa metas, pesos e realizado exclusivos dele. Escopo
-// legado (sem sistema vinculado) não pertence a nenhuma UG.
+// legado (sem sistema vinculado) não pertence a nenhum equipamento.
 //
 // `lookup` mapeia "escopo|equipamento" ('' = todos) para o índice em `entries`; `null` significa
 // "igual ao projeto inteiro" e ausência, combinação sem escopo medível. Combinações com os mesmos
@@ -450,7 +450,7 @@ export function splitPlannedServices(plannedServices = []) {
   };
 }
 
-// Avanço e histórico semanal de cada recorte (escopo e/ou Equipamento/UG). Null quando o projeto
+// Avanço e histórico semanal de cada recorte (escopo e/ou equipamento). Null quando o projeto
 // não tem o que filtrar.
 export function buildProgressSlices(plannedServices, serviceReports, { startDate = null } = {}) {
   const split = splitPlannedServices(plannedServices);
@@ -730,7 +730,7 @@ export async function computeProjectProgressDetails(projectId) {
   return details;
 }
 
-// Recortes de avanço (escopo e/ou Equipamento/UG do cliente) de um projeto; null quando não há o
+// Recortes de avanço (escopo e/ou equipamento do cliente) de um projeto; null quando não há o
 // que filtrar. O ritmo semanal é montado por quem conhece as datas do cronograma.
 export async function computeProgressSlicesForProject(projectId) {
   const plannedServices = await prisma.projectPlannedService.findMany({

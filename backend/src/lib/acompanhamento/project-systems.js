@@ -14,7 +14,7 @@ export function projectSystemWithMeasurements({ plannedRows = [], ...system }) {
   })) };
 }
 
-// Deliberadamente conservador: não equipara UG 1/UG 01, RV/regulador, nem nomes compostos.
+// Deliberadamente conservador: não equipara numerações abreviadas, siglas ou nomes compostos.
 // Essas correspondências só passam a valer após confirmação explícita de um alias.
 export const systemNameKey = value => String(value ?? '').normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -35,7 +35,7 @@ export function resolveProjectSystem(systems, { projectSystemId, equipment, syst
 export async function resolvePlannedSystem(client, projectId, row) {
   const equipment = String(row.equipment ?? '').trim(), name = String(row.systemName ?? '').trim();
   if (!equipment && !name && !row.projectSystemId) return null; // escopos anteriores continuam globais
-  if (!equipment || !name) throw historicalError('Preencha equipamento/UG e sistema juntos.');
+  if (!equipment || !name) throw historicalError('Preencha equipamento do cliente e sistema juntos.');
   const equipmentKey = systemNameKey(equipment), nameKey = systemNameKey(name);
   if (row.projectSystemId) {
     const existing = await client.projectServiceSystem.findFirst({ where: { id: row.projectSystemId, projectId } });

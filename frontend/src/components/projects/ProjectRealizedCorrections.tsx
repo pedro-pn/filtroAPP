@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 
 import {
   listRealizedCorrections, saveRealizedCorrection,
@@ -25,6 +25,7 @@ function parseMeters(input: string): number | null {
 
 export function ProjectRealizedCorrections({ projectId, canManage = false }: { projectId: string; canManage?: boolean }) {
   const client = useQueryClient();
+  const formRef = useRef<HTMLFormElement>(null);
   const queryKey = ['realized-corrections', projectId];
   const { data, isLoading, error } = useQuery({ queryKey, queryFn: () => listRealizedCorrections(projectId), ...acompanhamentoRefreshQueryOptions });
   const [date, setDate] = useState('');
@@ -33,7 +34,10 @@ export function ProjectRealizedCorrections({ projectId, canManage = false }: { p
   const [reason, setReason] = useState('');
   const [reference, setReference] = useState('');
   const [message, setMessage] = useState('');
+  const [showAll, setShowAll] = useState(false);
 
+  const correctedRows = data?.rows.filter(row => row.correctedMeters !== null) ?? [];
+  const visibleRows = showAll || correctedRows.length === 0 ? data?.rows ?? [] : correctedRows;
   const selected = data?.rows.find(row => row.date === date && row.serviceType === serviceType);
   const mutation = useMutation({
     mutationFn: (value: number | null) => saveRealizedCorrection(projectId, {
@@ -57,6 +61,7 @@ export function ProjectRealizedCorrections({ projectId, canManage = false }: { p
     setReason(row.reason || 'Metragem validada com o responsável pela obra.');
     setReference(row.reference || '');
     setMessage('');
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function submit(event: FormEvent) {
@@ -68,37 +73,70 @@ export function ProjectRealizedCorrections({ projectId, canManage = false }: { p
     mutation.mutate(value);
   }
 
-  return <details className="acp-progress-svc" style={{ marginTop: 12 }}>
-    <summary>Conciliação de metragens do realizado</summary>
-    <p>O valor validado substitui, nesta data e neste serviço, os metros dos RDOs no Acompanhamento e no Efetivo. Os relatórios originais permanecem disponíveis. Esta correção exige meta global de tubulação.</p>
-    {isLoading ? <p>Carregando metragens…</p> : error ? <p role="alert">Não foi possível carregar as correções.</p> : null}
-    {data?.rows.length ? <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th>Dia</th><th>Serviço</th><th>RDO</th><th>Validado</th><th>Diferença</th><th>Motivo / histórico</th>{canManage ? <th>Ação</th> : null}</tr></thead>
-        <tbody>{[...data.rows].reverse().map(row => <tr key={`${row.date}:${row.serviceType}`}>
-          <td>{dateLabel(row.date)}</td><td>{LABELS[row.serviceType]}</td><td>{quantity(row.sourceMeters)}</td>
-          <td>{row.correctedMeters === null ? '—' : quantity(row.correctedMeters)}</td>
-          <td>{row.correctedMeters === null ? '—' : quantity(row.effectiveMeters - row.sourceMeters)}</td>
-          <td>{row.sourceChanged ? <strong>O RDO mudou após a correção. Confira novamente. </strong> : null}{row.reason || 'Sem correção'}{row.history.length ? <details><summary>{row.history.length} revisão(ões)</summary>
-            <ol>{row.history.map(item => <li key={item.revision}>Rev. {item.revision} · {item.quantityM === null ? 'RDO restaurado' : quantity(item.quantityM)} · {item.reason}{item.reference ? ` · ${item.reference}` : ''}</li>)}</ol>
-          </details> : null}</td>
-          {canManage ? <td><button type="button" className="mini-btn" onClick={() => selectRow(row)}>Conferir</button></td> : null}
-        </tr>)}</tbody>
-      </table>
-    </div> : null}
-    {canManage ? <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 12 }}>
-      <label>Dia<input type="date" required value={date} onChange={event => setDate(event.target.value)} /></label>
-      <label>Serviço<select value={serviceType} onChange={event => setServiceType(event.target.value as TubeCorrectionService)}>
-        {Object.entries(LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select></label>
-      <label>Metragem validada (m)<input type="text" inputMode="decimal" required value={meters} onChange={event => setMeters(event.target.value)} placeholder="Ex.: 280,00" /></label>
-      <label style={{ gridColumn: '1 / -1' }}>Motivo<input type="text" required minLength={10} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ex.: conferência com o responsável da obra" /></label>
-      <label style={{ gridColumn: '1 / -1' }}>Referência (opcional)<input type="text" maxLength={500} value={reference} onChange={event => setReference(event.target.value)} placeholder="Planilha, ata ou link de conferência" /></label>
-      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button type="submit" className="mini-btn" disabled={mutation.isPending}>Salvar metragem validada</button>
-        {selected?.correctedMeters !== null && selected?.correctedMeters !== undefined ? <button type="button" className="mini-btn" disabled={mutation.isPending || reason.trim().length < 10} onClick={() => mutation.mutate(null)}>Restaurar valor do RDO</button> : null}
-        {message ? <span role="status">{message}</span> : null}
-      </div>
-    </form> : null}
+  return <details className="acp-realized">
+    <summary className="acp-realized-summary">
+      <span className="acp-realized-summary-copy">
+        <strong>Conciliação de metragens</strong>
+        <small>Compare o RDO com o realizado validado por dia e serviço.</small>
+      </span>
+      {correctedRows.length > 0 ? <span className="acp-realized-count">{correctedRows.length} {correctedRows.length === 1 ? 'ajuste' : 'ajustes'}</span> : null}
+    </summary>
+    <div className="acp-realized-content">
+      <p className="acp-realized-intro">A metragem validada substitui somente os metros deste dia no avanço. O RDO original permanece disponível.</p>
+      {isLoading ? <p className="placeholder-copy">Carregando metragens…</p> : error ? <p role="alert" className="acp-alert danger">Não foi possível carregar as correções.</p> : null}
+      {data?.rows.length ? <>
+        {correctedRows.length > 0 && data.rows.length > correctedRows.length ? <div className="acp-realized-toolbar">
+          <span>{showAll ? `${data.rows.length} lançamentos` : `${correctedRows.length} lançamentos ajustados`}</span>
+          <button type="button" className="mini-btn alt" onClick={() => setShowAll(value => !value)}>
+            {showAll ? 'Mostrar apenas ajustados' : 'Mostrar todos os dias'}
+          </button>
+        </div> : null}
+        <div className="acp-realized-list">
+          {[...visibleRows].reverse().map(row => {
+            const adjusted = row.correctedMeters !== null;
+            const difference = row.effectiveMeters - row.sourceMeters;
+            return <article className="acp-realized-row" key={`${row.date}:${row.serviceType}`}>
+              <div className="acp-realized-row-head">
+                <div className="acp-realized-identity"><time dateTime={row.date}>{dateLabel(row.date)}</time><strong>{LABELS[row.serviceType]}</strong></div>
+                <span className={`acp-realized-state ${adjusted ? 'is-adjusted' : ''}`}>{adjusted ? 'Validado' : 'Valor do RDO'}</span>
+              </div>
+              <div className="acp-realized-row-body">
+                <div className="acp-realized-measures">
+                  <div><span>RDO</span><strong>{quantity(row.sourceMeters)}</strong></div>
+                  <span className="acp-realized-arrow" aria-hidden="true">→</span>
+                  <div><span>Aplicado no avanço</span><strong>{quantity(row.effectiveMeters)}</strong></div>
+                  {adjusted ? <span className={`acp-realized-delta ${difference > 0 ? 'is-positive' : difference < 0 ? 'is-negative' : ''}`}>
+                    {difference > 0 ? '+' : ''}{quantity(difference)}
+                  </span> : null}
+                </div>
+                {canManage ? <button type="button" className="mini-btn alt" onClick={() => selectRow(row)}>Conferir</button> : null}
+              </div>
+              {row.sourceChanged ? <p className="acp-realized-warning">O RDO mudou após a correção. Confira este lançamento.</p> : null}
+              {row.reason ? <p className="acp-realized-reason">{row.reason}</p> : null}
+              {row.history.length > 0 ? <details className="acp-realized-history"><summary>Histórico de revisões ({row.history.length})</summary>
+                <ol>{row.history.map(item => <li key={item.revision}><strong>Revisão {item.revision}</strong> · {item.quantityM === null ? 'RDO restaurado' : quantity(item.quantityM)} · {item.reason}{item.reference ? ` · ${item.reference}` : ''}</li>)}</ol>
+              </details> : null}
+            </article>;
+          })}
+        </div>
+      </> : !isLoading && !error ? <p className="placeholder-copy">Nenhuma metragem de tubulação lançada neste projeto.</p> : null}
+      {canManage ? <form ref={formRef} onSubmit={submit} className="acp-realized-form">
+        <div className="acp-realized-form-heading"><strong>Registrar ou revisar metragem</strong><span>Disponível para serviços com meta global de tubulação.</span></div>
+        <div className="acp-realized-fields">
+          <div className="field-group"><label htmlFor={`realized-date-${projectId}`}>Dia</label><input id={`realized-date-${projectId}`} type="date" required value={date} onChange={event => setDate(event.target.value)} /></div>
+          <div className="field-group"><label htmlFor={`realized-service-${projectId}`}>Serviço</label><select id={`realized-service-${projectId}`} value={serviceType} onChange={event => setServiceType(event.target.value as TubeCorrectionService)}>
+            {Object.entries(LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select></div>
+          <div className="field-group"><label htmlFor={`realized-meters-${projectId}`}>Metragem validada (m)</label><input id={`realized-meters-${projectId}`} type="text" inputMode="decimal" required value={meters} onChange={event => setMeters(event.target.value)} placeholder="Ex.: 280,00" /></div>
+          <div className="field-group acp-realized-field-wide"><label htmlFor={`realized-reason-${projectId}`}>Motivo da correção</label><input id={`realized-reason-${projectId}`} type="text" required minLength={10} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ex.: conferência com o responsável pela obra" /></div>
+          <div className="field-group acp-realized-field-wide"><label htmlFor={`realized-reference-${projectId}`}>Referência (opcional)</label><input id={`realized-reference-${projectId}`} type="text" maxLength={500} value={reference} onChange={event => setReference(event.target.value)} placeholder="Planilha, ata ou link de conferência" /></div>
+        </div>
+        <div className="acp-realized-actions">
+          <button type="submit" className="mini-btn" disabled={mutation.isPending}>Salvar metragem validada</button>
+          {selected?.correctedMeters !== null && selected?.correctedMeters !== undefined ? <button type="button" className="mini-btn alt" disabled={mutation.isPending || reason.trim().length < 10} onClick={() => mutation.mutate(null)}>Restaurar valor do RDO</button> : null}
+          {message ? <span role="status">{message}</span> : null}
+        </div>
+      </form> : null}
+    </div>
   </details>;
 }
