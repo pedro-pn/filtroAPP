@@ -255,11 +255,18 @@ function Deviations({ projectId, data }: { projectId: string; data: Awaited<Retu
       {data.deviations.length ? <div className="project-execution-deviation-list">{data.deviations.map(deviation => {
         const impact = deviation.impact || 'BAIXO';
         const status = deviation.status || 'ABERTO';
-        return <article className={status === 'FECHADO' || status === 'DIVULGADO' ? 'is-closed' : ''} key={deviation.id}>
-        <header><div><span>{deviation.number} · {deviation.origin || 'Origem não informada'}</span><strong>{deviation.description || 'Descrição não informada'}</strong></div><span className={`is-${impact.toLowerCase()}`}>{IMPACT_LABELS[impact]}</span></header>
-        <dl><div><dt>Responsável</dt><dd>{deviation.actionOwner || '—'}</dd></div><div><dt>Prazo</dt><dd>{fmtDate(deviation.actionDeadline)}</dd></div><div><dt>Ação</dt><dd>{deviation.definedAction || '—'}</dd></div></dl>
-        <div className="project-execution-deviation-status"><label htmlFor={`execution-deviation-${deviation.id}`}>Status</label><select id={`execution-deviation-${deviation.id}`} value={status} disabled={!data.permissions.canEdit || updateStatus.isPending} onChange={event => updateStatus.mutate({ id: deviation.id, status: event.target.value as ProjectExecutionDeviationStatus })}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
-      </article>})}</div> : <p className="placeholder-copy">Nenhum desvio registrado para este projeto.</p>}
+        return <details className={status === 'FECHADO' || status === 'DIVULGADO' ? 'is-closed' : ''} key={deviation.id}>
+          <summary>
+            <div><span>{deviation.number} · {deviation.origin || 'Origem não informada'}</span><strong>{deviation.description || 'Descrição não informada'}</strong><small>{STATUS_LABELS[status]} · Prazo: {fmtDate(deviation.actionDeadline)}</small></div>
+            <span className={`project-execution-deviation-impact is-${impact.toLowerCase()}`}>{IMPACT_LABELS[impact]}</span>
+            <span className="project-execution-deviation-toggle"><span>Ver detalhes</span><span>Ocultar detalhes</span></span>
+          </summary>
+          <div className="project-execution-deviation-detail">
+            <div className="project-execution-deviation-status"><label htmlFor={`execution-deviation-${deviation.id}`}>Status</label><select id={`execution-deviation-${deviation.id}`} value={status} disabled={!data.permissions.canEdit || updateStatus.isPending} onChange={event => updateStatus.mutate({ id: deviation.id, status: event.target.value as ProjectExecutionDeviationStatus })}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+            <p>{deviation.description || 'Descrição não informada'}</p>
+            <dl><div><dt>Responsável</dt><dd>{deviation.actionOwner || '—'}</dd></div><div><dt>Prazo</dt><dd>{fmtDate(deviation.actionDeadline)}</dd></div><div><dt>Ação</dt><dd>{deviation.definedAction || '—'}</dd></div></dl>
+          </div>
+        </details>})}</div> : <p className="placeholder-copy">Nenhum desvio registrado para este projeto.</p>}
     </section>
   );
 }
