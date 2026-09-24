@@ -32,6 +32,7 @@ import {
   updateMissionCycle
 } from '../lib/efetivo/planning/cycles.js';
 import { getPlanningCalendar } from '../lib/efetivo/planning/calendar.js';
+import { getPlanningAvailabilityPeriod } from '../lib/efetivo/planning/availability-period.js';
 import {
   createPlanningCollaborator,
   updatePlanningCollaborator
@@ -155,6 +156,10 @@ router.get('/overview', requireEfetivoViewer, asyncHandler(async (req, res) => {
 
 router.get('/calendar', requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getPlanningCalendar(intervalQuerySchema.parse(req.query)));
+}));
+
+router.get('/availability', requireEfetivoViewer, asyncHandler(async (req, res) => {
+  res.json(await getPlanningAvailabilityPeriod(intervalQuerySchema.parse(req.query)));
 }));
 
 router.get('/collaborators', requireEfetivoViewer, asyncHandler(async (req, res) => {

@@ -43,7 +43,7 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
     enabled: search === debouncedSearch
   });
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['efetivo-planning-collaborators'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-overview'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-calendar'] })]);
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['efetivo-planning-collaborators'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-overview'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-calendar'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })]);
   const save = useMutation({
     mutationFn: (payload: CollaboratorInput) => editing ? updatePlanningCollaborator(editing.id, payload) : createPlanningCollaborator(payload),
     onSuccess: async () => { await refresh(); setFormOpen(false); setEditing(null); toast('Colaborador salvo.', 'success'); },

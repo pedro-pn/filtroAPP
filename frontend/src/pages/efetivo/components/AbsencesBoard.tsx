@@ -49,7 +49,8 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
       queryClient.invalidateQueries({ queryKey: ['efetivo', 'produtividade'] }),
       queryClient.invalidateQueries({ queryKey: ['efetivo-planning-collaborators'] }),
       queryClient.invalidateQueries({ queryKey: ['efetivo-planning-overview'] }),
-      queryClient.invalidateQueries({ queryKey: ['efetivo-planning-calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['efetivo-planning-calendar'] }),
+      queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
     ]);
   };
   const saveMutation = useMutation({

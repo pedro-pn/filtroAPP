@@ -12,7 +12,7 @@ export function EfetivoPlanningNovelty({ userId }: { userId: string }) {
       if (!document.querySelector('[data-efetivo-content]') || !reserveEfetivoGuide()) return;
       markEfetivoPlanningNoveltySeen(userId);
       try {
-        driver({ showProgress: false, doneBtnText: 'Conhecer o planejamento', allowClose: true, overlayOpacity: 0.6, onDestroyed: () => releaseEfetivoGuide(), steps: [{ element: '[data-efetivo-content]', popover: { title: '✨ Planejamento completo do Efetivo', description: 'Capacidade, calendário, missões, evolução, simulações e administração agora trabalham sobre a mesma programação oficial.', side: 'bottom', align: 'center' } }] }).drive();
+        driver({ showProgress: false, doneBtnText: 'Conhecer o planejamento', allowClose: true, overlayOpacity: 0.6, onDestroyed: () => releaseEfetivoGuide(), steps: [{ element: '[data-efetivo-content]', popover: { title: '✨ Planejamento completo do Efetivo', description: 'Capacidade, calendário, disponibilidade, missões, evolução e administração trabalham sobre a mesma programação oficial.', side: 'bottom', align: 'center' } }] }).drive();
       } catch (error) {
         releaseEfetivoGuide();
         throw error;

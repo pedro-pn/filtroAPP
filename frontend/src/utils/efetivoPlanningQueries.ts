@@ -7,7 +7,8 @@ const MISSION_QUERY_KEYS = [
   ['efetivo-planning-missions'],
   ['efetivo-planning-missions-pending'],
   ['efetivo-planning-overview'],
-  ['efetivo-planning-calendar']
+  ['efetivo-planning-calendar'],
+  ['efetivo-planning-availability']
 ] as const;
 
 export async function refreshMissionPlanningQueries(
