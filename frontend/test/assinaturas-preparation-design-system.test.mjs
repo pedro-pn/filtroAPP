@@ -38,14 +38,16 @@ test('preparação renderiza assinantes, formulário acessível e loading do PDF
 
 test('preparação preserva coordenadas, fluxo de publicação e recuperação de erro', () => {
   const setup = source('components/DocumentSetupView.tsx');
+  const preview = source('components/SignatureDocumentPreview.tsx');
   const canvas = source('components/PdfPageCanvas.tsx');
   const dialog = source('components/PublishDialog.tsx');
   const signers = source('components/SignerList.tsx');
   const css = source('AssinaturasPreparation.ds.css');
-  assert.match(setup, /if \(!disposed\) setImageError\(true\)/);
-  assert.match(setup, /URL.revokeObjectURL\(currentUrl\)/);
-  assert.match(setup, /onImageError=\{\(\) => setImageError\(true\)\}/);
-  assert.match(setup, /Tentar novamente/);
+  assert.match(setup, /<SignatureDocumentPreview/);
+  assert.match(preview, /if \(!controller\.signal\.aborted\) setError\(true\)/);
+  assert.match(preview, /URL.revokeObjectURL\(url\)/);
+  assert.match(preview, /onImageError: \(\) => setError\(true\)/);
+  assert.match(preview, /Tentar novamente/);
   assert.match(setup, /const fieldsSaved = await saveFields\(\)/);
   assert.match(setup, /if \(!fieldsSaved\)[\s\S]*return;[\s\S]*await mutations.publish/);
   assert.match(canvas, /if \(!imageReady \|\| interaction/);

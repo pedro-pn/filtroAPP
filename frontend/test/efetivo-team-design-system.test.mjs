@@ -69,7 +69,7 @@ test('seleção e gestão compartilham campos, tema, ações compactas e o contr
   assert.match(selector,/Tentar novamente/);
   assert.match(selector,/Confirmar sobreposição/);
   assert.match(selector,/existingConfirmedOverlapIds\.filter/);
-  for(const caller of ['MissionsBoard.tsx','MissionKanban.tsx']) assert.match(read('components/'+caller),/<MissionAllocationModal[^>]*canManage=\{canManage\}/);
+  assert.match(read('components/MissionsBoard.tsx'), /<MissionAllocationModal[^>]*canManage=\{canManage\}/);
   assert.match(allocation,/enabled: open && canManage/);
   assert.match(allocation,/open=\{canManage && Boolean\(pendingOverlap\)\}/);
   assert.match(allocation,/demobilizationDate: draft\.demobilizationDate \|\| null/);

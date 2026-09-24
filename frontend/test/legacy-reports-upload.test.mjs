@@ -57,5 +57,5 @@ test('foco do modal ignora campos das abas ocultas e campos desabilitados', asyn
   assert.match(modal, /!element.matches\(':disabled'\)/);
   assert.match(modal, /!element.closest\('\[hidden\], \[inert\]'\)/);
   assert.match(modal, /element.getClientRects\(\).length > 0/);
-  assert.equal(modal.match(/visibleFocusableElements\(panel\)/g)?.length, 2);
+  assert.match(modal, /visibleFocusableElements\(panelRef\.current\)/);
 });

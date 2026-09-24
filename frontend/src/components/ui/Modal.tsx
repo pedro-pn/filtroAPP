@@ -36,13 +36,13 @@ function lockBodyScroll() {
   };
 }
 
-function getFocusableElements(panel: HTMLElement | null) {
-  if (!panel) return [];
+function visibleFocusableElements(panel: HTMLElement) {
   return Array.from(
     panel.querySelectorAll<HTMLElement>(focusableSelector)
   ).filter(
     (element) =>
-      !element.hasAttribute('disabled') &&
+      !element.matches(':disabled') &&
+      !element.closest('[hidden], [inert]') &&
       element.getAttribute('aria-hidden') !== 'true' &&
       element.tabIndex !== -1 &&
       element.getClientRects().length > 0
@@ -112,7 +112,7 @@ export function Modal({
     const unlockBodyScroll = lockBodyScroll();
     const frame = window.requestAnimationFrame(() => {
       const initialFocus = initialFocusRef?.current;
-      const firstFocusable = getFocusableElements(panelRef.current)[0];
+      const firstFocusable = panelRef.current ? visibleFocusableElements(panelRef.current)[0] : undefined;
       (initialFocus ?? firstFocusable ?? panelRef.current)?.focus();
     });
 
@@ -140,7 +140,7 @@ export function Modal({
     }
 
     if (event.key !== 'Tab') return;
-    const focusable = getFocusableElements(panelRef.current);
+    const focusable = panelRef.current ? visibleFocusableElements(panelRef.current) : [];
 
     if (!focusable.length) {
       event.preventDefault();

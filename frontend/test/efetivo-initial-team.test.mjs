@@ -106,10 +106,11 @@ test('diálogo de equipe inicial reflete o fluxo e segue o UI atual', () => {
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const analysis = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
-  // líder e datas vêm do fluxo; o campo "Vincular líder" só existe fora da equipe inicial
-  assert.match(form, /context \? \(\s*<div className="field-group efetivo-form-wide efetivo-team-reflected" data-efetivo-team-leader>/);
-  assert.match(form, /readOnly=\{reflected\}/);
-  assert.match(form, /plannedRoles=\{context\?\.plannedRoles\}/);
+  // líder, datas e cargos vêm do fluxo diretamente no diálogo de disponibilidade
+  const directComponent = form.slice(form.indexOf('export function InitialTeamAvailabilityModal'));
+  assert.match(directComponent, /headquartersResponsibleUserId: context\?\.leaderUserId/);
+  assert.match(directComponent, /const showDateForm = !datesConfirmed \|\| !datesValid/);
+  assert.match(directComponent, /plannedRoles=\{context\?\.plannedRoles\}/);
   assert.match(board, /buildInitialTeamContext\(detail\.data\.workflow\)/);
   assert.match(board, /context=\{teamContext\}/);
   // seleção parte dos cargos planejados, com toggle para ver todos e avisos
@@ -117,7 +118,7 @@ test('diálogo de equipe inicial reflete o fluxo e segue o UI atual', () => {
   assert.match(selector, /Cargo fora do planejamento desta obra/);
   assert.match(selector, /não estará disponível/);
   assert.match(selector, /filterByPlan/);
-  assert.match(selector, /efetivo-team-dialog/);
+  assert.match(directComponent, /efetivo-team-dialog/);
   // início e fim da execução são definidos na análise inicial
   assert.match(analysis, /action: 'analysis_schedule'/);
   assert.match(analysis, /Início da execução previsto/);

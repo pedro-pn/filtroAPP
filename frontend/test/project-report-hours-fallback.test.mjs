@@ -12,9 +12,8 @@ test('horas dos RDOs aparecem como fallback visual das horas apropriadas', async
 
   assert.match(component, /c\.horasApropriadas != null && c\.horasApropriadas > 0/);
   assert.match(component, /\) : c\.horas > 0 \? \([\s\S]{0,900}?fmtHours\(c\.horas\)/);
-  assert.match(component, /className="acp-report-hours-fallback-trigger"/);
-  assert.match(component, /custo estimado do RDO/);
-  assert.match(component, /<small>RDO<\/small>/);
-  assert.match(css, /\.acp-report-hours-fallback-trigger\s*\{[^}]*color:\s*var\(--bl\)/s);
-  assert.match(css, /\.acp-report-hours-fallback-value\s*\{[^}]*border-bottom:\s*1px dashed currentColor/s);
+  assert.match(component, /className="acp-detail-report-hours-trigger"/);
+  assert.match(component, /não entram no custo apropriado/);
+  assert.match(component, /\{fmtHours\(c\.horas\)\} · RDO/);
+  assert.match(css, /\.acp-detail-report-hours-trigger\s*\{[^}]*color:\s*var\(--info\)/s);
 });

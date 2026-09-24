@@ -91,7 +91,7 @@ test('detalhe: estados e fronteira DS não migram editores compartilhados pela m
   const main = source('ProjectDetailDashboard.tsx');
   assert.match(main, /className="fv-ds acp-detail"/);
   assert.match(main, /Os dados exibidos podem estar desatualizados/);
-  for (const state of ['planningContextError', 'scopeError', 'qualityDeviationsError', 'projectNotesLoadError']) assert.ok(main.includes(state));
+  for (const state of ['planningContextError', 'scopeError', 'qualityDeviationQueries', 'projectNotesLoadError']) assert.ok(main.includes(state));
   assert.match(main, /acompanhamentoRefreshQueryOptions/);
   assert.match(main, /if \(!canManageManualCosts \|\| isGroup \|\| createManualCostMutation.isPending\) return/);
   assert.match(main, /if \(!canManageProjectNotes \|\| isGroup \|\| !content \|\| createProjectNoteMutation.isPending\) return/);

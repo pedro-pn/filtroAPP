@@ -1,7 +1,10 @@
 import { useRef, useState, type ChangeEvent } from 'react';
+import { Camera } from 'lucide-react';
 
 import { canUseLiveCamera } from '../../utils/camera';
+import { AppIcon } from '../icons/AppIcon';
 import { CameraCaptureModal } from './CameraCaptureModal';
+import { Button } from './ds';
 
 interface PhotoCaptureButtonProps {
   // Recebe as fotos tiradas (um lote por vez), como se tivessem sido escolhidas no seletor de arquivos.
@@ -10,11 +13,12 @@ interface PhotoCaptureButtonProps {
   // Quantas fotos ainda cabem no campo; sem valor, não há limite.
   maxPhotos?: number;
   label?: string;
+  appearance?: 'legacy' | 'design-system';
 }
 
 // "Tirar foto": abre a câmera ao vivo do aparelho quando o navegador permite (HTTPS) e, senão — ou se
 // a pessoa preferir —, o app de câmera do sistema via <input capture>, que também funciona em HTTP.
-export function PhotoCaptureButton({ onFiles, disabled = false, maxPhotos, label = 'Tirar foto' }: PhotoCaptureButtonProps) {
+export function PhotoCaptureButton({ onFiles, disabled = false, maxPhotos, label = 'Tirar foto', appearance = 'legacy' }: PhotoCaptureButtonProps) {
   const deviceCameraRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -36,7 +40,15 @@ export function PhotoCaptureButton({ onFiles, disabled = false, maxPhotos, label
 
   return (
     <>
-      <button
+      {appearance === 'design-system' ? <Button
+        className="photo-capture-button"
+        variant="secondary"
+        size="sm"
+        iconLeft={<AppIcon icon={Camera} />}
+        data-photo-capture
+        disabled={disabled || maxPhotos === 0}
+        onClick={start}
+      >{label}</Button> : <button
         className="secondary-button photo-capture-button"
         data-photo-capture
         type="button"
@@ -48,7 +60,7 @@ export function PhotoCaptureButton({ onFiles, disabled = false, maxPhotos, label
           <circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" strokeWidth="2" />
         </svg>
         {label}
-      </button>
+      </button>}
       <input
         ref={deviceCameraRef}
         className="visually-hidden"

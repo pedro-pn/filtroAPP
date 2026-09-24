@@ -4,19 +4,21 @@ import { ApiClientError } from '../../../api/client';
 import { downloadSignaturePage, type SignatureDocument, type SignatureField } from '../../../api/assinaturas';
 import { useAuth } from '../../../auth/AuthContext';
 import { DraftSaveStatus, type DraftSaveStatusValue } from '../../../components/reports/DraftSaveStatus';
-import { Button } from '../../../components/ui/Button';
+import { Alert, Badge, Button, Card } from '../../../components/ui/ds';
 import { useAssinaturaMutations } from '../../../hooks/useAssinaturas';
 import { PdfPageCanvas } from './PdfPageCanvas';
 import { PublishDialog } from './PublishDialog';
 import { SignerList } from './SignerList';
 import { SignatureDocumentPreview } from './SignatureDocumentPreview';
+import '../AssinaturasPreparation.ds.css';
 
 export function DocumentSetupView({
   document,
-  initialPage
+  pageNumber
 }: {
   document: SignatureDocument;
-  initialPage: number;
+  pageNumber: number;
+  onPageChange?: (page: number) => void;
 }) {
   const { user } = useAuth();
   const mutations = useAssinaturaMutations();
@@ -70,7 +72,7 @@ export function DocumentSetupView({
   }
 
   return (
-    <div className="signature-setup-layout">
+    <div className="fv-ds signature-setup-layout assinaturas-setup">
       <SignerList
         signers={document.signers}
         account={user}
@@ -81,35 +83,26 @@ export function DocumentSetupView({
           setFieldsDirty(false);
         }}
       />
-      <section className="signature-editor-panel">
+      <Card className="signature-editor-panel" padding="md" title={<h2>Campos de assinatura</h2>}>
         <div className="signature-editor-toolbar">
           <span>{document.pageCount} página(s) · Role para percorrer o documento completo.</span>
         </div>
         {!document.signers.length
-          ? <p className="signature-inline-warning">Adicione um assinante para posicionar o campo.</p>
+          ? <Alert tone="info">Adicione um assinante para posicionar o campo.</Alert>
           : <p className="signature-editor-hint">{document.signers.length === 1
             ? `Clique no documento para posicionar o campo de ${document.signers[0].name}.`
             : 'Clique no documento e escolha o assinante para posicionar o campo.'}</p>}
-        {missingFields.length ? <p className="signature-inline-warning">{missingFields.length} assinante(s) ainda sem campo.</p> : null}
-        <SignatureDocumentPreview
-          key={document.id}
-          pageCount={document.pageCount}
-          initialPage={initialPage}
-          dimensions={document.pageDimensions}
-          loadPage={loadPage}
-          renderPage={page => <PdfPageCanvas
-            {...page}
-            signers={document.signers}
-            fields={fields}
-            onFieldsChange={next => { setFields(next); setFieldsDirty(true); setSaveStatus('idle'); }}
-          />}
-        />
+        {missingFields.length ? <Badge tone="warning">{missingFields.length} assinante(s) ainda sem campo</Badge> : null}
+        <SignatureDocumentPreview key={document.id} pageCount={document.pageCount} initialPage={pageNumber}
+          dimensions={document.pageDimensions} loadPage={loadPage}
+          renderPage={page => <PdfPageCanvas {...page} embedded signers={document.signers} fields={fields}
+            onFieldsChange={next => { setFields(next); setFieldsDirty(true); setSaveStatus('idle'); }} />} />
+        <div className="assinaturas-setup__save-status" aria-live="polite"><DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} /></div>
         <div className="signature-editor-actions">
-          <DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} />
-          <Button variant="secondary" disabled={mutations.replaceFields.isPending || !fieldsDirty} onClick={saveFields}>{fieldsDirty ? 'Salvar campos' : 'Campos salvos'}</Button>
-          <span data-signature-publish><Button disabled={!document.signers.length || mutations.replaceFields.isPending} onClick={() => setPublishOpen(true)}>Publicar</Button></span>
+          <Button variant="secondary" size="sm" loading={mutations.replaceFields.isPending} disabled={mutations.replaceFields.isPending || !fieldsDirty} onClick={saveFields}>{fieldsDirty ? 'Salvar campos' : 'Campos salvos'}</Button>
+          <span data-signature-publish><Button variant="primary" size="sm" disabled={!document.signers.length || mutations.replaceFields.isPending} onClick={() => setPublishOpen(true)}>Publicar</Button></span>
         </div>
-      </section>
+      </Card>
       <PublishDialog
         open={publishOpen}
         signers={document.signers}

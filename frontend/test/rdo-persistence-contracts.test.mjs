@@ -61,10 +61,12 @@ test('buscas do RDO persistem por usuário e aba somente na sessão', () => {
     )
   );
 
-  for (const page of [collaborator, archived, coordinator, manager, client]) {
+  for (const page of [manager, client]) {
     assert.ok(page.includes('useDebouncedValue('));
     assert.ok(page.includes(', 300)'));
   }
+  const reportsHook = source('src/hooks/useReports.ts');
+  assert.match(reportsHook, /useDebouncedValue\(search, 200\)/);
 });
 
 test('snapshot da lista agrupada preserva expansão, quantidade e ordenação por tipo', () => {
@@ -120,13 +122,13 @@ test('snapshot acumulado mantém versão, TTL, itens e janelas carregadas na ses
   assertIncludesAll(
     reportsHook,
     [
-      'version: 1',
+      'version: 2',
       'savedAt: number',
       'page: number',
       'items: ReportSummary[]',
       'groupLoadedCounts: Record<string, number>',
       'groupTotals: Record<string, number>',
-      'const ACCUMULATED_REPORTS_STORAGE_VERSION = 1',
+      'const ACCUMULATED_REPORTS_STORAGE_VERSION = 2',
       'const ACCUMULATED_REPORTS_STORAGE_TTL_MS = 30 * 60 * 1000',
       "`accumulated-reports:${userId || 'anonymous'}:${encodeURIComponent(filtersKey)}`",
       'window.sessionStorage.getItem(storageKey)',

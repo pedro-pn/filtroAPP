@@ -863,6 +863,7 @@ export function renderProjectCard(
     onViewReports?: (project: Project) => void;
     onToggleArchive: (project: Project) => void;
     onRemove?: (project: Project) => void;
+    onUploadOldReports?: (project: Project) => void;
     detailsExpanded: boolean;
     onToggleDetails: (project: Project) => void;
     reportSectionExpanded?: boolean;
@@ -1114,6 +1115,11 @@ export function renderProjectCard(
                   <span className="rdo-project-action-label--compact">Relatórios</span>
                 </Button>
               ) : null}
+              {options.onUploadOldReports && !pendingRegistration ? (
+                <Button variant="secondary" size="sm" type="button" onClick={() => options.onUploadOldReports?.(project)}>
+                  Upload de relatórios antigos
+                </Button>
+              ) : null}
             </div>
           </section>
 
@@ -1355,6 +1361,11 @@ export function renderProjectCard(
         }
         footer={activeProject || reportsInDialog || options.reportSectionExpanded ? (
           <div className="rdo-archived-project-card__actions">
+            {options.onUploadOldReports && !pendingRegistration ? (
+              <Button variant="secondary" size="sm" type="button" onClick={() => options.onUploadOldReports?.(project)}>
+                Upload de relatórios antigos
+              </Button>
+            ) : null}
             <Button
               variant="secondary"
               size="sm"

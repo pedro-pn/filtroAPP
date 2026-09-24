@@ -34,6 +34,7 @@ interface Metric {
   key: string;
   label: string;
   unit: Unit;
+  requiresFinancialPermission?: boolean;
   get: (row: DashboardItem) => number | null;
 }
 
@@ -42,10 +43,10 @@ export const METRICS: Metric[] = [
   { key: 'custo', label: 'Custo previsto (total)', unit: 'brl', get: r => toNum(r.plannedTotalCost) },
   { key: 'realizadoPago', label: 'Realizado — pago', unit: 'brl', get: r => toNum(r.realizedPaid) },
   { key: 'realizadoTotal', label: 'Realizado — total', unit: 'brl', get: r => toNum(r.realizedCost) },
-  { key: 'irpjCsllForaNf', label: 'IRPJ/CSLL fora da NF', unit: 'brl', get: r => r.presumedProfitTaxes?.outOfInvoiceTaxTotal ?? null },
-  { key: 'issOmie', label: 'ISS Omie', unit: 'brl', get: r => r.presumedProfitTaxes?.omieIss ?? null },
-  { key: 'impostosNfEstimados', label: 'Impostos NF previstos', unit: 'brl', get: r => r.presumedProfitTaxes?.basisSource === 'OMIE_INVOICED' ? null : r.presumedProfitTaxes?.invoiceTaxTotal ?? null },
-  { key: 'faturadoOmie', label: 'Faturado no Omie', unit: 'brl', get: r => toNum(r.invoicedRevenue) },
+  { key: 'irpjCsllForaNf', label: 'IRPJ/CSLL fora da NF', unit: 'brl', requiresFinancialPermission: true, get: r => r.presumedProfitTaxes?.outOfInvoiceTaxTotal ?? null },
+  { key: 'issOmie', label: 'ISS Omie', unit: 'brl', requiresFinancialPermission: true, get: r => r.presumedProfitTaxes?.omieIss ?? null },
+  { key: 'impostosNfEstimados', label: 'Impostos NF previstos', unit: 'brl', requiresFinancialPermission: true, get: r => r.presumedProfitTaxes?.basisSource === 'OMIE_INVOICED' ? null : r.presumedProfitTaxes?.invoiceTaxTotal ?? null },
+  { key: 'faturadoOmie', label: 'Faturado no Omie', unit: 'brl', requiresFinancialPermission: true, get: r => toNum(r.invoicedRevenue) },
   { key: 'venda', label: 'Preço de venda', unit: 'brl', get: r => toNum(r.salePrice) },
   { key: 'lucro', label: 'Lucro previsto', unit: 'brl', get: r => toNum(r.expectedProfit) },
   { key: 'he', label: 'Hora extra', unit: 'brl', get: r => comp(r, 'he') },

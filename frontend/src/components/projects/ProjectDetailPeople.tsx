@@ -3,9 +3,11 @@ import { HelpTip } from '../ui/HelpTip';
 import { Alert, Badge, Button, Card, DataTable } from '../ui/ds';
 import { brl, fmtDate, fmtHours } from './projectDetailModel';
 
-export function ProjectDetailPeople({ data, isGroup, onSelect }: {
+export function ProjectDetailPeople({ data, isGroup, collaborators = data.colaboradores, showingPlannedCollaborators = false, onSelect }: {
   data: ProjectDetail;
   isGroup: boolean;
+  collaborators?: ProjectDetailCollaborator[];
+  showingPlannedCollaborators?: boolean;
   onSelect: (collaborator: ProjectDetailCollaborator, source: 'POINT' | 'REPORT') => void;
 }) {
   const hours = (c: ProjectDetailCollaborator) => (
@@ -35,20 +37,21 @@ export function ProjectDetailPeople({ data, isGroup, onSelect }: {
       {c.sobreposicaoHoras > 0 ? <Badge tone="warning" multiline>{fmtHours(c.sobreposicaoHoras)} em sobreposição</Badge> : null}
     </span>
   );
-  const rowId = (c: ProjectDetailCollaborator) => data.colaboradores.indexOf(c);
+  const rowId = (c: ProjectDetailCollaborator) => collaborators.indexOf(c);
   return <Card padding="sm" className="acp-detail-block">
     <details open>
-      <summary className="acp-detail-summary">Colaboradores na obra <Badge tone="neutral">{data.colaboradores.length}</Badge></summary>
-      {data.colaboradores.length > 0 ? (
+      <summary className="acp-detail-summary">Colaboradores na obra <Badge tone="neutral">{collaborators.length}</Badge></summary>
+      {showingPlannedCollaborators ? <Alert tone="info">Ainda não há RDO para este projeto. A equipe exibida corresponde ao planejamento.</Alert> : null}
+      {collaborators.length > 0 && !showingPlannedCollaborators ? (
         <Alert tone="info" title={`Base da apropriação: ponto de ${fmtDate(data.maoDeObra.periodStart)} a ${fmtDate(data.maoDeObra.periodEnd)}`}>
           O deslocamento já está incluído nas horas e no custo total; aparece separado apenas para detalhamento.
         </Alert>
       ) : null}
-      <DataTable rows={data.colaboradores} getRowId={rowId} ariaLabel="Colaboradores na obra"
+      <DataTable rows={collaborators} getRowId={rowId} ariaLabel="Colaboradores na obra"
         className="acp-detail-people" density="compact" mobileBreakpoint="xl"
         emptyState="Nenhum colaborador nos relatórios de execução."
         columns={[
-          { key: 'name', header: 'Nome', rowHeader: true },
+          { key: 'name', header: 'Nome', rowHeader: true, render: c => <>{c.name}{showingPlannedCollaborators ? <span className="api-badge status-planned">Planejado</span> : null}</> },
           { key: 'role', header: 'Cargo' },
           { key: 'hours', header: <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul como referência e não entra no custo. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>, render: hours, align: 'right' },
           { key: 'cost', header: <HelpTip help="Parcela do custo total do colaborador atribuída ao projeto no período do ponto.">Custo apropriado</HelpTip>, render: c => brl(c.custo), align: 'right' },
@@ -65,14 +68,14 @@ export function ProjectDetailPeople({ data, isGroup, onSelect }: {
           ],
         }) }}
       />
-      {data.colaboradores.length > 0 ? <details className="acp-detail-section">
+      {collaborators.length > 0 && !showingPlannedCollaborators ? <details className="acp-detail-section">
         <summary className="acp-detail-summary">Conferir jornada dos relatórios</summary>
         <p className="acp-detail-muted">
           {isGroup
             ? 'Esta jornada vem dos RDOs e não é usada para calcular o custo. O total sem sobreposição considera, em cada data, a maior jornada lançada entre as missões mescladas.'
             : 'Esta jornada vem dos RDOs e não é usada para calcular o custo.'}
         </p>
-        <DataTable rows={data.colaboradores} getRowId={rowId} ariaLabel="Jornada dos relatórios"
+        <DataTable rows={collaborators} getRowId={rowId} ariaLabel="Jornada dos relatórios"
           density="compact" mobileBreakpoint="md"
           columns={[
             { key: 'name', header: 'Nome', rowHeader: true },

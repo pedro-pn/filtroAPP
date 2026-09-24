@@ -1929,7 +1929,7 @@
   --pw-crit-dot: #de2e21;
   --pw-info: #185fb4;
   --pw-info-bg: #e6ecf5;
-  --pw-ring: rgba(48, 80, 58, .22);
+  --pw-ring: var(--focus-ring);
   --pw-shadow-xs: 0 1px 2px rgba(29, 32, 30, .06);
   --pw-shadow-sm: 0 1px 3px rgba(29, 32, 30, .08), 0 1px 2px rgba(29, 32, 30, .04);
   --pw-shadow-lg: 0 24px 60px -18px rgba(29, 32, 30, .35), 0 8px 20px -10px rgba(29, 32, 30, .18);
@@ -2257,7 +2257,7 @@
 .project-workflow-member-check input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
 .project-workflow-member-check input:disabled { cursor: default; }
 .project-workflow-member-check:hover:not(:has(input:disabled)) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
-.project-workflow-member-check:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, rgba(48, 80, 58, .22)); }
+.project-workflow-member-check:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, var(--focus-ring)); }
 .project-workflow-check-box { align-items: center; border: 1.5px solid var(--pw-faint, var(--mu)); border-radius: 999px; display: inline-flex; flex: 0 0 auto; height: 18px; justify-content: center; width: 18px; }
 .project-workflow-check-box .project-workflow-icon { height: 11px; opacity: 0; stroke-width: 3.2; width: 11px; }
 .project-workflow-member-check.is-done { background: var(--pw-accent-soft, #ebf0ec); border-color: var(--pw-accent-line, var(--g)); color: var(--pw-accent, var(--g)); }
@@ -2347,7 +2347,7 @@
 .project-workflow-check-states label:hover { color: var(--pw-ink, var(--tx)); }
 .project-workflow-check-states input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
 .project-workflow-check-states label:has(input:disabled) { cursor: not-allowed; opacity: .7; }
-.project-workflow-check-states label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, rgba(48, 80, 58, .22)); }
+.project-workflow-check-states label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, var(--focus-ring)); }
 .project-workflow-check-states label.is-selected { background: var(--pw-surface, var(--wh)); box-shadow: var(--pw-shadow-sm, 0 1px 3px rgba(0, 0, 0, .08)); color: var(--pw-ink, var(--tx)); }
 .project-workflow-check-item.is-done .project-workflow-check-states label.is-selected { color: var(--pw-accent, var(--g)); }
 /* Mais específico que o rótulo genérico de campo do diálogo, que é cinza */

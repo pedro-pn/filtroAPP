@@ -62,11 +62,12 @@ test('líder e todos os participantes aparecem sem interação prévia', async t
   }
 });
 
-test('cards ativos e cancelados reutilizam a equipe permanente e preservam a gestão', () => {
-  const source = read('../src/pages/efetivo/components/MissionKanban.tsx');
-  assert.equal((source.match(/<MissionKanbanTeam mission=\{mission\} \/>/g) || []).length, 2);
-  assert.doesNotMatch(source, /expandedId|setExpandedId|Ver líder e equipe|Ocultar equipe/);
-  assert.match(source, /setAllocating\(mission\)/);
+test('evolução dos projetos mostra equipe e preserva ações de gestão', () => {
+  const source = read('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx');
+  assert.match(source, /Participantes da missão/);
+  assert.match(source, /Ver líder e equipe/);
+  assert.match(source, /Equipe e ciclos/);
+  assert.match(source, /Editar equipe inicial/);
   const css = read('../src/pages/efetivo/efetivo.css');
   assert.match(css, /max-width: 1279\.98px[\s\S]*?\.efetivo-kanban\.show-cancelled \{ grid-template-columns: repeat\(3/);
   assert.match(css, /\.efetivo-kanban-details > div \{[^}]*grid-template-columns: 26px minmax\(0, 1fr\)/);

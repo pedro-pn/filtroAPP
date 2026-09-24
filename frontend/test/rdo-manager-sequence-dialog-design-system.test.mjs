@@ -172,9 +172,10 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
   );
   const manualReportDialog = sectionBetween(
     manager,
-    '<Modal\n        open={manualReportModalOpen}',
-    'function renderLoadMoreReports('
+    '<LegacyReportsUploadModal',
+    '</LegacyReportsUploadModal>'
   );
+  const legacyReportsUploadModal = source('src/pages/gestor/LegacyReportsUploadModal.tsx');
   const surveyEditorDialog = sectionBetween(
     manager,
     '<Modal open={showSurveyQuestionEditor}',
@@ -224,7 +225,8 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
     /<Modal\b[\s\S]*?appearance="design-system"/
   );
   assert.match(segmentDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
-  assert.match(manualReportDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
+  assert.match(manualReportDialog, /<LegacyReportsUploadModal/);
+  assert.match(legacyReportsUploadModal, /<Modal\b[\s\S]*?appearance="design-system"/);
   assert.match(surveyEditorDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
   assert.match(manager, /panelClassName="rdo-archived-reports-dialog rdo-ds-actions"/);
   for (const otherModal of otherManagerModals) {

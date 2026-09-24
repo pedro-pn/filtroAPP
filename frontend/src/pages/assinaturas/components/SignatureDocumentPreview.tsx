@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { Button } from '../../../components/ui/Button';
+import { Button } from '../../../components/ui/ds';
 import { sequentialSignaturePageLoader, type SignaturePageLoader } from '../utils/preview';
 
 type PageContent = { imageUrl: string; pageNumber: number; onImageError: () => void };

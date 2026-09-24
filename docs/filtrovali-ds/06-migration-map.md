@@ -1,11 +1,10 @@
 # 06 — Mapeamento do Projeto Atual → Design System
 
-> **Atualização de 23/09/2026:** a main `10599cf3` introduziu novas rotas,
-> estados e componentes nas áreas já migradas. Consulte o
-> [delta de integração](main-integration-2026-09-23.md) para a fila de revisão
-> R1–R3/A0/S1/X0 e as novas entregas. Os estados “migrado” abaixo registram
-> o baseline anterior; dependem dessa revisão para voltar a ser critério de
-> fechamento da branch.
+> **Atualização de 24/09/2026:** a main `10599cf3` introduziu novos fluxos nas
+> áreas já migradas. O merge inicial removeu telas DS, recuperadas na correção
+> atual com os fluxos da main conciliados. Consulte o
+> [delta de integração](main-integration-2026-09-23.md) para as verificações
+> ainda necessárias e para as superfícies novas que entram na fila.
 
 Baseado na auditoria inicial de `frontend/src` e atualizado em 11/09/2026 com o
 merge `1efe4639` de `origin/main` (`9586579f`). Preserva Efetivo em standby,
@@ -56,20 +55,23 @@ está em [`rdo-form-redesign-study.md`](./rdo-form-redesign-study.md).
 
 ## 0.2 Estado do Efetivo
 
-**Standby desde 10/09/2026 nesta worktree**, por solicitação do usuário enquanto o
-módulo é alterado em outra frente. Entregas abaixo preservadas; pendências não
-serão executadas até a conciliação do desenvolvimento paralelo.
+**Standby da migração completa desde 10/09/2026 nesta worktree**, por solicitação
+do usuário enquanto o módulo é alterado em outra frente. A main trocou a aba
+Missões pelo fluxo de projetos em Evolução e passou a ter oito áreas. Visão geral,
+Colaboradores e diálogos DS foram recuperados; o novo Kanban e suas etapas
+continuam na fila F2.5/F2.6. A tabela abaixo registra o baseline de 09/09,
+com as mudanças atuais indicadas nas linhas afetadas.
 
 | Superfície | Estado em 09/09/2026 |
 | --- | --- |
-| Shell e navegação | **Migrado na raiz** — `AppShell`, registry, perfil, submenu das nove áreas, navegação local acessível e seletor mobile |
+| Shell e navegação | **Migrado na raiz** — `AppShell`, registry, perfil, submenu das oito áreas atuais, navegação local acessível e seletor mobile |
 | Filtros executivos | **Migrado** — data e função com `Card`, `Field`, `Input` e `Select`, preservando a URL |
 | Visão geral | **Primeira fatia migrada** — métricas, cards, badges e estados principais no DS |
 | Calendário | **Migrado visualmente nesta fatia** — largura integral, dias maiores e diálogo diário com eventos/pessoas/vagas/conflitos; visão Dia mostra todas as atividades e títulos completos em colunas responsivas, mantendo o resumo em Semana/Mês; toolbar, estados e seleção tokenizados; navegação, links e recortes mobile/tablet/desktop conferidos com fixtures |
 | Disponibilidade | **Primeira fatia migrada** — resumo semântico, feedback e superfícies responsivas |
 | Colaboradores e Ausências | **Em migração** — busca e ações no DS, botões na mesma linha e lista responsiva; formulários no DS preservando validações. Falta validar persistência integrada e consolidar estados da listagem |
-| Kanban de evolução | **Parcial** — tema revisado, líder/equipe sempre visíveis com componente compartilhado entre missões ativas e canceladas; ações de equipe/ciclos e movimentação preservadas; colunas ajustadas para tablet |
-| Missões | **Em migração** — busca/filtro, indicadores, cards, ações e estados no DS; programação, conclusão, seleção de equipe e gestão de alocações/ciclos padronizadas. Datas compartilham `MissionPeriodFields`; ciclos gerais/individuais têm distinção visual, sem cards aninhados. Sobreposição e viewer conferidos com fixtures; comparativo e fechamento integrado ainda pendentes |
+| Kanban de evolução | **Novo fluxo funcional, migração visual pendente** — cartões de projetos, etapas e gestão de equipe inicial por disponibilidade incorporados da main; revisar hierarquia e estados no DS em F2.5/F2.6. |
+| Missões | **Rota substituída pela Evolução na main** — componentes de listagem e diálogos DS continuam usados em Simulações e na programação; a gestão de equipe/ciclos mantém o contrato DS. Não tratar a antiga aba como entrega a reabrir. |
 | Simulações, Produtividade e Administração | **Migração estrutural pendente** — cores e controles legados revisados na fronteira compartilhada `EfetivoTheme.css`, incluindo hover, seleção, validação, foco e estados desabilitados; a listagem/programação de missões embutida em Simulações herda os componentes compartilhados migrados |
 | Diálogos | **Parcial** — colaborador, ausência, detalhe diário, programação, conclusão, seleção de equipe e alocações/ciclos no DS; confirmações padronizadas, com camada correta sobre a seleção. Escape preserva o formulário por baixo e cancelamento de ciclo devolve o foco ao acionador. Diálogos de F2.4 ainda usam compatibilidade de tema |
 | Regressão visual | **Parcial** — nove áreas e diálogos principais conferidos em modo escuro no Chromium com fixtures desktop/mobile; Pessoas/Calendário e Missões têm recortes de 360 a 1440px. Seleção/gestão de equipe conferidas nos dois temas, com filtros, estados de erro/carregamento, gravações simuladas e viewer pela lista/Kanban. Persistência real e matriz completa entre navegadores ainda pendentes |
@@ -85,7 +87,7 @@ serão executadas até a conciliação do desenvolvimento paralelo.
 | Preparação do PDF | **Migrada (F3.2)** — cadastro/identificação dos assinantes, controles do canvas, loading/erro/retry e publicação compacta; geometria normalizada e fluxo preservados |
 | Moldura do documento | **Migrada com F3.2** — cabeçalho, status, datas, abas, downloads e confirmações gerais de ciclo de vida |
 | Acompanhamento e auditoria | **Migrados (F3.3)** — resumo do progresso, cards/status dos convites, ações por assinante em linha, revogação compacta, timeline paginada e estados de loading/vazio/erro/finalização |
-| Assinatura pública | **Migrada (F3.4)** — shell/tema, leitura paginada, marcações normalizadas, identificação/aceite, assinatura em diálogo compacto, links legíveis e estados finais/erro/retry |
+| Assinatura pública | **Migrada (F3.4)** — shell/tema, leitura contínua de todas as páginas, marcações normalizadas, identificação/aceite, assinatura em diálogo compacto, links legíveis e estados finais/erro/retry |
 | Prévia de PDF | **Corrigida no fechamento** — fontes padrão incluídas no PDF.js, sem depender das fontes do servidor; cache versionado sem alterar documentos originais; testes de glifos/rotação/cache |
 | Verificação visual | Chromium, Firefox e WebKit, claro/escuro: biblioteca/acompanhamento/auditoria/público em 360–1920px, preparação em 360–1440px. Foco, teclado, geometria, desenho/limpeza, upload/remoção, consentimento, paginação, erros/retry e estados finais conferidos |
 | Integração | **Validada em ambiente isolado** — PostgreSQL e API desta branch, contas/PDFs fictícios, sem e-mail: upload até PDF final, duas assinaturas, evidências, auditoria, lifecycle, renovação/revogação e isolamento entre contas |

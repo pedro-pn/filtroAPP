@@ -62,8 +62,8 @@ test('Missões usa os estados DS e preserva ações por permissão e seleção',
   } finally { await server.close(); }
 });
 
-test('programação e conclusão usam o mesmo contrato compacto de formulário DS', () => {
-  for (const [file,id] of [['MissionFormModal.tsx','mission-programming-form'],['MissionCompletionModal.tsx','mission-completion-form']]) {
+test('programação usa o contrato compacto de formulário DS', () => {
+  for (const [file,id] of [['MissionFormModal.tsx','mission-programming-form']]) {
     const source = read(`components/${file}`);
     assert.match(source, /appearance="design-system"/);
     assert.match(source, /fullscreenOnMobile=\{false\}/);

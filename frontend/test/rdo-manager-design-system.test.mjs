@@ -177,7 +177,7 @@ test('manager pending and approved pages compose actions, search and real metric
   assert.match(page, /search: debouncedGestorSearch \|\| undefined/);
   assert.match(page, /pendentes: 'Buscar em pendentes'/);
   assert.match(page, /className="rdo-manager-listing__page-header"/);
-  assert.match(page, /Upload PDF antigo/);
+  assert.match(page, /Upload de relatórios antigos/);
   assert.match(page, /Criar Relatório/);
   assert.match(
     page,
@@ -369,13 +369,15 @@ test('other RDO profiles share the new shell and responsive report listing', () 
 
 test('upload manual usa modal DS e campos tokenizados no tema escuro', () => {
   const page = source('src/pages/gestor/GestorPage.tsx');
+  const upload = source('src/pages/gestor/LegacyReportsUploadModal.tsx');
   const css = source('src/pages/gestor/GestorPage.ds.css');
 
   assert.match(
-    page,
-    /<Modal[\s\S]{0,220}?open=\{manualReportModalOpen\}[\s\S]{0,220}?appearance="design-system"/
+    upload,
+    /<Modal[\s\S]{0,400}?appearance="design-system"/
   );
-  assert.match(page, /panelClassName="rdo-manager-manual-report-dialog"/);
+  assert.match(page, /<LegacyReportsUploadModal/);
+  assert.match(upload, /panelClassName="rdo-manager-manual-report-dialog legacy-reports-modal"/);
   assert.match(page, /form="manual-report-form"/);
   assert.match(
     css,

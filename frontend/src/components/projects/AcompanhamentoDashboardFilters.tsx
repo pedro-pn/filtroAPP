@@ -4,12 +4,13 @@ import { METRICS, type DashboardFilters } from './acompanhamentoDashboardModel';
 
 export interface DashboardFilterValues extends DashboardFilters { category: string; metricKey: string }
 
-export function AcompanhamentoDashboardFilters({ values, onChange, categories, categoriesLoading, updating }: {
+export function AcompanhamentoDashboardFilters({ values, onChange, categories, categoriesLoading, updating, metrics }: {
   values: DashboardFilterValues;
   onChange: (patch: Partial<DashboardFilterValues>) => void;
   categories: RealizedCategory[];
   categoriesLoading: boolean;
   updating: boolean;
+  metrics: typeof METRICS;
 }) {
   const active: ActiveFilter[] = [];
   if (values.search.trim()) active.push({ id: 'search', label: `Busca: ${values.search}`, onRemove: () => onChange({ search: '' }) });
@@ -44,8 +45,8 @@ export function AcompanhamentoDashboardFilters({ values, onChange, categories, c
           </Select>
         </Field>
         <Field id="acp-metric" label="Indicador" optionalText="">
-          <Select size="sm" value={values.metricKey} onChange={e => onChange({ metricKey: e.target.value })}>
-            {METRICS.map(metric => <option key={metric.key} value={metric.key}>{metric.label}</option>)}
+          <Select size="sm" value={metrics.some(metric => metric.key === values.metricKey) ? values.metricKey : metrics[0].key} onChange={e => onChange({ metricKey: e.target.value })}>
+            {metrics.map(metric => <option key={metric.key} value={metric.key}>{metric.label}</option>)}
           </Select>
         </Field>
       </FilterBar>

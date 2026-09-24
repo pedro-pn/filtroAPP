@@ -1,5 +1,7 @@
+import { Shell } from '../../layout/Shell';
+import { TopBar } from '../../layout/TopBar';
+import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ProjectSystemInput } from '../../components/projects/ProjectSystemInput';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
@@ -9,33 +11,49 @@ import { listDdsThemes } from '../../api/ddsThemes';
 import { listReports } from '../../api/reports';
 import { DraftSaveStatus, type DraftSaveStatusValue } from '../../components/reports/DraftSaveStatus';
 import { NewReportSpecialConditions } from '../../components/reports/NewReportSpecialConditions';
-import { ReportActivitiesCard, ReportCollaboratorsCard, ReportDateField, ReportFormActions, ReportFormStepper, ReportOvertimeCard, ReportScheduleCard, ReportSummaryCard } from '../../components/reports/ReportCoreFields';
+import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { RdoDdsNovelty } from '../../components/reports/RdoDdsNovelty';
 import { ReportWorkforceNotices } from '../../components/reports/ReportWorkforceNotices';
 import { ServiceCollaboratorsBlock, ServiceFields } from '../../components/reports/ServiceFields';
 import { serviceTypeLabels } from '../../components/reports/serviceTypes';
+import { AppIcon } from '../../components/icons/AppIcon';
 import { Modal } from '../../components/ui/Modal';
 import { UploadField } from '../../components/ui/UploadField';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  IconButton,
+  Input,
+  ProgressSteps,
+  Select,
+  Switch,
+  Textarea
+} from '../../components/ui/ds';
+import { DS_ICONS } from '../../components/ui/ds/icons';
 import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../../components/ui/photoDeletionStaging';
 import { useToast } from '../../components/ui/ToastContext';
-import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { useNewReportBootstrap } from '../../hooks/useBootstrap';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReportMutations } from '../../hooks/useReports';
 import { useReportWorkforcePrefill } from '../../hooks/useReportWorkforcePrefill';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { AppShell } from '../../layout/AppShell';
+import { createNavigationModel } from '../../layout/navigationModel';
+import { PageHeader } from '../../layout/PageHeader';
 import { useRdoStore } from '../../store/rdoStore';
 import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../../utils/ongoingServices';
-import { cleaningSystemQuantity, isSystemCleaning } from '../../utils/cleaningMeasurement';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
+import { hubModulesForUser } from '../hubModules';
+import { formatMinutes } from './newReportFormatting';
+import './NewReportPage.css';
 import { calculateReportOvertimeSummary } from '../../utils/reportOvertime';
 import { canAccessReportSelection, normalizeReportSelection, resolveSiteReportSelection } from '../../auth/reportPermissions';
 import { OperationalReportFormPage } from './OperationalReportFormPage';
@@ -74,12 +92,12 @@ const TEXT = {
 };
 
 const serviceTypeModalOptions = [
-  { type: 'limpeza', icon: '🧪', name: 'Limpeza química' },
-  { type: 'pressao', icon: '🔴', name: 'Teste de pressão' },
-  { type: 'filtragem', icon: '🔵', name: 'Filtragem' },
-  { type: 'flushing', icon: '💧', name: 'Flushing' },
-  { type: 'mecanica', icon: '⚙️', name: 'Limpeza mecânica' },
-  { type: 'inibicao', icon: '🛡️', name: 'Inibição' }
+  { type: 'limpeza', icon: DS_ICONS.serviceChemical, name: 'Limpeza química' },
+  { type: 'pressao', icon: DS_ICONS.servicePressure, name: 'Teste de pressão' },
+  { type: 'filtragem', icon: DS_ICONS.serviceFilter, name: 'Filtragem' },
+  { type: 'flushing', icon: DS_ICONS.serviceFlushing, name: 'Flushing' },
+  { type: 'mecanica', icon: DS_ICONS.serviceMechanical, name: 'Limpeza mecânica' },
+  { type: 'inibicao', icon: DS_ICONS.serviceInhibition, name: 'Inibição' },
 ] as const;
 
 const rdoSteps = [TEXT.header, TEXT.services, TEXT.finalization];
@@ -95,6 +113,43 @@ function sameStringSet(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   const bSet = new Set(b);
   return a.every((item) => bSet.has(item));
+}
+
+export function NewReportPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const permissions = user?.reportEmissionPermissions || [];
+  const requested = searchParams.get('tipo');
+  const requestedSelection = normalizeReportSelection(requested);
+  const operationalSelection = requestedSelection && requestedSelection !== 'obra'
+    && canAccessReportSelection(permissions, requestedSelection)
+      ? requestedSelection
+      : null;
+  const selection = resolveSiteReportSelection(permissions);
+
+  if (!user) return null;
+  if (operationalSelection) {
+    return <OperationalReportFormPage mode={operationalSelection} />;
+  }
+  if (selection === 'obra') return <SiteRdoFormPage />;
+
+  return (
+    <Shell>
+      <TopBar title="Novo relatório" subtitle={user.name} showLogo />
+      <main className="page-scroll operational-empty-state">
+        <section className="page-card">
+          <div className="section-title">Emissão não autorizada</div>
+          <p className="placeholder-copy">
+            Sua conta não possui a permissão necessária para este relatório.
+          </p>
+          <button className="secondary-button" type="button" onClick={() => navigate('/modulos')}>
+            Voltar aos módulos
+          </button>
+        </section>
+      </main>
+    </Shell>
+  );
 }
 
 function SiteRdoFormPage() {
@@ -167,6 +222,19 @@ function SiteRdoFormPage() {
   const canCreateReportWithoutLeader = user?.role === 'MANAGER' || user?.role === 'COORDINATOR';
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
+  const navigationModules = useMemo(() => hubModulesForUser(user), [user]);
+  const navigation = useMemo(
+    () => createNavigationModel({ modules: navigationModules, pathname: location.pathname }),
+    [location.pathname, navigationModules]
+  );
+  const profileInitials = user?.name
+    ? user.name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0].toUpperCase())
+        .join('')
+    : 'U';
 
   const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
   const collaborators = (bootstrapQuery.data?.collaborators || []).filter((item) => item.isActive);
@@ -252,10 +320,9 @@ function SiteRdoFormPage() {
   const isCheckingDuplicateReportDate = !effectiveServiceOnly && !!projectId && !!reportDate && lastProjectReportQuery.isLoading;
 
   const pendingProjectServices = useMemo(() => collectPendingProjectServices(projectReports), [projectReports]);
-
   const visiblePendingProjectServices = useMemo(() => {
-    const activeKeys = new Set(services.flatMap((service) => formServiceOngoingKeys(service.data || {})));
-    return pendingProjectServices.filter((item) => !activeKeys.has(item.key));
+    const activeKeys = new Set(services.flatMap(service => formServiceOngoingKeys(service.data || {})));
+    return pendingProjectServices.filter(item => !activeKeys.has(item.key));
   }, [pendingProjectServices, services]);
 
   useEffect(() => {
@@ -293,12 +360,8 @@ function SiteRdoFormPage() {
     addService(normalizeServiceType(service.serviceType), buildContinuedServiceData(service, ongoingKey));
   }
 
-  // Excluir remove o serviço do RDO de origem, então o pendente some para todos os usuários do
-  // projeto. Restrito ao gestor, e o backend recusa RDO assinado ou com assinatura em andamento.
-  const canDeleteOngoingService = user?.role === 'MANAGER';
-
   async function handleDeletePendingService(sourceReport: ReportSummary, service: ReportServiceSummary) {
-    if (!canDeleteOngoingService) return;
+    if (user?.role !== 'MANAGER') return;
     const confirmed = await confirm({
       title: 'Excluir serviço em andamento?',
       description: 'O serviço é removido do RDO de origem e deixa de aparecer como pendente para todos os usuários do projeto.',
@@ -309,8 +372,8 @@ function SiteRdoFormPage() {
     try {
       await reportMutations.deleteService.mutateAsync({ reportId: sourceReport.id, serviceId: service.id });
       showToast('Serviço excluído.', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Não foi possível excluir o serviço.', 'error');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o serviço.', 'error');
     }
   }
 
@@ -335,6 +398,62 @@ function SiteRdoFormPage() {
       }),
     [arrivalTime, departureTime, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, reportDate, selectedProject, serverHoliday]
   );
+
+  const overtimeLines = [
+    `Turno diurno: trabalhado ${formatMinutes(overtimeSummary.daytimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.daytimeOvertimeMinutes)}`,
+    ...(noturno || overtimeSummary.nighttimeWorkedMinutes
+      ? [`Turno noturno: trabalhado ${formatMinutes(overtimeSummary.nighttimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.nighttimeOvertimeMinutes)}`]
+      : []),
+    overtimeSummary.expectedMinutes
+      ? `Jornada de referência: ${formatMinutes(overtimeSummary.expectedMinutes)}${overtimeSummary.isHoliday ? ' | feriado detectado' : ''}`
+      : overtimeSummary.isHoliday
+        ? 'Feriado detectado: todo o período trabalhado será considerado hora extra.'
+        : 'Data com regime integral de hora extra conforme configuração do projeto.'
+  ];
+
+  function addCollaboratorById(id: string, night = false) {
+    if (!id) return;
+    if (night) {
+      setNightCollaborators(Array.from(new Set([...nightCollaboratorIds, id])));
+      return;
+    }
+    markCollaboratorsTouched();
+    setCollaborators(Array.from(new Set([...collaboratorIds, id])));
+  }
+
+  function removeCollaboratorFromList(id: string, night = false) {
+    if (night) {
+      setNightCollaborators(nightCollaboratorIds.filter(item => item !== id));
+      return;
+    }
+    markCollaboratorsTouched();
+    setCollaborators(collaboratorIds.filter(item => item !== id));
+  }
+
+  function renderCollaboratorList(ids: string[], night = false) {
+    if (!ids.length) {
+      return <div className="colab-empty">Nenhum colaborador adicionado.</div>;
+    }
+
+    return ids.map(id => {
+      const item = collaborators.find(candidate => candidate.id === id);
+      const roleName = item?.jobRole?.name || item?.role || 'Cargo não informado';
+      return (
+        <Badge
+          className="rdo-person-badge"
+          key={`${night ? 'night' : 'day'}-${id}`}
+          tone="brand"
+          onRemove={() => removeCollaboratorFromList(id, night)}
+          removeLabel={`Remover ${item?.name || id}`}
+        >
+          <span className="colab-tag-copy">
+            <span>{item?.name || id}</span>
+            <small className="colab-tag-role">{roleName}</small>
+          </span>
+        </Badge>
+      );
+    });
+  }
 
   function fieldState(target: string) {
     return invalidTarget === target ? 'field-group field-invalid' : 'field-group';
@@ -361,7 +480,7 @@ function SiteRdoFormPage() {
       const [serviceId] = target.split(':');
       const selectors = target.includes(':') ? [`[data-invalid-target="${target}"]`, `[data-service-id="${serviceId}"] .field-invalid input`, `[data-service-id="${serviceId}"] .field-invalid select`, `[data-service-id="${serviceId}"] .field-invalid textarea`, `[data-service-id="${serviceId}"] .field-invalid`, `[data-service-id="${serviceId}"]`] : [`[data-invalid-target="${target}"]`];
       const element = selectors.map((selector) => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
-      (element?.closest('.service-finalized-field') || element)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (element && typeof element.focus === 'function') element.focus({ preventScroll: true });
     }, 120);
     return false;
@@ -502,7 +621,6 @@ function SiteRdoFormPage() {
       }
 
       if (type === 'limpeza') {
-        if (isSystemCleaning(data) && cleaningSystemQuantity(data) === null) return failRequired('Quantidade inteira positiva de sistemas (unidades)', target('quantidadeSistemas'), 1);
         if (!hasStringItem(data.metodos)) return failRequired('Método de limpeza', target('metodos'), 1);
         if (!hasTextOrStringItem(data.ulq)) return failRequired('Unidade de Limpeza Química', target('ulq'), 1);
         if (!hasStringItem(data.local)) return failRequired('Local de limpeza', target('local'), 1);
@@ -823,447 +941,545 @@ function SiteRdoFormPage() {
   }
 
   return (
-    <Shell>
-      <TopBar
-        title={TEXT.newReport}
-        subtitle={steps[step]}
-        step={`${step + 1} / ${steps.length}`}
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={handleBack}>
-              {TEXT.back}
-            </button>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() =>
+    <AppShell
+      navigation={navigation}
+      title={TEXT.newReport}
+      breadcrumb={[
+        { label: 'Filtrovali', href: '/modulos' },
+        { label: 'RDO', href: backPath },
+        { label: TEXT.newReport }
+      ]}
+      contentWidth="fluid"
+      profile={
+        user
+          ? {
+              name: user.name,
+              description: user.email || user.username,
+              initials: profileInitials,
+              onOpen: () =>
                 navigate('/conta', {
                   state: accountPageStateFromPath(location)
                 })
-              }
-            >
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <main className="page-scroll">
-        <ReportFormStepper
-          steps={steps}
-          currentStep={step}
-          onSelect={(index) => {
-            if (index <= step) {
-              setStep(index);
-              return;
             }
-            if (index === step + 1) handleNextStep();
-          }}
-        >
+          : undefined
+      }
+      onLogout={handleLogout}
+    >
+      <main className="fv-ds rdo-form-page">
+        <PageHeader
+          title={TEXT.newReport}
+          description={`Etapa ${step + 1} de ${steps.length} · ${steps[step]}`}
+          breadcrumb={[
+            { label: 'RDO', href: backPath },
+            { label: TEXT.newReport }
+          ]}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={<AppIcon icon={DS_ICONS.previous} size="sm" />}
+              onClick={handleBack}
+            >
+              Voltar aos relatórios
+            </Button>
+          }
+        />
+
+        <Card className="rdo-form-stepper" padding="md">
+          <ProgressSteps
+            labels={steps}
+            currentIndex={step}
+            ariaLabel="Etapas do relatório"
+            onKeyDown={handleHorizontalTabListKeyDown}
+            onSelect={(index) => {
+              if (index <= step) {
+                setStep(index);
+                return;
+              }
+              if (index === step + 1) handleNextStep();
+            }}
+          />
           <DraftSaveStatus status={draftSaveStatus} visible={Boolean(projectId && reportDate)} />
-        </ReportFormStepper>
+        </Card>
+
+        <div className="rdo-form-stage">
 
         {step === 0 ? (
-          <>
-            {/* Card 1: Identificação */}
-            <section className="page-card">
-              <div className="section-title">{TEXT.identification}</div>
-              {canCreateServiceOnly ? (
-                <div className="tog-row" style={{ marginBottom: 12 }}>
-                  <span className="tog-lbl">
-                    {TEXT.serviceOnly}
-                    <span className="placeholder-copy" style={{ display: 'block', marginTop: 2 }}>
-                      {TEXT.serviceOnlyHint}
-                    </span>
-                  </span>
-                  <label className="tog">
-                    <input
-                      type="checkbox"
-                      checked={effectiveServiceOnly}
-                      onChange={(event) => {
-                        setHeaderField('serviceOnly', event.target.checked);
-                        setStep(0);
-                      }}
-                    />
-                    <span className="tog-sl" />
-                  </label>
-                </div>
-              ) : null}
-              <div className="admin-form-grid">
-                <div className={fieldState('header:projectId')} data-invalid-target="header:projectId">
-                  <label htmlFor="rdo-project">
-                    Projeto <span style={{ color: 'var(--rd)' }}>*</span>
-                  </label>
-                  <select id="rdo-project" value={projectId || ''} onChange={(event) => handleProjectChange(event.target.value)} required>
-                    <option value="">Selecionar projeto...</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.code} - {project.name}
-                      </option>
-                    ))}
-                  </select>
-                  {showProjectWithoutLeaderWarning ? (
-                    <div className="form-hint" role="status">
-                      {TEXT.projectWithoutLeader}
-                    </div>
-                  ) : null}
-                </div>
-                <ReportDateField id="rdo-date" value={reportDate} onChange={(value) => setHeaderField('reportDate', value)} invalid={invalidTarget === 'header:reportDate'} invalidTarget="header:reportDate">
-                  {isCheckingDuplicateReportDate ? (
-                    <div className="form-hint" role="status">
-                      {TEXT.duplicateReportDateChecking}
-                    </div>
-                  ) : duplicateReportForDate ? (
-                    <div className="form-hint" role="alert">
-                      {TEXT.duplicateReportDate}
-                    </div>
-                  ) : null}
-                </ReportDateField>
-              </div>
-            </section>
-
-            {!effectiveServiceOnly ? (
-              <>
-                <ReportScheduleCard
-                  idPrefix="rdo"
-                  arrivalTime={arrivalTime}
-                  departureTime={departureTime}
-                  lunchBreak={lunchBreak}
-                  onArrivalTimeChange={(value) => setHeaderField('arrivalTime', value)}
-                  onDepartureTimeChange={(value) => setHeaderField('departureTime', value)}
-                  onLunchBreakChange={(value) => setHeaderField('lunchBreak', value)}
-                  arrivalError={invalidTarget === 'header:arrivalTime' ? 'Informe o horário.' : undefined}
-                  departureError={invalidTarget === 'header:departureTime' ? 'Informe o horário.' : undefined}
-                  lunchBreakError={invalidTarget === 'header:lunchBreak' ? 'Informe o intervalo.' : undefined}
-                  arrivalInvalidTarget="header:arrivalTime"
-                  departureInvalidTarget="header:departureTime"
-                  lunchBreakInvalidTarget="header:lunchBreak"
-                />
-              </>
-            ) : null}
-
-            {/* Card 3: Equipe diurna */}
-            <ReportCollaboratorsCard
-              collaborators={collaborators}
-              selectedIds={collaboratorIds}
-              onChange={(ids) => {
-                markCollaboratorsTouched();
-                setCollaborators(ids);
+        <div className={`rdo-form-grid rdo-form-grid--header ${effectiveServiceOnly ? 'is-service-only' : ''}`}>
+        <Card className="rdo-form-card rdo-form-card--identification" title={TEXT.identification}>
+          {canCreateServiceOnly ? (
+            <Switch
+              containerClassName="rdo-service-only-switch"
+              label={TEXT.serviceOnly}
+              description={TEXT.serviceOnlyHint}
+              checked={effectiveServiceOnly}
+              onChange={event => {
+                setHeaderField('serviceOnly', event.target.checked);
+                setStep(0);
               }}
-              invalid={invalidTarget === 'header:collaborators'}
-              error={invalidTarget === 'header:collaborators' ? TEXT.atLeastOneCollaborator : undefined}
-              invalidTarget="header:collaborators"
-              showTitle={false}
-            >
-              <ReportWorkforceNotices
-                planningContext={planningContext}
-                prefilledFromLastReport={collaboratorsPrefilled}
-                missionSuggestionCollaboratorIds={missionSuggestionCollaboratorIds}
-                canApplyMissionSuggestion={canApplyMissionSuggestion}
-                absenceConflictCount={absenceConflicts.length}
-                workforceJustification={workforceJustification}
-                invalid={invalidTarget === 'header:workforceJustification'}
-                onApplyMissionSuggestion={applyMissionSuggestion}
-                onDismissMissionSuggestion={dismissMissionSuggestion}
-                onJustificationChange={value => setHeaderField('workforceJustification', value)}
+            />
+          ) : null}
+          <div className="rdo-field-grid rdo-field-grid--identification">
+            <div className={fieldState('header:projectId')} data-invalid-target="header:projectId">
+              <label htmlFor="rdo-project">Projeto <span style={{ color: 'var(--rd)' }}>*</span></label>
+              <Select
+                id="rdo-project"
+                value={projectId || ''}
+                invalid={invalidTarget === 'header:projectId'}
+                onChange={event => handleProjectChange(event.target.value)}
+                required
+              >
+                <option value="">Selecionar projeto...</option>
+                {projects.map(project => (
+                  <option key={project.id} value={project.id}>
+                    {project.code} - {project.name}
+                  </option>
+                ))}
+              </Select>
+              {showProjectWithoutLeaderWarning ? (
+                <Alert className="rdo-inline-alert" tone="warning">
+                  {TEXT.projectWithoutLeader}
+                </Alert>
+              ) : null}
+            </div>
+            <div className={fieldState('header:reportDate')} data-invalid-target="header:reportDate">
+              <label htmlFor="rdo-date">Data do relatório <span style={{ color: 'var(--rd)' }}>*</span></label>
+              <Input
+                id="rdo-date"
+                type="date"
+                value={reportDate}
+                invalid={invalidTarget === 'header:reportDate'}
+                onChange={event => setHeaderField('reportDate', event.target.value)}
+                required
               />
-            </ReportCollaboratorsCard>
+              {isCheckingDuplicateReportDate ? (
+                <Alert className="rdo-inline-alert" tone="info">
+                  {TEXT.duplicateReportDateChecking}
+                </Alert>
+              ) : duplicateReportForDate ? (
+                <Alert className="rdo-inline-alert" tone="danger">
+                  {TEXT.duplicateReportDate}
+                </Alert>
+              ) : null}
+            </div>
+          </div>
+        </Card>
 
-            {!effectiveServiceOnly ? (
-              <>
-                {/* Card 4: Condições especiais */}
-                <NewReportSpecialConditions
-                  collaborators={collaborators}
-                  ddsThemes={ddsThemes}
-                  invalidTarget={invalidTarget}
-                  standby={standby}
-                  standbyDuration={standbyDuration}
-                  standbyMotivo={standbyMotivo}
-                  noturno={noturno}
-                  noturnoStart={noturnoStart}
-                  noturnoEnd={noturnoEnd}
-                  noturnoInterval={noturnoInterval}
-                  nightCollaboratorIds={nightCollaboratorIds}
-                  ddsDay={ddsDay}
-                  ddsDayStart={ddsDayStart}
-                  ddsDayEnd={ddsDayEnd}
-                  ddsDayThemes={ddsDayThemes}
-                  ddsNight={ddsNight}
-                  ddsNightStart={ddsNightStart}
-                  ddsNightEnd={ddsNightEnd}
-                  ddsNightThemes={ddsNightThemes}
-                  setHeaderField={setHeaderField}
-                  setNightCollaborators={setNightCollaborators}
-                  addDdsTheme={addDdsTheme}
-                  removeDdsTheme={removeDdsTheme}
-                  fieldState={fieldState}
-                />
-              </>
-            ) : null}
-          </>
+        {!effectiveServiceOnly ? (
+        <>
+        <Card className="rdo-form-card rdo-form-card--schedule" title={TEXT.schedules}>
+          <div className="fg-r2">
+            <div className={fieldState('header:arrivalTime')} data-invalid-target="header:arrivalTime">
+              <label htmlFor="rdo-arrival">Chegada <span style={{ color: 'var(--rd)' }}>*</span></label>
+              <Input
+                id="rdo-arrival"
+                type="time"
+                value={arrivalTime}
+                invalid={invalidTarget === 'header:arrivalTime'}
+                onChange={event => setHeaderField('arrivalTime', event.target.value)}
+                required
+              />
+            </div>
+            <div className={fieldState('header:departureTime')} data-invalid-target="header:departureTime">
+              <label htmlFor="rdo-departure">{TEXT.departure} <span style={{ color: 'var(--rd)' }}>*</span></label>
+              <Input
+                id="rdo-departure"
+                type="time"
+                value={departureTime}
+                invalid={invalidTarget === 'header:departureTime'}
+                onChange={event => setHeaderField('departureTime', event.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <div className={fieldState('header:lunchBreak')} data-invalid-target="header:lunchBreak">
+            <label htmlFor="rdo-lunch">Intervalo de almoço <span style={{ color: 'var(--rd)' }}>*</span></label>
+            <Input
+              id="rdo-lunch"
+              type="time"
+              step={1}
+              value={lunchBreak}
+              invalid={invalidTarget === 'header:lunchBreak'}
+              onChange={event => setHeaderField('lunchBreak', event.target.value)}
+              required
+            />
+          </div>
+        </Card>
+        </>
+        ) : null}
+
+        {/* Card 3: Equipe diurna */}
+        <Card className="rdo-form-card rdo-form-card--team">
+          <ReportWorkforceNotices
+            planningContext={planningContext}
+            prefilledFromLastReport={collaboratorsPrefilled}
+            missionSuggestionCollaboratorIds={missionSuggestionCollaboratorIds}
+            canApplyMissionSuggestion={canApplyMissionSuggestion}
+            absenceConflictCount={absenceConflicts.length}
+            workforceJustification={workforceJustification}
+            invalid={invalidTarget === 'header:workforceJustification'}
+            onApplyMissionSuggestion={applyMissionSuggestion}
+            onDismissMissionSuggestion={dismissMissionSuggestion}
+            onJustificationChange={value => setHeaderField('workforceJustification', value)}
+          />
+          <div
+            className={`colab-list ${invalidTarget === 'header:collaborators' ? 'field-invalid-panel' : ''}`}
+            data-invalid-target="header:collaborators"
+          >
+            {renderCollaboratorList(collaboratorIds)}
+          </div>
+          <div className="cadd">
+            <Select value="" aria-label="Adicionar colaborador" onChange={event => addCollaboratorById(event.target.value)}>
+              <option value="">Adicionar...</option>
+              {collaborators
+                .filter(item => !collaboratorIds.includes(item.id))
+                .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </Select>
+          </div>
+        </Card>
+
+        {!effectiveServiceOnly ? (
+        <>
+        {/* Card 4: Condições especiais */}
+        <NewReportSpecialConditions
+          collaborators={collaborators}
+          ddsThemes={ddsThemes}
+          invalidTarget={invalidTarget}
+          standby={standby}
+          standbyDuration={standbyDuration}
+          standbyMotivo={standbyMotivo}
+          noturno={noturno}
+          noturnoStart={noturnoStart}
+          noturnoEnd={noturnoEnd}
+          noturnoInterval={noturnoInterval}
+          nightCollaboratorIds={nightCollaboratorIds}
+          ddsDay={ddsDay}
+          ddsDayStart={ddsDayStart}
+          ddsDayEnd={ddsDayEnd}
+          ddsDayThemes={ddsDayThemes}
+          ddsNight={ddsNight}
+          ddsNightStart={ddsNightStart}
+          ddsNightEnd={ddsNightEnd}
+          ddsNightThemes={ddsNightThemes}
+          setHeaderField={setHeaderField}
+          setNightCollaborators={setNightCollaborators}
+          addDdsTheme={addDdsTheme}
+          removeDdsTheme={removeDdsTheme}
+          fieldState={fieldState}
+        />
+        </>
+        ) : null}
+
+        </div>
         ) : null}
 
         {step === 1 ? (
-          <>
-            {projectId && !effectiveServiceOnly && visiblePendingProjectServices.length > 0 ? (
-              <section className="page-card continuity-card">
-                <div className="section-title">Serviços em andamento</div>
-                <p className="placeholder-copy">Selecione individualmente quais serviços deseja continuar neste RDO.</p>
-                <div className="admin-list" style={{ marginTop: 10 }}>
-                  {visiblePendingProjectServices.map(({ key, report, service }) => {
-                    const type = normalizeServiceType(service.serviceType);
-                    const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
-                    const system = service.system || String((service.extraData || {}).Sistema || '');
-                    return (
-                      <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>
-                        <div className="admin-item-row">
-                          <div className="admin-item-main">
-                            <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
-                            <div className="admin-item-sub">
-                              {equipment}
-                              {system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
-                            </div>
-                          </div>
-                          <div className="admin-card-actions">
-                            <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
-                              Continuar
-                            </button>
-                            {canDeleteOngoingService ? (
-                              <button
-                                className="mini-btn danger"
-                                type="button"
-                                disabled={reportMutations.deleteService.isPending}
-                                onClick={() => void handleDeletePendingService(report, service)}
-                              >
-                                Excluir
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-                {visiblePendingProjectServices.length > 1 ? (
-                  <div className="admin-form-actions" style={{ marginTop: 10 }}>
-                    <button className="secondary-button" type="button" onClick={handleContinueServices}>
-                      Continuar todos
-                    </button>
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-            <section className="page-card report-services-step" data-invalid-target="services:empty">
-              <div className="section-title">{TEXT.services}</div>
-              {services.length ? (
-                <div className="admin-stack" style={{ marginTop: 12 }}>
-                  {services.map((service, index) => (
-                    <article className="admin-card-react" key={service.id} data-service-id={service.id}>
-                      <div className="svc-card-header">
-                        <div className="svc-card-title">
-                          <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
-                          <span className="svc-card-badge">
-                            {TEXT.service} {index + 1}
-                          </span>
-                        </div>
-                        <div className="admin-card-actions">
-                          <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
-                            {TEXT.remove}
-                          </button>
+        <div className="rdo-form-services">
+        {projectId && !effectiveServiceOnly && visiblePendingProjectServices.length > 0 ? (
+          <Card className="rdo-form-card continuity-card" title="Serviços em andamento">
+            <p className="placeholder-copy">
+              Selecione individualmente quais serviços deseja continuar neste RDO.
+            </p>
+            <div className="admin-list">
+              {visiblePendingProjectServices.map(({ key, report, service }) => {
+                const type = normalizeServiceType(service.serviceType);
+                const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
+                const system = service.system || String((service.extraData || {}).Sistema || '');
+                return (
+                  <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>
+                    <div className="admin-item-row">
+                      <div className="admin-item-main">
+                        <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
+                        <div className="admin-item-sub">
+                          {equipment}{system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
                         </div>
                       </div>
-                      <div className="admin-form-grid">
-                        {normalizeServiceType(service.type) !== 'inibicao' ? (
-                          <div className={serviceFieldState(service.id, 'equipmentId')}>
-                            <label>
-                              Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
-                              {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
-                            </label>
-                            <ProjectSystemInput projectId={projectId} data={service.data} serviceType={service.type} field="equipmentId"
-                              className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
-                              onChange={patch => updateService(service.id, patch)}
-                            />
-                          </div>
-                        ) : null}
-                        {normalizeServiceType(service.type) !== 'inibicao' ? (
-                          <div className={serviceFieldState(service.id, 'system')}>
-                            <label>
-                              Sistema <span style={{ color: 'var(--rd)' }}>*</span>
-                              {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
-                            </label>
-                            <ProjectSystemInput projectId={projectId} data={service.data} serviceType={service.type} field="system"
-                              className={service.data._prefilled && service.data.system ? 'pre' : ''}
-                              onChange={patch => updateService(service.id, patch)}
-                            />
-                          </div>
-                        ) : null}
-                        {normalizeServiceType(service.type) !== 'inibicao' ? <ServiceCollaboratorsBlock data={service.data} onChange={(update) => updateService(service.id, update)} invalidKey={invalidTarget === `${service.id}:serviceCollaboratorIds` ? 'serviceCollaboratorIds' : null} collaboratorOptions={serviceCollaboratorOptions} /> : null}
-                        {normalizeServiceType(service.type) !== 'inibicao' ? (
-                          <div className="fg-r2 service-time-grid">
-                            <div className={serviceFieldState(service.id, 'startTime')}>
-                              <label>
-                                Hora de início <span style={{ color: 'var(--rd)' }}>*</span>
-                              </label>
-                              <input
-                                type="time"
-                                required
-                                value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
-                                onChange={(event) =>
-                                  updateService(service.id, {
-                                    startTime: event.target.value
-                                  })
-                                }
-                              />
-                            </div>
-                            <div className={serviceFieldState(service.id, 'endTime')}>
-                              <label>
-                                Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span>
-                              </label>
-                              <input
-                                type="time"
-                                required
-                                value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
-                                onChange={(event) =>
-                                  updateService(service.id, {
-                                    endTime: event.target.value
-                                  })
-                                }
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-                        <ServiceFields
-                          serviceType={service.type}
-                          data={service.data}
-                          onChange={(update) => {
-                            updateService(service.id, update);
-                            if (invalidTarget === `${service.id}:finalized` && typeof update.finalized === 'boolean') setInvalidTarget(null);
-                          }}
-                          units={units}
-                          manometers={manometers}
-                          counters={bootstrapQuery.data?.counters || []}
-                          equipments={bootstrapQuery.data?.equipments || []}
-                          rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
-                          inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
-                          collaboratorOptions={serviceCollaboratorOptions}
-                          groupKey={service.id}
-                          projectId={projectId}
-                          invalidKey={serviceInvalidKey(service.id)}
-                          hideFinalization={effectiveServiceOnly}
-                        />
+                      <div className="admin-card-actions">
+                        <Button variant="secondary" size="sm" type="button" onClick={() => continueService(service, key)}>Continuar</Button>
+                        {user?.role === 'MANAGER' ? <Button variant="danger" size="sm" type="button"
+                          disabled={reportMutations.deleteService.isPending}
+                          onClick={() => void handleDeletePendingService(report, service)}>Excluir</Button> : null}
                       </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="placeholder-copy">{TEXT.noService}</p>
-              )}
-              <div className="admin-form-actions" style={{ marginTop: 12 }}>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  style={{
-                    width: '100%',
-                    borderStyle: 'dashed',
-                    color: 'var(--g)',
-                    fontWeight: 700
-                  }}
-                  onClick={() => setShowServiceModal(true)}
-                >
-                  ＋ {TEXT.addService}
-                </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            {visiblePendingProjectServices.length > 1 ? (
+              <div className="admin-form-actions">
+                <Button variant="secondary" size="sm" type="button" onClick={handleContinueServices}>
+                  Continuar todos
+                </Button>
               </div>
-            </section>
-          </>
+            ) : null}
+          </Card>
+        ) : null}
+        <Card className="rdo-form-card report-services-step" title={TEXT.services} data-invalid-target="services:empty">
+          {services.length ? (
+            <div className="admin-stack">
+              {services.map((service, index) => (
+                <Card
+                  className="rdo-service-card"
+                  key={service.id}
+                  data-service-id={service.id}
+                  title={
+                    <div className="svc-card-title">
+                      <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
+                      <Badge tone="brand">{TEXT.service} {index + 1}</Badge>
+                    </div>
+                  }
+                  actions={
+                    <IconButton
+                      icon={DS_ICONS.trash}
+                      label={`${TEXT.remove} serviço ${index + 1}`}
+                      variant="danger"
+                      size="sm"
+                      onClick={() => removeService(service.id)}
+                    />
+                  }
+                >
+                  <div className="admin-form-grid">
+                    {normalizeServiceType(service.type) !== 'inibicao' ? (
+                      <>
+                        <section className="rdo-service-section" aria-label="Equipamento e sistema">
+                          <h4 className="rdo-service-section__title">Equipamento e sistema</h4>
+                          <div className="rdo-service-section__grid">
+                            <div className={serviceFieldState(service.id, 'equipmentId')}>
+                              <label>
+                                Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
+                                {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
+                              </label>
+                              <Input
+                                className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
+                                value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
+                                invalid={invalidTarget === `${service.id}:equipmentId`}
+                                placeholder="Informar equipamento do cliente..."
+                                onChange={event => updateService(service.id, { equipmentId: event.target.value })}
+                              />
+                            </div>
+                            <div className={serviceFieldState(service.id, 'system')}>
+                              <label>
+                                Sistema <span style={{ color: 'var(--rd)' }}>*</span>
+                                {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
+                              </label>
+                              <Input
+                                className={service.data._prefilled && service.data.system ? 'pre' : ''}
+                                value={typeof service.data.system === 'string' ? service.data.system : ''}
+                                invalid={invalidTarget === `${service.id}:system`}
+                                onChange={event => updateService(service.id, { system: event.target.value })}
+                              />
+                            </div>
+                          </div>
+                        </section>
+                        <section className="rdo-service-section" aria-label="Equipe do serviço">
+                          <h4 className="rdo-service-section__title">Equipe do serviço</h4>
+                          <div className="rdo-service-section__grid">
+                            <ServiceCollaboratorsBlock
+                              data={service.data}
+                              onChange={update => updateService(service.id, update)}
+                              invalidKey={invalidTarget === `${service.id}:serviceCollaboratorIds` ? 'serviceCollaboratorIds' : null}
+                              collaboratorOptions={serviceCollaboratorOptions}
+                            />
+                          </div>
+                        </section>
+                        <section className="rdo-service-section" aria-label="Horários do serviço">
+                          <h4 className="rdo-service-section__title">Horários do serviço</h4>
+                          <div className="rdo-service-section__grid">
+                            <div className="fg-r2 service-time-grid">
+                              <div className={serviceFieldState(service.id, 'startTime')}>
+                                <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
+                                <Input
+                                  type="time"
+                                  required
+                                  value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
+                                  invalid={invalidTarget === `${service.id}:startTime`}
+                                  onChange={event => updateService(service.id, { startTime: event.target.value })}
+                                />
+                              </div>
+                              <div className={serviceFieldState(service.id, 'endTime')}>
+                                <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
+                                <Input
+                                  type="time"
+                                  required
+                                  value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
+                                  invalid={invalidTarget === `${service.id}:endTime`}
+                                  onChange={event => updateService(service.id, { endTime: event.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+                      </>
+                    ) : null}
+                    <ServiceFields
+                      serviceType={service.type}
+                      data={service.data}
+                      onChange={update => updateService(service.id, update)}
+                      units={units}
+                      manometers={manometers}
+                      counters={bootstrapQuery.data?.counters || []}
+                      equipments={bootstrapQuery.data?.equipments || []}
+                      rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
+                      inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
+                      collaboratorOptions={serviceCollaboratorOptions}
+                      groupKey={service.id}
+                      projectId={projectId}
+                      invalidKey={serviceInvalidKey(service.id)}
+                      hideFinalization={effectiveServiceOnly}
+                      appearance="design-system"
+                    />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="placeholder-copy">{TEXT.noService}</p>
+          )}
+          <div className="admin-form-actions rdo-add-service-action">
+            <Button
+              variant="secondary"
+              type="button"
+              fullWidth
+              iconLeft={<AppIcon icon={DS_ICONS.plus} size="sm" />}
+              onClick={() => setShowServiceModal(true)}
+            >
+              {TEXT.addService}
+            </Button>
+          </div>
+        </Card>
+        </div>
         ) : null}
 
         {step === 2 ? (
-          <>
-            <ReportOvertimeCard summary={overtimeSummary} nightEnabled={noturno} reason={overtimeReason} onReasonChange={(value) => setHeaderField('overtimeReason', value)} />
+        <div className="rdo-form-grid rdo-form-grid--finalization">
+        <Card className="rdo-form-card rdo-form-card--overtime" title="Horas extras">
+          <Alert
+            className="rdo-overtime-summary"
+            tone={overtimeSummary.totalOvertimeMinutes > 0 ? 'warning' : 'info'}
+            title={
+              overtimeSummary.totalOvertimeMinutes > 0
+                ? `Hora extra identificada: ${formatMinutes(overtimeSummary.totalOvertimeMinutes)}`
+                : 'Nenhuma hora extra identificada'
+            }
+          >
+            {overtimeLines.map(line => <div key={line}>{line}</div>)}
+          </Alert>
+          {overtimeSummary.totalOvertimeMinutes > 0 ? (
+            <div className="field-group">
+              <label htmlFor="rdo-overtime">Justificativa</label>
+              <Textarea
+                id="rdo-overtime"
+                placeholder="Descreva o motivo das horas extras..."
+                rows={3}
+                value={overtimeReason}
+                onChange={event => setHeaderField('overtimeReason', event.target.value)}
+              />
+            </div>
+          ) : null}
+        </Card>
 
-            {/* Card Atividades do dia */}
-            <ReportActivitiesCard value={dailyDescription} onChange={(value) => setHeaderField('dailyDescription', value)} />
+        <Card className="rdo-form-card rdo-form-card--activities" title="Atividades do dia">
+          <div className="field-group">
+            <label htmlFor="rdo-description">{TEXT.dailyDescription}</label>
+            <Textarea
+              id="rdo-description"
+              className="rdo-activities-textarea"
+              placeholder="Descreva as atividades realizadas..."
+              rows={5}
+              value={dailyDescription}
+              onChange={event => setHeaderField('dailyDescription', event.target.value)}
+            />
+          </div>
+        </Card>
 
-            {/* Card Fotos */}
-            <section className="page-card">
-              <div className="section-title">{TEXT.photos}</div>
-              <UploadField label="" value={generalUploads as UploadedFile[]} projectId={projectId} onChange={setGeneralUploads} />
-            </section>
+        <Card className="rdo-form-card rdo-form-card--photos" title={TEXT.photos}>
+          <UploadField
+            label=""
+            value={generalUploads as UploadedFile[]}
+            projectId={projectId}
+            appearance="design-system"
+            onChange={setGeneralUploads}
+          />
+        </Card>
 
-            {/* Card Resumo */}
-            <ReportSummaryCard>{buildResumoText()}</ReportSummaryCard>
-          </>
+        <Card className="rdo-form-card rdo-form-card--summary" variant="accent" accentTone="brand" title="Resumo">
+          <div className="resumo-txt">{buildResumoText()}</div>
+        </Card>
+        </div>
         ) : null}
 
-        <ReportFormActions currentStep={step} totalSteps={steps.length} onBack={step === 0 ? handleBack : () => setStep((current) => Math.max(current - 1, 0))} onNext={handleNextStep} onSubmit={handleSubmit} submitting={isSubmitting} submitLabel={TEXT.submit} />
-      </main>
-
-      <Modal open={showServiceModal} onClose={() => setShowServiceModal(false)} backdropClassName="stype-modal-ov" panelClassName="stype-modal-sh" ariaLabelledBy="new-report-service-type-title">
-        <div className="stype-modal-handle" />
-        <div className="stype-modal-title" id="new-report-service-type-title">
-          Tipo de serviço
         </div>
-        <div className="stype-grid">
-          {serviceOptions.map(({ type, icon, name }) => (
-            <button
-              key={type}
-              className="stype-btn"
+
+        <section className="rdo-form-actions" aria-label="Ações do formulário">
+          <Button
+            variant="secondary"
+            type="button"
+            iconLeft={step > 0 ? <AppIcon icon={DS_ICONS.previous} size="sm" /> : undefined}
+            onClick={step === 0 ? handleBack : () => setStep(current => Math.max(current - 1, 0))}
+          >
+            {step === 0 ? 'Cancelar' : TEXT.back}
+          </Button>
+          {step < steps.length - 1 ? (
+            <Button
+              variant="primary"
               type="button"
-              onClick={() => {
-                addService(type);
-                setShowServiceModal(false);
-              }}
+              iconRight={<AppIcon icon={DS_ICONS.next} size="sm" />}
+              onClick={handleNextStep}
             >
-              <div className="stype-icon">{icon}</div>
-              <div className="stype-name">{name}</div>
-            </button>
-          ))}
-        </div>
-      </Modal>
-
-      {confirmDialog}
-
-      {user ? <RdoDdsNovelty user={user} enabled={ddsNoveltyActive && step === 0 && !effectiveServiceOnly} onSeen={() => setDdsNoveltyActive(false)} /> : null}
-      <PhotoCaptureNovelty user={user} placement="rdo-new" />
-    </Shell>
-  );
-}
-
-export function NewReportPage() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [searchParams] = useSearchParams();
-  const permissions = user?.reportEmissionPermissions || [];
-  const requested = searchParams.get('tipo');
-  const requestedSelection = normalizeReportSelection(requested);
-  const operationalSelection = requestedSelection && requestedSelection !== 'obra'
-    && canAccessReportSelection(permissions, requestedSelection)
-      ? requestedSelection
-      : null;
-  const selection = resolveSiteReportSelection(permissions);
-
-  if (!user) return null;
-  if (operationalSelection) {
-    return <OperationalReportFormPage mode={operationalSelection} />;
-  }
-  if (selection === 'obra') return <SiteRdoFormPage />;
-
-  return (
-    <Shell>
-      <TopBar title="Novo relatório" subtitle={user.name} showLogo />
-      <main className="page-scroll operational-empty-state">
-        <section className="page-card">
-          <div className="section-title">Emissão não autorizada</div>
-          <p className="placeholder-copy">
-            Sua conta não possui a permissão necessária para este relatório.
-          </p>
-          <button className="secondary-button" type="button" onClick={() => navigate('/modulos')}>
-            Voltar aos módulos
-          </button>
+              Próximo
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              type="button"
+              loading={isSubmitting}
+              loadingLabel="Enviando relatório"
+              onClick={handleSubmit}
+            >
+              Enviar relatório
+            </Button>
+          )}
         </section>
       </main>
-    </Shell>
+
+      <Modal
+        open={showServiceModal}
+        onClose={() => setShowServiceModal(false)}
+        appearance="design-system"
+        title="Tipo de serviço"
+        size="md"
+        fullscreenOnMobile={false}
+        closeOnBackdrop
+        backdropClassName="rdo-service-picker-backdrop"
+        panelClassName="rdo-service-picker"
+      >
+            <div className="stype-grid">
+              {serviceOptions.map(({ type, icon, name }) => (
+                <button
+                  key={type}
+                  className="stype-btn"
+                  type="button"
+                  onClick={() => {
+                    addService(type);
+                    setShowServiceModal(false);
+                  }}
+                >
+                  <div className="stype-icon"><AppIcon icon={icon} /></div>
+                  <div className="stype-name">{name}</div>
+                </button>
+              ))}
+            </div>
+      </Modal>
+
+      {user ? (
+        <RdoDdsNovelty
+          user={user}
+          enabled={ddsNoveltyActive && step === 0 && !effectiveServiceOnly}
+          onSeen={() => setDdsNoveltyActive(false)}
+        />
+      ) : null}
+      <PhotoCaptureNovelty user={user} placement="rdo-new" />
+      {confirmDialog}
+    </AppShell>
   );
 }

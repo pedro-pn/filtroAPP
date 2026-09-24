@@ -19,13 +19,15 @@ export interface AcompanhamentoDashboardViewProps {
   categoriesError: boolean;
   onRetryCategories: () => void;
   onOpen: (row: DashboardRow) => void;
+  canViewFinancials: boolean;
 }
 
 export function AcompanhamentoDashboardView({ data, loading, error, updating, onRetry,
-  values, onChange, categories, categoriesLoading, categoriesError, onRetryCategories, onOpen
+  values, onChange, categories, categoriesLoading, categoriesError, onRetryCategories, onOpen, canViewFinancials
 }: AcompanhamentoDashboardViewProps) {
   const filtered = filterDashboardRows(data ?? [], values);
-  const metric = METRICS.find(item => item.key === values.metricKey) ?? METRICS[0];
+  const metrics = METRICS.filter(item => !item.requiresFinancialPermission || canViewFinancials);
+  const metric = metrics.find(item => item.key === values.metricKey) ?? metrics[0];
   const totals = {
     count: filtered.length,
     venda: filtered.reduce((sum, row) => sum + (toNum(row.salePrice) ?? 0), 0),
@@ -43,7 +45,7 @@ export function AcompanhamentoDashboardView({ data, loading, error, updating, on
         <div><h1>Visão dos projetos</h1><p>Compare o previsto e o realizado, acompanhe custos e consulte o cronograma.</p></div>
       </header>
       <AcompanhamentoDashboardFilters values={values} onChange={onChange} categories={categories}
-        categoriesLoading={categoriesLoading} updating={updating} />
+        categoriesLoading={categoriesLoading} updating={updating} metrics={metrics} />
       {categoriesError ? <Alert tone="warning" title="Não foi possível atualizar as categorias"
         action={{ label: 'Tentar novamente', onClick: onRetryCategories }}>A busca e os demais filtros continuam disponíveis.</Alert> : null}
       {error ? <Alert tone="danger" title={data ? 'Não foi possível atualizar o dashboard' : 'Não foi possível carregar o dashboard'}

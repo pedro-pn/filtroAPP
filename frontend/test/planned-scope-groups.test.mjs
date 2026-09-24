@@ -112,15 +112,18 @@ test('scope save does not write without permission, loaded data or a current rev
 
 test('scope hierarchy is rendered in planned scope and weekly pace, with an accessible local scroll area', async () => {
   const { groupServicesByScope } = await functionsFrom('../src/utils/plannedScopeGroups.ts', ['groupServicesByScope']);
-  const { RequiredWeeklyProgressCard, PlannedScopeView } = await functionsFrom('../src/components/projects/ProjectDetailDashboard.tsx',
-    ['SERVICE_LABELS', 'SYSTEM_LABELS', 'UNIT_LABELS', 'fmtPct', 'fmtQuantity', 'weeklyTargetText', 'RequiredWeeklyProgressCard', 'PlannedScopeView'], { React, groupServicesByScope });
+  const labels = await functionsFrom('../src/components/projects/projectDetailModel.ts',
+    ['SERVICE_LABELS', 'SYSTEM_LABELS', 'UNIT_LABELS', 'fmtPct']);
+  const { RequiredWeeklyProgressCard, PlannedScopeView } = await functionsFrom('../src/components/projects/ProjectDetailVisuals.tsx',
+    ['fmtQuantity', 'weeklyTargetText', 'RequiredWeeklyProgressCard', 'PlannedScopeView'],
+    { React, groupServicesByScope, ...labels, Badge: ({ children }) => React.createElement('span', null, children) });
   const system = { projectSystemId: 's1', equipment: 'Unidade Geradora 01', systemName: 'Kaplan', systemType: 'TUBULACAO', unit: 'M', diameter: '2', diameterUnit: 'pol', plannedQty: 100, realizedQty: 20, remainingQty: 80, status: 'REQUIRED', requiredQtyPerWeek: 40 };
   const service = { serviceType: 'LIMPEZA_QUIMICA', weight: 100, executionPct: 20, systems: [system] };
   const target = { status: 'REQUIRED', remainingPctPoints: 80, requiredPctPointsPerWeek: 40, services: [service], scopeGroups: [{ scopeName: 'Principal', services: [service] }, { scopeName: null, services: [service] }] };
   const html = renderToStaticMarkup(React.createElement(RequiredWeeklyProgressCard, { target }));
   assert.match(html, /Escopo: Principal/);
   assert.match(html, /Escopo: Sem escopo definido/);
-  assert.match(html, /class="acp-weekly-target-services" role="region" aria-label="Serviços e sistemas do ritmo necessário" tabindex="0"/);
+  assert.match(html, /class="acp-detail-weekly-services acp-weekly-target-services" role="region" aria-label="Serviços e sistemas do ritmo necessário" tabindex="0"/);
   assert.match(html, /40 m\/semana/);
   const planned = renderToStaticMarkup(React.createElement(PlannedScopeView, { scope: { services: [{ ...service, scopeName: 'Principal' }, service] } }));
   assert.match(planned, /Escopo: Principal/);

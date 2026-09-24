@@ -1,11 +1,11 @@
 # Roadmap do redesign do frontend
 
-> **Delta de 23/09/2026:** `origin/main` em `10599cf3` foi incorporada à
-> `feat/frontend-redesign-2`. O [plano desta integração](filtrovali-ds/main-integration-2026-09-23.md)
-> separa a revisão das telas já migradas da entrada de superfícies novas. O
-> histórico de entregas abaixo descreve o baseline anterior ao merge; R1–R3,
-> A0, S1 e X0 são agora a primeira fila para restaurar o visual com os fluxos
-> novos. O build passa, mas a suíte visual anterior ainda tem falhas.
+> **Delta corrigido em 24/09/2026:** o merge de `origin/main` em `10599cf3`
+> havia substituído telas já migradas por versões legadas. RDO, Conta, Cliente,
+> Estatísticas, Acompanhamento, Assinaturas e partes do Efetivo foram restaurados
+> no código DS e conciliados com os fluxos novos da main. O
+> [plano desta integração](filtrovali-ds/main-integration-2026-09-23.md)
+> registra as correções, o gate de homologação e as superfícies novas ainda na fila.
 
 Atualizado em 11/09/2026 após integrar `origin/main` em `9586579f`, pelo merge
 `1efe4639` na branch `feat/frontend-redesign-2`. O trabalho local de redesign foi
@@ -31,12 +31,13 @@ cada módulo continuam sendo a fonte de verdade para comportamento e dados.
 
 - A fundação do design system, o `AppShell`, o Hub e o núcleo autenticado do RDO
   estão implementados para gestor, coordenador, colaborador e cliente.
-- A migração do Efetivo está em **standby nesta worktree**, por solicitação do
-  usuário em 10/09: o módulo está sendo alterado em outra worktree. As entregas
-  existentes são preservadas. Nesta integração houve somente conciliação dos
-  conflitos funcionais da main, sem retomar sua campanha de UI.
+- A migração completa do Efetivo está em **standby nesta worktree**, por solicitação
+  do usuário em 10/09: o módulo está sendo alterado em outra worktree. Visão geral,
+  colaboradores e diálogos já migrados foram recuperados e a equipe inicial foi
+  conciliada com a nova Evolução. O novo fluxo de projetos permanece na fila F2.5/F2.6.
 - Assinaturas: shell, biblioteca, preparação, acompanhamento, auditoria e
-  assinatura pública migrados em F1 + F3.1–F3.4. Backend real isolado, Chromium,
+  assinatura pública migrados em F1 + F3.1–F3.4. A prévia contínua da main foi
+  incorporada ao editor e à página pública. Backend real isolado, Chromium,
   Firefox e WebKit validados na F3.5; conferência em celular físico combinada com o usuário.
 - Acompanhamento tem A1/A2/A3a implementados; faturamentos, romaneios, jornadas
   RDO acionáveis e indicadores operacionais de Sede ampliam A3a/A4/A5. Estoque,

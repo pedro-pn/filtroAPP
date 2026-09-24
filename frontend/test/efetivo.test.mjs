@@ -99,7 +99,7 @@ test('produtividade mostra a situação da competência e a visão geral navega 
   assert.match(board, /<th>Situação<\/th>/);
   assert.match(board, /CONSOLIDADO: 'Consolidado', PODE_MUDAR: 'Pode mudar', SEM_BASE: 'Sem base'/);
   const overview = fs.readFileSync(new URL('../src/pages/efetivo/components/OverviewBoard.tsx', import.meta.url), 'utf8');
-  for (const label of ['Ver calendário →', 'Ver evolução →', 'Ver colaboradores →', 'Abrir produtividade →']) {
+  for (const label of ['Ver calendário', 'Ver projetos', 'Ver colaboradores', 'Abrir produtividade']) {
     assert.ok(overview.includes(label), `atalho ausente na visão geral: ${label}`);
   }
   assert.doesNotMatch(overview, /href=\{`\?section=/);

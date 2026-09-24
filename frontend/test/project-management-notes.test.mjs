@@ -37,11 +37,12 @@ test('somente gestores recebem a permissão de adicionar notas', async () => {
 
 test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', async () => {
   const source = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
+  const people = await readSource('src/components/projects/ProjectDetailPeople.tsx');
 
   assert.match(source, /!data\.header\.lastRdoDate/);
   assert.match(source, /plannedCollaborators\.map/);
-  assert.match(source, /className="api-badge status-planned">Planejado/);
-  assert.match(source, /Ainda não há RDO para este projeto/);
+  assert.match(people, /className="api-badge status-planned">Planejado/);
+  assert.match(people, /Ainda não há RDO para este projeto/);
 });
 
 test('escopo do dashboard possui rolagem local após o limite de altura', async () => {

@@ -241,7 +241,7 @@ test('collaborator report listing keeps tabs, filters, search, selection and inc
   assert.match(page, /useUrlParamState<MyReportsTab>/);
   assert.match(page, /param: 'tab',[\s\S]*defaultValue: 'pending'/);
   assert.match(page, /my-reports-search:[^`]+:\$\{tab\}/);
-  assert.match(page, /useDebouncedValue\(search, 300\)/);
+  assert.match(source('src/hooks/useReports.ts'), /useDebouncedValue\(search, 200\)/);
   assert.match(
     page,
     /mine: true,[\s\S]*projectActive: true,[\s\S]*statuses: \['PENDING', 'RETURNED'\]/
@@ -342,10 +342,8 @@ test('coordinator, manager and client tabs keep their current query filters and 
   );
   assert.match(coordinator, /const REPORT_PAGE_SIZE = 50/);
   assert.match(coordinator, /const REPORT_TYPE_PAGE_SIZE = 10/);
-  assert.match(
-    coordinator,
-    /statuses: \['PENDING', 'RETURNED'\],[\s\S]*createdByUserId: user\?\.id \|\| ''/
-  );
+  assert.match(coordinator, /coordinatorPendingReportFilters\(user/);
+  assert.match(source('src/pages/coordinator/pendingReportFilters.ts'), /statuses: \['PENDING', 'RETURNED'\]/);
   assert.match(
     coordinator,
     /statuses: \['APPROVED', 'SIGNED'\],[\s\S]*projectActive: false/
@@ -430,11 +428,11 @@ test('incremental report loading keeps lazy ensure, skeleton, error and retry st
   assert.match(reportHooks, /async function ensureGroupPage/);
   assert.match(
     reportHooks,
-    /isLoadingInitial: query\.isLoading && items\.length === 0/
+    /isLoadingInitial: enabled && \(isDebouncing \|\| query\.isLoading\) && visibleItems\.length === 0/
   );
   assert.match(
     reportHooks,
-    /isLoadingMore: query\.isFetching && items\.length > 0/
+    /isLoadingMore: query\.isFetching && visibleItems\.length > 0/
   );
 });
 

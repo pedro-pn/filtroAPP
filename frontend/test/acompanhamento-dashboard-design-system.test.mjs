@@ -96,6 +96,13 @@ test('acompanhamento: navegação, recortes, valores e estados DS sem mudar cont
       assert.match(render(createElement(RealizedCategoryBreakdown)), /acp-bars-cat/);
       assert.doesNotMatch(render(createElement(RealizedCategoryBreakdown, { appearance: 'design-system' })), /acp-bars-cat/);
     });
+    await t.test('indicadores financeiros restritos respeitam a permissão', () => {
+      const restricted = render(createElement(AcompanhamentoDashboardView, { ...base, values: { ...values, metricKey: 'irpjCsllForaNf' }, canViewFinancials: false }));
+      assert.doesNotMatch(restricted, /<option[^>]*value="irpjCsllForaNf"/);
+      assert.doesNotMatch(restricted, /IRPJ\/CSLL fora da NF/);
+      const permitted = render(createElement(AcompanhamentoDashboardView, { ...base, canViewFinancials: true }));
+      assert.match(permitted, /<option[^>]*value="irpjCsllForaNf"/);
+    });
   } finally { client.clear(); await server.close(); }
 });
 
@@ -105,6 +112,10 @@ test('acompanhamento: permissões, query keys, editor e tokens permanecem delimi
   assert.match(page, /enabled: isManager/);
   assert.match(page, /canManage=\{hasAcompanhamentoAccess\}/);
   assert.match(page, /canManageGroups=\{isManager\}/);
+  assert.match(page, /canViewFinancials=\{canViewProjectFinancials\(user\)\}/);
+  assert.match(page, /<ProjectSystemReconciliation/);
+  assert.match(page, /next\.delete\('reconcile'\)/);
+  assert.match(page, /next\.set\('schedule', reconciliationProject\)/);
   assert.match(page, /if \(!isManager && section === 'custo'\) setSection\('dashboard'\)/);
   assert.match(controller, /queryKey: \['commercial-dashboard', category\]/);
   assert.match(controller, /getCommercialDashboard\(category \|\| undefined\)/);
@@ -112,6 +123,8 @@ test('acompanhamento: permissões, query keys, editor e tokens permanecem delimi
   assert.match(controller, /acompanhamentoRefreshQueryOptions/);
   assert.match(controller, /<ProjectScheduleEditor[\s\S]*?canManage=\{canManage\}/);
   assert.match(controller, /scheduleRef\.current\?\.save\(\)/);
+  assert.match(controller, /searchParams\.get\('schedule'\)/);
+  assert.match(controller, /next\.set\('schedule', row\.projectId\)/);
   assert.doesNotMatch(page, /equip-nav|topbar-chip/);
   assert.doesNotMatch(page, /AcompanhamentoNavigation|acp-section-navigation/);
   const shell = source('pages/acompanhamento/AcompanhamentoAppShell.tsx');

@@ -4,7 +4,8 @@ import { useSearchParams } from 'react-router';
 
 import { listPlanningJobRoles } from '../../api/efetivoPlanning';
 import { useAuth } from '../../auth/AuthContext';
-import { Button, Card, Field, Input, Select } from '../../components/ui/ds';
+import { Button, Card, Field, Select } from '../../components/ui/ds';
+import { DateInput } from '../../components/ui/DateInput';
 import { PageHeader } from '../../layout/PageHeader';
 import { parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
 import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSection } from '../../utils/planningNavigation';
@@ -121,12 +122,9 @@ export function EfetivoPage() {
                 data-efetivo-planning-filters
               >
                 <Field id="efetivo-position-date" label="Data de posição" optionalText="">
-                  <Input
-                    size="sm"
-                    type="date"
-                    value={date}
-                    onChange={event => updateParam('date', event.target.value)}
-                  />
+                  <span className="fv-control-shell fv-control-shell--sm">
+                    <DateInput id="efetivo-position-date" className="fv-input" value={date} onCommit={value => updateParam('date', value)} />
+                  </span>
                 </Field>
                 <Field id="efetivo-role-filter" label="Função" optionalText="">
                   <Select

@@ -14,8 +14,7 @@ test('assinatura pública apresenta leitura, estados finais e falhas no design s
     const { PublicSignatureShell, PublicSignatureState, PublicSignatureView } = await server.ssrLoadModule('/src/pages/assinaturas/components/PublicSignatureView.tsx');
     const { ThemeContext } = await server.ssrLoadModule('/src/theme/ThemeContext.ts');
     const render = (component, props) => renderToStaticMarkup(createElement(component, props));
-    const base = { pageNumber: 1, imageUrl: '', imageError: false, downloading: false,
-      onPageChange() {}, onImageError() {}, onRetryImage() {}, onSign() {}, onDownload() {} };
+    const base = { loadPage: async () => new Blob(), downloading: false, onSign() {}, onDownload() {} };
     const document = { title: 'Contrato <industrial>', originalFileName: 'Contrato.pdf', requestedBy: 'Coordenação de serviços',
       pageCount: 3, status: 'AGUARDANDO_ASSINATURAS', progress: { signed: 0, total: 2 } };
     const invite = { status: 'ATIVO', document, expiresAt: '2026-09-25T12:00:00Z', signer: { name: 'Ana Silva', status: 'PENDENTE', signedAt: null },
@@ -26,8 +25,8 @@ test('assinatura pública apresenta leitura, estados finais e falhas no design s
     assert.match(ready, /data-status="Pendente"[^>]*fv-tone--warning/);
     assert.match(ready, /Assinar documento/);
     assert.doesNotMatch(ready, /Baixar PDF assinado|class="assinaturas-public__field"/);
-    assert.match(ready, /Carregando página 1/);
-    assert.equal((ready.match(/disabled=""/g) || []).length, 1);
+    for (const page of [1, 2, 3]) assert.match(ready, new RegExp(`Página ${page} de 3`));
+    assert.match(ready, /aria-label="Documento completo"/);
     for (const status of ['AGUARDANDO_ASSINATURAS', 'FINALIZANDO', 'CONCLUIDO']) {
       const signedInvite = { ...invite, document: { ...document, status }, signer: { ...invite.signer, status: 'ASSINADO', signedAt: '2026-09-10T12:00:00Z' }, downloadAvailable: status === 'CONCLUIDO' };
       const html = render(PublicSignatureView, { ...base, invite: signedInvite, pageNumber: 3 });
@@ -37,9 +36,9 @@ test('assinatura pública apresenta leitura, estados finais e falhas no design s
       assert.match(html, status === 'CONCLUIDO' ? /Documento concluído/ : status === 'FINALIZANDO' ? /Finalizando o PDF assinado/ : /Aguardando as demais assinaturas/);
       assert.match(html, /Assinado em 10\/09\/2026, 09:00/);
     }
-    const failedPage = render(PublicSignatureView, { ...base, invite, imageError: true });
-    assert.match(failedPage, /Recarregar página/);
-    assert.doesNotMatch(failedPage, /Carregando página|class="assinaturas-public__field"/);
+    const preview = source('pages/assinaturas/components/SignatureDocumentPreview.tsx');
+    assert.match(preview, /setError\(true\)/);
+    assert.match(preview, /Tentar novamente/);
     const downloading = render(PublicSignatureView, { ...base, invite: { ...invite, downloadAvailable: true }, downloading: true });
     assert.match(downloading, /aria-busy="true" data-loading="true"/);
     assert.match(downloading, /fv-sr-only">Baixando PDF assinado/);
@@ -75,14 +74,15 @@ test('migração pública preserva token, consentimento, coordenadas e consulta 
   assert.match(page, /fullscreenOnMobile=\{false\}/);
   assert.match(page, /loadingLabel="Assinando documento"/);
   assert.match(page, /if \(!submitting\)/);
-  assert.match(page, /publicSignaturePage\(token, pageNumber\)/);
+  assert.match(page, /publicSignaturePage\(token, page, signal\)/);
   assert.match(page, /publicSignaturePdf\(token\)/);
-  assert.match(page, /if \(!disposed\) setPageImage/);
-  assert.match(page, /URL.revokeObjectURL\(currentUrl\)/);
-  assert.match(page, /\[pageCount, pageNumber, token, imageRetry\]/, 'polling não recarrega a mesma imagem');
+  assert.match(page, /const loadPage = useCallback/);
+  const preview = source('pages/assinaturas/components/SignatureDocumentPreview.tsx');
+  assert.match(preview, /URL.revokeObjectURL\(url\)/);
+  assert.match(preview, /\[loadPage, pageNumber, visible, attempt\]/, 'polling não recarrega a mesma imagem');
   assert.doesNotMatch(page + view, /localStorage|sessionStorage|console\.|token=|#convite=/);
   assert.match(view, /style=\{normalizedToPercent\(field\)\}/);
-  assert.match(view, /imageReady \? pageFields.map/);
+  assert.match(view, /invite\.fields\.filter\(field => field\.pageNumber === pageNumber\)/);
   assert.doesNotMatch(view, /useQuery|useMutation|fetch\(/);
   assert.match(css, /\.assinaturas-public__paper \{[^}]*background: var\(--white\)/);
   assert.match(css, /\.assinaturas-public__actions \{[^}]*flex-wrap: nowrap/);

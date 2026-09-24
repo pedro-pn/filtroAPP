@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
 import type { MissionInput, PendingMissionProject, PlanningCoordinator, PlanningJobRole, PlanningMission } from '../../../api/efetivoPlanning';
-import { Button } from '../../../components/ui/Button';
+import { Alert, Button, Field, Input, Select } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
@@ -12,6 +12,8 @@ import { prefillDatesFromProject } from '../../../utils/missionPendencies';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
 import { missionTeamScheduleStatus, resolveMissionTeamScheduleDates, selectedMissionCollaboratorIds, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionTeamSelector } from './MissionTeamSelector';
+import '../EfetivoDialogs.css';
+import '../EfetivoMissions.ds.css';
 
 const schema = z.object({
   projectId: z.string().min(1, 'Selecione o projeto.'),
@@ -37,10 +39,8 @@ const schema = z.object({
     const selectedIds = new Set(value.collaboratorIds);
     const missionEndDate = value.returnDate || value.executionEndDate;
     value.allocationPeriods.forEach((period, index) => {
-      // Uma troca de equipe pode manter o período removido durante um ciclo do formulário.
-      // O envio o descarta; somente períodos da seleção atual devem validar as datas.
-      if (!selectedIds.has(period.collaboratorId)) return;
-      if (period.mobilizationDate < value.mobilizationDate
+      if (!selectedIds.has(period.collaboratorId)
+        || period.mobilizationDate < value.mobilizationDate
         || period.demobilizationDate > missionEndDate) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -80,7 +80,7 @@ function initialValues(mission: PlanningMission | null, project: PendingMissionP
   };
 }
 
-export function MissionFormModal({ open, mission, project, planId, roles, rolesLoading, coordinators, coordinatorsLoading, saving, initialTeamMode = false, context, onClose, onSubmit }: {
+export function MissionFormModal({ open, mission, project, planId, roles, rolesLoading, coordinators, coordinatorsLoading, saving, onClose, onSubmit }: {
   open: boolean;
   mission: PlanningMission | null;
   project: PendingMissionProject | null;
@@ -90,9 +90,6 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
   coordinators: PlanningCoordinator[];
   coordinatorsLoading: boolean;
   saving: boolean;
-  initialTeamMode?: boolean;
-  /** Presente ao definir a equipe inicial a partir do fluxo de gestão: líder, datas e cargos vêm do fluxo. */
-  context?: InitialTeamContext;
   onClose: () => void;
   onSubmit: (payload: MissionInput) => void;
 }) {
@@ -100,12 +97,12 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
   const [confirmedInactiveCollaboratorIds, setConfirmedInactiveCollaboratorIds] = useState<string[]>([]);
   const [pendingInactiveSubmission, setPendingInactiveSubmission] = useState<MissionInput | null>(null);
   const individualPeriodBoundsRef = useRef({ startDate: '', endDate: '' });
-  const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initialValues(mission, project, planId, initialTeamMode, context) });
+  const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initialValues(mission, project, planId) });
   const [teamStartDate, executionEndDate, demobilizationDate, allocationPeriods] = useWatch({ control, name: ['mobilizationDate', 'executionEndDate', 'returnDate', 'allocationPeriods'] });
   const teamEndDate = demobilizationDate || executionEndDate || '';
   useEffect(() => {
     if (!open) return;
-    const values = initialValues(mission, project, planId, initialTeamMode, context);
+    const values = initialValues(mission, project, planId);
     reset(values);
     setConfirmedInactiveCollaboratorIds([]);
     setPendingInactiveSubmission(null);
@@ -116,7 +113,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     setConfirmedMissionOverlapCollaboratorIds(mission?.allocations
       .filter(allocation => allocation.allowMissionOverlap)
       .map(allocation => allocation.collaboratorId) || []);
-  }, [context, initialTeamMode, mission, open, planId, project, reset]);
+  }, [mission, open, planId, project, reset]);
   useEffect(() => {
     if (!open || !teamStartDate || !teamEndDate) return;
     const previous = individualPeriodBoundsRef.current;
@@ -143,13 +140,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     || invalidAllocationPeriod?.demobilizationDate?.message;
   const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false);
   const submit = (values: FormValues) => {
-    const allocationPeriods = synchronizeMissionAllocationPeriods(
-      values.collaboratorIds,
-      values.allocationPeriods,
-      values.mobilizationDate,
-      values.returnDate || values.executionEndDate
-    );
-    const payload: MissionInput = { ...values, allocationPeriods, returnDate: values.returnDate || null, planId, confirmedMissionOverlapCollaboratorIds, confirmedInactiveCollaboratorIds };
+    const payload: MissionInput = { ...values, returnDate: values.returnDate || null, planId, confirmedMissionOverlapCollaboratorIds, confirmedInactiveCollaboratorIds };
     if (inactiveAllocations.some(allocation => values.collaboratorIds.includes(allocation.collaboratorId)
       && !confirmedInactiveCollaboratorIds.includes(allocation.collaboratorId))) {
       setPendingInactiveSubmission(payload);
@@ -157,56 +148,62 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
   };
   return (
     <>
-    <Modal open={open} onClose={onClose} ariaLabelledBy="mission-form-title" panelClassName="modal-card efetivo-detail-modal efetivo-modal efetivo-team-dialog">
-      <form className="efetivo-modal-layout" noValidate onSubmit={handleSubmit(submit)}>
-        <header className="efetivo-modal-header"><div><h3 id="mission-form-title">{initialTeamMode ? mission ? 'Editar equipe inicial' : 'Definir equipe inicial' : mission ? 'Editar programação' : 'Completar programação da missão'}</h3><p>{initialTeamMode ? 'A equipe definida aqui será vinculada ao primeiro ciclo da obra e poderá ser personalizada durante a execução.' : 'A missão permanece em Stand by até receber líder, datas, equipe e confirmação.'}</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button></header>
-        <div className="efetivo-modal-body efetivo-form-grid">
+    <Modal
+      open={open}
+      onClose={onClose}
+      closeOnEscape={!saving}
+      showCloseButton={!saving}
+      appearance="design-system"
+      title={mission ? 'Editar programação' : 'Completar programação da missão'}
+      size="lg"
+      fullscreenOnMobile={false}
+      panelClassName="efetivo-dialog efetivo-mission-programming-dialog"
+      ariaDescribedBy="mission-form-description"
+      footer={<>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <Button variant="primary" size="sm" type="submit" form="mission-programming-form" loading={saving} loadingLabel="Salvando programação">Salvar programação</Button>
+      </>}
+    >
+      <form id="mission-programming-form" className="efetivo-dialog-form" noValidate onSubmit={handleSubmit(submit)}>
+        <p className="efetivo-dialog-description" id="mission-form-description">A missão permanece em Stand by até receber líder, datas, equipe e confirmação.</p>
           <input type="hidden" {...register('projectId')} />
-          <div className="field-group efetivo-form-wide efetivo-mission-identity"><span className="efetivo-eyebrow">Projeto/missão</span><strong>{identity ? `${identity.code} · ${identity.name}` : 'Projeto não identificado'}</strong><span className="field-hint">{identity ? `${identity.clientName || 'Sem cliente'} · ${identity.location || 'Sem local'}` : 'Selecione a missão pela lista de projetos.'}</span>{errors.projectId ? <span className="field-error">{errors.projectId.message}</span> : null}</div>
-          <p className="efetivo-form-wide efetivo-form-section-title">Liderança</p>
-          {context ? (
-            <div className="field-group efetivo-form-wide efetivo-team-reflected" data-efetivo-team-leader>
-              <input type="hidden" {...register('headquartersResponsibleUserId')} />
-              <span>Líder de Projetos</span>
-              <strong>{context.leaderName}</strong>
-              <span className="field-hint">O Líder de Projetos já foi definido no fluxo de gestão e responde por esta equipe.</span>
-            </div>
-          ) : (
+          <div className="efetivo-mission-form-identity"><span className="efetivo-eyebrow">Projeto/missão</span><strong>{identity ? `${identity.code} · ${identity.name}` : 'Projeto não identificado'}</strong><span>{identity ? `${identity.clientName || 'Sem cliente'} · ${identity.location || 'Sem local'}` : 'Selecione a missão pela lista de projetos.'}</span></div>
+          {errors.projectId ? <Alert tone="danger">{errors.projectId.message}</Alert> : null}
+          <fieldset className="efetivo-mission-form-section">
+          <legend>Liderança</legend>
           <Controller name="headquartersResponsibleUserId" control={control} render={({ field }) => <SearchCombobox id="mission-leader-user" label="Vincular líder" required value={field.value} loading={coordinatorsLoading} disabled={saving} error={errors.headquartersResponsibleUserId?.message} emptyText="Nenhuma conta com colaborador e cargo vinculados." options={leaderAccounts.map(item => ({ value: item.id, label: item.collaborator?.name || item.name, description: `${item.collaborator?.role || ''} · conta ${item.name}` }))} onChange={field.onChange} />} />
-          )}
-          <p className="efetivo-form-wide efetivo-form-section-title">Programação</p>
-          {initialTeamMode ? (
-            <div className="field-group efetivo-team-reflected">
-              <span>Situação da programação</span>
-              <input type="hidden" {...register('scheduleStatus')} />
-              <strong>Confirmada</strong>
-              <span className="field-hint">Ao definir a equipe inicial, a programação passa a integrar a operação ativa da obra.</span>
+          </fieldset>
+          <fieldset className="efetivo-mission-form-section">
+            <legend>Programação</legend>
+            <div className="efetivo-dialog-fields">
+              <Field id="mission-status" label="Situação da programação" required errorText={errors.scheduleStatus?.message}>
+                <Select size="sm" disabled={saving} {...register('scheduleStatus')}><option value="CONFIRMED">Confirmada</option><option value="CANCELLED">Cancelada</option></Select>
+              </Field>
+              {([['mobilizationDate', 'Previsão de mobilização'], ['executionStartDate', 'Início da execução'], ['executionEndDate', 'Fim da execução']] as const).map(([name, label]) => (
+                <Field id={`mission-${name}`} label={label} required errorText={errors[name]?.message} key={name}>
+                  <Input size="sm" type="date" disabled={saving} {...register(name)} />
+                </Field>
+              ))}
+              <Field id="mission-returnDate" label="Desmobilização" optionalText="" errorText={errors.returnDate?.message} helperText="Opcional. Informe somente a data em que a desmobilização de fato ocorreu.">
+                <Input size="sm" type="date" disabled={saving} {...register('returnDate')} />
+              </Field>
             </div>
-          ) : <div className="field-group"><label htmlFor="mission-status">Situação da programação *</label><select id="mission-status" disabled={saving} {...register('scheduleStatus')}><option value="CONFIRMED">Confirmada</option><option value="CANCELLED">Cancelada</option></select></div>}
-          {([['mobilizationDate', 'Previsão de mobilização'], ['executionStartDate', 'Início da execução'], ['executionEndDate', 'Fim da execução']] as const).map(([name, label]) => {
-            const reflected = Boolean(context?.[name]);
-            return <div className={`field-group ${errors[name] ? 'field-invalid' : ''}${reflected ? ' efetivo-team-reflected' : ''}`} key={name}><label htmlFor={`mission-${name}`}>{label} *</label><input id={`mission-${name}`} type="date" readOnly={reflected} disabled={saving} aria-invalid={Boolean(errors[name])} {...register(name)} />{reflected ? <span className="field-hint">Definido no fluxo de gestão.</span> : context ? <span className="field-hint">Ainda não definido na análise inicial; informe aqui ou preencha lá para refletir nas demais etapas.</span> : null}{errors[name] ? <span className="field-error">{errors[name]?.message}</span> : null}</div>;
-          })}
-          {context ? <input type="hidden" {...register('returnDate')} /> : (
-          <div className={`field-group ${errors.returnDate ? 'field-invalid' : ''}`}><label htmlFor="mission-returnDate">Desmobilização</label><input id="mission-returnDate" type="date" disabled={saving} aria-invalid={Boolean(errors.returnDate)} {...register('returnDate')} /><span className="field-hint">Opcional. Informe somente a data em que a desmobilização de fato ocorreu.</span>{errors.returnDate ? <span className="field-error">{errors.returnDate.message}</span> : null}</div>
-          )}
-          <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} plannedRoles={context?.plannedRoles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} allowIndividualPeriods={!initialTeamMode} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds) => {
-            const nextPeriods = synchronizeMissionAllocationPeriods(
-              ids,
-              allocationPeriods || [],
-              teamStartDate || '',
-              teamEndDate
-            );
+          </fieldset>
+          <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds) => {
+            const periodsById = new Map((allocationPeriods || []).map(period => [period.collaboratorId, period]));
+            const nextPeriods = ids.map(collaboratorId => periodsById.get(collaboratorId) || {
+              collaboratorId,
+              mobilizationDate: teamStartDate || '',
+              demobilizationDate: teamEndDate
+            });
             field.onChange(ids);
             setValue('allocationPeriods', nextPeriods, { shouldDirty: true, shouldValidate: true });
             setConfirmedMissionOverlapCollaboratorIds(confirmedIds);
             setConfirmedInactiveCollaboratorIds(inactiveIds);
           }} />} />
-        </div>
-        <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Salvando…' : initialTeamMode ? 'Salvar equipe inicial' : 'Salvar programação'}</Button></footer>
       </form>
     </Modal>
-    <ConfirmDialog open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
+    <ConfirmDialog appearance="design-system" open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
       description="A equipe contém colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão."
       highlight={inactiveAllocations.filter(allocation => pendingInactiveSubmission?.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaborator?.name).join(', ')}
       confirmLabel="Confirmar e salvar" confirmDisabled={saving} danger={false}
@@ -298,20 +295,18 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
 
   return (
     <>
-      <Modal open={showDateForm} onClose={onClose} ariaLabelledBy="initial-team-dates-title" panelClassName="modal-card efetivo-modal efetivo-team-dialog">
-        <div className="efetivo-modal-layout">
-          <header className="efetivo-modal-header"><div><h3 id="initial-team-dates-title">{mission ? 'Editar equipe inicial' : 'Definir equipe inicial'}</h3><p>{identity ? `${identity.code} · ${identity.name} · ` : ''}Confirme as datas da obra para consultar a disponibilidade dos colaboradores.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button></header>
-          <div className="efetivo-modal-body efetivo-form-grid">
+      <Modal open={showDateForm} onClose={onClose} appearance="design-system" size="md" fullscreenOnMobile={false}
+        title={mission ? 'Editar equipe inicial' : 'Definir equipe inicial'} panelClassName="efetivo-dialog efetivo-team-dialog"
+        footer={<><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="primary" type="button" disabled={!datesValid || saving} onClick={() => setDatesConfirmed(true)}>Continuar</Button></>}>
+          <p className="efetivo-dialog-description">{identity ? `${identity.code} · ${identity.name} · ` : ''}Confirme as datas da obra para consultar a disponibilidade dos colaboradores.</p>
+          <div className="efetivo-form-grid">
             {([['mobilizationDate', 'Previsão de mobilização', mobilizationDate, setMobilizationDate], ['executionStartDate', 'Início da execução', executionStartDate, setExecutionStartDate], ['executionEndDate', 'Fim da execução', executionEndDate, setExecutionEndDate]] as const).map(([name, label, value, setValue]) => (
-              <div className="field-group" key={name}>
-                <label htmlFor={`initial-team-${name}`}>{label} *</label>
-                <input id={`initial-team-${name}`} type="date" disabled={saving} value={value} onChange={event => setValue(event.target.value)} />
-              </div>
+              <Field id={`initial-team-${name}`} label={label} required key={name}>
+                <Input id={`initial-team-${name}`} size="sm" type="date" disabled={saving} value={value} onChange={event => setValue(event.target.value)} />
+              </Field>
             ))}
-            {mobilizationDate && executionStartDate && executionEndDate && !datesValid ? <span className="field-error efetivo-form-wide">Use a ordem mobilização ≤ início ≤ fim.</span> : null}
+            {mobilizationDate && executionStartDate && executionEndDate && !datesValid ? <Alert tone="danger">Use a ordem mobilização ≤ início ≤ fim.</Alert> : null}
           </div>
-          <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="button" disabled={!datesValid || saving} onClick={() => setDatesConfirmed(true)}>Continuar</Button></footer>
-        </div>
       </Modal>
       {showDateForm ? null : (
         <MissionTeamSelector
@@ -343,7 +338,7 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
           }}
         />
       )}
-      <ConfirmDialog open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
+      <ConfirmDialog appearance="design-system" open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
         description="A equipe contém colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão."
         highlight={inactiveAllocations.filter(allocation => pendingInactiveSubmission?.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaborator?.name).join(', ')}
         confirmLabel="Confirmar e salvar" confirmDisabled={saving} danger={false}
