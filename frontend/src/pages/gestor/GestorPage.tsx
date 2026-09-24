@@ -4373,7 +4373,7 @@ export function GestorPage() {
             disabled={reportMutations.uploadPhysicalSignature.isPending}
             emptyHint="PDF de até 20 MB"
           />
-          <div className="admin-form-actions">
+          <div className="admin-form-actions physical-signature-actions">
             <button className="secondary-button" type="button" disabled={reportMutations.uploadPhysicalSignature.isPending} onClick={() => { setPhysicalSignatureReport(null); setPhysicalSignatureFile(null); }}>Cancelar</button>
             <button className="primary-button" type="submit" disabled={!physicalSignatureFile || reportMutations.uploadPhysicalSignature.isPending}>
               {reportMutations.uploadPhysicalSignature.isPending ? 'Enviando...' : 'Registrar assinatura física'}
