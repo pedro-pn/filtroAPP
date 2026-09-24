@@ -3,7 +3,9 @@ import { useState } from 'react';
 
 import { getProjectProgress, type ProgressSystem } from '../../api/acompanhamentoComercial';
 import { scopeKeyOf, systemNameKey } from '../../utils/projectSystemSelection';
+import { Alert, EmptyState, Field, ProgressBar, Select, Skeleton } from '../ui/ds';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import './ProjectProgressBreakdown.ds.css';
 
 const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -28,10 +30,11 @@ function systemLine(sys: ProgressSystem) {
 // `filter`/`progressPct` são opcionais: quando o dashboard já filtra por Escopo e/ou Equipamento/UG,
 // ele controla o recorte (chaves normalizadas, '' = todos, e o percentual do topo) e o seletor
 // interno deixa de aparecer.
-export function ProjectProgressBreakdown({ projectId, filter, progressPct }: {
+export function ProjectProgressBreakdown({ projectId, filter, progressPct, appearance = 'legacy' }: {
   projectId: string;
   filter?: { scopeKey: string; equipmentKey: string };
   progressPct?: number | null;
+  appearance?: 'legacy' | 'design-system';
 }) {
   const [ownEquipment, setEquipment] = useState('');
   const controlled = filter !== undefined;
@@ -39,11 +42,62 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct }: {
   const scopeKey = controlled ? filter.scopeKey : '';
   const matchesEquipment = (name: string | null | undefined) => !equipment
     || (controlled ? systemNameKey(name) === equipment : name === equipment);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['project-progress', projectId],
     queryFn: () => getProjectProgress(projectId),
     ...acompanhamentoRefreshQueryOptions
   });
+
+  if (appearance === 'design-system') {
+    if (isLoading) return <Skeleton variant="text" lines={4} label="Calculando avanço" />;
+    if (isError && !data) return <EmptyState variant="error" title="Não foi possível calcular o avanço."
+      action={{ label: 'Tentar novamente', onClick: () => void refetch() }} />;
+    if (!data || !data.hasScope) return <EmptyState title="Escopo previsto não cadastrado"
+      description="Cadastre o escopo previsto com metas para calcular o avanço." />;
+
+    const shownPct = progressPct === undefined ? data.progressPct : progressPct;
+    const groups = (data.scopeGroups ?? [{ scopeName: null, services: data.services }])
+      .filter(group => !scopeKey || scopeKeyOf(group.scopeName) === scopeKey)
+      .map(group => ({ ...group, services: group.services.filter(service => !controlled || service.systems.some(system => matchesEquipment(system.equipment))) }))
+      .filter(group => group.services.length > 0);
+
+    return <div className="acp-progress-ds" data-acp-progress-ds>
+      {isError ? <Alert tone="warning" action={{ label: 'Tentar novamente', onClick: () => void refetch() }}>
+        Não foi possível atualizar o avanço. Exibindo os dados anteriores.
+      </Alert> : isFetching ? <span className="acp-progress-ds__updating" role="status">Atualizando avanço…</span> : null}
+      {!controlled && data.services.some(service => service.systems.some(system => system.projectSystemId)) ?
+        <Field id={`acp-progress-equipment-${projectId}`} label="Filtrar equipamento / UG" optionalText=""
+          helperText="O percentual geral mantém todo o escopo; o filtro altera apenas as linhas exibidas.">
+          <Select value={equipment} onChange={event => setEquipment(event.target.value)}>
+            <option value="">Todas as UGs / equipamentos</option>
+            {[...new Set(data.services.flatMap(service => service.systems.map(system => system.equipment)).filter(Boolean))]
+              .map(value => <option key={value} value={value!}>{value}</option>)}
+          </Select>
+        </Field> : null}
+      <ProgressBar label="Avanço total do escopo" value={shownPct} valueLabel={fmtPct(shownPct)} />
+      {groups.length ? <div className="acp-progress-ds__groups">
+        {groups.map(group => <section className="acp-progress-ds__group" key={group.scopeName ?? ''}>
+          {data.scopeGroups ? <h4>Escopo: {group.scopeName || 'Sem escopo definido'}</h4> : null}
+          {group.services.map((service, index) => <div className="acp-progress-ds__service" key={`${service.serviceType}:${index}`}>
+            <div className="acp-progress-ds__service-head">
+              <strong>{SERVICE_LABELS[service.serviceType] ?? service.serviceType}</strong>
+              <span>peso {service.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(service.executionPct)}</span>
+            </div>
+            <ul>{service.systems.filter(system => matchesEquipment(system.equipment)).map((system, systemIndex) =>
+              <li key={systemIndex}>{systemLine(system)}</li>)}</ul>
+          </div>)}
+        </section>)}
+      </div> : <EmptyState title="Nenhuma meta corresponde ao filtro" />}
+      {data.pendingMeasurements?.length ? <details className="acp-progress-ds__pending">
+        <summary>Medições sem correspondência no escopo ({data.pendingMeasurements.length})</summary>
+        <p>Não entram nas metas por sistema até a conferência de UG, nome e bitola. Revise os vínculos na Conciliação de sistemas do Acompanhamento.</p>
+        <ul>{data.pendingMeasurements.map((item, index) => <li key={index}>
+          {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
+        </li>)}</ul>
+      </details> : null}
+      <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. Metas por sistema consideram equipamento/UG, sistema e bitola. Em cada tipo de medição, a execução é proporcional à quantidade prevista, limitada à meta de cada linha; os serviços usam seus pesos.</p>
+    </div>;
+  }
 
   if (isLoading) return <div className="placeholder-copy">Calculando avanço…</div>;
   if (!data || !data.hasScope) {

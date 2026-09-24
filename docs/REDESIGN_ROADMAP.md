@@ -92,7 +92,7 @@ Todas as fases devem preservar os seguintes contratos:
 | Hub e navegação global | Efetivo, Assinaturas, Manutenção/Produção e novidades de API/Tokens; ícones e acesso por perfil/permissão | Integração preserva DS; revisão transversal X2 pendente |
 | Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Simulações, Produtividade e Administração | **Standby nesta worktree** — entregas preservadas; retomada após conciliar o desenvolvimento paralelo |
 | Assinaturas | Lista de ativos/arquivados, novo documento, configuração do PDF, assinantes, publicação, acompanhamento, auditoria e assinatura pública | **Migrado e validado tecnicamente** — F3.1–F3.5; teste em celular físico com o usuário |
-| Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | A1/A2/A3a implementados no baseline anterior; complemento A3a.1 e A3b–A7 pendentes |
+| Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | A1/A2/A3a/A3a.1/A3b implementados no código; A4–A7 pendentes |
 | Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
 | Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
@@ -762,12 +762,17 @@ scroll localizado acidental em 360 px de largura.
 | A1 — Entrada e visão consolidada | Shell, navegação das quatro áreas, filtros, indicadores, comparativos, categorias e listagem do Dashboard | **Implementado** |
 | A2 — Projetos | Cards, agrupamento/desagrupamento, renomeação, apropriação de mão de obra, filtros, conferência e arquivamento/restauração | **Implementado** |
 | A3a — Detalhe do projeto | `ProjectDetailDashboard`, custos previstos/realizados, composição das propostas, notas, desvios, progresso/metas, equipe e leitura do escopo | **Implementado** |
-| A3a.1 — Complemento da main | `ProjectInvoicesSection`: faturamentos, recebimento e sincronização; conferir TAG nos cards/detalhe | **Próximo lote visual** |
-| A3b — Edição do planejamento | `ProjectScheduleEditor`, propostas adicionais/revisões e editor de escopo previsto, incluindo consumidores compartilhados | **Pendente após o complemento do detalhe** |
+| A3a.1 — Complemento da main | `ProjectInvoicesSection`: faturamentos, recebimento e sincronização; preservar a TAG dos equipamentos em obra já exibida nos cards/detalhe | **Implementado no código; integração real em A7** |
+| A3b — Edição do planejamento | `ProjectScheduleEditor`, propostas adicionais/revisões e editor de escopo previsto, incluindo consumidores compartilhados | **Implementado no código; integração real em A7** |
 | A4 — Diálogos de apoio | Relatórios/PDF, standby, jornadas POINT/REPORT e novo `ProjectRomaneiosDialog` com seus gatilhos | **Pendente de consolidação e revisão integrada** |
 | A5 — Sede | Períodos, gastos globais, categorias, detalhamento e novos indicadores aprovados de manutenção/produção em `SedeOperationalCards` | **Pendente; escopo ampliado** |
 | A6 — Custo | Motor/simulação, cargos/perfis, parâmetros/EPI, importação e conciliação de ponto, pendências e auditoria de alocação | **Pendente** |
 | A7 — Fechamento | Matriz completa de perfis/navegadores/estados, persistência em ambiente isolado e retirada de CSS sem consumidores | **Pendente** |
+
+A TAG mencionada em A3a.1 é o código de identificação do **equipamento em obra**,
+exibido antes do nome quando disponível. A exibição já existe em
+`ProjectOverviewMetrics` e `ProjectDetailDashboard`; ela não é uma tag de status
+do projeto nem exige um novo campo de status.
 
 Entregue em A1:
 
@@ -862,11 +867,11 @@ Entregue em A3a — detalhe do projeto (10/09/2026):
   ou formulários de notas/desvios/custos individuais indevidos.
 - Separados `projectDetailModel`, `ProjectDetailVisuals`, `ProjectDetailHistory`,
   `ProjectDetailCosts` e `ProjectDetailPeople`. A fronteira `.fv-ds` termina
-  antes do cronograma e dos diálogos compartilhados ainda legados.
+  antes do cronograma e dos diálogos compartilhados ainda legados naquele lote.
 
 A3 foi dividido após verificar que o cronograma compartilha edição de escopo,
-propostas e regras de mão de obra com outros consumidores. **A3b segue pendente**:
-migrar esse conjunto completo, sem mudar o fluxo de gravação. A4 mantém histórico
+propostas e regras de mão de obra com outros consumidores. A migração A3b está
+registrada abaixo, preservando o fluxo de gravação. A4 mantém histórico
 de standby/horas e revisão integrada dos relatórios/PDF; Sede, Custo e A7 continuam
 na sequência. Nenhuma alteração de backend ou do módulo Efetivo nesta etapa.
 
@@ -880,6 +885,37 @@ Loading, vazio, erro/retry, falha de atualização preservando o cache, formulá
 em quatro larguras e perfis gestor/viewer/sem acesso passaram nos dois navegadores.
 Capturas locais em `output/playwright/acp-detail-*`. Persistência real, aparelhos
 físicos e validação completa das superfícies ainda legadas permanecem em A3b/A4/A7.
+
+Entregue em A3a.1 (24/09/2026): faturamentos do projeto e do grupo usam `Card`,
+`DataTable` responsiva, `Badge`, `Alert`, `Skeleton` e `Pagination` do DS. A UI
+mantém bruto/recebimento separados, parcelas, vínculo Omie, primeira sincronização,
+snapshot antigo e consulta periódica. Falha de atualização com dados em cache
+preserva o histórico visível. O detalhamento de avanço por UG/sistema recebe
+aparência DS no detalhe; Cronograma e Conciliação seguem com a aparência legada
+até seus próprios lotes. O indicador de equipe planejada no detalhe usa `Badge`
+DS. A TAG do equipamento em obra já estava exibida nos cards e no detalhe e foi
+preservada. O CSS legado exclusivo de faturamentos foi removido.
+
+Validação de A3a.1: testes focados, build, lint sem erros e gate arquitetural
+aprovados; conferência visual com dados fictícios em 360 px claro, 768/1280 px
+escuro, sem rolagem horizontal. Persistência e respostas reais do Omie seguem
+para A7.
+
+Entregue em A3b (24/09/2026): as duas entradas do Cronograma usam `Modal` DS
+com ações fixas, e `ProjectScheduleEditor` usa campos, cartões, alertas e estados
+DS. Escopo previsto mantém grupos, pesos, sistemas, diâmetros e horas, agora com
+controles DS; a comparação de horas usa `DataTable` responsiva. Avanço físico e
+categorias usam a aparência DS apenas no Cronograma, mantendo os consumidores
+legados de Conciliação. O seletor de revisões no Gestor usa `Select` DS, sem
+alterar escolha, aplicação ou remoção das propostas adicionais. Salvar único,
+estado de alteração, permissões e bloqueio da conciliação até salvar foram
+preservados. Conferência visual com dados fictícios em 360 px claro e 768/1280 px
+escuro, inclusive serviço expandido, sem rolagem horizontal. A edição de data
+habilita Salvar e bloqueia a conciliação. Persistência real, respostas da API e
+matriz completa de perfis permanecem no fechamento A7.
+Validação técnica de A3b: suíte frontend completa (118 arquivos de teste), build
+e gate arquitetural aprovados; lint sem erros, com dois avisos anteriores em
+Efetivo e Romaneio.
 
 #### F4.2 — Equipamentos e configuração de manutenção (novo escopo)
 
@@ -964,9 +1000,9 @@ do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md). A nova
 gestão de projetos F2.5/F2.6 segue o standby do Efetivo; as demais novidades
 estão vinculadas às fases A3b/A4/A5/A6, Estoque, Romaneio, M3/EQ2 e X1/X2.
 
-1. **A3a.1** e os novos gatilhos/diálogos de **A4**, para fechar as inserções da main
+1. Novos gatilhos/diálogos de **A4**, para fechar as inserções da main
    nas telas de Acompanhamento já redesenhadas.
-2. **A3b**, restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
+2. Restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
 3. **EQ1–EQ3 + M1–M5**, respeitando a dependência de configuração da manutenção.
 4. Estoque e Romaneio (F4) com suas pendências anteriores.
 5. **API1–API4 + X1/X2** e ajustes localizados de Qualidade/EPI/Admin (F5).

@@ -41,7 +41,7 @@ test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', asy
 
   assert.match(source, /!data\.header\.lastRdoDate/);
   assert.match(source, /plannedCollaborators\.map/);
-  assert.match(people, /className="api-badge status-planned">Planejado/);
+  assert.match(people, /<Badge tone="info">Planejado<\/Badge>/);
   assert.match(people, /Ainda não há RDO para este projeto/);
 });
 

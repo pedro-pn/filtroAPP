@@ -7,7 +7,7 @@ import {
   setProjectAdditionalRevision,
   setProjectRevision
 } from '../../api/acompanhamentoComercial';
-import { Button } from '../ui/ds';
+import { Button, Select } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 
 function formatBRL(value?: string | number | null) {
@@ -92,8 +92,10 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
         <div className="det-row project-revision-picker__row">
           <span className="det-label">Revisão que vale</span>
           <span className="det-val det-inline-actions project-revision-picker__actions">
-            <select
+            <Select
+              aria-label="Revisão que vale"
               className="project-revision-picker__select"
+              containerClassName="project-revision-picker__shell"
               value={chosen ?? ''}
               onChange={event => setSelected(Number(event.target.value))}
             >
@@ -102,7 +104,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
                   {`Rev ${revision.nRev} · ${formatBRL(revision.salePrice)}${revision.codBd === current ? ' (atual)' : ''}`}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               className="project-revision-picker__button"
               variant="primary"
@@ -124,8 +126,10 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
           <div className="det-row acp-additional-proposal-row project-revision-picker__row" key={group.proposalCode}>
             <span className="det-label">Proposta adicional {group.proposalCode}</span>
             <span className="det-val det-inline-actions project-revision-picker__actions">
-              <select
+              <Select
+                aria-label={`Revisão da proposta adicional ${group.proposalCode}`}
                 className="project-revision-picker__select"
+                containerClassName="project-revision-picker__shell"
                 value={additionalChosen ?? ''}
                 onChange={event => setSelectedAdditionals(prev => ({
                   ...prev,
@@ -137,7 +141,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
                     {`Rev ${revision.nRev} · ${formatBRL(revision.salePrice)}${revision.codBd === group.currentCodBd ? ' (atual)' : ''}`}
                   </option>
                 ))}
-              </select>
+              </Select>
               <Button
                 className="project-revision-picker__button"
                 variant="primary"

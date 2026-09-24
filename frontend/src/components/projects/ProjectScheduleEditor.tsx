@@ -15,10 +15,12 @@ import { getActiveCollaborators } from '../../api/acompanhamentoPonto';
 import { systemReconciliationPath } from '../../api/systemReconciliation';
 import { useToast } from '../ui/ToastContext';
 import { HelpTip } from '../ui/HelpTip';
+import { Alert, Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import './ProjectScheduleEditor.ds.css';
 
 export interface ScheduleEditorHandle { save: () => void }
 
@@ -241,18 +243,18 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   useImperativeHandle(ref, () => ({ save: () => runSave.current() }), []);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
-  if (isLoading) return <div className="placeholder-copy">Carregando…</div>;
+  if (isLoading) return <Skeleton variant="text" lines={5} label="Carregando cronograma" />;
 
   const current = data?.currentCodBd ?? null;
   const revisions = data?.revisions ?? [];
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
 
   if (current == null || !currentRevision) {
-    return <>
-      <p className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão. A previsão manual permanece disponível.</p>
+    return <div className="acp-schedule-ds">
+      <Alert tone="info">Aguardando seleção da proposta aprovada pela gestão. A previsão manual permanece disponível.</Alert>
       <ProjectPlannedScopeEditor ref={scopeRef} projectId={projectId} canManage={canManage}
         onDirtyChange={setScopeDirty} onSavingChange={setScopeSaving} />
-    </>;
+    </div>;
   }
 
   const leadDays = data?.mobilizationLeadDays ?? null;
@@ -300,13 +302,10 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const manualLaborIdSet = new Set(manualLaborIdsValue);
   const collaboratorSleepSection = canManage ? (
     <>
-      <div className="acp-scope-divider" />
-      <div className="sec" style={{ marginTop: 4 }}>Colaboradores e hospedagem</div>
+      <h3 className="acp-schedule-ds__section-title">Colaboradores e hospedagem</h3>
       <div className="acp-sleep-add">
-        <div className="field-group">
-          <label htmlFor={`acp-labor-add-${projectId}`}>Adicionar colaborador manualmente</label>
-          <select
-            id={`acp-labor-add-${projectId}`}
+        <Field id={`acp-labor-add-${projectId}`} label="Adicionar colaborador manualmente" optionalText="">
+          <Select
             value={manualLaborAddId}
             disabled={activeCollaboratorsQuery.isLoading || manualLaborOptions.length === 0}
             onChange={e => setManualLaborAddId(e.target.value)}
@@ -321,16 +320,16 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
                 {collaborator.name}{collaborator.role ? ` — ${collaborator.role}` : ''}
               </option>
             ))}
-          </select>
-        </div>
-        <button type="button" className="mini-btn" onClick={addManualLaborCollaborator} disabled={!manualLaborAddId}>
+          </Select>
+        </Field>
+        <Button variant="secondary" size="sm" onClick={addManualLaborCollaborator} disabled={!manualLaborAddId}>
           Adicionar
-        </button>
+        </Button>
       </div>
       {activeCollaboratorsQuery.isLoading && laborRows.length === 0 ? (
-        <div className="placeholder-copy">Carregando colaboradores…</div>
+        <p className="acp-schedule-ds__muted">Carregando colaboradores…</p>
       ) : laborRows.length === 0 ? (
-        <div className="placeholder-copy">Nenhum colaborador encontrado nos RDOs deste projeto.</div>
+        <p className="acp-schedule-ds__muted">Nenhum colaborador encontrado nos RDOs deste projeto.</p>
       ) : (
         <div className="acp-sleep-list">
           {laborRows.map(collaborator => {
@@ -346,7 +345,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
                   </small>
                 </span>
                 <div className="acp-sleep-controls">
-                  <select
+                  <Select size="sm"
                     id={`acp-sleep-${projectId}-${collaborator.id}`}
                     value={mode}
                     onChange={e => setCollaboratorSleepMode(collaborator.id, e.target.value as LaborSleepMode)}
@@ -354,16 +353,12 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
                   >
                     <option value="AWAY">Dorme fora</option>
                     <option value="HOME">Dorme em casa</option>
-                  </select>
+                  </Select>
                   {canRemoveManual ? (
-                    <button
-                      type="button"
-                      className="mini-btn alt acp-sleep-remove"
+                    <Button variant="ghost" size="sm" className="acp-sleep-remove"
                       onClick={() => removeManualLaborCollaborator(collaborator.id)}
                       aria-label={`Remover inclusão manual de ${collaborator.name}`}
-                    >
-                      Remover
-                    </button>
+                    >Remover</Button>
                   ) : null}
                 </div>
               </div>
@@ -392,90 +387,78 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   </>;
 
   return (
-    <div className="det-section">
-      {plannedScope?.hoursPlan?.pending ? <div role="alert" className="acp-alert warn" style={{ marginBottom: 12 }}>
-        ⚠ Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
-      </div> : null}
-      <div className="det-row"><span className="det-label">Previsto (comercial)</span>
-        <span className="det-val acp-budget-value">
-          <span>Venda {brl(plannedSalePrice)} · Custo {brl(plannedCost)} · Margem {pct(expectedMargin)}</span>
+    <div className="acp-schedule-ds">
+      {plannedScope?.hoursPlan?.pending ? <Alert tone="warning">
+        Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
+      </Alert> : null}
+      <Card variant="flat" padding="md" title="Previsto (comercial)" className="acp-schedule-ds__summary">
+        <div className="acp-schedule-ds__facts">
+          <div><span>Venda</span><strong>{brl(plannedSalePrice)}</strong></div>
+          <div><span>Custo</span><strong>{brl(plannedCost)}</strong></div>
+          <div><span>Margem</span><strong>{pct(expectedMargin)}</strong></div>
+        </div>
           {additionalRevisions.length > 0 ? (
-            <small className="acp-budget-split">Original {brl(currentRevision.salePrice)} / {brl(currentRevision.plannedCost)} · Adicional {brl(additionalSalePrice)} / {brl(additionalPlannedCost)}</small>
+            <p className="acp-schedule-ds__muted">Original {brl(currentRevision.salePrice)} / {brl(currentRevision.plannedCost)} · Adicional {brl(additionalSalePrice)} / {brl(additionalPlannedCost)}</p>
           ) : null}
-        </span>
-      </div>
-      <div className="det-row"><span className="det-label">Dias / equipe</span>
-        <span className="det-val">{plannedDays ?? '—'} corridos · {plannedWorkedDays ?? '—'} trab. · {currentRevision.numOperators ?? '—'} op / {currentRevision.numSupervisors ?? '—'} enc · {currentRevision.numPerDay ?? '—'} d / {currentRevision.numPerNight ?? '—'} n</span>
-      </div>
+        <p className="acp-schedule-ds__muted">{plannedDays ?? '—'} dias corridos · {plannedWorkedDays ?? '—'} trabalhados · {currentRevision.numOperators ?? '—'} operadores / {currentRevision.numSupervisors ?? '—'} encarregados · {currentRevision.numPerDay ?? '—'} dia / {currentRevision.numPerNight ?? '—'} noite</p>
+      </Card>
 
-      <div className="admin-inline-grid" style={{ marginTop: 8 }}>
-        <div className="field-group">
-          <label htmlFor={`acp-aprov-${projectId}`}>Aprovação da proposta <HelpTip icon help="Data em que a proposta foi aprovada pelo cliente. Base para o prazo de mobilização." /></label>
-          <input id={`acp-aprov-${projectId}`} type="date" value={approvalValue} onChange={e => setApprovalEdit(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor={`acp-mob-${projectId}`}>Mobilização <HelpTip icon help="Data em que a equipe/equipamento foram mobilizados para a obra. Exibida no rodapé do dashboard do projeto." /></label>
-          <input id={`acp-mob-${projectId}`} type="date" value={mobValue} onChange={e => setMobEdit(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor={`acp-desmob-${projectId}`}>Desmobilização <HelpTip icon help="Data em que a equipe deixou a obra. Preencha só depois do fato. Com mobilização e desmobilização preenchidas, os dias de ponto da equipe que não têm etiqueta do Ponto Mais nem RDO passam a ser alocados automaticamente nesta missão. Enquanto ficar vazia, esses dias continuam indo para as pendências." /></label>
-          <input
-            id={`acp-desmob-${projectId}`}
+      <section aria-label="Datas e avanço do projeto" className="acp-schedule-ds__section">
+      <h3 className="acp-schedule-ds__section-title">Datas e avanço</h3>
+      <div className="acp-schedule-ds__fields">
+        <Field id={`acp-aprov-${projectId}`} label={<>Aprovação da proposta <HelpTip icon help="Data em que a proposta foi aprovada pelo cliente. Base para o prazo de mobilização." /></>} optionalText="">
+          <Input type="date" value={approvalValue} onChange={e => setApprovalEdit(e.target.value)} />
+        </Field>
+        <Field id={`acp-mob-${projectId}`} label={<>Mobilização <HelpTip icon help="Data em que a equipe/equipamento foram mobilizados para a obra. Exibida no rodapé do dashboard do projeto." /></>} optionalText="">
+          <Input type="date" value={mobValue} onChange={e => setMobEdit(e.target.value)} />
+        </Field>
+        <Field id={`acp-desmob-${projectId}`} label={<>Desmobilização <HelpTip icon help="Data em que a equipe deixou a obra. Preencha só depois do fato. Com mobilização e desmobilização preenchidas, os dias de ponto da equipe que não têm etiqueta do Ponto Mais nem RDO passam a ser alocados automaticamente nesta missão. Enquanto ficar vazia, esses dias continuam indo para as pendências." /></>} optionalText="">
+          <Input
             type="date"
             value={demobValue}
             min={mobValue || undefined}
             onChange={e => setDemobEdit(e.target.value)}
           />
-        </div>
-        <div className="field-group">
-          <label htmlFor={`acp-inicio-${projectId}`}>Início real <HelpTip icon help="Data em que a execução começou de fato. Ponto de partida dos dias corridos e da previsão de término." /></label>
-          <input id={`acp-inicio-${projectId}`} type="date" value={startValue} onChange={e => setStartEdit(e.target.value)} />
-        </div>
-      </div>
-      <div className="admin-inline-grid" style={{ marginTop: 8 }}>
-        <div className="field-group acp-svc-weight-fg">
-          <label htmlFor={`acp-manual-progress-${projectId}`}>Avanço manual <HelpTip icon help="Avanço informado à mão, em %. É usado só como fallback quando o projeto NÃO tem escopo previsto cadastrado (aí o avanço não pode vir dos RDOs). Se houver escopo, este valor é ignorado." /></label>
-          <div className="acp-pct-field">
-            <input
-              id={`acp-manual-progress-${projectId}`}
+        </Field>
+        <Field id={`acp-inicio-${projectId}`} label={<>Início real <HelpTip icon help="Data em que a execução começou de fato. Ponto de partida dos dias corridos e da previsão de término." /></>} optionalText="">
+          <Input type="date" value={startValue} onChange={e => setStartEdit(e.target.value)} />
+        </Field>
+        <Field id={`acp-manual-progress-${projectId}`} label={<>Avanço manual <HelpTip icon help="Avanço informado à mão, em %. É usado só como fallback quando o projeto NÃO tem escopo previsto cadastrado (aí o avanço não pode vir dos RDOs). Se houver escopo, este valor é ignorado." /></>} optionalText="">
+            <Input suffix="%"
               type="number" min="0" max="100" step="1" inputMode="numeric" placeholder="—"
               value={manualValue}
               onChange={e => setManualEdit(e.target.value)}
             />
-            <span className="acp-pct-suffix">%</span>
-          </div>
-        </div>
-        <div className="field-group">
-          <label htmlFor={`acp-offshore-${projectId}`}>Projeto offshore <HelpTip icon help="Projetos offshore usam a modalidade OFFSHORE do motor de mão de obra para os colaboradores alocados, com periculosidade integral e confinamento." /></label>
+        </Field>
+        <Field id={`acp-offshore-${projectId}`} label={<>Projeto offshore <HelpTip icon help="Projetos offshore usam a modalidade OFFSHORE do motor de mão de obra para os colaboradores alocados, com periculosidade integral e confinamento." /></>} optionalText="">
           <label className="acp-checkbox-inline">
             <input
-              id={`acp-offshore-${projectId}`}
+              id={`acp-offshore-${projectId}-control`}
               type="checkbox"
               checked={offshoreValue}
               onChange={e => setOffshoreEdit(e.target.checked)}
             />
             <span>{offshoreValue ? 'Sim' : 'Não'}</span>
           </label>
-        </div>
+        </Field>
       </div>
-      <div className="det-row" style={{ marginTop: 8 }}><span className="det-label">Mobilização / prazo</span>
-        <span className="det-val">
+      <p className="acp-schedule-ds__deadline"><strong>Mobilização / prazo: </strong>
           {leadDays != null ? `${leadDays} dia(s) p/ iniciar${deadline ? ` · até ${formatDatePt(deadline)}` : ''}` : 'Sem prazo de mobilização'}
-          {late ? <strong style={{ color: '#b00020' }}> · ⚠ mobilização atrasada</strong> : null}
+          {late ? <strong className="acp-schedule-ds__late"> · mobilização atrasada</strong> : null}
           {consumedPct != null ? ` · prazo consumido ${consumedPct}%` : ''}
-        </span>
-      </div>
+      </p>
+      </section>
 
-      <div className="acp-scope-divider" />
       {reconciliationBlocked ? (
         <button type="button" className="acp-reconciliation-shortcut" disabled>{reconciliationContent}</button>
       ) : (
         <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)} state={{ scheduleReturnSearch: location.search }}>{reconciliationContent}</Link>
       )}
-      <div className="sec" style={{ marginTop: 4 }}>Avanço físico (RDO × previsto)</div>
-      <ProjectProgressBreakdown projectId={projectId} />
+      <section aria-label="Avanço físico" className="acp-schedule-ds__section">
+      <h3 className="acp-schedule-ds__section-title">Avanço físico (RDO × previsto)</h3>
+      <ProjectProgressBreakdown projectId={projectId} appearance="design-system" />
+      </section>
 
-      <div className="acp-scope-divider" />
       <ProjectPlannedScopeEditor
         ref={scopeRef}
         projectId={projectId}
@@ -486,8 +469,10 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         beforeOvertime={collaboratorSleepSection}
       />
 
-      <div className="sec" style={{ marginTop: 16 }}>Realizado por categoria (Omie)</div>
-      <RealizedCategoryBreakdown projectId={projectId} limit={10} />
+      <section aria-label="Realizado por categoria" className="acp-schedule-ds__section">
+      <h3 className="acp-schedule-ds__section-title">Realizado por categoria (Omie)</h3>
+      <RealizedCategoryBreakdown projectId={projectId} limit={10} appearance="design-system" />
+      </section>
     </div>
   );
 });

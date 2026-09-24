@@ -1,0 +1,13 @@
+.acp-progress-ds, .acp-progress-ds__groups, .acp-progress-ds__group, .acp-progress-ds__service { display: grid; gap: var(--space-3); min-width: 0; }
+.acp-progress-ds__groups { gap: var(--space-4); }
+.acp-progress-ds__group { padding-block-start: var(--space-3); border-block-start: var(--border-width) solid var(--line); }
+.acp-progress-ds__group h4 { margin: 0; font-size: var(--text-sm); }
+.acp-progress-ds__service { gap: var(--space-2); padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.acp-progress-ds__service-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); font-size: var(--text-sm); }
+.acp-progress-ds__service-head span, .acp-progress-ds__note, .acp-progress-ds__updating { color: var(--muted); font-size: var(--text-xs); }
+.acp-progress-ds__service ul, .acp-progress-ds__pending ul { margin: 0; padding-inline-start: var(--space-4); font-size: var(--text-sm); }
+.acp-progress-ds__service li, .acp-progress-ds__pending li { padding-block: var(--space-1); overflow-wrap: anywhere; }
+.acp-progress-ds__pending { padding-block: var(--space-3); border-block: var(--border-width) solid var(--line); font-size: var(--text-sm); }
+.acp-progress-ds__pending summary { cursor: pointer; font-weight: var(--font-semibold); }
+.acp-progress-ds__pending p { margin-block: var(--space-3); }
+.acp-progress-ds__note { line-height: var(--leading-base); }

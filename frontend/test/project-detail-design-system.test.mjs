@@ -87,7 +87,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
   } finally { await server.close(); }
 });
 
-test('detalhe: estados e fronteira DS não migram editores compartilhados pela metade', () => {
+test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos de apoio', () => {
   const main = source('ProjectDetailDashboard.tsx');
   assert.match(main, /className="fv-ds acp-detail"/);
   assert.match(main, /Os dados exibidos podem estar desatualizados/);
@@ -95,10 +95,11 @@ test('detalhe: estados e fronteira DS não migram editores compartilhados pela m
   assert.match(main, /acompanhamentoRefreshQueryOptions/);
   assert.match(main, /if \(!canManageManualCosts \|\| isGroup \|\| createManualCostMutation.isPending\) return/);
   assert.match(main, /if \(!canManageProjectNotes \|\| isGroup \|\| !content \|\| createProjectNoteMutation.isPending\) return/);
-  assert.match(main, /<\/div>\s*\{\/\* Cronograma e diálogos compartilhados/);
-  const migrated = main.slice(0, main.indexOf('{/* Cronograma e diálogos compartilhados'));
+  assert.match(main, /<\/div>\s*\{\/\* Diálogos de apoio compartilhados/);
+  const migrated = main.slice(0, main.indexOf('{/* Diálogos de apoio compartilhados'));
   assert.doesNotMatch(migrated, /mini-btn|page-card|className="badge|<input\b|<textarea\b/);
   assert.match(main, /<ProjectReportsDialog/);
   assert.match(main, /scheduleRef.current\?\.save\(\)/);
+  assert.match(main, /appearance="design-system" size="lg"/);
   assert.doesNotMatch(source('ProjectDetailDashboard.ds.css'), /#[\da-f]{3,8}\b|rgba?\(|!important|--control-height-md/i);
 });

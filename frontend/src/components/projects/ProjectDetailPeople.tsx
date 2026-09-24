@@ -51,7 +51,7 @@ export function ProjectDetailPeople({ data, isGroup, collaborators = data.colabo
         className="acp-detail-people" density="compact" mobileBreakpoint="xl"
         emptyState="Nenhum colaborador nos relatórios de execução."
         columns={[
-          { key: 'name', header: 'Nome', rowHeader: true, render: c => <>{c.name}{showingPlannedCollaborators ? <span className="api-badge status-planned">Planejado</span> : null}</> },
+          { key: 'name', header: 'Nome', rowHeader: true, render: c => <>{c.name}{showingPlannedCollaborators ? <Badge tone="info">Planejado</Badge> : null}</> },
           { key: 'role', header: 'Cargo' },
           { key: 'hours', header: <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul como referência e não entra no custo. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>, render: hours, align: 'right' },
           { key: 'cost', header: <HelpTip help="Parcela do custo total do colaborador atribuída ao projeto no período do ponto.">Custo apropriado</HelpTip>, render: c => brl(c.custo), align: 'right' },

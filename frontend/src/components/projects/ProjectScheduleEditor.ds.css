@@ -1,0 +1,76 @@
+.fv-ds .acp-schedule-modal { --fv-modal-width: 980px; }
+.fv-ds .acp-schedule-modal__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); width: 100%; }
+.fv-ds .acp-schedule-ds { display: grid; gap: var(--space-5); min-width: 0; color: var(--ink); }
+.fv-ds .acp-schedule-ds__section, .fv-ds .acp-scope { display: grid; gap: var(--space-3); min-width: 0; }
+.fv-ds .acp-schedule-ds__section { padding-block-start: var(--space-4); border-block-start: 1px solid var(--line); }
+.fv-ds .acp-schedule-ds__section-title { margin: 0; color: var(--ink); font-size: var(--text-lg); font-weight: var(--font-semibold); }
+.fv-ds .acp-schedule-ds__muted { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
+.fv-ds .acp-schedule-ds__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.fv-ds .acp-schedule-ds__facts > div { display: grid; gap: var(--space-1); min-width: 0; }
+.fv-ds .acp-schedule-ds__facts span { color: var(--muted); font-size: var(--text-xs); }
+.fv-ds .acp-schedule-ds__facts strong { font-size: var(--text-lg); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fv-ds .acp-schedule-ds__summary .fv-card__body { display: grid; gap: var(--space-3); }
+.fv-ds .acp-schedule-ds__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.fv-ds .acp-schedule-ds__deadline { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); color: var(--ink); font-size: var(--text-sm); }
+.fv-ds .acp-schedule-ds__late { color: var(--danger); }
+.fv-ds .acp-schedule-ds__hours-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.fv-ds .acp-schedule-ds__hours-actions p { flex-basis: 100%; }
+.fv-ds .acp-schedule-ds .field-group { min-width: 0; }
+.fv-ds .acp-schedule-ds .field-group > label { display: block; margin-bottom: var(--space-2); color: var(--ink); font-size: var(--text-sm); font-weight: var(--font-medium); }
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell { width: 100%; }
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-input,
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-select { width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; font-size: var(--text-md); }
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-input:focus,
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-select:focus { outline: 0; box-shadow: none; }
+.fv-ds .acp-schedule-ds .field-group .fv-select-shell .fv-select { padding-inline-end: var(--space-6); }
+.fv-ds .acp-schedule-ds .field-group .acp-pct-field .fv-input { text-align: end; }
+.fv-ds .acp-schedule-ds .acp-scope-group.fv-card { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: 0; }
+.fv-ds .acp-schedule-ds .acp-scope-group.fv-card > .fv-card__body { display: grid; gap: var(--space-3); padding: var(--space-4); min-width: 0; }
+.fv-ds .acp-schedule-ds .acp-svc-card, .fv-ds .acp-schedule-ds .acp-sleep-row { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+.fv-ds .acp-schedule-ds .acp-svc-card { padding: var(--space-3); }
+.fv-ds .acp-schedule-ds .acp-svc-toggle { color: var(--ink); }
+.fv-ds .acp-schedule-ds .acp-svc-summary > span, .fv-ds .acp-schedule-ds .acp-svc-toggle-label, .fv-ds .acp-schedule-ds .acp-sleep-name small { color: var(--muted); }
+.fv-ds .acp-schedule-ds .acp-svc-content { border-color: var(--line); }
+.fv-ds .acp-schedule-ds .acp-svc-head { align-items: end; }
+.fv-ds .acp-schedule-ds .acp-svc-actions { align-items: end; }
+.fv-ds .acp-schedule-ds .acp-svc-move { max-width: 100%; }
+.fv-ds .acp-schedule-ds .acp-system-identity { min-width: 0; }
+.fv-ds .acp-schedule-ds .acp-system-identity .app-combobox { min-width: 0; }
+.fv-ds .acp-schedule-ds .app-combobox-control { min-height: var(--space-10); border: 1px solid var(--control-border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-e1); }
+.fv-ds .acp-schedule-ds .app-combobox-control:focus-within { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.fv-ds .acp-schedule-ds .app-combobox-control input { min-width: 0; border: 0; background: transparent; color: var(--ink); }
+.fv-ds .acp-schedule-ds .app-combobox-list { border-color: var(--line); background: var(--surface); color: var(--ink); }
+.fv-ds .acp-schedule-ds .num-unit { display: flex; align-items: stretch; gap: var(--space-2); min-width: 0; }
+.fv-ds .acp-schedule-ds .num-unit .fv-control-shell { flex: 1 1 0; min-width: 0; }
+.fv-ds .acp-schedule-ds .acp-diameter-field .fv-select-shell:last-child { flex: 0 0 90px; }
+.fv-ds .acp-schedule-ds .acp-unit-tag { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); }
+.fv-ds .acp-schedule-ds .acp-sleep-list { gap: var(--space-2); }
+.fv-ds .acp-schedule-ds .acp-sleep-row { min-width: 0; padding: var(--space-3); }
+.fv-ds .acp-schedule-ds .acp-sleep-add .fv-button { align-self: end; }
+.fv-ds .acp-schedule-ds .acp-sleep-controls .fv-select-shell { flex: 1 1 auto; min-width: 0; }
+.fv-ds .acp-schedule-ds .acp-sleep-row .fv-select,
+.fv-ds .acp-schedule-ds .acp-sleep-add .fv-select { width: 100%; min-height: 0; height: 100%; padding: 0 var(--space-6) 0 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; font-size: var(--text-md); }
+.fv-ds .acp-schedule-ds .acp-sleep-row .fv-select:focus,
+.fv-ds .acp-schedule-ds .acp-sleep-add .fv-select:focus { outline: 0; box-shadow: none; }
+.fv-ds .acp-schedule-ds .acp-weight-sum { margin: 0; font-size: var(--text-sm); }
+.fv-ds .acp-schedule-ds .acp-weight-sum.ok { color: var(--muted); }
+.fv-ds .acp-schedule-ds .acp-weight-sum.warn { color: var(--warning); }
+.fv-ds .acp-schedule-ds .acp-reconciliation-shortcut { margin: 0; border-color: var(--line); border-radius: var(--radius-lg); background: var(--surface-2); color: var(--brand-text); }
+.fv-ds .acp-schedule-ds .acp-reconciliation-shortcut:hover { border-color: var(--brand); background: var(--surface-2); }
+.fv-ds .acp-schedule-ds .acp-reconciliation-shortcut:disabled { color: var(--muted); background: var(--surface-2); }
+.fv-ds .acp-schedule-ds .acp-reconciliation-copy > span { color: var(--muted); }
+.fv-ds .acp-schedule-ds .acp-ot-row { min-width: 0; }
+@media (max-width: 767.98px) {
+  .fv-ds .acp-schedule-ds__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fv-ds .acp-schedule-ds .acp-sys-row, .fv-ds .acp-schedule-ds .acp-sys-row.oil { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fv-ds .acp-schedule-ds .acp-sleep-list { grid-template-columns: 1fr; }
+}
+@media (max-width: 639.98px) {
+  .fv-ds .acp-schedule-ds__fields, .fv-ds .acp-schedule-ds__facts { grid-template-columns: 1fr; }
+  .fv-ds .acp-schedule-ds .acp-sys-row, .fv-ds .acp-schedule-ds .acp-sys-row.oil { grid-template-columns: 1fr; }
+  .fv-ds .acp-schedule-ds .acp-svc-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .fv-ds .acp-schedule-ds .acp-svc-actions { grid-column: 1 / -1; margin: 0; }
+  .fv-ds .acp-schedule-ds .acp-sleep-add, .fv-ds .acp-schedule-ds .acp-sleep-row { grid-template-columns: 1fr; }
+  .fv-ds .acp-schedule-ds .acp-sleep-controls { flex-direction: column; align-items: stretch; }
+  .fv-ds .acp-schedule-modal__actions > .fv-button { flex: 1 1 auto; }
+}

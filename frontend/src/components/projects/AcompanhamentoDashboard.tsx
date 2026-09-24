@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 
 import { getCommercialDashboard, getRealizedByCategory, type DashboardRow } from '../../api/acompanhamentoComercial';
 import { Modal } from '../ui/Modal';
+import { Button } from '../ui/ds';
 import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { AcompanhamentoDashboardView } from './AcompanhamentoDashboardView';
@@ -48,22 +49,14 @@ export function AcompanhamentoDashboard({ canManage = false, canViewFinancials =
         categories={categories.data ?? []} categoriesLoading={categories.isLoading}
         categoriesError={categories.isError} onRetryCategories={() => { void categories.refetch(); }}
         onOpen={row => { setManagedDirty(false); setManaged(row); setSearchParams(current => { const next = new URLSearchParams(current); next.set('schedule', row.projectId); return next; }, { replace: true }); }} />
-      <Modal open={managed !== null} onClose={closeSchedule} ariaLabelledBy="acp-manage-title" panelClassName="modal-card acp-manage-card">
-        {managed ? (
-          <div className="acp-manage">
-            <div className="acp-manage-head">
-              <div className="sec" id="acp-manage-title">Cronograma — {managed.code}{managed.name ? ` — ${managed.name}` : ''}</div>
-              <button className="mini-btn alt" type="button" onClick={closeSchedule} aria-label="Fechar">✕</button>
-            </div>
-            <div className="acp-manage-body">
-              <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} onDirtyChange={setManagedDirty} />
-            </div>
-            <div className="acp-manage-foot">
-              <button type="button" className="mini-btn alt" onClick={closeSchedule}>Cancelar</button>
-              {canManage ? <button type="button" className="mini-btn" disabled={!managedDirty} onClick={() => scheduleRef.current?.save()}>Salvar</button> : null}
-            </div>
-          </div>
-        ) : <div />}
+      <Modal open={managed !== null} onClose={closeSchedule} appearance="design-system" size="lg"
+        panelClassName="acp-schedule-modal"
+        title={managed ? `Cronograma — ${managed.code}${managed.name ? ` — ${managed.name}` : ''}` : 'Cronograma'}
+        footer={<div className="acp-schedule-modal__actions">
+          <Button variant="secondary" onClick={closeSchedule}>Cancelar</Button>
+          {canManage ? <Button variant="primary" disabled={!managedDirty} onClick={() => scheduleRef.current?.save()}>Salvar</Button> : null}
+        </div>}>
+        {managed ? <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} onDirtyChange={setManagedDirty} /> : null}
       </Modal>
     </>
   );

@@ -1157,6 +1157,16 @@
 /* ── Projetos arquivados ────────────────────────────────────────────────────
    A aba usa os mesmos primitives e a mesma densidade das listagens do Gestor,
    preservando paginação, agrupamento, downloads e mutations existentes. */
+:where(.fv-ds, [data-fv-ds]):is(
+    .rdo-manager-projects-page,
+    .rdo-manager-archived-page
+  )
+  .project-revision-picker__shell {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 220px;
+}
+
 :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page,
 :where(.fv-ds, [data-fv-ds]).rdo-manager-archived-page {
   display: flex;
@@ -2765,6 +2775,17 @@
     flex-wrap: nowrap;
     justify-content: flex-start;
     gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker__shell {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    height: var(--space-8);
   }
 
   :where(.fv-ds, [data-fv-ds]):is(

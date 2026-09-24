@@ -413,6 +413,7 @@ export function ProjectDetailDashboard({
             {!isGroup && projectId ? <details className="acp-detail-progress-breakdown">
               <summary>Previsto × realizado por UG e sistema</summary>
               <ProjectProgressBreakdown projectId={projectId}
+                appearance="design-system"
                 filter={progressFilters ? { scopeKey: activeScopeKey, equipmentKey: activeEquipmentKey } : undefined}
                 progressPct={selectedProgressSlice ? selectedProgressSlice.avancoPct : undefined} />
             </details> : null}
@@ -784,7 +785,7 @@ export function ProjectDetailDashboard({
 
     </div>
 
-      {/* Cronograma e diálogos compartilhados mantêm a fronteira legada até A3b/A4. */}
+      {/* Diálogos de apoio compartilhados permanecem no lote A4. */}
       <ProjectStandbyHistoryDialog
         project={standbyHistoryOpen && !isGroup && projectId
           ? { projectId, code: h.code }
@@ -799,28 +800,14 @@ export function ProjectDetailDashboard({
         onClose={() => setHoursDetail(null)}
       />
 
-      <Modal open={scheduleProject !== null} onClose={closeSchedule} ariaLabelledBy="acp-detail-schedule-title" panelClassName="modal-card acp-manage-card">
-        <div className="acp-manage">
-          <div className="acp-manage-head">
-            <div className="sec" id="acp-detail-schedule-title">Cronograma — Missão {scheduleProject?.code ?? h.code}</div>
-            <button className="mini-btn alt" type="button" onClick={closeSchedule} aria-label="Fechar">✕</button>
-          </div>
-          <div className="acp-manage-body">
-            {scheduleProject ? (
-              <ProjectScheduleEditor
-                key={scheduleProject.projectId}
-                ref={scheduleRef}
-                projectId={scheduleProject.projectId}
-                canManage={canManage}
-                onDirtyChange={setScheduleDirty}
-              />
-            ) : null}
-          </div>
-          <div className="acp-manage-foot">
-            <button type="button" className="mini-btn alt" onClick={closeSchedule}>Cancelar</button>
-            <button type="button" className="mini-btn" disabled={!scheduleDirty} onClick={() => scheduleRef.current?.save()}>Salvar</button>
-          </div>
-        </div>
+      <Modal open={scheduleProject !== null} onClose={closeSchedule} appearance="design-system" size="lg"
+        panelClassName="acp-schedule-modal" title={`Cronograma — Missão ${scheduleProject?.code ?? h.code}`}
+        footer={<div className="acp-schedule-modal__actions">
+          <Button variant="secondary" onClick={closeSchedule}>Cancelar</Button>
+          {canManage ? <Button variant="primary" disabled={!scheduleDirty} onClick={() => scheduleRef.current?.save()}>Salvar</Button> : null}
+        </div>}>
+        {scheduleProject ? <ProjectScheduleEditor key={scheduleProject.projectId} ref={scheduleRef}
+          projectId={scheduleProject.projectId} canManage={canManage} onDirtyChange={setScheduleDirty} /> : null}
       </Modal>
       <ProjectProgressHistoryNovelty
         user={progressHistoryNoveltyUser}

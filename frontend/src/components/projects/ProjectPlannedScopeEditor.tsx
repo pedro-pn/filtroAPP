@@ -17,6 +17,7 @@ import { HelpTip } from '../ui/HelpTip';
 import { ProjectSystemInput } from './ProjectSystemInput';
 import { PlannedHoursReview } from './PlannedHoursReview';
 import { useToast } from '../ui/ToastContext';
+import { Alert, Button, Card, Input, Select, Skeleton } from '../ui/ds';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
 const SERVICE_TYPES: Array<{ value: string; label: string }> = [
@@ -506,26 +507,26 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     )));
   }
 
-  if (isLoading) return <div className="placeholder-copy">Carregando escopo…</div>;
-  if (isError || !data) return <div role="alert" className="acp-alert warn">Não foi possível carregar o escopo. Reabra o cronograma para tentar novamente.</div>;
+  if (isLoading) return <Skeleton variant="text" lines={4} label="Carregando escopo" />;
+  if (isError || !data) return <Alert tone="warning">Não foi possível carregar o escopo. Reabra o cronograma para tentar novamente.</Alert>;
 
   const weightSum = services.reduce((sum, s) => sum + (toNum(s.weight) ?? 0), 0);
 
   return (
     <div className="acp-scope">
-      <div className="sec" style={{ marginTop: 4 }}>Serviços previstos (vendido)</div>
-      <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
+      <h3 className="acp-schedule-ds__section-title">Serviços previstos (vendido)</h3>
+      <p className="acp-schedule-ds__muted">
         Preenchimento manual — para cada serviço, adicione os sistemas vendidos e seus quantitativos.
       </p>
 
       {services.length === 0 ? (
-        <div className="placeholder-copy">Nenhum serviço previsto.</div>
+        <p className="acp-schedule-ds__muted">Nenhum serviço previsto.</p>
       ) : (
         <div className="acp-scope-groups">
-          {scopeGroups.map(group => <section className="acp-scope-group" key={group.key}>
+          {scopeGroups.map(group => <Card variant="flat" padding="md" className="acp-scope-group" key={group.key}>
             <div className="field-group acp-scope-group-name">
               <label htmlFor={`scope-name-${group.key}`}>Escopo <HelpTip icon help="Nome livre para organizar os serviços no cronograma, no avanço e no ritmo necessário. Não é usado nos relatórios nem altera o cálculo geral." /></label>
-              <input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
+              <Input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
               {!group.name.trim() ? <small>Sem escopo definido — os serviços existentes foram preservados.</small> : null}
             </div>
             <div className="acp-svc-list">
@@ -554,41 +555,40 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               <div id={`scope-service-${svc.key}`} className="acp-svc-content" hidden={collapsed}>
               <div className="acp-svc-head">
                 <div className="field-group acp-svc-type-fg">
-                  <label>Serviço <HelpTip icon help="Tipo de serviço vendido nesta obra (limpeza química, teste de pressão, flushing, filtragem)." /></label>
-                  <select value={svc.serviceType} onChange={e => changeServiceType(svc.key, e.target.value)}>
+                  <label htmlFor={`scope-service-type-${svc.key}`}>Serviço <HelpTip icon help="Tipo de serviço vendido nesta obra (limpeza química, teste de pressão, flushing, filtragem)." /></label>
+                  <Select id={`scope-service-type-${svc.key}`} value={svc.serviceType} onChange={e => changeServiceType(svc.key, e.target.value)}>
                     {SERVICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                  </Select>
                 </div>
                 <div className="field-group acp-svc-weight-fg">
                   <label htmlFor={`scope-weight-${svc.key}`}>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). Ao duplicar, o peso é copiado sem alterar os demais. O ideal é somar 100%." /></label>
                   <div className="acp-pct-field">
-                    <input
+                    <Input suffix="%"
                       id={`scope-weight-${svc.key}`}
                       type="number" min="0" max="100" step="1" inputMode="numeric" placeholder="0"
                       value={svc.weight}
                       onChange={e => changeWeight(svc.key, e.target.value)}
                     />
-                    <span className="acp-pct-suffix">%</span>
                   </div>
                 </div>
                 <div className="acp-svc-actions">
-                  <button type="button" className="mini-btn alt" onClick={() => duplicateService(svc.key)}>
+                  <Button variant="secondary" size="sm" onClick={() => duplicateService(svc.key)}>
                     Duplicar serviço
-                  </button>
-                  <button type="button" className="mini-btn alt" onClick={() => removeService(svc.key)}>
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => removeService(svc.key)}>
                     Remover serviço
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {scopeGroups.length > 1 ? <div className="field-group acp-svc-move">
                 <label htmlFor={`scope-move-${svc.key}`}>Mover serviço para outro escopo</label>
-                <select id={`scope-move-${svc.key}`} value={svc.scopeKey} onChange={event => moveService(svc.key, event.target.value)}>
+                <Select id={`scope-move-${svc.key}`} value={svc.scopeKey} onChange={event => moveService(svc.key, event.target.value)}>
                   {scopeGroups.map((item, index) => <option key={item.key} value={item.key}>{item.name.trim() || `Sem escopo definido (${index + 1})`}</option>)}
-                </select>
+                </Select>
               </div> : null}
               {svc.systems.length === 0 ? (
-                <div className="placeholder-copy" style={{ margin: '4px 0' }}>Nenhum sistema adicionado.</div>
+                <p className="acp-schedule-ds__muted">Nenhum sistema adicionado.</p>
               ) : (
                 <div className="acp-sys-list">
                   {svc.systems.map(sys => {
@@ -600,8 +600,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       <div key={sys.key}>
                       <div className="acp-system-identity" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, padding: '8px 0' }}>
                         {(['equipmentId', 'system'] as const).map(field => <div className="field-group" key={field}>
-                          <label>{field === 'equipmentId' ? 'Equipamento do cliente / UG' : 'Sistema do cliente'}</label>
-                          <ProjectSystemInput projectId={projectId} source="scope" field={field}
+                          <label htmlFor={`scope-${field}-${sys.key}`}>{field === 'equipmentId' ? 'Equipamento do cliente / UG' : 'Sistema do cliente'}</label>
+                          <ProjectSystemInput id={`scope-${field}-${sys.key}`} projectId={projectId} source="scope" field={field}
                             data={{ equipmentId: sys.equipment, system: sys.systemName, __projectSystemId: sys.projectSystemId }}
                             suggestions={services.flatMap(s => s.systems).filter(row => row.equipment && row.systemName).map(row => ({ id: row.projectSystemId || '', projectId, equipment: row.equipment, name: row.systemName, revision: 1 }))}
                             onChange={patch => changeSystem(svc.key, sys.key, {
@@ -613,17 +613,17 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       </div>
                       <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`}>
                         <div className="field-group">
-                          <label>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros ou limpeza de sistemas completos em unidades." /></label>
-                          <select
+                          <label htmlFor={`scope-system-type-${sys.key}`}>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros ou limpeza de sistemas completos em unidades." /></label>
+                          <Select id={`scope-system-type-${sys.key}`}
                             value={sys.systemType}
                             onChange={e => changeSystemType(svc.key, sys.key, e.target.value as PlannedSystemType)}
                           >
                             {allowedSystems(svc.serviceType).map(t => <option key={t} value={t}>{SYSTEM_LABELS[t]}</option>)}
-                          </select>
+                          </Select>
                         </div>
                         <div className="field-group acp-sys-desc">
-                          <label>Detalhes / trecho (opcional)</label>
-                          <input
+                          <label htmlFor={`scope-description-${sys.key}`}>Detalhes / trecho (opcional)</label>
+                          <Input id={`scope-description-${sys.key}`}
                             type="text"
                             maxLength={180}
                             value={sys.description}
@@ -635,7 +635,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                             <label htmlFor={`scope-diameter-${sys.key}`}>Diâmetro <HelpTip icon help="Mesmo padrão do RDO: polegadas por seleção comum ou milímetros digitados." /></label>
                             <div className="num-unit acp-diameter-field">
                               {sys.diameterUnit === 'pol' ? (
-                                <select
+                                <Select
                                   id={`scope-diameter-${sys.key}`}
                                   value={sys.diameter}
                                   onChange={e => changeSystem(svc.key, sys.key, { diameter: e.target.value })}
@@ -643,9 +643,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                                 >
                                   <option value="">—</option>
                                   {inchDiameters.map(value => <option key={value} value={value}>{value}</option>)}
-                                </select>
+                                </Select>
                               ) : (
-                                <input
+                                <Input
                                   id={`scope-diameter-${sys.key}`}
                                   type="number"
                                   min="0"
@@ -656,7 +656,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                                   onChange={e => changeSystem(svc.key, sys.key, { diameter: e.target.value })}
                                 />
                               )}
-                              <select
+                              <Select
                                 value={sys.diameterUnit}
                                 onChange={e => changeSystem(svc.key, sys.key, { diameterUnit: e.target.value as PlannedDiameterUnit, diameter: '' })}
                                 aria-label="Unidade do diâmetro"
@@ -664,7 +664,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                                 {Object.entries(DIAMETER_UNIT_LABELS).map(([value, label]) => (
                                   <option key={value} value={value}>{label}</option>
                                 ))}
-                              </select>
+                              </Select>
                             </div>
                           </div>
                         ) : null}
@@ -673,7 +673,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                             {isTube ? 'Comprimento (m)' : sys.systemType === 'SISTEMA' ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
                           </label>
                           <div className="num-unit">
-                            <input
+                            <Input
                               id={`scope-quantity-${sys.key}`}
                               type="number" min={sys.systemType === 'SISTEMA' ? '1' : '0'} step={sys.systemType === 'SISTEMA' ? '1' : 'any'} inputMode={sys.systemType === 'SISTEMA' ? 'numeric' : 'decimal'} placeholder="0"
                               value={sys.quantity}
@@ -682,7 +682,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                             <span className="acp-unit-tag">{UNIT_LABELS[SYSTEM_UNIT[sys.systemType]]}</span>
                           </div>
                         </div>
-                        <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">✕</button>
+                        <Button variant="ghost" size="sm" className="acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">Remover</Button>
                       </div>
                       </div>
                     );
@@ -690,26 +690,23 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 </div>
               )}
 
-              <button type="button" className="mini-btn alt acp-add-sys" onClick={() => addSystem(svc.key)}>
+              <Button variant="secondary" size="sm" className="acp-add-sys" onClick={() => addSystem(svc.key)}>
                 + Adicionar sistema
-              </button>
+              </Button>
               </div>
             </div>
             );
           })}
             </div>
-            <button type="button" className="mini-btn acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</button>
-          </section>)}
+            <Button variant="secondary" size="sm" className="acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</Button>
+          </Card>)}
         </div>
       )}
-      <button
-        type="button"
-        className="mini-btn"
-        style={{ marginTop: 8 }}
+      <Button variant="secondary" size="sm" className="acp-add-sys"
         onClick={addScope}
       >
         + Adicionar escopo
-      </button>
+      </Button>
       {services.length > 0 ? (
         <div className={`acp-weight-sum ${Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>
           Soma dos pesos: {weightSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
@@ -717,12 +714,12 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         </div>
       ) : null}
 
-      <p className="placeholder-copy">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
+      <p className="acp-schedule-ds__muted">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
       {beforeOvertime}
 
-      {staleHours ? <div role="alert" className="acp-alert warn">
+      {staleHours ? <Alert tone="warning">
         As horas ou a proposta mudaram durante a edição. Atualize antes de salvar.
-        <button type="button" className="mini-btn alt" onClick={() => {
+        <Button variant="secondary" size="sm" onClick={() => {
           const next = fromScope(data);
           dirtyRef.current = false;
           setServices(next.services); setNormalHours(next.normalHours); setOvertime(next.overtime);
@@ -730,93 +727,87 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
           touchedWeights.current = new Set(next.services.map(service => service.key));
           setBaseline(normalize(next.services, next.normalHours, next.overtime));
           setLoadedFingerprint(data.hoursPlan?.fingerprint);
-        }}>Descartar alterações do escopo e atualizar</button>
-      </div> : null}
+        }}>Descartar alterações do escopo e atualizar</Button>
+      </Alert> : null}
       <PlannedHoursReview plan={data.hoursPlan} canManage={canManage}
         disabled={dirty || resolutionDisabled || mutation.isPending || resolutionMutation.isPending}
         onResolve={choice => resolutionMutation.mutate(choice)} />
       <fieldset disabled={!canManage || commercialHours || staleHours || resolutionMutation.isPending} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
-      <div className="sec" style={{ marginTop: 18 }}>Previsão de horas normais</div>
-      <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
+      <h3 className="acp-schedule-ds__section-title">Previsão de horas normais</h3>
+      <p className="acp-schedule-ds__muted">
         {commercialHours ? 'Total de horas normais da equipe, fornecido pelo comercial.' : 'Informe o total de horas normais previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
       </p>
 
       {normalHours.length === 0 ? (
-        <div className="placeholder-copy">Nenhuma hora normal prevista.</div>
+        <p className="acp-schedule-ds__muted">Nenhuma hora normal prevista.</p>
       ) : (
         <div className="acp-ot-list">
           {normalHours.map(row => (
             <div className="acp-ot-row" key={row.key}>
               <div className="field-group acp-ot-role">
-                <label>Cargo (opcional) <HelpTip icon help="Use apenas se quiser quebrar o total previsto por cargo. O cálculo soma todas as linhas." /></label>
-                <select value={row.jobRoleId} onChange={e => updateRow(setNormalHours, row.key, { jobRoleId: e.target.value })}>
+                <label htmlFor={`scope-normal-role-${row.key}`}>Cargo (opcional) <HelpTip icon help="Use apenas se quiser quebrar o total previsto por cargo. O cálculo soma todas as linhas." /></label>
+                <Select id={`scope-normal-role-${row.key}`} value={row.jobRoleId} onChange={e => updateRow(setNormalHours, row.key, { jobRoleId: e.target.value })}>
                   <option value="">— selecione —</option>
                   {(roles ?? []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+                </Select>
               </div>
               <div className="field-group">
                 <label htmlFor={`scope-normal-hours-${row.key}`}>Horas previstas <HelpTip icon help="Total de horas normais previstas (vendidas). Não multiplica por colaborador." /></label>
-                <input
+                <Input
                   id={`scope-normal-hours-${row.key}`}
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
                   value={row.hours}
                   onChange={e => updateRow(setNormalHours, row.key, { hours: e.target.value })}
                 />
               </div>
-              <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeRow(setNormalHours, row.key)} aria-label="Remover horas normais">✕</button>
+              <Button variant="ghost" size="sm" className="acp-sys-del" onClick={() => removeRow(setNormalHours, row.key)} aria-label="Remover horas normais">Remover</Button>
             </div>
           ))}
         </div>
       )}
-      <button
-        type="button"
-        className="mini-btn"
-        style={{ marginTop: 8 }}
+      <Button variant="secondary" size="sm" className="acp-add-sys"
         onClick={() => setNormalHours(prev => [...prev, { key: nextKey(), jobRoleId: '', hours: '' }])}
       >
         + Adicionar horas normais
-      </button>
+      </Button>
 
-      <div className="sec" style={{ marginTop: 18 }}>Previsão de hora extra</div>
-      <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
+      <h3 className="acp-schedule-ds__section-title">Previsão de hora extra</h3>
+      <p className="acp-schedule-ds__muted">
         {commercialHours ? 'Total comercial de horas extras e de fim de semana da equipe.' : 'Informe o total de horas extras previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
       </p>
 
       {overtime.length === 0 ? (
-        <div className="placeholder-copy">Nenhuma hora extra prevista.</div>
+        <p className="acp-schedule-ds__muted">Nenhuma hora extra prevista.</p>
       ) : (
         <div className="acp-ot-list">
           {overtime.map(row => (
             <div className="acp-ot-row" key={row.key}>
               <div className="field-group acp-ot-role">
-                <label>Cargo (opcional) <HelpTip icon help="Use apenas se quiser quebrar o total previsto por cargo. O cálculo soma todas as linhas." /></label>
-                <select value={row.jobRoleId} onChange={e => updateRow(setOvertime, row.key, { jobRoleId: e.target.value })}>
+                <label htmlFor={`scope-overtime-role-${row.key}`}>Cargo (opcional) <HelpTip icon help="Use apenas se quiser quebrar o total previsto por cargo. O cálculo soma todas as linhas." /></label>
+                <Select id={`scope-overtime-role-${row.key}`} value={row.jobRoleId} onChange={e => updateRow(setOvertime, row.key, { jobRoleId: e.target.value })}>
                   <option value="">— selecione —</option>
                   {(roles ?? []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+                </Select>
               </div>
               <div className="field-group">
                 <label htmlFor={`scope-overtime-hours-${row.key}`}>Horas previstas <HelpTip icon help="Total de horas extras previstas (vendidas). Não multiplica por colaborador." /></label>
-                <input
+                <Input
                   id={`scope-overtime-hours-${row.key}`}
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
                   value={row.hours}
                   onChange={e => updateRow(setOvertime, row.key, { hours: e.target.value })}
                 />
               </div>
-              <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeRow(setOvertime, row.key)} aria-label="Remover hora extra">✕</button>
+              <Button variant="ghost" size="sm" className="acp-sys-del" onClick={() => removeRow(setOvertime, row.key)} aria-label="Remover hora extra">Remover</Button>
             </div>
           ))}
         </div>
       )}
-      <button
-        type="button"
-        className="mini-btn"
-        style={{ marginTop: 8 }}
+      <Button variant="secondary" size="sm" className="acp-add-sys"
         onClick={() => setOvertime(prev => [...prev, { key: nextKey(), jobRoleId: '', hours: '' }])}
       >
         + Adicionar hora extra
-      </button>
+      </Button>
       </fieldset>
     </div>
   );
