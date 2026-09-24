@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-09-17';
+export const DATA_CATALOG_VERSION = '2026-09-24';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -52,7 +52,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'project-tracking', label: 'Acompanhamento e custos',
-    models: [...modelEntries(['ProjectManualProgressHistory', 'AcompanhamentoMissionGroup', 'AcompanhamentoMissionGroupMember'], 'PLANNED'), ...modelEntries(['CostProfile', 'CostParameterSet', 'ProjectManualCost', 'ProjectManagementNote'], 'SENSITIVE')],
+    models: [...modelEntries(['ProjectManualProgressHistory', 'AcompanhamentoMissionGroup', 'AcompanhamentoMissionGroupMember'], 'PLANNED'), ...modelEntries(['CostProfile', 'CostParameterSet', 'ProjectManualCost', 'ProjectManagementNote'], 'SENSITIVE'), ...modelEntries(['ProjectRealizedCorrection'], 'RESERVED')],
     candidateScopes: ['acompanhamento.progresso.read', 'acompanhamento.grupos.read', 'acompanhamento.custos.read', 'acompanhamento.notas.read'], endpointFamilies: ['/acompanhamento/progresso', '/acompanhamento/grupos', '/acompanhamento/custos'],
     excludedFields: ['margens', 'precificação', 'notas livres com PII', 'parâmetros internos', 'identidade do editor']
   }),
