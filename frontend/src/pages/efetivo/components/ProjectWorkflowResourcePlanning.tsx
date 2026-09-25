@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import type {
+  ProjectOperationalMissionSummary,
   ProjectWorkflow,
   ProjectWorkflowEquipmentPlanningItem,
   ProjectWorkflowIssue,
@@ -102,15 +103,22 @@ export function ProjectWorkflowResourceConflicts({ workflow, saving, onPatch }: 
 function ReferenceDateNote({ planning }: { planning: ProjectWorkflow['resourcePlanning'] }) {
   if (!planning.referenceDate || planning.referenceDateSource === 'PLANNED') return null;
   const origin = planning.referenceDateSource === 'COMMERCIAL' ? 'previsão comercial de mobilização' : 'data de hoje';
-  return <p className="project-workflow-category-note" data-project-workflow-reference-date>Sem mobilização operacional prevista, a disponibilidade considera {displayDateOnly(planning.referenceDate)} ({origin}). Informe a data no Handover para calcular com precisão.</p>;
+  return <p className="project-workflow-category-note" data-project-workflow-reference-date>Sem mobilização da equipe informada, a disponibilidade considera {displayDateOnly(planning.referenceDate)} ({origin}). Informe a data abaixo para calcular com precisão.</p>;
 }
 
-export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
+export function ProjectWorkflowTeamPlanningCard({ workflow, initialTeam, saving, canManageMission, onPatch, onOpenTeamProgramming }: {
   workflow: ProjectWorkflow;
+  initialTeam: ProjectOperationalMissionSummary | null;
   saving: boolean;
+  canManageMission: boolean;
   onPatch: PatchHandler;
+  onOpenTeamProgramming: () => void;
 }) {
   const planning = workflow.resourcePlanning.team;
+  const planningActive = workflow.stage === 'MOBILIZATION_PLANNING';
+  const savedMobilizationDate = workflow.plannedMobilizationDate?.slice(0, 10) || '';
+  const [mobilizationDate, setMobilizationDate] = useState(savedMobilizationDate);
+  useEffect(() => setMobilizationDate(savedMobilizationDate), [savedMobilizationDate]);
   const persistedDraft = useMemo(() => planning.demands.map(item => ({ jobRoleId: item.jobRoleId, requiredCount: item.requiredCount })), [planning.demands]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TeamDraft>(persistedDraft);
@@ -146,8 +154,8 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
   };
   return (
     <ProjectWorkflowCategory
-      title="Equipe"
-      description="Defina os cargos e a quantidade necessária para a obra."
+      title="Equipe e ciclos"
+      description="Defina os cargos, a data da primeira mobilização e os colaboradores da obra."
       area="Operações"
       icon="users"
       status={choiceStatus(planning.defined, `${planning.demands.length} cargo(s)`, 'Equipe não necessária')}
@@ -170,6 +178,33 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
         <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setDraft(persistedDraft); }}>Cancelar</Button><Button type="button" disabled={saving || !draft.length} onClick={confirm}>Confirmar equipe</Button></div>
       </div> : null}
       {!editing && planning.demands.length ? <div className="project-workflow-resource-summary" aria-label="Resumo dos cargos planejados">{planning.demands.map(item => <article key={item.jobRoleId}><span className="project-workflow-resource-color" style={{ background: item.calendarColor }} /><div><strong>{item.jobRoleName}</strong><span>{item.requiredCount} necessário(s) · {item.availableCount} disponível(is) na mobilização</span>{item.hiringNeed > 0 ? <em>⚠ Necessidade de contratação: {item.hiringNeed}</em> : null}</div></article>)}</div> : null}
+      {planning.defined === true && planning.demands.length > 0 ? (
+        <div className="project-workflow-team-first-cycle" data-project-workflow-first-cycle>
+          <strong>Primeiro ciclo e colaboradores</strong>
+          <p>A data de mobilização inicia o primeiro ciclo para toda a equipe selecionada. Trocas e novos ciclos ficam disponíveis na execução.</p>
+          <div className="project-workflow-team-first-cycle-controls">
+            <div className="field-group">
+              <label htmlFor="workflow-team-mobilization-date">Data de mobilização da equipe *</label>
+              <input
+                id="workflow-team-mobilization-date"
+                type="date"
+                value={initialTeam ? initialTeam.mobilizationDate.slice(0, 10) : mobilizationDate}
+                disabled={saving || !planningActive || !workflow.permissions.canEdit || Boolean(initialTeam)}
+                onChange={event => setMobilizationDate(event.target.value)}
+              />
+            </div>
+            {!initialTeam && workflow.permissions.canEdit ? (
+              <Button type="button" variant="secondary" disabled={saving || !planningActive || !mobilizationDate || mobilizationDate === savedMobilizationDate} onClick={() => onPatch({ action: 'settings', version: workflow.version, plannedMobilizationDate: mobilizationDate })}>
+                Salvar data
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" disabled={saving || !planningActive || !canManageMission || (!initialTeam && (!savedMobilizationDate || mobilizationDate !== savedMobilizationDate))} onClick={onOpenTeamProgramming}>
+              {initialTeam ? 'Editar equipe inicial' : 'Definir equipe inicial'}
+            </Button>
+          </div>
+          {initialTeam ? <small>Primeiro ciclo registrado para {initialTeam.participantCount} colaborador(es). Para alterar a data, edite a equipe inicial.</small> : null}
+        </div>
+      ) : null}
     </ProjectWorkflowCategory>
   );
 }

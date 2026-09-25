@@ -17,12 +17,15 @@ export const PROJECT_KANBAN_STAGE_LABELS: Record<ProjectKanbanStage, string> = {
 export type ProjectKanbanColumns = Record<ProjectKanbanStage, ProjectWorkflowSummary[]>;
 
 export function canDefineInitialProjectTeam(stage: ProjectKanbanStage) {
-  // Sem "Pronto para mobilizar": a definição da equipe inicial continua disponível até a Mobilização.
-  return stage === 'PREPARATION' || stage === 'MOBILIZATION';
+  return stage === 'MOBILIZATION_PLANNING' || stage === 'PREPARATION' || stage === 'MOBILIZATION';
 }
 
 export function canManageProjectTeamCycles(stage: ProjectKanbanStage) {
   return stage === 'EXECUTION';
+}
+
+export function canViewProjectTeamCycles(stage: ProjectKanbanStage) {
+  return WORKFLOW_STAGES.indexOf(stage) >= WORKFLOW_STAGES.indexOf('MOBILIZATION');
 }
 
 export function projectKanbanStage(item: ProjectWorkflowSummary): ProjectKanbanStage {

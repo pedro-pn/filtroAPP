@@ -79,9 +79,11 @@ test('paridade de campos com o exemplo de referência', () => {
     assert.ok(missionForm.includes(label), `campo ausente no diálogo de missão: ${label}`);
   }
   const missionsBoard = read('../src/pages/efetivo/components/MissionsBoard.tsx');
-  for (const label of ['posições planejadas', 'posições pendentes', 'Equipe completa e sem conflitos', 'Alocar disponíveis']) {
+  for (const label of ['posições planejadas', 'posições pendentes', 'Equipe completa e sem conflitos']) {
     assert.ok(missionsBoard.includes(label), `resumo ausente na aba Missões: ${label}`);
   }
+  const allocation = read('../src/pages/efetivo/components/MissionAllocationModal.tsx');
+  assert.doesNotMatch(missionsBoard + allocation, /Alocar disponíveis|autoAllocateMission/);
   const kanban = read('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx');
   for (const label of ['Evolução dos projetos', 'Fluxo único', 'Programação operacional', 'Nenhum projeto nesta etapa']) {
     assert.ok(kanban.includes(label), `elemento ausente no kanban único: ${label}`);

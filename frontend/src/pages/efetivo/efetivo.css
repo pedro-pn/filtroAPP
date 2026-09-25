@@ -2531,6 +2531,12 @@
 .project-workflow-resource-summary article em { overflow-wrap: anywhere; }
 .project-workflow-resource-summary article div > span { color: var(--mu); font-size: 12px; }
 .project-workflow-resource-summary article em { color: var(--warning-text); font-size: 12px; font-style: normal; font-weight: 700; }
+.project-workflow-team-first-cycle { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--br); border-radius: var(--rs); padding: 12px; min-width: 0; }
+.project-workflow-team-first-cycle > p { color: var(--mu); font-size: 13px; margin: 0; }
+.project-workflow-team-first-cycle > small { color: var(--mu); }
+.project-workflow-team-first-cycle-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+.project-workflow-team-first-cycle-controls .field-group { flex: 1 1 210px; margin: 0; min-width: 0; }
+.project-workflow-team-first-cycle-controls input { box-sizing: border-box; width: 100%; }
 .project-workflow-resource-color { align-self: stretch; border-radius: 999px; min-height: 28px; }
 .project-workflow-equipment-categories { border: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0; }
 .project-workflow-equipment-categories legend { font-weight: 700; padding: 0 5px; }
@@ -2681,6 +2687,37 @@
 .project-workflow-gate-panel > small { color: var(--mu); }
 .project-workflow-stage-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .project-workflow-planning-link { align-self: flex-start; text-decoration: none; }
+.project-workflow-team-cycles { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.project-workflow-team-cycles-overview { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.project-workflow-team-cycles-overview > div { background: var(--pw-surface-2); border: 1px solid var(--pw-border-soft); border-radius: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 11px 13px; }
+.project-workflow-team-cycles-overview span { color: var(--pw-muted); font-size: 11px; font-weight: 600; }
+.project-workflow-team-cycles-overview strong { color: var(--pw-ink); font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.project-workflow-team-cycles-heading { display: flex; flex-direction: column; gap: 3px; }
+.project-workflow-team-cycles-heading strong { color: var(--pw-ink); font-size: 14px; }
+.project-workflow-team-cycles-heading span { color: var(--pw-muted); font-size: 12px; }
+.project-workflow-team-cycles .efetivo-cycle-section { background: var(--pw-surface); border-color: var(--pw-border-soft); border-radius: 10px; gap: 14px; margin: 0; padding: 14px; }
+.project-workflow-team-cycles .efetivo-cycle-section > header strong,
+.project-workflow-team-cycles .efetivo-person-cycle-panel > header strong { color: var(--pw-ink); font-size: 13px; }
+.project-workflow-team-cycles .efetivo-cycle-section > header span { color: var(--pw-muted); font-size: 12px; }
+.project-workflow-team-cycles .efetivo-cycle-list > article { background: var(--pw-surface-2); border-color: var(--pw-border-soft); border-radius: 9px; padding: 10px 12px; }
+.project-workflow-team-cycles .efetivo-cycle-list > article strong { color: var(--pw-ink-2); font-size: 12px; }
+.project-workflow-team-cycles .efetivo-cycle-list > article span { color: var(--pw-muted); font-size: 12px; }
+.project-workflow-team-cycles .efetivo-demand-summary { margin: 0; }
+.project-workflow-team-cycles .efetivo-demand-summary :is(button, .efetivo-demand-summary-item) { background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 9px; color: var(--pw-ink); display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px 12px; }
+.project-workflow-team-cycles .efetivo-demand-summary button:hover { border-color: var(--pw-accent-line); }
+.project-workflow-team-cycles .efetivo-demand-summary button.active { background: var(--pw-accent-soft); border-color: var(--pw-accent-line); box-shadow: inset 3px 0 0 var(--pw-accent); }
+.project-workflow-team-cycles .efetivo-demand-summary span { color: var(--pw-muted); font-size: 12px; }
+.project-workflow-team-cycles .efetivo-allocation-add { background: var(--pw-surface-2); border-color: var(--pw-border-soft); border-radius: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); margin: 0; padding: 14px; }
+.project-workflow-team-cycles .efetivo-cycle-add,
+.project-workflow-team-cycles .efetivo-cycle-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-team-cycles .efetivo-allocation-period-list { display: flex; flex-direction: column; gap: 9px; }
+.project-workflow-team-cycles .efetivo-allocation-period-list > article { background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 10px; box-shadow: var(--pw-shadow-xs); padding: 13px; }
+.project-workflow-team-cycles .efetivo-allocation-period-list > article > div:first-child { display: flex; flex-direction: column; gap: 3px; }
+.project-workflow-team-cycles .efetivo-allocation-period-list > article > div:first-child strong { color: var(--pw-ink); font-size: 13px; }
+.project-workflow-team-cycles .efetivo-allocation-period-list > article > div:first-child span { color: var(--pw-muted); font-size: 12px; }
+.project-workflow-team-cycles .efetivo-person-cycle-panel { background: var(--pw-surface-2); border: 1px solid var(--pw-border-soft); border-radius: 9px; }
+.project-workflow-team-cycles .efetivo-person-cycle-panel .efetivo-cycle-list > article { background: var(--pw-surface); }
+.project-workflow-team-cycles .field-hint { color: var(--pw-muted); margin: 0; }
 .project-workflow-category.project-workflow-planning,
 .project-workflow-category.project-workflow-gate-panel { display: block; padding: 0; }
 .project-post-job-panel,
@@ -2798,8 +2835,16 @@
 .project-execution-signature-columns ul { max-height: 220px; overflow: auto; }
 .project-execution-signature-columns small { color: var(--warning-text); display: block; }
 .project-execution-scope-columns { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
-.project-execution-scope-columns > div { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; padding: 11px; }
-.project-execution-scope-columns h6 { font-size: 13px; margin: 0 0 8px; }
+.project-execution-scope-panel { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; }
+.project-execution-scope-panel > summary { align-items: center; cursor: pointer; display: flex; gap: 8px; list-style: none; min-height: 42px; padding: 10px 11px; }
+.project-execution-scope-panel > summary::-webkit-details-marker { display: none; }
+.project-execution-scope-panel > summary::before { border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; content: ''; flex: 0 0 6px; height: 6px; margin: 0 3px 3px 2px; transform: rotate(-45deg); transition: transform .15s; }
+.project-execution-scope-panel[open] > summary::before { margin-bottom: 0; transform: rotate(45deg); }
+.project-execution-scope-panel > summary:focus-visible { outline: 2px solid var(--g); outline-offset: -2px; }
+.project-execution-scope-panel > summary > span { flex: 1 1 auto; font-size: 13px; font-weight: 700; min-width: 0; }
+.project-execution-scope-panel > summary > small { color: var(--mu); flex: 0 0 auto; font-size: 12px; }
+.project-execution-scope-panel-body { border-top: 1px solid var(--br); max-height: min(320px, 45vh); min-width: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 11px; }
+.project-execution-scope-panel-body:focus-visible { outline: 2px solid var(--g); outline-offset: -2px; }
 .project-execution-scope-group + .project-execution-scope-group { border-top: 1px solid var(--br); margin-top: 9px; padding-top: 9px; }
 .project-execution-scope-group > strong { display: block; margin-bottom: 7px; }
 .project-execution-scope-group article { border-top: 1px solid var(--br); min-width: 0; padding: 7px 0; }
@@ -3031,6 +3076,14 @@
   .project-workflow-stage-rail-gate { display: none; }
   .project-workflow-stage-rail-item { background: var(--pw-surface); box-shadow: inset 0 0 0 1px var(--pw-border-soft); flex: 0 0 auto; width: auto; }
   .project-workflow-stage-main { padding: 16px 12px 20px; }
+  .project-workflow-team-cycles-overview { grid-template-columns: minmax(0, 1fr); }
+  .project-workflow-team-cycles .efetivo-allocation-add,
+  .project-workflow-team-cycles .efetivo-cycle-add,
+  .project-workflow-team-cycles .efetivo-cycle-editor,
+  .project-workflow-team-cycles .efetivo-allocation-period-fields,
+  .project-workflow-team-cycles .efetivo-allocation-period-list > article,
+  .project-workflow-team-cycles .efetivo-cycle-list > article { grid-template-columns: minmax(0, 1fr); }
+  .project-workflow-team-cycles .efetivo-allocation-row-actions { justify-content: flex-start; }
   .project-workflow-stage-heading { align-items: stretch; flex-direction: column; gap: 12px; }
   .project-workflow-category > summary { align-items: start; grid-template-columns: 36px minmax(0, 1fr) 18px; }
   .project-workflow-category-status,

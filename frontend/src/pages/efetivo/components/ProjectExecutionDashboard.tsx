@@ -114,7 +114,10 @@ function ExecutionScopeProgress({ data }: { data: DashboardData }) {
   return <section className="project-execution-scope-progress" aria-label="Escopo e avanço físico">
     <header><div><h5>Escopo e avanço físico</h5><p>Metas cadastradas e realizado dos RDOs, com o mesmo cálculo do Acompanhamento.</p></div><strong>{fmtPct(overallProgressPct)}</strong></header>
     <div className="project-execution-scope-columns">
-      <div><h6>Escopo cadastrado</h6>{data.scope === null ? <p className="field-hint">Escopo indisponível no momento.</p> : scope.length ? groupServicesByScope(scope).map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
+      <details className="project-execution-scope-panel">
+        <summary><span>Escopo cadastrado</span><small>{scope.length} serviço{scope.length === 1 ? '' : 's'}</small></summary>
+        <div className="project-execution-scope-panel-body" role="region" aria-label="Serviços do escopo cadastrado" tabIndex={0}>
+        {data.scope === null ? <p className="field-hint">Escopo indisponível no momento.</p> : scope.length ? groupServicesByScope(scope).map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
         {scope.some(service => service.scopeName) ? <strong>Escopo: {group.scopeName || 'Sem escopo definido'}</strong> : null}
         {group.services.map((service, index) => <article key={service.id || index}>
           <div><strong>{SERVICE_LABELS[service.serviceType] || service.serviceType}</strong>{service.weight != null ? <small>peso {Number(service.weight).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</small> : null}</div>
@@ -122,14 +125,20 @@ function ExecutionScopeProgress({ data }: { data: DashboardData }) {
         </article>)}
       </div>) : <p className="field-hint">Nenhum serviço cadastrado.</p>}
         {data.scope && (data.scope.normalHours.length || data.scope.overtime.length) ? <div className="project-execution-scope-hours"><strong>Horas previstas</strong><ul>{data.scope.normalHours.map((row, index) => <li key={`normal-${row.id || index}`}>Normais · {row.roleName || 'Equipe'}: {Number(row.hours).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h</li>)}{data.scope.overtime.map((row, index) => <li key={`extra-${row.id || index}`}>Extras · {row.roleName || 'Equipe'}: {Number(row.hours).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h</li>)}</ul></div> : null}
-      </div>
-      <div><h6>Avanço por serviço</h6>{progress === null ? <p className="field-hint">Avanço físico indisponível no momento.</p> : progress.hasScope ? progressGroups.map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
+        </div>
+      </details>
+      <details className="project-execution-scope-panel">
+        <summary><span>Avanço por serviço</span><small>{fmtPct(overallProgressPct)}</small></summary>
+        <div className="project-execution-scope-panel-body" role="region" aria-label="Avanço por serviço" tabIndex={0}>
+        {progress === null ? <p className="field-hint">Avanço físico indisponível no momento.</p> : progress.hasScope ? progressGroups.map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
         {progress.scopeGroups ? <strong>Escopo: {group.scopeName || 'Sem escopo definido'}</strong> : null}
         {group.services.map((service, index) => <article key={index}>
           <div><strong>{SERVICE_LABELS[service.serviceType] || service.serviceType}</strong><small>peso {service.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(service.executionPct)}</small></div>
           <ul>{service.systems.map((system, systemIndex) => <li key={systemIndex}>{system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] || system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}: {system.realizedQty ?? '—'} / {system.plannedQty ?? '—'} {system.unit || ''} · {fmtPct(system.pct)}</li>)}</ul>
         </article>)}
-      </div>) : <p className="field-hint">Cadastre o escopo previsto para calcular o avanço físico.</p>}</div>
+      </div>) : <p className="field-hint">Cadastre o escopo previsto para calcular o avanço físico.</p>}
+        </div>
+      </details>
     </div>
   </section>;
 }

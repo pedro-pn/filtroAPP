@@ -522,7 +522,12 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         <div className="placeholder-copy">Nenhum serviço previsto.</div>
       ) : (
         <div className="acp-scope-groups">
-          {scopeGroups.map(group => <section className="acp-scope-group" key={group.key}>
+          {scopeGroups.map(group => <details className="acp-scope-group" key={group.key}>
+            <summary className="acp-scope-group-toggle">
+              <span>{group.name.trim() || 'Escopo sem nome'}</span>
+              <small>{group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small>
+            </summary>
+            <div className="acp-scope-group-content" role="region" aria-label={`Serviços do escopo ${group.name.trim() || 'sem nome'}`} tabIndex={0}>
             <div className="field-group acp-scope-group-name">
               <label htmlFor={`scope-name-${group.key}`}>Escopo <HelpTip icon help="Nome livre para organizar os serviços no cronograma, no avanço e no ritmo necessário. Não é usado nos relatórios nem altera o cálculo geral." /></label>
               <input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
@@ -699,7 +704,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
           })}
             </div>
             <button type="button" className="mini-btn acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</button>
-          </section>)}
+            </div>
+          </details>)}
         </div>
       )}
       <button
