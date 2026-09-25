@@ -1444,6 +1444,11 @@
 .efetivo-period-role-grid strong { color: var(--tx); font-size: 17px; }
 .efetivo-period-role-grid article.has-deficit strong { color: #b75226; }
 .efetivo-period-role-grid small { color: var(--mu); font-size: 11px; }
+.efetivo-role-deficit-days { border-top: 1px solid #f3d6c2; margin-top: 5px; padding-top: 7px; }
+.efetivo-role-deficit-days summary { color: #a34824; cursor: pointer; font-size: 11px; font-weight: 700; }
+.efetivo-role-deficit-days > div { display: grid; gap: 4px; margin-top: 7px; max-height: 150px; overflow-x: hidden; overflow-y: auto; padding-inline-end: 12px; scrollbar-gutter: stable; }
+.efetivo-role-deficit-days span { align-items: center; color: var(--mu); display: flex; font-size: 11px; justify-content: space-between; gap: 8px; }
+.efetivo-role-deficit-days b { color: #a34824; font-weight: 700; white-space: nowrap; }
 .efetivo-period-risk-grid { display: grid; gap: 9px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .efetivo-period-risk-grid article { background: #fffaf6; border: 1px solid #f3d6c2; border-radius: 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 11px 13px; }
 .efetivo-period-risk-grid article > span { color: var(--mu); font-size: 11px; font-weight: 700; }

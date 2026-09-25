@@ -201,7 +201,7 @@ export type PeriodAvailabilityStatus = 'AVAILABLE' | 'AWAITING_MOBILIZATION' | '
 export interface PlanningAvailabilityPeriod {
   startDate: DateOnly;
   endDate: DateOnly;
-  days: Array<{ date: DateOnly; deficit: number }>;
+  days: Array<{ date: DateOnly; deficit: number; shortage: number }>;
   people: Array<{
     id: string;
     name: string;
@@ -216,7 +216,9 @@ export interface PlanningAvailabilityPeriod {
     peakDeficit: number;
     deficitDays: number;
     totalOpenPositions: number;
-    daily: Array<{ date: DateOnly; demand: number; allocated: number; deficit: number }>;
+    peakShortage: number;
+    shortageDays: number;
+    daily: Array<{ date: DateOnly; demand: number; allocated: number; free: number; deficit: number; shortage: number }>;
   }>;
   plannedRisks: Array<{
     date: DateOnly;

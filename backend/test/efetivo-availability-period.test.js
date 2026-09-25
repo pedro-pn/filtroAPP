@@ -3,6 +3,28 @@ import test from 'node:test';
 
 import { buildAvailabilityPeriod } from '../src/lib/efetivo/planning/availability-period.js';
 
+test('vaga sem alocação não vira falta quando há colaborador livre do cargo', () => {
+  const projection = {
+    jobRoles: [{ id: 'r1', name: 'Operador', isOperational: true, isActive: true }],
+    collaborators: [
+      { id: 'c1', name: 'Ana', jobRoleId: 'r1', jobRole: { name: 'Operador' }, isActive: true },
+      { id: 'c2', name: 'Bia', jobRoleId: 'r1', jobRole: { name: 'Operador' }, isActive: true }
+    ],
+    missions: [{
+      id: 'm1', scheduleStatus: 'CONFIRMED', stage: 'STANDBY',
+      mobilizationDate: '2026-09-01', returnDate: '2026-09-01',
+      project: { code: 'P-1', name: 'Projeto' },
+      demands: [{ jobRoleId: 'r1', requiredCount: 2 }], allocations: []
+    }],
+    absences: []
+  };
+
+  const result = buildAvailabilityPeriod({ startDate: '2026-09-01', endDate: '2026-09-01', projection });
+  assert.equal(result.days[0].deficit, 2);
+  assert.equal(result.days[0].shortage, 0);
+  assert.equal(result.roles[0].peakShortage, 0);
+});
+
 test('período mostra transições individuais e déficit diário do projeto', () => {
   const projection = {
     jobRoles: [{ id: 'r1', name: 'Operador', isOperational: true, isActive: true, calendarColor: '#2563eb' }],
@@ -22,9 +44,12 @@ test('período mostra transições individuais e déficit diário do projeto', (
 
   const result = buildAvailabilityPeriod({ startDate: '2026-09-01', endDate: '2026-09-03', projection });
   assert.deepEqual(result.days.map(day => day.deficit), [2, 1, 2]);
-  assert.deepEqual(result.roles[0].daily.map(day => [day.demand, day.allocated, day.deficit]), [[2, 0, 2], [2, 1, 1], [2, 0, 2]]);
+  assert.deepEqual(result.days.map(day => day.shortage), [0, 0, 1]);
+  assert.deepEqual(result.roles[0].daily.map(day => [day.demand, day.allocated, day.free, day.deficit, day.shortage]), [[2, 0, 2, 2, 0], [2, 1, 1, 1, 0], [2, 0, 1, 2, 1]]);
   assert.equal(result.roles[0].peakDeficit, 2);
   assert.equal(result.roles[0].deficitDays, 3);
+  assert.equal(result.roles[0].peakShortage, 1);
+  assert.equal(result.roles[0].shortageDays, 1);
   assert.deepEqual(result.people.find(person => person.id === 'c1').days.map(day => day.status), ['AVAILABLE', 'MOBILIZED', 'ON_VACATION']);
   assert.equal(result.people.find(person => person.id === 'c1').days[1].detail, 'P-1 · Projeto');
 });
@@ -54,6 +79,7 @@ test('filtro de função usa família de cargos e não mistura déficits de outr
   assert.equal(result.people[0].days[0].status, 'AWAITING_MOBILIZATION');
   assert.equal(result.roles.length, 1);
   assert.equal(result.roles[0].peakDeficit, 1);
+  assert.equal(result.roles[0].peakShortage, 1);
   assert.equal(result.days[0].deficit, 1);
 });
 

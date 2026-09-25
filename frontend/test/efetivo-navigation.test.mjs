@@ -45,6 +45,21 @@ test('navegação inclui disponibilidade e preserva data e função', async () =
   assert.equal(navigation.parsePlanningSection('simulacoes'), 'disponibilidade');
 });
 
+test('período da disponibilidade persiste ao navegar por outras seções do módulo', async () => {
+  const navigation = await load('/src/utils/planningNavigation.ts');
+  const otherSection = navigation.setPlanningSectionParams(
+    new URLSearchParams('section=disponibilidade&date=2026-08-21&final=2026-09-21&disponibilidadeView=calendar'),
+    'evolucao'
+  );
+  assert.equal(otherSection.get('date'), '2026-08-21');
+  assert.equal(otherSection.get('final'), '2026-09-21');
+  assert.equal(otherSection.has('disponibilidadeView'), false);
+
+  const availability = navigation.setPlanningSectionParams(otherSection, 'disponibilidade');
+  assert.equal(availability.get('date'), '2026-08-21');
+  assert.equal(availability.get('final'), '2026-09-21');
+});
+
 test('seção de colaboradores preserva colaborador, ausência e ano ao voltar', async () => {
   const navigation = await load('/src/utils/planningNavigation.ts');
   const next = navigation.setPlanningSectionParams(new URLSearchParams('section=calendario&colaborador=c1&ausencia=a1&ano=2026&missao=m1'), 'colaboradores');

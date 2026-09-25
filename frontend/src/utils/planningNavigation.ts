@@ -16,11 +16,15 @@ const PARAMS_BY_SECTION: Record<EfetivoPlanningSection, string[]> = {
   administracao: ['adminTab']
 };
 
+// Mantém o período de disponibilidade enquanto o usuário navega entre as
+// seções do módulo, mesmo quando a seção atual não usa esses parâmetros.
+const PERSISTENT_MODULE_PARAMS = ['date', 'final'];
+
 export function setPlanningSectionParams(current: URLSearchParams, section: EfetivoPlanningSection) {
   const next = new URLSearchParams(current);
   if (section === 'visao-geral') next.delete('section');
   else next.set('section', section);
-  const allowed = new Set(['section', ...PARAMS_BY_SECTION[section]]);
+  const allowed = new Set(['section', ...PERSISTENT_MODULE_PARAMS, ...PARAMS_BY_SECTION[section]]);
   for (const key of [...next.keys()]) if (!allowed.has(key)) next.delete(key);
   return next;
 }
