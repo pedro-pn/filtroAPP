@@ -52,6 +52,14 @@ function openCycleError(label, cycle) {
   );
 }
 
+export function assertCycleCreationStage(mission) {
+  if (mission.plan?.kind === 'OFFICIAL' && mission.stage !== 'EXECUTION') {
+    throw planningError('Novos ciclos da equipe só podem ser acrescentados durante a execução do projeto.', {
+      code: 'MISSION_CYCLE_EXECUTION_REQUIRED'
+    });
+  }
+}
+
 export function validateNewCycle(cycles, payload, mission, label) {
   const openCycle = cycles.find(cycle => !cycle.demobilizationDate);
   if (openCycle) openCycleError(label, openCycle);
@@ -181,6 +189,7 @@ export async function createMissionCycle(missionId, payload, context = {}, depen
   return runPlanningTransaction(database, async tx => {
     const mission = await requireCycleMission(tx, missionId);
     await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
+    assertCycleCreationStage(mission);
     const period = validateNewCycle(mission.cycles || [], payload, mission, `O projeto ${mission.project.code}`);
     await validateInheritedAllocationsForPeriod(tx, mission, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoMissionCycle.create({
@@ -219,6 +228,7 @@ export async function createAllocationCycle(missionId, allocationId, payload, co
   return runPlanningTransaction(database, async tx => {
     const mission = await requireCycleMission(tx, missionId);
     await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
+    assertCycleCreationStage(mission);
     const allocation = mission.allocations.find(item => item.id === allocationId && !item.deletedAt);
     if (!allocation) throw notFound('Alocação não encontrada.');
     const label = allocation.collaborator?.name || 'O colaborador';
@@ -242,6 +252,7 @@ export async function initializeAllocationCycles(missionId, allocationId, contex
   return runPlanningTransaction(database, async tx => {
     const mission = await requireCycleMission(tx, missionId);
     await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
+    assertCycleCreationStage(mission);
     const allocation = mission.allocations.find(item => item.id === allocationId && !item.deletedAt);
     if (!allocation) throw notFound('Alocação não encontrada.');
     if (allocation.cycles?.length) return allocation.cycles;

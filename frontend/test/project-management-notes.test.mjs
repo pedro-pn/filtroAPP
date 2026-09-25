@@ -47,5 +47,5 @@ test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', asy
 test('escopo do dashboard possui rolagem local após o limite de altura', async () => {
   const styles = await readSource('src/styles/base.css');
 
-  assert.match(styles, /\.acp-det-scope\s*\{[^}]*max-height:\s*360px[^}]*overflow-y:\s*auto/);
+  assert.match(styles, /\.acp-det-scope\s*\{[^}]*max-height:\s*280px[^}]*overflow-y:\s*auto/);
 });

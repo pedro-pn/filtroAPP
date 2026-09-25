@@ -28,10 +28,12 @@ import { PortalTip } from '../../../components/ui/PortalTip';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import {
   canManageProjectTeamCycles,
+  canViewProjectTeamCycles,
   WORKFLOW_STAGES,
   WORKFLOW_STAGE_LABELS
 } from '../../../utils/projectWorkflow';
 import { ProjectExecutionDashboard } from './ProjectExecutionDashboard';
+import { MissionAllocationModal } from './MissionAllocationModal';
 import { ProjectCloseoutPanel } from './ProjectCloseoutPanel';
 import { ProjectPostJobPanel } from './ProjectPostJobPanel';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
@@ -736,7 +738,30 @@ const STAGE_SECTION_GROUPS: Record<ProjectWorkflowStage, string> = {
 const READINESS_RING_RADIUS = 21;
 const READINESS_RING_LENGTH = 2 * Math.PI * READINESS_RING_RADIUS;
 
-function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, correctionMode, documents, onPatch, onOpenTeamProgramming, onShowBlockers }: {
+function ProjectTeamCyclesCategory({ mission, loading, editable, allowCycleChanges, onPlanningMutated }: {
+  mission: PlanningMission | null;
+  loading: boolean;
+  editable: boolean;
+  allowCycleChanges: boolean;
+  onPlanningMutated: () => void | Promise<void>;
+}) {
+  return <ProjectWorkflowCategory
+    title="Equipe e ciclos"
+    description="Acompanhe os ciclos de mobilização do projeto e de cada colaborador. Durante a execução, o gestor pode registrar trocas e novos ciclos aqui."
+    area="Operações"
+    icon="users"
+    status={mission ? `${mission.allocations.length} colaborador(es) · ${(mission.cycles || []).length} ciclo(s)` : loading ? 'Carregando equipe' : 'Equipe indisponível'}
+    complete={Boolean(mission)}
+    initiallyOpen
+    data-project-workflow-team-cycles-section
+  >
+    {mission
+      ? <MissionAllocationModal mission={mission} open embedded readOnly={!editable} allowCycleChanges={allowCycleChanges} onPlanningMutated={onPlanningMutated} />
+      : <p className="project-workflow-category-note">{loading ? 'Carregando programação da equipe…' : 'Não foi possível carregar a programação da equipe.'}</p>}
+  </ProjectWorkflowCategory>;
+}
+
+function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, correctionMode, documents, planningMission, planningMissionLoading, canManageMission, onTeamCyclesMutated, onPatch, onOpenTeamProgramming, onShowBlockers }: {
   detail: ProjectWorkflowDetail;
   leaders: WorkflowUserOption[];
   workflow: ProjectWorkflow;
@@ -744,6 +769,10 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   saving: boolean;
   correctionMode: boolean;
   documents: Awaited<ReturnType<typeof listProjectDocuments>>['documents'];
+  planningMission: PlanningMission | null;
+  planningMissionLoading: boolean;
+  canManageMission: boolean;
+  onTeamCyclesMutated: () => void | Promise<void>;
   onPatch: (payload: ProjectWorkflowPatch) => void;
   onOpenTeamProgramming: () => void;
   onShowBlockers: () => void;
@@ -813,7 +842,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   const renderPreparation = () => (
     <>
       <ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
-      <ProjectWorkflowDefinitiveTeam workflow={workflow} saving={stageSaving} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} />
+      <ProjectWorkflowDefinitiveTeam workflow={workflow} saving={stageSaving} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} showTeamEditAction={activeStage === 'PREPARATION'} />
       <ProjectWorkflowClientReleasesPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowEquipmentPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowMaterialsPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
@@ -882,12 +911,12 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   } else if (activeStage === 'WAITING_PLANNING') {
     stageContent = <>{renderAnalysisMonitoring()}</>;
   } else if (activeStage === 'MOBILIZATION_PLANNING') {
-    stageContent = <><ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowTeamPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
+    stageContent = <><ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowTeamPlanningCard workflow={workflow} initialTeam={initialTeam} saving={stageSaving} canManageMission={canManageMission} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
   } else if (activeStage === 'PREPARATION' || activeStage === 'MOBILIZATION') {
     // Sem "Pronto para mobilizar": a Mobilização mostra as mesmas frentes da Preparação até o projeto avançar.
     stageContent = renderPreparation();
   } else if (activeStage === 'EXECUTION') {
-    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Escopo, avanço físico, RDOs, assinaturas e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} readOnly={!isCurrentStage} /></ProjectWorkflowCategory>{isCurrentStage && canManageProjectTeamCycles(workflow.stage) && initialTeam ? <Button type="button" variant="mini" className="project-workflow-planning-link" onClick={onOpenTeamProgramming}>Equipe e ciclos</Button> : null}</>;
+    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Escopo, avanço físico, RDOs, assinaturas e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} readOnly={!isCurrentStage} /></ProjectWorkflowCategory></>;
   } else if (activeStage === 'DEMOBILIZATION') {
     stageContent = <><ProjectWorkflowCategory
       title="Datas da desmobilização"
@@ -902,6 +931,14 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     stageContent = renderCloseout();
   } else {
     stageContent = <>{renderPostJob()}{renderCloseout()}{workflow.permissions.canReopen ? <ReopenProjectForm workflow={workflow} saving={saving} onPatch={stagePatch} /> : null}</>;
+  }
+
+  if (!isLegacySkippedStage && !isFutureStage && canViewProjectTeamCycles(activeStage)) {
+    const teamEditable = isCurrentStage && (workflow.stage === 'MOBILIZATION' || canManageProjectTeamCycles(workflow.stage)) && canManageMission && !saving;
+    stageContent = <>
+      <ProjectTeamCyclesCategory mission={planningMission} loading={planningMissionLoading} editable={teamEditable} allowCycleChanges={activeStage === 'EXECUTION'} onPlanningMutated={onTeamCyclesMutated} />
+      {stageContent}
+    </>;
   }
 
   const gateBlockers = ['PREPARATION', 'MOBILIZATION', 'EXECUTION'].includes(activeStage)
@@ -998,7 +1035,7 @@ function workflowStageDate(workflow: ProjectWorkflow, stage: ProjectWorkflowStag
     : null;
 }
 
-export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, legacySummaryMission, legacySummaryRoles, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
+export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, legacySummaryMission, legacySummaryRoles, planningMission, planningMissionLoading, onTeamCyclesMutated, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
   detail: ProjectWorkflowDetail | null;
   leaders: WorkflowUserOption[];
   loading: boolean;
@@ -1013,6 +1050,9 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   /** Missão oficial completa (para editar a equipe) e cargos operacionais; só usados pelo fluxo resumido. */
   legacySummaryMission: PlanningMission | null;
   legacySummaryRoles: PlanningJobRole[];
+  planningMission: PlanningMission | null;
+  planningMissionLoading: boolean;
+  onTeamCyclesMutated: () => void | Promise<void>;
   onOpenTeamProgramming: () => void;
   /** Somente o gestor do Efetivo confirma ou cancela a missão. Cancelar é reversível ("Reativar" na seção de
    * canceladas do Kanban); remover a programação em definitivo só é possível a partir de lá, com a missão já
@@ -1178,7 +1218,8 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
         </div> : null}
         <div className={`efetivo-modal-body project-workflow-modal-body${workflow ? ' has-stage-layout' : ''}`}>
           {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy">Carregando gestão do projeto…</p> : !workflow ? (
-            detail.project.operationalMission && detail.permissions.canInitialize ? (
+            <>
+            {detail.project.operationalMission && detail.permissions.canInitialize ? (
               legacyChoice === null ? (
                 <section className="project-workflow-legacy-choice" data-project-workflow-legacy-choice>
                   <h4>Como deseja tratar este projeto?</h4>
@@ -1214,7 +1255,12 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
             ) : detail.permissions.canInitialize
               ? <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
               : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>
-          ) : <WorkflowStagePanel detail={detail} leaders={leaders} workflow={workflow} activeStage={activeStage} saving={saving} correctionMode={correctionMode} documents={projectDocuments.data?.documents || []} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} onShowBlockers={() => setBlockersOpen(true)} />}
+            }
+            {detail.project.operationalMission && ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(detail.project.operationalMission.stage)
+              ? <ProjectTeamCyclesCategory mission={planningMission} loading={planningMissionLoading} editable={canManageMission && !saving && ['MOBILIZATION', 'EXECUTION'].includes(detail.project.operationalMission.stage)} allowCycleChanges={detail.project.operationalMission.stage === 'EXECUTION'} onPlanningMutated={onTeamCyclesMutated} />
+              : null}
+            </>
+          ) : <WorkflowStagePanel detail={detail} leaders={leaders} workflow={workflow} activeStage={activeStage} saving={saving} correctionMode={correctionMode} documents={projectDocuments.data?.documents || []} planningMission={planningMission} planningMissionLoading={planningMissionLoading} canManageMission={canManageMission} onTeamCyclesMutated={onTeamCyclesMutated} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} onShowBlockers={() => setBlockersOpen(true)} />}
         </div>
         <footer className="efetivo-modal-footer project-workflow-modal-footer">
           <div className="project-workflow-footer-status" aria-live="polite">

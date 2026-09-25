@@ -564,9 +564,10 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
     return <div className="placeholder-copy">Nenhum escopo cadastrado.</div>;
   }
   return (
-    <div className="acp-det-scope">
-      {groupServicesByScope(scope.services).map(group => <section key={group.scopeName ?? ''}>
-        {scope.services.some(service => service.scopeName) ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+    <div className="acp-det-scope" role="region" aria-label="Escopos cadastrados" tabIndex={0}>
+      {groupServicesByScope(scope.services).map(group => <details className="acp-det-scope-group" key={group.scopeName ?? ''}>
+        <summary className="acp-scope-group-title"><span>{scope.services.some(service => service.scopeName) ? `Escopo: ${group.scopeName || 'Sem escopo definido'}` : 'Escopo cadastrado'}</span><small>{group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small></summary>
+        <div className="acp-det-scope-group-body">
       {group.services.map((svc, i) => (
         <div className="acp-det-scope-svc" key={i}>
           <div className="acp-det-scope-head">
@@ -584,7 +585,8 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
           </ul>
         </div>
       ))}
-      </section>)}
+        </div>
+      </details>)}
     </div>
   );
 }
@@ -1302,11 +1304,12 @@ export function ProjectDetailDashboard({
           <div className="page-card acp-det-block">
             <div className="acp-det-sub"><HelpTip help="Escopo vendido informado manualmente (aba Cronograma): serviços, sistemas e quantitativos, com o peso de cada serviço no avanço.">Escopo cadastrado</HelpTip></div>
             <PlannedScopeView scope={effectiveScope} />
-            {!isGroup && projectId ? (
+            {(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
               <div className="acp-mission-reports-action">
                 <ProjectReportsDialog
-                  projectId={projectId}
-                  missionLabel={`Missão ${h.code} · ${h.clientName}`}
+                  projectId={isGroup ? undefined : projectId}
+                  groupMembers={isGroup ? data.group?.members : undefined}
+                  missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
                 />
               </div>
             ) : null}

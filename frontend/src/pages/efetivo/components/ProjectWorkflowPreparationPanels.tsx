@@ -487,11 +487,12 @@ export function ProjectWorkflowMaterialsPreparation({ workflow, saving, onPatch 
   );
 }
 
-export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpenTeamProgramming }: {
+export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpenTeamProgramming, showTeamEditAction = true }: {
   workflow: ProjectWorkflow;
   saving: boolean;
   onPatch: (payload: ProjectWorkflowPatch) => void;
   onOpenTeamProgramming: () => void;
+  showTeamEditAction?: boolean;
 }) {
   const progress = sectionProgress(workflow, 'D15_TEAM');
   const members = workflow.teamPreparation.members;
@@ -512,13 +513,13 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
       {!members.length ? (
         <div className="project-workflow-empty-team">
           <div><strong>Aguardando definição da equipe</strong><p>Defina os nomes que participarão do primeiro ciclo da obra.</p></div>
-          <Button type="button" variant="secondary" onClick={onOpenTeamProgramming}>Definir equipe inicial</Button>
+          {showTeamEditAction ? <Button type="button" variant="secondary" onClick={onOpenTeamProgramming}>Definir equipe inicial</Button> : <span className="project-workflow-category-note">Inclua os colaboradores na seção Equipe e ciclos acima.</span>}
         </div>
       ) : (
         <>
           <div className="project-workflow-team-heading">
             <p>{members.length} colaborador(es) definido(s) para o primeiro ciclo.</p>
-            <Button type="button" variant="secondary" onClick={onOpenTeamProgramming}>Editar equipe inicial</Button>
+            {showTeamEditAction ? <Button type="button" variant="secondary" onClick={onOpenTeamProgramming}>Editar equipe inicial</Button> : null}
           </div>
           <div className="project-workflow-team-members">
             {members.map(member => (

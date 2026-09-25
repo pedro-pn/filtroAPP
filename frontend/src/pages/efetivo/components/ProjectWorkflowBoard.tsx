@@ -46,7 +46,7 @@ import { missionPendencies } from '../../../utils/missionPendencies';
 import {
   cloneProjectKanbanColumns,
   canDefineInitialProjectTeam,
-  canManageProjectTeamCycles,
+  canViewProjectTeamCycles,
   moveProjectInColumns,
   PROJECT_KANBAN_STAGE_LABELS,
   PROJECT_KANBAN_STAGES,
@@ -67,7 +67,6 @@ import {
 import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
 import { selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
-import { MissionAllocationModal } from './MissionAllocationModal';
 import { InitialTeamAvailabilityModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
@@ -158,7 +157,6 @@ function ProjectCard({
   dragging,
   moveAllowed,
   moving,
-  teamLoading,
   canProgramTeam,
   programmingLoading,
   onSelect,
@@ -181,7 +179,6 @@ function ProjectCard({
   dragging: boolean;
   moveAllowed: boolean;
   moving: boolean;
-  teamLoading: boolean;
   canProgramTeam: boolean;
   programmingLoading: boolean;
   onSelect: () => void;
@@ -210,7 +207,7 @@ function ProjectCard({
     : 'Líder de Projetos';
   const options = moveOptions(item);
   const initialTeamAvailable = canDefineInitialProjectTeam(stage);
-  const teamCyclesAvailable = canManageProjectTeamCycles(stage);
+  const teamCyclesAvailable = canViewProjectTeamCycles(stage);
   const cardClassName = [
     'project-workflow-card',
     selected ? 'selected' : '',
@@ -357,20 +354,19 @@ function ProjectCard({
           <button
             className="efetivo-kanban-team-manage"
             type="button"
-            disabled={teamLoading}
             onClick={event => { event.stopPropagation(); onManageTeam(); }}
           >
-            {teamLoading ? 'Carregando equipe…' : 'Equipe e ciclos'}
+            Equipe e ciclos
           </button>
         ) : initialTeamAvailable ? (
           <button
             className="efetivo-kanban-team-manage"
             type="button"
             disabled={!canProgramTeam || programmingLoading}
-            title={canProgramTeam ? undefined : 'Somente o gestor do Efetivo pode definir ou editar a equipe inicial.'}
+            title={canProgramTeam || stage === 'MOBILIZATION_PLANNING' ? undefined : 'Somente o gestor do Efetivo pode definir ou editar a equipe inicial.'}
             onClick={event => { event.stopPropagation(); onProgramTeam(); }}
           >
-            {programmingLoading ? 'Carregando equipe…' : mission ? 'Editar equipe inicial' : 'Definir equipe inicial'}
+            {programmingLoading ? 'Carregando equipe…' : stage === 'MOBILIZATION_PLANNING' ? 'Equipe e ciclos' : mission ? 'Editar equipe inicial' : 'Definir equipe inicial'}
           </button>
         ) : null}
       </div>
@@ -455,8 +451,8 @@ export function ProjectWorkflowBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProjectKanbanStage | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [teamMissionId, setTeamMissionId] = useState<string | null>(null);
   const [missionFormProjectId, setMissionFormProjectId] = useState<string | null>(null);
+  const [teamContextLoadingProjectId, setTeamContextLoadingProjectId] = useState<string | null>(null);
   const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
@@ -471,7 +467,6 @@ export function ProjectWorkflowBoard({
     if (list.data) setColumns(projectWorkflowsToColumns(list.data.items));
   }, [list.data]);
 
-  const teamMission = (planningMissions.data || []).find(mission => mission.id === teamMissionId) || null;
   const missionFormMission = (planningMissions.data || [])
     .find(mission => mission.projectId === missionFormProjectId) || null;
   const missionFormProject = (pendingMissionProjects.data || [])
@@ -483,12 +478,6 @@ export function ProjectWorkflowBoard({
   // A etapa do projeto (`workflow.stage`) nunca é tocada ao cancelar: o card só some da coluna enquanto
   // cancelado, e reativar o traz de volta exatamente para onde estava, sem precisar guardar nada à parte.
   const cancelledProjectIds = new Set(cancelledMissions.map(mission => mission.projectId));
-
-  useEffect(() => {
-    if (!teamMissionId || planningMissions.isFetching || teamMission) return;
-    toast('Não foi possível carregar a equipe e os ciclos desta programação.', 'error');
-    setTeamMissionId(null);
-  }, [planningMissions.isFetching, teamMission, teamMissionId, toast]);
 
   useEffect(() => {
     if (!missionFormProjectId
@@ -1063,23 +1052,35 @@ export function ProjectWorkflowBoard({
                   dragging={draggingId === item.id}
                   moveAllowed={canMoveProject(item)}
                   moving={movingProjectId === item.id}
-                  teamLoading={teamMissionId === item.operationalMission?.id && planningMissions.isFetching}
-                  canProgramTeam={canManage}
-                  programmingLoading={missionFormProjectId === item.id && (pendingMissionProjects.isFetching || planningMissions.isFetching)}
+                  canProgramTeam={stage === 'MOBILIZATION_PLANNING' || canManage}
+                  programmingLoading={Boolean(teamContextLoadingProjectId) || (missionFormProjectId === item.id && (pendingMissionProjects.isFetching || planningMissions.isFetching))}
                   onSelect={() => {
                     if (Date.now() >= suppressCardClickUntilRef.current) onProjectSelect(item.id);
                   }}
                   onToggleTeam={() => setExpandedId(expandedId === item.id ? null : item.id)}
                   onManageTeam={() => {
-                    if (!canManageProjectTeamCycles(stage) || !item.operationalMission) return;
-                    setTeamMissionId(item.operationalMission.id);
-                    if (planningMissions.isError) void planningMissions.refetch();
+                    if (!canViewProjectTeamCycles(stage) || !item.operationalMission) return;
+                    onProjectSelect(item.id);
                   }}
                   onProgramTeam={() => {
-                    if (!canManage || !canDefineInitialProjectTeam(stage)) return;
-                    setMissionFormProjectId(item.id);
-                    if (pendingMissionProjects.isError) void pendingMissionProjects.refetch();
-                    if (planningMissions.isError) void planningMissions.refetch();
+                    if (!canDefineInitialProjectTeam(stage)) return;
+                    if (stage === 'MOBILIZATION_PLANNING') {
+                      onProjectSelect(item.id);
+                      return;
+                    }
+                    if (!canManage) return;
+                    setTeamContextLoadingProjectId(item.id);
+                    void queryClient.fetchQuery({
+                      queryKey: ['project-workflow', item.id],
+                      queryFn: () => getProjectWorkflow(item.id)
+                    }).then(projectDetail => {
+                      if (!projectDetail.workflow) throw new Error('Inicie a gestão do projeto antes de definir a equipe.');
+                      setTeamContext(buildInitialTeamContext(projectDetail.workflow));
+                      setMissionFormProjectId(item.id);
+                      if (pendingMissionProjects.isError) void pendingMissionProjects.refetch();
+                      if (planningMissions.isError) void planningMissions.refetch();
+                    }).catch((error: Error) => toast(error.message, 'error'))
+                      .finally(() => setTeamContextLoadingProjectId(null));
                   }}
                   onMove={target => requestMove(item, target)}
                   onMouseDown={event => {
@@ -1117,12 +1118,6 @@ export function ProjectWorkflowBoard({
           </Button>
         </nav>
       ) : null}
-      <MissionAllocationModal
-        mission={teamMission}
-        open={Boolean(teamMissionId && teamMission)}
-        onClose={() => setTeamMissionId(null)}
-        onPlanningMutated={() => queryClient.invalidateQueries({ queryKey: ['project-workflows'] })}
-      />
       {canManage ? (
         <InitialTeamAvailabilityModal
           open={Boolean(missionFormProjectId && (missionFormMission || missionFormProject))}
@@ -1177,16 +1172,18 @@ export function ProjectWorkflowBoard({
             : null
         }
         legacySummaryRoles={planningRoles.data || []}
+        planningMission={(planningMissions.data || []).find(mission => mission.id === detail.data?.project.operationalMission?.id) || null}
+        planningMissionLoading={planningMissions.isLoading || planningMissions.isFetching}
+        onTeamCyclesMutated={async () => {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
+            queryClient.invalidateQueries({ queryKey: ['project-workflow', selectedProjectId] })
+          ]);
+        }}
         onOpenTeamProgramming={() => {
           if (!detail.data) return;
           const stage = detail.data.workflow?.stage;
-          const mission = detail.data.project.operationalMission;
           onProjectSelect(undefined);
-          if (stage && canManageProjectTeamCycles(stage) && mission) {
-            setTeamMissionId(mission.id);
-            if (planningMissions.isError) void planningMissions.refetch();
-            return;
-          }
           if (!stage || !canDefineInitialProjectTeam(stage)) return;
           if (!canManage) {
             toast('Somente o gestor do Efetivo pode criar a programação.', 'error');

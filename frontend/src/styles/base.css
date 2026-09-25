@@ -3121,7 +3121,16 @@ a {
 
 /* Serviços previstos: cada serviço é um cartão com seus sistemas */
 .acp-scope-groups { display: grid; gap: 16px; }
-.acp-scope-group { border: 1px solid var(--br); border-radius: var(--r); padding: 12px; min-width: 0; }
+.acp-scope-group { border: 1px solid var(--br); border-radius: var(--r); min-width: 0; }
+.acp-scope-group-toggle { align-items: center; cursor: pointer; display: flex; gap: 10px; list-style: none; min-height: 48px; padding: 10px 12px; }
+.acp-scope-group-toggle::-webkit-details-marker { display: none; }
+.acp-scope-group-toggle::before { border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; content: ''; flex: 0 0 7px; height: 7px; margin: 0 3px 3px 2px; transform: rotate(-45deg); transition: transform .15s; }
+.acp-scope-group[open] > .acp-scope-group-toggle::before { margin-bottom: 0; transform: rotate(45deg); }
+.acp-scope-group-toggle:focus-visible { outline: 2px solid var(--g); outline-offset: -2px; }
+.acp-scope-group-toggle > span { flex: 1 1 auto; font-size: 13px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.acp-scope-group-toggle > small { color: var(--mu); flex: 0 0 auto; font-size: 12px; }
+.acp-scope-group-content { border-top: 1px solid var(--br); max-height: min(440px, 55vh); min-width: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 12px; }
+.acp-scope-group-content:focus-visible { outline: 2px solid var(--g); outline-offset: -2px; }
 .acp-scope-group-name { margin-bottom: 12px; }
 .acp-svc-move { max-width: 360px; margin-top: 10px; }
 .acp-scope-group-title { margin: 0 0 10px; font-size: 13px; color: var(--tx); overflow-wrap: anywhere; }
@@ -3583,6 +3592,16 @@ a {
 }
 .acp-mission-reports-head h2 { margin: 0; color: var(--g); font-size: 19px; }
 .acp-mission-reports-head p { margin: 4px 0 0; color: var(--mu); font-size: 13px; }
+.acp-mission-reports-filter {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--br);
+}
+.acp-mission-reports-filter label { color: var(--mu); font-size: 12px; font-weight: 600; }
+.acp-mission-reports-filter select { width: 100%; min-width: 0; }
 .acp-mission-reports-body {
   min-height: 160px;
   padding: 16px 18px 20px;
@@ -3683,6 +3702,7 @@ a {
 }
 @media (max-width: 640px) {
   .acp-mission-reports-head { padding: 14px; }
+  .acp-mission-reports-filter { padding: 12px 14px; }
   .acp-mission-reports-body { padding: 12px 14px 16px; }
   .modal-card.acp-pdf-viewer-modal { width: calc(100vw - 12px); height: calc(100dvh - 12px); max-height: calc(100dvh - 12px); }
   .acp-pdf-viewer-head { align-items: stretch; flex-direction: column; padding: 12px; }
@@ -4452,10 +4472,21 @@ a {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 360px;
+  max-height: 280px;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding-right: 4px;
 }
+.acp-det-scope:focus-visible { outline: 2px solid var(--g); outline-offset: 2px; }
+.acp-det-scope-group { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; }
+.acp-det-scope-group > summary { align-items: center; cursor: pointer; display: flex; gap: 8px; justify-content: space-between; list-style: none; margin: 0; padding: 9px 10px; }
+.acp-det-scope-group > summary::-webkit-details-marker { display: none; }
+.acp-det-scope-group > summary::after { border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; content: ''; flex: 0 0 6px; height: 6px; margin: 0 3px 3px 2px; transform: rotate(45deg); transition: transform .15s; }
+.acp-det-scope-group[open] > summary::after { margin-bottom: 0; transform: rotate(225deg); }
+.acp-det-scope-group > summary:focus-visible { outline: 2px solid var(--g); outline-offset: -2px; }
+.acp-det-scope-group > summary > span { flex: 1 1 auto; min-width: 0; }
+.acp-det-scope-group > summary > small { color: var(--mu); font-size: 11px; font-weight: 500; white-space: nowrap; }
+.acp-det-scope-group-body { border-top: 1px solid var(--br); display: flex; flex-direction: column; gap: 8px; padding: 8px; }
 .acp-det-scope-svc { border: 1px solid var(--br); border-radius: var(--rs); padding: 8px 10px; background: var(--bg); }
 .acp-det-scope-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; }
 .acp-det-scope-weight { font-weight: 400; color: var(--mu); font-size: 12px; }

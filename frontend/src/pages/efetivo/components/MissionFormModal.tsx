@@ -10,7 +10,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { prefillDatesFromProject } from '../../../utils/missionPendencies';
 import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
-import { missionTeamScheduleStatus, resolveMissionTeamScheduleDates, selectedMissionCollaboratorIds, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
+import { missionTeamScheduleStatus, resolveMissionTeamScheduleDates, selectedMissionCollaboratorIds, shiftDefaultMissionAllocationPeriods, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionTeamSelector } from './MissionTeamSelector';
 
 const schema = z.object({
@@ -122,11 +122,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     const previous = individualPeriodBoundsRef.current;
     individualPeriodBoundsRef.current = { startDate: teamStartDate, endDate: teamEndDate };
     if (!previous.startDate || !previous.endDate) return;
-    const nextPeriods = (allocationPeriods || []).map(period => ({
-      ...period,
-      mobilizationDate: period.mobilizationDate === previous.startDate ? teamStartDate : period.mobilizationDate,
-      demobilizationDate: period.demobilizationDate === previous.endDate ? teamEndDate : period.demobilizationDate
-    }));
+    const nextPeriods = shiftDefaultMissionAllocationPeriods(allocationPeriods || [], previous, { startDate: teamStartDate, endDate: teamEndDate });
     if (nextPeriods.some((period, index) => period.mobilizationDate !== allocationPeriods?.[index]?.mobilizationDate
       || period.demobilizationDate !== allocationPeriods?.[index]?.demobilizationDate)) {
       setValue('allocationPeriods', nextPeriods, { shouldDirty: true, shouldValidate: true });
@@ -243,9 +239,10 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
   const [mobilizationDate, setMobilizationDate] = useState(initial.mobilizationDate);
   const [executionStartDate, setExecutionStartDate] = useState(initial.executionStartDate);
   const [executionEndDate, setExecutionEndDate] = useState(initial.executionEndDate);
-  const [datesConfirmed, setDatesConfirmed] = useState(Boolean(initial.mobilizationDate && initial.executionStartDate && initial.executionEndDate));
+  const [datesConfirmed, setDatesConfirmed] = useState(!mission && Boolean(initial.mobilizationDate && initial.executionStartDate && initial.executionEndDate));
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(initial.collaboratorIds);
   const [allocationPeriods, setAllocationPeriods] = useState(initial.allocationPeriods);
+  const periodBoundsRef = useRef({ startDate: initial.mobilizationDate, endDate: initial.returnDate || initial.executionEndDate });
   const [pendingInactiveSubmission, setPendingInactiveSubmission] = useState<MissionInput | null>(null);
 
   useEffect(() => {
@@ -254,11 +251,25 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
     setMobilizationDate(values.mobilizationDate);
     setExecutionStartDate(values.executionStartDate);
     setExecutionEndDate(values.executionEndDate);
-    setDatesConfirmed(Boolean(values.mobilizationDate && values.executionStartDate && values.executionEndDate));
+    setDatesConfirmed(!mission && Boolean(values.mobilizationDate && values.executionStartDate && values.executionEndDate));
     setCollaboratorIds(values.collaboratorIds);
     setAllocationPeriods(values.allocationPeriods);
+    periodBoundsRef.current = { startDate: values.mobilizationDate, endDate: values.returnDate || values.executionEndDate };
     setPendingInactiveSubmission(null);
   }, [context, mission, open, planId, project]);
+
+  useEffect(() => {
+    if (!open || !mobilizationDate || !executionEndDate) return;
+    const nextBounds = { startDate: mobilizationDate, endDate: initial.returnDate || executionEndDate };
+    const previous = periodBoundsRef.current;
+    periodBoundsRef.current = nextBounds;
+    if (!previous.startDate || !previous.endDate) return;
+    setAllocationPeriods(current => {
+      const next = shiftDefaultMissionAllocationPeriods(current, previous, nextBounds);
+      return next.some((period, index) => period.mobilizationDate !== current[index].mobilizationDate
+        || period.demobilizationDate !== current[index].demobilizationDate) ? next : current;
+    });
+  }, [executionEndDate, initial.returnDate, mobilizationDate, open]);
 
   if (!open) return null;
 
@@ -302,7 +313,7 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
         <div className="efetivo-modal-layout">
           <header className="efetivo-modal-header"><div><h3 id="initial-team-dates-title">{mission ? 'Editar equipe inicial' : 'Definir equipe inicial'}</h3><p>{identity ? `${identity.code} · ${identity.name} · ` : ''}Confirme as datas da obra para consultar a disponibilidade dos colaboradores.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button></header>
           <div className="efetivo-modal-body efetivo-form-grid">
-            {([['mobilizationDate', 'Previsão de mobilização', mobilizationDate, setMobilizationDate], ['executionStartDate', 'Início da execução', executionStartDate, setExecutionStartDate], ['executionEndDate', 'Fim da execução', executionEndDate, setExecutionEndDate]] as const).map(([name, label, value, setValue]) => (
+            {([['mobilizationDate', 'Mobilização do primeiro ciclo', mobilizationDate, setMobilizationDate], ['executionStartDate', 'Início da execução', executionStartDate, setExecutionStartDate], ['executionEndDate', 'Fim da execução', executionEndDate, setExecutionEndDate]] as const).map(([name, label, value, setValue]) => (
               <div className="field-group" key={name}>
                 <label htmlFor={`initial-team-${name}`}>{label} *</label>
                 <input id={`initial-team-${name}`} type="date" disabled={saving} value={value} onChange={event => setValue(event.target.value)} />

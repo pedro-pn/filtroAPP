@@ -6,6 +6,7 @@ import {
   cloneProjectKanbanColumns,
   canDefineInitialProjectTeam,
   canManageProjectTeamCycles,
+  canViewProjectTeamCycles,
   moveProjectInColumns,
   projectKanbanStage,
   projectStageInColumns,
@@ -14,8 +15,8 @@ import {
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
 
-test('equipe inicial pertence à preparação e continua disponível até a mobilização; ciclos só em execução', () => {
-  assert.equal(canDefineInitialProjectTeam('MOBILIZATION_PLANNING'), false);
+test('equipe inicial começa no planejamento e continua disponível até a mobilização; novos ciclos só na execução', () => {
+  assert.equal(canDefineInitialProjectTeam('MOBILIZATION_PLANNING'), true);
   assert.equal(canDefineInitialProjectTeam('PREPARATION'), true);
   // Sem "Pronto para mobilizar": a definição da equipe inicial continua disponível até a Mobilização.
   assert.equal(canDefineInitialProjectTeam('MOBILIZATION'), true);
@@ -23,6 +24,10 @@ test('equipe inicial pertence à preparação e continua disponível até a mobi
   assert.equal(canManageProjectTeamCycles('MOBILIZATION'), false);
   assert.equal(canManageProjectTeamCycles('EXECUTION'), true);
   assert.equal(canManageProjectTeamCycles('DEMOBILIZATION'), false);
+  assert.equal(canViewProjectTeamCycles('PREPARATION'), false);
+  for (const stage of ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED']) {
+    assert.equal(canViewProjectTeamCycles(stage), true);
+  }
 });
 
 test('projetos sem gestão entram visualmente no Handover', () => {
@@ -129,7 +134,8 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /Movimentação bloqueada:/);
   assert.match(board, /Ver líder e equipe/);
   assert.match(board, /Equipe e ciclos/);
-  assert.match(board, /MissionAllocationModal/);
+  assert.doesNotMatch(board, /MissionAllocationModal/);
+  assert.match(modal, /data-project-workflow-team-cycles-section/);
   assert.match(board, /Definir equipe inicial/);
   assert.match(board, /Editar equipe inicial/);
   assert.match(board, /InitialTeamAvailabilityModal/);
@@ -137,7 +143,7 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /updatePlanningMission/);
   assert.match(preparation, /primeiro ciclo/);
   assert.match(board, /mission && teamCyclesAvailable/);
-  assert.match(board, /canManageProjectTeamCycles\(stage\)/);
+  assert.match(board, /canViewProjectTeamCycles\(stage\)/);
   assert.doesNotMatch(board, /section=missoes/);
   assert.match(board, /projectWorkflowErrorIssues/);
   const dragStart = board.slice(board.indexOf('function onCardDragStart'), board.indexOf('function onCardDragEnd'));
@@ -495,9 +501,10 @@ test('incompatibilidades de recursos aparecem no planejamento e na preparação,
   assert.match(conflictUtil, /RESOURCE_TEAM_CONFLICT/);
   assert.match(conflictUtil, /RESOURCE_EQUIPMENT_CONFLICT/);
   assert.match(resources, /data-project-workflow-resource-conflicts/);
-  assert.match(resources, /Sem mobilização operacional prevista, a disponibilidade considera/);
+  assert.match(resources, /Sem mobilização da equipe informada, a disponibilidade considera/);
   assert.match(modal, /analysisIssues = workflow\.issues\.filter\(item => !isResourceConflictIssue\(item\)\)/);
-  const planning = modal.slice(modal.indexOf("activeStage === 'MOBILIZATION_PLANNING'"), modal.indexOf("activeStage === 'PREPARATION'"));
+  const planningStart = modal.indexOf("} else if (activeStage === 'MOBILIZATION_PLANNING')");
+  const planning = modal.slice(planningStart, modal.indexOf("} else if (activeStage === 'PREPARATION'", planningStart));
   assert.match(planning, /ProjectWorkflowResourceConflicts/);
   const preparation = modal.slice(modal.indexOf('const renderPreparation = () =>'), modal.indexOf('const renderPostJob = () =>'));
   assert.match(preparation, /ProjectWorkflowResourceConflicts/);

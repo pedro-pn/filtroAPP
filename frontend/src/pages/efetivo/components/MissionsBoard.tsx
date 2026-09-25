@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-  autoAllocateMission,
   createPlanningMission,
   deletePlanningMission,
   listPendingMissionProjects,
@@ -70,11 +69,6 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
       ? updatePlanningMission(formTarget.mission.id, formTarget.mission.version, payload)
       : createPlanningMission(payload),
     onSuccess: async (_, payload) => { await refresh(); await queryClient.invalidateQueries({ queryKey: ['commercial-revisions', payload.projectId] }); setFormTarget(null); toast('Programação salva.', 'success'); },
-    onError: (error: Error) => toast(error.message, 'error')
-  });
-  const autoAllocate = useMutation({
-    mutationFn: (missionId: string) => autoAllocateMission(missionId),
-    onSuccess: async result => { await refresh(); toast(result.remainingDeficits.length ? 'Equipe preenchida parcialmente; ainda há vagas sem pessoas.' : 'Vagas preenchidas com pessoas disponíveis.', result.remainingDeficits.length ? 'error' : 'success'); },
     onError: (error: Error) => toast(error.message, 'error')
   });
   const remove = useMutation({ mutationFn: (id: string) => deletePlanningMission(id), onSuccess: async () => { await refresh(); setDeleting(null); toast('Programação removida.', 'success'); }, onError: (error: Error) => toast(error.message, 'error') });
@@ -182,7 +176,6 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
                       <span>Líder: <strong>{mission.headquartersResponsibleName}</strong></span>
                       <div className="efetivo-action-row efetivo-mission-card-actions">
                         <Button variant="secondary" onClick={() => setAllocating(mission)}>Equipe</Button>
-                        {canManage && required > missionCoveredDemand(mission) ? <Button variant="secondary" disabled={autoAllocate.isPending} onClick={() => autoAllocate.mutate(mission.id)}>{autoAllocate.isPending ? 'Alocando…' : 'Alocar disponíveis'}</Button> : null}
                         {canManage ? <><Button variant="mini" onClick={() => setFormTarget({ mission, project: null })}>Editar</Button><Button variant="danger" onClick={() => setDeleting(mission)}>Remover</Button></> : null}
                       </div>
                     </footer>
