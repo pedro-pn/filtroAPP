@@ -77,3 +77,31 @@ test('avanço usa apresentação DS só no detalhe e mantém percentual acima de
   assert.match(shared, /class="acp-progress"/);
   assert.doesNotMatch(shared, /data-acp-progress-ds/);
 }));
+
+test('conciliação de metragens preserva leitura, gestão e histórico no detalhe DS', async () => fixture(async ({ server, client, render }) => {
+  const { ProjectRealizedCorrections } = await server.ssrLoadModule('/src/components/projects/ProjectRealizedCorrections.tsx');
+  client.setQueryData(['realized-corrections', 'p'], { rows: [{
+    date: '2026-09-24', serviceType: 'TESTE_PRESSAO', sourceMeters: 100,
+    correctedMeters: 80, effectiveMeters: 80, revision: 1, sourceChanged: true,
+    reason: 'Conferido com o responsável pela obra.', reference: 'Planilha validada',
+    history: [{ revision: 1, quantityM: 80, reason: 'Conferido com o responsável pela obra.', reference: 'Planilha validada' }]
+  }] });
+
+  const viewer = render(ProjectRealizedCorrections, { projectId: 'p', appearance: 'design-system' });
+  assert.match(viewer, /data-acp-realized-ds/);
+  assert.match(viewer, /RDO.*100,00 m/);
+  assert.match(viewer, /Aplicado no avanço.*80,00 m/);
+  assert.match(viewer, /O RDO mudou após a correção/);
+  assert.match(viewer, /Histórico de revisões/);
+  assert.doesNotMatch(viewer, /Registrar ou revisar metragem/);
+  assert.doesNotMatch(viewer, /mini-btn|field-group/);
+
+  const manager = render(ProjectRealizedCorrections, { projectId: 'p', canManage: true, appearance: 'design-system' });
+  assert.match(manager, /Registrar ou revisar metragem/);
+  assert.match(manager, /Metragem validada/);
+  assert.match(manager, /fv-field/);
+
+  const legacy = render(ProjectRealizedCorrections, { projectId: 'p', canManage: true });
+  assert.match(legacy, /class="acp-realized"/);
+  assert.doesNotMatch(legacy, /data-acp-realized-ds/);
+}));

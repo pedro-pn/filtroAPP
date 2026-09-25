@@ -1,0 +1,65 @@
+.acp-realized-ds {
+  min-width: 0;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.acp-realized-ds__summary {
+  display: flex;
+  min-height: var(--space-12);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.acp-realized-ds__summary::-webkit-details-marker { display: none; }
+.acp-realized-ds__summary::after {
+  margin-inline-start: auto;
+  color: var(--muted);
+  content: '⌄';
+  font-size: var(--text-lg);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.acp-realized-ds[open] > .acp-realized-ds__summary::after { transform: rotate(180deg); }
+.acp-realized-ds__summary:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.acp-realized-ds__heading { display: grid; min-width: 0; flex: 1 1 auto; gap: var(--space-1); }
+.acp-realized-ds__heading strong { color: var(--ink); font-size: var(--text-sm); }
+.acp-realized-ds__heading small { color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-base); }
+.acp-realized-ds__content { display: grid; min-width: 0; gap: var(--space-4); padding: var(--space-4); border-block-start: var(--border-width) solid var(--line); }
+.acp-realized-ds__toolbar, .acp-realized-ds__row-head, .acp-realized-ds__row-body, .acp-realized-ds__identity, .acp-realized-ds__measures, .acp-realized-ds__actions { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.acp-realized-ds__toolbar, .acp-realized-ds__row-head, .acp-realized-ds__row-body { justify-content: space-between; }
+.acp-realized-ds__toolbar { flex-wrap: wrap; color: var(--muted); font-size: var(--text-xs); }
+.acp-realized-ds__list { display: grid; min-width: 0; gap: var(--space-3); max-height: 460px; overflow-y: auto; }
+.acp-realized-ds__row > .fv-card__body { display: grid; min-width: 0; gap: var(--space-3); }
+.acp-realized-ds__identity { flex-wrap: wrap; gap: var(--space-1) var(--space-3); font-size: var(--text-sm); }
+.acp-realized-ds__identity time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.acp-realized-ds__identity strong { color: var(--ink); }
+.acp-realized-ds__measures { flex-wrap: wrap; font-size: var(--text-sm); }
+.acp-realized-ds__measures > div { display: grid; gap: var(--space-1); }
+.acp-realized-ds__measures > div > span { color: var(--muted); font-size: var(--text-xs); }
+.acp-realized-ds__measures strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.acp-realized-ds__reason, .acp-realized-ds__history { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-base); overflow-wrap: anywhere; }
+.acp-realized-ds__history summary { width: fit-content; color: var(--brand-text); cursor: pointer; font-weight: var(--font-semibold); }
+.acp-realized-ds__history summary:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.acp-realized-ds__history ol { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); }
+.acp-realized-ds__history li + li { margin-block-start: var(--space-1); }
+.acp-realized-ds__form-card > .fv-card__body, .acp-realized-ds__form { display: grid; min-width: 0; gap: var(--space-4); }
+.acp-realized-ds__form-heading h4 { margin: 0; color: var(--ink); font-size: var(--text-sm); }
+.acp-realized-ds__form-heading p { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-xs); }
+.acp-realized-ds__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.acp-realized-ds__wide { grid-column: 1 / -1; }
+.acp-realized-ds__actions { flex-wrap: wrap; }
+
+@media (max-width: 768px) {
+  .acp-realized-ds__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .acp-realized-ds__summary, .acp-realized-ds__content { padding-inline: var(--space-3); }
+  .acp-realized-ds__row-head, .acp-realized-ds__row-body { align-items: flex-start; flex-wrap: wrap; }
+  .acp-realized-ds__fields { grid-template-columns: 1fr; }
+  .acp-realized-ds__wide { grid-column: auto; }
+}

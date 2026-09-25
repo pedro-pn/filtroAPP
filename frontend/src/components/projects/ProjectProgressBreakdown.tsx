@@ -97,7 +97,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
           {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
         </li>)}</ul>
       </details> : null}
-      <ProjectRealizedCorrections projectId={projectId} canManage={canManage} />
+      <ProjectRealizedCorrections projectId={projectId} canManage={canManage} appearance="design-system" />
       <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. Metas por sistema consideram equipamento do cliente, sistema e bitola. Em cada tipo de medição, a execução é proporcional à quantidade prevista, limitada à meta de cada linha; os serviços usam seus pesos.</p>
     </div>;
   }

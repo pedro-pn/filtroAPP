@@ -1,0 +1,61 @@
+.acp-story-timeline, .acp-story-time, .acp-story-financial, .acp-story-billing { box-shadow: var(--shadow-e1); }
+.acp-story-timeline > .fv-card__body, .acp-story-time > .fv-card__body,
+.acp-story-financial > .fv-card__body, .acp-story-billing > .fv-card__body { display: grid; gap: var(--space-5); padding: var(--space-6); min-width: 0; }
+.acp-story-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); min-width: 0; }
+.acp-story-card-head > div { display: grid; gap: var(--space-1); min-width: 0; }
+.acp-story-card-head p { color: var(--brand-text); font-size: var(--text-xs); font-weight: var(--font-bold); letter-spacing: .06em; text-transform: uppercase; }
+.acp-story-card-head h3 { font-size: var(--text-lg); line-height: var(--leading-lg); }
+.acp-story-card-head > .fv-icon { color: var(--brand-text); }
+.acp-story-status, .acp-story-soft-label { display: inline-flex; align-items: center; text-align: center; justify-content: center; padding: var(--space-2) var(--space-3); border-radius: var(--radius-pill); color: var(--brand-text); background: var(--brand-soft); font-size: var(--text-xs); font-weight: var(--font-semibold); white-space: nowrap; }
+.acp-story-status.is-success { color: var(--success); background: var(--success-bg); }
+.acp-story-status.is-warning { color: var(--warning); background: var(--warning-bg); }
+.acp-story-status.is-neutral { color: var(--muted); background: var(--surface-2); }
+.acp-story-milestones { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); list-style: none; padding: 0; margin: 0; position: relative; }
+.acp-story-milestones::before { content: ''; position: absolute; z-index: 0; top: 17px; left: 12%; right: 12%; border-top: 2px solid var(--line-strong); }
+.acp-story-milestones li { display: grid; align-content: start; justify-items: center; gap: var(--space-2); text-align: center; min-width: 0; z-index: 1; }
+.acp-story-milestone-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-pill); border: 2px solid var(--line-strong); background: var(--surface); color: var(--muted); }
+.acp-story-milestones li.is-recorded .acp-story-milestone-icon { color: var(--success); border-color: var(--success-line); background: var(--success-bg); }
+.acp-story-milestones li.is-projected .acp-story-milestone-icon { color: var(--brand-text); border-color: var(--brand); background: var(--brand-soft); }
+.acp-story-milestones li > span:not(.acp-story-milestone-icon) { color: var(--muted); font-size: var(--text-xs); }
+.acp-story-milestones strong { font-size: var(--text-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.acp-story-timeline-note { color: var(--brand-text); background: var(--brand-softer); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: var(--text-sm); }
+.acp-story-time-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.acp-story-time-item { display: grid; align-content: start; justify-items: start; gap: var(--space-2); padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); min-width: 0; }
+.acp-story-time-icon { display: inline-flex; align-items: center; justify-content: center; width: var(--space-8); height: var(--space-8); border-radius: var(--radius-sm); color: var(--brand-text); background: var(--brand-soft); }
+.acp-story-time-item > span:not(.acp-story-time-icon), .acp-story-time-item small { color: var(--muted); font-size: var(--text-xs); }
+.acp-story-time-item strong { font-size: var(--text-xl); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.acp-story-meter { width: 100%; height: var(--space-2); border-radius: var(--radius-pill); background: var(--brand-soft); overflow: hidden; }
+.acp-story-meter i { display: block; height: 100%; border-radius: inherit; background: var(--success); }
+.acp-story-meter.is-over i { background: var(--warning); }
+.acp-story-meter--large { height: var(--space-3); }
+.acp-story-caption { color: var(--muted); font-size: var(--text-xs); }
+.acp-story-caption strong { color: var(--ink); }
+.acp-story-amount { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.acp-story-amount > strong, .acp-story-billing-main > strong { font-size: clamp(var(--text-2xl), 3vw, 34px); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.acp-story-amount > span { color: var(--muted); font-size: var(--text-sm); }
+.acp-story-divider { border-top: var(--border-width) solid var(--line); }
+.acp-story-financial h4 { margin: 0; font-size: var(--text-sm); }
+.acp-story-cost-stack { display: flex; height: var(--space-3); overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-2); }
+.acp-story-cost-stack > span { display: block; height: 100%; }
+.acp-story-cost-stack .is-omie, .acp-story-cost-legend .is-omie { background: var(--brand); }
+.acp-story-cost-stack .is-stock, .acp-story-cost-legend .is-stock { background: var(--success); }
+.acp-story-cost-stack .is-manual, .acp-story-cost-legend .is-manual { background: var(--warning); }
+.acp-story-cost-stack .is-labor, .acp-story-cost-legend .is-labor { background: var(--info); }
+.acp-story-cost-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.acp-story-cost-legend > div { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-1) var(--space-2); align-items: center; color: var(--muted); font-size: var(--text-xs); }
+.acp-story-cost-legend > div > span { display: block; width: var(--space-2); height: var(--space-2); border-radius: var(--radius-pill); }
+.acp-story-cost-legend strong { grid-column: 2; color: var(--ink); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.acp-story-billing-main { display: grid; gap: var(--space-1); }
+.acp-story-billing-main span, .acp-story-billing-main small { color: var(--muted); font-size: var(--text-xs); }
+.acp-story-billing-facts { display: grid; gap: var(--space-2); padding-top: var(--space-3); border-top: var(--border-width) solid var(--line); }
+.acp-story-billing-facts > span { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--text-sm); }
+.acp-story-billing-facts > span > .fv-icon { color: var(--brand-text); }
+.acp-story-billing-facts strong { margin-left: auto; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 639px) {
+  .acp-story-timeline > .fv-card__body, .acp-story-time > .fv-card__body, .acp-story-financial > .fv-card__body, .acp-story-billing > .fv-card__body { padding: var(--space-4); }
+  .acp-story-card-head { flex-wrap: wrap; }
+  .acp-story-milestones { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+  .acp-story-milestones::before { display: none; }
+  .acp-story-time-grid, .acp-story-cost-legend { grid-template-columns: minmax(0, 1fr); }
+}

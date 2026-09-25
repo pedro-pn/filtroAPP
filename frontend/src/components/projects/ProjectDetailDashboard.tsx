@@ -10,6 +10,7 @@ import {
   getPlannedScope,
   getProjectPlanningContext,
   getProjectDetail,
+  getProjectProgress,
   listProjectManagementNotes,
   type ManualProjectCost,
   type ManualProjectCostPayload,
@@ -36,10 +37,11 @@ import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
 import { AppIcon } from '../icons/AppIcon';
-import { ArrowLeft, CalendarDays } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Factory } from 'lucide-react';
 import { ProjectDetailPeople } from './ProjectDetailPeople';
 import { ProjectDetailCosts, ProjectDetailTaxes } from './ProjectDetailCosts';
-import { ProgressHistoryChart } from './ProjectDetailHistory';
+import { ProjectDetailOverview } from './ProjectDetailOverview';
+import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectTimeSnapshot, ProjectTimelineCard } from './ProjectDetailStory';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { MetricBar, WorkedHoursMetric, RequiredWeeklyProgressCard, PlannedScopeView } from './ProjectDetailVisuals';
 import { brl, fmtDate, fmtDateTime, fmtPct, fmtHM, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, DAY_META, type ManualCostFormValues } from './projectDetailModel';
@@ -113,6 +115,12 @@ export function ProjectDetailDashboard({
     queryKey: ['planned-scope', projectId],
     queryFn: () => getPlannedScope(projectId!),
     enabled: !isGroup && Boolean(projectId)
+  });
+  const { data: projectProgress } = useQuery({
+    queryKey: ['project-progress', projectId],
+    queryFn: () => getProjectProgress(projectId!),
+    enabled: !isGroup && Boolean(projectId),
+    ...acompanhamentoRefreshQueryOptions
   });
   const planningReferenceDate = data?.header.lastRdoDate?.slice(0, 10) || new Date().toISOString().slice(0, 10);
   const { data: planningContext, isLoading: planningContextLoading, isError: planningContextError, refetch: refetchPlanning } = useQuery({
@@ -287,6 +295,8 @@ export function ProjectDetailDashboard({
       custoHoraEstimadoRdo: null, custoDeslocamento: null
     })) : data.colaboradores;
   const canAddManualCost = canManageManualCosts && !isGroup && Boolean(projectId);
+  const deviationCount = qualityDeviationQueries.length > 0 && qualityDeviationQueries.every(query => query.isSuccess)
+    ? qualityDeviationQueries.reduce((count, query) => count + (query.data?.length ?? 0), 0) : null;
   const hasAdditionalProposalContribution = (data.budgetBreakdown?.additionals ?? []).some(item => (
     hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
   ));
@@ -308,15 +318,26 @@ export function ProjectDetailDashboard({
         Os dados exibidos podem estar desatualizados.
       </Alert> : null}
       <Card padding="sm" className="acp-detail-header">
-        <div>
-          <p className="acp-detail-eyebrow">{isGroup ? 'Agrupamento de missões' : 'Detalhe do projeto'}</p>
-          <h1>{isGroup ? 'Grupo' : 'Missão'} {h.code}</h1>
-          <p className="acp-detail-client">{h.clientName}</p>
+        <div className="acp-detail-hero-copy">
+          <p className="acp-detail-eyebrow">Acompanhamento · {isGroup ? 'Grupo' : 'Missão'} {h.code}</p>
+          <h1>{h.clientName || `${isGroup ? 'Grupo' : 'Missão'} ${h.code}`}</h1>
+          <div className="acp-detail-header-meta">
+            {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
+            <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span>
+            <span>Início <strong>{fmtDate(data.footer.startDate)}</strong></span>
+            {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
+          </div>
+          {data.alerts.length > 0 ? (
+            <div className="acp-detail-alerts">
+              {data.alerts.map((a, i) => <Badge key={i} tone={a.level === 'danger' ? 'danger' : 'warning'} multiline>{a.label}</Badge>)}
+            </div>
+          ) : null}
         </div>
-        <div className="acp-detail-header-meta">
-          {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
-          <span>Última atualização <strong>{fmtDate(h.lastRdoDate)}</strong></span>
-          {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
+        <div className="acp-detail-hero-progress">
+          <span>Avanço · {progressFilterLabel || 'Escopo total'}</span>
+          <strong>{fmtPct(shownAvancoPct)}</strong>
+          <div className="acp-detail-hero-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, shownAvancoPct ?? 0))}%` }} /></div>
+          <small>{shownAvancoPct == null ? 'Aguardando medição do escopo' : 'Meta do escopo: 100%'}</small>
         </div>
         {data.group ? (
           <div className="acp-detail-group-members" aria-label="Missões unificadas">
@@ -337,12 +358,43 @@ export function ProjectDetailDashboard({
             ))}
           </div>
         ) : null}
-        {data.alerts.length > 0 ? (
-          <div className="acp-detail-alerts">
-            {data.alerts.map((a, i) => <Badge key={i} tone={a.level === 'danger' ? 'danger' : 'warning'} multiline>{a.label}</Badge>)}
+      </Card>
+
+      <ProjectDetailOverview
+        data={data}
+        progressPct={shownAvancoPct}
+        progressHistory={shownProgressHistory}
+        chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
+        target={shownRequiredWeeklyProgress}
+        fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+        filterLabel={progressFilterLabel}
+        teamCount={collaborators.length}
+        teamIsPlanned={showingPlannedCollaborators}
+        deviationCount={deviationCount}
+        filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
+          <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
+            <Field id="acp-progress-scope" label="Escopo" optionalText="">
+              <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
+                <option value="">Todos os escopos</option>
+                {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+            <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
+              <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
+                <option value="">Todos os equipamentos</option>
+                {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
           </div>
         ) : null}
-      </Card>
+      />
+
+      <div className="acp-detail-section-head" id="acp-execution">
+        <p>Planejamento e execução</p><h2>Prazos com contexto</h2>
+        <span>Datas, uso do tempo, avanço e escopo realizado no mesmo lugar.</span>
+      </div>
+
+      <ProjectTimelineCard data={data} />
 
       {!isGroup ? (
         <Card padding="sm" className="acp-detail-planning" data-acp-planning-context>
@@ -372,9 +424,13 @@ export function ProjectDetailDashboard({
         </Card>
       ) : null}
 
+      <ProjectTimeSnapshot data={data} />
+
       <div className="acp-detail-cols">
         {/* Prazo, execução e escopo */}
         <div className="acp-detail-col">
+          <details className="acp-detail-deep-dive">
+            <summary>Conferir cálculo de dias e horas</summary>
           <Card padding="sm" className="acp-detail-block">
             <MetricBar
               label="Dias corridos"
@@ -390,28 +446,13 @@ export function ProjectDetailDashboard({
             />
             <WorkedHoursMetric data={workedHours} />
           </Card>
+          </details>
 
-          <Card padding="sm" className="acp-detail-block">
-            {progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
-              <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
-                <Field id="acp-progress-scope" label="Escopo" optionalText="">
-                  <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
-                    <option value="">Todos os escopos</option>
-                    {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
-                  </Select>
-                </Field>
-                <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
-                  <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
-                    <option value="">Todos os equipamentos</option>
-                    {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
-                  </Select>
-                </Field>
-              </div>
-            ) : null}
+          <Card padding="sm" className="acp-detail-block acp-detail-progress-panel" id="acp-progress">
+            <div className="acp-detail-card-intro"><div><p>Avanço e apontamentos</p><h3>Execução do escopo</h3></div><strong>{fmtPct(shownAvancoPct)}</strong></div>
             <MetricBar label={`Avanço do escopo${progressFilterLabel ? ` · ${progressFilterLabel}` : progressSuffix}`} value={shownAvancoPct} caption={fmtPct(shownAvancoPct)}
               help="Quanto do escopo vendido já foi executado: cruza o realizado dos RDOs com o previsto, ponderado pelo peso de cada serviço. O filtro considera apenas as metas e o realizado do recorte escolhido." />
             <RequiredWeeklyProgressCard key={`${activeScopeKey}|${activeEquipmentKey}`} target={shownRequiredWeeklyProgress} />
-            <ProgressHistoryChart key={`${activeScopeKey}|${activeEquipmentKey}`} points={shownProgressHistory} />
             {!isGroup && projectId ? <details className="acp-detail-progress-breakdown">
               <summary>Previsto × realizado por equipamento e sistema</summary>
               <ProjectProgressBreakdown projectId={projectId} canManage={canManage}
@@ -488,7 +529,15 @@ export function ProjectDetailDashboard({
 
 
         {/* Custos e impostos */}
-        <div className="acp-detail-col">
+        <div className={`acp-detail-col${data.canViewProjectFinancials ? '' : ' is-restricted'}`} id="acp-financial">
+          <div className="acp-detail-section-head">
+            <p>Financeiro</p><h2>Gastos e retorno</h2>
+            <span>Consumo, origem dos custos e impostos do projeto.</span>
+          </div>
+          <ProjectFinancialSnapshot data={data} />
+          {data.canViewProjectFinancials ? <ProjectBillingSnapshot data={data} /> : null}
+          <details className="acp-detail-deep-dive acp-detail-deep-dive--costs">
+            <summary>Detalhar despesas, lançamentos e maiores gastos</summary>
           <ProjectDetailCosts data={data}>
                     {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
                     <div className="acp-detail-manual-costs" data-acp-manual-costs>
@@ -582,6 +631,7 @@ export function ProjectDetailDashboard({
                     </div>
                   ) : null}
           </ProjectDetailCosts>
+          </details>
 
           {data.canViewProjectFinancials ? <ProjectDetailTaxes data={data} /> : null}
         </div>
@@ -590,6 +640,12 @@ export function ProjectDetailDashboard({
 
       {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} /> : null}
 
+      <div className="acp-detail-section-head" id="acp-quality">
+        <p>Qualidade e gestão</p><h2>Desvios que pedem ação</h2>
+        <span>Impacto, situação e notas aparecem antes do texto completo.</span>
+      </div>
+
+      <div className={`acp-detail-quality-grid${isGroup ? ' is-group' : ''}`}>
       {deviationProjects.length > 0 ? (
         <Card padding="sm" className="acp-detail-block acp-detail-deviations" data-quality-project-deviations>
           <div className="acp-detail-deviations-head">
@@ -745,6 +801,12 @@ export function ProjectDetailDashboard({
           )}
         </Card>
       ) : null}
+      </div>
+
+      <div className="acp-detail-section-head" id="acp-resources">
+        <p>Recursos e rastreabilidade</p><h2>Pessoas, equipamentos e escopo</h2>
+        <span>Recursos de campo e evidências de execução agrupados por assunto.</span>
+      </div>
 
       <Card padding="sm" className="acp-detail-block">
         <details className="acp-detail-equips-details" open>
@@ -757,6 +819,7 @@ export function ProjectDetailDashboard({
             <div className="acp-detail-equips-grid">
               {equipamentos.map((e, i) => (
                 <div className="acp-detail-equip-item" key={`${e.name}-${i}`}>
+                  <span className="acp-detail-equip-icon"><AppIcon icon={Factory} size="sm" /></span>
                   <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
                   <strong>{e.days} dia{e.days === 1 ? '' : 's'}</strong>
                   <small>desde {fmtDate(e.since)}</small>
@@ -776,13 +839,6 @@ export function ProjectDetailDashboard({
       </Card>
 
       <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators} onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} />
-
-      <Card padding="sm" className="acp-detail-footer">
-        <div><span><HelpTip help="Data de mobilização, cadastrada manualmente no cronograma.">Mobilização</HelpTip></span><strong>{fmtDate(data.footer.mobilizationDate)}</strong></div>
-        <div><span><HelpTip help="Data de início real, cadastrada manualmente no cronograma.">Início</HelpTip></span><strong>{fmtDate(data.footer.startDate)}</strong></div>
-        <div><span><HelpTip help="Início + dias corridos previstos no comercial.">Previsão de término</HelpTip></span><strong>{fmtDate(data.footer.expectedEndDate)}</strong></div>
-        <div><span><HelpTip help="Estimativa realista: projeta o término pela velocidade de avanço acumulada até a data de referência dos dias corridos.">Previsão pelo ritmo</HelpTip></span><strong>{fmtDate(data.footer.projectedEndByPace)}</strong></div>
-      </Card>
 
     </div>
 

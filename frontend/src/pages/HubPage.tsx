@@ -173,16 +173,18 @@ export function HubPage() {
             variant="ghost"
             size="sm"
             fullWidth
+            title="Ver tutorial"
             iconLeft={<AppIcon icon={NAVIGATION_CHROME_ICONS.help} size="sm" />}
             onClick={() => tutorialTrigger.current?.()}
           >
             Ver tutorial
           </Button>
           {isAdmin ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              fullWidth
+          <Button
+            variant="ghost"
+            size="sm"
+            fullWidth
+            title="Operação"
               iconLeft={
                 <AppIcon icon={NAVIGATION_CHROME_ICONS.operations} size="sm" />
               }

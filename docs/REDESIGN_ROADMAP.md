@@ -40,22 +40,24 @@ entradas DS desta branch durante cada lote.
 
 | Lote | Mudança recebida | Adaptação necessária no redesign |
 | --- | --- | --- |
-| **A3c — Acompanhamento: metragens realizadas** | Conciliação de RTH/RLQ/FLU por dia e serviço, comparação RDO × valor validado, histórico, revisão, restauração, aviso quando a origem muda e permissão de gestão. O painel novo foi encaixado no avanço físico DS e legado. | Migrar `ProjectRealizedCorrections` para controles, estados e tokens DS; conferir detalhe e Cronograma em 360/390/768/1280 px, temas claro/escuro, leitura e edição. Validar erro de revisão concorrente, refresh do avanço, histórico e restauração sem alterar o RDO original. |
+| **A3c — Acompanhamento: metragens realizadas** | Conciliação de RTH/RLQ/FLU por dia e serviço, comparação RDO × valor validado, histórico, revisão, restauração, aviso quando a origem muda e permissão de gestão. O painel novo foi encaixado no avanço físico DS e legado. | **Apresentação DS implementada** para leitura, histórico, estados e formulário, mantendo o consumidor legado. A7 ainda deve conferir persistência real, revisão concorrente, refresh do avanço e perfis em projeto/grupo. |
 | **A3b/A7 — Acompanhamento: contratos existentes** | A conciliação de sistemas e o escopo planejado passaram a exibir “Equipamento do cliente” e ajustes de nomes; a API de avanço considera as novas metragens validadas. | Revisar `ProjectSystemInput`, `ProjectSystemAliases`, `ProjectSystemReconciliation`, `ProjectPlannedScopeEditor`, `ProjectProgressBreakdown` e o detalhe já migrado para refletir os novos rótulos e dados. Revalidar consumo de metas, totais e permissões em projeto/grupo. |
 | **F2.1/F2.5 — Efetivo: disponibilidade por período** | Filtro de data final, API diária por intervalo, KPIs de pico/falta, cargos com déficit, riscos planejados e alternância Kanban/Calendário; status “Indisponível” e “Fora do vínculo”. | Concluir a migração DS de `AvailabilityBoard`: cards/alertas, alternância, legenda, calendário, faixas/tooltip e seções de déficit e risco; tokenizar cores, tratar períodos inválidos, loading/erro/vazio e responsividade. Preservar o shell DS e a seção Simulações. |
 | **F2.5/F2.6 — Efetivo: evolução e execução** | Resumo inicial para obras legadas, equipe/datas/equipamentos, verificação semanal, desvios recolhíveis e ajustes de calendário, capacidade e tooltip. | Migrar o formulário `ProjectLegacySummaryStartForm` e os blocos novos de `ProjectWorkflowBoard`/`ProjectExecutionDashboard`; revisar `ProjectWorkflowModal` e calendário com perfis gestor/leitor, estados de edição, falha, pendências e telas móveis. Efetivo continua em standby para a migração completa até a conciliação da frente paralela. |
 | **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | Adaptar ações de `GestorPage`, `PhysicalSignatureDialog`, `ReportSummaryCard`, `ReportDetailPage` e `ClientPage` aos controles/estados DS; conferir upload, confirmação, sucesso/erro, leitura, revogação, permissões, teclado, foco e temas. Preservar a ordem e a disponibilidade dos relatórios para o cliente. |
 | **X2 — Componentes compartilhados** | `Modal` recebeu proteção de teclado/propagação para painéis aninhados; o catálogo de API foi atualizado. | Revalidar diálogos de Cronograma, assinatura física e demais consumidores DS/legados. O catálogo de API não cria superfície visual nova nesta rodada. |
 
-Ordem sugerida para este delta: **A3c**, porque o novo painel já aparece dentro
-de uma tela migrada; depois **X3**, que altera telas RDO e Cliente já migradas.
+Após A3c, a próxima prioridade deste delta é **X3**, que altera telas RDO e
+Cliente já migradas.
 **F2.1/F2.5/F2.6** entram na retomada do Efetivo, respeitando o standby registrado
 na F2. A7 e X2 incluem regressão integrada de todos os módulos já migrados.
 
 ## Estado após a integração
 
 - A fundação do design system, o `AppShell`, o Hub e o núcleo autenticado do RDO
-  estão implementados para gestor, coordenador, colaborador e cliente.
+  estão implementados para gestor, coordenador, colaborador e cliente. A barra
+  lateral desktop pode ficar recolhida, usa a `LOGO_TAB` e expande ao passar o
+  mouse; Equipamentos usa ícone de engrenagem, distinto de Manutenção.
 - A migração completa do Efetivo está em **standby nesta worktree**, por solicitação
   do usuário em 10/09: o módulo está sendo alterado em outra worktree. Visão geral,
   colaboradores e diálogos já migrados foram recuperados e a equipe inicial foi
@@ -788,8 +790,9 @@ scroll localizado acidental em 360 px de largura.
 | A2 — Projetos | Cards, agrupamento/desagrupamento, renomeação, apropriação de mão de obra, filtros, conferência e arquivamento/restauração | **Implementado** |
 | A3a — Detalhe do projeto | `ProjectDetailDashboard`, custos previstos/realizados, composição das propostas, notas, desvios, progresso/metas, equipe e leitura do escopo | **Implementado** |
 | A3a.1 — Complemento da main | `ProjectInvoicesSection`: faturamentos, recebimento e sincronização; preservar a TAG dos equipamentos em obra já exibida nos cards/detalhe | **Implementado no código; integração real em A7** |
+| A3a.2 — Dashboard do projeto | Resumo visual aprovado: destaque do avanço, indicadores de prazo/custo/desvios/equipamentos, histórico, composição por serviço e navegação para os detalhes, com dados reais e recortes existentes | **Implementado no código; validação integrada em A7** |
 | A3b — Edição do planejamento | `ProjectScheduleEditor`, propostas adicionais/revisões e editor de escopo previsto, incluindo consumidores compartilhados | **Implementado no código; novos rótulos da main e integração real em A7** |
-| A3c — Conciliação do realizado | Novo `ProjectRealizedCorrections` no avanço físico, histórico, ajuste e restauração de metragens RTH/RLQ/FLU | **Funcionalidade da main integrada; migração visual pendente** |
+| A3c — Conciliação do realizado | Novo `ProjectRealizedCorrections` no avanço físico, histórico, ajuste e restauração de metragens RTH/RLQ/FLU | **Migração visual implementada no código; integração real em A7** |
 | A4 — Diálogos de apoio | Relatórios/PDF, standby, jornadas POINT/REPORT e novo `ProjectRomaneiosDialog` com seus gatilhos | **Pendente de consolidação e revisão integrada** |
 | A5 — Sede | Períodos, gastos globais, categorias, detalhamento e novos indicadores aprovados de manutenção/produção em `SedeOperationalCards` | **Pendente; escopo ampliado** |
 | A6 — Custo | Motor/simulação, cargos/perfis, parâmetros/EPI, importação e conciliação de ponto, pendências e auditoria de alocação | **Pendente** |
@@ -799,6 +802,28 @@ A TAG mencionada em A3a.1 é o código de identificação do **equipamento em ob
 exibido antes do nome quando disponível. A exibição já existe em
 `ProjectOverviewMetrics` e `ProjectDetailDashboard`; ela não é uma tag de status
 do projeto nem exige um novo campo de status.
+
+No A3a.2, o gráfico usa o histórico semanal de avanço disponível na API. Ritmo
+diário, último quantitativo lançado e demais números ilustrativos da prévia não
+foram transportados como dados do projeto. O recorte de escopo/equipamento altera
+avanço, meta, histórico e composição; prazos, gastos, equipe e desvios permanecem
+identificados como totais da missão. Faturamentos e impostos mantêm a permissão
+financeira existente. Em projetos sem meta semanal, a composição geral usa o
+avanço por serviço já calculado pela API. A7 deve conferir dados, estados
+vazios, agrupamentos, perfis e interações no ambiente integrado.
+
+O refinamento visual de A3a.2 aproxima a tela da prévia aprovada: histórico
+semanal em colunas, cartões de serviço com realizado/meta/excedente, linha do
+tempo de marcos, indicadores do uso do tempo, composição gráfica dos custos e
+resumo de faturamento. Cálculos, gastos manuais, metas e conferências detalhadas
+continuam disponíveis em seções expansíveis. O mesmo arranjo se adapta ao
+desktop e ao celular sem criar valores demonstrativos na aplicação.
+
+Prévia aprovada: [HTML interativo](filtrovali-ds/project-dashboard-preview.html),
+[captura desktop](filtrovali-ds/project-dashboard-preview-desktop.png) e
+[captura mobile](filtrovali-ds/project-dashboard-preview-mobile.png). Os valores
+do protótipo são ilustrativos; o dashboard implementado usa os dados disponíveis
+na aplicação.
 
 Entregue em A1:
 
@@ -943,6 +968,14 @@ Validação técnica de A3b: suíte frontend completa (118 arquivos de teste), b
 e gate arquitetural aprovados; lint sem erros, com dois avisos anteriores em
 Efetivo e Romaneio.
 
+Entregue em A3c (25/09/2026): `ProjectRealizedCorrections` usa a aparência DS
+no detalhe e no Cronograma, com cartões, badges, alertas, campos, botões e estados
+de loading/erro/vazio. Histórico, aviso de origem alterada, edição e restauração
+continuam ligados ao fluxo recebido da main. O consumidor legado mantém a
+apresentação anterior. O teste com dados sintéticos cobriu leitura e permissão
+de gestão; conferência visual em 390 px claro e escuro foi realizada. Persistência
+real, revisão concorrente e matriz completa de perfis seguem em A7.
+
 #### F4.2 — Equipamentos e configuração de manutenção (novo escopo)
 
 - [ ] **EQ1:** shell/abas, entrada de configuração e componentes compartilhados.
@@ -1028,18 +1061,17 @@ do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md). A nova
 gestão de projetos F2.5/F2.6 segue o standby do Efetivo; as demais novidades
 estão vinculadas às fases A3b/A3c/A4/A5/A6, Estoque, Romaneio, M3/EQ2 e X1–X3.
 
-1. **A3c**, para migrar a nova conciliação de metragens dentro do detalhe DS.
-2. **X3**, para integrar visualmente liberação individual e assinatura física
+1. **X3**, para integrar visualmente liberação individual e assinatura física
    às telas RDO e Cliente já migradas.
-3. Novos gatilhos/diálogos de **A4**, para fechar as inserções da main
+2. Novos gatilhos/diálogos de **A4**, para fechar as inserções da main
    nas telas de Acompanhamento já redesenhadas.
-4. Restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
-5. **EQ1–EQ3 + M1–M5**, respeitando a dependência de configuração da manutenção.
-6. Estoque e Romaneio (F4) com suas pendências anteriores.
-7. **API1–API4 + X1/X2** e ajustes localizados de Qualidade/EPI/Admin (F5).
-8. Retomar **F2** somente após liberação e conciliação da outra worktree; a
+3. Restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
+4. **EQ1–EQ3 + M1–M5**, respeitando a dependência de configuração da manutenção.
+5. Estoque e Romaneio (F4) com suas pendências anteriores.
+6. **API1–API4 + X1/X2** e ajustes localizados de Qualidade/EPI/Admin (F5).
+7. Retomar **F2** somente após liberação e conciliação da outra worktree; a
    conferência de assinatura em celular físico continua combinada com o usuário.
-7. **F6**: remoção de legado e regressão visual final, após as frentes acima.
+8. **F6**: remoção de legado e regressão visual final, após as frentes acima.
 
 Erros funcionais de integração têm precedência sobre essa fila. Esta rodada
 realizou merge/conciliação/planejamento, não a implementação dos novos lotes.

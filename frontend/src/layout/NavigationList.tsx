@@ -40,6 +40,8 @@ export function NavigationList({
                   <span
                     className="fv-navigation-item is-disabled"
                     aria-disabled="true"
+                    aria-label={compact ? item.label : undefined}
+                    title={compact ? item.label : undefined}
                   >
                     <AppIcon icon={item.icon} />
                     <span className="fv-navigation-item__label">
@@ -55,13 +57,13 @@ export function NavigationList({
                     to={item.href}
                     aria-current={
                       item.active &&
-                      !item.children?.some((child) => child.active)
+                      (compact || !item.children?.some((child) => child.active))
                         ? 'page'
                         : undefined
                     }
-                    aria-expanded={item.children ? item.expanded : undefined}
+                    aria-expanded={item.children && !compact ? item.expanded : undefined}
                     aria-controls={
-                      item.children
+                      item.children && !compact
                         ? `${groupIdPrefix}-${item.id}-submenu`
                         : undefined
                     }
@@ -86,7 +88,7 @@ export function NavigationList({
                     ) : null}
                   </Link>
                 )}
-                {item.expanded && item.children?.length ? (
+                {!compact && item.expanded && item.children?.length ? (
                   <ul
                     className="fv-navigation-submenu"
                     id={`${groupIdPrefix}-${item.id}-submenu`}

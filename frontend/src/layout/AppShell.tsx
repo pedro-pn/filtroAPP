@@ -7,6 +7,16 @@ import { Sidebar, type NavigationProfile } from './Sidebar';
 import { TopBar, type TopBarBreadcrumb } from './TopBar';
 import './AppShell.css';
 
+const SIDEBAR_COLLAPSED_KEY = 'fv-sidebar-collapsed';
+
+function storedSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export interface AppShellProps {
   children: ReactNode;
   navigation: NavigationModel;
@@ -37,7 +47,18 @@ export function AppShell({
   contentWidth = 'contained'
 }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(storedSidebarCollapsed);
+  const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
+  const effectiveSidebarCollapsed = sidebarCollapsed && !sidebarHoverExpanded;
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const toggleSidebar = useCallback(() => {
+    setSidebarHoverExpanded(false);
+    setSidebarCollapsed(current => !current);
+  }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed)); } catch { /* Private browsing can block storage. */ }
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 1024px)');
@@ -49,13 +70,18 @@ export function AppShell({
   }, [closeDrawer]);
 
   return (
-    <div className="fv-app-shell" data-testid="fv-app-shell">
+    <div className={`fv-app-shell${effectiveSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`} data-testid="fv-app-shell">
       <Sidebar
         navigation={navigation}
         profile={profile}
         utilityActions={utilityActions}
         onLogout={onLogout}
         className="fv-app-shell__sidebar"
+        collapsed={effectiveSidebarCollapsed}
+        pinnedCollapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
+        onMouseEnter={() => { if (sidebarCollapsed) setSidebarHoverExpanded(true); }}
+        onMouseLeave={() => setSidebarHoverExpanded(false)}
       />
 
       <div className="fv-app-shell__main">

@@ -55,6 +55,7 @@
 }
 
 .fv-sidebar__brand {
+  position: relative;
   display: flex;
   min-height: var(--topbar-h);
   flex: 0 0 auto;
@@ -66,6 +67,25 @@
 .fv-sidebar__logo {
   width: auto;
   height: var(--space-10);
+}
+
+.fv-sidebar__toggle {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+.fv-sidebar:hover .fv-sidebar__toggle,
+.fv-sidebar__toggle:focus-visible {
+  opacity: .65;
+}
+
+.fv-sidebar__toggle:hover,
+.fv-sidebar__toggle:focus-visible {
+  opacity: 1;
 }
 
 .fv-sidebar__navigation {
@@ -683,9 +703,15 @@
 
 @media (min-width: 1024px) {
   .fv-app-shell {
+    --fv-sidebar-current-width: var(--sidebar-w);
     display: grid;
-    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    grid-template-columns: var(--fv-sidebar-current-width) minmax(0, 1fr);
     align-items: start;
+    transition: grid-template-columns var(--duration-slow) var(--ease-standard);
+  }
+
+  .fv-app-shell.is-sidebar-collapsed {
+    --fv-sidebar-current-width: var(--sidebar-w-collapsed);
   }
 
   .fv-app-shell__sidebar {
@@ -694,10 +720,75 @@
     inset-inline-start: 0;
     z-index: var(--z-sidebar);
     display: flex;
-    width: var(--sidebar-w);
+    width: var(--fv-sidebar-current-width);
     height: 100dvh;
     max-height: 100dvh;
     align-self: start;
+    transition: width var(--duration-slow) var(--ease-standard);
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__brand {
+    justify-content: center;
+    min-height: var(--topbar-h);
+    padding-inline: var(--space-2);
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__logo {
+    width: var(--space-12);
+    height: var(--space-12);
+    object-fit: contain;
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__toggle {
+    --fv-button-height: var(--space-6);
+    inset-block-start: var(--space-1);
+    inset-inline-end: var(--space-1);
+    width: var(--space-6);
+    padding: 0;
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__navigation {
+    padding-inline: var(--space-2);
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-navigation-list {
+    gap: var(--space-4);
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-navigation-group__label,
+  .fv-app-shell__sidebar.is-collapsed .fv-navigation-item__label,
+  .fv-app-shell__sidebar.is-collapsed .fv-navigation-item__expansion,
+  .fv-app-shell__sidebar.is-collapsed .fv-navigation-item .fv-badge,
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar-profile__copy,
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar-profile > .fv-icon {
+    display: none;
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__footer .fv-button__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-navigation-item {
+    justify-content: center;
+    padding-inline: var(--space-2);
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__footer {
+    padding: var(--space-2);
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar-profile,
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar__footer .fv-button {
+    justify-content: center;
+  }
+
+  .fv-app-shell__sidebar.is-collapsed .fv-sidebar-profile {
+    padding: var(--space-1);
   }
 
   .fv-app-shell__main {
@@ -719,6 +810,13 @@
 
   .fv-navigation-drawer-layer {
     display: none;
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .fv-app-shell,
+  .fv-app-shell__sidebar {
+    transition-duration: 0.01ms;
   }
 }
 

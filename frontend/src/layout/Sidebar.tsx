@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { AppIcon } from '../components/icons/AppIcon';
-import { Button } from '../components/ui/ds';
+import { Button, IconButton } from '../components/ui/ds';
 import { NavigationList } from './NavigationList';
 import { NAVIGATION_CHROME_ICONS } from './navigationIcons';
 import type { NavigationModel } from './navigationModel';
@@ -22,6 +22,11 @@ export interface SidebarProps {
   onNavigate?: () => void;
   className?: string;
   labelledBy?: string;
+  collapsed?: boolean;
+  pinnedCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 function profileInitials(profile: NavigationProfile) {
@@ -41,19 +46,33 @@ export function Sidebar({
   onLogout,
   onNavigate,
   className,
-  labelledBy
+  labelledBy,
+  collapsed = false,
+  pinnedCollapsed = collapsed,
+  onToggleCollapse,
+  onMouseEnter,
+  onMouseLeave
 }: SidebarProps) {
   return (
     <aside
-      className={['fv-ds', 'fv-sidebar', className].filter(Boolean).join(' ')}
+      className={['fv-ds', 'fv-sidebar', className, collapsed && 'is-collapsed'].filter(Boolean).join(' ')}
       aria-labelledby={labelledBy}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <div className="fv-sidebar__brand">
-        <BrandLogo variant="adaptive" className="fv-sidebar__logo" />
+        <BrandLogo variant={collapsed ? 'symbol' : 'adaptive'} className="fv-sidebar__logo" />
+        {onToggleCollapse ? <IconButton
+          className="fv-sidebar__toggle"
+          icon={pinnedCollapsed ? NAVIGATION_CHROME_ICONS.sidebarExpand : NAVIGATION_CHROME_ICONS.sidebarCollapse}
+          label={pinnedCollapsed ? (collapsed ? 'Expandir menu lateral' : 'Manter menu lateral expandido') : 'Recolher menu lateral'}
+          size="sm"
+          onClick={onToggleCollapse}
+        /> : null}
       </div>
 
       <nav className="fv-sidebar__navigation" aria-label="Navegação principal">
-        <NavigationList navigation={navigation} onNavigate={onNavigate} />
+        <NavigationList navigation={navigation} onNavigate={onNavigate} compact={collapsed} />
       </nav>
 
       <div className="fv-sidebar__footer">
@@ -72,6 +91,7 @@ export function Sidebar({
             aria-label={
               profile.onOpen ? `Abrir conta de ${profile.name}` : undefined
             }
+            title={collapsed ? `Conta de ${profile.name}` : undefined}
           >
             <span className="fv-sidebar-profile__avatar" aria-hidden="true">
               {profileInitials(profile) || 'FV'}
@@ -95,6 +115,7 @@ export function Sidebar({
               <AppIcon icon={NAVIGATION_CHROME_ICONS.logout} size="sm" />
             }
             onClick={() => void onLogout()}
+            title={collapsed ? 'Sair' : undefined}
           >
             Sair
           </Button>
