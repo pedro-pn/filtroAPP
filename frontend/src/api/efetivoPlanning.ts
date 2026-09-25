@@ -196,6 +196,39 @@ export interface PlanningOverview {
   plannedHires: Array<{ id: string; quantity: number; availableFrom: DateOnly; jobRole: { id: string; name: string } }>;
 }
 
+export type PeriodAvailabilityStatus = 'AVAILABLE' | 'AWAITING_MOBILIZATION' | 'MOBILIZED' | 'ON_VACATION' | 'OTHER_UNAVAILABLE';
+
+export interface PlanningAvailabilityPeriod {
+  startDate: DateOnly;
+  endDate: DateOnly;
+  days: Array<{ date: DateOnly; deficit: number }>;
+  people: Array<{
+    id: string;
+    name: string;
+    role: string;
+    jobRoleId: string;
+    days: Array<{ date: DateOnly; status: PeriodAvailabilityStatus; detail: string | null }>;
+  }>;
+  roles: Array<{
+    jobRoleId: string;
+    jobRoleName: string;
+    calendarColor: string;
+    peakDeficit: number;
+    deficitDays: number;
+    totalOpenPositions: number;
+    daily: Array<{ date: DateOnly; demand: number; allocated: number; deficit: number }>;
+  }>;
+  plannedRisks: Array<{
+    date: DateOnly;
+    jobRoleId: string;
+    jobRoleName: string;
+    required: number;
+    free: number;
+    deficit: number;
+    projects: Array<{ id: string; code: string; name: string }>;
+  }>;
+}
+
 export interface VacationAlert {
   type: 'OVERDUE' | 'SCHEDULE';
   label: string;
@@ -298,6 +331,9 @@ export async function listPlanningCoordinators() {
 }
 export async function getPlanningOverview(date: DateOnly, jobRoleId?: string) {
   return (await apiClient.get<PlanningOverview>(`${base}/overview`, { params: { date, jobRoleId } })).data;
+}
+export async function getPlanningAvailability(startDate: DateOnly, endDate: DateOnly, jobRoleId?: string) {
+  return (await apiClient.get<PlanningAvailabilityPeriod>(`${base}/availability`, { params: { startDate, endDate, jobRoleId } })).data;
 }
 export async function getPlanningCalendar(startDate: DateOnly, endDate: DateOnly, jobRoleId?: string) {
   return (await apiClient.get<{ events: CalendarEvent[]; conflicts: PlanningConflict[] }>(`${base}/calendar`, { params: { startDate, endDate, jobRoleId } })).data;

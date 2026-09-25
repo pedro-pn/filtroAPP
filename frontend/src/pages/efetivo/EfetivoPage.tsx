@@ -7,7 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { DateInput } from '../../components/ui/DateInput';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
-import { parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
+import { addDateOnlyDays, parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
 import { groupJobRoles } from '../../utils/jobRoleDisplay';
 import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSection } from '../../utils/planningNavigation';
 import { PROJECT_KANBAN_STAGES, type ProjectKanbanStage } from '../../utils/projectWorkflow';
@@ -19,7 +19,6 @@ import { OperationalCalendar } from './components/OperationalCalendar';
 import { OverviewBoard } from './components/OverviewBoard';
 import { ProductivityBoard } from './components/ProductivityBoard';
 import { ProjectWorkflowBoard } from './components/ProjectWorkflowBoard';
-import { ScenariosBoard } from './components/ScenariosBoard';
 import { EfetivoPlanningNovelty } from './EfetivoPlanningNovelty';
 import { EfetivoTutorial } from './EfetivoTutorial';
 import { ProjectWorkflowNovelty } from './ProjectWorkflowNovelty';
@@ -31,7 +30,6 @@ const SECTIONS: Array<{ id: EfetivoPlanningSection; label: string; icon: string 
   { id: 'colaboradores', label: 'Colaboradores', icon: '♙' },
   { id: 'disponibilidade', label: 'Disponibilidade', icon: '◫' },
   { id: 'evolucao', label: 'Evolução', icon: '⇥' },
-  { id: 'simulacoes', label: 'Simulações', icon: '◈' },
   { id: 'produtividade', label: 'Produtividade', icon: '▥' },
   { id: 'administracao', label: 'Administração', icon: '⚙' }
 ];
@@ -46,11 +44,12 @@ export function EfetivoPage() {
   const tutorialTrigger = useRef<(() => void) | null>(null);
   const section = parsePlanningSection(searchParams.get('section'));
   const date = safeDate(searchParams.get('date'));
+  const endDate = safeDate(searchParams.get('final') || addDateOnlyDays(date, 29));
+  const availabilityView = searchParams.get('disponibilidadeView') === 'calendar' ? 'calendar' : 'kanban';
   const jobRoleId = searchParams.get('funcao') || undefined;
   const search = searchParams.get('search') || '';
   const calendarView = (['day', 'week', 'month'].includes(searchParams.get('view') || '') ? searchParams.get('view') : 'month') as 'day' | 'week' | 'month';
   const selectedDay = safeDate(searchParams.get('dia') || date);
-  const scenarioId = searchParams.get('cenario') || undefined;
   const selectedWorkflowProjectId = searchParams.get('projeto') || undefined;
   const selectedCollaboratorId = searchParams.get('colaborador') || undefined;
   const selectedAbsenceId = searchParams.get('ausencia') || undefined;
@@ -60,12 +59,23 @@ export function EfetivoPage() {
   const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
   const adminTab = (['regras', 'feriados', 'notificacoes', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'notificacoes' | 'atividade';
   const canManage = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('efetivo:manager'));
-  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'simulacoes'].includes(section);
+  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade'].includes(section);
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles, enabled: needsPositionFilters });
 
   const updateParam = useCallback((key: string, value?: string, replace = true) => {
     setSearchParams(current => { const next = new URLSearchParams(current); if (value) next.set(key, value); else next.delete(key); return next; }, { replace });
   }, [setSearchParams]);
+  const setPositionDate = useCallback((value: string) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (value) next.set('date', value); else next.delete('date');
+      const final = next.get('final');
+      if (section === 'disponibilidade' && value && final && (final < value || final > addDateOnlyDays(value, 370))) {
+        next.set('final', addDateOnlyDays(value, 29));
+      }
+      return next;
+    }, { replace: true });
+  }, [section, setSearchParams]);
   const setSection = useCallback((nextSection: EfetivoPlanningSection) => {
     setSearchParams(current => setPlanningSectionParams(current, nextSection), { replace: true });
   }, [setSearchParams]);
@@ -93,13 +103,12 @@ export function EfetivoPage() {
           <nav className="equip-nav" aria-label="Áreas de Efetivo Operacional" data-efetivo-nav>{SECTIONS.map(item => <button className={`equip-nav-item ${section === item.id ? 'active' : ''}`} type="button" aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)} key={item.id}><span className="equip-nav-ico" aria-hidden="true">{item.icon}</span><span className="equip-nav-label">{item.label}</span></button>)}</nav>
           <div className="equip-mobile-nav"><label className="equip-mobile-nav-label" htmlFor="efetivo-section-select">Seção do módulo</label><select id="efetivo-section-select" className="equip-nav-select" value={section} onChange={event => setSection(event.target.value as EfetivoPlanningSection)}>{SECTIONS.map(item => <option value={item.id} key={item.id}>{item.label}</option>)}</select></div>
           <section className="equip-content" data-efetivo-content>
-            {needsPositionFilters ? <section className="page-card efetivo-context-toolbar" data-efetivo-planning-filters><div className="field-group"><label htmlFor="efetivo-position-date">Data de posição</label><DateInput id="efetivo-position-date" value={date} onCommit={value => updateParam('date', value)} /></div><div className="field-group"><label htmlFor="efetivo-role-filter">Função</label><select id="efetivo-role-filter" value={jobRoleId || ''} onChange={event => updateParam('funcao', event.target.value || undefined)}><option value="">Todas as funções</option>{groupJobRoles((roles.data || []).filter(item => item.isOperational)).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></div><p>Planejamento oficial por dias úteis. Produtividade realizada continua baseada no Ponto Mais.</p></section> : null}
+            {needsPositionFilters ? <section className="page-card efetivo-context-toolbar" data-efetivo-planning-filters><div className="field-group"><label htmlFor="efetivo-position-date">Data de posição</label><DateInput id="efetivo-position-date" value={date} onCommit={setPositionDate} /></div>{section === 'disponibilidade' ? <div className="field-group"><label htmlFor="efetivo-final-date">Data final</label><DateInput id="efetivo-final-date" value={endDate} min={date} max={addDateOnlyDays(date, 370)} onCommit={value => updateParam('final', value)} /></div> : null}<div className="field-group"><label htmlFor="efetivo-role-filter">Função</label><select id="efetivo-role-filter" value={jobRoleId || ''} onChange={event => updateParam('funcao', event.target.value || undefined)}><option value="">Todas as funções</option>{groupJobRoles((roles.data || []).filter(item => item.isOperational)).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></div><p>{section === 'disponibilidade' ? 'Situação diária e necessidade de equipe conforme o planejamento dos projetos.' : 'Planejamento oficial por dias úteis. Produtividade realizada continua baseada no Ponto Mais.'}</p></section> : null}
             {section === 'visao-geral' ? <OverviewBoard date={date} jobRoleId={jobRoleId} onNavigate={goToSection} /> : null}
             {section === 'calendario' ? <OperationalCalendar date={date} view={calendarView} jobRoleId={jobRoleId} selectedDay={selectedDay} onDateChange={value => updateParam('date', value)} onViewChange={value => updateParam('view', value === 'month' ? undefined : value)} onDaySelect={value => updateParam('dia', value)} /> : null}
             {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={value => updateParam('search', value || undefined)} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
-            {section === 'disponibilidade' ? <AvailabilityBoard date={date} jobRoleId={jobRoleId} /> : null}
+            {section === 'disponibilidade' ? <AvailabilityBoard date={date} endDate={endDate} jobRoleId={jobRoleId} view={availabilityView} onViewChange={value => updateParam('disponibilidadeView', value === 'kanban' ? undefined : value)} /> : null}
             {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={setWorkflowSearch} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
-            {section === 'simulacoes' ? <ScenariosBoard date={date} jobRoleId={jobRoleId} selectedScenarioId={scenarioId} canManage={canManage} onScenarioSelect={value => updateParam('cenario', value)} /> : null}
             {section === 'produtividade' ? <ProductivityBoard canManage={canManage} /> : null}
             {section === 'administracao' ? <AdministrationBoard canManage={canManage} tab={adminTab} onTabChange={value => updateParam('adminTab', value === 'regras' ? undefined : value)} /> : null}
           </section>

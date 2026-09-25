@@ -101,12 +101,13 @@ export function jsonBodyLimitForRequest(method, requestPath) {
   const isStockDocumentUploadApi = /^\/api\/estoque\/itens\/[^/]+\/documentos$/.test(requestPath);
   const isManualReportUploadApi = requestPath === '/api/reports/manual-upload'
     || requestPath === '/api/rdo/reports/manual-upload'
-    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/manual-pdf$/.test(requestPath);
+    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/(?:manual-pdf|physical-signature)$/.test(requestPath);
   const isSignatureApi = requestPath.includes('/request-signature') || requestPath.includes('/public-sign');
   // Relatórios operacionais (manutenção etc.) levam as fotos em base64 no próprio corpo (até 10 por cartão).
   const isOperationalReportApi = /^\/api(?:\/rdo)?\/operational-reports(?:\/|$)/.test(requestPath);
   if (isStockDocumentUploadApi) return '30mb';
-  if (isUploadsApi || isEquipmentUploadApi || isManualReportUploadApi || isOperationalReportApi) return '25mb';
+  if (isManualReportUploadApi) return '30mb';
+  if (isUploadsApi || isEquipmentUploadApi || isOperationalReportApi) return '25mb';
   if (isSignatureApi) return '3mb';
   return '1mb';
 }

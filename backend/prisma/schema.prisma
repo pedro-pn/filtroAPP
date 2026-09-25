@@ -91,6 +91,9 @@ enum ReportAuditAction {
   TOKEN_ACCESSED
   TOKEN_EXPIRED
   REPORT_LOCKED
+  CLIENT_RELEASED
+  CLIENT_RELEASE_REVOKED
+  PHYSICAL_SIGNATURE_UPLOADED
 }
 
 enum UserRole {
@@ -1791,6 +1794,10 @@ model Report {
   reportType                 ReportType                        @default(RDO)
   sequenceNumber             Int?
   status                     ReportStatus                      @default(PENDING)
+  clientReleasedAt           DateTime?
+  clientReleasedByUserId     String?
+  physicalSignedAt           DateTime?
+  physicalSignedByUserId     String?
   reportDate                 DateTime
   arrivalTime                String
   departureTime              String

@@ -6,8 +6,10 @@ import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
+import { fileToDataUrl } from '../../utils/fileToDataUrl';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
+import { isReportManuallyReleased, toggleReportClientRelease } from '../../utils/reportClientRelease';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   createPointerDragGhost,
@@ -52,6 +54,7 @@ import {
   replicateManualReportCollaborators,
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
+import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import { CollaboratorForm, type CollaboratorFormState } from './CollaboratorForm';
@@ -444,15 +447,6 @@ function signerFirstName(signer: ClientSigner) {
 
 function signerLastName(signer: ClientSigner) {
   return signer.lastName || splitSignerName(signer.name).lastName;
-}
-
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function normalizeSignatureImage(value?: string | null) {
@@ -1165,6 +1159,7 @@ export function GestorPage() {
   const [manualReportModalOpen, setManualReportModalOpen] = useState(false);
   const [manualReportSubmitting, setManualReportSubmitting] = useState(false);
   const [manualReportCollaboratorPrompts, setManualReportCollaboratorPrompts] = useState<ManualReportCollaboratorReplicationPrompt[]>([]);
+  const [physicalSignatureReport, setPhysicalSignatureReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
@@ -2437,6 +2432,9 @@ export function GestorPage() {
   function renderManagerReportActions(report: ReportSummary) {
     const canReview = tab === 'pendentes' && report.status !== 'SIGNED';
     const manualReport = isManualUploadedReport(report);
+    const linkedServiceReport = report.reportType !== 'RDO'
+      && report.specialConditions?.serviceOnly !== true
+      && typeof report.specialConditions?.parentRdoId === 'string';
 
     return (
       <>
@@ -2450,7 +2448,26 @@ export function GestorPage() {
             </button>
           ) : null}
         </span>
-        {manualReport ? (
+        {linkedServiceReport && (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project.clientCnpj && !report.project.managerOnly ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            disabled={reportMutations.clientRelease.isPending}
+            onClick={() => void toggleReportClientRelease(report, release => reportMutations.clientRelease.mutateAsync({ id: report.id, release }), showToast)}
+          >
+            {isReportManuallyReleased(report) ? 'Revogar liberação' : 'Liberar ao cliente'}
+          </button>
+        ) : null}
+        {report.reportType === 'RDO' && report.status === 'APPROVED' ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            onClick={() => setPhysicalSignatureReport(report)}
+          >
+            Enviar assinado
+          </button>
+        ) : null}
+        {manualReport && !report.physicalSignedAt ? (
           <button
             className="mini-btn alt"
             type="button"
@@ -4295,6 +4312,13 @@ export function GestorPage() {
       />
 
       {renderManualReportModal()}
+
+      {physicalSignatureReport ? <PhysicalSignatureDialog
+        report={physicalSignatureReport}
+        onClose={() => setPhysicalSignatureReport(null)}
+        upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)}
+        uploadPending={reportMutations.uploadPhysicalSignature.isPending}
+      /> : null}
 
       <Modal
         open={showSegmentForm}

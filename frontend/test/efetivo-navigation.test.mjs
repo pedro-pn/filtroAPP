@@ -34,10 +34,15 @@ test('formulário de missão usa apenas a conta vinculada como líder', () => {
 test('navegação inclui disponibilidade e preserva data e função', async () => {
   const navigation = await load('/src/utils/planningNavigation.ts');
   assert.ok(navigation.EFETIVO_SECTIONS.includes('disponibilidade'));
+  assert.equal(navigation.EFETIVO_SECTIONS.includes('simulacoes'), false);
   const next = navigation.setPlanningSectionParams(new URLSearchParams('section=missoes&date=2026-08-21&funcao=r1&missao=m1'), 'disponibilidade');
   assert.equal(next.get('date'), '2026-08-21');
   assert.equal(next.get('funcao'), 'r1');
   assert.equal(next.has('missao'), false);
+  const period = navigation.setPlanningSectionParams(new URLSearchParams('section=disponibilidade&date=2026-08-21&final=2026-09-21&disponibilidadeView=calendar'), 'disponibilidade');
+  assert.equal(period.get('final'), '2026-09-21');
+  assert.equal(period.get('disponibilidadeView'), 'calendar');
+  assert.equal(navigation.parsePlanningSection('simulacoes'), 'disponibilidade');
 });
 
 test('seção de colaboradores preserva colaborador, ausência e ano ao voltar', async () => {

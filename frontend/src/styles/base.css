@@ -6513,6 +6513,12 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   gap: 6px;
 }
 
+.physical-signature-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .segment-dialog-actions {
   justify-content: flex-end;
   gap: 8px;

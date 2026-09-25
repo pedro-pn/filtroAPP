@@ -538,7 +538,8 @@ export function ProjectWorkflowBoard({
     queryClient.setQueryData(['project-workflow', data.project.id], data);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
-      queryClient.invalidateQueries({ queryKey: ['project-closeout', data.project.id] })
+      queryClient.invalidateQueries({ queryKey: ['project-closeout', data.project.id] }),
+      queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
     ]);
   };
 
@@ -634,7 +635,8 @@ export function ProjectWorkflowBoard({
       queryClient.setQueryData(['project-workflow', data.project.id], data);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
-        queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] })
+        queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] }),
+        queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
       ]);
       onMobileStageChange(variables.target);
       toast('Etapa do projeto atualizada.', 'success');
@@ -661,7 +663,8 @@ export function ProjectWorkflowBoard({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
         queryClient.invalidateQueries({ queryKey: ['project-workflow', variables.project.id] }),
-        queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] })
+        queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] }),
+        queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
       ]);
       const projectStage = Object.entries(LEGACY_PROJECT_STAGE_TO_MISSION)
         .find(([, missionStage]) => missionStage === variables.stage)?.[0] || 'HANDOVER';

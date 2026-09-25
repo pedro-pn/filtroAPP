@@ -30,6 +30,7 @@ import type { AuthUser } from '../../types/auth';
 import type { Project, ReportSummary, SatisfactionSurveySummary } from '../../types/domain';
 import { clientCanSignReport, clientSignerPrefillNameForReport } from '../../utils/clientSignature';
 import { downloadBlob } from '../../utils/download';
+import { isReportManuallyReleased } from '../../utils/reportClientRelease';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
@@ -215,7 +216,9 @@ function isClientRejectedReport(report: ReportSummary) {
 }
 
 function clientStatusMeta(report: ReportSummary) {
-  if (report.status === 'SIGNED') return statusMap.SIGNED;
+  if (report.status === 'SIGNED') return report.physicalSignedAt
+    ? { label: 'Assinado em papel', className: 'status-signed' }
+    : statusMap.SIGNED;
   if (isClientRejectedReport(report) || report.status === 'RETURNED') {
     return { label: 'Reprovado', className: 'status-returned' };
   }
@@ -762,7 +765,9 @@ export function ClientPage() {
         ? 'RDO pronto para conferência do cliente'
         : serviceOnly
           ? 'Relatório de serviço liberado pelo gestor'
-          : 'Relatório de serviço liberado após assinatura do RDO';
+          : isReportManuallyReleased(report)
+            ? 'Relatório de serviço liberado individualmente pelo gestor'
+            : 'Relatório de serviço liberado após assinatura do RDO';
 
     return (
       <article

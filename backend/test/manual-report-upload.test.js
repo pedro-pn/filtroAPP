@@ -6,7 +6,8 @@ import { ReportType } from '@prisma/client';
 import {
   buildManualReportOperationalFields,
   manualReportOperationalDataSchema,
-  manualReportOperationalSpecialConditions
+  manualReportOperationalSpecialConditions,
+  updateManualReportOperationalData
 } from '../src/lib/reports/manual-operational-data.js';
 
 const project = {
@@ -15,6 +16,21 @@ const project = {
   includesSaturday: false,
   includesSunday: false
 };
+
+test('RDO assinado em papel não aceita edição manual dos dados operacionais', async () => {
+  const result = await updateManualReportOperationalData({
+    prisma: { report: { findUniqueOrThrow: async () => ({ id: 'rdo-1', physicalSignedAt: new Date(), specialConditions: { __manualUpload: { uploadedAt: '2026-09-24' } } }) } },
+    reportId: 'rdo-1',
+    body: {},
+    userId: 'manager-1',
+    include: {},
+    isReportUnavailable: () => false,
+    isManualUploaded: () => true,
+    assertUniqueReportDate: async () => undefined
+  });
+  assert.equal(result.status, 409);
+  assert.match(result.body.error, /não pode mais ser alterado/i);
+});
 
 function txWithCollaborators(ids) {
   return {
