@@ -5,6 +5,7 @@ import { PortalTip } from '../../../components/ui/PortalTip';
 import { getPlanningAvailability, type PeriodAvailabilityStatus, type PlanningAvailabilityPeriod } from '../../../api/efetivoPlanning';
 import { displayDateOnly, parseDateOnly } from '../../../utils/calendarGrid';
 import { buildCalendarBuckets, type CalendarBucket, type CalendarScale } from '../../../utils/availabilityCalendar';
+import { summarizeAvailabilityPeriod } from '../../../utils/availabilitySummary';
 
 const STATUSES: PeriodAvailabilityStatus[] = ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION', 'OTHER_UNAVAILABLE'];
 const STATUS_META: Record<PeriodAvailabilityStatus, { label: string; short: string; description: string }> = {
@@ -132,9 +133,9 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
   if (query.isError) return <section className="page-card placeholder-copy" role="alert">Não foi possível carregar a disponibilidade.</section>;
   if (query.isLoading || !data) return <section className="page-card placeholder-copy">Carregando disponibilidade do período…</section>;
 
-  const daysWithDeficit = data.days.filter(day => day.deficit > 0).length;
-  const peakDeficit = Math.max(0, ...data.days.map(day => day.deficit));
-  const deficitRoles = data.roles.filter(role => role.peakDeficit > 0);
+  const { peakAllocated, daysWithShortage, peakShortage } = summarizeAvailabilityPeriod(data.days, data.roles);
+  const openPositionRoles = data.roles.filter(role => role.peakDeficit > 0);
+  const shortageRoles = data.roles.filter(role => role.peakShortage > 0);
   const dayDeficit = new Map(data.days.map(day => [day.date, day.deficit]));
   const riskByDay = new Map<string, number>();
   for (const risk of data.plannedRisks) riskByDay.set(risk.date, (riskByDay.get(risk.date) || 0) + risk.deficit);
@@ -147,14 +148,25 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
       </section>
 
       <section className="efetivo-period-kpis" aria-label="Resumo do período" data-efetivo-availability-summary>
-        <article><span>Colaboradores</span><strong>{data.people.length}</strong><small>no período selecionado</small></article>
-        <article><span>Dias com déficit</span><strong>{daysWithDeficit}</strong><small>de {data.days.length} dias</small></article>
-        <article className={peakDeficit ? 'is-warning' : ''}><span>Pico de vagas abertas</span><strong>{peakDeficit}</strong><small>em um mesmo dia</small></article>
+        <article><span>Pico de colaboradores alocados</span><strong>{peakAllocated}</strong><small>trabalhando em missões no mesmo dia</small></article>
+        <article className={daysWithShortage ? 'is-warning' : ''}><span>Dias em que faltam pessoas</span><strong>{daysWithShortage}</strong><small>mesmo contando todos os colaboradores livres</small></article>
+        <article className={peakShortage ? 'is-warning' : ''}><span>Maior número de pessoas que faltam</span><strong>{peakShortage}</strong><small>no dia com maior necessidade</small></article>
       </section>
 
-      <section className="page-card efetivo-period-deficits" aria-label="Déficits por função">
-        <div className="efetivo-section-heading"><div><h2>Vagas nas missões confirmadas</h2><p>Demanda menos colaboradores alocados em cada dia. O pico representa vagas simultâneas, não a soma do período.</p></div></div>
-        {deficitRoles.length ? <div className="efetivo-period-role-grid">{deficitRoles.map(role => <article key={role.jobRoleId} className="has-deficit" style={{ '--role-color': role.calendarColor } as CSSProperties}><span className="efetivo-period-role-name">{role.jobRoleName}</span><strong>{role.peakDeficit} {role.peakDeficit === 1 ? 'vaga' : 'vagas'}</strong><small>{role.deficitDays} {role.deficitDays === 1 ? 'dia' : 'dias'} com déficit</small></article>)}</div> : <p className="efetivo-period-clear">Sem vagas abertas nas missões confirmadas neste período.</p>}
+      <section className="page-card efetivo-period-deficits" aria-label="Cargos que precisam de mais pessoas">
+        <div className="efetivo-section-heading"><div><h2>Cargos que precisam de mais pessoas</h2><p>Um cargo só aparece aqui quando as missões precisam de mais pessoas do que existem alocadas e livres naquele dia. Isso não significa contratar automaticamente.</p></div></div>
+        {shortageRoles.length ? <div className="efetivo-period-role-grid">{shortageRoles.map(role => {
+          const shortageDays = role.daily.filter(day => day.shortage > 0);
+          return <article key={role.jobRoleId} className="has-deficit" style={{ '--role-color': role.calendarColor } as CSSProperties}>
+            <span className="efetivo-period-role-name">{role.jobRoleName}</span>
+            <strong>{role.peakShortage === 1 ? 'Falta' : 'Faltam'} até {role.peakShortage} {role.peakShortage === 1 ? 'pessoa' : 'pessoas'}, mesmo usando quem está livre</strong>
+            <small>Isso acontece em {role.shortageDays} {role.shortageDays === 1 ? 'dia' : 'dias'} do período</small>
+            <details className="efetivo-role-deficit-days">
+              <summary>Ver dias e quantidades</summary>
+              <div>{shortageDays.map(day => <span key={day.date}><time dateTime={day.date}>{displayDateOnly(day.date)}</time><b>{day.shortage === 1 ? 'falta' : 'faltam'} {day.shortage}</b></span>)}</div>
+            </details>
+          </article>;
+        })}</div> : <p className="efetivo-period-clear">{openPositionRoles.length ? 'Há colaboradores livres dos cargos necessários para cobrir as vagas ainda sem alocação.' : 'O efetivo disponível atende às missões confirmadas em todos os dias deste período.'}</p>}
       </section>
 
       <section className="page-card efetivo-period-deficits" aria-label="Riscos nas mobilizações planejadas">
@@ -182,17 +194,17 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
         <div className="efetivo-period-surface"><div className="efetivo-period-matrix" data-calendar-scale={calendar.scale} style={{ '--period-days': calendar.buckets.length } as CSSProperties}>
           <div className="efetivo-period-name efetivo-period-heading">Colaborador</div>
           {calendar.buckets.map(bucket => <div className="efetivo-period-day-heading" title={bucketPeriod(bucket)} key={bucket.key}>{bucketLabel(bucket, calendar.scale)}</div>)}
-          <div className="efetivo-period-name efetivo-period-demand-label">Vagas abertas</div>
+          <div className="efetivo-period-name efetivo-period-demand-label">Vagas a alocar</div>
           {calendar.buckets.map(bucket => {
             const peak = Math.max(...bucket.dates.map(date => dayDeficit.get(date) || 0));
-            return <div className={`efetivo-period-demand-day ${peak ? 'has-deficit' : ''}`} title={`${bucketPeriod(bucket)} · pico de ${peak} vaga(s) em aberto em um dia`} key={bucket.key}>{peak || '·'}</div>;
+            return <div className={`efetivo-period-demand-day ${peak ? 'has-deficit' : ''}`} title={`${bucketPeriod(bucket)} · pico de ${peak} posição(ões) ainda sem pessoa definida em um dia`} key={bucket.key}>{peak || '·'}</div>;
           })}
-          {deficitRoles.map(role => <div className="efetivo-period-row" key={role.jobRoleId}>
+          {openPositionRoles.map(role => <div className="efetivo-period-row" key={role.jobRoleId}>
             <div className="efetivo-period-name efetivo-period-role-label" title={role.jobRoleName}>{role.jobRoleName}</div>
             {calendar.buckets.map(bucket => {
               const daily = role.daily.filter(day => bucket.dates.includes(day.date));
               const peak = Math.max(0, ...daily.map(day => day.deficit));
-              return <div className={`efetivo-period-demand-day efetivo-period-role-day ${peak ? 'has-deficit' : ''}`} title={`${role.jobRoleName} · ${bucketPeriod(bucket)} · pico de ${peak} vaga(s) em aberto em um dia`} key={bucket.key}>{peak || '·'}</div>;
+              return <div className={`efetivo-period-demand-day efetivo-period-role-day ${peak ? 'has-deficit' : ''}`} title={`${role.jobRoleName} · ${bucketPeriod(bucket)} · pico de ${peak} posição(ões) ainda sem pessoa definida em um dia`} key={bucket.key}>{peak || '·'}</div>;
             })}
           </div>)}
           <div className="efetivo-period-name efetivo-period-demand-label">Risco planejado</div>

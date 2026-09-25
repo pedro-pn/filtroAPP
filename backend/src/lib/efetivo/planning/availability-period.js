@@ -35,8 +35,10 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
       ? daily.byRole.filter(role => role.jobRoleIds.some(id => selectedIds.has(id)))
       : daily.byRole;
     const deficit = relevantRoles.reduce((sum, role) => sum + role.deficit, 0);
-    days.push({ date, deficit });
+    const shortage = relevantRoles.reduce((sum, role) => sum + Math.max(0, role.deficit - role.free), 0);
+    days.push({ date, deficit, shortage });
     for (const role of relevantRoles) {
+      const shortage = Math.max(0, role.deficit - role.free);
       const item = roles.get(role.jobRoleId) || {
         jobRoleId: role.jobRoleId,
         jobRoleName: role.jobRoleName,
@@ -44,14 +46,18 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
         peakDeficit: 0,
         deficitDays: 0,
         totalOpenPositions: 0,
+        peakShortage: 0,
+        shortageDays: 0,
         daily: []
       };
-      item.daily.push({ date, demand: role.demand, allocated: role.allocated, deficit: role.deficit });
+      item.daily.push({ date, demand: role.demand, allocated: role.allocated, free: role.free, deficit: role.deficit, shortage });
       item.peakDeficit = Math.max(item.peakDeficit, role.deficit);
+      item.peakShortage = Math.max(item.peakShortage, shortage);
       if (role.deficit) {
         item.deficitDays += 1;
         item.totalOpenPositions += role.deficit;
       }
+      if (shortage) item.shortageDays += 1;
       roles.set(role.jobRoleId, item);
     }
     const plannedByRole = new Map();
@@ -122,7 +128,7 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
     endDate: last,
     days,
     people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
-    roles: [...roles.values()].sort((a, b) => b.peakDeficit - a.peakDeficit || a.jobRoleName.localeCompare(b.jobRoleName, 'pt-BR')),
+    roles: [...roles.values()].sort((a, b) => b.peakShortage - a.peakShortage || b.peakDeficit - a.peakDeficit || a.jobRoleName.localeCompare(b.jobRoleName, 'pt-BR')),
     plannedRisks: plannedRisks.sort((a, b) => a.date.localeCompare(b.date) || b.deficit - a.deficit)
   };
 }
