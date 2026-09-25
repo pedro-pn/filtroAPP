@@ -56,8 +56,9 @@ test('resumo da disponibilidade mostra pico de alocados e faltas por cargo', asy
   assert.match(source, /Pico de colaboradores alocados/);
   assert.match(source, /Dias em que faltam pessoas/);
   assert.match(source, /Cargos que precisam de mais pessoas/);
+  assert.match(source, /Pessoas que faltam/);
   assert.match(source, /Isso não significa contratar automaticamente/);
-  assert.doesNotMatch(source, /cobertura interna|falta real/i);
+  assert.doesNotMatch(source, /cobertura interna|falta real|Vagas a alocar/i);
   assert.match(source, /Ver dias e quantidades/);
   assert.match(css, /\.efetivo-role-deficit-days > div[^}]*padding-inline-end: 12px[^}]*scrollbar-gutter: stable/);
 });

@@ -136,7 +136,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
   const { peakAllocated, daysWithShortage, peakShortage } = summarizeAvailabilityPeriod(data.days, data.roles);
   const openPositionRoles = data.roles.filter(role => role.peakDeficit > 0);
   const shortageRoles = data.roles.filter(role => role.peakShortage > 0);
-  const dayDeficit = new Map(data.days.map(day => [day.date, day.deficit]));
+  const dayShortage = new Map(data.days.map(day => [day.date, day.shortage]));
   const riskByDay = new Map<string, number>();
   for (const risk of data.plannedRisks) riskByDay.set(risk.date, (riskByDay.get(risk.date) || 0) + risk.deficit);
 
@@ -194,17 +194,17 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
         <div className="efetivo-period-surface"><div className="efetivo-period-matrix" data-calendar-scale={calendar.scale} style={{ '--period-days': calendar.buckets.length } as CSSProperties}>
           <div className="efetivo-period-name efetivo-period-heading">Colaborador</div>
           {calendar.buckets.map(bucket => <div className="efetivo-period-day-heading" title={bucketPeriod(bucket)} key={bucket.key}>{bucketLabel(bucket, calendar.scale)}</div>)}
-          <div className="efetivo-period-name efetivo-period-demand-label">Vagas a alocar</div>
+          <div className="efetivo-period-name efetivo-period-demand-label">Pessoas que faltam</div>
           {calendar.buckets.map(bucket => {
-            const peak = Math.max(...bucket.dates.map(date => dayDeficit.get(date) || 0));
-            return <div className={`efetivo-period-demand-day ${peak ? 'has-deficit' : ''}`} title={`${bucketPeriod(bucket)} · pico de ${peak} posição(ões) ainda sem pessoa definida em um dia`} key={bucket.key}>{peak || '·'}</div>;
+            const peak = Math.max(...bucket.dates.map(date => dayShortage.get(date) || 0));
+            return <div className={`efetivo-period-demand-day ${peak ? 'has-deficit' : ''}`} title={`${bucketPeriod(bucket)} · ${peak} pessoa(s) além do efetivo disponível no dia de maior necessidade`} key={bucket.key}>{peak || '·'}</div>;
           })}
-          {openPositionRoles.map(role => <div className="efetivo-period-row" key={role.jobRoleId}>
+          {shortageRoles.map(role => <div className="efetivo-period-row" key={role.jobRoleId}>
             <div className="efetivo-period-name efetivo-period-role-label" title={role.jobRoleName}>{role.jobRoleName}</div>
             {calendar.buckets.map(bucket => {
               const daily = role.daily.filter(day => bucket.dates.includes(day.date));
-              const peak = Math.max(0, ...daily.map(day => day.deficit));
-              return <div className={`efetivo-period-demand-day efetivo-period-role-day ${peak ? 'has-deficit' : ''}`} title={`${role.jobRoleName} · ${bucketPeriod(bucket)} · pico de ${peak} posição(ões) ainda sem pessoa definida em um dia`} key={bucket.key}>{peak || '·'}</div>;
+              const peak = Math.max(0, ...daily.map(day => day.shortage));
+              return <div className={`efetivo-period-demand-day efetivo-period-role-day ${peak ? 'has-deficit' : ''}`} title={`${role.jobRoleName} · ${bucketPeriod(bucket)} · ${peak} pessoa(s) além do efetivo disponível no dia de maior necessidade`} key={bucket.key}>{peak || '·'}</div>;
             })}
           </div>)}
           <div className="efetivo-period-name efetivo-period-demand-label">Risco planejado</div>
