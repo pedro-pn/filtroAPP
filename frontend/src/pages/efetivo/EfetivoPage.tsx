@@ -7,7 +7,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { Button, Card, Field, Select } from '../../components/ui/ds';
 import { DateInput } from '../../components/ui/DateInput';
 import { PageHeader } from '../../layout/PageHeader';
-import { parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
+import { addDateOnlyDays, parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
+import { groupJobRoles } from '../../utils/jobRoleDisplay';
 import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSection } from '../../utils/planningNavigation';
 import { PROJECT_KANBAN_STAGES, type ProjectKanbanStage } from '../../utils/projectWorkflow';
 import { AbsencesBoard } from './components/AbsencesBoard';
@@ -32,7 +33,7 @@ const SECTIONS: readonly EfetivoSectionDefinition[] = [
   { id: 'visao-geral', label: 'Visão geral', description: 'Capacidade, alocação e alertas do dia.' },
   { id: 'calendario', label: 'Calendário', description: 'Agenda operacional por dia, semana ou mês.' },
   { id: 'colaboradores', label: 'Colaboradores', description: 'Pessoas, funções, férias e afastamentos.' },
-  { id: 'disponibilidade', label: 'Disponibilidade', description: 'Situação atual da equipe operacional.' },
+  { id: 'disponibilidade', label: 'Disponibilidade', description: 'Situação diária e necessidade de equipe no período.' },
   { id: 'evolucao', label: 'Evolução', description: 'Acompanhamento das etapas de cada missão.' },
   { id: 'simulacoes', label: 'Simulações', description: 'Cenários de capacidade antes da aplicação.' },
   { id: 'produtividade', label: 'Produtividade', description: 'Indicadores realizados e evolução mensal.' },
@@ -49,14 +50,16 @@ export function EfetivoPage() {
   const tutorialTrigger = useRef<(() => void) | null>(null);
   const section = parsePlanningSection(searchParams.get('section'));
   const date = safeDate(searchParams.get('date'));
+  const endDate = safeDate(searchParams.get('final') || addDateOnlyDays(date, 29));
+  const availabilityView = searchParams.get('disponibilidadeView') === 'calendar' ? 'calendar' : 'kanban';
   const jobRoleId = searchParams.get('funcao') || undefined;
   const search = searchParams.get('search') || '';
   const calendarView = (['day', 'week', 'month'].includes(searchParams.get('view') || '') ? searchParams.get('view') : 'month') as 'day' | 'week' | 'month';
   const selectedDay = safeDate(searchParams.get('dia') || date);
-  const scenarioId = searchParams.get('cenario') || undefined;
   const selectedWorkflowProjectId = searchParams.get('projeto') || undefined;
   const selectedCollaboratorId = searchParams.get('colaborador') || undefined;
   const selectedAbsenceId = searchParams.get('ausencia') || undefined;
+  const scenarioId = searchParams.get('cenario') || undefined;
   const workflowStage = (PROJECT_KANBAN_STAGES.includes(searchParams.get('faseProjeto') as ProjectKanbanStage) ? searchParams.get('faseProjeto') : 'HANDOVER') as ProjectKanbanStage;
   const workflowSearch = searchParams.get('busca') || '';
   const parsedWorkflowPage = Number(searchParams.get('pagina') || 1);
@@ -70,6 +73,17 @@ export function EfetivoPage() {
   const updateParam = useCallback((key: string, value?: string, replace = true) => {
     setSearchParams(current => { const next = new URLSearchParams(current); if (value) next.set(key, value); else next.delete(key); return next; }, { replace });
   }, [setSearchParams]);
+  const setPositionDate = useCallback((value: string) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (value) next.set('date', value); else next.delete('date');
+      const final = next.get('final');
+      if (section === 'disponibilidade' && value && final && (final < value || final > addDateOnlyDays(value, 370))) {
+        next.set('final', addDateOnlyDays(value, 29));
+      }
+      return next;
+    }, { replace: true });
+  }, [section, setSearchParams]);
   const setSection = useCallback((nextSection: EfetivoPlanningSection) => {
     setSearchParams(current => setPlanningSectionParams(current, nextSection), { replace: true });
   }, [setSearchParams]);
@@ -123,9 +137,16 @@ export function EfetivoPage() {
               >
                 <Field id="efetivo-position-date" label="Data de posição" optionalText="">
                   <span className="fv-control-shell fv-control-shell--sm">
-                    <DateInput id="efetivo-position-date" className="fv-input" value={date} onCommit={value => updateParam('date', value)} />
+                    <DateInput id="efetivo-position-date" className="fv-input" value={date} onCommit={setPositionDate} />
                   </span>
                 </Field>
+                {section === 'disponibilidade' ? (
+                  <Field id="efetivo-final-date" label="Data final" optionalText="">
+                    <span className="fv-control-shell fv-control-shell--sm">
+                      <DateInput id="efetivo-final-date" className="fv-input" value={endDate} min={date} max={addDateOnlyDays(date, 370)} onCommit={value => updateParam('final', value)} />
+                    </span>
+                  </Field>
+                ) : null}
                 <Field id="efetivo-role-filter" label="Função" optionalText="">
                   <Select
                     size="sm"
@@ -133,23 +154,23 @@ export function EfetivoPage() {
                     onChange={event => updateParam('funcao', event.target.value || undefined)}
                   >
                     <option value="">Todas as funções</option>
-                    {(roles.data || [])
-                      .filter(item => item.isOperational)
+                    {groupJobRoles((roles.data || []).filter(item => item.isOperational))
                       .map(role => (
                         <option value={role.id} key={role.id}>{role.name}</option>
                       ))}
                   </Select>
                 </Field>
                 <p>
-                  Planejamento oficial por dias úteis. A produtividade realizada
-                  continua baseada no Ponto Mais.
+                  {section === 'disponibilidade'
+                    ? 'Situação diária e necessidade de equipe conforme o planejamento dos projetos.'
+                    : 'Planejamento oficial por dias úteis. A produtividade realizada continua baseada no Ponto Mais.'}
                 </p>
               </Card>
             ) : null}
             {section === 'visao-geral' ? <OverviewBoard date={date} jobRoleId={jobRoleId} onNavigate={goToSection} /> : null}
             {section === 'calendario' ? <OperationalCalendar date={date} view={calendarView} jobRoleId={jobRoleId} selectedDay={selectedDay} dayOpen={Boolean(searchParams.get('dia'))} onDayClose={() => updateParam('dia')} onDateChange={value => updateParam('date', value)} onViewChange={value => updateParam('view', value === 'month' ? undefined : value)} onDaySelect={value => updateParam('dia', value)} /> : null}
             {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={value => updateParam('search', value || undefined)} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
-            {section === 'disponibilidade' ? <AvailabilityBoard date={date} jobRoleId={jobRoleId} /> : null}
+            {section === 'disponibilidade' ? <AvailabilityBoard date={date} endDate={endDate} jobRoleId={jobRoleId} view={availabilityView} onViewChange={value => updateParam('disponibilidadeView', value === 'kanban' ? undefined : value)} /> : null}
             {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={setWorkflowSearch} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
             {section === 'simulacoes' ? <ScenariosBoard date={date} jobRoleId={jobRoleId} selectedScenarioId={scenarioId} canManage={canManage} onScenarioSelect={value => updateParam('cenario', value)} /> : null}
             {section === 'produtividade' ? <ProductivityBoard canManage={canManage} /> : null}

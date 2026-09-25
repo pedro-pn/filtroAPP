@@ -9,6 +9,10 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
+import {
+  canClientSeeReportWithRules,
+  releasedServiceReportsForSignedRdo
+} from '../../lib/reports/client-visibility.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import { resolveReportCounter, resolveReportManometers, resolveReportUnits } from '../../lib/report-equipment-resolve.js';
@@ -95,12 +99,15 @@ import {
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
+import { createReportPdfAccessChecker, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
 import { createProjectSystemsRouter } from './project-systems.js';
 import { assertReportServicesProject } from '../../lib/reports/service-project-validation.js';
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
 import historicalServicesRouter from './historical-services.js';
+import { registerReportReleaseRoutes } from './report-release-routes.js';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
 
@@ -1342,6 +1349,10 @@ const listSummarySelect = {
   reportType: true,
   sequenceNumber: true,
   status: true,
+  clientReleasedAt: true,
+  clientReleasedByUserId: true,
+  physicalSignedAt: true,
+  physicalSignedByUserId: true,
   reportDate: true,
   arrivalTime: true,
   departureTime: true,
@@ -1780,11 +1791,6 @@ async function reportProjectTotal(where, client = prisma) {
   return groups.length;
 }
 
-function reportListUsesSummarySelect(query) {
-  const value = String(query.summary || '').trim().toLowerCase();
-  return value === 'true' || value === '1';
-}
-
 export async function canAccessReport(auth, report, options = {}) {
   if (isReportUnavailable(report)) return false;
   if (auth.user.role === 'MANAGER') return true;
@@ -1803,6 +1809,8 @@ export async function canAccessReport(auth, report, options = {}) {
   return false;
 }
 
+export const canAccessReportPdf = createReportPdfAccessChecker({ canAccessReport, isReportUnavailable, database: prisma });
+
 export function collaboratorCanMutateReport(auth, report) {
   if (auth.user?.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
   if (report.createdByUserId === auth.user.id) return true;
@@ -1815,23 +1823,12 @@ export function collaboratorCanMutateReport(auth, report) {
 }
 
 export function canClientSeeReport(report, allReportsById) {
-  if (isReportUnavailable(report)) return false;
-  if (!report || !report.project?.clientCnpj) return false;
-  if (report.reportType === ReportType.RDO) {
-    return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);
-  }
-  if (report.specialConditions?.serviceOnly === true) {
-    return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED;
-  }
-  const parentId = report.specialConditions?.parentRdoId;
-  if (!parentId) return false;
-  const parent = allReportsById.get(parentId);
-  return !!(
-    parent
-    && parent.status === ReportStatus.SIGNED
-    && previousRdosSignedForServiceReport(report, parent, allReportsById)
-  );
+  return canClientSeeReportWithRules(report, allReportsById, {
+    isReportUnavailable, hasActiveClientRejection, previousRdosSignedForServiceReport
+  });
 }
+
+export { isManualClientReleaseActive } from '../../lib/reports/client-visibility.js';
 
 async function projectReportsForClientVisibility(projectId, client = prisma) {
   return client.report.findMany({
@@ -1862,35 +1859,10 @@ export async function canClientSeeReportForAccess(report, client = prisma) {
   return canClientSeeReport(report, byId);
 }
 
-function releasedServiceReportPayload(report) {
-  return {
-    id: report.id,
-    projectId: report.projectId,
-    reportType: report.reportType,
-    sequenceNumber: report.sequenceNumber ?? null,
-    reportDate: report.reportDate,
-    project: {
-      id: report.project?.id || report.projectId,
-      code: report.project?.code || '',
-      name: report.project?.name || ''
-    }
-  };
-}
-
 export async function releasedServiceReportsAfterRdoSignature(rdo, client = prisma) {
-  if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return [];
-  const projectReports = await projectReportsForClientVisibility(rdo.projectId, client);
-  const byId = new Map(projectReports.map(item => [item.id, item]));
-  return projectReports
-    .filter(report => {
-      if (report.reportType === ReportType.RDO) return false;
-      const parentId = report.specialConditions?.parentRdoId;
-      if (!parentId) return false;
-      const parent = byId.get(parentId);
-      const signedRdoReleasedThisReport = parentId === rdo.id || compareProjectReportOrder(rdo, parent || report) < 0;
-      return signedRdoReleasedThisReport && canClientSeeReport(report, byId);
-    })
-    .map(releasedServiceReportPayload);
+  return releasedServiceReportsForSignedRdo(rdo, client, {
+    projectReportsForClientVisibility, compareProjectReportOrder, canClientSeeReport
+  });
 }
 
 export async function ensureProjectReleasedServiceReportSignatureRounds(projectId, options = {}) {
@@ -2305,10 +2277,10 @@ function manualReportServiceData(reportType, data, current = {}) {
   return Object.keys(serviceData).length ? { serviceData } : {};
 }
 
-async function saveManualReportPdf({ project, reportType, sequenceNumber, reportDate, fileName, pdfDataUrl }) {
+async function saveManualReportPdf({ project, reportType, sequenceNumber, reportDate, fileName, pdfDataUrl, folder = 'uploads-manuais' }) {
   const pdfBytes = decodeManualReportPdfDataUrl(pdfDataUrl);
   const projectFolderName = safePath(`Missão ${project.code} - ${project.name}`) || safePath(project.id);
-  const targetDir = path.join(env.uploadDir, projectFolderName, reportType, 'uploads-manuais');
+  const targetDir = path.join(env.uploadDir, projectFolderName, reportType, folder);
   const sequencePart = Number.isInteger(sequenceNumber) ? String(sequenceNumber).padStart(4, '0') : 'sem-numero';
   const dayPart = reportDateKey(reportDate) || new Date().toISOString().slice(0, 10);
   const baseName = manualReportOriginalFileName(fileName);
@@ -2379,7 +2351,7 @@ async function supersedeActiveReportVersions(tx, reportId, { userId = null, evid
   }
 }
 
-async function createManualReportVersion(tx, report, savedPdf, { signed, userId, evidence }) {
+async function createManualReportVersion(tx, report, savedPdf, { signed, userId, evidence, sourceDescription, lockedDescription }) {
   const versionNumber = await tx.reportVersion.count({ where: { reportId: report.id } }).then(count => count + 1);
   const version = await tx.reportVersion.create({
     data: {
@@ -2399,9 +2371,9 @@ async function createManualReportVersion(tx, report, savedPdf, { signed, userId,
     versionId: version.id,
     userId,
     action: ReportAuditAction.VERSION_CREATED,
-    description: signed
+    description: sourceDescription || (signed
       ? 'Upload manual registrado como relatorio ja assinado.'
-      : 'Upload manual registrado como PDF-base para assinatura.',
+      : 'Upload manual registrado como PDF-base para assinatura.'),
     evidence
   });
   if (signed) {
@@ -2410,7 +2382,7 @@ async function createManualReportVersion(tx, report, savedPdf, { signed, userId,
       versionId: version.id,
       userId,
       action: ReportAuditAction.REPORT_LOCKED,
-      description: 'Relatorio manual marcado como assinado no upload.',
+      description: lockedDescription || 'Relatorio manual marcado como assinado no upload.',
       evidence
     });
   }
@@ -6085,6 +6057,9 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async
   if (!manualReportUploadMeta(existing).uploadedAt) {
     return res.status(400).json({ error: 'Apenas relatórios enviados manualmente podem ter o PDF substituído por este fluxo.' });
   }
+  if (existing.physicalSignedAt) {
+    return res.status(409).json({ error: 'Relatório assinado em papel não pode mais ser alterado.' });
+  }
   const targetProjectId = data.projectId || existing.projectId;
   const targetProject = targetProjectId === existing.projectId ? existing.project : await prisma.project.findFirstOrThrow({
     where: { id: targetProjectId, deletedAt: null },
@@ -6180,6 +6155,13 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async
   clearProjectDerivedCaches();
   res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
+
+registerReportReleaseRoutes(router, {
+  requireRdoManager, include, isReportUnavailable, hasActiveClientRejection,
+  projectReportsForClientVisibility, previousRdosSignedForServiceReport,
+  saveManualReportPdf, supersedeActiveReportVersions, createManualReportVersion,
+  releasedServiceReportsAfterRdoSignature, queueReleasedServiceReportsEmailAfterRdoSignature
+});
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
   let signature = await publicSignatureFromToken(req.params.token);
@@ -6348,7 +6330,7 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   res.json(await withDerivedServiceReportParentMeta(item));
 }));
 
-router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   res.on('close', () => {
     if (!res.writableEnded) abortController.abort();
@@ -6363,7 +6345,7 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   const clientVisibilityById = req.auth.user.role === 'CLIENT'
     ? await clientVisibilityMapForReports([item])
     : null;
-  if (!(await canAccessReport(req.auth, item, { clientVisibilityById }))) {
+  if (!(await canAccessReportPdf(req.auth, item, { clientVisibilityById }))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 

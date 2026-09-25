@@ -40,6 +40,29 @@ test('quadro de disponibilidade é somente leitura e não expõe drag ou movimen
   assert.doesNotMatch(source, /Livre para mobilização|Sem compromisso na data/);
 });
 
+test('resumo da disponibilidade mostra pico de alocados e faltas por cargo', async () => {
+  const { summarizeAvailabilityPeriod } = await load('/src/utils/availabilitySummary.ts');
+  const summary = summarizeAvailabilityPeriod(
+    [{ date: '2026-09-01', shortage: 0 }, { date: '2026-09-02', shortage: 1 }, { date: '2026-09-03', shortage: 0 }],
+    [
+      { daily: [{ date: '2026-09-01', allocated: 2 }, { date: '2026-09-02', allocated: 3 }, { date: '2026-09-03', allocated: 1 }] },
+      { daily: [{ date: '2026-09-01', allocated: 1 }, { date: '2026-09-02', allocated: 2 }, { date: '2026-09-03', allocated: 2 }] }
+    ]
+  );
+  assert.deepEqual(summary, { peakAllocated: 5, daysWithShortage: 1, peakShortage: 1 });
+
+  const source = fs.readFileSync(new URL('../src/pages/efetivo/components/AvailabilityBoard.tsx', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(source, /Pico de colaboradores alocados/);
+  assert.match(source, /Dias em que faltam pessoas/);
+  assert.match(source, /Cargos que precisam de mais pessoas/);
+  assert.match(source, /Pessoas que faltam/);
+  assert.match(source, /Isso não significa contratar automaticamente/);
+  assert.doesNotMatch(source, /cobertura interna|falta real|Vagas a alocar/i);
+  assert.match(source, /Ver dias e quantidades/);
+  assert.match(css, /\.efetivo-role-deficit-days > div[^}]*padding-inline-end: 12px[^}]*scrollbar-gutter: stable/);
+});
+
 test('formulário calcula disponibilidade em todo o período e ignora a própria missão', async () => {
   const { buildMissionAvailabilityColumns } = await load('/src/utils/collaboratorAvailability.ts');
   const people = ['livre', 'aguarda', 'mobilizado', 'ferias', 'propria'].map(id => ({

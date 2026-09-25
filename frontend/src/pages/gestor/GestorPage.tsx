@@ -7,6 +7,7 @@ import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
+import { isReportManuallyReleased, toggleReportClientRelease } from '../../utils/reportClientRelease';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { createPointerDragGhost, movePointerDragGhost, reorderIdFromPoint, reorderRowsById, scrollReorderContainerEdge, setReorderDragImage, type PointerDragState } from '../../utils/reorderDrag';
 
@@ -38,7 +39,11 @@ import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { JobRoleManager } from '../../components/projects/JobRoleManager';
 import { CollaboratorListToolbarActions, CollaboratorStatusPill } from '../../components/projects/CollaboratorListControls';
 import { DdsThemeManager } from '../../components/reports/DdsThemeManager';
-import { replicateManualReportCollaborators, type ManualReportCollaboratorReplicationPrompt } from './manualReportCollaboratorReplication';
+import {
+  replicateManualReportCollaborators,
+  type ManualReportCollaboratorReplicationPrompt
+} from './manualReportCollaboratorReplication';
+import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import type { CollaboratorFormState } from './CollaboratorForm';
@@ -255,6 +260,7 @@ export function GestorPage() {
   const [manualReportModalOpen, setManualReportModalOpen] = useState(false);
   const [manualReportSubmitting, setManualReportSubmitting] = useState(false);
   const [manualReportCollaboratorPrompts, setManualReportCollaboratorPrompts] = useState<ManualReportCollaboratorReplicationPrompt[]>([]);
+  const [physicalSignatureReport, setPhysicalSignatureReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [archivedReportsProjectId, setArchivedReportsProjectId] = useState<string | null>(null);
@@ -1541,6 +1547,9 @@ export function GestorPage() {
   function renderManagerReportActions(report: ReportSummary, forceDesignSystem = false) {
     const canReview = tab === 'pendentes' && report.status !== 'SIGNED';
     const manualReport = isManualUploadedReport(report);
+    const linkedServiceReport = report.reportType !== 'RDO'
+      && report.specialConditions?.serviceOnly !== true
+      && typeof report.specialConditions?.parentRdoId === 'string';
 
     if (reportListingTab || forceDesignSystem) {
       return (
@@ -1595,8 +1604,32 @@ export function GestorPage() {
             </button>
           ) : null}
         </span>
-        {manualReport ? (
-          <button className="mini-btn alt" type="button" disabled={reportMutations.replaceManualReportPdf.isPending} onClick={() => openManualReportReplace(report)}>
+        {linkedServiceReport && (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project.clientCnpj && !report.project.managerOnly ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            disabled={reportMutations.clientRelease.isPending}
+            onClick={() => void toggleReportClientRelease(report, release => reportMutations.clientRelease.mutateAsync({ id: report.id, release }), showToast)}
+          >
+            {isReportManuallyReleased(report) ? 'Revogar liberação' : 'Liberar ao cliente'}
+          </button>
+        ) : null}
+        {report.reportType === 'RDO' && report.status === 'APPROVED' ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            onClick={() => setPhysicalSignatureReport(report)}
+          >
+            Enviar assinado
+          </button>
+        ) : null}
+        {manualReport && !report.physicalSignedAt ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            disabled={reportMutations.replaceManualReportPdf.isPending}
+            onClick={() => openManualReportReplace(report)}
+          >
             Editar manual
           </button>
         ) : null}
@@ -4166,6 +4199,13 @@ export function GestorPage() {
 
       {renderReportSequenceDialog()}
       {renderManualReportModal()}
+
+      {physicalSignatureReport ? <PhysicalSignatureDialog
+        report={physicalSignatureReport}
+        onClose={() => setPhysicalSignatureReport(null)}
+        upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)}
+        uploadPending={reportMutations.uploadPhysicalSignature.isPending}
+      /> : null}
 
       <Modal
         open={showSegmentForm}

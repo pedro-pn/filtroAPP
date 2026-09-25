@@ -1,5 +1,6 @@
 export const PROJECT_WORKFLOW_STAGES: readonly ['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'];
 export const PROJECT_WORKFLOW_STAGE_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_STAGES)[number], string>>;
+export const PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES: readonly ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'];
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS: readonly ['INITIAL_ANALYSIS', 'D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS', 'D15_TEAM', 'D15_CLIENT', 'D15_EQUIPMENT', 'D15_MATERIALS', 'D15_PRE_JOB', 'D15_TRAVEL', 'D15_QSMS', 'DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS', 'POST_JOB_FEEDBACK', 'POST_JOB_LEARNING', 'CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT', 'FINAL_CLOSEOUT'];
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number], string>>;
 export const PROJECT_WORKFLOW_CHECKLISTS: ReadonlyArray<{ key: string; stage: (typeof PROJECT_WORKFLOW_STAGES)[number] | null; section: (typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number]; label: string; areaRoles: string[] }>;
@@ -39,6 +40,15 @@ export function makeProjectWorkflowCommercialFactSchema(z: typeof import('zod').
 }>;
 export function makeProjectWorkflowSchemas(z: typeof import('zod').z): {
   start: import('zod').ZodType<{ leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }>;
+  startLegacySummary: import('zod').ZodType<{
+    stage: (typeof PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES)[number];
+    leaderUserId: string;
+    plannerUserId: string;
+    startDate: string;
+    endDate?: string | null;
+    demobilizationDate?: string | null;
+    equipmentSelections: Array<{ categoryId: string; equipmentIds: string[] }>;
+  }>;
   postJob: import('zod').ZodType<Record<string, unknown>>;
   patch: import('zod').ZodType<Record<string, unknown>>;
   list: import('zod').ZodType<{ search?: string; page: number }>;

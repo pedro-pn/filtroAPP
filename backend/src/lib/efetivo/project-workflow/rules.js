@@ -713,6 +713,17 @@ function checklistDefinitions({ sections = [], keys = [] }) {
 }
 
 export function projectWorkflowMobilizationGate(workflow, milestones = null, today = null) {
+  // Fluxo legado resumido: a Preparação foi deliberadamente pulada na origem do projeto (nunca existiu para
+  // ele), então o gate não pode bloquear romaneios/retiradas por frentes que nunca foram preenchidas.
+  if (workflow?.legacySummaryEntryStage) {
+    return {
+      ready: true,
+      fronts: [],
+      preJob: { key: 'PRE_JOB', label: 'Pré-job', status: 'READY', completed: 0, total: 0, blockers: [] },
+      blockers: [],
+      deadlineStatus: 'READY'
+    };
+  }
   const commercial = projectWorkflowCommercialReadiness(workflow);
   const documentation = projectWorkflowDocumentationReadiness(workflow, milestones, today);
   const commercialFront = {

@@ -206,6 +206,10 @@ export interface ReportSummary {
   reportType: ReportType;
   sequenceNumber?: number | null;
   status: ReportStatus;
+  clientReleasedAt?: string | null;
+  clientReleasedByUserId?: string | null;
+  physicalSignedAt?: string | null;
+  physicalSignedByUserId?: string | null;
   reportSignatures?: Array<{
     id: string;
     signerName: string;

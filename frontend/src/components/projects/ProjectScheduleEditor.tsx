@@ -424,7 +424,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
           <Input type="date" value={startValue} onChange={e => setStartEdit(e.target.value)} />
         </Field>
         <Field id={`acp-manual-progress-${projectId}`} label={<>Avanço manual <HelpTip icon help="Avanço informado à mão, em %. É usado só como fallback quando o projeto NÃO tem escopo previsto cadastrado (aí o avanço não pode vir dos RDOs). Se houver escopo, este valor é ignorado." /></>} optionalText="">
-            <Input suffix="%"
+            <Input id={`acp-manual-progress-${projectId}`} suffix="%"
               type="number" min="0" max="100" step="1" inputMode="numeric" placeholder="—"
               value={manualValue}
               onChange={e => setManualEdit(e.target.value)}
@@ -456,7 +456,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       )}
       <section aria-label="Avanço físico" className="acp-schedule-ds__section">
       <h3 className="acp-schedule-ds__section-title">Avanço físico (RDO × previsto)</h3>
-      <ProjectProgressBreakdown projectId={projectId} appearance="design-system" />
+      <ProjectProgressBreakdown projectId={projectId} canManage={canManage} appearance="design-system" />
       </section>
 
       <ProjectPlannedScopeEditor

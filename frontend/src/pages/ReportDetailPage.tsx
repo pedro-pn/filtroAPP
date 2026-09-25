@@ -1807,7 +1807,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
             <span className="detail-value">
               <StatusPill
                 status={report.status}
-                label={statusLabels[report.status] || report.status}
+                label={report.status === 'SIGNED' && report.physicalSignedAt ? 'Assinado em papel' : statusLabels[report.status] || report.status}
                 toneMap={reportStatusTones}
                 dot={false}
               />

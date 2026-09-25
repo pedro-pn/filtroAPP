@@ -15,11 +15,13 @@ import type {
   ProjectWorkflowChecklistStatus,
   ProjectWorkflowDetail,
   ProjectWorkflowIssue,
+  ProjectWorkflowLegacySummaryInput,
   ProjectWorkflowPatch,
   ProjectWorkflow,
   ProjectWorkflowStage,
   ProjectOperationalMissionSummary
 } from '../../../api/projectWorkflow';
+import type { PlanningJobRole, PlanningMission } from '../../../api/efetivoPlanning';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { PortalTip } from '../../../components/ui/PortalTip';
@@ -70,6 +72,7 @@ import {
   listProjectDocuments,
   projectDocumentsQueryKey
 } from '../../../api/projectDocuments';
+import { LEGACY_SUMMARY_FORM_ID, ProjectLegacySummaryStartForm } from './ProjectLegacySummaryStartForm';
 
 const sharedSchemas = makeProjectWorkflowSchemas(z);
 type StartValues = { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string };
@@ -94,7 +97,6 @@ const issueSchema = z.object({
   status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED'])
 });
 type IssueValues = z.infer<typeof issueSchema>;
-type LegacyMissionValues = { stage: ProjectOperationalMissionSummary['stage']; returnDate: string };
 
 const WORKFLOW_STAGE_DESCRIPTIONS: Record<ProjectWorkflowStage, string> = {
   HANDOVER: 'Responsáveis, informações comerciais e dados recebidos para iniciar a gestão.',
@@ -120,6 +122,12 @@ type WorkflowStageFlag = {
 function workflowStageFlag(workflow: ProjectWorkflow, stage: ProjectWorkflowStage, stageIssues: string[]): WorkflowStageFlag {
   const stageIndex = WORKFLOW_STAGES.indexOf(stage);
   const currentIndex = WORKFLOW_STAGES.indexOf(workflow.stage);
+  const legacyEntryIndex = workflow.legacySummaryEntryStage ? WORKFLOW_STAGES.indexOf(workflow.legacySummaryEntryStage) : -1;
+  if (legacyEntryIndex >= 0 && stageIndex < legacyEntryIndex) return {
+    tone: 'complete', label: 'Não se aplica',
+    tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: etapa dispensada pelo fluxo resumido legado.`,
+    items: ['Etapa dispensada pelo fluxo resumido legado.']
+  };
   if (stageIndex > currentIndex) return { tone: 'waiting', label: 'Aguardando', tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: aguardando a conclusão das etapas anteriores.`, items: ['Aguardando a conclusão das etapas anteriores.'] };
   if (workflow.stage === 'FINISHED') return { tone: 'complete', label: 'Concluída', tooltip: `${WORKFLOW_STAGE_LABELS[stage]}: projeto encerrado.`, items: ['Projeto encerrado.'] };
   if (stageIssues.length) {
@@ -138,6 +146,8 @@ function workflowStageFlag(workflow: ProjectWorkflow, stage: ProjectWorkflowStag
 }
 
 function workflowStagePendingItems(workflow: ProjectWorkflow, stage: ProjectWorkflowStage, currentIssues: string[]) {
+  if (workflow.legacySummaryEntryStage
+    && WORKFLOW_STAGES.indexOf(stage) < WORKFLOW_STAGES.indexOf(workflow.legacySummaryEntryStage)) return [];
   if (stage === workflow.stage) return currentIssues;
   if (WORKFLOW_STAGES.indexOf(stage) > WORKFLOW_STAGES.indexOf(workflow.stage)) return [];
   const readinessIssue = (label: string, completed: number, total: number) => {
@@ -182,32 +192,6 @@ const LEGACY_MISSION_STAGE_LABELS: Record<ProjectOperationalMissionSummary['stag
   FINAL_MEASUREMENT: 'Medição final',
   FINISHED: 'Finalizada'
 };
-
-function LegacyMissionStageForm({ mission, saving, canManage, onMove }: {
-  mission: ProjectOperationalMissionSummary;
-  saving: boolean;
-  canManage: boolean;
-  onMove: (stage: ProjectOperationalMissionSummary['stage'], returnDate?: string | null) => void;
-}) {
-  const { register, handleSubmit, reset, watch, formState: { isDirty } } = useForm<LegacyMissionValues>({
-    defaultValues: { stage: mission.stage, returnDate: mission.returnDate || '' }
-  });
-  useEffect(() => reset({ stage: mission.stage, returnDate: mission.returnDate || '' }), [mission, reset]);
-  const stage = watch('stage');
-  return (
-    <form className="project-workflow-section" onSubmit={handleSubmit(values => onMove(
-      values.stage,
-      values.stage === 'FINISHED' ? values.returnDate || undefined : undefined
-    ))}>
-      <header><div><h4>Compatibilidade do projeto antigo</h4><p>A etapa operacional continua disponível aqui até o handover desta obra ser iniciado.</p></div><span>{mission.participantCount} participante(s)</span></header>
-      <div className="project-workflow-form-grid compact">
-        <div className="field-group"><label htmlFor="legacy-mission-stage">Etapa atual</label><select id="legacy-mission-stage" disabled={saving || !canManage} {...register('stage')}>{Object.entries(LEGACY_MISSION_STAGE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
-        {stage === 'FINISHED' ? <div className="field-group"><label htmlFor="legacy-mission-return-date">Data de desmobilização</label><input id="legacy-mission-return-date" type="date" disabled={saving || !canManage} {...register('returnDate')} /><small>Opcional; quando informada, atualiza o cronograma do projeto.</small></div> : null}
-      </div>
-      {canManage ? <div className="project-workflow-inline-actions"><Button type="submit" variant="secondary" disabled={saving || !isDirty}>Atualizar etapa antiga</Button></div> : null}
-    </form>
-  );
-}
 
 // Rótulo curto do estado da seção: o índice da etapa já carrega a contagem completa.
 function sectionStatusLabel(completed: number, total: number) {
@@ -766,6 +750,8 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
 }) {
   const activeStageIndex = WORKFLOW_STAGES.indexOf(activeStage);
   const currentStageIndex = WORKFLOW_STAGES.indexOf(workflow.stage);
+  const legacyEntryIndex = workflow.legacySummaryEntryStage ? WORKFLOW_STAGES.indexOf(workflow.legacySummaryEntryStage) : -1;
+  const isLegacySkippedStage = legacyEntryIndex >= 0 && activeStageIndex < legacyEntryIndex;
   const isFutureStage = activeStageIndex > currentStageIndex;
   const isCurrentStage = activeStage === workflow.stage;
   const stageSaving = saving || (!isCurrentStage && !correctionMode);
@@ -773,7 +759,9 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   const initialTeam = detail.project.operationalMission || null;
   const mainRef = useRef<HTMLDivElement>(null);
   const { sections, Provider: StageSectionProvider } = useStageSectionRegistry();
-  const { marker, readiness } = stageHeadingReadiness(workflow, activeStage);
+  const stageHeading = stageHeadingReadiness(workflow, activeStage);
+  const marker = isLegacySkippedStage ? null : stageHeading.marker;
+  const readiness = isLegacySkippedStage ? null : stageHeading.readiness;
   const demobilizationSections = [
     ['DEMOBILIZATION_FIELD', 'Conclusão de campo', 'Operações'],
     ['DEMOBILIZATION_LOGISTICS', 'Logística de retorno', 'Logística'],
@@ -881,7 +869,9 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   );
 
   let stageContent: ReactNode;
-  if (isFutureStage) {
+  if (isLegacySkippedStage) {
+    stageContent = <><section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="check" /><strong>Não se aplica ao fluxo resumido legado.</strong><p>Esta etapa foi dispensada quando a gestão começou diretamente em {WORKFLOW_STAGE_LABELS[workflow.legacySummaryEntryStage!]}.</p></section>{activeStage === 'EXECUTION' ? <ProjectWorkflowCategory title="Histórico da execução" description="Consulta aos RDOs, relatórios, escopo e avanço físico da missão." area="Execução" status="Consulta"><ProjectExecutionDashboard projectId={workflow.projectId} readOnly /></ProjectWorkflowCategory> : null}</>;
+  } else if (isFutureStage) {
     stageContent = <section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="lock" /><strong>Esta etapa ainda não foi iniciada.</strong><p>Conclua a etapa atual para liberar os controles de {WORKFLOW_STAGE_LABELS[activeStage].toLocaleLowerCase('pt-BR')}.</p></section>;
   } else if (activeStage === 'HANDOVER') {
     stageContent = <><WorkflowSettingsForm detail={detail} leaders={leaders} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowCommercialSignals workflow={workflow} /><ProjectDocumentsCategory projectId={workflow.projectId} users={leaders} /><ProjectWorkflowHandoverSignals detail={detail} documents={documents} /></>;
@@ -897,7 +887,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     // Sem "Pronto para mobilizar": a Mobilização mostra as mesmas frentes da Preparação até o projeto avançar.
     stageContent = renderPreparation();
   } else if (activeStage === 'EXECUTION') {
-    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Avanço, RDOs, relatórios técnicos e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} readOnly={!isCurrentStage} /></ProjectWorkflowCategory>{isCurrentStage && canManageProjectTeamCycles(workflow.stage) && initialTeam ? <Button type="button" variant="mini" className="project-workflow-planning-link" onClick={onOpenTeamProgramming}>Equipe e ciclos</Button> : null}</>;
+    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Escopo, avanço físico, RDOs, assinaturas e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} readOnly={!isCurrentStage} /></ProjectWorkflowCategory>{isCurrentStage && canManageProjectTeamCycles(workflow.stage) && initialTeam ? <Button type="button" variant="mini" className="project-workflow-planning-link" onClick={onOpenTeamProgramming}>Equipe e ciclos</Button> : null}</>;
   } else if (activeStage === 'DEMOBILIZATION') {
     stageContent = <><ProjectWorkflowCategory
       title="Datas da desmobilização"
@@ -948,7 +938,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
             data-project-workflow-closeout={activeStage === 'FINAL_MEASUREMENT' || undefined}
           >
             <div>
-              <span>{isCurrentStage ? 'Etapa atual' : isFutureStage ? 'Próxima etapa · ainda não iniciada' : 'Etapa anterior · consulta'} · {activeStageIndex + 1} de {WORKFLOW_STAGES.length}</span>
+              <span>{isLegacySkippedStage ? 'Etapa dispensada' : isCurrentStage ? 'Etapa atual' : isFutureStage ? 'Próxima etapa · ainda não iniciada' : 'Etapa anterior · consulta'} · {activeStageIndex + 1} de {WORKFLOW_STAGES.length}</span>
               <h4>{WORKFLOW_STAGE_LABELS[activeStage]}{marker ? <em className="project-workflow-stage-marker">{marker}</em> : null}</h4>
               <p>{WORKFLOW_STAGE_DESCRIPTIONS[activeStage]}</p>
             </div>
@@ -964,7 +954,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
             </div> : null}
           </header>
           {isCurrentStage && workflow.stage === 'FINISHED' ? <section className="project-workflow-callout is-ok" data-project-workflow-closed><ProjectWorkflowIcon name="flag" /><p><strong>Missão encerrada.</strong> {workflow.closedAt ? `Encerrada em ${new Date(workflow.closedAt).toLocaleString('pt-BR')}` : 'Encerramento registrado'}{workflow.closedBy ? ` por ${workflow.closedBy.name}` : ''}.</p></section> : null}
-          {activeStage === 'WAITING_PLANNING' && !isFutureStage ? <section className="project-workflow-callout is-info"><ProjectWorkflowIcon name="clock" /><p><strong>Aguardando D-30.</strong> A análise foi concluída{workflow.milestones.d30Date ? `; o planejamento abre em ${displayDateOnly(workflow.milestones.d30Date)}` : ''}. Itens críticos e documentação seguem monitorados aqui.</p></section> : null}
+          {activeStage === 'WAITING_PLANNING' && !isFutureStage && !isLegacySkippedStage ? <section className="project-workflow-callout is-info"><ProjectWorkflowIcon name="clock" /><p><strong>Aguardando D-30.</strong> A análise foi concluída{workflow.milestones.d30Date ? `; o planejamento abre em ${displayDateOnly(workflow.milestones.d30Date)}` : ''}. Itens críticos e documentação seguem monitorados aqui.</p></section> : null}
           {deadlineAlert ? <section className={`project-workflow-callout ${deadlineAlert.tone}`} role="status"><ProjectWorkflowIcon name="alert" /><p><strong>{deadlineAlert.title}</strong> {deadlineAlert.text}</p>{gateBlockers.length ? <Button type="button" variant="secondary" className="is-small" onClick={onShowBlockers}>Ver bloqueios</Button> : null}</section> : null}
           {stageContent}
         </div>
@@ -1008,7 +998,7 @@ function workflowStageDate(workflow: ProjectWorkflow, stage: ProjectWorkflowStag
     : null;
 }
 
-export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
+export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, legacySummaryMission, legacySummaryRoles, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
   detail: ProjectWorkflowDetail | null;
   leaders: WorkflowUserOption[];
   loading: boolean;
@@ -1018,7 +1008,11 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   onClose: () => void;
   onStart: (values: StartValues) => void;
   onPatch: (payload: ProjectWorkflowPatch) => void;
-  onMoveLegacyMission: (stage: ProjectOperationalMissionSummary['stage'], returnDate?: string | null) => void;
+  /** Fluxo legado resumido: só chamado quando o projeto já tem uma missão oficial e ainda não tem gestão. */
+  onStartLegacySummary: (payload: ProjectWorkflowLegacySummaryInput) => void;
+  /** Missão oficial completa (para editar a equipe) e cargos operacionais; só usados pelo fluxo resumido. */
+  legacySummaryMission: PlanningMission | null;
+  legacySummaryRoles: PlanningJobRole[];
   onOpenTeamProgramming: () => void;
   /** Somente o gestor do Efetivo confirma ou cancela a missão. Cancelar é reversível ("Reativar" na seção de
    * canceladas do Kanban); remover a programação em definitivo só é possível a partir de lá, com a missão já
@@ -1037,10 +1031,17 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   const [activeStage, setActiveStage] = useState<ProjectWorkflowStage>(detail?.workflow?.stage || 'HANDOVER');
   const [correctionStage, setCorrectionStage] = useState<ProjectWorkflowStage | null>(null);
   const [blockersOpen, setBlockersOpen] = useState(false);
+  // Fluxo legado resumido: escolha entre completo/resumido feita ao abrir um projeto "Fluxo legado" (missão
+  // oficial já existente, sem gestão iniciada). Reseta a cada projeto para nunca vazar entre eles.
+  const [legacyChoice, setLegacyChoice] = useState<'complete' | 'summary' | null>(null);
+  const [legacySummaryBusy, setLegacySummaryBusy] = useState(false);
   const selectStage = (stage: ProjectWorkflowStage) => {
     setActiveStage(stage);
     setCorrectionStage(null);
   };
+  useEffect(() => {
+    setLegacyChoice(null);
+  }, [detail?.project.id]);
   useEffect(() => {
     if (!detail?.workflow?.stage) return;
     setActiveStage(detail.workflow.stage);
@@ -1103,7 +1104,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
       : workflow.stage === 'FINISHED' || (footerIssues.length === 0) ? 'is-ok' : 'is-crit';
   const showBlockers = isCurrentStageSelected && footerIssues.length > 0;
   const content = (
-    <Modal open onClose={onClose} closeOnEscape={!saving} ariaLabelledBy="project-workflow-title" panelClassName="modal-card efetivo-modal project-workflow-modal">
+    <Modal open onClose={onClose} closeOnEscape={!saving && !legacySummaryBusy} ariaLabelledBy="project-workflow-title" panelClassName="modal-card efetivo-modal project-workflow-modal">
       <div className="efetivo-modal-layout">
         <header className="efetivo-modal-header project-workflow-header">
           <div className="project-workflow-header-id">
@@ -1121,7 +1122,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               : <div><dt>Mobilização</dt><dd className="is-numeric">{workflow.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}</dd></div>}
             <div><dt>Próximo marco</dt><dd className={workflow.milestones.dueMilestones.length ? 'is-due' : undefined}><ProjectWorkflowIcon name="clock" />{nextMilestoneText}</dd></div>
           </dl> : null}
-          <button className="project-workflow-icon-button" type="button" disabled={saving} aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
+          <button className="project-workflow-icon-button" type="button" disabled={saving || legacySummaryBusy} aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
         </header>
         {workflow && canManageMission && detail?.project.operationalMission ? (
           <div className="project-workflow-mission-bar" data-project-workflow-mission-bar>
@@ -1177,19 +1178,50 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
         </div> : null}
         <div className={`efetivo-modal-body project-workflow-modal-body${workflow ? ' has-stage-layout' : ''}`}>
           {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy">Carregando gestão do projeto…</p> : !workflow ? (
-            <>
-              {detail.project.operationalMission ? <LegacyMissionStageForm mission={detail.project.operationalMission} saving={saving} canManage={detail.permissions.canInitialize} onMove={onMoveLegacyMission} /> : null}
-              {detail.permissions.canInitialize
-                ? <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
-                : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>}
-            </>
+            detail.project.operationalMission && detail.permissions.canInitialize ? (
+              legacyChoice === null ? (
+                <section className="project-workflow-legacy-choice" data-project-workflow-legacy-choice>
+                  <h4>Como deseja tratar este projeto?</h4>
+                  <p>Este projeto vem do Efetivo antigo e já tem uma programação oficial de equipe (fluxo legado).</p>
+                  <div className="project-workflow-legacy-choice-options">
+                    <button type="button" className="project-workflow-legacy-choice-option" onClick={() => setLegacyChoice('complete')}>
+                      <strong>Fluxo completo</strong>
+                      <span>Handover, análise, planejamento e preparação — como se fosse um projeto novo.</span>
+                    </button>
+                    <button type="button" className="project-workflow-legacy-choice-option" onClick={() => setLegacyChoice('summary')}>
+                      <strong>Fluxo resumido</strong>
+                      <span>Entra direto numa etapa de campo (a partir da Mobilização), pulando as etapas comerciais e de planejamento.</span>
+                    </button>
+                  </div>
+                </section>
+              ) : legacyChoice === 'summary' ? (
+                <ProjectLegacySummaryStartForm
+                  projectId={detail.project.id}
+                  mission={detail.project.operationalMission}
+                  fullMission={legacySummaryMission}
+                  roles={legacySummaryRoles}
+                  leaders={leaders}
+                  saving={saving}
+                  onSubmit={onStartLegacySummary}
+                  onBusyChange={setLegacySummaryBusy}
+                />
+              ) : (
+                <>
+                  <button type="button" className="project-workflow-link project-workflow-legacy-choice-back" onClick={() => setLegacyChoice(null)}>← Escolher outro fluxo</button>
+                  <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
+                </>
+              )
+            ) : detail.permissions.canInitialize
+              ? <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
+              : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>
           ) : <WorkflowStagePanel detail={detail} leaders={leaders} workflow={workflow} activeStage={activeStage} saving={saving} correctionMode={correctionMode} documents={projectDocuments.data?.documents || []} onPatch={onPatch} onOpenTeamProgramming={onOpenTeamProgramming} onShowBlockers={() => setBlockersOpen(true)} />}
         </div>
         <footer className="efetivo-modal-footer project-workflow-modal-footer">
           <div className="project-workflow-footer-status" aria-live="polite">
             {workflow ? <span className={`project-workflow-footer-icon ${footerTone}`} aria-hidden="true"><ProjectWorkflowIcon name={footerTone === 'is-crit' ? 'lock' : footerTone === 'is-ok' ? 'check' : 'clock'} /></span> : null}
+            {!workflow && legacyChoice === 'summary' ? <span className="project-workflow-footer-icon is-idle" aria-hidden="true"><ProjectWorkflowIcon name="clock" /></span> : null}
             <div>
-            {workflow ? correctionMode ? <>
+            {!workflow && legacyChoice === 'summary' ? <><strong>Fluxo resumido legado</strong><span>Confira equipe e equipamentos antes de iniciar.</span></> : workflow ? correctionMode ? <>
               <strong>Modo de correção: {WORKFLOW_STAGE_LABELS[activeStage]}</strong>
               <span>As alterações serão salvas nesta etapa sem mover o projeto no Kanban.</span>
             </> : !isCurrentStageSelected ? <>
@@ -1215,8 +1247,10 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
             </div> : null}
           </div>
           <div className="project-workflow-footer-actions">
+            {!workflow && legacyChoice === 'summary' && detail?.project.operationalMission && detail.permissions.canInitialize ? <Button variant="secondary" disabled={saving || legacySummaryBusy} onClick={() => setLegacyChoice(null)}>Voltar</Button> : null}
             {workflow && !isCurrentStageSelected && workflow.permissions.canEdit ? <Button variant="secondary" className={`project-workflow-correction-button${correctionMode ? ' is-active' : ''}`} disabled={saving} onClick={() => setCorrectionStage(correctionMode ? null : activeStage)}><ProjectWorkflowIcon name={correctionMode ? 'check' : 'edit'} />{correctionMode ? 'Encerrar correção' : 'Fazer correção'}</Button> : null}
-            <Button variant="secondary" className="is-ghost" disabled={saving} onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" className="is-ghost" disabled={saving || legacySummaryBusy} onClick={onClose}>Fechar</Button>
+            {!workflow && legacyChoice === 'summary' && detail?.project.operationalMission && detail.permissions.canInitialize ? <Button type="submit" form={LEGACY_SUMMARY_FORM_ID} disabled={saving || legacySummaryBusy}>{saving || legacySummaryBusy ? 'Iniciando…' : 'Iniciar gestão resumida'}</Button> : null}
             {workflow && !isCurrentStageSelected && !correctionMode ? <Button disabled={saving} onClick={() => selectStage(workflow.stage)}>Ir para a etapa atual</Button> : null}
             {workflow?.stage === 'HANDOVER' && isCurrentStageSelected && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}
             {workflow?.stage !== 'HANDOVER' && isCurrentStageSelected && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={WORKFLOW_STAGES.indexOf(option.stage) > WORKFLOW_STAGES.indexOf(workflow.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{option.allowed ? null : <ProjectWorkflowIcon name="lock" />}{transitionLabel(workflow.stage, option.stage, workflow.preparationLeadTimeDays)}</Button>) : null}

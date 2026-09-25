@@ -334,7 +334,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     if (services.some(service => service.systems.some(row => row.systemType === 'SISTEMA' && (
       !row.equipment.trim() || !row.systemName.trim() || !Number.isSafeInteger(toNum(row.quantity)) || (toNum(row.quantity) ?? 0) <= 0
     )))) {
-      showToast('Sistemas por unidade exigem equipamento/UG, nome do sistema e quantidade inteira positiva.');
+      showToast('Sistemas por unidade exigem equipamento do cliente, nome do sistema e quantidade inteira positiva.');
       return;
     }
     const payload: PlannedScopeInput = {
@@ -600,7 +600,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       <div key={sys.key}>
                       <div className="acp-system-identity" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, padding: '8px 0' }}>
                         {(['equipmentId', 'system'] as const).map(field => <div className="field-group" key={field}>
-                          <label htmlFor={`scope-${field}-${sys.key}`}>{field === 'equipmentId' ? 'Equipamento do cliente / UG' : 'Sistema do cliente'}</label>
+                          <label htmlFor={`scope-${field}-${sys.key}`}>{field === 'equipmentId' ? 'Equipamento do cliente' : 'Sistema do cliente'}</label>
                           <ProjectSystemInput id={`scope-${field}-${sys.key}`} projectId={projectId} source="scope" field={field}
                             data={{ equipmentId: sys.equipment, system: sys.systemName, __projectSystemId: sys.projectSystemId }}
                             suggestions={services.flatMap(s => s.systems).filter(row => row.equipment && row.systemName).map(row => ({ id: row.projectSystemId || '', projectId, equipment: row.equipment, name: row.systemName, revision: 1 }))}
@@ -714,7 +714,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         </div>
       ) : null}
 
-      <p className="acp-schedule-ds__muted">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
+      <p className="acp-schedule-ds__muted">Preencha uma linha por equipamento do cliente, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada equipamento.</p>
       {beforeOvertime}
 
       {staleHours ? <Alert tone="warning">

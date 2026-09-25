@@ -13,6 +13,8 @@ import {
   listReports,
   listReportsPage,
   replaceManualReportPdf,
+  setServiceReportClientRelease,
+  uploadPhysicalSignedReport,
   requestReportSignature,
   updateManualReportData,
   updateReport,
@@ -772,6 +774,31 @@ export function useReportMutations() {
     }
   });
 
+  const clientReleaseMutation = useMutation({
+    mutationFn: ({ id, release }: { id: string; release: boolean }) => setServiceReportClientRelease(id, release),
+    onSuccess: report => {
+      updateAccumulatedReportsCache(report);
+      updateReportCaches(queryClient, report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(report.id) });
+    }
+  });
+
+  const physicalSignatureMutation = useMutation({
+    mutationFn: ({ id, fileName, pdfDataUrl }: { id: string; fileName: string; pdfDataUrl: string }) =>
+      uploadPhysicalSignedReport(id, { fileName, pdfDataUrl }),
+    onSuccess: ({ report }) => {
+      clearAccumulatedReportsCache();
+      updateReportCaches(queryClient, report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(report.id) });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
+      invalidateAcompanhamentoReportCaches(queryClient);
+    }
+  });
+
   const updateManualReportDataMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ManualReportOperationalData }) =>
       updateManualReportData(id, payload),
@@ -890,6 +917,8 @@ export function useReportMutations() {
     createServiceOnlyReports: createServiceOnlyMutation,
     uploadManualReport: uploadManualReportMutation,
     replaceManualReportPdf: replaceManualReportPdfMutation,
+    clientRelease: clientReleaseMutation,
+    uploadPhysicalSignature: physicalSignatureMutation,
     updateManualReportData: updateManualReportDataMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,

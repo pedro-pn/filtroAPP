@@ -135,12 +135,16 @@ export function Modal({
 
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       if (closeOnEscape) onClose();
       return;
     }
 
     if (event.key !== 'Tab') return;
-    const focusable = panelRef.current ? visibleFocusableElements(panelRef.current) : [];
+    event.stopPropagation();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusable = visibleFocusableElements(panel);
 
     if (!focusable.length) {
       event.preventDefault();

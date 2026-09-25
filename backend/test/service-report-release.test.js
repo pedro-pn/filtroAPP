@@ -5,6 +5,7 @@ import { ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } 
 
 import {
   canClientSeeReport,
+  isManualClientReleaseActive,
   removedPendingRequiredClientSignatureIds,
   previousRdosSignedForServiceReport,
   projectEmailRecipients,
@@ -86,6 +87,39 @@ test('service report is visible when parent and all previous project RDOs are si
 
   assert.equal(previousRdosSignedForServiceReport(serviceReport, finalRdo, reports), true);
   assert.equal(canClientSeeReport(serviceReport, reports), true);
+});
+
+test('manager can release one approved linked service report before its RDO is signed', () => {
+  const parent = report({ id: 'rdo-unsigned', status: ReportStatus.APPROVED });
+  const releaseTime = new Date('2026-09-24T12:00:00.000Z');
+  const released = report({
+    id: 'service-released', reportType: ReportType.RLQ, status: ReportStatus.APPROVED,
+    specialConditions: { parentRdoId: parent.id },
+    clientReleasedAt: releaseTime, updatedAt: releaseTime
+  });
+  const stillHidden = report({
+    id: 'service-hidden', reportType: ReportType.RTP, status: ReportStatus.APPROVED,
+    specialConditions: { parentRdoId: parent.id }
+  });
+  const reports = byId([parent, released, stillHidden]);
+
+  assert.equal(isManualClientReleaseActive(released), true);
+  assert.equal(canClientSeeReport(released, reports), true);
+  assert.equal(canClientSeeReport(stillHidden, reports), false);
+  assert.equal(canClientSeeReport({ ...released, status: ReportStatus.RETURNED }, reports), false);
+  assert.equal(canClientSeeReport({ ...released, updatedAt: new Date('2026-09-24T12:01:00.000Z') }, reports), false);
+});
+
+test('scanned RDO with signed status releases linked service reports through the normal rule', () => {
+  const parent = report({
+    id: 'rdo-paper', status: ReportStatus.SIGNED,
+    physicalSignedAt: new Date('2026-09-24T12:00:00.000Z')
+  });
+  const service = report({
+    id: 'service-paper', reportType: ReportType.RCPU, status: ReportStatus.APPROVED,
+    specialConditions: { parentRdoId: parent.id }
+  });
+  assert.equal(canClientSeeReport(service, byId([parent, service])), true);
 });
 
 test('removed pending signer no longer blocks an existing RDO signature round', () => {

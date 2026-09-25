@@ -20,6 +20,7 @@ import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acom
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
 import { resolvePlannedHoursDecision } from '../../lib/acompanhamento/planned-hours.js';
 import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
+import { listRealizedCorrections, saveRealizedCorrection } from '../../lib/acompanhamento/realized-corrections-store.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
 import { getProjectStandbyHistory } from '../../lib/acompanhamento/standby-history.js';
@@ -808,6 +809,32 @@ router.get(
 );
 
 // Avanço físico do projeto (RDO ponderado por serviço) — previsto × realizado dos RDOs.
+router.get('/projetos/:projectId/correcoes-realizado', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  res.json(await listRealizedCorrections(req.params.projectId));
+}));
+
+const realizedCorrectionSchema = z.object({
+  date: z.iso.date(),
+  serviceType: z.enum(['TESTE_PRESSAO', 'LIMPEZA_QUIMICA', 'FLUSHING']),
+  quantityM: z.number().nonnegative().max(999999999999.99)
+    .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, 'Use no máximo duas casas decimais.').nullable(),
+  reason: z.string().trim().min(10).max(1000),
+  reference: z.string().trim().max(500).nullable().optional(),
+  expectedRevision: z.number().int().nonnegative(),
+  expectedSourceMeters: z.number().nonnegative()
+}).strict();
+
+router.put('/projetos/:projectId/correcoes-realizado', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const data = realizedCorrectionSchema.parse(req.body);
+  try {
+    const saved = await saveRealizedCorrection(req.params.projectId, data, req.auth.user.id);
+    clearProjectDerivedCaches();
+    res.json(saved);
+  } catch (error) {
+    res.status(error.status ?? 400).json({ error: error.message });
+  }
+}));
+
 router.get(
   '/projetos/:projectId/avanco',
   requireAuth,

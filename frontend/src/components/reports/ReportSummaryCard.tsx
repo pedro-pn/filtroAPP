@@ -7,6 +7,7 @@ import { rdoReportDetailPath } from '../../auth/rolePath';
 import { currentPageScrollState, saveCurrentPageScroll } from '../../hooks/usePageScrollRestoration';
 import type { ReportSummary } from '../../types/domain';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
+import { isReportManuallyReleased } from '../../utils/reportClientRelease';
 import { serviceTypeLabels } from './serviceTypes';
 import { SignatureProgress } from './SignatureProgress';
 
@@ -166,6 +167,8 @@ export function ReportSummaryCard({
   const { user } = useAuth();
   const status = report.status === 'PENDING' && report.reviewNotes === 'Editado pelo colaborador'
     ? { label: 'Editado', className: 'status-pending' }
+    : report.status === 'SIGNED' && report.physicalSignedAt
+      ? { label: 'Assinado em papel', className: 'status-signed' }
     : (statusMap[report.status] || { label: report.status, className: 'status-pending' });
   const clientRejections = clientRejectionReviews(report);
   const rejectionComments = new Set(clientRejections.map(review => normalizeComment(review.comment)));
@@ -220,6 +223,7 @@ export function ReportSummaryCard({
         </div>
         <div className="report-card-side" onClick={event => event.stopPropagation()}>
           <span className={`status-pill ${status.className}`}>{status.label}</span>
+          {isReportManuallyReleased(report) ? <span className="status-pill status-approved">Liberado ao cliente</span> : null}
           {actions ? (
             <div className="report-card-actions">
               {actions}

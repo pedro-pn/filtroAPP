@@ -39,7 +39,8 @@ test('refresh de missão notifica o cenário depois de invalidar as leituras com
     ['efetivo-planning-missions'],
     ['efetivo-planning-missions-pending'],
     ['efetivo-planning-overview'],
-    ['efetivo-planning-calendar']
+    ['efetivo-planning-calendar'],
+    ['efetivo-planning-availability']
   ]);
   assert.equal(scenarioRefreshed, true);
 });

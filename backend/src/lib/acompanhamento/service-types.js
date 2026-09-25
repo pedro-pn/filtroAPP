@@ -5,7 +5,7 @@ export function normalizeRdoServiceType(raw) {
     .toLowerCase().replace(/[^a-z]/g, '');
   if (!key) return null;
   if (key.startsWith('limpezaquimica') || key === 'limpeza') return 'LIMPEZA_QUIMICA';
-  if (key.startsWith('testedepressao') || key === 'pressao') return 'TESTE_PRESSAO';
+  if (key.startsWith('testedepressao') || key === 'testepressao' || key === 'pressao') return 'TESTE_PRESSAO';
   if (key.startsWith('flushing')) return 'FLUSHING';
   if (key.startsWith('filtragem') || key.startsWith('unidadedefiltragem')) return 'FILTRAGEM';
   return null;

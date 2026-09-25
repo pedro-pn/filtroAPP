@@ -55,7 +55,9 @@ import { projectDocumentReadiness, projectDocumentRequirements } from './documen
 import { notifyProjectWorkflowClientRegistrationRequested, notifyProjectWorkflowResourceConflicts } from './email-alerts.js';
 import { getNotificationEmailSetting, setNotificationEmailSetting } from '../notification-email-settings.js';
 import { detectResourceConflicts, syncResourceConflictIssues } from './resource-conflicts.js';
+import { buildProjectExecutionWeeklyReview, reviewStartDate } from './weekly-review.js';
 import {
+  currentRomaneioEquipmentForProject,
   emptyProjectWorkflowResourcePlanning,
   loadProjectWorkflowResourcePlanning
 } from './resource-planning.js';
@@ -920,6 +922,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             planner: { select: { id: true, name: true, email: true, isActive: true } },
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
+            weeklyExecutionReviews: { select: { weekStartDate: true, checks: true, completedAt: true } },
             teamMemberChecks: { select: { collaboratorId: true, key: true, status: true, source: true, sourceUpdatedAt: true } },
             preparationItemChecks: { select: { itemType: true, itemId: true, key: true, status: true } },
             clientReleases: { select: { key: true, attendanceDate: true, attendanceConfirmedAt: true, requested: true, requestedAt: true, requestedTo: true, completed: true, completedAt: true, source: true, sourceUpdatedAt: true } },
@@ -979,6 +982,12 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const milestones = workflow ? projectWorkflowMilestones(dateKey(projectWorkflowReferenceDate(workflow)), todayKey(now), workflow.preparationLeadTimeDays) : null;
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
       const mission = operationalMissionSummary(project);
+      const weeklyReviewPendingCount = workflow ? buildProjectExecutionWeeklyReview({
+        stage: workflow.stage,
+        startDate: reviewStartDate(mission, null, workflow.createdAt),
+        rows: workflow.weeklyExecutionReviews || [],
+        now
+      }).pendingCount : 0;
       const teamPreparation = workflow ? publicTeamPreparation(workflow, mission, context) : null;
       const clientReleases = workflow ? publicClientReleases(workflow, context) : null;
       const preparationResources = workflow
@@ -1019,6 +1028,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           milestones,
           issueCount: issues.filter(item => item.status !== 'RESOLVED').length,
           overdueIssueCount: issues.filter(item => item.status !== 'RESOLVED' && item.dueDate && dateKey(item.dueDate) < todayKey(now)).length,
+          weeklyReviewPendingCount,
           commercialReadiness: commercialReadiness ? {
             status: commercialReadiness.status,
             resolvedCount: commercialReadiness.resolvedCount,
@@ -1146,6 +1156,115 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
     });
   });
   return getProjectWorkflow(projectId, context, { ...dependencies, database });
+}
+
+// Fluxo legado resumido: projeto que já vinha do Efetivo antigo (com missão oficial, sem gestão iniciada) entra
+// direto numa etapa de campo, pulando handover/análise/planejamento/preparação. Só os dados mínimos do payload
+// são pedidos; as etapas anteriores viram "não se aplica" (ver `legacySummaryEntryStage`, rules.js).
+export async function startLegacyProjectWorkflowSummary(projectId, payload, context = {}, dependencies = {}) {
+  if (!contextIsManager(context)) {
+    throw planningError('Somente o gestor do Efetivo pode iniciar a gestão do projeto.', { statusCode: 403, code: 'PROJECT_WORKFLOW_MANAGER_REQUIRED' });
+  }
+  const database = await resolvePlanningDatabase(dependencies.database);
+  await runPlanningTransaction(database, async tx => {
+    const project = await findEligibleProject(tx, projectId);
+    if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
+    if (!project.efetivoMissionPlans?.length) {
+      throw planningError('O fluxo resumido é só para projetos com uma programação oficial da equipe já existente. Use o fluxo completo.', {
+        statusCode: 409,
+        code: 'PROJECT_WORKFLOW_LEGACY_SUMMARY_MISSION_REQUIRED'
+      });
+    }
+    await requireEligibleLeader(tx, payload.leaderUserId);
+    await requireEligiblePlanner(tx, payload.plannerUserId);
+    const now = new Date();
+    const closing = payload.stage === 'FINISHED';
+    try {
+      await tx.projectWorkflow.create({
+        data: {
+          projectId,
+          stage: payload.stage,
+          legacySummaryEntryStage: payload.stage,
+          leaderUserId: payload.leaderUserId,
+          plannerUserId: payload.plannerUserId,
+          executedAtHeadquarters: false,
+          fieldCompletionDate: payload.endDate ? utcDate(payload.endDate) : null,
+          ...(closing ? { closedAt: now, closedByUserId: context.actorUserId || null } : {})
+        }
+      });
+    } catch (error) {
+      if (error?.code === 'P2002') throw conflictError('Este projeto já possui gestão iniciada.', [], 'PROJECT_WORKFLOW_ALREADY_EXISTS');
+      throw error;
+    }
+    await tx.project.update({
+      where: { id: projectId },
+      data: {
+        startDate: utcDate(payload.startDate),
+        ...(payload.demobilizationDate ? { demobilizationDate: utcDate(payload.demobilizationDate) } : {})
+      }
+    });
+    if (payload.equipmentSelections.length) {
+      const categoryIds = payload.equipmentSelections.map(item => item.categoryId);
+      const categories = await tx.equipmentCategory.findMany({
+        where: { id: { in: categoryIds }, isActive: true },
+        select: { id: true, equipment: { where: { isActive: true }, select: { id: true } } }
+      });
+      if (categories.length !== categoryIds.length) {
+        throw planningError('A seleção de equipamentos contém categoria inexistente ou inativa.', { code: 'PROJECT_WORKFLOW_EQUIPMENT_CATEGORY_INVALID' });
+      }
+      const categoryById = new Map(categories.map(category => [category.id, new Set(category.equipment.map(item => item.id))]));
+      const hasInvalidEquipment = payload.equipmentSelections.some(selection => (
+        selection.equipmentIds.some(equipmentId => !categoryById.get(selection.categoryId)?.has(equipmentId))
+      ));
+      if (hasInvalidEquipment) {
+        throw planningError('A seleção de equipamentos contém item inexistente, inativo ou de outra categoria.', { code: 'PROJECT_WORKFLOW_EQUIPMENT_INVALID' });
+      }
+      await tx.projectWorkflowEquipmentCategoryPlan.createMany({
+        data: payload.equipmentSelections.map(selection => ({
+          projectId,
+          categoryId: selection.categoryId,
+          equipmentIds: selection.equipmentIds
+        }))
+      });
+      await tx.projectWorkflow.update({ where: { projectId }, data: { equipmentPlanDefined: true } });
+    }
+    // Alinha a etapa da missão oficial já existente (Stand by/Mobilização/Execução/Medição final/Finalizada) e
+    // valida que ela tem o mínimo (líder, datas, equipe) para a etapa escolhida — mesma checagem usada quando o
+    // fluxo normal avança de etapa.
+    await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(tx, projectId, payload.stage, context);
+    await recordEvent(tx, projectId, context.actorUserId, 'WORKFLOW_STARTED', {
+      legacySummary: true,
+      stage: payload.stage,
+      leaderUserId: payload.leaderUserId,
+      plannerUserId: payload.plannerUserId
+    });
+  });
+  return getProjectWorkflow(projectId, context, { ...dependencies, database });
+}
+
+// Fluxo legado resumido: catálogo completo de equipamentos ativos (por categoria) + quais deles, pelo
+// histórico de romaneios do projeto, ainda estão em campo hoje — pré-marcados, mas o usuário pode adicionar
+// qualquer outro equipamento do catálogo ou desmarcar os sugeridos.
+export async function listProjectWorkflowLegacySummaryEquipment(projectId, context = {}, dependencies = {}) {
+  const database = await resolvePlanningDatabase(dependencies.database);
+  const project = await findEligibleProject(database, projectId);
+  if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
+  const [categories, current] = await Promise.all([
+    database.equipmentCategory.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        equipment: { where: { isActive: true }, select: { id: true, code: true, name: true }, orderBy: { code: 'asc' } }
+      },
+      orderBy: { order: 'asc' }
+    }),
+    currentRomaneioEquipmentForProject(database, projectId, todayKey())
+  ]);
+  return {
+    categories: categories.map(category => ({ id: category.id, name: category.name, equipment: category.equipment })),
+    currentEquipmentIds: current.map(item => item.id)
+  };
 }
 
 async function loadWorkflowForMutation(tx, projectId, context) {

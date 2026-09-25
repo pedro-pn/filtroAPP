@@ -10,6 +10,7 @@
 import prisma from '../prisma.js';
 import { resolvePlannedSystem } from './project-systems.js';
 import { normalizeRdoServiceType } from './avanco.js';
+import { latestRealizedCorrections } from './realized-corrections.js';
 import { assertDistinctScopeMeasurements } from './scope-groups.js';
 import { loadPlannedHours, plannedHoursConflict } from './planned-hours.js';
 
@@ -88,16 +89,25 @@ export async function getPlannedScope(projectId) {
 // Substitui todo o escopo previsto do projeto pelos conjuntos informados (já validados pela rota).
 export async function setPlannedScope(projectId, { services = [], normalHours, overtime, hoursFingerprint } = {}) {
   assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
+  const currentCorrections = latestRealizedCorrections(await prisma.projectRealizedCorrection.findMany({ where: { projectId } }));
+  for (const correction of currentCorrections.values()) {
+    if (correction.quantityM == null) continue;
+    const tubeRows = services.filter(service => normalizeRdoServiceType(service.serviceType) === correction.serviceType)
+      .flatMap(service => service.systems ?? []).filter(row => row.systemType === 'TUBULACAO');
+    if (!tubeRows.some(row => Number(row.quantity) > 0) || tubeRows.some(row => row.projectSystemId || row.equipment || row.systemName)) {
+      throw new Error('Há correções de metragem neste serviço. Restaure-as antes de trocar a meta global por metas por sistema ou remover o serviço.');
+    }
+  }
   const modes = new Map();
   for (const service of services) for (const row of service.systems ?? []) {
     if (row.systemType === 'SISTEMA' && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_QUIMICA'
       || !row.equipment?.trim() || !row.systemName?.trim() || !Number.isSafeInteger(row.quantity)
       || row.quantity <= 0 || row.quantity > 999999999999)) {
-      throw new Error('Sistemas por unidade exigem limpeza química, equipamento/UG, nome do sistema e quantidade inteira positiva.');
+      throw new Error('Sistemas por unidade exigem limpeza química, equipamento do cliente, nome do sistema e quantidade inteira positiva.');
     }
     const key = `${normalizeRdoServiceType(service.serviceType) ?? service.serviceType}:${row.systemType}`;
     const linked = Boolean(row.projectSystemId || row.equipment || row.systemName);
-    if (modes.has(key) && modes.get(key) !== linked) throw new Error('Para o mesmo serviço e tipo de medição, preencha UG e sistema em todas as linhas ou mantenha todas globais. Não misture uma meta total com suas partes.');
+    if (modes.has(key) && modes.get(key) !== linked) throw new Error('Para o mesmo serviço e tipo de medição, preencha equipamento do cliente e sistema em todas as linhas ou mantenha todas globais. Não misture uma meta total com suas partes.');
     modes.set(key, linked);
   }
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });

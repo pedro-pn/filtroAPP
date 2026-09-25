@@ -9,13 +9,16 @@ import { isEfetivoManager, requireEfetivoManager, requireEfetivoViewer } from '.
 import {
   getProjectWorkflow,
   listProjectWorkflowLeaders,
+  listProjectWorkflowLegacySummaryEquipment,
   listProjectWorkflows,
+  startLegacyProjectWorkflowSummary,
   startProjectWorkflow,
   updateProjectWorkflow
 } from '../lib/efetivo/project-workflow/service.js';
 import {
   createProjectExecutionDeviation,
   getProjectExecutionDashboard,
+  saveProjectExecutionWeeklyReview,
   updateProjectExecutionDeviation,
   updateProjectExecutionReportTargets
 } from '../lib/efetivo/project-workflow/execution-dashboard.js';
@@ -55,6 +58,16 @@ router.get('/', requireEfetivoViewer, asyncHandler(async (req, res) => {
 
 router.get('/leaders', requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listProjectWorkflowLeaders());
+}));
+
+router.get('/:projectId/legacy-summary/equipment', requireEfetivoViewer, asyncHandler(async (req, res) => {
+  const projectId = projectIdSchema.parse(req.params.projectId);
+  res.json(await listProjectWorkflowLegacySummaryEquipment(projectId, context(req)));
+}));
+
+router.post('/:projectId/legacy-summary', requireEfetivoManager, asyncHandler(async (req, res) => {
+  const projectId = projectIdSchema.parse(req.params.projectId);
+  res.status(201).json(await startLegacyProjectWorkflowSummary(projectId, schemas.startLegacySummary.parse(req.body), context(req)));
 }));
 
 router.get('/:projectId/documents', requireEfetivoViewer, asyncHandler(async (req, res) => {
@@ -134,6 +147,11 @@ router.post('/:projectId/documents/:documentId/restore', requireEfetivoViewer, a
 router.get('/:projectId/execution', requireEfetivoViewer, asyncHandler(async (req, res) => {
   const projectId = projectIdSchema.parse(req.params.projectId);
   res.json(await getProjectExecutionDashboard(projectId, context(req)));
+}));
+
+router.put('/:projectId/execution/weekly-review', requireEfetivoViewer, asyncHandler(async (req, res) => {
+  const projectId = projectIdSchema.parse(req.params.projectId);
+  res.json(await saveProjectExecutionWeeklyReview(projectId, executionSchemas.weeklyReview.parse(req.body), context(req)));
 }));
 
 router.get('/:projectId/closeout', requireEfetivoViewer, asyncHandler(async (req, res) => {

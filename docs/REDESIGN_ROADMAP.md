@@ -1,5 +1,9 @@
 # Roadmap do redesign do frontend
 
+> **Integração de 25/09/2026:** `origin/main` até `9df822c7` foi incorporada
+> à branch de redesign. O delta e as tarefas visuais estão em
+> [Novidades da main em 25/09](#novidades-da-main-em-25092026).
+
 > **Delta corrigido em 24/09/2026:** o merge de `origin/main` em `10599cf3`
 > havia substituído telas já migradas por versões legadas. RDO, Conta, Cliente,
 > Estatísticas, Acompanhamento, Assinaturas e partes do Efetivo foram restaurados
@@ -26,6 +30,27 @@ URLs públicas ou contratos de API.
 
 Este roadmap passa a ser a fonte de escopo do redesign. As specs funcionais de
 cada módulo continuam sendo a fonte de verdade para comportamento e dados.
+
+## Novidades da main em 25/09/2026
+
+Esta integração acrescenta comportamento funcional já implementado na `main`.
+As tarefas abaixo descrevem a adaptação visual que ainda precisa ser entregue
+nas telas afetadas. Manter os contratos, permissões e cálculos da `main` e as
+entradas DS desta branch durante cada lote.
+
+| Lote | Mudança recebida | Adaptação necessária no redesign |
+| --- | --- | --- |
+| **A3c — Acompanhamento: metragens realizadas** | Conciliação de RTH/RLQ/FLU por dia e serviço, comparação RDO × valor validado, histórico, revisão, restauração, aviso quando a origem muda e permissão de gestão. O painel novo foi encaixado no avanço físico DS e legado. | Migrar `ProjectRealizedCorrections` para controles, estados e tokens DS; conferir detalhe e Cronograma em 360/390/768/1280 px, temas claro/escuro, leitura e edição. Validar erro de revisão concorrente, refresh do avanço, histórico e restauração sem alterar o RDO original. |
+| **A3b/A7 — Acompanhamento: contratos existentes** | A conciliação de sistemas e o escopo planejado passaram a exibir “Equipamento do cliente” e ajustes de nomes; a API de avanço considera as novas metragens validadas. | Revisar `ProjectSystemInput`, `ProjectSystemAliases`, `ProjectSystemReconciliation`, `ProjectPlannedScopeEditor`, `ProjectProgressBreakdown` e o detalhe já migrado para refletir os novos rótulos e dados. Revalidar consumo de metas, totais e permissões em projeto/grupo. |
+| **F2.1/F2.5 — Efetivo: disponibilidade por período** | Filtro de data final, API diária por intervalo, KPIs de pico/falta, cargos com déficit, riscos planejados e alternância Kanban/Calendário; status “Indisponível” e “Fora do vínculo”. | Concluir a migração DS de `AvailabilityBoard`: cards/alertas, alternância, legenda, calendário, faixas/tooltip e seções de déficit e risco; tokenizar cores, tratar períodos inválidos, loading/erro/vazio e responsividade. Preservar o shell DS e a seção Simulações. |
+| **F2.5/F2.6 — Efetivo: evolução e execução** | Resumo inicial para obras legadas, equipe/datas/equipamentos, verificação semanal, desvios recolhíveis e ajustes de calendário, capacidade e tooltip. | Migrar o formulário `ProjectLegacySummaryStartForm` e os blocos novos de `ProjectWorkflowBoard`/`ProjectExecutionDashboard`; revisar `ProjectWorkflowModal` e calendário com perfis gestor/leitor, estados de edição, falha, pendências e telas móveis. Efetivo continua em standby para a migração completa até a conciliação da frente paralela. |
+| **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | Adaptar ações de `GestorPage`, `PhysicalSignatureDialog`, `ReportSummaryCard`, `ReportDetailPage` e `ClientPage` aos controles/estados DS; conferir upload, confirmação, sucesso/erro, leitura, revogação, permissões, teclado, foco e temas. Preservar a ordem e a disponibilidade dos relatórios para o cliente. |
+| **X2 — Componentes compartilhados** | `Modal` recebeu proteção de teclado/propagação para painéis aninhados; o catálogo de API foi atualizado. | Revalidar diálogos de Cronograma, assinatura física e demais consumidores DS/legados. O catálogo de API não cria superfície visual nova nesta rodada. |
+
+Ordem sugerida para este delta: **A3c**, porque o novo painel já aparece dentro
+de uma tela migrada; depois **X3**, que altera telas RDO e Cliente já migradas.
+**F2.1/F2.5/F2.6** entram na retomada do Efetivo, respeitando o standby registrado
+na F2. A7 e X2 incluem regressão integrada de todos os módulos já migrados.
 
 ## Estado após a integração
 
@@ -763,7 +788,8 @@ scroll localizado acidental em 360 px de largura.
 | A2 — Projetos | Cards, agrupamento/desagrupamento, renomeação, apropriação de mão de obra, filtros, conferência e arquivamento/restauração | **Implementado** |
 | A3a — Detalhe do projeto | `ProjectDetailDashboard`, custos previstos/realizados, composição das propostas, notas, desvios, progresso/metas, equipe e leitura do escopo | **Implementado** |
 | A3a.1 — Complemento da main | `ProjectInvoicesSection`: faturamentos, recebimento e sincronização; preservar a TAG dos equipamentos em obra já exibida nos cards/detalhe | **Implementado no código; integração real em A7** |
-| A3b — Edição do planejamento | `ProjectScheduleEditor`, propostas adicionais/revisões e editor de escopo previsto, incluindo consumidores compartilhados | **Implementado no código; integração real em A7** |
+| A3b — Edição do planejamento | `ProjectScheduleEditor`, propostas adicionais/revisões e editor de escopo previsto, incluindo consumidores compartilhados | **Implementado no código; novos rótulos da main e integração real em A7** |
+| A3c — Conciliação do realizado | Novo `ProjectRealizedCorrections` no avanço físico, histórico, ajuste e restauração de metragens RTH/RLQ/FLU | **Funcionalidade da main integrada; migração visual pendente** |
 | A4 — Diálogos de apoio | Relatórios/PDF, standby, jornadas POINT/REPORT e novo `ProjectRomaneiosDialog` com seus gatilhos | **Pendente de consolidação e revisão integrada** |
 | A5 — Sede | Períodos, gastos globais, categorias, detalhamento e novos indicadores aprovados de manutenção/produção em `SedeOperationalCards` | **Pendente; escopo ampliado** |
 | A6 — Custo | Motor/simulação, cargos/perfis, parâmetros/EPI, importação e conciliação de ponto, pendências e auditoria de alocação | **Pendente** |
@@ -948,13 +974,15 @@ Prioridade: P1.
 
 Baseline RDO concluído em 04/09: histórico de cargos, upload manual, planejamento,
 detalhes, bordas públicas e decomposição arquitetural não voltam à fila como se
-estivessem por fazer. Em 11/09 o escopo foi ampliado somente pelas novidades:
+estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 
 - [ ] **X1:** criação/cópia de link em contas e página pública de criar/redefinir
   senha, inclusive expiração, uso único, reenvio e retorno ao login.
 - [ ] **X2:** permissões de emissão, Hub/tours, rascunhos, fallback não autorizado,
   anexos com restauração, confirmações com conteúdo filho, busca e loading;
   regressão dos consumidores DS/legados sem retomar Efetivo.
+- [ ] **X3:** liberação individual e revogação de relatórios de serviço, assinatura
+  física com PDF e estados correspondentes em Gestor, Detalhe e Cliente.
 - [ ] Ajustes de Qualidade/EPI/Admin previamente inventariados, independentes do RDO.
 
 #### F5.1 — Administração: API/Tokens
@@ -972,7 +1000,7 @@ os contratos do piloto do RDO continuam verdes.
 
 ### F6 — Consolidação e retirada do legado
 
-Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1/X2.
+Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–X3.
 
 - remover CSS e componentes legados sem consumidores;
 - reduzir duplicação entre `Button`, campos, busca, modal e componentes DS;
@@ -998,15 +1026,18 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1/X2
 Antes da ordem histórica abaixo, executar os lotes **P0 R1–R3, A0, S1 e X0**
 do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md). A nova
 gestão de projetos F2.5/F2.6 segue o standby do Efetivo; as demais novidades
-estão vinculadas às fases A3b/A4/A5/A6, Estoque, Romaneio, M3/EQ2 e X1/X2.
+estão vinculadas às fases A3b/A3c/A4/A5/A6, Estoque, Romaneio, M3/EQ2 e X1–X3.
 
-1. Novos gatilhos/diálogos de **A4**, para fechar as inserções da main
+1. **A3c**, para migrar a nova conciliação de metragens dentro do detalhe DS.
+2. **X3**, para integrar visualmente liberação individual e assinatura física
+   às telas RDO e Cliente já migradas.
+3. Novos gatilhos/diálogos de **A4**, para fechar as inserções da main
    nas telas de Acompanhamento já redesenhadas.
-2. Restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
-3. **EQ1–EQ3 + M1–M5**, respeitando a dependência de configuração da manutenção.
-4. Estoque e Romaneio (F4) com suas pendências anteriores.
-5. **API1–API4 + X1/X2** e ajustes localizados de Qualidade/EPI/Admin (F5).
-6. Retomar **F2** somente após liberação e conciliação da outra worktree; a
+4. Restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
+5. **EQ1–EQ3 + M1–M5**, respeitando a dependência de configuração da manutenção.
+6. Estoque e Romaneio (F4) com suas pendências anteriores.
+7. **API1–API4 + X1/X2** e ajustes localizados de Qualidade/EPI/Admin (F5).
+8. Retomar **F2** somente após liberação e conciliação da outra worktree; a
    conferência de assinatura em celular físico continua combinada com o usuário.
 7. **F6**: remoção de legado e regressão visual final, após as frentes acima.
 

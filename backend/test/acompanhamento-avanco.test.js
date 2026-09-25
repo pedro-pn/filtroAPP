@@ -81,6 +81,7 @@ test('normalizeRdoServiceType aceita os vários formatos do RDO', () => {
   assert.equal(normalizeRdoServiceType('LIMPEZA'), 'LIMPEZA_QUIMICA');
   assert.equal(normalizeRdoServiceType('Limpeza química'), 'LIMPEZA_QUIMICA');
   assert.equal(normalizeRdoServiceType('pressao'), 'TESTE_PRESSAO');
+  assert.equal(normalizeRdoServiceType('TESTE_PRESSAO'), 'TESTE_PRESSAO');
   assert.equal(normalizeRdoServiceType('Teste de pressão'), 'TESTE_PRESSAO');
   assert.equal(normalizeRdoServiceType('flushing'), 'FLUSHING');
   assert.equal(normalizeRdoServiceType('Filtragem'), 'FILTRAGEM');

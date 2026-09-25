@@ -254,6 +254,8 @@ export function ProjectDetailDashboard({
     : data.avancoMethod === 'GROUP_SCOPE' || data.avancoMethod === 'GROUP_WEIGHTED' || data.avancoMethod === 'GROUP_AVERAGE'
       ? ' (consolidado)'
       : '';
+  // Avanço por Escopo e/ou equipamento do cliente: o recorte troca o percentual, o ritmo e o
+  // histórico. A combinação escolhida aponta para um recorte já calculado pelo backend.
   const progressFilters = isGroup ? null : data.progressFilters ?? null;
   const progressScopes = progressFilters?.scopes ?? [];
   const progressEquipments = progressFilters?.equipments ?? [];
@@ -398,7 +400,7 @@ export function ProjectDetailDashboard({
                     {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
                   </Select>
                 </Field>
-                <Field id="acp-progress-equipment" label="Equipamento / UG" optionalText="">
+                <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
                   <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
                     <option value="">Todos os equipamentos</option>
                     {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
@@ -411,8 +413,8 @@ export function ProjectDetailDashboard({
             <RequiredWeeklyProgressCard key={`${activeScopeKey}|${activeEquipmentKey}`} target={shownRequiredWeeklyProgress} />
             <ProgressHistoryChart key={`${activeScopeKey}|${activeEquipmentKey}`} points={shownProgressHistory} />
             {!isGroup && projectId ? <details className="acp-detail-progress-breakdown">
-              <summary>Previsto × realizado por UG e sistema</summary>
-              <ProjectProgressBreakdown projectId={projectId}
+              <summary>Previsto × realizado por equipamento e sistema</summary>
+              <ProjectProgressBreakdown projectId={projectId} canManage={canManage}
                 appearance="design-system"
                 filter={progressFilters ? { scopeKey: activeScopeKey, equipmentKey: activeEquipmentKey } : undefined}
                 progressPct={selectedProgressSlice ? selectedProgressSlice.avancoPct : undefined} />
@@ -583,7 +585,6 @@ export function ProjectDetailDashboard({
 
           {data.canViewProjectFinancials ? <ProjectDetailTaxes data={data} /> : null}
         </div>
-
 
       </div>
 

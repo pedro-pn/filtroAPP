@@ -120,6 +120,42 @@ export function equipmentAssignmentsAt(romaneios = [], targetDate) {
   return byEquipment;
 }
 
+// Fluxo legado resumido: "puxar do romaneio" — lê o histórico de romaneios do projeto e devolve os equipamentos
+// que, pelo saldo de saída/retorno, ainda estão no projeto na data de referência (mesma conta de
+// `equipmentAssignmentsAt`, sem precisar de uma lista de equipamentos conhecida de antemão).
+export async function currentRomaneioEquipmentForProject(database, projectId, targetDate) {
+  if (!database.romaneio?.findMany) return [];
+  const romaneios = await database.romaneio.findMany({
+    where: { projectId, items: { some: { catalogItem: { sourceType: 'EQUIPAMENTOS' } } } },
+    select: {
+      projectId: true,
+      type: true,
+      romaneioDate: true,
+      createdAt: true,
+      items: {
+        where: { catalogItem: { sourceType: 'EQUIPAMENTOS' } },
+        select: { quantity: true, catalogItem: { select: { sourceId: true } } }
+      }
+    },
+    orderBy: [{ romaneioDate: 'asc' }, { createdAt: 'asc' }]
+  });
+  const assignments = equipmentAssignmentsAt(romaneios, targetDate);
+  const equipmentIds = [...assignments.keys()].filter(equipmentId => (assignments.get(equipmentId) || []).some(item => item.projectId === projectId));
+  if (!equipmentIds.length || !database.companyEquipment?.findMany) return [];
+  const equipment = await database.companyEquipment.findMany({
+    where: { id: { in: equipmentIds }, isActive: true },
+    select: { id: true, code: true, name: true, categoryId: true, category: { select: { id: true, name: true } } },
+    orderBy: [{ category: { order: 'asc' } }, { code: 'asc' }]
+  });
+  return equipment.map(item => ({
+    id: item.id,
+    code: item.code,
+    name: item.name,
+    categoryId: item.categoryId,
+    categoryName: item.category?.name || ''
+  }));
+}
+
 export function buildEquipmentPlanningCatalog(categories = [], romaneios = [], targetDate, currentProjectId = null, plannedReservations = []) {
   const assignments = equipmentAssignmentsAt(romaneios, targetDate);
   return categories.map(category => {
