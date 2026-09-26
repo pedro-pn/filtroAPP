@@ -1,8 +1,12 @@
+import type { ReactNode } from 'react';
 import type { ProjectDetail } from '../../api/acompanhamentoComercial';
-import { Card } from '../ui/ds';
+import { BarList, Button, Card } from '../ui/ds';
+import { HelpTip } from '../ui/HelpTip';
+import { PortalTip } from '../ui/PortalTip';
 import { AppIcon } from '../icons/AppIcon';
 import { CalendarClock, Clock3, Coins, FileText, HardHat, Hourglass, Wallet } from 'lucide-react';
-import { brl, fmtDate, fmtHM, toNum } from './projectDetailModel';
+import { brl, DAY_META, fmtDate, fmtHM, fmtHours, toNum } from './projectDetailModel';
+import { ProposalContributionDetails } from './ProjectDetailVisuals';
 import './ProjectDetailStory.css';
 
 function dateGapDays(projected: string | null, expected: string | null) {
@@ -39,25 +43,65 @@ export function ProjectTimelineCard({ data }: { data: ProjectDetail }) {
   </Card>;
 }
 
-export function ProjectTimeSnapshot({ data }: { data: ProjectDetail }) {
+export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction }: {
+  data: ProjectDetail;
+  onOpenStandbyHistory?: () => void;
+  reportsAction?: ReactNode;
+}) {
   const hours = data.workedHours;
+  const normalHours = Math.max(0, hours?.normalWorkedHours ?? 0);
+  const overtimeHours = Math.max(0, hours?.overtimeWorkedHours ?? 0);
+  const hoursScale = Math.max(hours?.plannedTotalHours ?? 0, normalHours + overtimeHours, 1);
+  const normalWidth = Math.min(100, Math.round(normalHours / hoursScale * 1000) / 10);
+  const overtimeWidth = Math.min(100 - normalWidth, Math.round(overtimeHours / hoursScale * 1000) / 10);
   const items = [
-    { label: 'Dias corridos', value: `${data.diasCorridos.elapsed ?? '—'} / ${data.diasCorridos.planned ?? '—'}`, sub: `${pct(data.diasCorridos.pct)} do prazo`, percent: data.diasCorridos.pct, icon: CalendarClock },
-    { label: 'Dias trabalhados', value: `${data.diasTrabalhados.worked} / ${data.diasTrabalhados.planned ?? '—'}`, sub: `${pct(data.diasTrabalhados.pct)} do planejado`, percent: data.diasTrabalhados.pct, icon: HardHat },
-    { label: 'Horas trabalhadas', value: `${hours?.totalWorkedHours?.toLocaleString('pt-BR') ?? '0'}h`, sub: hours?.plannedTotalHours != null ? `de ${hours.plannedTotalHours.toLocaleString('pt-BR')}h previstas` : 'Sem previsão de horas', percent: hours?.totalPct ?? null, icon: Clock3 },
-    { label: 'Standby', value: `${data.standby.count} ${data.standby.count === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} paradas`, percent: null, icon: Hourglass }
+    { label: 'Dias corridos', value: `${data.diasCorridos.elapsed ?? '—'} / ${data.diasCorridos.planned ?? '—'}`, sub: `${pct(data.diasCorridos.pct)} do prazo`, percent: data.diasCorridos.pct, icon: CalendarClock, help: null },
+    { label: 'Dias trabalhados', value: `${data.diasTrabalhados.worked} / ${data.diasTrabalhados.planned ?? '—'}`, sub: `${pct(data.diasTrabalhados.pct)} do planejado`, percent: data.diasTrabalhados.pct, icon: HardHat, help: null },
+    { label: 'Horas trabalhadas', value: fmtHours(hours?.totalWorkedHours ?? 0), sub: hours?.plannedTotalHours != null ? `de ${fmtHours(hours.plannedTotalHours)} previstas` : 'Sem previsão de horas', percent: null, icon: Clock3, help: 'Soma das horas-homem dos relatórios de execução, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno.' },
+    { label: 'Standby', value: `${data.standby.count} ${data.standby.count === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} paradas`, percent: null, icon: Hourglass, help: null }
   ];
   return <Card padding="sm" className="acp-story-time" data-acp-time-snapshot>
     <div className="acp-story-card-head"><div><p>Uso do tempo</p><h3>Execução registrada</h3></div><span className="acp-story-soft-label">RDO e ponto</span></div>
     <div className="acp-story-time-grid">{items.map(item => <div className="acp-story-time-item" key={item.label}>
-      <span className="acp-story-time-icon"><AppIcon icon={item.icon} size="sm" /></span><span>{item.label}</span><strong>{item.value}</strong><small>{item.sub}</small>
-      {item.percent != null ? <div className="acp-story-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, item.percent))}%` }} /></div> : null}
+      <span className="acp-story-time-icon"><AppIcon icon={item.icon} size="sm" /></span><span>{item.help ? <HelpTip help={item.help}>{item.label}</HelpTip> : item.label}</span><strong>{item.value}</strong><small>{item.sub}</small>
+      {item.label === 'Horas trabalhadas' ? <div className="acp-story-hours-breakdown" role="group" aria-label="Composição das horas trabalhadas">
+        <div className="acp-story-hours-meter" aria-hidden="true">
+          <span className="is-normal" style={{ width: `${normalWidth}%` }} />
+          <span className="is-overtime" style={{ width: `${overtimeWidth}%` }} />
+        </div>
+        <div className="acp-story-hours-legend">
+          <span><i className="is-normal" />Normais {fmtHours(normalHours)}</span>
+          <span><i className="is-overtime" />HE {fmtHours(overtimeHours)}</span>
+        </div>
+      </div> : item.percent != null ? <div className="acp-story-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, item.percent))}%` }} /></div> : null}
     </div>)}</div>
-    <p className="acp-story-caption">Horas extras registradas: <strong>{fmtHM(data.overtimeMinutes)}</strong></p>
+    <div className="acp-story-time-extras">
+      <div className="acp-story-time-days">
+        <strong><HelpTip help="Status dos dias mais recentes com relatório de execução: verde = trabalhado, amarelo = trabalhado com standby, vermelho = totalmente parado. Passe o mouse para ver as horas.">Últimos dias</HelpTip></strong>
+        {data.ultimosDias.length === 0 ? <span className="acp-story-time-empty">Sem relatórios de execução.</span>
+          : <div className="acp-story-time-bar" role="group" aria-label="Situação dos últimos dias">
+            {data.ultimosDias.map((day, index) => <PortalTip
+              key={`${day.date}-${index}`}
+              triggerClassName={`acp-story-time-segment ${DAY_META[day.status].cls}`}
+              ariaLabel={`${fmtDate(day.date)}: ${DAY_META[day.status].label}`}
+              content={<>
+                <div className="acp-detail-tip-date">{fmtDate(day.date)}</div>
+                <div className="acp-detail-tip-status"><span className={`acp-detail-tip-dot ${DAY_META[day.status].cls}`} />{DAY_META[day.status].label}</div>
+                <div className="acp-detail-tip-row"><span>Trabalhado</span><strong>{fmtHM(day.workedMinutes)}</strong></div>
+                <div className="acp-detail-tip-row"><span>Standby</span><strong>{fmtHM(day.standbyMinutes)}</strong></div>
+              </>}
+            ><span aria-hidden="true" /></PortalTip>)}
+          </div>}
+      </div>
+    </div>
+    {(onOpenStandbyHistory || reportsAction) ? <div className="acp-story-time-actions">
+      {onOpenStandbyHistory ? <Button type="button" size="sm" variant="secondary" aria-haspopup="dialog" data-acp-standby-history-trigger onClick={onOpenStandbyHistory}>Ver histórico de standby</Button> : null}
+      {reportsAction}
+    </div> : null}
   </Card>;
 }
 
-export function ProjectFinancialSnapshot({ data }: { data: ProjectDetail }) {
+export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDetail; children?: ReactNode }) {
   const actual = data.consumo.gasto + (data.maoDeObra.custo ?? 0);
   const planned = data.consumo.previsto;
   const spentPct = planned != null && planned > 0 ? actual / planned * 100 : null;
@@ -81,6 +125,17 @@ export function ProjectFinancialSnapshot({ data }: { data: ProjectDetail }) {
     <div className="acp-story-cost-stack" aria-label="Distribuição dos custos informados">{segments.filter(segment => segment.value > 0).map(segment =>
       <span key={segment.label} className={`is-${segment.className}`} style={{ width: `${segmentTotal > 0 ? segment.value / segmentTotal * 100 : 0}%` }} title={`${segment.label}: ${brl(segment.value)}`} />)}</div>
     <div className="acp-story-cost-legend">{segments.map(segment => <div key={segment.label}><span className={`is-${segment.className}`} />{segment.label}<strong>{brl(segment.value)}</strong></div>)}</div>
+    <ProposalContributionDetails original={data.budgetBreakdown?.original} additionals={data.budgetBreakdown?.additionals} />
+    <div className="acp-story-divider" />
+    <h4><HelpTip help="As 5 maiores categorias de despesa do projeto, somando Omie sem salários, consumo líquido de químicos/filtros do estoque e custos manuais.">Maiores gastos (Omie + estoque + manual)</HelpTip></h4>
+    {data.maioresGastos.length === 0 ? <p className="acp-story-caption">Sem gastos registrados.</p> : <BarList
+      aria-label="Maiores gastos por categoria"
+      items={data.maioresGastos.map((spend, index) => ({
+        id: String(index), label: spend.categoria, valueLabel: brl(spend.total),
+        percentage: 100 * Math.max(0, spend.total) / Math.max(1, ...data.maioresGastos.map(item => item.total))
+      }))}
+    />}
+    {children}
   </Card>;
 }
 

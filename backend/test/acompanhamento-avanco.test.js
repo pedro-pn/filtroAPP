@@ -7,6 +7,7 @@ import {
   isServiceFinalized,
   buildProgress,
   buildProgressHistory,
+  buildDailyProgressHistory,
   buildRequiredWeeklyProgress,
   realizedReportWhere,
   isRealizedSourceReport,
@@ -231,6 +232,29 @@ test('buildRequiredWeeklyProgress não consome prazo antes do início', () => {
   assert.equal(out.requiredPctPointsPerWeek, 50);
 });
 
+test('buildRequiredWeeklyProgress mantém o avanço por equipamento sem prazo previsto', () => {
+  const out = buildRequiredWeeklyProgress({
+    progressPct: 40,
+    services: [{
+      serviceType: 'LIMPEZA_QUIMICA', executionPct: 40,
+      systems: [{
+        projectSystemId: 'system-1', equipment: 'Bomba de alimentação', systemName: 'Circuito A',
+        systemType: 'SISTEMA', unit: null, plannedQty: 5, realizedQty: 2
+      }]
+    }]
+  }, { referenceDate: '2026-09-26' });
+
+  assert.equal(out.status, 'UNAVAILABLE');
+  assert.equal(out.remainingDays, null);
+  assert.equal(out.requiredPctPointsPerWeek, null);
+  assert.deepEqual(out.services[0].systems[0], {
+    projectSystemId: 'system-1', equipment: 'Bomba de alimentação', systemName: 'Circuito A',
+    diameter: undefined, diameterUnit: undefined,
+    systemType: 'SISTEMA', unit: null, plannedQty: 5, realizedQty: 2,
+    remainingQty: 3, status: 'UNAVAILABLE', requiredQtyPerWeek: null
+  });
+});
+
 test('buildProgressHistory compacta avanço acumulado em pontos semanais', () => {
   const planned = [
     { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 1000, unit: 'M' }] }
@@ -260,6 +284,53 @@ test('buildProgressHistory compacta avanço acumulado em pontos semanais', () =>
     { date: '2026-06-30', progressPct: 0 },
     { date: '2026-07-03', progressPct: 30 },
     { date: '2026-07-10', progressPct: 60 }
+  ]);
+});
+
+test('histórico diário preserva cada data e o avanço dos serviços sem duplicar relatório derivado', () => {
+  const planned = [
+    { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 1000, unit: 'M' }] }
+  ];
+  const reports = [
+    { finalized: true, serviceType: 'limpeza', reportType: 'RDO', reportDate: '2026-07-01T00:00:00.000Z', extraData: { tubes: [{ c: '100', lengthUnit: 'm' }] } },
+    { finalized: true, serviceType: 'limpeza', reportType: 'RLQ', specialConditions: { parentRdoId: 'rdo-1' }, reportDate: '2026-07-01T00:00:00.000Z', extraData: { tubes: [{ c: '100', lengthUnit: 'm' }] } },
+    { finalized: true, serviceType: 'limpeza', reportType: 'RDO', reportDate: '2026-07-03T00:00:00.000Z', extraData: { tubes: [{ c: '200', lengthUnit: 'm' }] } }
+  ];
+  assert.deepEqual(buildDailyProgressHistory(planned, reports), [
+    { date: '2026-07-01', progressPct: 10, services: [{ serviceType: 'LIMPEZA_QUIMICA', progressPct: 10, quantities: [{ unit: 'M', realizedQty: 100 }] }] },
+    { date: '2026-07-03', progressPct: 30, services: [{ serviceType: 'LIMPEZA_QUIMICA', progressPct: 30, quantities: [{ unit: 'M', realizedQty: 300 }] }] }
+  ]);
+});
+
+test('histórico diário usa unidades de sistema e litros de óleo como medidas físicas', () => {
+  const planned = [
+    { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ systemType: 'SISTEMA', quantity: 5, unit: null }] },
+    { serviceType: 'FILTRAGEM', weight: 1, systems: [{ systemType: 'OLEO', quantity: 1000, unit: null }] }
+  ];
+  const reports = [
+    { finalized: true, serviceType: 'limpeza', reportDate: '2026-07-01', extraData: { limpezaTubulacao: 'Não', quantidadeSistemas: '2' } },
+    { finalized: true, serviceType: 'filtragem', reportDate: '2026-07-01', extraData: { volumeOleo: '300', volumeOleoUnit: 'L' } },
+    { finalized: true, serviceType: 'limpeza', reportDate: '2026-07-02', extraData: { limpezaTubulacao: 'Não', quantidadeSistemas: '1' } },
+    { finalized: true, serviceType: 'filtragem', reportDate: '2026-07-02', extraData: { volumeOleo: '200', volumeOleoUnit: 'L' } }
+  ];
+  const out = buildDailyProgressHistory(planned, reports);
+  assert.deepEqual(out.map(point => point.services.map(service => service.quantities)), [
+    [[{ unit: 'UN', realizedQty: 2 }], [{ unit: 'L', realizedQty: 300 }]],
+    [[{ unit: 'UN', realizedQty: 3 }], [{ unit: 'L', realizedQty: 500 }]]
+  ]);
+});
+
+test('histórico diário manual usa o último lançamento de cada data', () => {
+  assert.deepEqual(buildDailyProgressHistory([], [], {
+    manualProgressPct: 35,
+    manualProgressHistory: [
+      { recordedAt: '2026-07-03T00:00:00.000Z', progressPct: 10 },
+      { recordedAt: '2026-07-03T12:00:00.000Z', progressPct: 20 },
+      { recordedAt: '2026-07-10T00:00:00.000Z', progressPct: 35 }
+    ]
+  }), [
+    { date: '2026-07-03', progressPct: 20 },
+    { date: '2026-07-10', progressPct: 35 }
   ]);
 });
 

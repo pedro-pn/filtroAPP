@@ -1,0 +1,26 @@
+.acp-scope-daily > .fv-card__body { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-6); }
+.acp-scope-daily__summary > span, .acp-scope-daily__intro, .acp-scope-daily__empty { color: var(--muted); font-size: var(--text-sm); }
+.acp-scope-daily__summary > span { font-weight: var(--font-regular); }
+.acp-scope-daily__intro { margin: 0; }
+.acp-scope-daily__content { display: grid; gap: var(--space-4); margin-top: var(--space-4); }
+.acp-scope-daily__table-wrap { width: 100%; max-height: 560px; overflow: auto; border: var(--border-width) solid var(--line); border-radius: var(--radius-md); }
+.acp-scope-daily table { width: 100%; min-width: 620px; border-collapse: separate; border-spacing: 0; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.acp-scope-daily th, .acp-scope-daily td { padding: var(--space-3); border-bottom: var(--border-width) solid var(--line); text-align: right; white-space: nowrap; }
+.acp-scope-daily th:first-child, .acp-scope-daily th:nth-child(2), .acp-scope-daily td:nth-child(2) { text-align: left; }
+.acp-scope-daily thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); color: var(--muted); font-size: var(--text-xs); letter-spacing: .04em; text-transform: uppercase; }
+.acp-scope-daily tbody tr:nth-child(even) { background: var(--surface-2); }
+.acp-scope-daily tbody tr:hover { background: var(--brand-softer); }
+.acp-scope-daily tbody th, .acp-scope-daily__total { color: var(--brand-text); font-weight: var(--font-semibold); }
+.acp-scope-daily__daily { font-weight: var(--font-semibold); }
+.acp-scope-daily__mobile { display: none; }
+@media (max-width: 639px) {
+  .acp-scope-daily > .fv-card__body { padding: var(--space-4); }
+  .acp-scope-daily__table-wrap { display: none; }
+  .acp-scope-daily__mobile { display: grid; gap: var(--space-3); }
+  .acp-scope-daily__mobile article { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+  .acp-scope-daily__mobile-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
+  .acp-scope-daily__mobile-head strong { color: var(--brand-text); }
+  .acp-scope-daily__mobile p { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--text-sm); }
+  .acp-scope-daily__services { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .acp-scope-daily__services span { display: grid; gap: var(--space-1); padding: var(--space-2); border-radius: var(--radius-sm); background: var(--surface); font-size: var(--text-xs); }
+}

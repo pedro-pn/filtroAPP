@@ -582,6 +582,7 @@ export interface RequiredWeeklyProgress {
 export interface ProgressSlice {
   avancoPct: number | null;
   progressHistory: ProgressHistoryPoint[];
+  dailyProgressHistory?: DailyProgressPoint[];
   requiredWeeklyProgress: RequiredWeeklyProgress;
 }
 
@@ -671,6 +672,14 @@ export interface WorkedHoursProgress {
 export interface ProgressHistoryPoint {
   date: string;
   progressPct: number;
+}
+
+export interface DailyProgressPoint extends ProgressHistoryPoint {
+  services?: Array<{
+    serviceType: string;
+    progressPct: number | null;
+    quantities: Array<{ unit: string; realizedQty: number }>;
+  }>;
 }
 
 export interface ProjectCard {
@@ -950,7 +959,9 @@ export interface ProjectDetail {
   maioresGastos: Array<{ categoria: string; total: number }>;
   manualCosts?: ManualProjectCost[];
   avancoPct: number | null;
+  progressBreakdown?: ProjectProgress | null;
   progressHistory?: ProgressHistoryPoint[];
+  dailyProgressHistory?: DailyProgressPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
   progressFilters?: ProgressFilters | null;
   standby: { count: number; minutes: number };

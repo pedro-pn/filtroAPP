@@ -63,6 +63,7 @@ interface GroupedReportListProps {
   storageKey?: string;
   initialVisiblePerType?: number;
   loadMoreStep?: number;
+  defaultTypeCollapsed?: boolean;
 }
 
 interface GroupedReportListStorage {
@@ -153,7 +154,8 @@ export function GroupedReportList({
   showTypeSort = false,
   storageKey,
   initialVisiblePerType = 10,
-  loadMoreStep = 10
+  loadMoreStep = 10,
+  defaultTypeCollapsed = false
 }: GroupedReportListProps) {
   const designSystem = appearance === 'design-system';
   const disclosureIdPrefix = disclosureIdPart(useId());
@@ -309,7 +311,7 @@ export function GroupedReportList({
             >
             {!projectClosed ? Object.entries(typeGroups).sort(([a], [b]) => compareReportTypes(a, b)).map(([reportType, typeReports]) => {
               const typeKey = `${group.projectId}-${reportType}`;
-              const typeClosed = closedTypes.includes(typeKey);
+              const typeClosed = defaultTypeCollapsed ? !closedTypes.includes(typeKey) : closedTypes.includes(typeKey);
               const typePanelId = `${disclosureIdPrefix}-type-${disclosureIdPart(typeKey)}`;
               const typeSortDirection = typeSortDirections[typeKey] || 'asc';
               const sortedReports = sortReportsInGroup(typeReports, typeSortDirection);
@@ -347,7 +349,7 @@ export function GroupedReportList({
                     </span>
                   )}
                   <span className="rtype-count">
-                    {visibleReports.length} de {totalReports} relatório
+                    {defaultTypeCollapsed && typeClosed ? totalReports : `${visibleReports.length} de ${totalReports}`} relatório
                     {totalReports !== 1 ? 's' : ''}
                   </span>
                   {showTypeSort && !designSystem ? (

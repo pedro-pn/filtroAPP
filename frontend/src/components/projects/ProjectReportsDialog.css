@@ -1,0 +1,104 @@
+.fv-modal.acp-mission-reports-modal .acp-mission-reports-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.fv-modal.acp-mission-reports-modal .rdo-manager-project-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.fv-modal.acp-mission-reports-modal .rdo-manager-project-card.fv-card--padding-sm {
+  padding: 0;
+}
+
+.fv-modal.acp-mission-reports-modal .rdo-manager-project-group.card {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.fv-modal.acp-mission-reports-modal .project-group-toggle,
+.fv-modal.acp-mission-reports-modal .report-type-header {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--space-10);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+}
+
+.fv-modal.acp-mission-reports-modal .project-group-toggle {
+  background: var(--surface-2);
+  border-bottom: var(--border-width) solid var(--line);
+  color: var(--brand-text);
+  font-weight: var(--font-semibold);
+}
+
+.fv-modal.acp-mission-reports-modal .project-group-toggle .sec {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fv-modal.acp-mission-reports-modal .report-type-group {
+  margin: 0;
+  padding-inline: var(--space-4);
+}
+
+.fv-modal.acp-mission-reports-modal .rdo-manager-report-type-row {
+  display: flex;
+  min-width: 0;
+  border-bottom: var(--border-width) solid var(--line);
+}
+
+.fv-modal.acp-mission-reports-modal .report-type-header {
+  flex: 1 1 auto;
+  border: 0;
+}
+
+.fv-modal.acp-mission-reports-modal .report-type-header:hover,
+.fv-modal.acp-mission-reports-modal .project-group-toggle:hover {
+  background: var(--surface-2);
+}
+
+.fv-modal.acp-mission-reports-modal :is(.report-type-header, .project-group-toggle):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fv-modal.acp-mission-reports-modal .rtype-count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.fv-modal.acp-mission-reports-modal :is(.group-chevron, .rtype-chevron) {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.fv-modal.acp-mission-reports-modal :is(.project-group-toggle, .report-type-header)[aria-expanded='false'] :is(.group-chevron, .rtype-chevron) {
+  transform: rotate(-90deg);
+}
+
+.fv-modal.acp-mission-reports-modal .report-type-list {
+  gap: var(--space-3);
+  padding-block: var(--space-3) var(--space-4);
+}
+
+@media (max-width: 639px) {
+  .fv-modal.acp-mission-reports-modal .report-type-group { padding-inline: var(--space-2); }
+  .fv-modal.acp-mission-reports-modal .report-type-header { flex-wrap: wrap; }
+}

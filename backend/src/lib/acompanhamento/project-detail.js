@@ -421,6 +421,7 @@ export async function getProjectDetail(projectId, {
     project,
     progress: projectProgress,
     progressHistory,
+    dailyProgressHistory,
     progressSlices
   } = loadedProgressDetails;
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
@@ -634,9 +635,10 @@ export async function getProjectDetail(projectId, {
     scopes: progressSlices.scopes,
     equipments: progressSlices.equipments,
     lookup: progressSlices.lookup,
-    slices: progressSlices.slices.map(({ progress, progressHistory }) => ({
+    slices: progressSlices.slices.map(({ progress, progressHistory, dailyProgressHistory }) => ({
       avancoPct: progress.progressPct,
       progressHistory,
+      dailyProgressHistory,
       requiredWeeklyProgress: buildRequiredWeeklyProgress(progress, {
         startDate: row.startDate,
         expectedEndDate,
@@ -696,6 +698,7 @@ export async function getProjectDetail(projectId, {
     avancoPct,
     avancoMethod: projectProgress.progressMethod ?? null,
     progressHistory,
+    dailyProgressHistory,
     requiredWeeklyProgress,
     progressFilters,
     standby: { count: standbyCount, minutes: standbyMinutesTotal },

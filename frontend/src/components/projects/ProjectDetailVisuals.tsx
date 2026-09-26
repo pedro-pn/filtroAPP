@@ -1,7 +1,7 @@
 import type { BudgetBreakdownSlice, PlannedScope, RequiredWeeklyProgress, RequiredWeeklyProgressStatus } from '../../api/acompanhamentoComercial';
 import { HelpTip } from '../ui/HelpTip';
 import { Badge, ProgressBar } from '../ui/ds';
-import { brl, toNum, hasMoney, proposalContributionLabel, fmtPct, fmtHours, SERVICE_LABELS, SYSTEM_LABELS, UNIT_LABELS } from './projectDetailModel';
+import { brl, toNum, hasMoney, proposalContributionLabel, fmtPct, fmtHours, SERVICE_LABELS, SYSTEM_LABELS, UNIT_LABELS, weeklyPhysicalProgress } from './projectDetailModel';
 import { groupServicesByScope } from '../../utils/plannedScopeGroups';
 
 export function ProposalContributionDetails({
@@ -82,7 +82,7 @@ export function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeekly
           <span>para entregar na data prevista</span>
         </div>
         <Badge multiline tone={target.status === 'OVERDUE' ? 'danger' : target.status === 'DUE_TODAY' ? 'warning' : target.status === 'COMPLETED' ? 'success' : 'brand'}>
-          {weeklyTargetText(target.status, target.remainingPctPoints, target.requiredPctPointsPerWeek, ' p.p.')}
+          {weeklyPhysicalProgress(target)}
         </Badge>
       </div>
       {scopeGroups.length > 0 ? (

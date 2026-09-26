@@ -7,7 +7,6 @@ import {
   createManualProjectCost,
   deleteManualProjectCost,
   getMissionGroupDetail,
-  getPlannedScope,
   getProjectPlanningContext,
   getProjectDetail,
   getProjectProgress,
@@ -19,9 +18,7 @@ import {
 } from '../../api/acompanhamentoComercial';
 import { listProjectQualityDeviations, type ProjectDeviation } from '../../api/qualidade';
 import { qualityDeviationProjects } from './projectQualityDeviations';
-import { HelpTip } from '../ui/HelpTip';
 import { Modal } from '../ui/Modal';
-import { PortalTip } from '../ui/PortalTip';
 import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
 import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
 import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
@@ -37,16 +34,17 @@ import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
 import { AppIcon } from '../icons/AppIcon';
-import { ArrowLeft, CalendarDays, Factory } from 'lucide-react';
+import { ArrowLeft, CalendarDays } from 'lucide-react';
 import { ProjectDetailPeople } from './ProjectDetailPeople';
-import { ProjectDetailCosts, ProjectDetailTaxes } from './ProjectDetailCosts';
+import { ProjectDetailTaxes } from './ProjectDetailCosts';
 import { ProjectDetailOverview } from './ProjectDetailOverview';
 import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectTimeSnapshot, ProjectTimelineCard } from './ProjectDetailStory';
-import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
-import { MetricBar, WorkedHoursMetric, RequiredWeeklyProgressCard, PlannedScopeView } from './ProjectDetailVisuals';
-import { brl, fmtDate, fmtDateTime, fmtPct, fmtHM, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, DAY_META, type ManualCostFormValues } from './projectDetailModel';
+import { ProjectScopeDailyTable } from './ProjectScopeDailyTable';
+import { brl, fmtDate, fmtDateTime, fmtPct, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from './projectDetailModel';
 import './ProjectDetailDashboard.ds.css';
 import type { AuthUser } from '../../types/auth';
+
+const equipmentNameCollator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
 // Dashboard detalhado de um projeto (aberto ao clicar num card da aba Projetos).
 export function ProjectDetailDashboard({
@@ -109,11 +107,6 @@ export function ProjectDetailDashboard({
   } = useQuery<ProjectManagementNote[]>({
     queryKey: projectNotesKey,
     queryFn: () => listProjectManagementNotes(projectId!),
-    enabled: !isGroup && Boolean(projectId)
-  });
-  const { data: scope, isLoading: scopeLoading, isError: scopeError, refetch: refetchScope } = useQuery({
-    queryKey: ['planned-scope', projectId],
-    queryFn: () => getPlannedScope(projectId!),
     enabled: !isGroup && Boolean(projectId)
   });
   const { data: projectProgress } = useQuery({
@@ -245,23 +238,9 @@ export function ProjectDetailDashboard({
   }
 
   const h = data.header;
-  const equipamentos = data.equipamentos ?? [];
-  const effectiveScope = data.plannedScope ?? scope;
-  const workedHours = data.workedHours ?? {
-    normalWorkedHours: 0,
-    overtimeWorkedHours: 0,
-    totalWorkedHours: 0,
-    plannedTotalHours: null,
-    normalPct: null,
-    overtimePct: null,
-    totalPct: null,
-    roleCounts: []
-  };
-  const progressSuffix = data.avancoMethod === 'MANUAL'
-    ? ' (manual)'
-    : data.avancoMethod === 'GROUP_SCOPE' || data.avancoMethod === 'GROUP_WEIGHTED' || data.avancoMethod === 'GROUP_AVERAGE'
-      ? ' (consolidado)'
-      : '';
+  const equipamentos = [...(data.equipamentos ?? [])].sort((a, b) =>
+    equipmentNameCollator.compare(a.name, b.name) || equipmentNameCollator.compare(a.code ?? '', b.code ?? '')
+  );
   // Avanço por Escopo e/ou equipamento do cliente: o recorte troca o percentual, o ritmo e o
   // histórico. A combinação escolhida aponta para um recorte já calculado pelo backend.
   const progressFilters = isGroup ? null : data.progressFilters ?? null;
@@ -279,6 +258,7 @@ export function ProjectDetailDashboard({
   ].filter(Boolean).join(' · ');
   const shownAvancoPct = selectedProgressSlice ? selectedProgressSlice.avancoPct : data.avancoPct;
   const shownProgressHistory = selectedProgressSlice ? selectedProgressSlice.progressHistory : data.progressHistory;
+  const shownDailyProgressHistory = selectedProgressSlice ? selectedProgressSlice.dailyProgressHistory : data.dailyProgressHistory;
   const shownRequiredWeeklyProgress = selectedProgressSlice ? selectedProgressSlice.requiredWeeklyProgress : data.requiredWeeklyProgress;
   const changeProgressScope = (scopeKey: string) => {
     setProgressScopeKey(scopeKey);
@@ -366,6 +346,7 @@ export function ProjectDetailDashboard({
         progressHistory={shownProgressHistory}
         chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
         target={shownRequiredWeeklyProgress}
+        fallbackProgress={isGroup ? data.progressBreakdown : undefined}
         fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
         filterLabel={progressFilterLabel}
         teamCount={collaborators.length}
@@ -424,216 +405,120 @@ export function ProjectDetailDashboard({
         </Card>
       ) : null}
 
-      <ProjectTimeSnapshot data={data} />
+      <ProjectTimeSnapshot
+        data={data}
+        onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
+        reportsAction={!isGroup && projectId ? (
+          <ProjectReportsDialog projectId={projectId} missionLabel={`Missão ${h.code} · ${h.clientName}`} />
+        ) : null}
+      />
 
       <div className="acp-detail-cols">
-        {/* Prazo, execução e escopo */}
-        <div className="acp-detail-col">
-          <details className="acp-detail-deep-dive">
-            <summary>Conferir cálculo de dias e horas</summary>
-          <Card padding="sm" className="acp-detail-block">
-            <MetricBar
-              label="Dias corridos"
-              help="Dias de calendário desde o início da obra até a data de referência: hoje para projetos em andamento; último RDO para projetos arquivados."
-              value={data.diasCorridos.pct}
-              caption={`${data.diasCorridos.elapsed ?? '—'}/${data.diasCorridos.planned ?? '—'}${data.diasCorridos.pct != null ? ` · ${data.diasCorridos.pct}%` : ''}`}
-            />
-            <MetricBar
-              label="Dias trabalhados"
-              help="Dias com RDO registrado, sobre os dias trabalhados previstos no comercial."
-              value={data.diasTrabalhados.pct}
-              caption={`${data.diasTrabalhados.worked}/${data.diasTrabalhados.planned ?? '—'}${data.diasTrabalhados.pct != null ? ` · ${data.diasTrabalhados.pct}%` : ''}`}
-            />
-            <WorkedHoursMetric data={workedHours} />
-          </Card>
-          </details>
-
-          <Card padding="sm" className="acp-detail-block acp-detail-progress-panel" id="acp-progress">
-            <div className="acp-detail-card-intro"><div><p>Avanço e apontamentos</p><h3>Execução do escopo</h3></div><strong>{fmtPct(shownAvancoPct)}</strong></div>
-            <MetricBar label={`Avanço do escopo${progressFilterLabel ? ` · ${progressFilterLabel}` : progressSuffix}`} value={shownAvancoPct} caption={fmtPct(shownAvancoPct)}
-              help="Quanto do escopo vendido já foi executado: cruza o realizado dos RDOs com o previsto, ponderado pelo peso de cada serviço. O filtro considera apenas as metas e o realizado do recorte escolhido." />
-            <RequiredWeeklyProgressCard key={`${activeScopeKey}|${activeEquipmentKey}`} target={shownRequiredWeeklyProgress} />
-            {!isGroup && projectId ? <details className="acp-detail-progress-breakdown">
-              <summary>Previsto × realizado por equipamento e sistema</summary>
-              <ProjectProgressBreakdown projectId={projectId} canManage={canManage}
-                appearance="design-system"
-                filter={progressFilters ? { scopeKey: activeScopeKey, equipmentKey: activeEquipmentKey } : undefined}
-                progressPct={selectedProgressSlice ? selectedProgressSlice.avancoPct : undefined} />
-            </details> : null}
-
-            <div className="acp-detail-two">
-              <div className="acp-detail-standby-kpi">
-                <span className="acp-detail-kpi-label"><HelpTip help="Número de dias com parada (standby) registrada nos relatórios de execução.">Standby</HelpTip></span>
-                <strong>{data.standby.count}</strong>
-                <span className="acp-detail-kpi-sub">dia(s)</span>
-                {!isGroup ? (
-                  <Button
-                    type="button"
-                    size="sm" variant="secondary" className="acp-detail-standby-trigger"
-                    aria-haspopup="dialog"
-                    data-acp-standby-history-trigger
-                    onClick={() => setStandbyHistoryOpen(true)}
-                  >
-                    Ver histórico
-                  </Button>
-                ) : null}
-              </div>
-              <div><span className="acp-detail-kpi-label"><HelpTip help="Soma das horas-homem de stand-by de todos os relatórios de execução do projeto, multiplicando o tempo pela equipe do turno.">Hora total parada</HelpTip></span><strong>{fmtHM(data.standby.minutes)}</strong></div>
-            </div>
-
-            <div className="acp-detail-sub"><HelpTip help="Status dos dias mais recentes com relatório de execução: verde = trabalhado, amarelo = trabalhado com standby, vermelho = totalmente parado (standby cobrindo a jornada). Passe o mouse para ver as horas.">Últimos dias</HelpTip></div>
-            <div className="acp-detail-dots">
-              {data.ultimosDias.length === 0 ? (
-                <span className="acp-detail-muted">Sem relatórios de execução.</span>
-              ) : data.ultimosDias.map((d, i) => (
-                <PortalTip
-                  key={i}
-                  triggerClassName="acp-detail-dot-wrap"
-                  ariaLabel={`${fmtDate(d.date)}: ${DAY_META[d.status].label}`}
-                  content={(
-                    <>
-                      <div className="acp-detail-tip-date">{fmtDate(d.date)}</div>
-                      <div className="acp-detail-tip-status">
-                        <span className={`acp-detail-tip-dot ${DAY_META[d.status].cls}`} />{DAY_META[d.status].label}
-                      </div>
-                      <div className="acp-detail-tip-row"><span>Trabalhado</span><strong>{fmtHM(d.workedMinutes)}</strong></div>
-                      <div className="acp-detail-tip-row"><span>Standby</span><strong>{fmtHM(d.standbyMinutes)}</strong></div>
-                    </>
-                  )}
-                >
-                  <span className={`acp-detail-dot ${DAY_META[d.status].cls}`} />
-                </PortalTip>
-              ))}
-            </div>
-
-            <div className="acp-detail-two">
-              <div><span className="acp-detail-kpi-label"><HelpTip help="Total de horas extras-homem identificadas nos relatórios de execução do projeto, multiplicando a HE pela equipe do turno.">Horas extras</HelpTip></span><strong>{fmtHM(data.overtimeMinutes)}</strong></div>
-            </div>
-          </Card>
-          <Card padding="sm" className="acp-detail-block">
-            <div className="acp-detail-sub"><HelpTip help="Escopo vendido informado manualmente (aba Cronograma): serviços, sistemas e quantitativos, com o peso de cada serviço no avanço.">Escopo cadastrado</HelpTip></div>
-            {scopeLoading && !data.plannedScope ? <Skeleton height={64} />
-              : scopeError && !data.plannedScope ? <Alert tone="warning" title="Não foi possível carregar o escopo."
-              action={<Button size="sm" variant="secondary" onClick={() => void refetchScope()}>Tentar novamente</Button>} />
-              : <PlannedScopeView scope={effectiveScope} />}
-            {!isGroup && projectId ? (
-              <div className="acp-detail-reports-action">
-                <ProjectReportsDialog
-                  projectId={projectId}
-                  missionLabel={`Missão ${h.code} · ${h.clientName}`}
-                />
-              </div>
-            ) : null}
-          </Card>
-        </div>
-
-
         {/* Custos e impostos */}
         <div className={`acp-detail-col${data.canViewProjectFinancials ? '' : ' is-restricted'}`} id="acp-financial">
           <div className="acp-detail-section-head">
             <p>Financeiro</p><h2>Gastos e retorno</h2>
             <span>Consumo, origem dos custos e impostos do projeto.</span>
           </div>
-          <ProjectFinancialSnapshot data={data} />
-          {data.canViewProjectFinancials ? <ProjectBillingSnapshot data={data} /> : null}
-          <details className="acp-detail-deep-dive acp-detail-deep-dive--costs">
-            <summary>Detalhar despesas, lançamentos e maiores gastos</summary>
-          <ProjectDetailCosts data={data}>
-                    {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
-                    <div className="acp-detail-manual-costs" data-acp-manual-costs>
-                      <div className="acp-detail-manual-costs-head">
-                        <div className="acp-detail-sub">Custos manuais</div>
-                        {canAddManualCost ? (
-                          <Button
-                            type="button"
-                            size="sm" variant="secondary" className="acp-detail-manual-cost-toggle"
-                            aria-controls="acp-manual-cost-form"
-                            aria-expanded={manualCostFormOpen}
-                            data-acp-manual-cost-add
-                            onClick={manualCostFormOpen ? closeManualCostForm : openManualCostForm}
-                          >
-                            {manualCostFormOpen ? 'Cancelar' : 'Adicionar custo'}
-                          </Button>
-                        ) : null}
-                      </div>
-                      {manualCosts.length > 0 ? (
-                        <ul className="acp-detail-manual-cost-list">
-                          {manualCosts.map(cost => (
-                            <li key={cost.id}>
-                              <div>
-                                <strong>{cost.description}</strong>
-                                <span>
-                                  {isGroup && cost.projectCode ? `Missão ${cost.projectCode} · ` : ''}
-                                  {fmtDate(cost.costDate ?? cost.createdAt)}
-                                  {cost.createdBy?.name ? ` · ${cost.createdBy.name}` : ''}
-                                </span>
-                                {cost.note ? <em>{cost.note}</em> : null}
-                              </div>
-                              <div className="acp-detail-manual-cost-actions">
-                                <strong>{brl(cost.amount)}</strong>
-                                {canManageManualCosts ? (
-                                  <Button
-                                    type="button"
-                                    size="sm" variant="danger"
-                                    disabled={deleteManualCostMutation.isPending && deletingManualCostId === cost.id}
-                                    onClick={() => deleteManualCostMutation.mutate(cost)}
-                                  >
-                                    {deleteManualCostMutation.isPending && deletingManualCostId === cost.id ? 'Removendo…' : 'Excluir'}
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div className="acp-detail-muted">Nenhum custo manual lançado.</div>
-                      )}
-                      {manualCostError ? <Alert tone="danger">{manualCostError}</Alert> : null}
-
-                      {canAddManualCost && manualCostFormOpen ? (
-                        <form id="acp-manual-cost-form" className="acp-detail-manual-cost-form" onSubmit={submitManualCost}>
-                          <Field id="acp-manual-cost-description" label="Descrição" required errorText={errors.description?.message}>
-                            <Input {...register('description')} maxLength={120} />
-                          </Field>
-                          <Field id="acp-manual-cost-amount" label="Valor" required errorText={errors.amount?.message}>
-                            <Controller
-                              name="amount"
-                              control={control}
-                              render={({ field }) => (
-                                <Input
-                                  name={field.name}
-                                  ref={field.ref}
-                                  value={field.value}
-                                  type="text"
-                                  inputMode="numeric"
-                                  autoComplete="off"
-                                  aria-invalid={Boolean(errors.amount)}
-                                  required
-                                  onBlur={field.onBlur}
-                                  onChange={event => field.onChange(formatBrlCurrencyInput(event.target.value))}
-                                />
-                              )}
-                            />
-                            </Field>
-                          <Field id="acp-manual-cost-date" label="Data" errorText={errors.costDate?.message}>
-                            <Input {...register('costDate')} type="date" />
-                          </Field>
-                          <Field id="acp-manual-cost-note" label="Observação" className="acp-detail-form-wide" errorText={errors.note?.message}>
-                            <Textarea {...register('note')} maxLength={500} rows={3} />
-                          </Field>
-                          <div className="acp-detail-actions acp-detail-form-wide">
-                            <Button type="submit" size="sm" variant="primary" disabled={createManualCostMutation.isPending}>
-                              {createManualCostMutation.isPending ? 'Salvando…' : 'Adicionar custo'}
-                            </Button>
-                          </div>
-                        </form>
-                      ) : null}
-                    </div>
+          <ProjectFinancialSnapshot data={data}>
+            {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
+              <div className="acp-detail-manual-costs" data-acp-manual-costs>
+                <div className="acp-detail-manual-costs-head">
+                  <div className="acp-detail-sub">Custos manuais</div>
+                  {canAddManualCost ? (
+                    <Button
+                      type="button"
+                      size="sm" variant="secondary" className="acp-detail-manual-cost-toggle"
+                      aria-controls="acp-manual-cost-form"
+                      aria-expanded={manualCostFormOpen}
+                      data-acp-manual-cost-add
+                      onClick={manualCostFormOpen ? closeManualCostForm : openManualCostForm}
+                    >
+                      {manualCostFormOpen ? 'Cancelar' : 'Adicionar custo'}
+                    </Button>
                   ) : null}
-          </ProjectDetailCosts>
-          </details>
+                </div>
+                {manualCosts.length > 0 ? (
+                  <ul className="acp-detail-manual-cost-list">
+                    {manualCosts.map(cost => (
+                      <li key={cost.id}>
+                        <div>
+                          <strong>{cost.description}</strong>
+                          <span>
+                            {isGroup && cost.projectCode ? `Missão ${cost.projectCode} · ` : ''}
+                            {fmtDate(cost.costDate ?? cost.createdAt)}
+                            {cost.createdBy?.name ? ` · ${cost.createdBy.name}` : ''}
+                          </span>
+                          {cost.note ? <em>{cost.note}</em> : null}
+                        </div>
+                        <div className="acp-detail-manual-cost-actions">
+                          <strong>{brl(cost.amount)}</strong>
+                          {canManageManualCosts ? (
+                            <Button
+                              type="button"
+                              size="sm" variant="danger"
+                              disabled={deleteManualCostMutation.isPending && deletingManualCostId === cost.id}
+                              onClick={() => deleteManualCostMutation.mutate(cost)}
+                            >
+                              {deleteManualCostMutation.isPending && deletingManualCostId === cost.id ? 'Removendo…' : 'Excluir'}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="acp-detail-muted">Nenhum custo manual lançado.</div>
+                )}
+                {manualCostError ? <Alert tone="danger">{manualCostError}</Alert> : null}
 
-          {data.canViewProjectFinancials ? <ProjectDetailTaxes data={data} /> : null}
+                {canAddManualCost && manualCostFormOpen ? (
+                  <form id="acp-manual-cost-form" className="acp-detail-manual-cost-form" onSubmit={submitManualCost}>
+                    <Field id="acp-manual-cost-description" label="Descrição" required errorText={errors.description?.message}>
+                      <Input {...register('description')} maxLength={120} />
+                    </Field>
+                    <Field id="acp-manual-cost-amount" label="Valor" required errorText={errors.amount?.message}>
+                      <Controller
+                        name="amount"
+                        control={control}
+                        render={({ field }) => (
+                          <Input
+                            name={field.name}
+                            ref={field.ref}
+                            value={field.value}
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            aria-invalid={Boolean(errors.amount)}
+                            required
+                            onBlur={field.onBlur}
+                            onChange={event => field.onChange(formatBrlCurrencyInput(event.target.value))}
+                          />
+                        )}
+                      />
+                    </Field>
+                    <Field id="acp-manual-cost-date" label="Data" errorText={errors.costDate?.message}>
+                      <Input {...register('costDate')} type="date" />
+                    </Field>
+                    <Field id="acp-manual-cost-note" label="Observação" className="acp-detail-form-wide" errorText={errors.note?.message}>
+                      <Textarea {...register('note')} maxLength={500} rows={3} />
+                    </Field>
+                    <div className="acp-detail-actions acp-detail-form-wide">
+                      <Button type="submit" size="sm" variant="primary" disabled={createManualCostMutation.isPending}>
+                        {createManualCostMutation.isPending ? 'Salvando…' : 'Adicionar custo'}
+                      </Button>
+                    </div>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
+          </ProjectFinancialSnapshot>
+          {data.canViewProjectFinancials ? (
+            <div className="acp-detail-financial-side">
+              <ProjectBillingSnapshot data={data} />
+              <ProjectDetailTaxes data={data} />
+            </div>
+          ) : null}
         </div>
 
       </div>
@@ -648,11 +533,14 @@ export function ProjectDetailDashboard({
       <div className={`acp-detail-quality-grid${isGroup ? ' is-group' : ''}`}>
       {deviationProjects.length > 0 ? (
         <Card padding="sm" className="acp-detail-block acp-detail-deviations" data-quality-project-deviations>
-          <div className="acp-detail-deviations-head">
-            <div className="acp-detail-sub">Desvios</div>
-            <a className="acp-detail-link" href="/qualidade?tab=registros">Abrir Qualidade</a>
-          </div>
-          <div className={`quality-deviation-projects${isGroup ? ' is-grouped' : ''}`}>
+          <details className="acp-detail-deviations-details" open>
+            <summary className="acp-detail-summary">Desvios</summary>
+            <div className="acp-detail-deviations-toolbar">
+              <a className="fv-button fv-button--secondary fv-button--sm" href="/qualidade?tab=registros">
+                <span className="fv-button__label">Abrir Qualidade</span>
+              </a>
+            </div>
+            <div className={`quality-deviation-projects${isGroup ? ' is-grouped' : ''}`}>
           {deviationProjects.map((deviationProject, projectIndex) => {
             const deviationQuery = qualityDeviationQueries[projectIndex];
             const deviations: ProjectDeviation[] = deviationQuery?.data ?? [];
@@ -746,7 +634,8 @@ export function ProjectDetailDashboard({
           )}
           </section>;
           })}
-          </div>
+            </div>
+          </details>
         </Card>
       ) : null}
 
@@ -816,15 +705,25 @@ export function ProjectDetailDashboard({
           {equipamentos.length === 0 ? (
             <div className="acp-detail-muted">Nenhum equipamento em obra.</div>
           ) : (
-            <div className="acp-detail-equips-grid">
-              {equipamentos.map((e, i) => (
-                <div className="acp-detail-equip-item" key={`${e.name}-${i}`}>
-                  <span className="acp-detail-equip-icon"><AppIcon icon={Factory} size="sm" /></span>
-                  <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
-                  <strong>{e.days} dia{e.days === 1 ? '' : 's'}</strong>
-                  <small>desde {fmtDate(e.since)}</small>
-                </div>
-              ))}
+            <div className="acp-detail-equips-table-wrap">
+              <table className="acp-detail-equips-table">
+                <caption className="sr-only">Equipamentos na obra</caption>
+                <thead><tr>
+                  <th scope="col">Equipamento</th>
+                  <th scope="col">Tempo na obra</th>
+                  <th scope="col">Desde</th>
+                </tr></thead>
+                <tbody>{equipamentos.map((equipment, index) => (
+                  <tr key={`${equipment.code ?? equipment.name}-${index}`}>
+                    <th scope="row">
+                      {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                      <span>{equipment.name}</span>
+                    </th>
+                    <td>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
+                    <td>{fmtDate(equipment.since)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
             </div>
           )}
         </details>
@@ -840,6 +739,8 @@ export function ProjectDetailDashboard({
 
       <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators} onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} />
 
+      <ProjectScopeDailyTable points={shownDailyProgressHistory} filterLabel={progressFilterLabel} />
+
     </div>
 
       {/* Diálogos de apoio compartilhados permanecem no lote A4. */}
@@ -854,6 +755,7 @@ export function ProjectDetailDashboard({
         collaborator={hoursDetail?.collaborator ?? null}
         source={hoursDetail?.source}
         isGroup={isGroup}
+        onSourceChange={source => setHoursDetail(current => current ? { ...current, source } : null)}
         onClose={() => setHoursDetail(null)}
       />
 

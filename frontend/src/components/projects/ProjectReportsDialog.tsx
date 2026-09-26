@@ -12,6 +12,7 @@ import { ReportSummaryCard } from '../reports/ReportSummaryCard';
 import { Modal } from '../ui/Modal';
 import { Button, EmptyState, Skeleton } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
+import './ProjectReportsDialog.css';
 
 const REPORT_PAGE_SIZE = 30;
 const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer').then(module => ({ default: module.PdfCanvasViewer })));
@@ -98,7 +99,7 @@ export function ProjectReportsDialog({
         className="acp-mission-reports-trigger"
         onClick={() => setOpen(true)}
       >
-        Relatórios da missão
+        Ver relatórios
       </Button>
       <Modal
         open={open && !pdfPreview}
@@ -128,9 +129,9 @@ export function ProjectReportsDialog({
             ) : (
               <GroupedReportList
                 appearance="design-system"
+                defaultTypeCollapsed
                 reports={reportsQuery.items}
                 archived={false}
-                storageKey={`acp-mission-reports:${user?.id || user?.username || 'anonymous'}:${projectId}`}
                 onLoadMoreType={reportsQuery.loadMoreGroup}
                 onEnsureTypePage={reportsQuery.ensureGroupPage}
                 isTypePageReady={reportsQuery.isGroupPageReady}

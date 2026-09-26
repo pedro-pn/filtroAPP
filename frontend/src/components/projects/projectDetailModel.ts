@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { z } from 'zod';
 import type { Resolver } from 'react-hook-form';
-import type { BudgetBreakdownSlice, DayStatus, ManualProjectCostPayload } from '../../api/acompanhamentoComercial';
+import type { BudgetBreakdownSlice, DayStatus, ManualProjectCostPayload, RequiredWeeklyProgress } from '../../api/acompanhamentoComercial';
 
 export const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -11,6 +11,33 @@ export const SERVICE_LABELS: Record<string, string> = {
 };
 export const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo' };
 export const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+
+export function physicalUnit(systemType: string, unit?: string | null) {
+  const bySystem: Record<string, string> = { TUBULACAO: 'M', SISTEMA: 'UN', OLEO: 'L' };
+  return bySystem[systemType] ?? unit ?? null;
+}
+
+export function physicalQuantityLabel(unit: string) {
+  return unit === 'UN' ? 'unidades' : unit === 'L' ? 'L de óleo' : UNIT_LABELS[unit] ?? unit;
+}
+
+export function weeklyPhysicalProgress(target?: RequiredWeeklyProgress) {
+  if (!target) return 'Sem meta calculada';
+  if (target.status === 'COMPLETED') return 'Meta concluída';
+  if (target.status === 'OVERDUE') return 'Prazo vencido';
+  if (target.status === 'DUE_TODAY') return 'Concluir hoje';
+  const byUnit = new Map<string, number>();
+  for (const service of target.services ?? []) {
+    for (const system of service.systems ?? []) {
+      const unit = physicalUnit(system.systemType, system.unit);
+      if (!unit || system.requiredQtyPerWeek == null) continue;
+      byUnit.set(unit, (byUnit.get(unit) ?? 0) + system.requiredQtyPerWeek);
+    }
+  }
+  return byUnit.size
+    ? [...byUnit].map(([unit, quantity]) => `${quantity.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${physicalQuantityLabel(unit)}/semana`).join(' · ')
+    : 'Sem meta física calculada';
+}
 export const QUALITY_IMPACT_LABELS: Record<string, string> = { ALTO: 'Alto', MEDIO: 'Médio', BAIXO: 'Baixo' };
 export const QUALITY_STATUS_LABELS: Record<string, string> = {
   ABERTO: 'Aberto',

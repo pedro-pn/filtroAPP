@@ -252,20 +252,12 @@ export function buildRequiredWeeklyProgress(progress, {
   const endKey = toDateKey(expectedEndDate);
   const referenceKey = toDateKey(referenceDate);
   const startKey = toDateKey(startDate);
-  if (!endKey || !referenceKey) {
-    return {
-      status: 'UNAVAILABLE',
-      remainingDays: null,
-      remainingPctPoints: null,
-      requiredPctPointsPerWeek: null,
-      services: []
-    };
-  }
-
-  const effectiveReferenceKey = startKey && dateMs(referenceKey) < dateMs(startKey) ? startKey : referenceKey;
-  const remainingDays = Math.round((dateMs(endKey) - dateMs(effectiveReferenceKey)) / 86400000);
+  const effectiveReferenceKey = referenceKey && startKey && dateMs(referenceKey) < dateMs(startKey) ? startKey : referenceKey;
+  const remainingDays = endKey && effectiveReferenceKey
+    ? Math.round((dateMs(endKey) - dateMs(effectiveReferenceKey)) / 86400000)
+    : null;
   const progressPct = num(progress?.progressPct);
-  const remainingPctPoints = progressPct === null ? null : round(Math.max(100 - progressPct, 0));
+  const remainingPctPoints = remainingDays === null || progressPct === null ? null : round(Math.max(100 - progressPct, 0));
   const status = remainingPctPoints === null
     ? 'UNAVAILABLE'
     : weeklyTargetStatus(remainingPctPoints, remainingDays);
@@ -282,7 +274,7 @@ export function buildRequiredWeeklyProgress(progress, {
       const remainingQty = plannedQty === null
         ? null
         : round(Math.max(plannedQty - (realizedQty ?? 0), 0), 2);
-      const systemStatus = remainingQty === null
+      const systemStatus = remainingQty === null || remainingDays === null
         ? 'UNAVAILABLE'
         : weeklyTargetStatus(remainingQty, remainingDays);
       return {
@@ -369,9 +361,54 @@ function buildProgressTimeline(plannedServices, serviceReports) {
     for (const service of servicesByDate.get(date) ?? []) {
       addRealizedService(realizedByType, service, service.canonical);
     }
-    points.push({ date, progressPct: buildProgress(plannedServices, realizedByType).progressPct });
+    const progress = buildProgress(plannedServices, realizedByType);
+    points.push({
+      date,
+      progressPct: progress.progressPct,
+      services: progress.services.map(service => {
+        const quantitiesByUnit = new Map();
+        for (const system of service.systems ?? []) {
+          const unit = { TUBULACAO: 'M', SISTEMA: 'UN', OLEO: 'L' }[system.systemType] ?? system.unit;
+          if (!unit || system.realizedQty == null) continue;
+          quantitiesByUnit.set(unit, (quantitiesByUnit.get(unit) ?? 0) + Number(system.realizedQty));
+        }
+        return {
+          serviceType: service.serviceType,
+          progressPct: service.executionPct,
+          quantities: [...quantitiesByUnit].map(([unit, realizedQty]) => ({ unit, realizedQty: round(realizedQty, 2) }))
+        };
+      })
+    });
   }
   return { points, realizedByType };
+}
+
+// Mantém cada data de execução para a tabela diária. O histórico manual não possui
+// detalhamento por serviço; lançamentos repetidos na mesma data usam o último valor.
+export function buildDailyProgressHistory(plannedServices = [], serviceReports = [], {
+  manualProgressPct = null,
+  manualProgressHistory = [],
+  currentDate = new Date()
+} = {}) {
+  if (hasMeasurableScope(plannedServices)) {
+    return buildProgressTimeline(plannedServices, serviceReports).points
+      .filter(point => point.progressPct !== null);
+  }
+  const byDate = new Map();
+  for (const point of manualProgressHistory ?? []) {
+    const date = toDateKey(point?.recordedAt ?? point?.date);
+    const progressPct = num(point?.progressPct);
+    if (date && progressPct !== null) byDate.set(date, { date, progressPct });
+  }
+  const current = num(manualProgressPct);
+  if (current !== null) {
+    const latest = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+    if (!latest || round(latest.progressPct) !== round(current)) {
+      const date = toDateKey(currentDate);
+      if (date) byDate.set(date, { date, progressPct: current });
+    }
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function weeklyHistory(points, startDate) {
@@ -461,7 +498,11 @@ export function buildProgressSlices(plannedServices, serviceReports, { startDate
     lookup: split.lookup,
     slices: split.entries.map(({ services }) => {
       const { points, realizedByType } = buildProgressTimeline(services, serviceReports);
-      return { progress: buildProgress(services, realizedByType), progressHistory: weeklyHistory(points, startDate) };
+      return {
+        progress: buildProgress(services, realizedByType),
+        progressHistory: weeklyHistory(points, startDate),
+        dailyProgressHistory: points.filter(point => point.progressPct !== null)
+      };
     })
   };
 }
@@ -712,12 +753,20 @@ export async function computeProgressDetailsForProjects(projectIds) {
           manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
           currentDate: project.updatedAt ?? new Date()
         });
+    const dailyProgressHistory = hasMeasurableScope(planned)
+      ? timeline.points.filter(point => point.progressPct !== null)
+      : buildDailyProgressHistory(planned, serviceReports, {
+          manualProgressPct: project.manualProgressPct,
+          manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
+          currentDate: project.updatedAt ?? new Date()
+        });
 
     result.set(projectId, {
       project,
       plannedServices: planned,
       progress,
       progressHistory,
+      dailyProgressHistory,
       progressSlices: buildProgressSlices(planned, serviceReports, { startDate: project.startDate })
     });
   }

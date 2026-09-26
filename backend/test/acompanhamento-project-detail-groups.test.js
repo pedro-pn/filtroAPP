@@ -64,6 +64,7 @@ function detail(overrides = {}) {
     manualCosts: overrides.manualCosts ?? [],
     avancoPct: overrides.avancoPct ?? 50,
     progressHistory: overrides.progressHistory ?? [],
+    dailyProgressHistory: overrides.dailyProgressHistory ?? [],
     standby: overrides.standby ?? { count: 1, minutes: 60 },
     ultimosDias: overrides.ultimosDias ?? [
       { date: '2026-07-09', status: 'TRABALHADO', workedMinutes: 480, standbyMinutes: 0 }
@@ -95,6 +96,35 @@ function detail(overrides = {}) {
     }
   };
 }
+
+test('histórico diário agrupado preserva quantidades físicas de cada missão', () => {
+  const grouped = groupProjectDetails(group(), [
+    {
+      projectId: 'p1', member: group().members[0], detail: detail({
+        dailyProgressHistory: [
+          { date: '2026-07-01', progressPct: 10, services: [{ serviceType: 'LIMPEZA_QUIMICA', quantities: [{ unit: 'M', realizedQty: 100 }] }] },
+          { date: '2026-07-03', progressPct: 30, services: [{ serviceType: 'LIMPEZA_QUIMICA', quantities: [{ unit: 'M', realizedQty: 150 }] }] }
+        ]
+      })
+    },
+    {
+      projectId: 'p2', member: group().members[1], detail: detail({
+        dailyProgressHistory: [
+          { date: '2026-07-02', progressPct: 20, services: [{ serviceType: 'FILTRAGEM', quantities: [{ unit: 'L', realizedQty: 20 }] }] }
+        ]
+      })
+    }
+  ]);
+  assert.deepEqual(grouped.dailyProgressHistory.map(point => point.date), ['2026-07-01', '2026-07-02', '2026-07-03']);
+  assert.deepEqual(grouped.dailyProgressHistory[1].services.map(service => [service.serviceType, service.quantities]), [
+    ['LIMPEZA_QUIMICA', [{ unit: 'M', realizedQty: 100 }]],
+    ['FILTRAGEM', [{ unit: 'L', realizedQty: 20 }]]
+  ]);
+  assert.deepEqual(grouped.dailyProgressHistory[2].services.map(service => [service.serviceType, service.quantities]), [
+    ['LIMPEZA_QUIMICA', [{ unit: 'M', realizedQty: 150 }]],
+    ['FILTRAGEM', [{ unit: 'L', realizedQty: 20 }]]
+  ]);
+});
 
 test('grupo mantém RDOs das duas missões e considera somente a maior jornada por data', () => {
   const first = { id: 'r1', tipo: 'RDO', numero: 7, projetoId: 'p1', projetoCodigo: '1001', horas: 8 };
@@ -413,6 +443,33 @@ test('groupProjectDetails compares grouped client by CNPJ and recalculates physi
   assert.equal(result.header.clientName, 'Cliente Matriz');
   assert.equal(result.avancoMethod, 'GROUP_SCOPE');
   assert.equal(result.avancoPct, 70);
+});
+
+test('grupo entrega avanço por equipamento em unidades junto ao escopo em metros', () => {
+  const g = group();
+  const units = {
+    serviceType: 'LIMPEZA_QUIMICA', weight: 1, executionPct: 40,
+    systems: [{ projectSystemId: 's1', equipment: 'Bomba de alimentação', systemName: 'Circuito A',
+      systemType: 'SISTEMA', unit: null, plannedQty: 5, realizedQty: 2, pct: 40 }]
+  };
+  const meters = {
+    serviceType: 'LIMPEZA_QUIMICA', weight: 1, executionPct: 50,
+    systems: [{ systemType: 'TUBULACAO', unit: 'M', plannedQty: 100, realizedQty: 50, pct: 50 }]
+  };
+  const result = groupProjectDetails(g, [
+    { projectId: 'p1', member: g.members[0], detail: detail(), progress: {
+      hasScope: true, progressPct: 40, services: [units], scopeGroups: [{ scopeName: 'Unidades', services: [units] }]
+    } },
+    { projectId: 'p2', member: g.members[1], detail: detail(), progress: {
+      hasScope: true, progressPct: 50, services: [meters], scopeGroups: [{ scopeName: 'Tubulação', services: [meters] }]
+    } }
+  ]);
+
+  assert.deepEqual(result.progressBreakdown.scopeGroups.map(scope => scope.scopeName), ['Unidades', 'Tubulação']);
+  assert.deepEqual(result.progressBreakdown.services[0].systems.map(system => [system.equipment, system.realizedQty, system.plannedQty, system.pct]), [
+    ['Bomba de alimentação', 2, 5, 40],
+    [undefined, 50, 100, 50]
+  ]);
 });
 
 test('grouped planned scope preserves the umbrella name instead of merging equal service types across scopes', () => {

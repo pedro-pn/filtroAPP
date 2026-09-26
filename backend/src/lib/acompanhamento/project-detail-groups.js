@@ -42,6 +42,47 @@ function progressContributionWeightSafe(progress) {
   return progressContributionWeight(progress);
 }
 
+function combineDailyProgressHistory(details) {
+  const combined = combineProgressHistory(details.map(({ detail, progress }) => ({
+    progressHistory: detail.dailyProgressHistory,
+    progressWeight: progressContributionWeightSafe(progress),
+    plannedCost: detail.consumo?.previsto,
+    salePrice: detail.faturamento?.previsto
+  })));
+  const memberHistories = details.map(({ detail }) => (detail.dailyProgressHistory ?? [])
+    .filter(point => typeof point.date === 'string')
+    .sort((a, b) => a.date.localeCompare(b.date)));
+
+  return combined.map(({ date, progressPct }) => {
+    const byService = new Map();
+    for (const history of memberHistories) {
+      let latest = null;
+      for (const point of history) {
+        if (point.date.slice(0, 10) > date) break;
+        latest = point;
+      }
+      for (const service of latest?.services ?? []) {
+        const quantities = byService.get(service.serviceType) ?? new Map();
+        for (const quantity of service.quantities ?? []) {
+          const realizedQty = toNumber(quantity.realizedQty);
+          if (!quantity.unit || realizedQty === null) continue;
+          quantities.set(quantity.unit, (quantities.get(quantity.unit) ?? 0) + realizedQty);
+        }
+        byService.set(service.serviceType, quantities);
+      }
+    }
+    return {
+      date,
+      progressPct,
+      services: [...byService].map(([serviceType, quantities]) => ({
+        serviceType,
+        progressPct: null,
+        quantities: [...quantities].map(([unit, realizedQty]) => ({ unit, realizedQty: round2(realizedQty) }))
+      }))
+    };
+  });
+}
+
 function memberSummary(member, detail) {
   const project = member.project ?? {};
   return {
@@ -480,12 +521,14 @@ export function groupProjectDetails(group, memberDetails = []) {
     maioresGastos: combineTopExpenses(details),
     manualCosts: details.flatMap(item => item.detail.manualCosts ?? []),
     avancoPct: progress.progressPct,
+    progressBreakdown: groupedScopeProgress,
     progressHistory: combineProgressHistory(details.map(({ detail, progress }) => ({
       progressHistory: detail.progressHistory,
       progressWeight: progressContributionWeightSafe(progress),
       plannedCost: detail.consumo?.previsto,
       salePrice: detail.faturamento?.previsto
     }))),
+    dailyProgressHistory: combineDailyProgressHistory(details),
     standby: {
       count: sumValues(details, item => item.detail.standby?.count, { nullWhenEmpty: false }),
       minutes: sumValues(details, item => item.detail.standby?.minutes, { nullWhenEmpty: false })
