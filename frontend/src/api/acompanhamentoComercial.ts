@@ -301,6 +301,13 @@ export async function renameMissionGroup(groupId: string, name: string): Promise
   return data;
 }
 
+export async function renameProjectCard(projectId: string, name: string): Promise<{ projectId: string; cardName: string | null }> {
+  const { data } = await apiClient.patch<{ projectId: string; cardName: string | null }>(
+    `/acompanhamento/comercial/projetos/${projectId}/card-name`, { name }
+  );
+  return data;
+}
+
 export async function updateMissionGroupLaborPolicy(
   groupId: string,
   payload: {
@@ -688,6 +695,7 @@ export interface ProjectCard {
   projectId: string;
   code: string;
   name: string;
+  cardName?: string | null;
   clientName: string;
   clientCnpj?: string | null;
   archived: boolean;

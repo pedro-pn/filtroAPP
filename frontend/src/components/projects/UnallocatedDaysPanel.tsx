@@ -6,7 +6,7 @@ import {
   resolveUnallocatedDays,
   type UnallocatedBlock
 } from '../../api/acompanhamentoPonto';
-import { Button } from '../ui/Button';
+import { Button, Field, Input, Select } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 import { allocationReasonLabel, fmtDayDate, fmtHours } from './allocationReasons';
 
@@ -128,14 +128,12 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
       </p>
 
       <div className="ponto-filter-row">
-        <div className="field-group">
-          <label htmlFor="ponto-unalloc-de">De</label>
-          <input id="ponto-unalloc-de" type="date" value={de} onChange={event => setDe(event.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="ponto-unalloc-ate">Até</label>
-          <input id="ponto-unalloc-ate" type="date" value={ate} onChange={event => setAte(event.target.value)} />
-        </div>
+        <Field label="De" optionalText="">
+          <Input type="date" value={de} onChange={event => setDe(event.target.value)} />
+        </Field>
+        <Field label="Até" optionalText="">
+          <Input type="date" value={ate} onChange={event => setAte(event.target.value)} />
+        </Field>
         {totalDays > 0 ? (
           <span className="placeholder-copy">{fmtHours(totalHours)} em {blocks.length} bloco(s)</span>
         ) : null}
@@ -196,7 +194,7 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
                       {day.tags.length ? ` · ${day.tags.join(' | ')}` : ' · sem etiqueta'}
                       {selected ? (
                         <Button
-                          variant="mini"
+                          variant="secondary" size="sm"
                           disabled={busy}
                           onClick={() => resolveMutation.mutate([{
                             collaboratorId: block.collaboratorId,
@@ -212,10 +210,8 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
                 </ul>
               ) : null}
             </div>
-            <div className="field-group">
-              <label htmlFor={`ponto-unalloc-${encodeURIComponent(key)}`}>Alocar em</label>
-              <select
-                id={`ponto-unalloc-${encodeURIComponent(key)}`}
+            <Field label="Alocar em" optionalText="">
+              <Select
                 value={selected}
                 onChange={event => setSelection(previous => ({ ...previous, [key]: event.target.value }))}
               >
@@ -223,10 +219,10 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
                 {projects.map(project => (
                   <option key={project.id} value={project.id}>{projectOptionLabel(project)}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
             <Button
-              variant="mini"
+              variant="secondary" size="sm"
               disabled={!selected || busy}
               onClick={() => resolveMutation.mutate(block.days.map(day => ({
                 collaboratorId: block.collaboratorId,

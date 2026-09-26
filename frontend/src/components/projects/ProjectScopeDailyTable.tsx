@@ -21,6 +21,18 @@ function totalLabel(unit: string) {
   return `Total (${physicalQuantityLabel(unit)})`;
 }
 
+function mobileTotalLabel(unit: string) {
+  if (unit === 'M') return 'Metros executados';
+  if (unit === 'UN') return 'Unidades executadas';
+  if (unit === 'L') return 'Óleo filtrado';
+  return `Produção (${physicalQuantityLabel(unit)})`;
+}
+
+function mobileQuantity(value: number, unit: string) {
+  if (unit === 'UN') return `${formatQuantity(value)} ${value === 1 ? 'unidade' : 'unidades'}`;
+  return `${formatQuantity(value)} ${unit === 'L' ? 'L' : physicalQuantityLabel(unit)}`;
+}
+
 function quantityFor(point: DailyProgressPoint | undefined, serviceType: string, unit: string) {
   return point?.services?.find(service => service.serviceType === serviceType)
     ?.quantities?.find(quantity => quantity.unit === unit)?.realizedQty;
@@ -93,21 +105,44 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
             </table>
           </div>
           <div className="acp-scope-daily__mobile" aria-label="Avanço diário em cartões">
-            {rows.map(({ point, services, totals }) => <article key={point.date}>
-              <div className="acp-scope-daily__mobile-head">
-                <span>{formatDateOnlyPtBr(point.date)} · {weekdayFormatter.format(validDate(point.date)!)}</span>
-                <strong>Acumulado {fmtPct(point.progressPct)}</strong>
-              </div>
-              {totals.map((value, index) => <p key={units[index]}>{totalLabel(units[index])}
-                <strong>{value == null ? '—' : `${formatQuantity(value)} ${physicalQuantityLabel(units[index])}`}</strong>
-              </p>)}
-              {measures.length > 0 ? <div className="acp-scope-daily__services">
-                {measures.map(({ serviceType, unit }, index) => <span key={`${serviceType}:${unit}`}>
-                  <b>{SERVICE_LABELS[serviceType] ?? serviceType}</b>
-                  {services[index] == null ? '—' : `${formatQuantity(services[index])} ${physicalQuantityLabel(unit)}`}
-                </span>)}
-              </div> : null}
-            </article>)}
+            {rows.map(({ point, services, totals }) => {
+              const dailyTotals = totals.flatMap((value, index) => value == null ? [] : [{ unit: units[index], value }]);
+              const dailyServices = measures.flatMap((measure, index) => {
+                const value = services[index];
+                return value == null ? [] : [{ ...measure, value }];
+              });
+              const splitUnits = new Set(units.filter(unit => dailyServices.filter(service => service.unit === unit).length > 1));
+              const splitServices = dailyServices.filter(service => splitUnits.has(service.unit));
+              return <article key={point.date}>
+                <header className="acp-scope-daily__mobile-head">
+                  <div><time dateTime={point.date.slice(0, 10)}>{formatDateOnlyPtBr(point.date)}</time>
+                    <span>{weekdayFormatter.format(validDate(point.date)!)}</span></div>
+                  <div className="acp-scope-daily__mobile-progress">
+                    <span>Avanço acumulado</span><strong>{fmtPct(point.progressPct)}</strong>
+                  </div>
+                </header>
+                <div className="acp-scope-daily__mobile-production">
+                  <span className="acp-scope-daily__mobile-label">Executado no dia</span>
+                  {dailyTotals.length ? <div className="acp-scope-daily__mobile-metrics">
+                    {dailyTotals.map(({ unit, value }) => {
+                      const activeServices = dailyServices.filter(service => service.unit === unit);
+                      return <div className="acp-scope-daily__mobile-metric" key={unit}>
+                        <span>{mobileTotalLabel(unit)}</span>
+                        <strong>{mobileQuantity(value, unit)}</strong>
+                        {activeServices.length === 1 ? <small>{SERVICE_LABELS[activeServices[0].serviceType] ?? activeServices[0].serviceType}</small> : null}
+                      </div>;
+                    })}
+                  </div> : <p className="acp-scope-daily__mobile-empty">Sem produção física medida neste dia.</p>}
+                </div>
+                {splitServices.length ? <details className="acp-scope-daily__mobile-breakdown">
+                  <summary>Ver por serviço</summary>
+                  <dl>{splitServices.map(({ serviceType, unit, value }) => <div key={`${serviceType}:${unit}`}>
+                    <dt>{SERVICE_LABELS[serviceType] ?? serviceType}</dt>
+                    <dd>{mobileQuantity(value, unit)}</dd>
+                  </div>)}</dl>
+                </details> : null}
+              </article>;
+            })}
           </div>
         </>}
       </div>

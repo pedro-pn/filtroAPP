@@ -52,15 +52,31 @@ test('cards de acompanhamento preservam informações, ações e agrupamentos no
     });
     await t.test('grupos conservam membros e políticas, com renomeação inline acessível', () => {
       const group = { ...card, kind: 'GROUP', groupId: 'g1', code: 'Grupo', members: [{ projectId: 'p1', code: '4069', name: 'Missão original', progressPct: 50 }], laborAllocationMode: 'CONSOLIDATE_PRIMARY', primaryLaborProjectId: 'p1' };
-      const html = render({ card: group, canManageGroups: true });
+      const html = render({ card: group, canManageGroups: true, onStartRename() {} });
       assert.match(html, /Missão original/); assert.match(html, /Missão principal/);
       assert.match(html, /Repetir jornada em cada missão/); assert.match(html, /Desmesclar/);
+      assert.match(html, /data-acp-card-rename-title/);
+      assert.match(html, /data-acp-group-rename-start/);
+      assert.match(html, /class="acp-project__title-edit"[^>]*aria-label="Editar nome do card: Grupo"/);
       assert.doesNotMatch(html, /type="checkbox"/);
       assert.doesNotMatch(render({ card: group }), /<select/);
+      assert.doesNotMatch(render({ card: group, canManageGroups: false, onStartRename() {} }), /data-acp-card-rename-title/);
       const renaming = render({ card: group, canManageGroups: true, renaming: true, renameValue: '', renameError: 'Informe um nome.' });
       assert.match(renaming, /maxLength="120"/i); assert.match(renaming, /Informe um nome/);
       assert.match(renaming, /Salvar nome/); assert.match(renaming, /Cancelar edição/);
       assert.doesNotMatch(renaming, /fv-card__surface-action/);
+    });
+    await t.test('missão individual edita só o nome de exibição, mantendo o código fixo', () => {
+      const aliased = { ...card, cardName: 'Apelido local' };
+      const html = render({ card: aliased, canManageGroups: true, onStartRename() {} });
+      assert.match(html, /<span>4069 — <\/span><button[^>]*data-acp-card-rename-title/);
+      assert.match(html, />Apelido local<\/button>/);
+      assert.doesNotMatch(html, /Projeto com nome extenso/);
+      const renaming = render({ card: aliased, canManageGroups: true, renaming: true, renameValue: 'Apelido local' });
+      assert.match(renaming, /acp-project__fixed-code[^>]*>4069 —<\/strong>/);
+      assert.match(renaming, /value="Apelido local"/);
+      assert.doesNotMatch(renaming, /fv-card__surface-action/);
+      assert.doesNotMatch(render({ card: aliased, onStartRename() {} }), /data-acp-card-rename-title/);
     });
     await t.test('toolbar oferece quatro situações e mantém ações de seleção juntas', () => {
       const html = renderToStaticMarkup(createElement(ProjectCardsToolbar, { view: 'conferidas', counts: { andamento: 1, futuros: 2, arquivados: 3, conferidas: 4 }, search: '', onSearch() {}, onView() {}, canManageGroups: true, selectionMode: true, selectedCount: 2, busy: false, onStartSelection() {}, onConfirm() {}, onCancel() {} }));

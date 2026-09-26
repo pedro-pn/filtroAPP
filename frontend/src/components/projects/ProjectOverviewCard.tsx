@@ -56,7 +56,7 @@ export function ProjectOverviewCard({
     if (canSelect && !grouped) { onToggleSelect?.(); return; }
     onOpen();
   };
-  const title = grouped ? card.name || card.code : `${card.code} — ${card.name || 'Sem nome'}`;
+  const displayName = grouped ? card.name || card.code : card.cardName || card.name || 'Sem nome';
   const statusLabel = { TRABALHADO: 'Último dia trabalhado', PARADO: 'Parado (standby)', SEM_RDO: 'Sem RDO' }[card.lastDay.status];
   return (
     <Card padding="sm" selected={selected} className="acp-project" data-acp-project={grouped ? `group-${card.groupId}` : card.projectId}
@@ -71,25 +71,33 @@ export function ProjectOverviewCard({
             <input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label={`Selecionar missão ${card.code}`} />
           </label> : null}
           <div className="acp-project__identity">
-            {renaming ? <form className="acp-project__rename" onSubmit={event => { event.preventDefault(); onSubmitRename?.(); }}>
-              <Field id={`rename-${grouped ? card.groupId : card.projectId}`} label="Nome do card" optionalText="" errorText={renameError}>
-                <Input size="sm" maxLength={120} value={renameValue} disabled={renameSaving} autoFocus required
-                  onFocus={event => event.currentTarget.select()} onChange={event => onRenameValueChange?.(event.target.value)}
-                  onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); onCancelRename?.(); } }} />
-              </Field>
-              <div className="acp-project__inline-actions">
-                <IconButton type="submit" icon={Check} label="Salvar nome" size="sm" disabled={renameSaving} />
-                <IconButton icon={X} label="Cancelar edição" size="sm" disabled={renameSaving} onClick={onCancelRename} />
-              </div>
-            </form> : <h2>{title}</h2>}
+            {renaming ? <div className="acp-project__rename-layout">
+              {!grouped ? <strong className="acp-project__fixed-code">{card.code} —</strong> : null}
+              <form className="acp-project__rename" onSubmit={event => { event.preventDefault(); onSubmitRename?.(); }}>
+                <Field id={`rename-${grouped ? card.groupId : card.projectId}`} label="Nome do card" optionalText="" errorText={renameError}>
+                  <Input size="sm" maxLength={120} value={renameValue} disabled={renameSaving} autoFocus required
+                    onFocus={event => event.currentTarget.select()} onChange={event => onRenameValueChange?.(event.target.value)}
+                    onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); onCancelRename?.(); } }} />
+                </Field>
+                <div className="acp-project__inline-actions">
+                  <IconButton type="submit" icon={Check} label="Salvar nome" size="sm" disabled={renameSaving} />
+                  <IconButton icon={X} label="Cancelar edição" size="sm" disabled={renameSaving} onClick={onCancelRename} />
+                </div>
+              </form>
+            </div> : <h2>{!grouped ? <span>{card.code} — </span> : null}{canManageGroups && onStartRename ? (
+              <button type="button" className="acp-project__title-edit" data-acp-card-rename-title
+                aria-label={`Editar nome do card: ${card.code}`} title="Editar nome do card" onClick={onStartRename}>
+                {displayName}
+              </button>
+            ) : displayName}</h2>}
             {card.clientName ? <p className="acp-project__secondary">{card.clientName}</p> : null}
           </div>
         </div>
       }
       footer={canManage || canManageGroups ? <div className="acp-project__actions" data-acp-tracking-action={canManage || undefined}>
         <div className="acp-project__inline-actions">
-          {grouped && canManageGroups && !renaming ? <IconButton icon={Pencil} size="sm" label={`Editar nome do card: ${card.code}`}
-            title="Editar nome do card" data-acp-group-rename-start onClick={onStartRename} /> : null}
+          {canManageGroups && !renaming ? <IconButton icon={Pencil} size="sm" label={`Editar nome do card: ${card.code}`}
+            title="Editar nome do card" data-acp-card-rename-start data-acp-group-rename-start={grouped || undefined} onClick={onStartRename} /> : null}
           {grouped && canManageGroups ? <IconButton icon={Unlink} size="sm" label={`Desmesclar missões: ${card.code}`}
             title="Desmesclar missões" onClick={onDissolve} disabled={laborPolicySaving || renameSaving || trackingSaving} /> : null}
           {canManage && card.archived ? <IconButton icon={card.reviewed ? CheckCheck : Check} size="sm"

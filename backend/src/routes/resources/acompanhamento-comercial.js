@@ -23,6 +23,7 @@ import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
 import { listRealizedCorrections, saveRealizedCorrection } from '../../lib/acompanhamento/realized-corrections-store.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
+import { setProjectCardName } from '../../lib/acompanhamento/project-card-name.js';
 import { getProjectStandbyHistory } from '../../lib/acompanhamento/standby-history.js';
 import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompanhamento/project-romaneios.js';
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
@@ -130,6 +131,9 @@ const projectTrackingStateSchema = z
 const projectIdParamSchema = z.object({
   projectId: z.string().trim().min(1).max(200)
 });
+const projectCardNameSchema = z.object({
+  name: z.string().trim().min(1, 'Informe um nome para o card.').max(120, 'Nome muito longo.')
+}).strict();
 
 const projectManagementNoteSchema = z
   .object({
@@ -244,6 +248,19 @@ router.get(
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
     const [cards, groups] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups()]);
     res.json(projectFinancialsForUser(groupProjectCards(cards, groups), req.auth.user));
+  })
+);
+
+router.patch(
+  '/projetos/:projectId/card-name',
+  requireAuth,
+  requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const { projectId } = projectIdParamSchema.parse(req.params);
+    const { name } = projectCardNameSchema.parse(req.body ?? {});
+    const updated = await setProjectCardName({ projectId, name });
+    if (!updated) return res.status(404).json({ error: 'Projeto não encontrado.' });
+    return res.json(updated);
   })
 );
 

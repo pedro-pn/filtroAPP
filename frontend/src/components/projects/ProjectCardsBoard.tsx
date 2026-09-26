@@ -8,6 +8,7 @@ import {
   dissolveMissionGroup,
   getProjectCards,
   renameMissionGroup,
+  renameProjectCard,
   setProjectTrackingState,
   updateMissionGroupLaborPolicy,
   type MissionGroupCard,
@@ -75,7 +76,7 @@ export function ProjectCardsBoard({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedForGroup, setSelectedForGroup] = useState<Set<string>>(() => new Set());
   const [groupError, setGroupError] = useState<string | null>(null);
-  const [renameTarget, setRenameTarget] = useState<MissionGroupCard | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ProjectCardItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [groupRenameNoveltyActive, setGroupRenameNoveltyActive] = useState(true);
@@ -122,8 +123,11 @@ export function ProjectCardsBoard({
       setGroupError(mutationErrorMessage(error, 'Não foi possível desmesclar este agrupamento.'));
     }
   });
-  const renameGroupMutation = useMutation({
-    mutationFn: ({ groupId, name }: { groupId: string; name: string }) => renameMissionGroup(groupId, name),
+  const renameCardMutation = useMutation({
+    mutationFn: async ({ card, name }: { card: ProjectCardItem; name: string }) => {
+      if (isGroupCard(card)) await renameMissionGroup(card.groupId, name);
+      else await renameProjectCard(card.projectId, name);
+    },
     onSuccess: async () => {
       setRenameTarget(null);
       setRenameValue('');
@@ -137,7 +141,7 @@ export function ProjectCardsBoard({
       ]);
     },
     onError: (error: unknown) => {
-      setRenameError(mutationErrorMessage(error, 'Não foi possível alterar o nome deste agrupamento.'));
+      setRenameError(mutationErrorMessage(error, 'Não foi possível alterar o nome deste card.'));
     }
   });
   const laborPolicyMutation = useMutation({
@@ -182,19 +186,19 @@ export function ProjectCardsBoard({
       setGroupError(mutationErrorMessage(error, 'Não foi possível atualizar o projeto no acompanhamento.'));
     }
   });
-  const openRenameGroup = (card: MissionGroupCard) => {
+  const openRenameCard = (card: ProjectCardItem) => {
     setRenameTarget(card);
-    setRenameValue(card.name || '');
+    setRenameValue(isGroupCard(card) ? card.name || '' : card.cardName || card.name || '');
     setRenameError(null);
   };
-  const closeRenameGroup = () => {
-    if (renameGroupMutation.isPending) return;
+  const closeRenameCard = () => {
+    if (renameCardMutation.isPending) return;
     setRenameTarget(null);
     setRenameValue('');
     setRenameError(null);
   };
-  const submitRenameGroup = () => {
-    if (!renameTarget || renameGroupMutation.isPending) return;
+  const submitRenameCard = () => {
+    if (!renameTarget || renameCardMutation.isPending) return;
     const name = renameValue.trim();
     if (!name) {
       setRenameError('Informe um nome para o card.');
@@ -204,7 +208,7 @@ export function ProjectCardsBoard({
       setRenameError('Nome muito longo.');
       return;
     }
-    renameGroupMutation.mutate({ groupId: renameTarget.groupId, name });
+    renameCardMutation.mutate({ card: renameTarget, name });
   };
   const setView = useCallback((nextView: CardsView) => {
     setSearchParams(currentParams => {
@@ -248,7 +252,7 @@ export function ProjectCardsBoard({
       .filter(c => {
         if (!term) return true;
         const members = isGroupCard(c) ? c.members.map(member => `${member.code} ${member.name} ${member.clientName} ${member.clientCnpj ?? ''}`).join(' ') : '';
-        return `${c.code} ${c.name} ${c.clientName} ${c.clientCnpj ?? ''} ${members}`.toLowerCase().includes(term);
+        return `${c.code} ${c.name} ${!isGroupCard(c) ? c.cardName ?? '' : ''} ${c.clientName} ${c.clientCnpj ?? ''} ${members}`.toLowerCase().includes(term);
       });
   }, [data, search, view]);
   const isRecentlyFinalized = useCallback((card: ProjectCardItem) => {
@@ -326,10 +330,10 @@ export function ProjectCardsBoard({
               canManage={canManageGroups}
               trackingSaving={trackingMutation.isPending}
               recentlyFinalized={isRecentlyFinalized(card)}
-              renaming={isGroupCard(card) && renameTarget?.groupId === card.groupId}
+              renaming={renameTarget !== null && cardKey(renameTarget) === cardKey(card)}
               renameValue={renameValue}
-              renameError={isGroupCard(card) && renameTarget?.groupId === card.groupId ? renameError : null}
-              renameSaving={isGroupCard(card) && renameTarget?.groupId === card.groupId && renameGroupMutation.isPending}
+              renameError={renameTarget !== null && cardKey(renameTarget) === cardKey(card) ? renameError : null}
+              renameSaving={renameTarget !== null && cardKey(renameTarget) === cardKey(card) && renameCardMutation.isPending}
               onOpen={() => {
                 if (isRecentlyFinalized(card)) {
                   markAcompanhamentoFinalizedMissionSeen(progressHistoryNoveltyUser, cardKey(card), card.reportArchivedAt);
@@ -340,13 +344,13 @@ export function ProjectCardsBoard({
                   : { kind: 'PROJECT', id: card.projectId });
               }}
               onToggleSelect={!isGroupCard(card) ? () => toggleSelected(card.projectId) : undefined}
-              onStartRename={isGroupCard(card) ? () => openRenameGroup(card) : undefined}
+              onStartRename={canManageGroups ? () => openRenameCard(card) : undefined}
               onRenameValueChange={value => {
                 setRenameValue(value);
                 setRenameError(null);
               }}
-              onSubmitRename={submitRenameGroup}
-              onCancelRename={closeRenameGroup}
+              onSubmitRename={submitRenameCard}
+              onCancelRename={closeRenameCard}
               onDissolve={isGroupCard(card) ? () => { setGroupError(null); setDissolveTarget(card); } : undefined}
               laborPolicySaving={laborPolicyMutation.isPending}
               onLaborPolicyChange={isGroupCard(card) ? (laborAllocationMode, primaryLaborProjectId) => {

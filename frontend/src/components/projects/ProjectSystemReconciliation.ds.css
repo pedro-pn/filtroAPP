@@ -1,0 +1,82 @@
+.acp-reconciliation-ds, .acp-reconciliation-ds__reports {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.acp-reconciliation-ds__heading h1 { margin: 0; font-size: var(--text-xl); }
+.acp-reconciliation-ds__heading p, .acp-reconciliation-ds__report-date {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.acp-reconciliation-ds__intro .fv-card__body, .acp-reconciliation-ds__reports > .fv-card .fv-card__body,
+.acp-reconciliation-ds__batch .fv-card__body { display: grid; gap: var(--space-3); min-width: 0; }
+.acp-reconciliation-ds__intro p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.acp-reconciliation-ds__metrics, .acp-reconciliation-ds__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+}
+.acp-reconciliation-ds__filters .fv-field { min-width: 0; }
+.acp-reconciliation-ds__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.acp-reconciliation-ds__check input {
+  width: var(--space-4);
+  height: var(--space-4);
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--brand-text);
+}
+.acp-reconciliation-ds__batch-fields { display: grid; gap: var(--space-3); min-width: 0; }
+.acp-reconciliation-ds__batch-fields > .fv-badge { justify-self: start; }
+.acp-reconciliation-ds__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.acp-reconciliation-ds__measurements { display: grid; min-width: 0; }
+.acp-reconciliation-ds__measurement {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+  padding-block: var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+}
+.acp-reconciliation-ds__measurement-info, .acp-reconciliation-ds__link {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.acp-reconciliation-ds__measurement-info > strong { overflow-wrap: anywhere; }
+.acp-reconciliation-ds__measurement-info > p, .acp-reconciliation-ds__link > small {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.acp-reconciliation-ds__link > .fv-field { width: 100%; min-width: 0; }
+.acp-reconciliation-ds__link > .fv-button { max-width: 100%; white-space: normal; }
+.acp-reconciliation-ds__progress {
+  min-width: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.acp-reconciliation-ds__progress summary { color: var(--ink); font-weight: var(--font-semibold); cursor: pointer; }
+.acp-reconciliation-ds__progress > .acp-progress-ds { margin-block-start: var(--space-4); }
+
+@media (min-width: 640px) {
+  .acp-reconciliation-ds__metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 900px) {
+  .acp-reconciliation-ds__filters { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); }
+  .acp-reconciliation-ds__measurement { grid-template-columns: minmax(0, 1fr) minmax(240px, 1fr); }
+}

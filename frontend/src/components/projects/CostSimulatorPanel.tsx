@@ -10,6 +10,7 @@ import {
   type CostResult
 } from '../../api/acompanhamentoCusto';
 import { useToast } from '../ui/ToastContext';
+import { Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
 import { PARAM_FIELDS, BENEFIT_FIELDS, INPUT_FIELDS, brl, modelNumber } from './costFields';
 
 function todayKey() {
@@ -157,7 +158,7 @@ export function CostSimulatorPanel() {
     onError: () => showToast('Não foi possível simular.')
   });
 
-  if (isLoading) return <div className="page-card placeholder-copy">Carregando motor de custo…</div>;
+  if (isLoading) return <Card className="acp-cost-ds__panel"><Skeleton height={180} /></Card>;
 
   const profiles = data ?? [];
   const selectedProfile = profiles.find(p => p.key === selectedKey) ?? null;
@@ -168,54 +169,48 @@ export function CostSimulatorPanel() {
   const setBenefit = (key: string, value: string) => setParams(current => ({ ...current, beneficios: { ...((current.beneficios as Record<string, number>) ?? {}), [key]: Number(value) } }));
 
   return (
-    <div className="page-card">
-      <div className="sec">Modelos base e simulador</div>
-      <p className="placeholder-copy" style={{ margin: '4px 0 12px' }}>
+    <Card className="acp-cost-ds__panel" title="Modelos base e simulador">
+      <p className="acp-cost-ds__copy">
         Planilha base de cálculo (Modelo 1 = Operador+, Modelo 2 = Auxiliar). Os cargos herdam estes
         parâmetros pela data de vigência (aba <strong>Cargos</strong>). Salvar cria uma nova vigência que
         passa a valer a partir da data informada. Frações: 0,3 = 30%. A insalubridade é calculada por
         salário mínimo × 20%.
       </p>
 
-      <div className="field-group" style={{ maxWidth: 320 }}>
-        <label htmlFor="cost-profile">Modelo base</label>
-        <select id="cost-profile" value={selectedKey} onChange={e => { setSelectedKey(e.target.value); setResult(null); }}>
+      <Field className="acp-cost-ds__month" label="Modelo base" optionalText="">
+        <Select value={selectedKey} onChange={e => { setSelectedKey(e.target.value); setResult(null); }}>
           {profiles.map((p, i) => <option key={p.key} value={p.key}>Modelo {modelNumber(p.key, i + 1)} ({p.label})</option>)}
-        </select>
-      </div>
+        </Select>
+      </Field>
       {selectedProfile?.effectiveDate ? (
         <p className="placeholder-copy" style={{ margin: '8px 0 0' }}>
           Última vigência salva para este modelo: <strong>{fmtDate(selectedProfile.effectiveDate)}</strong>.
         </p>
       ) : null}
 
-      <div className="admin-inline-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>
+      <div className="acp-cost-ds__fields">
         {PARAM_FIELDS.map(([key, label]) => (
-          <div className="field-group" key={key}>
-            <label htmlFor={`p-${key}`}>{label}</label>
-            <input id={`p-${key}`} type="number" step="any" value={num(key)} onChange={e => setNum(key, e.target.value)} />
-          </div>
+          <Field label={label} optionalText="" key={key}>
+            <Input type="number" step="any" value={num(key)} onChange={e => setNum(key, e.target.value)} />
+          </Field>
         ))}
         {BENEFIT_FIELDS.map(([key, label]) => (
-          <div className="field-group" key={key}>
-            <label htmlFor={`b-${key}`}>{label} (R$)</label>
-            <input id={`b-${key}`} type="number" step="any" value={Number(benefits[key] ?? 0)} onChange={e => setBenefit(key, e.target.value)} />
-          </div>
+          <Field label={`${label} (R$)`} optionalText="" key={key}>
+            <Input type="number" step="any" value={Number(benefits[key] ?? 0)} onChange={e => setBenefit(key, e.target.value)} />
+          </Field>
         ))}
-        <div className="field-group">
-          <label htmlFor="p-effective-date">Vigente a partir de</label>
-          <input id="p-effective-date" type="date" required value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="p-note">Nota da alteração</label>
-          <input id="p-note" type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Ex.: correção do histórico" />
-        </div>
+        <Field label="Vigente a partir de" required>
+          <Input type="date" required value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
+        </Field>
+        <Field label="Nota da alteração" optionalText="">
+          <Input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Ex.: correção do histórico" />
+        </Field>
       </div>
 
-      <div style={{ marginTop: 12 }}>
-        <button className="mini-btn" type="button" disabled={!effectiveDate || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+      <div className="acp-cost-ds__actions">
+        <Button variant="primary" size="sm" loading={saveMutation.isPending} disabled={!effectiveDate} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? 'Salvando…' : 'Salvar parâmetros do modelo'}
-        </button>
+        </Button>
       </div>
 
       <div className="det-section" style={{ marginTop: 14 }}>
@@ -225,19 +220,18 @@ export function CostSimulatorPanel() {
 
       <hr style={{ margin: '16px 0', border: 0, borderTop: '1px solid #eee' }} />
 
-      <div className="sec">Simulador mensal</div>
-      <div className="admin-inline-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginTop: 8 }}>
+      <h3 className="acp-cost-ds__section-title">Simulador mensal</h3>
+      <div className="acp-cost-ds__fields">
         {INPUT_FIELDS.map(([key, label]) => (
-          <div className="field-group" key={key}>
-            <label htmlFor={`i-${key}`}>{label}</label>
-            <input id={`i-${key}`} type="number" step="any" value={inputs[key] ?? 0} onChange={e => setInputs(c => ({ ...c, [key]: Number(e.target.value) }))} />
-          </div>
+          <Field label={label} optionalText="" key={key}>
+            <Input type="number" step="any" value={inputs[key] ?? 0} onChange={e => setInputs(c => ({ ...c, [key]: Number(e.target.value) }))} />
+          </Field>
         ))}
       </div>
-      <div style={{ marginTop: 12 }}>
-        <button className="mini-btn" type="button" disabled={simulateMutation.isPending} onClick={() => simulateMutation.mutate()}>
+      <div className="acp-cost-ds__actions">
+        <Button variant="secondary" size="sm" loading={simulateMutation.isPending} onClick={() => simulateMutation.mutate()}>
           {simulateMutation.isPending ? 'Calculando…' : 'Simular custo'}
-        </button>
+        </Button>
       </div>
 
       {result ? (
@@ -252,6 +246,6 @@ export function CostSimulatorPanel() {
           <div className="det-row"><span className="det-label">Custo/dia útil</span><span className="det-val">{brl(result.custoDiaUtil)}</span></div>
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }

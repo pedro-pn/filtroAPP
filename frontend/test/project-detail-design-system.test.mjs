@@ -90,10 +90,35 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       ] });
       assert.match(mixed, /Unidades executadas/);
       assert.match(mixed, /Óleo filtrado \(L\)/);
-      assert.match(mixed, /150 L de óleo/);
+      assert.match(mixed, /Executado no dia/);
+      assert.match(mixed, /Avanço acumulado/);
+      assert.match(mixed, /1 unidade/);
+      assert.match(mixed, /150 L/);
+      assert.doesNotMatch(mixed, /<summary>Ver por serviço<\/summary>/);
       assert.doesNotMatch(mixed, /p\.p\./);
+      const sharedUnit = render(ProjectScopeDailyTable, { points: [
+        { date: '2026-09-01', progressPct: 10, services: [
+          { serviceType: 'LIMPEZA_QUIMICA', progressPct: 10, quantities: [{ unit: 'M', realizedQty: 100 }] },
+          { serviceType: 'TESTE_PRESSAO', progressPct: 10, quantities: [{ unit: 'M', realizedQty: 50 }] }
+        ] },
+        { date: '2026-09-02', progressPct: 20, services: [
+          { serviceType: 'LIMPEZA_QUIMICA', progressPct: 20, quantities: [{ unit: 'M', realizedQty: 150 }] },
+          { serviceType: 'TESTE_PRESSAO', progressPct: 20, quantities: [{ unit: 'M', realizedQty: 70 }] }
+        ] }
+      ] });
+      assert.match(sharedUnit, /Metros executados/);
+      assert.match(sharedUnit, /70 m/);
+      assert.match(sharedUnit, /<summary>Ver por serviço<\/summary>/);
+      assert.match(sharedUnit, /<dd>50 m<\/dd>/);
+      assert.match(sharedUnit, /<dd>20 m<\/dd>/);
       assert.match(render(ProjectScopeDailyTable, { points: [] }), /Ainda não há avanço diário/);
-      assert.match(render(ProjectScopeDailyTable, { points: [{ date: '2026-09-01', progressPct: 10 }] }), /Sem quantitativos de execução/);
+      const withoutQuantity = render(ProjectScopeDailyTable, { points: [{ date: '2026-09-01', progressPct: 10 }] });
+      assert.match(withoutQuantity, /Sem quantitativos de execução/);
+      const dayWithoutQuantity = render(ProjectScopeDailyTable, { points: [
+        { date: '2026-09-01', progressPct: 10, services: [{ serviceType: 'LIMPEZA_QUIMICA', progressPct: 10, quantities: [{ unit: 'M', realizedQty: 100 }] }] },
+        { date: '2026-09-02', progressPct: 15, services: [] }
+      ] });
+      assert.match(dayWithoutQuantity, /Sem produção física medida neste dia/);
     });
     await t.test('novo resumo usa valores reais, preserva permissões e lida com dados ausentes', () => {
       const props = { data: { ...detail, canViewProjectFinancials: true }, progressPct: detail.avancoPct,
@@ -248,9 +273,10 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   assert.match(main, /acompanhamentoRefreshQueryOptions/);
   assert.match(main, /if \(!canManageManualCosts \|\| isGroup \|\| createManualCostMutation.isPending\) return/);
   assert.match(main, /if \(!canManageProjectNotes \|\| isGroup \|\| !content \|\| createProjectNoteMutation.isPending\) return/);
-  assert.match(main, /<\/div>\s*\{\/\* Diálogos de apoio compartilhados/);
-  const migrated = main.slice(0, main.indexOf('{/* Diálogos de apoio compartilhados'));
-  assert.doesNotMatch(migrated, /mini-btn|page-card|className="badge|<input\b|<textarea\b/);
+  assert.doesNotMatch(main, /mini-btn|page-card|className="badge|<input\b|<textarea\b/);
+  for (const dialog of ['ProjectRomaneiosDialog.tsx', 'ProjectStandbyHistoryDialog.tsx']) {
+    assert.match(source(dialog), /appearance="design-system"/);
+  }
   assert.match(main, /<ProjectReportsDialog/);
   assert.match(main, /<ProjectDetailOverview/);
   assert.match(main, /<ProjectTimelineCard/);

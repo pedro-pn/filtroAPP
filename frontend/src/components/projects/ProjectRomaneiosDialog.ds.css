@@ -1,0 +1,21 @@
+.fv-modal.acp-romaneios-ds-modal { --fv-modal-width: 960px; }
+.acp-romaneios-ds { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-romaneios-ds__context, .acp-romaneios-ds__mission {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.acp-romaneios-ds__summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); font-size: var(--text-sm); }
+.acp-romaneios-ds .fv-card, .acp-romaneios-ds .fv-card__body { min-width: 0; }
+.acp-romaneios-ds .fv-card__body { display: grid; gap: var(--space-3); }
+.acp-romaneios-ds__item-name { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
+.acp-romaneios-ds__item-name small { color: var(--muted); font-size: var(--text-xs); }
+.acp-romaneios-ds .fv-data-table__table { table-layout: fixed; }
+.acp-romaneios-ds .fv-data-table th:first-child { width: 15%; }
+.acp-romaneios-ds .fv-data-table th:nth-child(2) { width: 40%; }
+.acp-romaneios-ds .fv-data-table th:nth-child(3) { width: 27%; }
+.acp-romaneios-ds .fv-data-table th:last-child { width: 18%; }
+@media (max-width: 767.98px) {
+  .acp-romaneios-ds .fv-card__header { flex-wrap: wrap; }
+}

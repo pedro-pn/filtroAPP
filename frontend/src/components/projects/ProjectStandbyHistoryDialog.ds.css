@@ -1,0 +1,8 @@
+.fv-modal.acp-standby-ds-modal { --fv-modal-width: 840px; }
+.acp-standby-ds { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-standby-ds__context { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.acp-standby-ds .fv-data-table__table { table-layout: fixed; }
+.acp-standby-ds .fv-data-table th:nth-child(1) { width: 18%; }
+.acp-standby-ds .fv-data-table th:nth-child(2) { width: 24%; }
+.acp-standby-ds .fv-data-table th:nth-child(3) { width: 23%; }
+.acp-standby-ds .fv-data-table th:nth-child(4) { width: 35%; }

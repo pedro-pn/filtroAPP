@@ -2,9 +2,11 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 
-import { getSedeCosts, type SedeCostCard, type SedeMonthlyCost } from '../../api/acompanhamentoComercial';
+import { getSedeCosts, type SedeCostCard } from '../../api/acompanhamentoComercial';
 import { SEDE_MONTH_OPTIONS, currentSedeDate, currentSedeMonth, formatSedeCustomRangeLabel, formatSedeMonthLabel, formatSedeQuarterLabel, formatSedeSemesterLabel, quarterFromMonth, sedeCustomDateRange, sedeMonthRangeFromParts, sedeQuarterRange, sedeSemesterRange, sedeYearRange, semesterFromMonth, type SedePeriodRange, type SedePeriodType, yearFromMonth } from '../../utils/sedePeriods';
+import { Alert, Badge, BarList, Button, Card, EmptyState, Field, Input, MetricCard, Select, Skeleton } from '../ui/ds';
 import { SedeOperationalCards } from './SedeOperationalCards';
+import './SedeCostsBoard.ds.css';
 
 const ALL_PERIOD_MONTHS_LIMIT = 6;
 
@@ -34,80 +36,35 @@ function formatDate(iso?: string | null) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 }
 
-function maxMonthlyValue(monthly: SedeMonthlyCost[]) {
-  return monthly.reduce((max, month) => Math.max(max, month.total), 0);
-}
-
-function MonthRow({ month, maxValue }: { month: SedeMonthlyCost; maxValue: number }) {
-  const width = maxValue ? Math.max(3, (month.total / maxValue) * 100) : 0;
-  return (
-    <div className="acp-sede-month">
-      <span className="acp-sede-month-label">{month.label}</span>
-      <span className="acp-bar-track">
-        <span className="acp-bar-fill" style={{ width: `${width}%` }} />
-      </span>
-      <span className="acp-sede-month-value">{brl(month.total)}</span>
-    </div>
-  );
-}
-
 function SedeCard({ card, monthTitle, monthlyLimit }: { card: SedeCostCard; monthTitle: string; monthlyLimit?: number }) {
   const visibleMonthly = monthlyLimit ? card.monthly.slice(0, monthlyLimit) : card.monthly;
-  const maxValue = maxMonthlyValue(visibleMonthly);
+  const maxValue = visibleMonthly.reduce((max, month) => Math.max(max, month.total), 0);
   return (
-    <article className="acp-pcard acp-sede-card">
-      <div className="acp-pcard-head">
-        <strong>{card.code}</strong>
-        <span className="acp-pcard-name">{card.label}</span>
+    <Card variant="flat" className="acp-sede-ds__cost-card"
+      title={<span className="acp-sede-ds__card-title"><strong>{card.code}</strong><span>{card.label}</span></span>}
+      actions={<Badge tone="neutral">{card.count} lançamento{card.count === 1 ? '' : 's'}</Badge>}>
+      <div className="acp-sede-ds__cost-total"><span>Total no período</span><strong>{brl(card.total)}</strong></div>
+      <dl className="acp-sede-ds__facts">
+        <div><dt>Pago</dt><dd>{brl(card.paidTotal)}</dd></div>
+        <div><dt>Em aberto</dt><dd>{brl(card.openTotal)}</dd></div>
+        <div><dt>Último lançamento</dt><dd>{formatDate(card.lastPurchaseDate)}</dd></div>
+      </dl>
+      <div className="acp-sede-ds__cost-section">
+        <h3>{monthTitle}</h3>
+        {visibleMonthly.length ? <BarList aria-label={`${monthTitle} de ${card.label}`} items={visibleMonthly.map(month => ({
+          id: month.month, label: month.label, valueLabel: brl(month.total),
+          percentage: maxValue ? month.total / maxValue * 100 : 0
+        }))} /> : <p>Sem custos lançados.</p>}
       </div>
-      <div className="acp-pcard-client">
-        {card.count} lançamento{card.count === 1 ? '' : 's'} no Omie
+      <div className="acp-sede-ds__cost-section">
+        <h3>Categorias principais</h3>
+        {card.topCategories.length ? <dl className="acp-sede-ds__facts">
+          {card.topCategories.map(category => <div key={category.categoria}>
+            <dt>{category.categoria}</dt><dd>{brl(category.total)}</dd>
+          </div>)}
+        </dl> : <p>Sem categorias.</p>}
       </div>
-
-      <div className="acp-sede-total">{brl(card.total)}</div>
-
-      <div className="acp-pcard-row">
-        <span>Pago</span>
-        <span className="acp-pcard-strong">{brl(card.paidTotal)}</span>
-      </div>
-      <div className="acp-pcard-row">
-        <span>Em aberto</span>
-        <span className="acp-pcard-strong">{brl(card.openTotal)}</span>
-      </div>
-      <div className="acp-pcard-row">
-        <span>Último lançamento</span>
-        <span className="acp-pcard-strong">{formatDate(card.lastPurchaseDate)}</span>
-      </div>
-
-      <div className="acp-sede-block">
-        <div className="acp-sede-block-title">{monthTitle}</div>
-        {visibleMonthly.length ? (
-          <div className="acp-sede-months">
-            {visibleMonthly.map(month => (
-              <MonthRow key={month.month} month={month} maxValue={maxValue} />
-            ))}
-          </div>
-        ) : (
-          <div className="placeholder-copy">Sem custos lançados.</div>
-        )}
-      </div>
-
-      <div className="acp-sede-block">
-        <div className="acp-sede-block-title">Categorias principais</div>
-        {card.topCategories.length ? (
-          <div className="acp-sede-cats">
-            {card.topCategories.map(category => (
-              <div className="acp-pcard-row acp-sede-cat" key={category.categoria}>
-                <span>{category.categoria}</span>
-                <span>{brl(category.total)}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="placeholder-copy">Sem categorias.</div>
-        )}
-      </div>
-    </article>
+    </Card>
   );
 }
 
@@ -134,7 +91,7 @@ export function SedeCostsBoard() {
   const [activeRange, setActiveRange] = useState<SedePeriodRange | null>(initialRange);
   const [activePeriodLabel, setActivePeriodLabel] = useState(initialRange ? formatSedeCustomRangeLabel(initialRange.from, initialRange.to) : 'Todo o período');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['sede-costs', activeRange?.from ?? null, activeRange?.to ?? null],
     queryFn: () => getSedeCosts(activeRange ?? undefined),
     placeholderData: keepPreviousData
@@ -145,13 +102,11 @@ export function SedeCostsBoard() {
   const monthTitle = activeRange ? 'Meses do período' : 'Meses recentes';
   const monthlyLimit = activeRange ? undefined : ALL_PERIOD_MONTHS_LIMIT;
 
-  if (isLoading) return <div className="page-card placeholder-copy">Carregando custos da Sede…</div>;
-  if (isError || !data) return <div className="page-card placeholder-copy">Não foi possível carregar os custos da Sede.</div>;
-
-  function applyRange(range: SedePeriodRange | null, label: string) {
+  function applyRange(range: SedePeriodRange | null, label: string, type: SedePeriodType = periodType) {
     setActiveRange(range);
     setActivePeriodLabel(label);
     const next = new URLSearchParams(searchParams);
+    next.set('periodo', type);
     if (range) {
       next.set('de', range.from);
       next.set('ate', range.to);
@@ -162,68 +117,65 @@ export function SedeCostsBoard() {
     setSearchParams(next, { replace: true });
   }
 
-  function applyMonth(nextMonth: string, nextYear: string) {
+  function applyMonth(nextMonth: string, nextYear: string, type: SedePeriodType = periodType) {
     setMonthNumberValue(nextMonth);
     setMonthYear(nextYear);
     const range = sedeMonthRangeFromParts(nextYear, nextMonth);
-    if (range) applyRange(range, formatSedeMonthLabel(range.from));
+    if (range) applyRange(range, formatSedeMonthLabel(range.from), type);
   }
 
-  function applyQuarter(nextQuarter: string, nextYear: string) {
+  function applyQuarter(nextQuarter: string, nextYear: string, type: SedePeriodType = periodType) {
     setQuarterValue(nextQuarter);
     setQuarterYear(nextYear);
     const range = sedeQuarterRange(nextYear, nextQuarter);
-    if (range) applyRange(range, formatSedeQuarterLabel(nextYear, nextQuarter));
+    if (range) applyRange(range, formatSedeQuarterLabel(nextYear, nextQuarter), type);
   }
 
-  function applySemester(nextSemester: string, nextYear: string) {
+  function applySemester(nextSemester: string, nextYear: string, type: SedePeriodType = periodType) {
     setSemesterValue(nextSemester);
     setSemesterYear(nextYear);
     const range = sedeSemesterRange(nextYear, nextSemester);
-    if (range) applyRange(range, formatSedeSemesterLabel(nextYear, nextSemester));
+    if (range) applyRange(range, formatSedeSemesterLabel(nextYear, nextSemester), type);
   }
 
-  function applyYear(value: string) {
+  function applyYear(value: string, type: SedePeriodType = periodType) {
     setYearValue(value);
     const range = sedeYearRange(value);
-    if (range) applyRange(range, value);
+    if (range) applyRange(range, value, type);
   }
 
-  function applyCustom(from: string, to: string) {
+  function applyCustom(from: string, to: string, type: SedePeriodType = periodType) {
     const range = sedeCustomDateRange(from, to);
-    if (range) applyRange(range, formatSedeCustomRangeLabel(range.from, range.to));
+    if (range) applyRange(range, formatSedeCustomRangeLabel(range.from, range.to), type);
   }
 
   function handlePeriodTypeChange(nextType: SedePeriodType) {
     setPeriodType(nextType);
-    const next = new URLSearchParams(searchParams);
-    next.set('periodo', nextType);
-    setSearchParams(next, { replace: true });
 
     if (nextType === 'all') {
-      applyRange(null, 'Todo o período');
+      applyRange(null, 'Todo o período', nextType);
       return;
     }
 
     if (nextType === 'month') {
-      applyMonth(monthNumberValue || defaultMonthNumber, monthYear || defaultYear);
+      applyMonth(monthNumberValue || defaultMonthNumber, monthYear || defaultYear, nextType);
       return;
     }
 
     if (nextType === 'quarter') {
       const baseMonth = defaultMonth;
-      applyQuarter(quarterValue || quarterFromMonth(baseMonth), quarterYear || yearFromMonth(baseMonth));
+      applyQuarter(quarterValue || quarterFromMonth(baseMonth), quarterYear || yearFromMonth(baseMonth), nextType);
       return;
     }
 
     if (nextType === 'semester') {
       const baseMonth = defaultMonth;
-      applySemester(semesterValue || semesterFromMonth(baseMonth), semesterYear || yearFromMonth(baseMonth));
+      applySemester(semesterValue || semesterFromMonth(baseMonth), semesterYear || yearFromMonth(baseMonth), nextType);
       return;
     }
 
     if (nextType === 'year') {
-      applyYear(yearValue || defaultYear);
+      applyYear(yearValue || defaultYear, nextType);
       return;
     }
 
@@ -231,89 +183,78 @@ export function SedeCostsBoard() {
     const to = customTo || defaultDate;
     setCustomFrom(from);
     setCustomTo(to);
-    applyCustom(from, to);
+    applyCustom(from, to, nextType);
   }
 
   return (
-    <div className="acp-dash acp-sede-wrap">
-      <div className="page-card acp-filters" data-acp-sede-filters>
-        <div className="field-group field-group-wide">
-          <label>Período</label>
-          <div className="acp-seg" role="group" aria-label="Período dos custos da Sede">
-            {PERIOD_TYPES.map(type => (
-              <button key={type.key} type="button" className={periodType === type.key ? 'acp-seg-btn active' : 'acp-seg-btn'} onClick={() => handlePeriodTypeChange(type.key)}>
-                {type.label}
-              </button>
-            ))}
-          </div>
+    <div className="fv-ds acp-sede-ds">
+      <header className="acp-sede-ds__heading">
+        <h1>Custos da Sede</h1>
+        <p>Acompanhe os centros de custo do Omie e os indicadores operacionais.</p>
+      </header>
+      <Card variant="flat" title="Período dos custos" className="acp-sede-ds__filters" data-acp-sede-filters>
+        <div className="acp-sede-ds__periods" role="group" aria-label="Período dos custos da Sede">
+          {PERIOD_TYPES.map(type => <Button key={type.key} size="sm"
+            variant={periodType === type.key ? 'primary' : 'secondary'}
+            aria-pressed={periodType === type.key}
+            onClick={() => handlePeriodTypeChange(type.key)}>{type.label}</Button>)}
         </div>
 
         {periodType === 'month' && (
-          <>
-            <div className="field-group">
-              <label htmlFor="sede-month-select">Mês</label>
-              <select id="sede-month-select" value={monthNumberValue} onChange={e => applyMonth(e.target.value, monthYear || defaultYear)}>
-                {SEDE_MONTH_OPTIONS.map(month => (
-                  <option key={month.value} value={month.value}>
-                    {month.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field-group">
-              <label htmlFor="sede-month-year">Ano</label>
-              <input id="sede-month-year" type="number" value={monthYear} onChange={e => applyMonth(monthNumberValue, e.target.value)} />
-            </div>
-          </>
+          <div className="acp-sede-ds__period-fields">
+            <Field id="sede-month-select" label="Mês" optionalText="">
+              <Select size="sm" value={monthNumberValue} onChange={e => applyMonth(e.target.value, monthYear || defaultYear)}>
+                {SEDE_MONTH_OPTIONS.map(month => <option key={month.value} value={month.value}>{month.label}</option>)}
+              </Select>
+            </Field>
+            <Field id="sede-month-year" label="Ano" optionalText="">
+              <Input size="sm" type="number" min="1900" max="2100" value={monthYear} onChange={e => applyMonth(monthNumberValue, e.target.value)} />
+            </Field>
+          </div>
         )}
 
         {periodType === 'quarter' && (
-          <>
-            <div className="field-group">
-              <label htmlFor="sede-quarter">Trimestre</label>
-              <select id="sede-quarter" value={quarterValue} onChange={e => applyQuarter(e.target.value, quarterYear || defaultYear)}>
+          <div className="acp-sede-ds__period-fields">
+            <Field id="sede-quarter" label="Trimestre" optionalText="">
+              <Select size="sm" value={quarterValue} onChange={e => applyQuarter(e.target.value, quarterYear || defaultYear)}>
                 <option value="1">1º trimestre</option>
                 <option value="2">2º trimestre</option>
                 <option value="3">3º trimestre</option>
                 <option value="4">4º trimestre</option>
-              </select>
-            </div>
-            <div className="field-group">
-              <label htmlFor="sede-quarter-year">Ano</label>
-              <input id="sede-quarter-year" type="number" value={quarterYear} onChange={e => applyQuarter(quarterValue, e.target.value)} />
-            </div>
-          </>
+              </Select>
+            </Field>
+            <Field id="sede-quarter-year" label="Ano" optionalText="">
+              <Input size="sm" type="number" min="1900" max="2100" value={quarterYear} onChange={e => applyQuarter(quarterValue, e.target.value)} />
+            </Field>
+          </div>
         )}
 
         {periodType === 'semester' && (
-          <>
-            <div className="field-group">
-              <label htmlFor="sede-semester">Semestre</label>
-              <select id="sede-semester" value={semesterValue} onChange={e => applySemester(e.target.value, semesterYear || defaultYear)}>
+          <div className="acp-sede-ds__period-fields">
+            <Field id="sede-semester" label="Semestre" optionalText="">
+              <Select size="sm" value={semesterValue} onChange={e => applySemester(e.target.value, semesterYear || defaultYear)}>
                 <option value="1">1º semestre</option>
                 <option value="2">2º semestre</option>
-              </select>
-            </div>
-            <div className="field-group">
-              <label htmlFor="sede-semester-year">Ano</label>
-              <input id="sede-semester-year" type="number" value={semesterYear} onChange={e => applySemester(semesterValue, e.target.value)} />
-            </div>
-          </>
+              </Select>
+            </Field>
+            <Field id="sede-semester-year" label="Ano" optionalText="">
+              <Input size="sm" type="number" min="1900" max="2100" value={semesterYear} onChange={e => applySemester(semesterValue, e.target.value)} />
+            </Field>
+          </div>
         )}
 
         {periodType === 'year' && (
-          <div className="field-group">
-            <label htmlFor="sede-year">Ano</label>
-            <input id="sede-year" type="number" value={yearValue} onChange={e => applyYear(e.target.value)} />
+          <div className="acp-sede-ds__period-fields">
+            <Field id="sede-year" label="Ano" optionalText="">
+              <Input size="sm" type="number" min="1900" max="2100" value={yearValue} onChange={e => applyYear(e.target.value)} />
+            </Field>
           </div>
         )}
 
         {periodType === 'custom' && (
-          <>
-            <div className="field-group">
-              <label htmlFor="sede-custom-from">De</label>
-              <input
-                id="sede-custom-from"
+          <div className="acp-sede-ds__period-fields">
+            <Field id="sede-custom-from" label="De" optionalText="">
+              <Input size="sm"
                 type="date"
                 value={customFrom}
                 onChange={e => {
@@ -321,11 +262,10 @@ export function SedeCostsBoard() {
                   applyCustom(e.target.value, customTo);
                 }}
               />
-            </div>
-            <div className={customInvalid ? 'field-group field-invalid' : 'field-group'}>
-              <label htmlFor="sede-custom-to">Até</label>
-              <input
-                id="sede-custom-to"
+            </Field>
+            <Field id="sede-custom-to" label="Até" optionalText=""
+              errorText={customInvalid ? 'A data final não pode ser anterior à inicial.' : undefined}>
+              <Input size="sm"
                 type="date"
                 value={customTo}
                 onChange={e => {
@@ -333,48 +273,38 @@ export function SedeCostsBoard() {
                   applyCustom(customFrom, e.target.value);
                 }}
               />
-            </div>
-            {customInvalid && (
-              <div className="field-group">
-                <span className="placeholder-copy" role="alert">
-                  Mês final não pode ser anterior ao inicial.
-                </span>
-              </div>
-            )}
-          </>
+            </Field>
+          </div>
         )}
-      </div>
+      </Card>
 
-      <div className="acp-kpis">
-        <div className="acp-kpi">
-          <span className="acp-kpi-label">Centros</span>
-          <span className="acp-kpi-value">
-            {activeCards}/{cards.length}
-          </span>
-        </div>
-        <div className="acp-kpi">
-          <span className="acp-kpi-label">{activePeriodLabel}</span>
-          <span className="acp-kpi-value">{brl(data.summary.total)}</span>
-        </div>
-        <div className="acp-kpi">
-          <span className="acp-kpi-label">Pago</span>
-          <span className="acp-kpi-value">{brl(data.summary.paidTotal)}</span>
-        </div>
-        <div className="acp-kpi acp-kpi-accent">
-          <span className="acp-kpi-label">Em aberto</span>
-          <span className="acp-kpi-value">{brl(data.summary.openTotal)}</span>
-          <span className="acp-kpi-foot">
-            {data.summary.count} lançamento{data.summary.count === 1 ? '' : 's'}
-          </span>
-        </div>
-      </div>
+      {isError ? <Alert tone="warning" title="Não foi possível atualizar os custos da Sede"
+        action={{ label: 'Tentar novamente', onClick: () => void refetch() }}>
+        {data ? 'Os últimos valores carregados continuam visíveis.' : 'Confira a conexão e tente novamente.'}
+      </Alert> : null}
 
-      <SedeOperationalCards data={data.operational} />
+      <div className="acp-sede-ds__results" aria-busy={isLoading || isFetching}>
+        {data ? <>
+          <div className="acp-sede-ds__metrics">
+            <MetricCard label="Centros com lançamentos" value={`${activeCards}/${cards.length}`} />
+            <MetricCard label="Total" value={brl(data.summary.total)} description={activePeriodLabel} />
+            <MetricCard label="Pago" value={brl(data.summary.paidTotal)} />
+            <MetricCard label="Em aberto" value={brl(data.summary.openTotal)} tone="warning"
+              description={`${data.summary.count} lançamento${data.summary.count === 1 ? '' : 's'}`} />
+          </div>
 
-      <div className="acp-pcards-grid acp-sede-grid">
-        {cards.map(card => (
-          <SedeCard key={card.code} card={card} monthTitle={monthTitle} monthlyLimit={monthlyLimit} />
-        ))}
+          <SedeOperationalCards data={data.operational} />
+
+          <section className="acp-sede-ds__costs" aria-labelledby="acp-sede-centers-title">
+            <div className="acp-sede-ds__section-heading"><h2 id="acp-sede-centers-title">Centros de custo</h2>
+              <p>Compras e lançamentos do Omie no período selecionado.</p></div>
+            {cards.length ? <div className="acp-sede-ds__cost-grid">
+              {cards.map(card => <SedeCard key={card.code} card={card} monthTitle={monthTitle} monthlyLimit={monthlyLimit} />)}
+            </div> : <EmptyState title="Nenhum centro de custo encontrado" description="Escolha outro período para consultar os lançamentos." />}
+          </section>
+        </> : isLoading ? <div className="acp-sede-ds__metrics" role="status" aria-label="Carregando custos da Sede">
+          {[0, 1, 2, 3].map(index => <Skeleton key={index} variant="card" height="7rem" decorative />)}
+        </div> : null}
       </div>
     </div>
   );

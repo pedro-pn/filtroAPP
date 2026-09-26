@@ -705,26 +705,40 @@ export function ProjectDetailDashboard({
           {equipamentos.length === 0 ? (
             <div className="acp-detail-muted">Nenhum equipamento em obra.</div>
           ) : (
-            <div className="acp-detail-equips-table-wrap">
-              <table className="acp-detail-equips-table">
-                <caption className="sr-only">Equipamentos na obra</caption>
-                <thead><tr>
-                  <th scope="col">Equipamento</th>
-                  <th scope="col">Tempo na obra</th>
-                  <th scope="col">Desde</th>
-                </tr></thead>
-                <tbody>{equipamentos.map((equipment, index) => (
-                  <tr key={`${equipment.code ?? equipment.name}-${index}`}>
-                    <th scope="row">
-                      {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
-                      <span>{equipment.name}</span>
-                    </th>
-                    <td>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
-                    <td>{fmtDate(equipment.since)}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            <>
+              <div className="acp-detail-equips-table-wrap">
+                <table className="acp-detail-equips-table">
+                  <caption className="sr-only">Equipamentos na obra</caption>
+                  <thead><tr>
+                    <th scope="col">Equipamento</th>
+                    <th scope="col">Tempo na obra</th>
+                    <th scope="col">Desde</th>
+                  </tr></thead>
+                  <tbody>{equipamentos.map((equipment, index) => (
+                    <tr key={`${equipment.code ?? equipment.name}-${index}`}>
+                      <th scope="row">
+                        {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                        <span>{equipment.name}</span>
+                      </th>
+                      <td>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
+                      <td>{fmtDate(equipment.since)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <ul className="acp-detail-equips-mobile" aria-label="Equipamentos na obra">
+                {equipamentos.map((equipment, index) => (
+                  <li key={`${equipment.code ?? equipment.name}-${index}`}>
+                    {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                    <strong>{equipment.name}</strong>
+                    <div className="acp-detail-equip-mobile-meta">
+                      <span><small>Tempo na obra</small><b>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</b></span>
+                      <span><small>Desde</small><b>{fmtDate(equipment.since)}</b></span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </details>
         <div className="acp-det-romaneios-action">
@@ -743,7 +757,6 @@ export function ProjectDetailDashboard({
 
     </div>
 
-      {/* Diálogos de apoio compartilhados permanecem no lote A4. */}
       <ProjectStandbyHistoryDialog
         project={standbyHistoryOpen && !isGroup && projectId
           ? { projectId, code: h.code }

@@ -7,7 +7,7 @@ import {
   type RdoSimulationCollaborator
 } from '../../api/acompanhamentoPonto';
 import { createSearchMatcher } from '../../utils/search';
-import { Button } from '../ui/Button';
+import { Button, Field, Input, Select } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 
@@ -58,24 +58,21 @@ export function RdoSimulationExclusionsPanel() {
         As horas dos RDOs e os custos calculados pelo ponto são preservados. Você pode reincluir o colaborador a qualquer momento.
       </p>
       <div className="ponto-filter-row">
-        <div className="field-group ponto-filter-grow">
-          <label htmlFor="rdo-simulation-search">Buscar colaborador</label>
-          <input
-            id="rdo-simulation-search"
+        <Field className="ponto-filter-grow" label="Buscar colaborador" optionalText="">
+          <Input
             type="search"
             placeholder="Nome, código ou cargo"
             value={search}
             onChange={event => setSearch(event.target.value)}
           />
-        </div>
-        <div className="field-group">
-          <label htmlFor="rdo-simulation-filter">Simulação</label>
-          <select id="rdo-simulation-filter" value={filter} onChange={event => setFilter(event.target.value)}>
+        </Field>
+        <Field label="Simulação" optionalText="">
+          <Select value={filter} onChange={event => setFilter(event.target.value)}>
             <option value="all">Todos</option>
             <option value="excluded">Excluídos do cálculo</option>
             <option value="included">Incluídos no cálculo</option>
-          </select>
-        </div>
+          </Select>
+        </Field>
       </div>
       {isPending ? <p className="placeholder-copy" role="status">Carregando colaboradores…</p> : null}
       {isError ? (

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getPontoColaboradores, type CollaboratorRate, type IdleBucket } from '../../api/acompanhamentoPonto';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { brl } from './costFields';
+import { Card, DataTable, EmptyState, Field, Select, Skeleton } from '../ui/ds';
 
 const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
@@ -52,9 +53,9 @@ export function LaborRateTable() {
   const rates = useMemo(() => [...(data?.rates ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), [data]);
   const months = useMemo(() => [...new Set(rates.flatMap(r => r.months.map(m => m.month)))].sort(), [rates]);
 
-  if (isLoading) return <div className="page-card placeholder-copy">Carregando custo/hora…</div>;
+  if (isLoading) return <Card className="acp-cost-ds__panel"><Skeleton height={180} /></Card>;
   if (!data?.importId) {
-    return <div className="page-card placeholder-copy">Nenhum ponto importado ainda. Envie a planilha na aba Ponto.</div>;
+    return <Card className="acp-cost-ds__panel"><EmptyState title="Nenhum ponto importado" description="Envie a planilha na aba Ponto." /></Card>;
   }
 
   const rows = rates.map(r => ({ r, view: viewFor(r, month) })).filter(x => x.view !== null) as Array<{ r: CollaboratorRate; view: RateView }>;
@@ -63,9 +64,8 @@ export function LaborRateTable() {
     bucket ? `${brl(bucket.cost)}${bucket.hours ? ` · ${fmtHoras(bucket.hours)}` : ''}` : '—';
 
   return (
-    <div className="page-card">
-      <div className="sec">Custo por colaborador</div>
-      <p className="placeholder-copy" style={{ margin: '4px 0 12px' }}>
+    <Card className="acp-cost-ds__panel" title="Custo por colaborador">
+      <p className="acp-cost-ds__copy">
         Período do ponto vigente: <strong>{fmtDate(data.periodStart)} – {fmtDate(data.periodEnd)}</strong>.
         A folha é calculada <strong>por mês</strong> (o salário mensal sai 1× por mês; mês parcial tem o
         fixo proporcional aos dias cobertos). Use o filtro para ver um mês específico ou o total.
@@ -73,44 +73,45 @@ export function LaborRateTable() {
         <strong> Sede</strong> (ponto batido, sem obra) e <strong>Folga</strong> (dia de semana sem ponto).
       </p>
 
-      <div className="field-group" style={{ maxWidth: 220, marginBottom: 12 }}>
-        <label htmlFor="rate-month">Mês</label>
-        <select id="rate-month" value={month} onChange={e => setMonth(e.target.value)}>
+      <Field className="acp-cost-ds__month" label="Mês" optionalText="">
+        <Select value={month} onChange={e => setMonth(e.target.value)}>
           <option value="todos">Todos (somado)</option>
           {months.map(m => <option key={m} value={m}>{fmtMonth(m)}</option>)}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div className="acp-table-wrap">
-        <table className="acp-table">
-          <thead>
-            <tr>
-              <th>Colaborador</th><th>Cargo</th><th>Normais</th><th>HE 70%</th><th>HE 100%</th>
-              <th>Custo mensal</th><th>Sede</th><th>Folga</th><th>Custo/hora</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ r, view }) => (
-              <tr key={r.collaboratorId}>
-                <td>{r.name}</td>
-                <td>{r.role ?? '—'}</td>
-                <td>{fmtHoras(view.normalHoras)}</td>
-                <td>{fmtHoras(view.he70Horas)}</td>
-                <td>{fmtHoras(view.he100Horas)}</td>
-                <td>{view.hasCostProfile ? brl(view.totalMensal) : <span className="placeholder-copy">cargo sem custo</span>}</td>
-                <td>{view.hasCostProfile ? custoCell(view.idle.sede) : '—'}</td>
-                <td>{view.hasCostProfile ? custoCell(view.idle.folga) : '—'}</td>
-                <td>{view.hasCostProfile ? <strong>{brl(view.custoHora)}</strong> : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        ariaLabel="Custo por colaborador"
+        rows={rows}
+        getRowId={({ r }) => r.collaboratorId}
+        columns={[
+          { key: 'name', header: 'Colaborador', render: ({ r }) => r.name },
+          { key: 'role', header: 'Cargo', render: ({ r }) => r.role ?? '—' },
+          { key: 'normal', header: 'Normais', render: ({ view }) => fmtHoras(view.normalHoras) },
+          { key: 'he70', header: 'HE 70%', render: ({ view }) => fmtHoras(view.he70Horas) },
+          { key: 'he100', header: 'HE 100%', render: ({ view }) => fmtHoras(view.he100Horas) },
+          { key: 'monthly', header: 'Custo mensal', render: ({ view }) => view.hasCostProfile ? brl(view.totalMensal) : 'cargo sem custo' },
+          { key: 'sede', header: 'Sede', render: ({ view }) => view.hasCostProfile ? custoCell(view.idle.sede) : '—' },
+          { key: 'folga', header: 'Folga', render: ({ view }) => view.hasCostProfile ? custoCell(view.idle.folga) : '—' },
+          { key: 'hourly', header: 'Custo/hora', render: ({ view }) => view.hasCostProfile ? <strong>{brl(view.custoHora)}</strong> : '—' }
+        ]}
+        mobile={{ renderItem: ({ r, view }) => ({
+          title: r.name,
+          subtitle: r.role ?? 'Sem cargo',
+          value: view.hasCostProfile ? brl(view.custoHora) : 'Cargo sem custo',
+          metadata: [
+            { label: 'Horas normais', value: fmtHoras(view.normalHoras) },
+            { label: 'HE 70% / 100%', value: `${fmtHoras(view.he70Horas)} / ${fmtHoras(view.he100Horas)}` },
+            { label: 'Custo mensal', value: view.hasCostProfile ? brl(view.totalMensal) : '—' },
+            { label: 'Sede / Folga', value: view.hasCostProfile ? `${custoCell(view.idle.sede)} / ${custoCell(view.idle.folga)}` : '—' }
+          ]
+        }) }}
+      />
       {idleTotal > 0 ? (
-        <p className="placeholder-copy" style={{ marginTop: 10 }}>
+        <p className="acp-cost-ds__copy">
           Ociosidade {month === 'todos' ? 'total no período' : `em ${fmtMonth(month)}`}: <strong>{brl(idleTotal)}</strong> (tempo pago não alocado a obras).
         </p>
       ) : null}
-    </div>
+    </Card>
   );
 }

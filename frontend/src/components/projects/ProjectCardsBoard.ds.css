@@ -13,6 +13,9 @@
 .acp-project__heading { display: flex; align-items: start; gap: var(--space-2); min-width: 0; }
 .acp-project__identity { flex: 1; min-width: 0; }
 .acp-project__heading h2 { margin: 0; font-size: var(--text-base); line-height: var(--leading-base); overflow-wrap: anywhere; }
+.acp-project__title-edit { display: inline; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; line-height: inherit; text-align: start; overflow-wrap: anywhere; cursor: pointer; }
+.acp-project__title-edit:hover { color: var(--brand-text); text-decoration: underline; text-underline-offset: .18em; }
+.acp-project__title-edit:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-sm); }
 .acp-project__secondary { color: var(--muted); font-size: var(--text-xs); margin: 0; overflow-wrap: anywhere; }
 .acp-project__identity > p { margin-block-start: var(--space-1); }
 .acp-project__body, .acp-project__metrics { display: grid; gap: var(--space-4); min-width: 0; }
@@ -34,6 +37,8 @@
 .acp-project__actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: var(--space-2); width: 100%; min-width: 0; }
 .acp-project__actions > * { flex-shrink: 0; }
 .acp-project__rename { display: grid; gap: var(--space-2); }
+.acp-project__rename-layout { display: grid; gap: var(--space-1); min-width: 0; }
+.acp-project__fixed-code { color: var(--ink); font-size: var(--text-sm); }
 .acp-project__rename .acp-project__inline-actions { justify-content: flex-end; }
 
 @media (max-width: 767.98px) {

@@ -27,6 +27,9 @@ test('a conciliação mostra vínculos antigos sem descartá-los e oferece apena
   client.setQueryData(['project-systems', 'scope', 'p'], systems);
   client.setQueryData(['project-progress', 'p'], { hasScope: false, services: [] });
   const html = render(createElement(ProjectSystemReconciliation, { projectId: 'p', canManage: true, onBack() {} }));
+  assert.match(html, /fv-ds acp-reconciliation-ds/);
+  assert.match(html, /data-acp-progress-ds|Escopo previsto não cadastrado/);
+  assert.doesNotMatch(html, /class="mini-btn|class="page-card|class="reconciliation-page/);
   assert.match(html, /RTP 001/);
   assert.match(html, /UG antiga · Nome antigo/);
   assert.match(html, /Sistema old/);

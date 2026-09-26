@@ -184,6 +184,7 @@
 .acp-detail-equips-table tbody th > span { display: block; }
 .acp-detail-equip-code { color: var(--brand-text); font-size: var(--text-xs); }
 .acp-detail-equips-table tbody td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.acp-detail-equips-mobile { display: none; }
 .acp-detail-equips-details > summary { font-size: var(--text-lg); }
 .acp-detail-people { margin-top: 0; }
 .acp-detail-block .fv-alert + .acp-detail-people { margin-top: var(--space-3); }
@@ -218,4 +219,22 @@
   .acp-detail-financial-side > .acp-detail-block > .fv-card__body,
   .acp-detail-planning > .fv-card__body, .acp-detail-deviations > .fv-card__body,
   .acp-detail-notes > .fv-card__body { padding: var(--space-4); }
+  .acp-detail-equips-table-wrap { display: none; }
+  .acp-detail-equips-mobile { display: grid; gap: var(--space-3); margin: var(--space-3) 0 0; padding: 0; list-style: none; min-width: 0; }
+  .acp-detail-equips-mobile > li { display: grid; gap: var(--space-2); min-width: 0; padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+  .acp-detail-equips-mobile > li > strong { overflow-wrap: anywhere; font-size: var(--text-sm); }
+  .acp-detail-equip-mobile-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); padding-top: var(--space-2); border-top: var(--border-width) solid var(--line); }
+  .acp-detail-equip-mobile-meta > span { display: grid; gap: var(--space-1); min-width: 0; }
+  .acp-detail-equip-mobile-meta small { color: var(--muted); font-size: var(--text-xs); }
+  .acp-detail-equip-mobile-meta b { font-size: var(--text-sm); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+}
+.acp-detail .acp-det-romaneios-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--line);
+}
+@media (max-width: 639.98px) {
+  .acp-detail .acp-det-romaneios-action > .fv-button { width: 100%; }
 }
