@@ -117,3 +117,15 @@ export function synchronizeMissionAllocationPeriods(
     demobilizationDate: missionEndDate
   });
 }
+
+export function shiftDefaultMissionAllocationPeriods(
+  periods: MissionAllocationPeriodDraft[],
+  previous: { startDate: string; endDate: string },
+  next: { startDate: string; endDate: string }
+): MissionAllocationPeriodDraft[] {
+  return periods.map(period => ({
+    ...period,
+    mobilizationDate: period.mobilizationDate === previous.startDate ? next.startDate : period.mobilizationDate,
+    demobilizationDate: period.demobilizationDate === previous.endDate ? next.endDate : period.demobilizationDate
+  }));
+}

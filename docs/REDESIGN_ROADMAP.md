@@ -4,6 +4,11 @@
 > à branch de redesign. O delta e as tarefas visuais estão em
 > [Novidades da main em 25/09](#novidades-da-main-em-25092026).
 
+> **Retomada do Efetivo em 27/09/2026:** `origin/main` até `62a3dd6a` foi
+> conciliada com o redesign. O diálogo de planejamento de missão foi preservado;
+> as novas superfícies de disponibilidade, execução, resumo legado e equipe/ciclos
+> receberam adaptação visual. A validação integrada de F2 permanece pendente.
+
 > **Delta corrigido em 24/09/2026:** o merge de `origin/main` em `10599cf3`
 > havia substituído telas já migradas por versões legadas. RDO, Conta, Cliente,
 > Estatísticas, Acompanhamento, Assinaturas e partes do Efetivo foram restaurados
@@ -42,15 +47,15 @@ entradas DS desta branch durante cada lote.
 | --- | --- | --- |
 | **A3c — Acompanhamento: metragens realizadas** | Conciliação de RTH/RLQ/FLU por dia e serviço, comparação RDO × valor validado, histórico, revisão, restauração, aviso quando a origem muda e permissão de gestão. O painel novo foi encaixado no avanço físico DS e legado. | **Apresentação DS implementada** para leitura, histórico, estados e formulário, mantendo o consumidor legado. A7 ainda deve conferir persistência real, revisão concorrente, refresh do avanço e perfis em projeto/grupo. |
 | **A3b/A7 — Acompanhamento: contratos existentes** | A conciliação de sistemas e o escopo planejado passaram a exibir “Equipamento do cliente” e ajustes de nomes; a API de avanço considera as novas metragens validadas. | Revisar `ProjectSystemInput`, `ProjectSystemAliases`, `ProjectSystemReconciliation`, `ProjectPlannedScopeEditor`, `ProjectProgressBreakdown` e o detalhe já migrado para refletir os novos rótulos e dados. Revalidar consumo de metas, totais e permissões em projeto/grupo. |
-| **F2.1/F2.5 — Efetivo: disponibilidade por período** | Filtro de data final, API diária por intervalo, KPIs de pico/falta, cargos com déficit, riscos planejados e alternância Kanban/Calendário; status “Indisponível” e “Fora do vínculo”. | Concluir a migração DS de `AvailabilityBoard`: cards/alertas, alternância, legenda, calendário, faixas/tooltip e seções de déficit e risco; tokenizar cores, tratar períodos inválidos, loading/erro/vazio e responsividade. Preservar o shell DS e a seção Simulações. |
-| **F2.5/F2.6 — Efetivo: evolução e execução** | Resumo inicial para obras legadas, equipe/datas/equipamentos, verificação semanal, desvios recolhíveis e ajustes de calendário, capacidade e tooltip. | Migrar o formulário `ProjectLegacySummaryStartForm` e os blocos novos de `ProjectWorkflowBoard`/`ProjectExecutionDashboard`; revisar `ProjectWorkflowModal` e calendário com perfis gestor/leitor, estados de edição, falha, pendências e telas móveis. Efetivo continua em standby para a migração completa até a conciliação da frente paralela. |
+| **F2.1/F2.5 — Efetivo: disponibilidade por período** | Filtro de data final, API diária por intervalo, KPIs de pico/falta, cargos com déficit, riscos planejados e alternância Kanban/Calendário; status “Indisponível” e “Fora do vínculo”. | **Adaptação visual implementada:** cards DS, cores semânticas nos riscos e faixas do calendário, Kanban responsivo e estados de loading/erro/vazio. Falta validar com dados e perfis reais na matriz F2. |
+| **F2.5/F2.6 — Efetivo: evolução e execução** | Resumo inicial para obras legadas, equipe/datas/equipamentos, verificação semanal, desvios recolhíveis e ajustes de calendário, capacidade e tooltip. | **Adaptação visual implementada:** resumo legado com campos DS; execução com cartões, campos e relatórios DS; equipe/ciclos embutidos no fluxo com controles DS e regras novas da main. O diálogo de planejamento de missão foi preservado. Falta validar persistência, permissões e navegadores na matriz F2. |
 | **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | Adaptar ações de `GestorPage`, `PhysicalSignatureDialog`, `ReportSummaryCard`, `ReportDetailPage` e `ClientPage` aos controles/estados DS; conferir upload, confirmação, sucesso/erro, leitura, revogação, permissões, teclado, foco e temas. Preservar a ordem e a disponibilidade dos relatórios para o cliente. |
 | **X2 — Componentes compartilhados** | `Modal` recebeu proteção de teclado/propagação para painéis aninhados; o catálogo de API foi atualizado. | Revalidar diálogos de Cronograma, assinatura física e demais consumidores DS/legados. O catálogo de API não cria superfície visual nova nesta rodada. |
 
 Após A3c, a próxima prioridade deste delta é **X3**, que altera telas RDO e
 Cliente já migradas.
-**F2.1/F2.5/F2.6** entram na retomada do Efetivo, respeitando o standby registrado
-na F2. A7 e X2 incluem regressão integrada de todos os módulos já migrados.
+**F2.1/F2.5/F2.6** foram retomadas em 27/09. A7 e X2 incluem regressão
+integrada de todos os módulos já migrados.
 
 ## Estado após a integração
 
@@ -58,10 +63,10 @@ na F2. A7 e X2 incluem regressão integrada de todos os módulos já migrados.
   estão implementados para gestor, coordenador, colaborador e cliente. A barra
   lateral desktop pode ficar recolhida, usa a `LOGO_TAB` e expande ao passar o
   mouse; Equipamentos usa ícone de engrenagem, distinto de Manutenção.
-- A migração completa do Efetivo está em **standby nesta worktree**, por solicitação
-  do usuário em 10/09: o módulo está sendo alterado em outra worktree. Visão geral,
-  colaboradores e diálogos já migrados foram recuperados e a equipe inicial foi
-  conciliada com a nova Evolução. O novo fluxo de projetos permanece na fila F2.5/F2.6.
+- O Efetivo foi retomado nesta worktree em 27/09, após a pausa solicitada em
+  10/09. Visão geral, colaboradores e diálogos anteriores permanecem no DS; o
+  delta recente de Disponibilidade e Evolução/Execução foi conciliado com a main.
+  Falta a matriz integrada de F2 para declarar o módulo homologado.
 - Assinaturas: shell, biblioteca, preparação, acompanhamento, auditoria e
   assinatura pública migrados em F1 + F3.1–F3.4. A prévia contínua da main foi
   incorporada ao editor e à página pública. Backend real isolado, Chromium,
@@ -464,8 +469,8 @@ Saída: build de produção e suíte estática do frontend verdes.
 Prioridade: P0.
 
 Status: **em andamento** — Efetivo, Assinaturas e Acompanhamento usam `AppShell`; a consolidação
-dos demais diálogos continua pendente. Novos ajustes do Efetivo estão suspensos
-nesta worktree.
+dos demais diálogos continua pendente. Os ajustes do Efetivo foram retomados
+nesta worktree em 27/09.
 
 - migrar Efetivo e Assinaturas de `Shell`/`TopBar` legados para `AppShell`;
 - criar modelos de navegação dos dois módulos sem duplicar regras do registry;
@@ -484,10 +489,9 @@ Critério de saída: as páginas-raiz usam o shell novo e nenhuma navegação fu
 
 Prioridade: P0. Executar em quatro ondas para limitar regressões.
 
-**Standby desde 10/09/2026 nesta worktree.** O usuário informou desenvolvimento
-paralelo do módulo em outra worktree. O inventário abaixo registra o último
-estado entregue, não uma autorização para continuar F2. Antes da retomada,
-conciliar os componentes e fluxos da outra frente e revalidar as lacunas.
+**Retomado em 27/09/2026**, após o standby solicitado em 10/09. Os componentes
+e fluxos da outra frente foram conciliados com `origin/main`; a validação
+integrada de F2 ainda precisa cobrir dados reais, perfis e navegadores.
 
 #### F2.1 — Navegação e leitura executiva
 

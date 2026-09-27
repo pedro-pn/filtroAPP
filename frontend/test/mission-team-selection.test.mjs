@@ -47,6 +47,21 @@ test('troca de colaborador remove o período antigo e cria o novo dentro da miss
   }]);
 });
 
+test('mudança da mobilização move o primeiro ciclo herdado sem alterar datas individuais', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const periods = [
+    { collaboratorId: 'default', mobilizationDate: '2026-09-07', demobilizationDate: '2026-11-26' },
+    { collaboratorId: 'custom', mobilizationDate: '2026-09-14', demobilizationDate: '2026-11-12' }
+  ];
+  assert.deepEqual(team.shiftDefaultMissionAllocationPeriods(periods,
+    { startDate: '2026-09-07', endDate: '2026-11-26' },
+    { startDate: '2026-09-10', endDate: '2026-11-30' }
+  ), [
+    { collaboratorId: 'default', mobilizationDate: '2026-09-10', demobilizationDate: '2026-11-30' },
+    periods[1]
+  ]);
+});
+
 test('edição da equipe preserva as datas oficiais quando a previsão do fluxo mudou', async () => {
   const team = await load('/src/utils/missionTeam.ts');
   const mission = {

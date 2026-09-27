@@ -408,8 +408,12 @@ export function ProjectDetailDashboard({
       <ProjectTimeSnapshot
         data={data}
         onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
-        reportsAction={!isGroup && projectId ? (
-          <ProjectReportsDialog projectId={projectId} missionLabel={`Missão ${h.code} · ${h.clientName}`} />
+        reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
+          <ProjectReportsDialog
+            projectId={isGroup ? undefined : projectId}
+            groupMembers={isGroup ? data.group?.members : undefined}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
+          />
         ) : null}
       />
 

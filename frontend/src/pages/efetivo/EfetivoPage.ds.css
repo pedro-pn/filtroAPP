@@ -9,6 +9,57 @@
   color: var(--ink);
 }
 
+/* Availability by period uses the same surfaces and semantic tones as the rest of Efetivo. */
+.efetivo-page-v2 .efetivo-period-board { gap: var(--space-4); }
+.efetivo-page-v2 .efetivo-period-kpis { gap: var(--space-3); }
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: var(--space-4);
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-e1);
+}
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card.fv-tone--warning {
+  background: var(--warning-bg);
+  border-color: var(--warning-line);
+}
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__copy { gap: var(--space-1); }
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__label,
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__description { color: var(--muted); font-size: var(--text-xs); }
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__value { color: var(--ink); font-size: var(--text-xl); }
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card.fv-tone--warning .fv-metric-card__value { color: var(--warning); }
+.efetivo-page-v2 .efetivo-period-deficits > .fv-card__body,
+.efetivo-page-v2 .efetivo-period-calendar > .fv-card__body { display: grid; gap: var(--space-3); min-width: 0; }
+.efetivo-page-v2 .efetivo-period-role-grid article.has-deficit,
+.efetivo-page-v2 .efetivo-period-risk-grid article { background: var(--warning-bg); border-color: var(--warning-line); }
+.efetivo-page-v2 .efetivo-period-role-grid article.has-deficit { border-inline-start-color: var(--role-color, var(--warning)); }
+.efetivo-page-v2 .efetivo-period-role-grid article.has-deficit strong,
+.efetivo-page-v2 .efetivo-period-risk-grid strong,
+.efetivo-page-v2 .efetivo-role-deficit-days :is(summary, b) { color: var(--warning); }
+.efetivo-page-v2 .efetivo-role-deficit-days,
+.efetivo-page-v2 .efetivo-period-risk-grid p { border-color: var(--warning-line); }
+.efetivo-page-v2 .efetivo-period-demand-day.has-deficit { background: var(--warning-bg); color: var(--warning); }
+.efetivo-page-v2 .efetivo-period-demand-day.has-risk { background: var(--info-bg); color: var(--info); }
+.efetivo-page-v2 .efetivo-period-person-counts span { background: color-mix(in srgb, var(--stage) 12%, var(--surface)); }
+.efetivo-page-v2 .efetivo-period-calendar { padding: var(--space-4); }
+.efetivo-page-v2 .efetivo-period-board .efetivo-availability-kanban {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
+  overflow-x: visible;
+}
+.efetivo-page-v2 .efetivo-view-switch { background: var(--surface-2); border-color: var(--line); border-radius: var(--radius-md); }
+.efetivo-page-v2 .efetivo-view-switch button { min-height: var(--space-9); color: var(--muted); border-radius: var(--radius-sm); }
+.efetivo-page-v2 .efetivo-view-switch button.active { background: var(--surface); color: var(--brand-text); box-shadow: var(--shadow-e1); }
+
+@media (max-width: 767.98px) {
+  .efetivo-page-v2 .efetivo-period-kpis { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card { padding: var(--space-3); }
+  .efetivo-page-v2 .efetivo-period-board .efetivo-availability-kanban { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-page-v2 .efetivo-period-calendar { padding: var(--space-3); }
+}
+
 :where(.fv-ds, [data-fv-ds]).efetivo-page-v2 .efetivo-page-v2__content,
 :where(.fv-ds, [data-fv-ds]).efetivo-page-v2 .efetivo-board {
   display: grid;

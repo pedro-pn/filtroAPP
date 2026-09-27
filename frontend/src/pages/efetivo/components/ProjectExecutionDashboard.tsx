@@ -22,12 +22,13 @@ import {
   type ProjectExecutionDashboard as DashboardData
 } from '../../../api/projectWorkflow';
 import { downloadReportPdf } from '../../../api/reports';
-import { Button } from '../../../components/ui/Button';
+import { Button, Field, Input, Select, Textarea } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { downloadBlob } from '../../../utils/download';
 import { groupServicesByScope } from '../../../utils/plannedScopeGroups';
+import '../ProjectExecutionDashboard.ds.css';
 
 const schemas = makeProjectExecutionSchemas(z);
 type DeviationValues = ProjectExecutionDeviationInput;
@@ -47,10 +48,6 @@ const STATUS_LABELS: Record<ProjectExecutionDeviationStatus, string> = {
 };
 
 const IMPACT_LABELS = { ALTO: 'Alto', MEDIO: 'Médio', BAIXO: 'Baixo' } as const;
-
-function fieldClass(error?: unknown) {
-  return `field-group ${error ? 'field-invalid' : ''}`;
-}
 
 function fmtPct(value: number | null) {
   return value == null ? '—' : `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
@@ -114,7 +111,10 @@ function ExecutionScopeProgress({ data }: { data: DashboardData }) {
   return <section className="project-execution-scope-progress" aria-label="Escopo e avanço físico">
     <header><div><h5>Escopo e avanço físico</h5><p>Metas cadastradas e realizado dos RDOs, com o mesmo cálculo do Acompanhamento.</p></div><strong>{fmtPct(overallProgressPct)}</strong></header>
     <div className="project-execution-scope-columns">
-      <div><h6>Escopo cadastrado</h6>{data.scope === null ? <p className="field-hint">Escopo indisponível no momento.</p> : scope.length ? groupServicesByScope(scope).map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
+      <details className="project-execution-scope-panel">
+        <summary><span>Escopo cadastrado</span><small>{scope.length} serviço{scope.length === 1 ? '' : 's'}</small></summary>
+        <div className="project-execution-scope-panel-body" role="region" aria-label="Serviços do escopo cadastrado" tabIndex={0}>
+        {data.scope === null ? <p className="field-hint">Escopo indisponível no momento.</p> : scope.length ? groupServicesByScope(scope).map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
         {scope.some(service => service.scopeName) ? <strong>Escopo: {group.scopeName || 'Sem escopo definido'}</strong> : null}
         {group.services.map((service, index) => <article key={service.id || index}>
           <div><strong>{SERVICE_LABELS[service.serviceType] || service.serviceType}</strong>{service.weight != null ? <small>peso {Number(service.weight).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</small> : null}</div>
@@ -122,14 +122,20 @@ function ExecutionScopeProgress({ data }: { data: DashboardData }) {
         </article>)}
       </div>) : <p className="field-hint">Nenhum serviço cadastrado.</p>}
         {data.scope && (data.scope.normalHours.length || data.scope.overtime.length) ? <div className="project-execution-scope-hours"><strong>Horas previstas</strong><ul>{data.scope.normalHours.map((row, index) => <li key={`normal-${row.id || index}`}>Normais · {row.roleName || 'Equipe'}: {Number(row.hours).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h</li>)}{data.scope.overtime.map((row, index) => <li key={`extra-${row.id || index}`}>Extras · {row.roleName || 'Equipe'}: {Number(row.hours).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h</li>)}</ul></div> : null}
-      </div>
-      <div><h6>Avanço por serviço</h6>{progress === null ? <p className="field-hint">Avanço físico indisponível no momento.</p> : progress.hasScope ? progressGroups.map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
+        </div>
+      </details>
+      <details className="project-execution-scope-panel">
+        <summary><span>Avanço por serviço</span><small>{fmtPct(overallProgressPct)}</small></summary>
+        <div className="project-execution-scope-panel-body" role="region" aria-label="Avanço por serviço" tabIndex={0}>
+        {progress === null ? <p className="field-hint">Avanço físico indisponível no momento.</p> : progress.hasScope ? progressGroups.map(group => <div className="project-execution-scope-group" key={group.scopeName ?? ''}>
         {progress.scopeGroups ? <strong>Escopo: {group.scopeName || 'Sem escopo definido'}</strong> : null}
         {group.services.map((service, index) => <article key={index}>
           <div><strong>{SERVICE_LABELS[service.serviceType] || service.serviceType}</strong><small>peso {service.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(service.executionPct)}</small></div>
           <ul>{service.systems.map((system, systemIndex) => <li key={systemIndex}>{system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] || system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}: {system.realizedQty ?? '—'} / {system.plannedQty ?? '—'} {system.unit || ''} · {fmtPct(system.pct)}</li>)}</ul>
         </article>)}
-      </div>) : <p className="field-hint">Cadastre o escopo previsto para calcular o avanço físico.</p>}</div>
+      </div>) : <p className="field-hint">Cadastre o escopo previsto para calcular o avanço físico.</p>}
+        </div>
+      </details>
     </div>
   </section>;
 }
@@ -152,14 +158,14 @@ function ExecutionReportsDialog({ reports }: { reports: ProjectExecutionReportSu
   }
 
   return <>
-    <Button variant="secondary" onClick={() => setOpen(true)}>Abrir relatórios</Button>
-    <Modal open={open && !preview} onClose={() => setOpen(false)} ariaLabelledBy="project-execution-reports-title" panelClassName="modal-card efetivo-modal project-execution-reports-modal">
-      <div className="project-execution-dialog"><header><div><h3 id="project-execution-reports-title">Relatórios da missão</h3><p>Selecione um relatório para pré-visualizar o PDF.</p></div><Button variant="secondary" onClick={() => setOpen(false)}>Fechar</Button></header>
-        <div className="project-execution-dialog-list">{reports.length ? reports.map(report => <article key={report.id}><div><strong>{reportName(report)}</strong><span>{fmtDate(report.reportDate)} · {STATUS_LABELS_REPORT[report.status] || report.status}</span></div><Button variant="mini" disabled={Boolean(openingId)} onClick={() => void openPdf(report)}>{openingId === report.id ? 'Abrindo…' : 'Abrir PDF'}</Button></article>) : <p className="placeholder-copy">Nenhum relatório registrado para esta missão.</p>}</div>
+    <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Abrir relatórios</Button>
+    <Modal open={open && !preview} onClose={() => setOpen(false)} appearance="design-system" title="Relatórios da missão" size="lg" fullscreenOnMobile={false} panelClassName="project-execution-reports-modal">
+      <div className="project-execution-dialog"><p className="project-execution-dialog-intro">Selecione um relatório para pré-visualizar o PDF.</p>
+        <div className="project-execution-dialog-list">{reports.length ? reports.map(report => <article key={report.id}><div><strong>{reportName(report)}</strong><span>{fmtDate(report.reportDate)} · {STATUS_LABELS_REPORT[report.status] || report.status}</span></div><Button variant="secondary" size="sm" disabled={Boolean(openingId)} onClick={() => void openPdf(report)}>{openingId === report.id ? 'Abrindo…' : 'Abrir PDF'}</Button></article>) : <p className="placeholder-copy">Nenhum relatório registrado para esta missão.</p>}</div>
       </div>
     </Modal>
-    <Modal open={Boolean(preview)} onClose={() => setPreview(null)} ariaLabelledBy="project-execution-pdf-title" panelClassName="modal-card efetivo-modal project-execution-pdf-modal">
-      {preview ? <div className="project-execution-dialog"><header><div><h3 id="project-execution-pdf-title">Visualizar PDF</h3><p>{reportName(preview.report)} · {fmtDate(preview.report.reportDate)}</p></div><div><Button variant="secondary" onClick={() => downloadBlob(preview.blob, `${reportName(preview.report)}.pdf`)}>Baixar PDF</Button><Button variant="secondary" onClick={() => setPreview(null)}>Fechar</Button></div></header><Suspense fallback={<p className="placeholder-copy">Preparando visualizador…</p>}><PdfCanvasViewer blob={preview.blob} /></Suspense></div> : null}
+    <Modal open={Boolean(preview)} onClose={() => setPreview(null)} appearance="design-system" title="Visualizar PDF" size="full" panelClassName="project-execution-pdf-modal">
+      {preview ? <div className="project-execution-dialog"><div className="project-execution-pdf-toolbar"><p>{reportName(preview.report)} · {fmtDate(preview.report.reportDate)}</p><Button variant="secondary" size="sm" onClick={() => downloadBlob(preview.blob, `${reportName(preview.report)}.pdf`)}>Baixar PDF</Button></div><Suspense fallback={<p className="placeholder-copy">Preparando visualizador…</p>}><PdfCanvasViewer blob={preview.blob} /></Suspense></div> : null}
     </Modal>
   </>;
 }
@@ -193,7 +199,9 @@ function WeeklyReviewForm({ projectId, week, canVerify }: { projectId: string; w
         <span>{item.label}</span>
       </label>)}
     </div>
-    <div className="field-group"><label htmlFor={`execution-weekly-note-${projectId}`}>Observações da semana</label><textarea id={`execution-weekly-note-${projectId}`} rows={3} maxLength={2000} value={note} disabled={!canVerify || save.isPending} onChange={event => setNote(event.target.value)} placeholder="Registre dificuldades, paralisações, desvios, incidentes ou encaminhamentos relevantes." /></div>
+    <Field id={`execution-weekly-note-${projectId}`} label="Observações da semana" disabled={!canVerify || save.isPending}>
+      <Textarea rows={3} maxLength={2000} value={note} disabled={!canVerify || save.isPending} onChange={event => setNote(event.target.value)} placeholder="Registre dificuldades, paralisações, desvios, incidentes ou encaminhamentos relevantes." />
+    </Field>
     <div className="project-execution-weekly-actions"><span>{checkedCount} de {PROJECT_EXECUTION_WEEKLY_CHECKS.length} itens verificados</span>{canVerify ? <Button type="submit" disabled={!changed || save.isPending}>{save.isPending ? 'Salvando…' : complete ? 'Concluir verificação' : 'Salvar andamento'}</Button> : <span>Aguardando um responsável pela gestão do projeto.</span>}</div>
   </form>;
 }
@@ -207,7 +215,7 @@ function WeeklyExecutionReview({ projectId, data, readOnly }: { projectId: strin
     <header><div><h5>Verificação semanal do projeto</h5><p>Checklist dos responsáveis pela gestão do projeto, disponível a cada quinta-feira.</p></div><strong className={review.pendingCount ? 'is-pending' : ''}>{review.pendingCount ? `${review.pendingCount} pendente(s)` : review.active ? 'Em dia' : 'Histórico'}</strong></header>
     {review.pendingCount ? <p className="project-execution-alert" role="status">{review.pendingCount === 1 ? 'Há uma verificação semanal pendente.' : `Há ${review.pendingCount} verificações semanais pendentes.`} As semanas não concluídas permanecem disponíveis até a revisão.</p> : null}
     {selectedWeek ? <>
-      {review.pending.length > 1 ? <div className="field-group project-execution-weekly-period"><label htmlFor={`execution-weekly-period-${projectId}`}>Semana a verificar</label><select id={`execution-weekly-period-${projectId}`} value={selectedWeek.weekStartDate} onChange={event => setSelectedWeekStart(event.target.value)}>{review.pending.map(week => <option key={week.weekStartDate} value={week.weekStartDate}>Quinta-feira, {displayDateOnly(week.dueDate)} · {week.checkedCount}/{PROJECT_EXECUTION_WEEKLY_CHECKS.length} itens</option>)}</select></div> : null}
+      {review.pending.length > 1 ? <Field id={`execution-weekly-period-${projectId}`} className="project-execution-weekly-period" label="Semana a verificar"><Select value={selectedWeek.weekStartDate} onChange={event => setSelectedWeekStart(event.target.value)}>{review.pending.map(week => <option key={week.weekStartDate} value={week.weekStartDate}>Quinta-feira, {displayDateOnly(week.dueDate)} · {week.checkedCount}/{PROJECT_EXECUTION_WEEKLY_CHECKS.length} itens</option>)}</Select></Field> : null}
       <WeeklyReviewForm key={selectedWeek.weekStartDate} projectId={projectId} week={selectedWeek} canVerify={canVerify} />
     </> : review.active ? <div className="project-execution-weekly-preview"><p>Nenhuma verificação pendente. Próxima revisão: quinta-feira, {fmtDate(review.nextDueDate)}.</p><strong>Itens da próxima verificação</strong><ul>{PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => <li key={item.key}>{item.label}</li>)}</ul></div> : <p className="field-hint">A verificação semanal é realizada durante a etapa de execução.</p>}
     {review.recentCompleted.length ? <div className="project-execution-weekly-history"><strong>Últimas verificações concluídas</strong><ul>{review.recentCompleted.map(week => <li key={week.weekStartDate}><span>Semana de {displayDateOnly(week.weekStartDate)}</span><small>{week.completedBy?.name || 'Responsável não informado'} · {week.completedAt ? new Date(week.completedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}</small></li>)}</ul></div> : null}
@@ -243,13 +251,13 @@ function Deviations({ projectId, data }: { projectId: string; data: Awaited<Retu
     <section className="project-execution-deviations" data-project-execution-deviations>
       <header><div><h5>Desvios do projeto</h5><p>Registros compartilhados com o módulo Qualidade.</p></div>{data.permissions.canEdit ? <Button variant="secondary" onClick={() => setFormOpen(value => !value)}>⚠️ Registrar desvio</Button> : null}</header>
       {formOpen ? <form className="project-execution-deviation-form" noValidate onSubmit={handleSubmit(values => create.mutate(values))}>
-        <div className={fieldClass(errors.category)}><label htmlFor="execution-deviation-category">Categoria *</label><select id="execution-deviation-category" disabled={create.isPending} aria-invalid={Boolean(errors.category)} {...register('category')}>{PROJECT_EXECUTION_DEVIATION_CATEGORIES.map(item => <option value={item.key} key={item.key}>{item.label}</option>)}</select>{errors.category ? <span className="field-error">{errors.category.message}</span> : null}</div>
-        <div className={fieldClass(errors.impact)}><label htmlFor="execution-deviation-impact">Impacto *</label><select id="execution-deviation-impact" disabled={create.isPending} aria-invalid={Boolean(errors.impact)} {...register('impact')}>{Object.entries(IMPACT_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>{errors.impact ? <span className="field-error">{errors.impact.message}</span> : null}</div>
-        <div className={fieldClass(errors.ownerName)}><label htmlFor="execution-deviation-owner">Responsável *</label><input id="execution-deviation-owner" disabled={create.isPending} aria-invalid={Boolean(errors.ownerName)} {...register('ownerName')} />{errors.ownerName ? <span className="field-error">{errors.ownerName.message}</span> : null}</div>
-        <div className={fieldClass(errors.dueDate)}><label htmlFor="execution-deviation-date">Data limite *</label><input id="execution-deviation-date" type="date" disabled={create.isPending} aria-invalid={Boolean(errors.dueDate)} {...register('dueDate')} />{errors.dueDate ? <span className="field-error">{errors.dueDate.message}</span> : null}</div>
-        <div className={`${fieldClass(errors.description)} project-execution-wide-field`}><label htmlFor="execution-deviation-description">Descrição *</label><textarea id="execution-deviation-description" rows={3} disabled={create.isPending} aria-invalid={Boolean(errors.description)} {...register('description')} />{errors.description ? <span className="field-error">{errors.description.message}</span> : null}</div>
-        <div className={`${fieldClass(errors.action)} project-execution-wide-field`}><label htmlFor="execution-deviation-action">Ação definida *</label><textarea id="execution-deviation-action" rows={3} disabled={create.isPending} aria-invalid={Boolean(errors.action)} {...register('action')} />{errors.action ? <span className="field-error">{errors.action.message}</span> : null}</div>
-        <div className={fieldClass(errors.status)}><label htmlFor="execution-deviation-status">Status *</label><select id="execution-deviation-status" disabled={create.isPending} aria-invalid={Boolean(errors.status)} {...register('status')}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>{errors.status ? <span className="field-error">{errors.status.message}</span> : null}</div>
+        <Field id="execution-deviation-category" label="Categoria" required errorText={errors.category?.message}><Select disabled={create.isPending} {...register('category')}>{PROJECT_EXECUTION_DEVIATION_CATEGORIES.map(item => <option value={item.key} key={item.key}>{item.label}</option>)}</Select></Field>
+        <Field id="execution-deviation-impact" label="Impacto" required errorText={errors.impact?.message}><Select disabled={create.isPending} {...register('impact')}>{Object.entries(IMPACT_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</Select></Field>
+        <Field id="execution-deviation-owner" label="Responsável" required errorText={errors.ownerName?.message}><Input disabled={create.isPending} {...register('ownerName')} /></Field>
+        <Field id="execution-deviation-date" label="Data limite" required errorText={errors.dueDate?.message}><Input type="date" disabled={create.isPending} {...register('dueDate')} /></Field>
+        <Field id="execution-deviation-description" className="project-execution-wide-field" label="Descrição" required errorText={errors.description?.message}><Textarea rows={3} disabled={create.isPending} {...register('description')} /></Field>
+        <Field id="execution-deviation-action" className="project-execution-wide-field" label="Ação definida" required errorText={errors.action?.message}><Textarea rows={3} disabled={create.isPending} {...register('action')} /></Field>
+        <Field id="execution-deviation-status" label="Status" required errorText={errors.status?.message}><Select disabled={create.isPending} {...register('status')}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</Select></Field>
         <div className="project-execution-form-actions"><Button type="button" variant="secondary" disabled={create.isPending} onClick={() => setFormOpen(false)}>Cancelar</Button><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Registrando…' : 'Registrar desvio'}</Button></div>
       </form> : null}
       {data.deviations.length ? <div className="project-execution-deviation-list">{data.deviations.map(deviation => {
@@ -262,7 +270,7 @@ function Deviations({ projectId, data }: { projectId: string; data: Awaited<Retu
             <span className="project-execution-deviation-toggle"><span>Ver detalhes</span><span>Ocultar detalhes</span></span>
           </summary>
           <div className="project-execution-deviation-detail">
-            <div className="project-execution-deviation-status"><label htmlFor={`execution-deviation-${deviation.id}`}>Status</label><select id={`execution-deviation-${deviation.id}`} value={status} disabled={!data.permissions.canEdit || updateStatus.isPending} onChange={event => updateStatus.mutate({ id: deviation.id, status: event.target.value as ProjectExecutionDeviationStatus })}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+            <Field id={`execution-deviation-${deviation.id}`} className="project-execution-deviation-status" label="Status" disabled={!data.permissions.canEdit || updateStatus.isPending}><Select value={status} disabled={!data.permissions.canEdit || updateStatus.isPending} onChange={event => updateStatus.mutate({ id: deviation.id, status: event.target.value as ProjectExecutionDeviationStatus })}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</Select></Field>
             <p>{deviation.description || 'Descrição não informada'}</p>
             <dl><div><dt>Responsável</dt><dd>{deviation.actionOwner || '—'}</dd></div><div><dt>Prazo</dt><dd>{fmtDate(deviation.actionDeadline)}</dd></div><div><dt>Ação</dt><dd>{deviation.definedAction || '—'}</dd></div></dl>
           </div>
@@ -289,7 +297,7 @@ export function ProjectExecutionDashboard({ projectId, readOnly = false }: { pro
   if (query.isError || !query.data) return <section className="project-execution-dashboard placeholder-copy"><p>Não foi possível carregar o painel de execução.</p><Button variant="secondary" onClick={() => void query.refetch()}>Tentar novamente</Button></section>;
   const dashboard = readOnly ? { ...query.data, permissions: { ...query.data.permissions, canEdit: false } } : query.data;
   return (
-    <section className="project-execution-dashboard" data-project-execution-dashboard>
+    <section className="project-execution-dashboard" data-fv-ds="true" data-project-execution-dashboard>
       <header><div><h4>Dashboard de execução</h4><p>Escopo, avanço físico, RDOs, assinaturas e desvios da obra.</p></div><ExecutionReportsDialog key={projectId} reports={dashboard.reports} /></header>
       <ExecutionOverview data={dashboard} />
       <ExecutionScopeProgress data={dashboard} />

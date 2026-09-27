@@ -110,6 +110,9 @@ export async function syncMissionDemobilization(tx, project, returnDate, mobiliz
   const effectiveMobilization = mobilizationDate === undefined
     ? project.mobilizationDate
     : mobilizationDate ? dateValue(mobilizationDate) : null;
+  const mobilizationChanged = mobilizationDate !== undefined
+    && (project.mobilizationDate ? parseDateKey(project.mobilizationDate) : null)
+      !== (effectiveMobilization ? parseDateKey(effectiveMobilization) : null);
   if (returnDate) {
     if (!effectiveMobilization) {
       throw planningError('Informe a mobilização no cronograma do Planejamento antes da desmobilização.', {
@@ -129,6 +132,12 @@ export async function syncMissionDemobilization(tx, project, returnDate, mobiliz
     where: { id: project.id },
     data
   });
+  if (mobilizationChanged && tx.projectWorkflow?.updateMany) {
+    await tx.projectWorkflow.updateMany({
+      where: { projectId: project.id },
+      data: { plannedMobilizationDate: effectiveMobilization, version: { increment: 1 } }
+    });
+  }
 }
 
 export async function resolveMissionResponsible(tx, payload) {

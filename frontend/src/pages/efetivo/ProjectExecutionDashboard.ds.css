@@ -1,0 +1,114 @@
+/* New execution data keeps the workflow's layout and uses shared DS surfaces. */
+.project-execution-dashboard[data-fv-ds] {
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.project-execution-dashboard[data-fv-ds] > header { align-items: center; flex-wrap: wrap; }
+.project-execution-dashboard[data-fv-ds] > header h4 { color: var(--ink); font-size: var(--text-md); }
+.project-execution-dashboard[data-fv-ds] > header p { color: var(--muted); font-size: var(--text-sm); }
+.project-execution-dashboard[data-fv-ds] .project-execution-metrics article {
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-metrics :is(span, small) { color: var(--muted); }
+.project-execution-dashboard[data-fv-ds] .project-execution-metrics strong { color: var(--ink); }
+.project-execution-dashboard[data-fv-ds] .project-execution-metrics strong.is-warning { color: var(--warning); }
+.project-execution-dashboard[data-fv-ds] :is(.project-execution-rdo, .project-execution-signatures, .project-execution-scope-progress, .project-execution-weekly, .project-execution-deviations) {
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+.project-execution-dashboard[data-fv-ds] :is(.project-execution-rdo, .project-execution-signatures, .project-execution-scope-progress, .project-execution-weekly, .project-execution-deviations) > header h5 {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.project-execution-dashboard[data-fv-ds] :is(.project-execution-report-history, .project-execution-signature-columns > div, .project-execution-weekly-form, .project-execution-weekly-preview, .project-execution-weekly-history, .project-execution-deviation-form) {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-scope-panel {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-scope-panel > summary {
+  min-height: var(--space-10);
+  color: var(--ink);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-scope-panel > summary:hover { background: var(--canvas); }
+.project-execution-dashboard[data-fv-ds] .project-execution-scope-panel > summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-alert {
+  border-color: var(--warning-line);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-deviation-list > details {
+  border-color: var(--line);
+  border-inline-start-color: var(--warning-line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.project-execution-dashboard[data-fv-ds] .project-execution-deviation-list > details.is-closed { border-inline-start-color: var(--success); }
+.project-execution-dashboard[data-fv-ds] .project-execution-deviation-list > details[open] { box-shadow: var(--shadow-e1); }
+.project-execution-dashboard[data-fv-ds] .project-execution-deviation-form .fv-field { min-width: 0; margin: 0; }
+.project-execution-dashboard[data-fv-ds] .project-execution-deviation-form .fv-field__label { color: var(--ink); }
+.project-execution-dashboard[data-fv-ds] .project-execution-deviation-form .project-execution-form-actions { grid-column: 1 / -1; }
+.project-execution-dashboard[data-fv-ds] .project-execution-weekly-form .fv-field { margin: 0; }
+
+.fv-modal.project-execution-reports-modal .fv-modal__body,
+.fv-modal.project-execution-pdf-modal .fv-modal__body { min-width: 0; min-height: 0; }
+.fv-modal.project-execution-reports-modal .project-execution-dialog,
+.fv-modal.project-execution-pdf-modal .project-execution-dialog { gap: var(--space-3); }
+.fv-modal.project-execution-reports-modal .project-execution-dialog-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.fv-modal.project-execution-reports-modal .project-execution-dialog-list { padding: 0; }
+.fv-modal.project-execution-reports-modal .project-execution-dialog-list article {
+  min-width: 0;
+  padding: var(--space-3);
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.fv-modal.project-execution-reports-modal .project-execution-dialog-list article:first-child { margin-block-start: 0; }
+.fv-modal.project-execution-pdf-modal .fv-modal__body { display: flex; padding: 0; }
+.fv-modal.project-execution-pdf-modal .project-execution-dialog { width: 100%; }
+.fv-modal.project-execution-pdf-modal .project-execution-pdf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: var(--border-width) solid var(--line);
+}
+.fv-modal.project-execution-pdf-modal .project-execution-pdf-toolbar p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.fv-modal.project-execution-pdf-modal .acp-pdf-canvas-viewer { min-height: 0; flex: 1 1 auto; }
+
+@media (max-width: 767.98px) {
+  .project-execution-dashboard[data-fv-ds] :is(.project-execution-rdo, .project-execution-signatures, .project-execution-scope-progress, .project-execution-weekly, .project-execution-deviations) { padding: var(--space-3); }
+  .fv-modal.project-execution-reports-modal {
+    align-self: center;
+    width: calc(100vw - var(--space-8));
+    height: auto;
+    max-height: calc(100dvh - var(--space-8));
+  }
+  .fv-modal.project-execution-reports-modal .project-execution-dialog-list article { align-items: stretch; flex-direction: column; }
+  .fv-modal.project-execution-reports-modal .project-execution-dialog-list article .fv-button { align-self: flex-start; }
+}

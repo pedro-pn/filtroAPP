@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 
 import { downloadReportPdf } from '../../api/reports';
+import type { MissionGroupMemberSummary } from '../../api/acompanhamentoComercial';
 import { useAuth } from '../../auth/AuthContext';
 import { hasAnyModuleRole } from '../../auth/rolePath';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
@@ -10,7 +11,7 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { GroupedReportList } from '../reports/GroupedReportList';
 import { ReportSummaryCard } from '../reports/ReportSummaryCard';
 import { Modal } from '../ui/Modal';
-import { Button, EmptyState, Skeleton } from '../ui/ds';
+import { Button, EmptyState, Field, Select, Skeleton } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 import './ProjectReportsDialog.css';
 
@@ -22,12 +23,26 @@ interface PdfPreview {
   blob: Blob;
 }
 
+function resolveProjectReportsMission(
+  projectId: string | undefined,
+  groupMembers: MissionGroupMemberSummary[] | undefined,
+  selectedProjectId: string
+) {
+  const missions = groupMembers?.filter(member => member.visible !== false) ?? [];
+  const selectedMission = groupMembers
+    ? missions.find(member => member.projectId === selectedProjectId) ?? missions[0]
+    : null;
+  return { missions, reportProjectId: selectedMission?.projectId ?? projectId ?? '' };
+}
+
 export function ProjectReportsDialog({
   projectId,
-  missionLabel
+  missionLabel,
+  groupMembers
 }: {
-  projectId: string;
+  projectId?: string;
   missionLabel: string;
+  groupMembers?: MissionGroupMemberSummary[];
 }) {
   const { user } = useAuth();
   const showToast = useToast();
@@ -35,16 +50,18 @@ export function ProjectReportsDialog({
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const canViewReports = hasAnyModuleRole(user, ['rdo:manager', 'rdo:coordinator']);
+  const { missions, reportProjectId } = resolveProjectReportsMission(projectId, groupMembers, selectedProjectId);
   const filters = useMemo(() => ({
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
-    projectId,
+    projectId: reportProjectId,
     pageSize: REPORT_PAGE_SIZE
-  }), [projectId]);
-  const reportsQuery = useAccumulatedReportsPage(filters, canViewReports && open);
-  const titleId = `project-reports-title-${projectId}`;
-  const pdfTitleId = `project-report-pdf-title-${projectId}`;
+  }), [reportProjectId]);
+  const reportsQuery = useAccumulatedReportsPage(filters, canViewReports && open && Boolean(reportProjectId));
+  const titleId = `project-reports-title-${reportProjectId}`;
+  const pdfTitleId = `project-report-pdf-title-${reportProjectId}`;
 
   function closePdfPreview() {
     setPdfPreview(null);
@@ -88,7 +105,7 @@ export function ProjectReportsDialog({
     showToast('PDF baixado com sucesso.', 'success');
   }
 
-  if (!canViewReports) return null;
+  if (!canViewReports || !reportProjectId) return null;
 
   return (
     <>
@@ -114,6 +131,22 @@ export function ProjectReportsDialog({
       >
         <div className="acp-mission-reports-dialog">
           <p className="acp-mission-reports-context">{missionLabel}</p>
+          {groupMembers ? (
+            <div className="acp-mission-reports-filter">
+              <Field id={`project-reports-mission-${reportProjectId}`} label="Missão">
+              <Select
+                value={reportProjectId}
+                onChange={event => setSelectedProjectId(event.target.value)}
+              >
+                {missions.map(member => (
+                  <option key={member.projectId} value={member.projectId}>
+                    Missão {member.code || 'sem código'}{member.name || member.clientName ? ` · ${member.name || member.clientName}` : ''}
+                  </option>
+                ))}
+              </Select>
+              </Field>
+            </div>
+          ) : null}
           <div className="acp-mission-reports-body">
             {reportsQuery.isLoading ? (
               <Skeleton variant="text" lines={7} label="Carregando relatórios da missão" />
@@ -130,6 +163,7 @@ export function ProjectReportsDialog({
               <GroupedReportList
                 appearance="design-system"
                 defaultTypeCollapsed
+                key={reportProjectId}
                 reports={reportsQuery.items}
                 archived={false}
                 onLoadMoreType={reportsQuery.loadMoreGroup}
@@ -187,7 +221,9 @@ export function ProjectReportsDialog({
         {pdfPreview ? (
           <div className="acp-pdf-viewer">
             <header className="acp-pdf-viewer-head">
-              <p>{pdfPreview.report.reportType} {pdfPreview.report.sequenceNumber || ''} · {missionLabel}</p>
+              <p>{pdfPreview.report.reportType} {pdfPreview.report.sequenceNumber || ''} · {groupMembers
+                  ? `Missão ${groupMembers.find(member => member.projectId === pdfPreview.report.projectId)?.code || 'sem código'}`
+                  : missionLabel}</p>
               <div className="acp-pdf-viewer-actions">
                 <Button size="sm" variant="primary" type="button" onClick={handlePreviewDownload}>Baixar PDF</Button>
                 <Button size="sm" variant="secondary" type="button" onClick={closePdfPreview}>Fechar</Button>

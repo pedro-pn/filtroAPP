@@ -9,7 +9,7 @@ import {
   type ProjectWorkflowLegacySummaryInput,
   type ProjectWorkflowLegacySummaryStage
 } from '../../../api/projectWorkflow';
-import { Button } from '../../../components/ui/Button';
+import { Alert, Field, Input, Select, Skeleton } from '../../../components/ui/ds';
 import { useToast } from '../../../components/ui/ToastContext';
 import { selectedMissionCollaboratorIds, synchronizeMissionAllocationPeriods, type MissionAllocationPeriodDraft } from '../../../utils/missionTeam';
 import { WORKFLOW_STAGE_LABELS, type ProjectKanbanStage } from '../../../utils/projectWorkflow';
@@ -190,43 +190,36 @@ export function ProjectLegacySummaryStartForm({ projectId, mission, fullMission,
   }
 
   return (
-    <form id={LEGACY_SUMMARY_FORM_ID} className="project-workflow-form project-workflow-legacy-summary-form" noValidate onSubmit={event => { void submit(event); }}>
+    <form id={LEGACY_SUMMARY_FORM_ID} className="project-workflow-form project-workflow-legacy-summary-form" data-fv-ds="true" noValidate onSubmit={event => { void submit(event); }}>
       <p>A gestão nasce direto na etapa escolhida; Handover, Análise inicial, Planejamento e Preparação ficam marcados como "não se aplica" para este projeto.</p>
       {error ? <p ref={errorRef} className="inline-error" role="alert">{error}</p> : null}
       <div className="project-workflow-form-grid">
-        <div className="field-group">
-          <label htmlFor="legacy-summary-stage">Etapa atual da obra *</label>
-          <select id="legacy-summary-stage" disabled={disabled} value={stage} onChange={event => setStage(event.target.value as ProjectWorkflowLegacySummaryStage)}>
+        <Field id="legacy-summary-stage" label="Etapa atual da obra" required disabled={disabled}>
+          <Select disabled={disabled} value={stage} onChange={event => setStage(event.target.value as ProjectWorkflowLegacySummaryStage)}>
             {LEGACY_SUMMARY_STAGES.map(item => <option value={item} key={item}>{WORKFLOW_STAGE_LABELS[item as ProjectKanbanStage]}</option>)}
-          </select>
-        </div>
-        <div className="field-group">
-          <label htmlFor="legacy-summary-leader">Líder de Projetos *</label>
-          <select id="legacy-summary-leader" disabled={disabled} value={leaderUserId} onChange={event => setLeaderUserId(event.target.value)}>
+          </Select>
+        </Field>
+        <Field id="legacy-summary-leader" label="Líder de Projetos" required disabled={disabled}>
+          <Select disabled={disabled} value={leaderUserId} onChange={event => setLeaderUserId(event.target.value)}>
             <option value="">Selecione</option>
             {leaders.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
-          </select>
-        </div>
-        <div className="field-group">
-          <label htmlFor="legacy-summary-planner">Gestor de Contrato *</label>
-          <select id="legacy-summary-planner" disabled={disabled} value={plannerUserId} onChange={event => setPlannerUserId(event.target.value)}>
+          </Select>
+        </Field>
+        <Field id="legacy-summary-planner" label="Gestor de Contrato" required disabled={disabled}>
+          <Select disabled={disabled} value={plannerUserId} onChange={event => setPlannerUserId(event.target.value)}>
             <option value="">Selecione</option>
             {leaders.map(item => <option value={item.id} key={item.id}>{item.name}{item.email ? ` · ${item.email}` : ' · sem e-mail cadastrado'}</option>)}
-          </select>
-        </div>
-        <div className="field-group">
-          <label htmlFor="legacy-summary-start-date">Data de início da obra *</label>
-          <input id="legacy-summary-start-date" type="date" disabled={disabled} value={startDate} onChange={event => setStartDate(event.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="legacy-summary-end-date">Data de término</label>
-          <input id="legacy-summary-end-date" type="date" disabled={disabled} value={endDate} onChange={event => setEndDate(event.target.value)} />
-          <span className="field-hint">Opcional; preencha apenas se a obra já foi concluída.</span>
-        </div>
-        {demobilizationRelevant ? <div className="field-group">
-          <label htmlFor="legacy-summary-demobilization-date">Data de desmobilização *</label>
-          <input id="legacy-summary-demobilization-date" type="date" disabled={disabled} value={demobilizationDate} onChange={event => setDemobilizationDate(event.target.value)} />
-        </div> : null}
+          </Select>
+        </Field>
+        <Field id="legacy-summary-start-date" label="Data de início da obra" required disabled={disabled}>
+          <Input type="date" disabled={disabled} value={startDate} onChange={event => setStartDate(event.target.value)} />
+        </Field>
+        <Field id="legacy-summary-end-date" label="Data de término" helperText="Preencha apenas se a obra já foi concluída." disabled={disabled}>
+          <Input type="date" disabled={disabled} value={endDate} onChange={event => setEndDate(event.target.value)} />
+        </Field>
+        {demobilizationRelevant ? <Field id="legacy-summary-demobilization-date" label="Data de desmobilização" required disabled={disabled}>
+          <Input type="date" disabled={disabled} value={demobilizationDate} onChange={event => setDemobilizationDate(event.target.value)} />
+        </Field> : null}
       </div>
 
       <div className="project-workflow-legacy-summary-team">
@@ -250,14 +243,14 @@ export function ProjectLegacySummaryStartForm({ projectId, mission, fullMission,
             }}
             onAllocationPeriodsChange={setAllocationPeriods}
           />
-        ) : <p className="field-hint">Carregando a equipe da programação oficial…</p>}
+        ) : <Skeleton variant="text" lines={3} label="Carregando a equipe da programação oficial" />}
       </div>
 
       <div className="project-workflow-legacy-summary-equipment">
         <strong>Equipamentos</strong>
         <p className="field-hint">{selectedEquipmentCount} selecionado(s). Confira os equipamentos encontrados nos romaneios e ajuste a lista por categoria.</p>
-        {equipment.isLoading ? <p className="field-hint">Procurando equipamentos nos romaneios deste projeto…</p> : null}
-        {equipment.isError ? <p className="project-workflow-category-note is-warning">Não foi possível buscar o catálogo de equipamentos. <Button type="button" variant="secondary" onClick={() => void equipment.refetch()}>Tentar novamente</Button></p> : null}
+        {equipment.isLoading ? <Skeleton variant="text" lines={3} label="Procurando equipamentos nos romaneios" /> : null}
+        {equipment.isError ? <Alert tone="danger" title="Não foi possível buscar o catálogo de equipamentos" action={{ label: 'Tentar novamente', onClick: () => void equipment.refetch() }}>Confira a conexão e tente novamente.</Alert> : null}
         {!equipment.isLoading && !equipment.isError && !categories.length ? <p className="field-hint">Nenhuma categoria de equipamento ativa cadastrada.</p> : null}
         {categories.length ? <div className="project-workflow-equipment-categories" aria-label="Categorias e equipamentos">
           {categories.map(category => (

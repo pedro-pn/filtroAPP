@@ -149,3 +149,30 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Legacy projects enter the workflow through a short summary form. */
+.project-workflow-modal .project-workflow-legacy-summary-form[data-fv-ds] { gap: var(--space-4); }
+.project-workflow-modal .project-workflow-legacy-summary-form[data-fv-ds] > p:first-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.project-workflow-modal .project-workflow-legacy-summary-form .fv-field { min-width: 0; }
+.project-workflow-modal .project-workflow-legacy-summary-form :is(.project-workflow-legacy-summary-team, .project-workflow-legacy-summary-equipment) {
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.project-workflow-modal .project-workflow-legacy-summary-form :is(.project-workflow-legacy-summary-team, .project-workflow-legacy-summary-equipment) > strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+@media (max-width: 767.98px) {
+  .project-workflow-modal .project-workflow-legacy-summary-form :is(.project-workflow-legacy-summary-team, .project-workflow-legacy-summary-equipment) {
+    padding: var(--space-3);
+  }
+}

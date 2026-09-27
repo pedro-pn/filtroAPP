@@ -17,12 +17,12 @@ const STATUS_META: Record<PeriodAvailabilityStatus, { label: string; short: stri
   OTHER_UNAVAILABLE: { label: 'Indisponíveis', short: 'Indisponível', description: 'Folga, afastamento ou fora do vínculo' }
 };
 const STATUS_COLOR: Record<PeriodAvailabilityStatus | 'OUTSIDE_EMPLOYMENT', string> = {
-  AVAILABLE: '#16a34a',
-  AWAITING_MOBILIZATION: '#f59e0b',
-  MOBILIZED: '#2563eb',
-  ON_VACATION: '#8b5cf6',
-  OTHER_UNAVAILABLE: '#dc6a58',
-  OUTSIDE_EMPLOYMENT: '#9ca3af'
+  AVAILABLE: 'var(--success)',
+  AWAITING_MOBILIZATION: 'var(--warning)',
+  MOBILIZED: 'var(--info)',
+  ON_VACATION: 'var(--pu)',
+  OTHER_UNAVAILABLE: 'var(--danger)',
+  OUTSIDE_EMPLOYMENT: 'var(--muted)'
 };
 
 type Person = PlanningAvailabilityPeriod['people'][number];
@@ -154,7 +154,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
         <MetricCard label="Maior número de pessoas que faltam" value={peakShortage} tone={peakShortage ? 'warning' : 'neutral'} description="No dia com maior necessidade" />
       </section>
 
-      <section className="page-card efetivo-period-deficits" aria-label="Cargos que precisam de mais pessoas">
+      <Card className="efetivo-period-deficits" padding="md" aria-label="Cargos que precisam de mais pessoas">
         <div className="efetivo-section-heading"><div><h2>Cargos que precisam de mais pessoas</h2><p>Um cargo só aparece aqui quando as missões precisam de mais pessoas do que existem alocadas e livres naquele dia. Isso não significa contratar automaticamente.</p></div></div>
         {shortageRoles.length ? <div className="efetivo-period-role-grid">{shortageRoles.map(role => {
           const shortageDays = role.daily.filter(day => day.shortage > 0);
@@ -168,12 +168,12 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
             </details>
           </article>;
         })}</div> : <p className="efetivo-period-clear">{openPositionRoles.length ? 'Há colaboradores livres dos cargos necessários para cobrir as vagas ainda sem alocação.' : 'O efetivo disponível atende às missões confirmadas em todos os dias deste período.'}</p>}
-      </section>
+      </Card>
 
-      <section className="page-card efetivo-period-deficits" aria-label="Riscos nas mobilizações planejadas">
+      <Card className="efetivo-period-deficits" padding="md" aria-label="Riscos nas mobilizações planejadas">
         <div className="efetivo-section-heading"><div><h2>Riscos nas mobilizações planejadas</h2><p>Necessidades do planejamento ainda não incluídas nas missões confirmadas, comparadas com a equipe livre na data prevista.</p></div></div>
         {data.plannedRisks.length ? <div className="efetivo-period-risk-grid">{data.plannedRisks.map(risk => <article key={`${risk.date}-${risk.jobRoleId}`}><span>{displayDateOnly(risk.date)} · {risk.jobRoleName}</span><strong>{risk.deficit} {risk.deficit === 1 ? 'pessoa em falta' : 'pessoas em falta'}</strong><small>{risk.required} ainda necessárias · {risk.free} livres após vagas confirmadas</small><p>{risk.projects.map(project => `${project.code} · ${project.name}`).join(' · ')}</p></article>)}</div> : <p className="efetivo-period-clear">Nenhum risco de equipe nas mobilizações planejadas deste período.</p>}
-      </section>
+      </Card>
 
       {view === 'kanban' ? <section className="efetivo-availability-kanban" aria-label="Disponibilidade dos colaboradores">
         {STATUSES.map(status => <div className="efetivo-kanban-column efetivo-availability-column" data-availability-status={status} key={status}>
@@ -189,7 +189,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
             </article>;
           }) : <p className="efetivo-kanban-empty">Nenhum colaborador nesta situação</p>}</div>
         </div>)}
-      </section> : <section className="page-card efetivo-period-calendar" aria-label="Calendário de disponibilidade">
+      </section> : <Card className="efetivo-period-calendar" padding="md" aria-label="Calendário de disponibilidade">
         <div className="efetivo-section-heading"><div><h2>Calendário da equipe</h2><p>{calendar.scale === 'day' ? 'Visão diária' : calendar.scale === 'week' ? 'Visão semanal' : 'Visão mensal'} para caber na tela. Cada faixa de cor representa um dia; passe sobre ela para ver os detalhes.</p></div></div>
         <div className="efetivo-period-legend">{STATUSES.map(status => <span data-availability-status={status} key={status}><i />{STATUS_META[status].short}</span>)}<span data-availability-status="OUTSIDE_EMPLOYMENT"><i />Fora do vínculo</span></div>
         <div className="efetivo-period-surface"><div className="efetivo-period-matrix" data-calendar-scale={calendar.scale} style={{ '--period-days': calendar.buckets.length } as CSSProperties}>
@@ -221,8 +221,8 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
             </div>;
           })}
         </div></div>
-        {!data.people.length ? <p className="placeholder-copy">Nenhum colaborador no período selecionado.</p> : null}
-      </section>}
+        {!data.people.length ? <p className="efetivo-period-clear">Nenhum colaborador no período selecionado.</p> : null}
+      </Card>}
     </div>
   );
 }

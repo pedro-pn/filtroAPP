@@ -17,7 +17,7 @@ import { HelpTip } from '../ui/HelpTip';
 import { ProjectSystemInput } from './ProjectSystemInput';
 import { PlannedHoursReview } from './PlannedHoursReview';
 import { useToast } from '../ui/ToastContext';
-import { Alert, Button, Card, Input, Select, Skeleton } from '../ui/ds';
+import { Alert, Button, Input, Select, Skeleton } from '../ui/ds';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
 const SERVICE_TYPES: Array<{ value: string; label: string }> = [
@@ -526,7 +526,12 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         <p className="acp-schedule-ds__muted">Nenhum serviço previsto.</p>
       ) : (
         <div className="acp-scope-groups">
-          {scopeGroups.map(group => <Card variant="flat" padding="md" className="acp-scope-group" key={group.key}>
+          {scopeGroups.map(group => <details className="acp-scope-group" key={group.key}>
+            <summary className="acp-scope-group-toggle">
+              <span>{group.name.trim() || 'Escopo sem nome'}</span>
+              <small>{group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small>
+            </summary>
+            <div className="acp-scope-group-content" role="region" aria-label={`Serviços do escopo ${group.name.trim() || 'sem nome'}`} tabIndex={0}>
             <div className="field-group acp-scope-group-name">
               <label htmlFor={`scope-name-${group.key}`}>Escopo <HelpTip icon help="Nome livre para organizar os serviços no cronograma, no avanço e no ritmo necessário. Não é usado nos relatórios nem altera o cálculo geral." /></label>
               <Input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
@@ -702,7 +707,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
           })}
             </div>
             <Button variant="secondary" size="sm" className="acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</Button>
-          </Card>)}
+            </div>
+          </details>)}
         </div>
       )}
       <Button variant="secondary" size="sm" className="acp-add-sys"
