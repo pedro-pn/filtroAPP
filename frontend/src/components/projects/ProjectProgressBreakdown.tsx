@@ -31,12 +31,13 @@ function systemLine(sys: ProgressSystem) {
 // `filter`/`progressPct` são opcionais: quando o dashboard já filtra por Escopo e/ou equipamento,
 // ele controla o recorte (chaves normalizadas, '' = todos, e o percentual do topo) e o seletor
 // interno deixa de aparecer.
-export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false, appearance = 'legacy' }: {
+export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false, appearance = 'legacy', collapsibleDetails = false }: {
   projectId: string;
   filter?: { scopeKey: string; equipmentKey: string };
   progressPct?: number | null;
   canManage?: boolean;
   appearance?: 'legacy' | 'design-system';
+  collapsibleDetails?: boolean;
 }) {
   const [ownEquipment, setEquipment] = useState('');
   const controlled = filter !== undefined;
@@ -78,17 +79,31 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
         </Field> : null}
       <ProgressBar label="Avanço total do escopo" value={shownPct} valueLabel={fmtPct(shownPct)} />
       {groups.length ? <div className="acp-progress-ds__groups">
-        {groups.map(group => <section className="acp-progress-ds__group" key={group.scopeName ?? ''}>
-          {data.scopeGroups ? <h4>Escopo: {group.scopeName || 'Sem escopo definido'}</h4> : null}
-          {group.services.map((service, index) => <div className="acp-progress-ds__service" key={`${service.serviceType}:${index}`}>
-            <div className="acp-progress-ds__service-head">
-              <strong>{SERVICE_LABELS[service.serviceType] ?? service.serviceType}</strong>
+        {groups.map(group => {
+          const services = group.services.map((service, index) => {
+            const label = SERVICE_LABELS[service.serviceType] ?? service.serviceType;
+            const header = <>
+              <strong>{label}</strong>
               <span>peso {service.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(service.executionPct)}</span>
-            </div>
-            <ul>{service.systems.filter(system => matchesEquipment(system.equipment)).map((system, systemIndex) =>
-              <li key={systemIndex}>{systemLine(system)}</li>)}</ul>
-          </div>)}
-        </section>)}
+            </>;
+            const lines = <ul>{service.systems.filter(system => matchesEquipment(system.equipment)).map((system, systemIndex) =>
+              <li key={systemIndex}>{systemLine(system)}</li>)}</ul>;
+            return collapsibleDetails ? <details className="acp-progress-ds__service acp-progress-ds__service--collapsible" key={`${service.serviceType}:${index}`} data-acp-progress-service>
+              <summary className="acp-progress-ds__service-head acp-progress-ds__service-summary">{header}</summary>
+              {lines}
+            </details> : <div className="acp-progress-ds__service" key={`${service.serviceType}:${index}`}>
+              <div className="acp-progress-ds__service-head">{header}</div>
+              {lines}
+            </div>;
+          });
+          return collapsibleDetails ? <details className="acp-progress-ds__group acp-progress-ds__group--collapsible" key={group.scopeName ?? ''} data-acp-progress-group>
+            <summary className="acp-progress-ds__group-summary">{data.scopeGroups ? `Escopo: ${group.scopeName || 'Sem escopo definido'}` : 'Escopo total'}</summary>
+            <div className="acp-progress-ds__group-content">{services}</div>
+          </details> : <section className="acp-progress-ds__group" key={group.scopeName ?? ''}>
+            {data.scopeGroups ? <h4>Escopo: {group.scopeName || 'Sem escopo definido'}</h4> : null}
+            {services}
+          </section>;
+        })}
       </div> : <EmptyState title="Nenhuma meta corresponde ao filtro" />}
       {data.pendingMeasurements?.length ? <details className="acp-progress-ds__pending">
         <summary>Medições sem correspondência no escopo ({data.pendingMeasurements.length})</summary>

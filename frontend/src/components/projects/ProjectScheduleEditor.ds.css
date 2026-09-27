@@ -13,7 +13,7 @@
 .fv-ds .acp-schedule-ds__scope-content { display: grid; gap: var(--space-3); min-width: 0; padding-block-start: var(--space-3); }
 .fv-ds .acp-schedule-ds__scope-details:not([open]) > .acp-schedule-ds__scope-content { display: none; }
 .fv-ds .acp-schedule-ds__muted { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
-.fv-ds .acp-schedule-ds__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.fv-ds .acp-schedule-ds__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .fv-ds .acp-schedule-ds__facts > div { display: grid; gap: var(--space-1); min-width: 0; }
 .fv-ds .acp-schedule-ds__facts span { color: var(--muted); font-size: var(--text-xs); }
 .fv-ds .acp-schedule-ds__facts strong { font-size: var(--text-lg); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -21,8 +21,12 @@
 .fv-ds .acp-schedule-ds__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .fv-ds .acp-schedule-ds__deadline { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); color: var(--ink); font-size: var(--text-sm); }
 .fv-ds .acp-schedule-ds__late { color: var(--danger); }
-.fv-ds .acp-schedule-ds__hours-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.fv-ds .acp-schedule-ds__hours-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-block-start: var(--space-2); }
 .fv-ds .acp-schedule-ds__hours-actions p { flex-basis: 100%; }
+.fv-ds .acp-schedule-ds__hours-fields { display: grid; gap: var(--space-5); min-width: 0; margin: var(--space-3) 0 0; padding: var(--space-5) 0 0; border: 0; border-block-start: var(--border-width) solid var(--line); }
+.fv-ds .acp-schedule-ds__hours-block { display: grid; gap: var(--space-3); min-width: 0; }
+.fv-ds .acp-schedule-ds__hours-block + .acp-schedule-ds__hours-block { padding-block-start: var(--space-5); border-block-start: var(--border-width) solid var(--line); }
+.fv-ds .acp-schedule-ds__hours-block > .acp-add-sys { justify-self: start; margin-block-start: 0; }
 .fv-ds .acp-schedule-ds .field-group { min-width: 0; }
 .fv-ds .acp-schedule-ds .field-group > label { display: block; margin-bottom: var(--space-2); color: var(--ink); font-size: var(--text-sm); font-weight: var(--font-medium); }
 .fv-ds .acp-schedule-ds .field-group .fv-control-shell { width: 100%; }

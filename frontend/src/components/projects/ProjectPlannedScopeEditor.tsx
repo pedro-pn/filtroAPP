@@ -737,7 +737,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       <PlannedHoursReview plan={data.hoursPlan} canManage={canManage}
         disabled={dirty || resolutionDisabled || mutation.isPending || resolutionMutation.isPending}
         onResolve={choice => resolutionMutation.mutate(choice)} />
-      <fieldset disabled={!canManage || commercialHours || staleHours || resolutionMutation.isPending} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+      <fieldset className="acp-schedule-ds__hours-fields" disabled={!canManage || commercialHours || staleHours || resolutionMutation.isPending}>
+      <div className="acp-schedule-ds__hours-block">
       <h3 className="acp-schedule-ds__section-title">Previsão de horas normais</h3>
       <p className="acp-schedule-ds__muted">
         {commercialHours ? 'Total de horas normais da equipe, fornecido pelo comercial.' : 'Informe o total de horas normais previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
@@ -775,7 +776,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       >
         + Adicionar horas normais
       </Button>
+      </div>
 
+      <div className="acp-schedule-ds__hours-block">
       <h3 className="acp-schedule-ds__section-title">Previsão de hora extra</h3>
       <p className="acp-schedule-ds__muted">
         {commercialHours ? 'Total comercial de horas extras e de fim de semana da equipe.' : 'Informe o total de horas extras previstas. O valor já deve incluir todos os colaboradores; se houver mais de uma linha, elas são somadas.'}
@@ -813,6 +816,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       >
         + Adicionar hora extra
       </Button>
+      </div>
       </fieldset>
     </div>
   );

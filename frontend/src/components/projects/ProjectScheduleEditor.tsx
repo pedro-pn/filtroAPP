@@ -18,7 +18,6 @@ import { HelpTip } from '../ui/HelpTip';
 import { Alert, Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
-import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import './ProjectScheduleEditor.ds.css';
 
@@ -28,19 +27,6 @@ function toNum(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return null;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : null;
-}
-function brl(value?: string | number | null) {
-  const n = toNum(value);
-  return n === null ? '—' : n.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-function pct(value?: string | number | null) {
-  const n = toNum(value);
-  return n === null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 }
 function sumRevisionValue(revisions: CommercialRevision[], getter: (revision: CommercialRevision) => string | number | null | undefined, decimals = 2) {
   let total = 0;
@@ -53,12 +39,6 @@ function sumRevisionValue(revisions: CommercialRevision[], getter: (revision: Co
   }
   if (!seen) return null;
   return decimals === 0 ? Math.round(total) : Math.round((total + Number.EPSILON) * 100) / 100;
-}
-function expectedMarginFrom(revisions: CommercialRevision[]) {
-  const sale = sumRevisionValue(revisions, revision => revision.salePrice);
-  const profit = sumRevisionValue(revisions, revision => revision.expectedProfit);
-  if (sale === null || sale <= 0 || profit === null) return revisions[0]?.expectedMargin ?? null;
-  return Math.round(((profit / sale) * 100 + Number.EPSILON) * 100) / 100;
 }
 function toDateInput(iso?: string | null) {
   return iso ? iso.slice(0, 10) : '';
@@ -264,11 +244,6 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     .map(group => group.revisions.find(revision => revision.codBd === group.currentCodBd))
     .filter((revision): revision is CommercialRevision => Boolean(revision));
   const commercialRevisions = [currentRevision, ...additionalRevisions];
-  const additionalSalePrice = sumRevisionValue(additionalRevisions, revision => revision.salePrice);
-  const additionalPlannedCost = sumRevisionValue(additionalRevisions, revision => revision.plannedCost);
-  const plannedSalePrice = sumRevisionValue(commercialRevisions, revision => revision.salePrice);
-  const plannedCost = sumRevisionValue(commercialRevisions, revision => revision.plannedCost);
-  const expectedMargin = expectedMarginFrom(commercialRevisions);
   const plannedDays = sumRevisionValue(commercialRevisions, revision => revision.plannedDays, 0);
   const plannedWorkedDays = sumRevisionValue(commercialRevisions, revision => revision.workedDays, 0);
   const consumed = startValue && plannedDays ? daysBetween(startValue, new Date()) : null;
@@ -391,16 +366,12 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       {plannedScope?.hoursPlan?.pending ? <Alert tone="warning">
         Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
       </Alert> : null}
-      <Card variant="flat" padding="md" title="Previsto (comercial)" className="acp-schedule-ds__summary">
+      <Card variant="flat" padding="md" title="Prazo e equipe previstos" className="acp-schedule-ds__summary">
         <div className="acp-schedule-ds__facts">
-          <div><span>Venda</span><strong>{brl(plannedSalePrice)}</strong></div>
-          <div><span>Custo</span><strong>{brl(plannedCost)}</strong></div>
-          <div><span>Margem</span><strong>{pct(expectedMargin)}</strong></div>
+          <div><span>Dias corridos</span><strong>{plannedDays ?? '—'}</strong></div>
+          <div><span>Dias trabalhados</span><strong>{plannedWorkedDays ?? '—'}</strong></div>
         </div>
-          {additionalRevisions.length > 0 ? (
-            <p className="acp-schedule-ds__muted">Original {brl(currentRevision.salePrice)} / {brl(currentRevision.plannedCost)} · Adicional {brl(additionalSalePrice)} / {brl(additionalPlannedCost)}</p>
-          ) : null}
-        <p className="acp-schedule-ds__muted">{plannedDays ?? '—'} dias corridos · {plannedWorkedDays ?? '—'} trabalhados · {currentRevision.numOperators ?? '—'} operadores / {currentRevision.numSupervisors ?? '—'} encarregados · {currentRevision.numPerDay ?? '—'} dia / {currentRevision.numPerNight ?? '—'} noite</p>
+        <p className="acp-schedule-ds__muted">{currentRevision.numOperators ?? '—'} operadores / {currentRevision.numSupervisors ?? '—'} encarregados · {currentRevision.numPerDay ?? '—'} dia / {currentRevision.numPerNight ?? '—'} noite</p>
       </Card>
 
       <section aria-label="Datas e avanço do projeto" className="acp-schedule-ds__section">
@@ -454,12 +425,10 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       ) : (
         <Link className="acp-reconciliation-shortcut" to={systemReconciliationPath(projectId)} state={{ scheduleReturnSearch: location.search }}>{reconciliationContent}</Link>
       )}
-      <details className="acp-schedule-ds__scope-details" data-acp-schedule-progress-details>
-        <summary className="acp-schedule-ds__scope-summary">Avanço físico (RDO × previsto)</summary>
-        <div className="acp-schedule-ds__scope-content">
-          <ProjectProgressBreakdown projectId={projectId} canManage={canManage} appearance="design-system" />
-        </div>
-      </details>
+      <section aria-label="Avanço físico" className="acp-schedule-ds__section">
+        <h3 className="acp-schedule-ds__section-title">Avanço físico (RDO × previsto)</h3>
+        <ProjectProgressBreakdown projectId={projectId} canManage={canManage} appearance="design-system" collapsibleDetails />
+      </section>
 
       <ProjectPlannedScopeEditor
         ref={scopeRef}
@@ -471,10 +440,6 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         beforeOvertime={collaboratorSleepSection}
       />
 
-      <section aria-label="Realizado por categoria" className="acp-schedule-ds__section">
-      <h3 className="acp-schedule-ds__section-title">Realizado por categoria (Omie)</h3>
-      <RealizedCategoryBreakdown projectId={projectId} limit={10} appearance="design-system" />
-      </section>
     </div>
   );
 });

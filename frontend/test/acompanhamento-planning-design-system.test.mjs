@@ -36,12 +36,17 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
     commercial: { normal: 20, overtime: 3, total: 23 },
     proposals: [{ codProp: 11, nRev: 2 }], differences: [{ kind: 'total', hours: 11, percent: 91, significant: true }], fingerprint: 'f1'
   } });
-  client.setQueryData(['project-progress', 'p'], { hasScope: false, services: [] });
+  const service = { serviceType: 'LIMPEZA_QUIMICA', weight: 100, executionPct: 20, systems: [{
+    projectSystemId: 's1', equipment: 'Ilha Solteira', systemName: 'Linha 1', systemType: 'TUBULACAO',
+    unit: 'M', plannedQty: 100, realizedQty: 20, pct: 20, diameter: null, diameterUnit: null
+  }] };
+  client.setQueryData(['project-progress', 'p'], { hasScope: true, progressPct: 20, services: [service],
+    scopeGroups: [{ scopeName: 'Ilha Solteira', services: [service] }] });
   client.setQueryData(['realized-categories', 'p'], []);
   client.setQueryData(['ponto-collaborators-active'], []);
   client.setQueryData(['job-roles'], []);
   const html = render(ProjectScheduleEditor, { projectId: 'p', canManage: true });
-  for (const label of ['Previsto (comercial)', '10.000,00', 'Aprovação da proposta', 'Desmobilização',
+  for (const label of ['Prazo e equipe previstos', 'Dias corridos', 'Aprovação da proposta', 'Desmobilização',
     'Avanço físico', 'Serviços previstos', 'Conferir horas manuais e comerciais', 'Usar horas do comercial']) {
     assert.ok(html.includes(label), label);
   }
@@ -49,10 +54,21 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   assert.match(html, /class="fv-card/);
   assert.match(html, /class="fv-control-shell/);
   assert.match(html, /class="fv-data-table/);
-  assert.match(html, /<details class="acp-schedule-ds__scope-details" data-acp-schedule-progress-details="true">/);
-  assert.match(html, /<summary class="acp-schedule-ds__scope-summary">Avanço físico \(RDO × previsto\)<\/summary>/);
-  assert.match(html, /data-acp-progress-ds|Escopo previsto não cadastrado/);
+  assert.match(html, /<h3 class="acp-schedule-ds__section-title">Avanço físico \(RDO × previsto\)<\/h3>/);
+  assert.match(html, /<details class="acp-progress-ds__group acp-progress-ds__group--collapsible"[^>]*data-acp-progress-group="true">/);
+  assert.match(html, /<summary class="acp-progress-ds__group-summary">Escopo: Ilha Solteira<\/summary>/);
+  assert.match(html, /<details class="acp-progress-ds__service acp-progress-ds__service--collapsible"[^>]*data-acp-progress-service="true">/);
+  assert.match(html, /<summary class="acp-progress-ds__service-head acp-progress-ds__service-summary"><strong>Limpeza química<\/strong>/);
+  assert.match(html, /Linha 1/);
+  assert.doesNotMatch(html, /Venda|Custo|Margem|Realizado por categoria|R\$/);
+  assert.match(html, /acp-schedule-ds__hours-fields/);
+  assert.equal((html.match(/class="acp-schedule-ds__hours-block"/g) ?? []).length, 2);
   assert.doesNotMatch(html, /class="det-section"|class="mini-btn/);
+
+  const { ProjectProgressBreakdown } = await server.ssrLoadModule('/src/components/projects/ProjectProgressBreakdown.tsx');
+  const reconciliation = render(ProjectProgressBreakdown, { projectId: 'p', appearance: 'design-system' });
+  assert.match(reconciliation, /Escopo: Ilha Solteira/);
+  assert.doesNotMatch(reconciliation, /data-acp-progress-group|data-acp-progress-service/);
 
   const readOnly = render(ProjectScheduleEditor, { projectId: 'p', canManage: false });
   assert.doesNotMatch(readOnly, /Adicionar colaborador manualmente|Usar horas do comercial/);
