@@ -82,6 +82,7 @@ export function PontoSyncHistoryTable({ runs, loading = false }: { runs: PontoMa
   return (
     <DataTable
       ariaLabel="Histórico de sincronizações do ponto"
+      mobileBreakpoint="lg"
       rows={runs}
       getRowId={run => run.id}
       loading={loading}
@@ -125,6 +126,7 @@ export function PontoCurrentDataHistoryTable({
   return (
     <DataTable
       ariaLabel="Histórico de dados vigentes do ponto"
+      mobileBreakpoint="lg"
       rows={imports}
       getRowId={item => item.id}
       loading={loading}
