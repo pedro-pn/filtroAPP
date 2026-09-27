@@ -514,6 +514,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
 
   return (
     <div className="acp-scope">
+      <details className="acp-schedule-ds__scope-details" data-acp-schedule-scope-details>
+        <summary className="acp-schedule-ds__scope-summary">Detalhes do escopo previsto</summary>
+        <div className="acp-schedule-ds__scope-content">
       <h3 className="acp-schedule-ds__section-title">Serviços previstos (vendido)</h3>
       <p className="acp-schedule-ds__muted">
         Preenchimento manual — para cada serviço, adicione os sistemas vendidos e seus quantitativos.
@@ -715,6 +718,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       ) : null}
 
       <p className="acp-schedule-ds__muted">Preencha uma linha por equipamento do cliente, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada equipamento.</p>
+        </div>
+      </details>
       {beforeOvertime}
 
       {staleHours ? <Alert tone="warning">

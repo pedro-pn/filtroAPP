@@ -4,6 +4,14 @@
 .fv-ds .acp-schedule-ds__section, .fv-ds .acp-scope { display: grid; gap: var(--space-3); min-width: 0; }
 .fv-ds .acp-schedule-ds__section { padding-block-start: var(--space-4); border-block-start: 1px solid var(--line); }
 .fv-ds .acp-schedule-ds__section-title { margin: 0; color: var(--ink); font-size: var(--text-lg); font-weight: var(--font-semibold); }
+.fv-ds .acp-schedule-ds__scope-details { min-width: 0; padding-block-start: var(--space-4); border-block-start: 1px solid var(--line); }
+.fv-ds .acp-schedule-ds__scope-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--space-10); color: var(--ink); cursor: pointer; font-size: var(--text-lg); font-weight: var(--font-semibold); list-style: none; }
+.fv-ds .acp-schedule-ds__scope-summary::-webkit-details-marker { display: none; }
+.fv-ds .acp-schedule-ds__scope-summary::after { content: ''; flex: 0 0 auto; width: .55rem; height: .55rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform .15s ease; }
+.fv-ds .acp-schedule-ds__scope-details[open] > .acp-schedule-ds__scope-summary::after { transform: rotate(225deg); }
+.fv-ds .acp-schedule-ds__scope-summary:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-sm); }
+.fv-ds .acp-schedule-ds__scope-content { display: grid; gap: var(--space-3); min-width: 0; padding-block-start: var(--space-3); }
+.fv-ds .acp-schedule-ds__scope-details:not([open]) > .acp-schedule-ds__scope-content { display: none; }
 .fv-ds .acp-schedule-ds__muted { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
 .fv-ds .acp-schedule-ds__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .fv-ds .acp-schedule-ds__facts > div { display: grid; gap: var(--space-1); min-width: 0; }
