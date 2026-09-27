@@ -49,6 +49,8 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   assert.match(html, /class="fv-card/);
   assert.match(html, /class="fv-control-shell/);
   assert.match(html, /class="fv-data-table/);
+  assert.match(html, /<details class="acp-schedule-ds__scope-details" data-acp-schedule-progress-details="true">/);
+  assert.match(html, /<summary class="acp-schedule-ds__scope-summary">Avanço físico \(RDO × previsto\)<\/summary>/);
   assert.match(html, /data-acp-progress-ds|Escopo previsto não cadastrado/);
   assert.doesNotMatch(html, /class="det-section"|class="mini-btn/);
 

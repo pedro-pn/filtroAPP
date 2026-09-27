@@ -89,13 +89,23 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
         ] }
       ] });
       assert.match(mixed, /Unidades executadas/);
-      assert.match(mixed, /Óleo filtrado \(L\)/);
+      assert.match(mixed, /Filtragem \(L de óleo\)/);
+      assert.doesNotMatch(mixed, /Óleo filtrado/);
+      assert.doesNotMatch(mixed, /Total \(L de óleo\)/);
       assert.match(mixed, /Executado no dia/);
       assert.match(mixed, /Avanço acumulado/);
       assert.match(mixed, /1 unidade/);
       assert.match(mixed, /150 L/);
       assert.doesNotMatch(mixed, /<summary>Ver por serviço<\/summary>/);
       assert.doesNotMatch(mixed, /p\.p\./);
+      const multipleLitres = render(ProjectScopeDailyTable, { points: [{
+        date: '2026-09-02', progressPct: 20, services: [
+          { serviceType: 'FILTRAGEM', quantities: [{ unit: 'L', realizedQty: 150 }] },
+          { serviceType: 'FLUSHING', quantities: [{ unit: 'L', realizedQty: 50 }] }
+        ]
+      }] });
+      assert.match(multipleLitres, /Total \(L de óleo\)/);
+      assert.match(multipleLitres, /Litros executados/);
       const sharedUnit = render(ProjectScopeDailyTable, { points: [
         { date: '2026-09-01', progressPct: 10, services: [
           { serviceType: 'LIMPEZA_QUIMICA', progressPct: 10, quantities: [{ unit: 'M', realizedQty: 100 }] },

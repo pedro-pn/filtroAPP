@@ -17,14 +17,13 @@ function formatQuantity(value: number) {
 
 function totalLabel(unit: string) {
   if (unit === 'UN') return 'Unidades executadas';
-  if (unit === 'L') return 'Óleo filtrado (L)';
   return `Total (${physicalQuantityLabel(unit)})`;
 }
 
-function mobileTotalLabel(unit: string) {
+function mobileTotalLabel(unit: string, serviceType?: string) {
   if (unit === 'M') return 'Metros executados';
   if (unit === 'UN') return 'Unidades executadas';
-  if (unit === 'L') return 'Óleo filtrado';
+  if (unit === 'L') return serviceType ? SERVICE_LABELS[serviceType] ?? serviceType : 'Litros executados';
   return `Produção (${physicalQuantityLabel(unit)})`;
 }
 
@@ -52,6 +51,8 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
       { serviceType: service.serviceType, unit: quantity.unit }
     ] as const) ?? []) ?? [])).values()];
   const units = [...new Set(measures.map(measure => measure.unit))];
+  const visibleTotalIndexes = units.flatMap((unit, index) =>
+    unit === 'L' && measures.filter(measure => measure.unit === unit).length === 1 ? [] : [index]);
   const rows = ordered.map((point, index) => {
     const previous = ordered[index - 1];
     const services = measures.map(({ serviceType, unit }) => {
@@ -88,7 +89,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
                 {measures.map(({ serviceType, unit }) => <th scope="col" key={`${serviceType}:${unit}`}>
                   {SERVICE_LABELS[serviceType] ?? serviceType} ({physicalQuantityLabel(unit)})
                 </th>)}
-                {units.map(unit => <th scope="col" key={unit}>{totalLabel(unit)}</th>)}
+                {visibleTotalIndexes.map(index => <th scope="col" key={units[index]}>{totalLabel(units[index])}</th>)}
                 <th scope="col">Avanço acumulado</th>
               </tr></thead>
               <tbody>{rows.map(({ point, services, totals }) => <tr key={point.date}>
@@ -97,9 +98,12 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
                 {services.map((value, index) => <td key={`${measures[index].serviceType}:${measures[index].unit}`}>
                   {value == null ? '—' : formatQuantity(value)}
                 </td>)}
-                {totals.map((value, index) => <td className="acp-scope-daily__daily" key={units[index]}>
-                  {value == null ? '—' : formatQuantity(value)}
-                </td>)}
+                {visibleTotalIndexes.map(index => {
+                  const value = totals[index];
+                  return <td className="acp-scope-daily__daily" key={units[index]}>
+                    {value == null ? '—' : formatQuantity(value)}
+                  </td>;
+                })}
                 <td className="acp-scope-daily__total">{fmtPct(point.progressPct)}</td>
               </tr>)}</tbody>
             </table>
@@ -127,9 +131,9 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
                     {dailyTotals.map(({ unit, value }) => {
                       const activeServices = dailyServices.filter(service => service.unit === unit);
                       return <div className="acp-scope-daily__mobile-metric" key={unit}>
-                        <span>{mobileTotalLabel(unit)}</span>
+                        <span>{mobileTotalLabel(unit, unit === 'L' && activeServices.length === 1 ? activeServices[0].serviceType : undefined)}</span>
                         <strong>{mobileQuantity(value, unit)}</strong>
-                        {activeServices.length === 1 ? <small>{SERVICE_LABELS[activeServices[0].serviceType] ?? activeServices[0].serviceType}</small> : null}
+                        {activeServices.length === 1 && unit !== 'L' ? <small>{SERVICE_LABELS[activeServices[0].serviceType] ?? activeServices[0].serviceType}</small> : null}
                       </div>;
                     })}
                   </div> : <p className="acp-scope-daily__mobile-empty">Sem produção física medida neste dia.</p>}
