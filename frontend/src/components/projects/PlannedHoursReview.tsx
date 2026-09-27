@@ -13,7 +13,7 @@ export function PlannedHoursReview({ plan, disabled, canManage, onResolve }: {
 }) {
   if (!plan) return null;
   return (
-    <section id="planned-hours-review" aria-label="Origem das horas previstas" className="acp-schedule-ds__section">
+    <section id="planned-hours-review" aria-label="Origem das horas previstas" className="acp-schedule-ds__section acp-schedule-ds__hours-review">
       <h3 className="acp-schedule-ds__section-title">Horas previstas</h3>
       {plan.pending ? (
         <Alert tone="warning">

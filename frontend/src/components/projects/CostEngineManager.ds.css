@@ -73,6 +73,7 @@
 .acp-cost-ds .ponto-link-row, .acp-cost-ds .ponto-employee-row { min-width: 0; }
 .acp-cost-ds .ponto-link-row > *, .acp-cost-ds .ponto-employee-row > * { min-width: 0; }
 .acp-cost-ds .ponto-link-field .fv-select-shell { width: 100%; }
+.acp-cost-ds .ponto-day-allocation-row > .fv-button { align-self: end; height: var(--space-10); }
 .acp-cost-ds .ponto-local-scroll { max-width: 100%; }
 .acp-cost-ds__history-section { display: grid; gap: var(--space-3); min-width: 0; }
 .acp-cost-ds__history-section h3 { margin: 0; font-size: var(--text-base); }
@@ -111,6 +112,9 @@
 @media (max-width: 760px) {
   .acp-cost-ds .ponto-filter-row > .fv-field { flex: 1 1 100%; }
   .acp-cost-ds .ponto-filter-row > .fv-button { width: 100%; }
+}
+@media (min-width: 761px) and (max-width: 980px) {
+  .acp-cost-ds .ponto-day-allocation-row > .fv-button { grid-column: 2; justify-self: start; }
 }
 @media (max-width: 768px) {
   .acp-cost-ds__audit-mobile-sort { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
