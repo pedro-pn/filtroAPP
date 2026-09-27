@@ -7,7 +7,7 @@ import {
   type RdoSimulationCollaborator
 } from '../../api/acompanhamentoPonto';
 import { createSearchMatcher } from '../../utils/search';
-import { Button, Field, Input, Select } from '../ui/ds';
+import { Alert, Button, Field, Input, Select } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 
@@ -50,9 +50,9 @@ export function RdoSimulationExclusionsPanel() {
   const excludedCount = collaborators.filter(collaborator => collaborator.rdoCostSimulationExcluded).length;
 
   return (
-    <section className="det-section ponto-employee-section" aria-labelledby="rdo-simulation-title">
-      <div id="rdo-simulation-title" className="sec ponto-subtitle">Simulação por RDO</div>
-      <p className="placeholder-copy ponto-section-copy">
+    <section className="acp-cost-ds__surface" aria-labelledby="rdo-simulation-title">
+      <h3 id="rdo-simulation-title" className="acp-cost-ds__section-title">Simulação por RDO</h3>
+      <p className="acp-cost-ds__copy">
         Escolha quem deve ficar sem custo simulado quando houver horas em RDOs sem apropriação pelo ponto.
         A escolha vale para todos os acompanhamentos, inclusive períodos anteriores.
         As horas dos RDOs e os custos calculados pelo ponto são preservados. Você pode reincluir o colaborador a qualquer momento.
@@ -74,16 +74,15 @@ export function RdoSimulationExclusionsPanel() {
           </Select>
         </Field>
       </div>
-      {isPending ? <p className="placeholder-copy" role="status">Carregando colaboradores…</p> : null}
+      {isPending ? <p className="acp-cost-ds__copy" role="status">Carregando colaboradores…</p> : null}
       {isError ? (
-        <div role="alert">
-          <p className="field-error">Não foi possível carregar as preferências de simulação.</p>
-          <Button variant="secondary" onClick={() => void refetch()}>Tentar novamente</Button>
-        </div>
+        <Alert tone="danger" action={<Button variant="secondary" size="sm" onClick={() => void refetch()}>Tentar novamente</Button>}>
+          Não foi possível carregar as preferências de simulação.
+        </Alert>
       ) : null}
       {!isPending && !isError ? (
         <>
-          <p className="placeholder-copy" role="status">
+          <p className="acp-cost-ds__copy" role="status">
             {excludedCount} de {collaborators.length} colaborador(es) excluído(s) da simulação.
           </p>
           <div className="ponto-local-scroll ponto-employee-directory" role="region" aria-label="Preferências de simulação por colaborador" tabIndex={0}>
@@ -109,7 +108,7 @@ export function RdoSimulationExclusionsPanel() {
                 </Button>
               </div>
             ))}
-            {!visible.length ? <p className="placeholder-copy">Nenhum colaborador encontrado.</p> : null}
+            {!visible.length ? <p className="acp-cost-ds__copy">Nenhum colaborador encontrado.</p> : null}
           </div>
         </>
       ) : null}

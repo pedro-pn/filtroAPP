@@ -116,11 +116,11 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
   const hiddenBlocks = blocks.length - visibleBlocks.length;
 
   return (
-    <div className="det-section ponto-pending-section">
-      <div className="sec ponto-subtitle">
+    <section className="acp-cost-ds__surface">
+      <h3 className="acp-cost-ds__section-title">
         Dias sem alocação ({totalDays})
-      </div>
-      <p className="placeholder-copy ponto-section-copy">
+      </h3>
+      <p className="acp-cost-ds__copy">
         Dias com horas no Ponto Mais que possuem RDO ou alocação no Efetivo, mas ficaram sem projeto
         por conflito, sobreposição ou divergência de período. Uma marcação isolada, sem qualquer
         RDO do colaborador e sem Efetivo, permanece apenas na auditoria e não gera pendência. Enquanto
@@ -135,17 +135,17 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
           <Input type="date" value={ate} onChange={event => setAte(event.target.value)} />
         </Field>
         {totalDays > 0 ? (
-          <span className="placeholder-copy">{fmtHours(totalHours)} em {blocks.length} bloco(s)</span>
+          <span className="acp-cost-ds__copy">{fmtHours(totalHours)} em {blocks.length} bloco(s)</span>
         ) : null}
       </div>
 
-      {isLoading ? <p className="placeholder-copy">Carregando…</p> : null}
+      {isLoading ? <p className="acp-cost-ds__copy">Carregando…</p> : null}
       {!isLoading && blocks.length === 0 ? (
-        <p className="placeholder-copy">Nenhum dia pendente de alocação no período.</p>
+        <p className="acp-cost-ds__copy">Nenhum dia pendente de alocação no período.</p>
       ) : null}
 
       {hiddenBlocks > 0 ? (
-        <p className="placeholder-copy">
+        <p className="acp-cost-ds__copy">
           Mostrando os {MAX_VISIBLE_BLOCKS} blocos mais antigos de {blocks.length}. Use o filtro de
           período para trabalhar por partes.
         </p>
@@ -158,7 +158,7 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
         const candidates = blockCandidates(block);
         const busy = resolveMutation.isPending;
         return (
-          <div key={key} className="field-row ponto-link-row ponto-day-allocation-row">
+          <div key={key} className="ponto-link-row ponto-day-allocation-row">
             <div className="ponto-link-copy">
               <strong>{block.name} · {blockPeriod(block)}</strong>
               <span>
@@ -179,13 +179,14 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
                   ))}
                 </span>
               ) : null}
-              <button
-                type="button"
-                className="ponto-inline-link"
+              <Button
+                variant="link"
+                size="sm"
+                className="acp-cost-ds__inline-action"
                 onClick={() => setExpanded(previous => ({ ...previous, [key]: !isOpen }))}
               >
                 {isOpen ? 'Ocultar dias' : 'Ver dias'}
-              </button>
+              </Button>
               {isOpen ? (
                 <ul className="ponto-day-list">
                   {block.days.map(day => (
@@ -235,6 +236,6 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
           </div>
         );
       })}
-    </div>
+    </section>
   );
 }

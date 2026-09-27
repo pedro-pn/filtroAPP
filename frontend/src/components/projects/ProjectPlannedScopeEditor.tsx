@@ -601,7 +601,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       : COMMON_INCH_DIAMETERS;
                     return (
                       <div key={sys.key}>
-                      <div className="acp-system-identity" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, padding: '8px 0' }}>
+                      <div className="acp-system-identity">
                         {(['equipmentId', 'system'] as const).map(field => <div className="field-group" key={field}>
                           <label htmlFor={`scope-${field}-${sys.key}`}>{field === 'equipmentId' ? 'Equipamento do cliente' : 'Sistema do cliente'}</label>
                           <ProjectSystemInput id={`scope-${field}-${sys.key}`} projectId={projectId} source="scope" field={field}

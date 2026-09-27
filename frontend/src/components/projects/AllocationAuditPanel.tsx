@@ -249,7 +249,7 @@ export function AllocationAuditPanel() {
         <Field label="Até" optionalText="">
           <Input type="date" value={ate} onChange={event => setAte(event.target.value)} />
         </Field>
-        <label className="field-check" htmlFor="audit-only-unallocated">
+        <label className="acp-cost-ds__checkbox" htmlFor="audit-only-unallocated">
           <input
             id="audit-only-unallocated"
             type="checkbox"
@@ -269,13 +269,13 @@ export function AllocationAuditPanel() {
       </div>
 
       {!ready ? (
-        <p className="placeholder-copy">
+        <p className="acp-cost-ds__copy">
           {byProject ? 'Selecione uma missão para auditar.' : 'Selecione um colaborador para auditar.'}
         </p>
       ) : null}
-      {ready && (isLoading || isFetching) ? <p className="placeholder-copy">Carregando…</p> : null}
+      {ready && (isLoading || isFetching) ? <p className="acp-cost-ds__copy">Carregando…</p> : null}
       {ready && !isLoading && !rows.length ? (
-        <p className="placeholder-copy">Nenhum dia de ponto no período selecionado.</p>
+        <p className="acp-cost-ds__copy">Nenhum dia de ponto no período selecionado.</p>
       ) : null}
 
       {rows.length ? (
@@ -287,10 +287,10 @@ export function AllocationAuditPanel() {
       ) : null}
 
       {rows.map(collaborator => (
-        <div key={collaborator.collaboratorId} className="det-section">
-          <div className="sec ponto-subtitle">
+        <section key={collaborator.collaboratorId} className="acp-cost-ds__surface">
+          <h3 className="acp-cost-ds__section-title">
             {collaborator.name}{collaborator.role ? ` · ${collaborator.role}` : ''}
-          </div>
+          </h3>
           <div className="ponto-audit-summary">
             {collaborator.totals.byProject.map(project => (
               <span key={project.projectId}>
@@ -316,6 +316,7 @@ export function AllocationAuditPanel() {
           </div>
           <DataTable
             ariaLabel={`Dias de ${collaborator.name}`}
+            mobileBreakpoint="lg"
             rows={sortDays(collaborator.days, sort.key, sort.direction)}
             getRowId={day => day.date}
             columns={AUDIT_COLUMNS}
@@ -342,7 +343,7 @@ export function AllocationAuditPanel() {
               ]
             }) }}
           />
-        </div>
+        </section>
       ))}
     </Card>
   );

@@ -360,6 +360,21 @@
   line-height: var(--leading-md);
 }
 
+/* Match the shell color even when legacy input[type] rules are loaded later. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select) {
+  color: inherit;
+}
+
+/* Legacy native date/time rules use a fixed light text color. Keep the
+   browser-rendered segments in the same theme as their DS control shell. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input:is([type='date'], [type='time'])::-webkit-datetime-edit,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-hour-field,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-minute-field,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-second-field,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-ampm-field {
+  color: inherit;
+}
+
 :where(.fv-ds, [data-fv-ds]) :where(.fv-input, .fv-textarea)::placeholder {
   color: var(--muted);
   opacity: 1;

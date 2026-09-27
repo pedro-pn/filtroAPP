@@ -176,6 +176,7 @@ export function OmieCostCategoriesPanel() {
       ) : (
         <DataTable
           ariaLabel="Categorias Omie"
+          mobileBreakpoint="lg"
           rows={filtered}
           getRowId={category => category.id}
           columns={[

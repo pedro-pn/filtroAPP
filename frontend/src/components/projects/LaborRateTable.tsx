@@ -82,6 +82,7 @@ export function LaborRateTable() {
 
       <DataTable
         ariaLabel="Custo por colaborador"
+        mobileBreakpoint="lg"
         rows={rows}
         getRowId={({ r }) => r.collaboratorId}
         columns={[

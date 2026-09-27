@@ -67,47 +67,51 @@ function activeCostParams(params: CostParams) {
 
 function ModelHistory({ history }: { history: CostParameterHistoryEntry[] }) {
   if (!history.length) {
-    return <p className="placeholder-copy" style={{ margin: 0 }}>Nenhuma vigência salva para este modelo.</p>;
+    return <p className="acp-cost-ds__copy">Nenhuma vigência salva para este modelo.</p>;
   }
 
   const seenDates = new Set<string>();
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
+    <div className="acp-cost-ds__history">
       {history.map((entry, index) => {
         const dateKey = entry.effectiveDate?.slice(0, 10) || '';
         const isUsed = !seenDates.has(dateKey);
         seenDates.add(dateKey);
         return (
-          <details key={`${dateKey}-${entry.updatedAt ?? index}`} className="acp-det-tax-details">
-            <summary className="acp-det-collabs-summary">
+          <details key={`${dateKey}-${entry.updatedAt ?? index}`} className="acp-cost-ds__history-entry">
+            <summary className="acp-cost-ds__history-summary">
               <span>{fmtDate(entry.effectiveDate)}</span>
-              <span className="placeholder-copy">
+              <span className="acp-cost-ds__history-meta">
                 {isUsed ? 'Usada pelo motor' : 'Substituída por correção posterior'} · salvo em {fmtDateTime(entry.updatedAt)}
               </span>
             </summary>
-            <div className="det-section" style={{ marginTop: 8 }}>
-              <div className="sec" style={{ fontSize: 13 }}>Parâmetros</div>
-              {PARAM_FIELDS.map(([key, label]) => (
-                <div className="det-row" key={key}>
-                  <span className="det-label">{label}</span>
-                  <span className="det-val">{formatParam(entry.params, key)}</span>
+            <section className="acp-cost-ds__history-section" aria-label="Parâmetros">
+              <h4>Parâmetros</h4>
+              <dl className="acp-cost-ds__facts">
+                {PARAM_FIELDS.map(([key, label]) => (
+                  <div className="acp-cost-ds__fact" key={key}>
+                    <dt>{label}</dt>
+                    <dd>{formatParam(entry.params, key)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <section className="acp-cost-ds__history-section" aria-label="Benefícios">
+              <h4>Benefícios</h4>
+              <dl className="acp-cost-ds__facts">
+                {BENEFIT_FIELDS.map(([key, label]) => (
+                  <div className="acp-cost-ds__fact" key={key}>
+                    <dt>{label}</dt>
+                    <dd>{brl(benefits(entry.params)[key])}</dd>
+                  </div>
+                ))}
+                <div className="acp-cost-ds__fact">
+                  <dt>Total</dt>
+                  <dd>{brl(benefitTotal(entry.params))}</dd>
                 </div>
-              ))}
-            </div>
-            <div className="det-section" style={{ marginTop: 8 }}>
-              <div className="sec" style={{ fontSize: 13 }}>Benefícios</div>
-              {BENEFIT_FIELDS.map(([key, label]) => (
-                <div className="det-row" key={key}>
-                  <span className="det-label">{label}</span>
-                  <span className="det-val">{brl(benefits(entry.params)[key])}</span>
-                </div>
-              ))}
-              <div className="det-row">
-                <span className="det-label">Total</span>
-                <span className="det-val">{brl(benefitTotal(entry.params))}</span>
-              </div>
-            </div>
-            {entry.note ? <p className="placeholder-copy" style={{ margin: '8px 0 0' }}>Nota: {entry.note}</p> : null}
+              </dl>
+            </section>
+            {entry.note ? <p className="acp-cost-ds__copy">Nota: {entry.note}</p> : null}
           </details>
         );
       })}
@@ -183,7 +187,7 @@ export function CostSimulatorPanel() {
         </Select>
       </Field>
       {selectedProfile?.effectiveDate ? (
-        <p className="placeholder-copy" style={{ margin: '8px 0 0' }}>
+        <p className="acp-cost-ds__copy">
           Última vigência salva para este modelo: <strong>{fmtDate(selectedProfile.effectiveDate)}</strong>.
         </p>
       ) : null}
@@ -213,14 +217,12 @@ export function CostSimulatorPanel() {
         </Button>
       </div>
 
-      <div className="det-section" style={{ marginTop: 14 }}>
-        <div className="sec" style={{ fontSize: 13 }}>Histórico de vigências do modelo</div>
+      <section className="acp-cost-ds__subsection" aria-label="Histórico de vigências do modelo">
+        <h3>Histórico de vigências do modelo</h3>
         <ModelHistory history={history} />
-      </div>
+      </section>
 
-      <hr style={{ margin: '16px 0', border: 0, borderTop: '1px solid #eee' }} />
-
-      <h3 className="acp-cost-ds__section-title">Simulador mensal</h3>
+      <h3 className="acp-cost-ds__section-title acp-cost-ds__section-title--divided">Simulador mensal</h3>
       <div className="acp-cost-ds__fields">
         {INPUT_FIELDS.map(([key, label]) => (
           <Field label={label} optionalText="" key={key}>
@@ -235,16 +237,18 @@ export function CostSimulatorPanel() {
       </div>
 
       {result ? (
-        <div className="det-section" style={{ marginTop: 12 }}>
-          <div className="det-row"><span className="det-label">Remuneração bruta</span><span className="det-val">{brl(result.remuneracaoBruta)}</span></div>
-          <div className="det-row"><span className="det-label">Encargos (FGTS)</span><span className="det-val">{brl(result.encargos)}</span></div>
-          <div className="det-row"><span className="det-label">Provisões (13º+férias+FGTS)</span><span className="det-val">{brl(result.provisoes)}</span></div>
-          <div className="det-row"><span className="det-label">Benefícios</span><span className="det-val">{brl(result.beneficios)}</span></div>
-          <div className="det-row"><span className="det-label">Passivo rescisório</span><span className="det-val">{brl(result.passivoRescisorio)}</span></div>
-          <div className="det-row"><span className="det-label"><strong>Custo total mensal</strong></span><span className="det-val"><strong>{brl(result.totalMensal)}</strong></span></div>
-          <div className="det-row"><span className="det-label">Custo/hora (220h)</span><span className="det-val">{brl(result.custoHora220)}</span></div>
-          <div className="det-row"><span className="det-label">Custo/dia útil</span><span className="det-val">{brl(result.custoDiaUtil)}</span></div>
-        </div>
+        <section className="acp-cost-ds__surface" aria-label="Resultado da simulação">
+          <dl className="acp-cost-ds__facts">
+            <div className="acp-cost-ds__fact"><dt>Remuneração bruta</dt><dd>{brl(result.remuneracaoBruta)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Encargos (FGTS)</dt><dd>{brl(result.encargos)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Provisões (13º+férias+FGTS)</dt><dd>{brl(result.provisoes)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Benefícios</dt><dd>{brl(result.beneficios)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Passivo rescisório</dt><dd>{brl(result.passivoRescisorio)}</dd></div>
+            <div className="acp-cost-ds__fact acp-cost-ds__fact--total"><dt>Custo total mensal</dt><dd>{brl(result.totalMensal)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Custo/hora (220h)</dt><dd>{brl(result.custoHora220)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Custo/dia útil</dt><dd>{brl(result.custoDiaUtil)}</dd></div>
+          </dl>
+        </section>
       ) : null}
     </Card>
   );

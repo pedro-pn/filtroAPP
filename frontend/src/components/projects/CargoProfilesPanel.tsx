@@ -117,7 +117,7 @@ export function CargoProfilesPanel() {
         valores passam a valer. A insalubridade é calculada por salário mínimo × 20%.
       </p>
       {selectedCargo?.effectiveDate ? (
-        <p className="placeholder-copy" style={{ margin: '-6px 0 12px' }}>
+        <p className="acp-cost-ds__copy">
           Última vigência salva para este cargo: <strong>{fmtDate(selectedCargo.effectiveDate)}</strong>.
         </p>
       ) : null}
@@ -148,7 +148,7 @@ export function CargoProfilesPanel() {
       </div>
 
       {selectedCargo && !selectedCargo.profileId ? (
-        <p className="placeholder-copy" style={{ margin: '8px 0 0', color: '#a06a00' }}>
+        <p className="acp-cost-ds__notice">
           Este cargo ainda não tem custo salvo — os valores acima vêm do modelo selecionado.
         </p>
       ) : null}
@@ -156,7 +156,7 @@ export function CargoProfilesPanel() {
       <section className="acp-cost-ds__subsection" aria-label="Histórico de vigências do cargo">
         <h3>Histórico de vigências do cargo</h3>
         {history.length === 0 ? (
-          <p className="placeholder-copy" style={{ margin: 0 }}>Nenhuma vigência salva para este cargo.</p>
+          <p className="acp-cost-ds__copy">Nenhuma vigência salva para este cargo.</p>
         ) : (
           <DataTable
             ariaLabel="Histórico de vigências do cargo"
@@ -181,14 +181,16 @@ export function CargoProfilesPanel() {
       {mp ? (
         <section className="acp-cost-ds__subsection" aria-label="Herdado do modelo selecionado">
           <h3>Herdado do modelo selecionado</h3>
-          <div className="det-row"><span className="det-label">Periculosidade</span><span className="det-val">{frac(mp, 'periculosidadePct')} (integral)</span></div>
-          <div className="det-row"><span className="det-label">Produtividade / Gratificação</span><span className="det-val">{frac(mp, 'produtividadePct')}</span></div>
-          <div className="det-row"><span className="det-label">Transferência / Viagem</span><span className="det-val">{frac(mp, 'transferenciaPct')}</span></div>
-          <div className="det-row"><span className="det-label">Confinamento / Offshore</span><span className="det-val">{frac(mp, 'confinamentoPct')}</span></div>
-          <div className="det-row"><span className="det-label">HE 70% / 100%</span><span className="det-val">{frac(mp, 'he70Pct')} / {frac(mp, 'he100Pct')}</span></div>
-          <div className="det-row"><span className="det-label">FGTS</span><span className="det-val">{frac(mp, 'fgtsPct')}</span></div>
-          <div className="det-row"><span className="det-label">Multa rescisória</span><span className="det-val">{frac(mp, 'multaPct')}</span></div>
-          <div className="det-row"><span className="det-label">Benefícios (total)</span><span className="det-val">{brl(benefitsTotal(mp))}</span></div>
+          <dl className="acp-cost-ds__facts">
+            <div className="acp-cost-ds__fact"><dt>Periculosidade</dt><dd>{frac(mp, 'periculosidadePct')} (integral)</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Produtividade / Gratificação</dt><dd>{frac(mp, 'produtividadePct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Transferência / Viagem</dt><dd>{frac(mp, 'transferenciaPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Confinamento / Offshore</dt><dd>{frac(mp, 'confinamentoPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>HE 70% / 100%</dt><dd>{frac(mp, 'he70Pct')} / {frac(mp, 'he100Pct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>FGTS</dt><dd>{frac(mp, 'fgtsPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Multa rescisória</dt><dd>{frac(mp, 'multaPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Benefícios (total)</dt><dd>{brl(benefitsTotal(mp))}</dd></div>
+          </dl>
         </section>
       ) : null}
 

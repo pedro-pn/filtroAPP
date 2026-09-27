@@ -119,7 +119,7 @@ Todas as fases devem preservar os seguintes contratos:
 | Hub e navegação global | Efetivo, Assinaturas, Manutenção/Produção e novidades de API/Tokens; ícones e acesso por perfil/permissão | Integração preserva DS; revisão transversal X2 pendente |
 | Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Simulações, Produtividade e Administração | **Standby nesta worktree** — entregas preservadas; retomada após conciliar o desenvolvimento paralelo |
 | Assinaturas | Lista de ativos/arquivados, novo documento, configuração do PDF, assinantes, publicação, acompanhamento, auditoria e assinatura pública | **Migrado e validado tecnicamente** — F3.1–F3.5; teste em celular físico com o usuário |
-| Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | A1/A2/A3a/A3a.1/A3b implementados no código; A4–A7 pendentes |
+| Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | Migração visual A1–A6 implementada; fechamento integrado A7 pendente |
 | Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
 | Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
@@ -793,10 +793,19 @@ scroll localizado acidental em 360 px de largura.
 | A3a.2 — Dashboard do projeto | Resumo visual aprovado: destaque do avanço, indicadores de prazo/custo/desvios/equipamentos, histórico, composição por serviço e navegação para os detalhes, com dados reais e recortes existentes | **Implementado no código; validação integrada em A7** |
 | A3b — Edição do planejamento | `ProjectScheduleEditor`, propostas adicionais/revisões e editor de escopo previsto, incluindo consumidores compartilhados | **Implementado no código; novos rótulos da main e integração real em A7** |
 | A3c — Conciliação do realizado | Novo `ProjectRealizedCorrections` no avanço físico, histórico, ajuste e restauração de metragens RTH/RLQ/FLU | **Migração visual implementada no código; integração real em A7** |
-| A4 — Diálogos de apoio | Relatórios/PDF, standby, jornadas POINT/REPORT e novo `ProjectRomaneiosDialog` com seus gatilhos | **Pendente de consolidação e revisão integrada** |
-| A5 — Sede | Períodos, gastos globais, categorias, detalhamento e novos indicadores aprovados de manutenção/produção em `SedeOperationalCards` | **Pendente; escopo ampliado** |
-| A6 — Custo | Motor/simulação, cargos/perfis, parâmetros/EPI, importação e conciliação de ponto, pendências e auditoria de alocação | **Pendente** |
+| A4 — Diálogos de apoio | Relatórios/PDF, standby, jornadas POINT/REPORT e novo `ProjectRomaneiosDialog` com seus gatilhos | **Migração visual implementada; validação completa em A7** |
+| A5 — Sede | Períodos, gastos globais, categorias, detalhamento e novos indicadores aprovados de manutenção/produção em `SedeOperationalCards` | **Migração visual implementada; validação completa em A7** |
+| A6 — Custo | Motor/simulação, cargos/perfis, parâmetros/EPI, importação e conciliação de ponto, pendências e auditoria de alocação | **Migração visual implementada; validação completa em A7** |
 | A7 — Fechamento | Matriz completa de perfis/navegadores/estados, persistência em ambiente isolado e retirada de CSS sem consumidores | **Pendente** |
+
+Atualização de 27/09/2026: A6 removeu as regras globais sem outros consumidores
+do Ponto e passou pendências, auditoria, cargos e simulador para estilos locais
+com tokens do design system. As tabelas largas de Custos usam cartões também no
+tablet. A navegação por dez telas/subabas foi conferida no Chromium com conta
+gestora em banco isolado e respostas simuladas de Custo/Ponto em 360, 390,
+820 e 1440 px, sem overflow horizontal ou erros de JavaScript; o tema escuro
+foi conferido no Simulador. A7 ainda precisa
+da matriz completa de perfis, navegadores, dados reais e persistência.
 
 A TAG mencionada em A3a.1 é o código de identificação do **equipamento em obra**,
 exibido antes do nome quando disponível. A exibição já existe em

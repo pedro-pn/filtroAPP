@@ -29,7 +29,7 @@ import {
 } from '../../api/acompanhamentoPonto';
 import { useAuth } from '../../auth/AuthContext';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
-import { Badge, Button, Card, DataTable, EmptyState, Field, Input, Select } from '../ui/ds';
+import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, Input, Select } from '../ui/ds';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/ToastContext';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
@@ -376,7 +376,7 @@ export function PontoImportPanel() {
         </p>
 
         {isManager && pendencyCounts ? (
-          <p className="placeholder-copy ponto-section-copy">
+          <p className="acp-cost-ds__copy">
             Pendências abertas: <strong>{pendencyCounts.unallocatedDays}</strong> dia(s) sem alocação
             {' · '}<strong>{pendencyCounts.ambiguousDays}</strong> conflito(s) de projeto
             {' · '}<strong>{pendencyCounts.unlinkedEmployees}</strong> colaborador(es) do Ponto Mais sem vínculo.
@@ -472,15 +472,15 @@ export function PontoImportPanel() {
               <span>Último lote concluído em {fmtDateTime(integrationStatus.automation.lastSuccessfulAt)}</span>
             ) : null}
             {integrationStatus.automation.lastErrorMessage ? (
-              <span className="field-error">{integrationStatus.automation.lastErrorMessage} A rotina tentará novamente.</span>
+              <span className="acp-cost-ds__error">{integrationStatus.automation.lastErrorMessage} A rotina tentará novamente.</span>
             ) : null}
           </div>
         ) : null}
 
         {isManager ? (
-          <div className="det-section">
-            <div className="sec ponto-subtitle">Sincronizar um período</div>
-            <p className="placeholder-copy ponto-section-copy">
+          <section className="acp-cost-ds__surface">
+            <h3 className="acp-cost-ds__section-title">Sincronizar um período</h3>
+            <p className="acp-cost-ds__copy">
               Busca o período de novo no Ponto Mais. Use para cobrir faixas antigas que a carga
               histórica não alcançou. Períodos longos são fatiados em janelas de 31 dias
               automaticamente — o limite é do relatório do Ponto Mais, não seu. Se nada mudou no Ponto Mais, o snapshot é reconhecido pelo
@@ -489,10 +489,10 @@ export function PontoImportPanel() {
               snapshot.
             </p>
             {!integrationConfigured ? (
-              <p className="field-error">
+              <Alert tone="warning">
                 Indisponível: o backend está sem PONTOMAIS_API_TOKEN. Defina a variável e reinicie o
                 container do backend — ela é lida na inicialização do processo.
-              </p>
+              </Alert>
             ) : null}
             <div className="ponto-filter-row">
               <Field label="De" optionalText="">
@@ -523,37 +523,37 @@ export function PontoImportPanel() {
                   : 'Sincronizar período'}
               </Button>
               {syncStart && syncEnd && syncStart <= syncEnd ? (
-                <span className="placeholder-copy">
+                <span className="acp-cost-ds__copy">
                   {syncMutation.isPending && syncProgress
                     ? `Janela ${Math.min(syncProgress.done + 1, syncProgress.total)} de ${syncProgress.total}…`
                     : `${pontoMaisSyncWindows(syncStart, syncEnd).length} janela(s) de até 31 dias.`}
                 </span>
               ) : null}
             </div>
-          </div>
+          </section>
         ) : null}
 
         {integrationStatus?.lastSuccessfulRun ? (
-          <p className="placeholder-copy ponto-section-copy">
+          <p className="acp-cost-ds__copy">
             Última sincronização: {fmtDate(integrationStatus.lastSuccessfulRun.completedAt)} · período {fmtDate(integrationStatus.lastSuccessfulRun.periodStart)} a {fmtDate(integrationStatus.lastSuccessfulRun.periodEnd)}
             {integrationStatus.lastSuccessfulRun.pendingCount ? ` · ${integrationStatus.lastSuccessfulRun.pendingCount} pendência(s)` : ' · sem pendências'}
           </p>
         ) : null}
 
         {isManager && pending ? (
-          <div className="det-section ponto-pending-section">
-            <div className="sec ponto-subtitle">
+          <section className="acp-cost-ds__surface">
+            <h3 className="acp-cost-ds__section-title">
               Colaboradores do ponto sem vínculo ({actionablePendingCount})
-            </div>
+            </h3>
             {actionablePendingCount > 0 ? (
-              <p className="placeholder-copy ponto-section-copy">
+              <p className="acp-cost-ds__copy">
                 Enquanto ficarem aqui, as horas dessas pessoas não entram no custo de projeto nenhum.
                 Vincule ao colaborador correspondente ou use “Ignorar” para tirar da fila quem não é
                 da operação — dá para reverter na aba “Colaboradores encontrados”.
               </p>
             ) : null}
             {actionablePendingCount === 0 ? (
-              <p className="placeholder-copy">
+              <p className="acp-cost-ds__copy">
                 Nenhum colaborador do ponto sem vínculo. Os dias de ponto que não chegaram a projeto
                 nenhum ficam na aba “Dias sem alocação”.
               </p>
@@ -567,7 +567,7 @@ export function PontoImportPanel() {
 
             {pending.employees.map(item => {
               return (
-                <div key={item.externalEmployeeId} className="field-row ponto-link-row">
+                <div key={item.externalEmployeeId} className="ponto-link-row">
                   <div className="ponto-link-copy">
                     <strong>{item.externalName}</strong>
                     <span>{item.registrationNumber ? `Matrícula ${item.registrationNumber}` : 'Sem matrícula conciliada'}</span>
@@ -620,7 +620,7 @@ export function PontoImportPanel() {
                  duplicava a fila e fazia o contador somar o mesmo dia duas vezes. */}
 
             {xlsxOnlyUnmatched.map(item => (
-              <div key={item.normalizedName} className="field-row ponto-link-row">
+              <div key={item.normalizedName} className="ponto-link-row">
                 <div className="ponto-link-copy">
                   <strong>{item.rawName}</strong>
                   <span>Só aparece em planilha importada — vincule pelo nome.</span>
@@ -650,10 +650,10 @@ export function PontoImportPanel() {
             ))}
 
             {!unlinkedTotal ? (
-              <p className="placeholder-copy ponto-section-copy">Nenhum colaborador do ponto sem vínculo.</p>
+              <p className="acp-cost-ds__copy">Nenhum colaborador do ponto sem vínculo.</p>
             ) : null}
             </div>
-          </div>
+          </section>
         ) : null}
 
         {isManager ? (
@@ -676,7 +676,7 @@ export function PontoImportPanel() {
             </Select>
           </Field>
           {importSource === 'ALL' ? (
-            <span className="placeholder-copy">
+            <span className="acp-cost-ds__copy">
               A lista mostra os mais recentes. Para achar planilhas antigas — e poder excluí-las —
               troque para “Somente planilhas”.
             </span>
@@ -691,11 +691,11 @@ export function PontoImportPanel() {
         ) : null}
 
         {detailTab === 'missing-projects' && isManager && pending ? (
-          <section className="det-section ponto-employee-section" aria-labelledby="ponto-missing-projects-title">
-            <div id="ponto-missing-projects-title" className="sec ponto-subtitle">
+          <section className="acp-cost-ds__surface" aria-labelledby="ponto-missing-projects-title">
+            <h3 id="ponto-missing-projects-title" className="acp-cost-ds__section-title">
               Projetos não encontrados ({missingProjectsCount})
-            </div>
-            <p className="placeholder-copy ponto-section-copy">
+            </h3>
+            <p className="acp-cost-ds__copy">
               Estes códigos e etiquetas vieram do Ponto Mais, mas não existem no cadastro do app. Eles podem ser de missões antigas e ficam separados das pendências operacionais. Vincule somente quando houver um projeto correspondente.
             </p>
             <div
@@ -706,7 +706,7 @@ export function PontoImportPanel() {
             >
               {pending.missingProjects.projectTags.map(item => {
                 return (
-                  <div key={item.normalizedTag} className="field-row ponto-link-row">
+                  <div key={item.normalizedTag} className="ponto-link-row">
                     <div className="ponto-link-copy">
                       <strong>{item.rawTag}</strong>
                       <span>Etiqueta de projeto não reconhecida</span>
@@ -773,7 +773,7 @@ export function PontoImportPanel() {
               {pending.missingProjects.ambiguousDays.map(item => {
                 const pendingKey = `${item.externalEmployeeId}:${item.date}`;
                 return (
-                  <div key={pendingKey} className="field-row ponto-link-row ponto-missing-project-day-row">
+                  <div key={pendingKey} className="ponto-link-row ponto-missing-project-day-row">
                     <div className="ponto-link-copy">
                       <strong>{item.externalName} · {fmtDate(item.date)}</strong>
                       <span>
@@ -785,7 +785,7 @@ export function PontoImportPanel() {
               })}
 
               {!missingProjectsCount ? (
-                <p className="placeholder-copy ponto-section-copy">Nenhum projeto não encontrado.</p>
+                <p className="acp-cost-ds__copy">Nenhum projeto não encontrado.</p>
               ) : null}
             </div>
           </section>
@@ -794,11 +794,11 @@ export function PontoImportPanel() {
         {detailTab === 'rdo-simulation' && isManager ? <RdoSimulationExclusionsPanel /> : null}
 
         {detailTab === 'employees' && isManager ? (
-          <section className="det-section ponto-employee-section" aria-labelledby="ponto-employees-title">
-            <div id="ponto-employees-title" className="sec ponto-subtitle">
+          <section className="acp-cost-ds__surface" aria-labelledby="ponto-employees-title">
+            <h3 id="ponto-employees-title" className="acp-cost-ds__section-title">
               Colaboradores encontrados ({externalEmployees?.length ?? 0})
-            </div>
-            <p className="placeholder-copy ponto-section-copy">
+            </h3>
+            <p className="acp-cost-ds__copy">
               Ignore pessoas fora da operação. A preferência é reversível e também retira seus dados históricos do cálculo vigente.
             </p>
             <div
@@ -835,7 +835,7 @@ export function PontoImportPanel() {
                 </div>
               ))}
               {!externalEmployees?.length ? (
-                <p className="placeholder-copy">Nenhum colaborador foi encontrado ainda.</p>
+                <p className="acp-cost-ds__copy">Nenhum colaborador foi encontrado ainda.</p>
               ) : null}
             </div>
           </section>
