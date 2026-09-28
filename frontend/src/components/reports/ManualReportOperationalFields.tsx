@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 
 import { AppIcon } from '../icons/AppIcon';
 import { DS_ICONS } from '../ui/ds/icons';
+import './ReportCollaboratorTags.css';
 import type { Collaborator } from '../../types/domain';
 
 export interface DdsThemeSnapshot {
@@ -90,7 +91,7 @@ export function ManualReportOperationalFields({
     if (!ids.length) return <div className="colab-empty">Nenhum colaborador adicionado.</div>;
 
     return ids.map(id => (
-      <span className="colab-tag" key={`${field}-${id}`}>
+      <span className="colab-tag report-collaborator-tag" key={`${field}-${id}`}>
         <span>{collaboratorName(collaborators, id)}</span>
         <button
           className="colab-tag__remove"

@@ -1,0 +1,39 @@
+.report-collaborator-tag > button.colab-tag__remove {
+  display: inline-grid;
+  width: var(--space-8);
+  height: var(--space-8);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--danger);
+  color: var(--white);
+  line-height: 1;
+}
+
+.report-collaborator-tag > button.colab-tag__remove .fv-icon {
+  color: var(--white);
+  stroke: var(--white);
+}
+
+.report-collaborator-tag > button.colab-tag__remove:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
+.report-collaborator-tag > button.colab-tag__remove:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (min-width: 768px) {
+  .colab-list > .report-collaborator-tag {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    justify-content: space-between;
+    border-radius: var(--radius-md);
+  }
+
+  .colab-list > .report-collaborator-tag > button.colab-tag__remove {
+    margin-inline-start: auto;
+  }
+}

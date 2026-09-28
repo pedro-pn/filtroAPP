@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { AppIcon } from '../icons/AppIcon';
 import { DS_ICONS } from '../ui/ds/icons';
+import './ReportCollaboratorTags.css';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   formatReportMinutes,
@@ -232,7 +233,7 @@ function CollaboratorTags({
       collaborator?.role ||
       'Cargo não informado';
     return (
-      <span className="colab-tag" key={`${keyPrefix}-${id}`}>
+      <span className="colab-tag report-collaborator-tag" key={`${keyPrefix}-${id}`}>
         <span className="colab-tag-copy">
           <span>{collaborator?.name || id}</span>
           <small className="colab-tag-role">{roleName}</small>
