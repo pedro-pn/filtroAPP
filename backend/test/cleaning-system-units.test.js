@@ -4,6 +4,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser } from '@xmldom/xmldom';
 import { buildRlqDocx } from '../src/lib/report-rlq.js';
 import { assertCleaningMeasurement, cleaningSystemQuantity } from '../src/lib/reports/cleaning-measurement.js';
+import { assertSystemTypeWhenVisible } from '../src/lib/reports/system-type-validation.js';
 import { addRealizedService, buildProgress, buildProgressHistory, buildRequiredWeeklyProgress } from '../src/lib/acompanhamento/avanco.js';
 import { normalizeHistoricalRow, parseHistoricalServicesCsv, historicalReportsAsServices, historicalFingerprint } from '../src/lib/reports/historical-services.js';
 
@@ -24,6 +25,21 @@ test('whole-system cleaning validates counts and never invents a quantity for ol
   assert.doesNotThrow(() => assertCleaningMeasurement(service()));
   assert.doesNotThrow(() => assertCleaningMeasurement(service({ limpezaTubulacao: 'Sim', quantidadeSistemas: '' })));
   assert.equal(cleaningSystemQuantity({ 'Quantidade de sistemas (un)': '2' }), 2);
+});
+
+test('non-tubing cleaning and flushing require a system type when submitted', () => {
+  for (const type of ['limpeza', 'flushing']) {
+    const field = type === 'limpeza' ? 'limpezaTubulacao' : 'flushingTubulacao';
+    const base = { serviceType: type, extraData: { [field]: 'Não' } };
+    for (const value of [undefined, '', '   ', null, 2]) {
+      assert.throws(() => assertSystemTypeWhenVisible({ ...base, extraData: { ...base.extraData, tipoSistema: value } }), /tipo de sistema/);
+    }
+    assert.doesNotThrow(() => assertSystemTypeWhenVisible({ ...base, extraData: { ...base.extraData, tipoSistema: 'APVs' } }));
+    assert.doesNotThrow(() => assertSystemTypeWhenVisible({ ...base, extraData: { ...base.extraData, 'Tipo de sistema': 'Tanques' } }));
+    assert.doesNotThrow(() => assertSystemTypeWhenVisible({ ...base, extraData: { [field]: 'Sim' } }));
+    const alias = type === 'limpeza' ? 'Limpeza de tubulação?' : 'Flushing em tubulação?';
+    assert.throws(() => assertSystemTypeWhenVisible({ ...base, extraData: { [field]: '', [alias]: 'Não' } }), /tipo de sistema/);
+  }
 });
 
 test('units, meters, UGs and weekly history remain separate; stale hidden fields do not count', () => {

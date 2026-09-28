@@ -191,6 +191,17 @@ export function buildReportServicePayload(
     extraData.__serviceLinkKey = serviceHistoryKey;
   }
 
+  if (type === 'limpeza' || type === 'flushing') {
+    const withoutTubes = type === 'limpeza'
+      ? limpezaTubulacaoLabel(data) === 'Não'
+      : flushingTubulacaoLabel(data) === 'Não';
+    const tipoSistema = withoutTubes
+      ? getString(data.tipoSistema ?? data['Tipo de sistema']).trim()
+      : '';
+    extraData.tipoSistema = tipoSistema;
+    extraData['Tipo de sistema'] = tipoSistema;
+  }
+
   if (type === 'limpeza') {
     const unitIds = ids(data.ulq);
     extraData['Limpeza de tubulação?'] = limpezaTubulacaoLabel(data);
