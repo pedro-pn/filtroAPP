@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { saveTrackingDivisions, type TrackingDivision, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
+import { getProjectDetail, saveTrackingDivisions, type TrackingDivision, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
+import { percentageForProjectValue, percentageOfProjectTotal, type TrackingDivisionPlannedField } from '../../utils/trackingDivisionPercentage';
 import { Modal } from '../ui/Modal';
 import { Alert, Button, EmptyState, Field, Input, Switch } from '../ui/ds';
 import './ProjectTrackingDivisionsPanel.ds.css';
 
 type Draft = { enabled: boolean; startDate: string; endDate: string; plannedCost: string; plannedRevenue: string; plannedHours: string; plannedDays: string };
 const emptyDraft = (): Draft => ({ enabled: false, startDate: '', endDate: '', plannedCost: '', plannedRevenue: '', plannedHours: '', plannedDays: '' });
-const plannedFields = [
+const plannedFields: ReadonlyArray<readonly [TrackingDivisionPlannedField, string]> = [
   ['plannedCost', 'Custo previsto (R$)'],
   ['plannedRevenue', 'Receita prevista (R$)'],
   ['plannedHours', 'Horas previstas'],
@@ -29,6 +30,13 @@ function numeric(value: string): number | null {
   return value.trim() === '' ? null : Number(value);
 }
 
+function formatPlannedValue(field: TrackingDivisionPlannedField, value: number): string {
+  if (field === 'plannedCost' || field === 'plannedRevenue') {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  return `${value.toLocaleString('pt-BR')}${field === 'plannedHours' ? ' h' : ' dias'}`;
+}
+
 export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
   projectId: string;
   data: TrackingDivisionsResponse;
@@ -36,7 +44,18 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Record<string, Draft>>(() => draftFromRows(data.divisions));
+  const [percentDraft, setPercentDraft] = useState<Record<string, Partial<Record<TrackingDivisionPlannedField, string>>>>({});
   const [error, setError] = useState<string | null>(null);
+  const { data: projectTotal, isPending: projectTotalLoading, isError: projectTotalError } = useQuery({
+    queryKey: ['project-detail', projectId],
+    queryFn: () => getProjectDetail(projectId)
+  });
+  const totals: Record<TrackingDivisionPlannedField, number | null> = {
+    plannedCost: projectTotal?.consumo.previsto ?? null,
+    plannedRevenue: projectTotal?.faturamento.previsto == null ? null : Number(projectTotal.faturamento.previsto),
+    plannedHours: projectTotal?.workedHours.plannedTotalHours ?? null,
+    plannedDays: projectTotal?.diasCorridos.planned ?? null
+  };
   const save = useMutation({
     mutationFn: (rows: TrackingDivision[]) => saveTrackingDivisions(projectId, rows),
     onSuccess: async () => {
@@ -58,6 +77,16 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
     setError(null);
   }
 
+  function setPercentage(key: string, field: TrackingDivisionPlannedField, percentage: string | null) {
+    setPercentDraft(current => {
+      const next = { ...(current[key] ?? {}) };
+      if (percentage == null) delete next[field];
+      else next[field] = percentage;
+      return { ...current, [key]: next };
+    });
+    setError(null);
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const rows: TrackingDivision[] = [];
@@ -66,9 +95,21 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
       if (!item?.enabled) continue;
       if (!item.startDate) { setError(`Informe a data inicial de ${candidate.label}.`); return; }
       if (item.endDate && item.endDate < item.startDate) { setError(`Confira a data final de ${candidate.label}.`); return; }
-      const planned = Object.fromEntries(plannedFields.map(([field]) => [field, numeric(item[field])]));
+      const planned = Object.fromEntries(plannedFields.map(([field]) => {
+        const percentage = percentDraft[candidate.key]?.[field];
+        if (percentage === undefined) return [field, numeric(item[field])];
+        const total = totals[field];
+        if (percentage.trim() && (total == null || !Number.isFinite(total) || total <= 0 ||
+          !Number.isFinite(Number(percentage)) || Number(percentage) < 0 || Number(percentage) > 100)) {
+          return [field, NaN];
+        }
+        return [field, percentageOfProjectTotal(total, percentage, field)];
+      }));
       if (Object.values(planned).some(value => value != null && (!Number.isFinite(value) || value < 0))) {
-        setError(`Confira os valores previstos de ${candidate.label}.`); return;
+        setError(`Confira os valores ou percentuais previstos de ${candidate.label} (0% a 100%).`); return;
+      }
+      if (planned.plannedDays != null && !Number.isInteger(planned.plannedDays)) {
+        setError(`Dias previstos devem ser inteiros em ${candidate.label}.`); return;
       }
       rows.push({ key: candidate.key, startDate: item.startDate, endDate: item.endDate || null,
         plannedCost: planned.plannedCost, plannedRevenue: planned.plannedRevenue,
@@ -97,10 +138,40 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
         <Field id={fieldId('end')} label="Fim" optionalText="Opcional">
           <Input size="sm" type="date" min={item.startDate || undefined} disabled={save.isPending} value={item.endDate} onChange={event => update(candidate.key, { endDate: event.target.value })} />
         </Field>
-        {plannedFields.map(([field, label]) => <Field id={fieldId(field)} label={label} key={field}>
-          <Input size="sm" type="number" min="0" step={field === 'plannedDays' ? '1' : '0.01'} inputMode={field === 'plannedDays' ? 'numeric' : 'decimal'}
-            placeholder="—" disabled={save.isPending} value={item[field]} onChange={event => update(candidate.key, { [field]: event.target.value })} />
-        </Field>)}
+        {plannedFields.map(([field, label]) => {
+          const percentage = percentDraft[candidate.key]?.[field];
+          const total = totals[field];
+          const canUsePercentage = total != null && Number.isFinite(total) && total > 0;
+          const calculated = percentage === undefined ? null : percentageOfProjectTotal(total, percentage, field);
+          const helperText = percentage !== undefined
+            ? calculated == null ? 'Informe um percentual de 0% a 100%.'
+              : `Calculado: ${formatPlannedValue(field, calculated)} de ${formatPlannedValue(field, total!)}`
+            : canUsePercentage ? `Total do projeto: ${formatPlannedValue(field, total)}`
+              : projectTotalLoading ? 'Carregando total do projeto…'
+                : projectTotalError ? 'Total do projeto indisponível.' : 'Sem total do projeto para calcular %.';
+          return <Field id={fieldId(field)} label={label} helperText={helperText} key={field}>
+            <div className="acp-tracking-division-input-row">
+              <Input size="sm" type="number" min="0" max={percentage === undefined ? undefined : 100}
+                step={percentage === undefined ? field === 'plannedDays' ? '1' : '0.01' : 'any'}
+                inputMode={field === 'plannedDays' && percentage === undefined ? 'numeric' : 'decimal'}
+                placeholder={percentage === undefined ? '—' : '%'} disabled={save.isPending} value={percentage === undefined ? item[field] : percentage}
+                onChange={event => percentage === undefined
+                  ? update(candidate.key, { [field]: event.target.value })
+                  : setPercentage(candidate.key, field, event.target.value)} />
+              <Button type="button" size="sm" variant="secondary" className="acp-tracking-division-unit"
+                aria-label={`${label}: usar ${percentage === undefined ? 'percentual' : 'valor nominal'}`}
+                title={percentage === undefined ? 'Preencher como percentual do total do projeto' : 'Preencher como valor nominal'}
+                disabled={save.isPending || (percentage === undefined && !canUsePercentage)}
+                onClick={() => {
+                  if (percentage === undefined && canUsePercentage) setPercentage(candidate.key, field, percentageForProjectValue(item[field], total));
+                  else if (percentage !== undefined) {
+                    update(candidate.key, { [field]: calculated == null ? '' : String(calculated) });
+                    setPercentage(candidate.key, field, null);
+                  }
+                }}>{percentage === undefined ? '%' : field === 'plannedCost' || field === 'plannedRevenue' ? 'R$' : field === 'plannedHours' ? 'h' : 'dias'}</Button>
+            </div>
+          </Field>;
+        })}
       </div> : null}
     </div>;
   }
@@ -112,7 +183,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
       <Button type="submit" size="sm" form="acp-tracking-divisions-form" loading={save.isPending}>Salvar divisões</Button>
     </div>}>
     <form id="acp-tracking-divisions-form" className="acp-tracking-divisions-form" onSubmit={submit}>
-      <p className="acp-tracking-divisions-intro">Ative as abas desejadas por escopo e equipamento do cliente. Os sistemas de cada equipamento ficam agrupados. Sem data final, o período vai até hoje.</p>
+      <p className="acp-tracking-divisions-intro">Ative as abas desejadas por escopo e equipamento do cliente. Os sistemas de cada equipamento ficam agrupados. Em cada meta, use o botão % para calcular pelo total do projeto. Dias calculados são arredondados para o inteiro mais próximo. Sem data final, o período vai até hoje.</p>
       {data.candidates.length ? data.candidates.map(scope => <section className="acp-tracking-division-scope" key={scope.key}>
           <div className="acp-tracking-division-scope-head">
             <h3>{scope.label}</h3>

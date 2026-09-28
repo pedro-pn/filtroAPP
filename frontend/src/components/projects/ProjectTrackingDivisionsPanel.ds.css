@@ -10,6 +10,9 @@
 .acp-tracking-division-system-list .acp-tracking-division-row + .acp-tracking-division-row { border-top: var(--border-width) solid var(--line); }
 .acp-tracking-division-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); min-width: 0; }
 .acp-tracking-division-fields > * { min-width: 0; }
+.acp-tracking-division-input-row { display: flex; align-items: stretch; gap: var(--space-1); min-width: 0; }
+.acp-tracking-division-input-row .fv-control-shell { flex: 1; min-width: 0; }
+.acp-tracking-division-unit { flex: none; min-width: 42px; padding-inline: var(--space-2); }
 .acp-tracking-divisions-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
 @media (max-width: 760px) {
   .fv-modal.acp-tracking-divisions-panel { width: calc(100vw - var(--space-4)); max-height: calc(100dvh - var(--space-4)); }

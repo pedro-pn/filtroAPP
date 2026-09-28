@@ -1,5 +1,10 @@
 # Roadmap do redesign do frontend
 
+> **Conciliação de 28/09/2026:** `origin/main` até `2adc706e` foi incorporada.
+> Metas das divisões do Acompanhamento agora aceitam percentual do total do
+> projeto no diálogo DS. O cálculo e a gravação foram conferidos em banco isolado
+> no Chromium a 390 e 1280 px, sem overflow horizontal ou erro de JavaScript.
+
 > **Fechamento de 28/09/2026:** `origin/main` até `31865b08` foi conciliada.
 > Efetivo F2 e Acompanhamento A7 passaram na matriz técnica com banco isolado,
 > Chromium/Firefox, permissões e persistência. A regressão WebKit fica em F6.
