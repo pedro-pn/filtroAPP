@@ -1,4 +1,5 @@
 import prisma from '../prisma.js';
+import { divisionDateWhere } from './tracking-divisions.js';
 
 const PROJECT_STOCK_REASONS = ['USO_EM_PROJETO', 'DEVOLUCAO_OBRA', 'ESTORNO'];
 
@@ -79,12 +80,13 @@ export function aggregateStockConsumptionMovements(movements = [], unitCostByBat
   return normalized;
 }
 
-export async function getStockConsumptionCostByProject(projectIds = null, client = prisma) {
+export async function getStockConsumptionCostByProject(projectIds = null, client = prisma, division = null) {
   if (Array.isArray(projectIds) && projectIds.length === 0) return new Map();
 
   const movements = await client.stockMovement.findMany({
     where: {
       projectId: Array.isArray(projectIds) ? { in: projectIds } : { not: null },
+      ...divisionDateWhere('date', division),
       reason: { in: PROJECT_STOCK_REASONS }
     },
     select: {

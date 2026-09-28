@@ -1,4 +1,5 @@
 import prisma from '../prisma.js';
+import { divisionDateWhere } from './tracking-divisions.js';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -87,7 +88,7 @@ export function summarizeManualProjectCostRows(rows = []) {
   return byProject;
 }
 
-export async function getManualProjectCostsByProject(projectIds, { includeEntries = false } = {}) {
+export async function getManualProjectCostsByProject(projectIds, { includeEntries = false, division = null } = {}) {
   const ids = Array.from(new Set((projectIds ?? []).filter(Boolean)));
   if (ids.length === 0) return new Map();
 
@@ -106,7 +107,11 @@ export async function getManualProjectCostsByProject(projectIds, { includeEntrie
   }
 
   const rows = await prisma.projectManualCost.findMany({
-    where: { projectId: { in: ids }, deletedAt: null },
+    where: { projectId: { in: ids }, deletedAt: null,
+      ...(division ? { OR: [
+        { costDate: { not: null }, ...divisionDateWhere('costDate', division) },
+        { costDate: null, ...divisionDateWhere('createdAt', division) }
+      ] } : {}) },
     select,
     orderBy: [{ costDate: 'desc' }, { createdAt: 'desc' }]
   });

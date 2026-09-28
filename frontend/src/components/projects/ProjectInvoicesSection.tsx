@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { getMissionGroupInvoices, getProjectInvoices, type ProjectInvoice } from '../../api/acompanhamentoComercial';
+import { getMissionGroupInvoices, getProjectInvoices, type ProjectInvoice, type TrackingDivision } from '../../api/acompanhamentoComercial';
 import { HelpTip } from '../ui/HelpTip';
 
 const PAGE_SIZE = 10;
@@ -18,7 +18,7 @@ const RECEIPT: Record<ProjectInvoice['receiptStatus'], { label: string; badge: s
   UNKNOWN: { label: 'Não informado', badge: '' }
 };
 
-export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: string; groupId?: string }) {
+export function ProjectInvoicesSection({ projectId, groupId, division }: { projectId?: string; groupId?: string; division?: TrackingDivision | null }) {
   const titleId = useId();
   const [page, setPage] = useState(1);
   const query = useQuery({
@@ -30,9 +30,13 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
   });
   const data = query.data;
   const hasSnapshot = Boolean(data?.lastSyncedAt);
-  const pages = Math.max(1, Math.ceil((data?.invoices.length ?? 0) / PAGE_SIZE));
+  const visibleInvoices = (data?.invoices ?? []).filter(invoice => !division || (
+    invoice.issuedAt.slice(0, 10) >= division.startDate && invoice.issuedAt.slice(0, 10) <= (division.endDate ?? new Date().toISOString().slice(0, 10))
+  ));
+  const visibleTotal = visibleInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+  const pages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
-  const invoices = data?.invoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) ?? [];
+  const invoices = visibleInvoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <section className="page-card acp-det-block acp-invoices" aria-labelledby={titleId} data-acp-project-invoices>
@@ -44,8 +48,8 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
         </div>
         {hasSnapshot && data && !query.isError ? (
           <div className="acp-invoices-total">
-            <span>{data.count} {data.count === 1 ? 'nota fiscal' : 'notas fiscais'} · total bruto</span>
-            <strong>{brl(data.total)}</strong>
+            <span>{visibleInvoices.length} {visibleInvoices.length === 1 ? 'nota fiscal' : 'notas fiscais'} · total bruto</span>
+            <strong>{brl(visibleTotal)}</strong>
           </div>
         ) : null}
       </summary>
@@ -99,7 +103,7 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
                   </table>
                   {pages > 1 ? <nav className="acp-invoices-pagination" aria-label="Páginas de faturamentos">
                     <button type="button" className="mini-btn alt" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Anterior</button>
-                    <span aria-live="polite">Página {currentPage} de {pages} · {data.count} notas</span>
+                    <span aria-live="polite">Página {currentPage} de {pages} · {visibleInvoices.length} notas</span>
                     <button type="button" className="mini-btn alt" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Próxima</button>
                   </nav> : null}
                 </>
