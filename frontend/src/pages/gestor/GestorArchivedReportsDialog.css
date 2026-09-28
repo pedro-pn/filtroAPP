@@ -52,10 +52,6 @@
   color: var(--ink);
 }
 
-:where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__actions {
-  flex-wrap: nowrap;
-}
-
 :where(.fv-ds, [data-fv-ds]) .rdo-archived-reports-dialog .rdo-manager-listing__batch-toolbar--archived > .admin-form-actions {
   display: flex;
   flex-wrap: nowrap;

@@ -223,7 +223,8 @@ test('manager mobile composition keeps metrics in one row, fits approved metrics
   );
 
   assert.doesNotMatch(page, /rdo-manager-listing--approved/);
-  assert.match(page, /rdo-approved-action-label--compact/);
+  assert.doesNotMatch(page, /rdo-approved-action-label--compact/);
+  assert.match(page, /Editar manual/);
 
   assert.match(
     pageCss,
@@ -295,7 +296,7 @@ test('manager mobile composition keeps metrics in one row, fits approved metrics
   );
   assert.match(
     pageCss,
-    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?> \.rdo-manager-listing__actions\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex-wrap:\s*nowrap[\s\S]*?justify-content:\s*flex-start/
+    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?> \.rdo-manager-listing__actions\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex-wrap:\s*wrap[\s\S]*?justify-content:\s*flex-start/
   );
   assert.doesNotMatch(
     pageCss,
@@ -303,7 +304,7 @@ test('manager mobile composition keeps metrics in one row, fits approved metrics
   );
   assert.match(
     pageCss,
-    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?\.fv-button\s*\{[\s\S]*?flex:\s*1 1 0[\s\S]*?--fv-button-padding:\s*var\(--space-1\)/
+    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?\.fv-button\s*\{[\s\S]*?flex:\s*0 0 auto[\s\S]*?--fv-button-padding:\s*var\(--space-2\)/
   );
   assert.match(
     statsCss,

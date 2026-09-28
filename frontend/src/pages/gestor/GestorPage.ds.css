@@ -3781,7 +3781,7 @@
   display: none;
 }
 
-:where(.fv-ds, [data-fv-ds]) .rdo-approved-action-label--compact {
+:where(.fv-ds, [data-fv-ds]) .rdo-sequence-action-label--mobile {
   display: none;
 }
 
@@ -4329,7 +4329,7 @@
     > .rdo-manager-listing__actions {
     display: flex;
     width: 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-start;
     gap: var(--space-1);
   }
@@ -4340,8 +4340,8 @@
     .fv-button {
     width: auto;
     min-width: calc(var(--space-10) + var(--space-1));
-    flex: 1 1 0;
-    --fv-button-padding: var(--space-1);
+    flex: 0 0 auto;
+    --fv-button-padding: var(--space-2);
     --fv-button-font-size: var(--text-xs);
     --fv-button-line-height: var(--leading-xs);
   }
@@ -4355,13 +4355,13 @@
 
   :where(.fv-ds, [data-fv-ds])
     .rdo-manager-listing
-    .rdo-approved-action-label--full {
+    .rdo-sequence-action-label--desktop {
     display: none;
   }
 
   :where(.fv-ds, [data-fv-ds])
     .rdo-manager-listing
-    .rdo-approved-action-label--compact {
+    .rdo-sequence-action-label--mobile {
     display: inline;
   }
 

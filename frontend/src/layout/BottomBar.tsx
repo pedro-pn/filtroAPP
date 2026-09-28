@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { AppIcon } from '../components/icons/AppIcon';
 import { Badge } from '../components/ui/ds';
@@ -19,15 +19,34 @@ interface DesignSystemBottomBarProps {
 
 export type BottomBarProps = LegacyBottomBarProps | DesignSystemBottomBarProps;
 
+const MORE_SHEET_EXIT_MS = 220;
+
 function DesignSystemBottomBar({
   navigation
 }: DesignSystemBottomBarProps) {
+  const navigate = useNavigate();
   const sections = mobileSectionNavigation(navigation);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [moreMounted, setMoreMounted] = useState(false);
   const activeSectionRef = useRef<HTMLAnchorElement>(null);
+  const pendingHrefRef = useRef<string | null>(null);
   const activeSection = sections?.allItems.find(item => item.active);
 
-  useEffect(() => setMoreOpen(false), [sections?.module.id, activeSection?.id]);
+  useEffect(() => {
+    pendingHrefRef.current = null;
+    setMoreOpen(false);
+  }, [sections?.module.id, activeSection?.id]);
+  useEffect(() => {
+    if (moreOpen || !moreMounted) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timeout = window.setTimeout(() => {
+      setMoreMounted(false);
+      const href = pendingHrefRef.current;
+      pendingHrefRef.current = null;
+      if (href) void navigate(href);
+    }, reduceMotion ? 0 : MORE_SHEET_EXIT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [moreOpen, moreMounted, navigate]);
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 768px)');
     const closeOnDesktop = (event: MediaQueryListEvent) => {
@@ -65,7 +84,7 @@ function DesignSystemBottomBar({
           ))}
           {sections.hasMore ? <li>
             <button type="button" className={sections.moreActive ? 'is-active' : undefined}
-              onClick={() => setMoreOpen(true)}
+              onClick={() => { pendingHrefRef.current = null; setMoreMounted(true); setMoreOpen(true); }}
               aria-label={`Mais áreas de ${sections.module.label}${sections.moreActive && activeSection ? `, atual: ${activeSection.label}` : ''}`}
               aria-haspopup="dialog" aria-expanded={moreOpen}>
               <span className="fv-bottom-bar__icon"><AppIcon icon={NAVIGATION_CHROME_ICONS.more} size="md" /></span>
@@ -74,15 +93,20 @@ function DesignSystemBottomBar({
           </li> : null}
         </ul>
       </nav>
-      {sections.hasMore ? <Modal open={moreOpen} onClose={() => setMoreOpen(false)} closeOnBackdrop
+      {sections.hasMore ? <Modal open={moreMounted} onClose={() => setMoreOpen(false)} closeOnBackdrop
         appearance="design-system" size="md" title={`Áreas de ${sections.module.label}`}
-        fullscreenOnMobile={false} backdropClassName="fv-bottom-bar__sheet-backdrop"
+        fullscreenOnMobile={false} backdropClassName={`fv-bottom-bar__sheet-backdrop${moreOpen ? '' : ' is-closing'}`}
         panelClassName="fv-bottom-bar__sheet" initialFocusRef={activeSectionRef}>
         <ul className="fv-bottom-bar__sheet-list">
           {sections.allItems.map(item => <li key={item.id}>
             <Link ref={item.active ? activeSectionRef : undefined} to={item.href}
               className={item.active ? 'is-active' : undefined} aria-current={item.active ? 'page' : undefined}
-              onClick={() => setMoreOpen(false)}>
+              onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                pendingHrefRef.current = item.href;
+                setMoreOpen(false);
+              }}>
               <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />
               <span>{item.label}</span>
               {item.badge !== undefined ? <Badge tone={item.active ? 'brand' : 'neutral'}>{item.badge}</Badge> : null}

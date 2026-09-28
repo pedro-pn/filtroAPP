@@ -1578,13 +1578,8 @@ export function GestorPage() {
             </Button>
           ) : null}
           {manualReport && !report.physicalSignedAt ? (
-            <Button aria-label="Editar manual" variant="secondary" size="sm" disabled={reportMutations.replaceManualReportPdf.isPending} onClick={() => openManualReportReplace(report)}>
-              <span className="rdo-approved-action-label rdo-approved-action-label--full" aria-hidden="true">
-                Editar manual
-              </span>
-              <span className="rdo-approved-action-label rdo-approved-action-label--compact" aria-hidden="true">
-                Editar
-              </span>
+            <Button variant="secondary" size="sm" disabled={reportMutations.replaceManualReportPdf.isPending} onClick={() => openManualReportReplace(report)}>
+              Editar manual
             </Button>
           ) : null}
           {canReview && report.status !== 'APPROVED' ? (
@@ -1598,8 +1593,9 @@ export function GestorPage() {
             </Button>
           ) : null}
           {report.status !== 'SIGNED' ? (
-            <Button variant="secondary" size="sm" disabled={reportMutations.updateSequence.isPending} onClick={() => openReportSequenceEdit(report)}>
-              Nº
+            <Button variant="secondary" size="sm" aria-label="Editar número do relatório" disabled={reportMutations.updateSequence.isPending} onClick={() => openReportSequenceEdit(report)}>
+              <span className="rdo-sequence-action-label--desktop" aria-hidden="true">Nº</span>
+              <span className="rdo-sequence-action-label--mobile" aria-hidden="true">Editar número</span>
             </Button>
           ) : null}
           {report.status !== 'SIGNED' ? <IconButton icon={DS_ICONS.trash} label="Arquivar relatório" variant="danger" size="sm" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
