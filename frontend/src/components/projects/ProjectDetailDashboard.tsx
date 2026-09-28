@@ -14,6 +14,7 @@ import {
   getPlannedScope,
   getProjectPlanningContext,
   getProjectDetail,
+  getTrackingDivisions,
   listProjectManagementNotes,
   type BudgetBreakdownSlice,
   type DayStatus,
@@ -31,6 +32,7 @@ import { HelpTip } from '../ui/HelpTip';
 import { Modal } from '../ui/Modal';
 import { PortalTip } from '../ui/PortalTip';
 import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
+import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
 import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
 import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
@@ -46,6 +48,8 @@ import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { qualityDeviationProjects } from './projectQualityDeviations';
 import type { AuthUser } from '../../types/auth';
 import { groupServicesByScope } from '../../utils/plannedScopeGroups';
+import { systemNameKey } from '../../utils/projectSystemSelection';
+import { formatDateOnly } from '../../utils/dateOnly';
 
 const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -55,6 +59,7 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos' };
 const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+const trackingEquipmentTabLabel = (name: string) => name.replace(/^Unidade Geradora\s+/i, 'UG ');
 const QUALITY_IMPACT_LABELS: Record<string, string> = { ALTO: 'Alto', MEDIO: 'Médio', BAIXO: 'Baixo' };
 const QUALITY_STATUS_LABELS: Record<string, string> = {
   ABERTO: 'Aberto',
@@ -168,6 +173,7 @@ const toNum = (value?: string | number | null) => {
 };
 function fmtDate(iso?: string | null) {
   if (!iso) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDateOnly(iso, '—');
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 }
@@ -612,6 +618,8 @@ export function ProjectDetailDashboard({
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedScheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
+  const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
+  const [trackingDivisionKey, setTrackingDivisionKey] = useState('');
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [progressScopeKey, setProgressScopeKey] = useState('');
   const [progressEquipmentKey, setProgressEquipmentKey] = useState('');
@@ -638,10 +646,17 @@ export function ProjectDetailDashboard({
   });
   const scheduleRef = useRef<ScheduleEditorHandle>(null);
   const isGroup = Boolean(groupId);
-  const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId];
+  const { data: trackingDivisions, isLoading: trackingDivisionsLoading, isError: trackingDivisionsError, refetch: reloadTrackingDivisions } = useQuery({
+    queryKey: ['tracking-divisions', projectId],
+    queryFn: () => getTrackingDivisions(projectId!),
+    enabled: !isGroup && Boolean(projectId),
+    ...acompanhamentoRefreshQueryOptions
+  });
+  const activeDivisionKey = trackingDivisions?.divisions.some(item => item.key === trackingDivisionKey) ? trackingDivisionKey : '';
+  const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId, activeDivisionKey];
   const { data, isLoading } = useQuery({
     queryKey: detailKey,
-    queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!),
+    queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!, activeDivisionKey),
     ...acompanhamentoRefreshQueryOptions
   });
   const projectNotesKey = ['project-management-notes', projectId] as const;
@@ -787,7 +802,16 @@ export function ProjectDetailDashboard({
     : null;
   const scheduleProject = selectedScheduleProject ?? returnScheduleProject;
   const equipamentos = data.equipamentos ?? [];
-  const effectiveScope = data.plannedScope ?? scope;
+  const divisionParts = data.division ? JSON.parse(data.division.key) as ['SCOPE' | 'EQUIPMENT', string | null, string | null] : null;
+  const baseScope = data.plannedScope ?? scope;
+  const effectiveScope = baseScope && divisionParts ? {
+    ...baseScope,
+    services: baseScope.services.filter(service => (service.scopeName?.trim() || null) === divisionParts[1])
+      .map(service => divisionParts[0] === 'EQUIPMENT'
+        ? { ...service, systems: service.systems.filter(system => systemNameKey(system.equipment) === divisionParts[2]) }
+        : service)
+      .filter(service => service.systems.length > 0)
+  } : baseScope;
   const workedHours = data.workedHours ?? {
     normalWorkedHours: 0,
     overtimeWorkedHours: 0,
@@ -869,6 +893,9 @@ export function ProjectDetailDashboard({
             Editar cronograma
           </button>
         ) : null}
+        {canManage && !isGroup ? <button type="button" className="mini-btn alt" onClick={() => setTrackingDivisionsOpen(true)}>
+          Divisões do acompanhamento
+        </button> : null}
       </div>
 
       <div className="page-card acp-det-header">
@@ -899,6 +926,30 @@ export function ProjectDetailDashboard({
           </div>
         ) : null}
       </div>
+
+      {!isGroup && trackingDivisions && trackingDivisions.divisions.length > 0 ? <nav className="acp-seg acp-tracking-tabs" role="tablist" aria-label="Divisões do acompanhamento">
+        <button type="button" role="tab" aria-selected={!activeDivisionKey} className={`acp-seg-btn${!activeDivisionKey ? ' active' : ''}`}
+          onClick={() => setTrackingDivisionKey('')}>Projeto completo</button>
+        {trackingDivisions.candidates.flatMap(scope => [scope, ...(scope.equipments ?? [])])
+          .filter(candidate => trackingDivisions.divisions.some(item => item.key === candidate.key))
+          .map(candidate => <button key={candidate.key} type="button" role="tab" aria-selected={activeDivisionKey === candidate.key}
+            className={`acp-seg-btn${activeDivisionKey === candidate.key ? ' active' : ''}`} onClick={() => setTrackingDivisionKey(candidate.key)}>
+            {candidate.kind === 'SCOPE' ? `Escopo: ${candidate.label}` : `${candidate.scopeName || 'Sem escopo definido'}: ${trackingEquipmentTabLabel(candidate.label)}`}
+          </button>)}
+      </nav> : null}
+
+      {data.division ? <div className="page-card acp-tracking-period" aria-label="Período da divisão">
+        Período: {fmtDate(data.division.startDate)} até {data.division.endDate ? fmtDate(data.division.endDate) : 'hoje'}
+      </div> : null}
+
+      {trackingDivisionsOpen && projectId && trackingDivisions ? <ProjectTrackingDivisionsPanel
+        projectId={projectId} data={trackingDivisions} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
+      {trackingDivisionsOpen && projectId && !trackingDivisions ? <Modal open onClose={() => setTrackingDivisionsOpen(false)}
+        ariaLabelledBy="acp-tracking-divisions-load-title">
+        <h2 id="acp-tracking-divisions-load-title">Divisões do acompanhamento</h2>
+        <p>{trackingDivisionsLoading ? 'Carregando divisões…' : trackingDivisionsError ? 'Não foi possível carregar as divisões.' : 'Carregando divisões…'}</p>
+        {trackingDivisionsError ? <button type="button" className="mini-btn" onClick={() => void reloadTrackingDivisions()}>Tentar novamente</button> : null}
+      </Modal> : null}
 
       {!isGroup ? (
         <div className="page-card acp-det-planning" data-acp-planning-context>
@@ -932,13 +983,13 @@ export function ProjectDetailDashboard({
           <div className="page-card acp-det-block">
             <MetricBar
               label="Dias corridos"
-              help="Dias de calendário desde o início da obra até a data de referência: hoje para projetos em andamento; último RDO para projetos arquivados."
+              help={data.division ? 'Dias de calendário desde o início da divisão até o fim informado ou hoje.' : 'Dias de calendário desde o início da obra até a data de referência: hoje para projetos em andamento; último RDO para projetos arquivados.'}
               value={data.diasCorridos.pct}
               caption={`${data.diasCorridos.elapsed ?? '—'}/${data.diasCorridos.planned ?? '—'}${data.diasCorridos.pct != null ? ` · ${data.diasCorridos.pct}%` : ''}`}
             />
             <MetricBar
               label="Dias trabalhados"
-              help="Dias com RDO registrado, sobre os dias trabalhados previstos no comercial."
+              help={data.division ? 'Dias com RDO no período da divisão, sobre os dias previstos informados para ela.' : 'Dias com RDO registrado, sobre os dias trabalhados previstos no comercial.'}
               value={data.diasTrabalhados.pct}
               caption={`${data.diasTrabalhados.worked}/${data.diasTrabalhados.planned ?? '—'}${data.diasTrabalhados.pct != null ? ` · ${data.diasTrabalhados.pct}%` : ''}`}
             />
@@ -965,7 +1016,7 @@ export function ProjectDetailDashboard({
                 <>
                   <MetricBar
                     label="Consumo de gastos"
-                    help="Total realizado (compras do Omie sem salários, consumo de químicos/filtros do estoque, custos manuais e mão de obra do ponto) sobre o custo previsto no comercial."
+                    help={data.division ? 'Custos realizados no período da divisão sobre o custo previsto informado para ela. O custo de mão de obra mensal é distribuído pelas horas apropriadas nos dias do período.' : 'Total realizado (compras do Omie sem salários, consumo de químicos/filtros do estoque, custos manuais e mão de obra do ponto) sobre o custo previsto no comercial.'}
                     value={totalPct}
                     tone="cost"
                     caption={`${brl(totalRealizado)} / ${brl(previsto)}${totalPct != null ? ` · ${totalPct}%` : ''}`}
@@ -1243,6 +1294,7 @@ export function ProjectDetailDashboard({
               <ProjectProgressBreakdown
                 projectId={projectId}
                 canManage={canManage}
+                divisionKey={activeDivisionKey || undefined}
                 filter={progressFilters ? { scopeKey: activeScopeKey, equipmentKey: activeEquipmentKey } : undefined}
                 progressPct={selectedProgressSlice ? selectedProgressSlice.avancoPct : undefined}
               />
@@ -1317,7 +1369,7 @@ export function ProjectDetailDashboard({
         </div>
       </div>
 
-      {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} /> : null}
+      {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} /> : null}
 
       <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>
         <div className="quality-deviations-head">
@@ -1657,8 +1709,8 @@ export function ProjectDetailDashboard({
 
       <div className="page-card acp-det-footer">
         <div><span><HelpTip help="Data de mobilização, cadastrada manualmente no cronograma.">Mobilização</HelpTip></span><strong>{fmtDate(data.footer.mobilizationDate)}</strong></div>
-        <div><span><HelpTip help="Data de início real, cadastrada manualmente no cronograma.">Início</HelpTip></span><strong>{fmtDate(data.footer.startDate)}</strong></div>
-        <div><span><HelpTip help="Início + dias corridos previstos no comercial.">Previsão de término</HelpTip></span><strong>{fmtDate(data.footer.expectedEndDate)}</strong></div>
+        <div><span><HelpTip help={data.division ? 'Data inicial informada para esta divisão.' : 'Data de início real, cadastrada manualmente no cronograma.'}>Início</HelpTip></span><strong>{fmtDate(data.footer.startDate)}</strong></div>
+        <div><span><HelpTip help={data.division ? 'Data final informada ou início mais os dias previstos da divisão.' : 'Início + dias corridos previstos no comercial.'}>Previsão de término</HelpTip></span><strong>{fmtDate(data.footer.expectedEndDate)}</strong></div>
         <div><span><HelpTip help="Estimativa realista: projeta o término pela velocidade de avanço acumulada até a data de referência dos dias corridos.">Previsão pelo ritmo</HelpTip></span><strong>{fmtDate(data.footer.projectedEndByPace)}</strong></div>
       </div>
 
@@ -1666,6 +1718,7 @@ export function ProjectDetailDashboard({
         project={standbyHistoryOpen && !isGroup && projectId
           ? { projectId, code: h.code }
           : null}
+        division={data.division}
         onClose={() => setStandbyHistoryOpen(false)}
       />
 

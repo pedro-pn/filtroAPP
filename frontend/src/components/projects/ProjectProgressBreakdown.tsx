@@ -29,11 +29,12 @@ function systemLine(sys: ProgressSystem) {
 // `filter`/`progressPct` são opcionais: quando o dashboard já filtra por Escopo e/ou equipamento,
 // ele controla o recorte (chaves normalizadas, '' = todos, e o percentual do topo) e o seletor
 // interno deixa de aparecer.
-export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false }: {
+export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false, divisionKey }: {
   projectId: string;
   filter?: { scopeKey: string; equipmentKey: string };
   progressPct?: number | null;
   canManage?: boolean;
+  divisionKey?: string;
 }) {
   const [ownEquipment, setEquipment] = useState('');
   const controlled = filter !== undefined;
@@ -42,8 +43,8 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
   const matchesEquipment = (name: string | null | undefined) => !equipment
     || (controlled ? systemNameKey(name) === equipment : name === equipment);
   const { data, isLoading } = useQuery({
-    queryKey: ['project-progress', projectId],
-    queryFn: () => getProjectProgress(projectId),
+    queryKey: ['project-progress', projectId, divisionKey],
+    queryFn: () => getProjectProgress(projectId, divisionKey),
     ...acompanhamentoRefreshQueryOptions
   });
 
@@ -91,7 +92,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
           {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
         </li>)}</ul>
       </details> : null}
-      <ProjectRealizedCorrections projectId={projectId} canManage={canManage} />
+      {!divisionKey ? <ProjectRealizedCorrections projectId={projectId} canManage={canManage} /> : null}
       <p className="placeholder-copy" style={{ marginTop: 6, fontSize: 11 }}>
         Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados.
         Metas por sistema consideram equipamento do cliente, sistema e bitola. Em cada tipo de medição, a execução

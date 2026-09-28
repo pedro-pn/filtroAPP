@@ -3909,6 +3909,35 @@ a {
 
 /* Dashboard detalhado do projeto */
 .acp-det { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.acp-tracking-tabs { width: 100%; align-self: stretch; }
+.acp-tracking-period { font-weight: 600; font-size: 13px; }
+.modal-card.acp-tracking-divisions-panel {
+  width: min(96vw, 1240px);
+  max-width: 1240px;
+  height: min(90dvh, 920px);
+  max-height: calc(100dvh - 24px);
+}
+.acp-tracking-divisions-panel .acp-manage-head .sec { margin: 0; }
+.acp-tracking-divisions-intro { margin: 0 0 4px; color: var(--mu); font-size: 13px; }
+.acp-tracking-division-scope { border: 1px solid var(--br); border-radius: var(--r); min-width: 0; overflow: hidden; }
+.acp-tracking-division-scope-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--bg); border-bottom: 1px solid var(--br); }
+.acp-tracking-division-scope-head h3 { margin: 0; color: var(--tx); font-size: 14px; }
+.acp-tracking-division-scope-head small { color: var(--mu); font-size: 12px; white-space: nowrap; }
+.acp-tracking-division-row { display: grid; gap: 10px; min-width: 0; padding: 12px 14px; }
+.acp-tracking-division-toggle { cursor: pointer; }
+.acp-tracking-division-toggle strong { color: var(--tx); font-size: 13px; }
+.acp-tracking-division-toggle input[type="checkbox"] { accent-color: var(--g); }
+.acp-tracking-division-system-list { border-top: 1px solid var(--br); padding-left: 16px; }
+.acp-tracking-division-system-list .acp-tracking-division-row + .acp-tracking-division-row { border-top: 1px solid var(--br); }
+.acp-tracking-division-fields { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+.acp-tracking-division-fields > * { min-width: 0; }
+@media (max-width: 1000px) { .acp-tracking-division-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .modal-card.acp-tracking-divisions-panel { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
+  .acp-tracking-division-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acp-tracking-division-system-list { padding-left: 8px; }
+}
+@media (max-width: 420px) { .acp-tracking-division-fields { grid-template-columns: 1fr; } }
 .acp-det-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .acp-det-header { display: flex; flex-direction: column; gap: 10px; }
 .acp-det-header h2 { margin: 0; font-size: 16px; line-height: 1.5; }
