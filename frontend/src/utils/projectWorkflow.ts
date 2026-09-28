@@ -1,7 +1,8 @@
 import {
   PROJECT_WORKFLOW_STAGE_LABELS,
   PROJECT_WORKFLOW_STAGES,
-  projectWorkflowStageTransitions
+  projectWorkflowStageTransitions,
+  projectWorkflowVisibleStages
 } from '../../../shared/schemas/project-workflow.js';
 import type { ProjectWorkflowStage, ProjectWorkflowSummary } from '../api/projectWorkflow';
 
@@ -48,6 +49,57 @@ export function cloneProjectKanbanColumns(columns: ProjectKanbanColumns): Projec
 
 export function projectStageInColumns(columns: ProjectKanbanColumns, projectId: string): ProjectKanbanStage | null {
   return PROJECT_KANBAN_STAGES.find(stage => columns[stage].some(item => item.id === projectId)) || null;
+}
+
+export function projectWorkflowNextStagePreview(item: ProjectWorkflowSummary, stage: ProjectKanbanStage) {
+  const workflow = item.workflow;
+  const visibleStages = projectWorkflowVisibleStages(workflow?.executedAtHeadquarters === true);
+  const currentIndex = visibleStages.indexOf(stage);
+  if (currentIndex < 0) return null;
+  const forwardStages = stage === 'HANDOVER'
+    ? ['INITIAL_ANALYSIS' as ProjectKanbanStage]
+    : projectWorkflowStageOptions(stage, workflow?.executedAtHeadquarters === true)
+      .filter(candidate => visibleStages.indexOf(candidate) > currentIndex);
+  if (forwardStages.length !== 1) return null;
+
+  const nextStage = forwardStages[0];
+  const mission = item.operationalMission;
+  let date: string | null | undefined = null;
+  switch (nextStage) {
+    case 'MOBILIZATION_PLANNING':
+      date = workflow?.milestones.d30Date;
+      break;
+    case 'PREPARATION':
+      date = workflow?.milestones.preparationDate;
+      break;
+    case 'MOBILIZATION':
+      date = workflow?.plannedMobilizationDate || mission?.mobilizationDate;
+      break;
+    case 'EXECUTION':
+      date = workflow?.executedAtHeadquarters
+        ? workflow.plannedExecutionStartDate || mission?.executionStartDate
+        : mission?.executionStartDate || workflow?.plannedExecutionStartDate;
+      break;
+    case 'DEMOBILIZATION':
+      date = mission?.executionEndDate;
+      break;
+    case 'POST_JOB':
+      date = workflow?.executedAtHeadquarters ? mission?.executionEndDate : null;
+      break;
+  }
+  const referenceDate = workflow?.executedAtHeadquarters
+    ? workflow.plannedExecutionStartDate
+    : workflow?.plannedMobilizationDate;
+  const referenceDays = workflow?.milestones.daysUntilMobilization;
+  const dateOffset = date && referenceDate
+    ? Math.round((Date.parse(`${date.slice(0, 10)}T00:00:00Z`) - Date.parse(`${referenceDate.slice(0, 10)}T00:00:00Z`)) / 86_400_000)
+    : null;
+
+  return {
+    stage: nextStage,
+    date: date || null,
+    daysUntil: referenceDays != null && dateOffset != null ? referenceDays + dateOffset : null
+  };
 }
 
 export function moveProjectInColumns(columns: ProjectKanbanColumns, projectId: string, targetStage: ProjectKanbanStage): ProjectKanbanColumns {

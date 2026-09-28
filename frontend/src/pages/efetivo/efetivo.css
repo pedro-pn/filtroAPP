@@ -1925,30 +1925,9 @@
 .project-workflow-card-summary > div { min-width: 0; }
 .project-workflow-card-summary dt { color: var(--mu); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .project-workflow-card-summary dd { font-size: 12px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
-.project-workflow-card .efetivo-mission-owner { margin-top: 2px; }
 .project-workflow-card .efetivo-kanban-details { margin-top: 3px; }
 .project-workflow-card-move-select { display: none; margin: 3px 0 0; }
-.project-workflow-card > strong,
-.project-workflow-card > span,
-.project-workflow-card > small,
-.project-workflow-card > em { max-width: 100%; overflow-wrap: anywhere; }
-.project-workflow-card > span:not(.efetivo-eyebrow),
-.project-workflow-card > small { color: var(--mu); }
-.project-workflow-card > em { color: var(--g); font-size: 12px; font-style: normal; font-weight: 700; }
-.project-workflow-card > em.is-overdue,
 .project-workflow-overdue { color: var(--rd); }
-.project-workflow-card .project-workflow-commercial-badge { color: var(--mu); font-weight: 700; }
-.project-workflow-card .project-workflow-commercial-badge.is-released { color: var(--g); }
-.project-workflow-card .project-workflow-documentation-badge,
-.project-workflow-card .project-workflow-deadline-alert { color: var(--rd); font-weight: 700; }
-.project-workflow-card .project-workflow-documentation-badge.is-ok,
-.project-workflow-card .project-workflow-planning-badge,
-.project-workflow-card .project-workflow-preparation-badge,
-.project-workflow-card .project-workflow-execution-badge,
-.project-workflow-card .project-workflow-authorization-badge.is-authorized { color: var(--g); font-weight: 700; }
-.project-workflow-card .project-workflow-documentation-badge.is-in_progress { color: var(--warning-text); }
-.project-workflow-card .project-workflow-mobilization-risk { color: var(--rd); font-weight: 700; }
-.project-workflow-card .project-workflow-mobilization-risk.is-attention { color: var(--warning-text); }
 .project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
 
 /* ==========================================================================

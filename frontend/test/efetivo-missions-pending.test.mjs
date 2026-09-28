@@ -85,7 +85,7 @@ test('paridade de campos com o exemplo de referência', () => {
   const allocation = read('../src/pages/efetivo/components/MissionAllocationModal.tsx');
   assert.doesNotMatch(missionsBoard + allocation, /Alocar disponíveis|autoAllocateMission/);
   const kanban = read('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx');
-  for (const label of ['Evolução dos projetos', 'Fluxo único', 'Programação operacional', 'Nenhum projeto nesta etapa']) {
+  for (const label of ['Evolução dos projetos', 'Fluxo único', 'Alocados', 'Nesta etapa desde', 'Próxima etapa', 'Nenhum projeto nesta etapa']) {
     assert.ok(kanban.includes(label), `elemento ausente no kanban único: ${label}`);
   }
   const stages = read('../src/utils/projectWorkflow.ts');

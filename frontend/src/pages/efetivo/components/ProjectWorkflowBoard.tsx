@@ -51,7 +51,7 @@ import {
   PROJECT_KANBAN_STAGE_LABELS,
   PROJECT_KANBAN_STAGES,
   projectStageInColumns,
-  projectWorkflowMilestoneText,
+  projectWorkflowNextStagePreview,
   projectWorkflowStageOptions,
   projectWorkflowsToColumns,
   type ProjectKanbanColumns,
@@ -103,13 +103,6 @@ type LegacyMove = {
 const INTERACTIVE_SELECTOR = 'select, button, input, textarea, a, label, option';
 const TOUCH_HOLD_MS = 320;
 const TOUCH_HOLD_TOLERANCE = 10;
-const OPERATIONAL_STAGE_LABELS: Record<MissionStage, string> = {
-  STANDBY: 'Stand by',
-  MOBILIZATION: 'Mobilização',
-  EXECUTION: 'Execução',
-  FINAL_MEASUREMENT: 'Medição final',
-  FINISHED: 'Finalizada'
-};
 const LEGACY_PROJECT_STAGE_TO_MISSION: Partial<Record<ProjectKanbanStage, MissionStage>> = {
   HANDOVER: 'STANDBY',
   MOBILIZATION: 'MOBILIZATION',
@@ -196,15 +189,20 @@ function ProjectCard({
 }) {
   const workflow = item.workflow;
   const mission = item.operationalMission;
-  const documentationLabel = workflow?.documentationReadiness.status === 'OK'
-    ? 'OK'
-    : workflow?.documentationReadiness.status === 'CRITICAL' ? 'crítica' : 'em andamento';
-  const nextMilestone = workflow?.milestones.nextMilestone;
-  const mobilizationStatus = workflow?.mobilizationAuthorization.status;
-  const responsibleName = mission?.headquartersResponsibleName || workflow?.leader.name || '';
-  const responsibleRole = mission
-    ? mission.headquartersResponsibleRole || 'Cargo da conta não informado'
-    : 'Líder de Projetos';
+  const stageEnteredAt = workflow?.stageTimeline?.[stage]?.enteredAt
+    || (stage === 'INITIAL_ANALYSIS' ? workflow?.acceptedAt : null)
+    || (stage === 'FINISHED' ? workflow?.closedAt : null);
+  const stageEntryDate = stageEnteredAt
+    ? new Date(stageEnteredAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    : null;
+  const nextStage = projectWorkflowNextStagePreview(item, stage);
+  const nextStageTiming = nextStage?.daysUntil == null
+    ? nextStage?.date ? `Prevista para ${displayDateOnly(nextStage.date)}` : 'Sem data prevista'
+    : nextStage.daysUntil > 0
+      ? `Em ${nextStage.daysUntil} ${nextStage.daysUntil === 1 ? 'dia' : 'dias'}`
+      : nextStage.daysUntil === 0
+        ? 'Prevista para hoje'
+        : `Previsão vencida há ${Math.abs(nextStage.daysUntil)} ${nextStage.daysUntil === -1 ? 'dia' : 'dias'}`;
   const options = moveOptions(item);
   const initialTeamAvailable = canDefineInitialProjectTeam(stage);
   const teamCyclesAvailable = canViewProjectTeamCycles(stage);
@@ -245,85 +243,16 @@ function ProjectCard({
         {moveAllowed ? <span className="efetivo-drag-grip" aria-hidden="true">⋮⋮</span> : <span className="efetivo-lock" aria-hidden="true">●</span>}
         <span className="efetivo-eyebrow">{item.code}</span>
       </div>
-      <strong>{item.name}</strong>
-      <span>{item.clientName || 'Cliente não informado'} · {item.location || 'Local não informado'}</span>
+      <strong className="project-workflow-card-name" title={item.name}>{item.name}</strong>
       <dl className="project-workflow-card-summary">
-        <div>
-          <dt>{workflow?.executedAtHeadquarters ? 'Início da execução' : stage === 'HANDOVER' ? 'Previsão de mobilização' : 'Mobilização'}</dt>
-          <dd>{workflow?.executedAtHeadquarters
-            ? workflow.plannedExecutionStartDate ? displayDateOnly(workflow.plannedExecutionStartDate) : 'Não informado'
-            : mission?.mobilizationDate
-              ? displayDateOnly(mission.mobilizationDate)
-              : workflow?.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}</dd>
+        <div><dt>Alocados</dt><dd>{mission?.participantCount || 0}</dd></div>
+        <div><dt>Nesta etapa desde</dt><dd>{stageEntryDate || 'Sem registro'}</dd></div>
+        <div className="project-workflow-card-summary-next">
+          <dt>Próxima etapa</dt>
+          <dd>{nextStage ? PROJECT_KANBAN_STAGE_LABELS[nextStage.stage] : stage === 'FINISHED' ? 'Concluído' : 'A definir'}</dd>
+          {nextStage ? <small className={nextStage.daysUntil != null && nextStage.daysUntil < 0 ? 'is-overdue' : undefined}>{nextStageTiming}</small> : null}
         </div>
-        <div><dt>Participantes</dt><dd>{mission?.participantCount || 0}</dd></div>
       </dl>
-      {workflow ? <small>Líder do projeto: {workflow.leader.name}{workflow.planner ? ` · Gestor de Contrato: ${workflow.planner.name}` : ' · Gestor de Contrato não definido'}</small> : null}
-      {responsibleName ? (
-        <div className="efetivo-mission-owner">
-          <i aria-hidden="true">{initials(responsibleName)}</i>
-          <span>
-            <small>{mission ? 'LÍDER VINCULADO' : 'LÍDER DO PROJETO'}</small>
-            <strong>{responsibleName}</strong>
-            <b>{responsibleRole}</b>
-          </span>
-        </div>
-      ) : <small>Líder ainda não vinculado</small>}
-      {workflow ? <>
-        <small>
-          {projectWorkflowMilestoneText(item)}
-          {!['DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
-        </small>
-        {workflow.stage !== 'FINISHED' && workflow.milestones.dueMilestones.length ? (
-          <small className="project-workflow-deadline-alert">
-            Prazos atingidos: {workflow.milestones.dueMilestones.map(key => key.replace('D', 'D-')).join(', ')}
-          </small>
-        ) : null}
-        <small className={'project-workflow-commercial-badge is-' + workflow.commercialReadiness.status.toLowerCase()}>
-          Sinais comerciais: {workflow.commercialReadiness.status === 'RELEASED'
-            ? 'completos'
-            : workflow.commercialReadiness.resolvedCount + '/' + workflow.commercialReadiness.totalCount + ' recebidos'}
-        </small>
-        <small className={'project-workflow-documentation-badge is-' + workflow.documentationReadiness.status.toLowerCase()}>
-          Documentação: {documentationLabel} · {workflow.documentationReadiness.completed}/{workflow.documentationReadiness.total}
-        </small>
-        {workflow.stage === 'MOBILIZATION_PLANNING' ? (
-          <small className="project-workflow-planning-badge">
-            D-30: {workflow.planningReadiness.completed}/{workflow.planningReadiness.total} · {workflow.planningReadiness.percentage}%
-          </small>
-        ) : null}
-        {['PREPARATION', 'MOBILIZATION'].includes(workflow.stage) ? (
-          <small className="project-workflow-preparation-badge">
-            D-{workflow.preparationLeadTimeDays}: {workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%
-          </small>
-        ) : null}
-        {workflow.stage === 'EXECUTION' ? <small className="project-workflow-execution-badge">Acompanhamento operacional ativo</small> : null}
-        {workflow.stage === 'EXECUTION' && workflow.weeklyReviewPendingCount ? <small className="project-workflow-deadline-alert">Verificação semanal: {workflow.weeklyReviewPendingCount} pendente(s)</small> : null}
-        {workflow.stage === 'MOBILIZATION' ? <small className="project-workflow-execution-badge">Mobilização operacional em andamento</small> : null}
-        {workflow.stage === 'DEMOBILIZATION' ? <small className="project-workflow-execution-badge">Desmobilização: {workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</small> : null}
-        {workflow.stage === 'POST_JOB' ? <small className="project-workflow-execution-badge">Pós-job: {workflow.postJobReadiness.completed}/{workflow.postJobReadiness.total} · {workflow.postJobReadiness.percentage}%</small> : null}
-        {workflow.stage === 'FINAL_MEASUREMENT' ? <small className="project-workflow-execution-badge">Fechamento: {workflow.closeoutReadiness.completed}/{workflow.closeoutReadiness.total} · {workflow.closeoutReadiness.percentage}%</small> : null}
-        {workflow.stage === 'FINISHED' ? <small className="project-workflow-execution-badge">🏁 Encerrado{workflow.closedBy ? ` por ${workflow.closedBy.name}` : ''}</small> : null}
-        {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? (
-          <small className="project-workflow-mobilization-risk is-attention">D-7 · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
-        ) : null}
-        {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'RISK' ? (
-          <small className="project-workflow-mobilization-risk is-risk">Risco de mobilização · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
-        ) : null}
-        {workflow.executedAtHeadquarters ? <small className="project-workflow-authorization-badge">🏢 Executado na Sede</small> : null}
-        {!workflow.executedAtHeadquarters && !['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
-        {workflow.issueCount ? (
-          <em className={workflow.overdueIssueCount ? 'is-overdue' : ''}>
-            {workflow.issueCount} pendência(s){workflow.overdueIssueCount ? ' · ' + workflow.overdueIssueCount + ' vencida(s)' : ''}
-          </em>
-        ) : null}
-        {mission
-          ? <small>Programação: {OPERATIONAL_STAGE_LABELS[mission.stage]} · {mission.participantCount} participante(s)</small>
-          : <small>Programação operacional pendente</small>}
-      </> : <>
-        <em>{mission ? 'Fluxo legado · ' + OPERATIONAL_STAGE_LABELS[mission.stage] : 'Gestão ainda não iniciada'}</em>
-        {mission ? <small>{mission.participantCount} participante(s) · gestão ainda não iniciada</small> : null}
-      </>}
       {expanded && mission ? (
         <div className="efetivo-kanban-details">
           <span>Participantes da missão · {mission.participantCount}</span>
@@ -347,7 +276,7 @@ function ProjectCard({
             aria-expanded={expanded}
             onClick={event => { event.stopPropagation(); onToggleTeam(); }}
           >
-            {expanded ? 'Ocultar equipe' : 'Ver líder e equipe (' + mission.participantCount + ')'}
+            {expanded ? 'Ocultar equipe' : 'Equipe (' + mission.participantCount + ')'}
           </button>
         ) : <span />}
         {mission && teamCyclesAvailable ? (

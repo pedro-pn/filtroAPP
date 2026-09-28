@@ -382,6 +382,81 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+.efetivo-page-v2 .project-workflow-card {
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.efetivo-page-v2 .project-workflow-card-name {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.efetivo-page-v2 .project-workflow-card-summary {
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.efetivo-page-v2 .project-workflow-card-summary dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+  text-transform: none;
+}
+
+.efetivo-page-v2 .project-workflow-card-summary dd {
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.efetivo-page-v2 .project-workflow-card-summary-next {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  padding-block-start: var(--space-2);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+.efetivo-page-v2 .project-workflow-card-summary-next dt {
+  grid-column: 1 / -1;
+}
+
+.efetivo-page-v2 .project-workflow-card-summary-next dd {
+  margin: 0;
+}
+
+.efetivo-page-v2 .project-workflow-card-summary-next small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  text-align: end;
+}
+
+.efetivo-page-v2 .project-workflow-card-summary-next small.is-overdue {
+  color: var(--danger);
+}
+
+.efetivo-page-v2 .project-workflow-card .efetivo-kanban-team-actions {
+  gap: var(--space-1);
+}
+
 :where(.fv-ds, [data-fv-ds]) .efetivo-calendar-main,
 :where(.fv-ds, [data-fv-ds]) .efetivo-availability-column,
 :where(.fv-ds, [data-fv-ds]) .efetivo-availability-card {

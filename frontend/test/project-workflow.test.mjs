@@ -11,6 +11,7 @@ import {
   projectKanbanStage,
   projectStageInColumns,
   projectWorkflowMilestoneText,
+  projectWorkflowNextStagePreview,
   projectWorkflowStageOptions,
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
@@ -75,6 +76,31 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'FINISHED', closedAt: '2026-10-01T12:00:00Z', milestones: {} } }), 'Encerrado em 01/10/2026');
 });
 
+test('card usa a data prevista da próxima etapa sem confundir o marco D-30 com uma coluna', () => {
+  const project = {
+    workflow: {
+      executedAtHeadquarters: false,
+      plannedMobilizationDate: '2026-10-10',
+      plannedExecutionStartDate: null,
+      milestones: { daysUntilMobilization: 20, d30Date: '2026-09-10', preparationDate: '2026-09-25' }
+    },
+    operationalMission: { executionStartDate: '2026-10-12', executionEndDate: '2026-10-20' }
+  };
+  assert.deepEqual(projectWorkflowNextStagePreview(project, 'MOBILIZATION_PLANNING'), {
+    stage: 'PREPARATION', date: '2026-09-25', daysUntil: 5
+  });
+  assert.deepEqual(projectWorkflowNextStagePreview(project, 'EXECUTION'), {
+    stage: 'DEMOBILIZATION', date: '2026-10-20', daysUntil: 30
+  });
+  assert.equal(projectWorkflowNextStagePreview(project, 'INITIAL_ANALYSIS'), null, 'duas saídas possíveis não geram previsão inventada');
+  assert.equal(projectWorkflowNextStagePreview(project, 'FINISHED'), null);
+  project.workflow.executedAtHeadquarters = true;
+  project.workflow.plannedExecutionStartDate = '2026-10-10';
+  assert.deepEqual(projectWorkflowNextStagePreview(project, 'PREPARATION'), {
+    stage: 'EXECUTION', date: '2026-10-10', daysUntil: 20
+  });
+});
+
 test('Encerramento integra gate final, auditoria e reabertura justificada', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
@@ -100,7 +126,7 @@ test('Documentação e medição integra evidências, valores e 14 controles', (
   assert.match(panel, /Consolidação da medição/);
   assert.match(panel, /Pendente de aprovação/);
   assert.match(panel, /título\(s\) no Omie/);
-  assert.match(board, /Fechamento:/);
+  assert.doesNotMatch(board, /Fechamento:/);
   assert.match(styles, /project-closeout-financial/);
 });
 
@@ -115,7 +141,7 @@ test('desmobilização integra coluna, datas e 15 controles ao Kanban único', (
   assert.match(modal, /project\.mobilizationDate \|\| mission\?\.mobilizationDate/);
   assert.match(modal, /Salvar datas efetivas/);
   assert.match(modal, /Iniciar desmobilização/);
-  assert.match(board, /Desmobilização:/);
+  assert.match(board, /projectWorkflowNextStagePreview/);
 });
 
 test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => {
@@ -132,7 +158,7 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /onDragStart/);
   assert.match(board, /createPointerDragGhost/);
   assert.match(board, /Movimentação bloqueada:/);
-  assert.match(board, /Ver líder e equipe/);
+  assert.match(board, /'Equipe \('/);
   assert.match(board, /Equipe e ciclos/);
   assert.doesNotMatch(board, /MissionAllocationModal/);
   assert.match(modal, /data-project-workflow-team-cycles-section/);
@@ -227,7 +253,8 @@ test('detalhe mostra prontidão comercial e mantém ações de avanço no rodap�
   assert.match(intake, /Sincronizado pelo CRM/);
   assert.match(intake, /Nenhum item desta área gera pendência ou bloqueia/);
   assert.doesNotMatch(intake, /Salvar fato comercial/);
-  assert.match(board, /Sinais comerciais:/);
+  assert.match(board, /Nesta etapa desde/);
+  assert.doesNotMatch(board, /Sinais comerciais:/);
   assert.match(registry, /efetivo:commercial/);
 });
 
@@ -284,8 +311,8 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(modal, /data-project-workflow-d30/);
   assert.match(modal, /Aguardando D-30/);
   assert.doesNotMatch(modal, /item\.stage === \(workflow\.stage === 'HANDOVER'/);
-  assert.match(board, /Documentação:/);
-  assert.match(board, /Prazos atingidos:/);
+  assert.match(board, /Próxima etapa/);
+  assert.doesNotMatch(board, /Documentação:|Prazos atingidos:/);
   assert.match(administration, /EFETIVO_ADMINISTRATIVE/);
   assert.match(styles, /project-workflow-planning-grid/);
   assert.match(styles, /\.project-workflow-documentation-types \{[^}]*align-items: start/);
@@ -414,8 +441,7 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(modal, /data-project-workflow-d15/);
   assert.match(modal, /data-project-workflow-gate/);
-  assert.match(board, /Risco de mobilização/);
-  assert.match(board, /Mobilização autorizada/);
+  assert.doesNotMatch(board, /Risco de mobilização|Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
   assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
@@ -473,7 +499,7 @@ test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
   assert.match(panel, /Lições aprendidas/);
   assert.match(panel, /Histórico relacionado/);
   assert.match(panel, /Registro em Qualidade/);
-  assert.match(board, /Pós-job:/);
+  assert.doesNotMatch(board, /Pós-job:/);
   assert.match(styles, /project-workflow-category/);
 });
 
