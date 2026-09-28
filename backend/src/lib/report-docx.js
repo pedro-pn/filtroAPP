@@ -11,19 +11,11 @@ import { formatCnpj } from './cnpj.js';
 import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
+import { loadRdoProgressRows, rdoServiceName } from './reports/rdo-progress-table.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const templatePath = path.resolve(__dirname, '../../../Modelos/definitivos/Modelo definitivo.docx');
-
-const SERVICE_NAMES = {
-  limpeza: 'Limpeza química',
-  pressao: 'Teste de pressão',
-  filtragem: 'Filtragem',
-  flushing: 'Flushing',
-  mecanica: 'Limpeza mecânica',
-  inibicao: 'Flushing/Inibição'
-};
 
 function toYMD(value) {
   if (!value) return null;
@@ -188,7 +180,7 @@ function serviceTemplateData(service, index) {
   const fields = service.extraData || {};
   const common = {
     servicecount: String(index + 1),
-    servicename: SERVICE_NAMES[service.serviceType] || service.serviceType,
+    servicename: rdoServiceName(service.serviceType),
     equipmentlabel: 'Equipamento:',
     equipament: stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'Embarcação', 'Embarcacao', 'ID da embarcação', 'ID da embarcacao'])),
     system: stringify(getField(fields, ['Sistema'])),
@@ -813,6 +805,18 @@ function expandCollaborators(doc, report) {
   removeNode(templateRow);
 }
 
+function expandProgressRows(doc, rows) {
+  const templateRow = findFirstByText(doc, 'w:tr', '{{progressday}}');
+  if (!templateRow) return;
+  const clones = rows.map(values => {
+    const clone = templateRow.cloneNode(true);
+    replacePlaceholders(clone, values);
+    return clone;
+  });
+  cloneBefore(templateRow, clones);
+  removeNode(templateRow);
+}
+
 function expandServices(doc, report) {
   const templateTable = findFirstByText(doc, 'w:tbl', '{{servicecount}}');
   if (!templateTable) return;
@@ -892,6 +896,7 @@ function clearRemainingPlaceholders(xml) {
 
 export async function buildReportDocx(report) {
   const zip = await buildTemplateZip();
+  const progressRows = await loadRdoProgressRows(report);
   const baseData = buildDocxData(report);
   const signatureAsset = await getSignatureAsset(report);
   const generalPhotoAssets = await getGeneralPhotoAssets(report);
@@ -911,6 +916,7 @@ export async function buildReportDocx(report) {
     applyDdsTable(doc, report.specialConditions);
     expandCollaborators(doc, report);
     expandServices(doc, report);
+    expandProgressRows(doc, progressRows);
     replacePlaceholders(doc, baseData);
     applyClientNotesTable(doc, report);
     embedGeneralPhotos(zip, doc, generalPhotoAssets);

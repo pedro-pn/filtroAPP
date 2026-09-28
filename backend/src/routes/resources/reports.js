@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
+import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
 import {
   canClientSeeReportWithRules,
   releasedServiceReportsForSignedRdo
@@ -2511,7 +2512,7 @@ function pdfCacheMetadataForReport(report) {
   return {
     // Bump whenever DOCX/PDF layout rules change so previously rendered files
     // are not served indefinitely with stale pagination or conditional blocks.
-    version: report.reportType === ReportType.RDO ? 4 : 3,
+    version: report.reportType === ReportType.RDO ? 5 : 3,
     reportId: report.id,
     reportUpdatedAt: reportUpdatedAtToken(report),
     fingerprint: sha256Hex(JSON.stringify({
@@ -2538,9 +2539,13 @@ async function readPdfCacheMetadata(pdfPath) {
 }
 
 async function writePdfCacheMetadata(pdfPath, report) {
+  const metadata = pdfCacheMetadataForReport(report);
+  if (report.reportType === ReportType.RDO && report.projectId) {
+    metadata.plannedServiceCount = await plannedServiceCountForRdo(report.projectId);
+  }
   await fs.writeFile(
     pdfCacheMetadataPath(pdfPath),
-    JSON.stringify(pdfCacheMetadataForReport(report), null, 2),
+    JSON.stringify(metadata, null, 2),
     'utf8'
   );
 }
@@ -2583,8 +2588,12 @@ async function getFreshGeneratedReportPdf(report) {
 
   const reportUpdatedAt = reportContentUpdatedAtMs(report);
   if (reportUpdatedAt && stat.mtimeMs < reportUpdatedAt) return null;
+  const metadata = await readPdfCacheMetadata(target.targetPath);
+  if (!pdfCacheMetadataMatches(report, metadata)) return null;
+  if (report.reportType === ReportType.RDO && report.projectId) {
+    if (await hasRdoProgressSourcesChanged(report, metadata, stat.mtimeMs)) return null;
+  }
   if (!(await isLikelyCompletePdf(target.targetPath))) return null;
-  if (!pdfCacheMetadataMatches(report, await readPdfCacheMetadata(target.targetPath))) return null;
   const buffer = await fs.readFile(target.targetPath);
   if (!pdfBufferContainsExpectedLinks(buffer, calibrationCertificateUrlsForReport(report))) return null;
 
