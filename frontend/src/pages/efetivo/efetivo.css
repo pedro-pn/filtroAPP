@@ -1876,6 +1876,16 @@
 .project-workflow-cancelled-card span,
 .project-workflow-cancelled-card small { color: var(--mu); font-size: 12px; }
 
+.project-workflow-move-alert {
+  background: var(--pw-warn-bg);
+  border-bottom: 1px solid var(--pw-border);
+  color: var(--pw-warn);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  padding: 10px 18px;
+}
+
 .project-workflow-columns {
   display: grid;
   gap: 12px;

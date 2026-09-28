@@ -144,6 +144,7 @@ export function legacyServiceData(service: ReportService) {
     aprovadoCliente: getLegacyChoice(extra, ['aprovadoCliente', 'Aprovado pelo cliente?']) || 'Sim',
     etapas: getLegacyStrings(extra, ['etapas', 'Etapas realizadas no dia']),
     notes: getLegacyString(extra, ['notes', 'Observações', 'Observacoes']),
+    tipoSistema: getLegacyString(extra, ['tipoSistema', 'Tipo de sistema']),
     drawingsTags: getLegacyString(extra, ['drawingsTags', 'Desenhos / TAGs']),
     tubes: Array.isArray(extra.tubes)
       ? extra.tubes

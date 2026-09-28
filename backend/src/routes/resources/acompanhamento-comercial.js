@@ -19,7 +19,7 @@ import { importCommercialAccess, listCommercialDashboard, listCommercialPendenci
 import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acompanhamento/manual-costs.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
 import { resolvePlannedHoursDecision } from '../../lib/acompanhamento/planned-hours.js';
-import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
+import { computeProjectProgress, computeDivisionProgressDetails } from '../../lib/acompanhamento/avanco.js';
 import { listRealizedCorrections, saveRealizedCorrection } from '../../lib/acompanhamento/realized-corrections-store.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
@@ -44,6 +44,7 @@ import { assertHistoricalProject } from '../../lib/reports/historical-services-s
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { createSystemReconciliationRouter } from './system-reconciliation.js';
 import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
+import { getTrackingDivisions, setTrackingDivisions } from '../../lib/acompanhamento/tracking-divisions.js';
 
 const router = Router();
 router.use('/projetos/:projectId/conciliacao', createSystemReconciliationRouter());
@@ -812,11 +813,17 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     try {
+      const divisionKey = typeof req.query.division === 'string' ? req.query.division : null;
+      if (divisionKey && divisionKey.length > 500) return res.status(400).json({ error: 'Divisão inválida.' });
+      const divisions = divisionKey ? await getTrackingDivisions(req.params.projectId) : null;
+      const division = divisionKey ? divisions.divisions.find(item => item.key === divisionKey) : null;
+      if (divisionKey && !division) return res.status(404).json({ error: 'Divisão não encontrada.' });
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
       const detail = await getProjectDetail(req.params.projectId, {
         includeCollaboratorCosts,
-        includeAdminOnlyCategories
+        includeAdminOnlyCategories,
+        division
       });
       res.json(projectFinancialsForUser(detail, req.auth.user));
     } catch (error) {
@@ -824,6 +831,31 @@ router.get(
     }
   })
 );
+
+const trackingDivisionRowSchema = z.object({
+  key: z.string().min(1).max(500),
+  startDate: z.iso.date(),
+  endDate: z.iso.date().nullable().optional(),
+  plannedCost: z.number().nonnegative().nullable().optional(),
+  plannedRevenue: z.number().nonnegative().nullable().optional(),
+  plannedHours: z.number().nonnegative().nullable().optional(),
+  plannedDays: z.number().nonnegative().nullable().optional()
+}).strict();
+
+router.get('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  res.json(await getTrackingDivisions(req.params.projectId));
+}));
+
+router.put('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  try {
+    const rows = z.array(trackingDivisionRowSchema).max(500).parse(req.body?.divisions);
+    const result = await setTrackingDivisions(req.params.projectId, rows);
+    clearProjectDerivedCaches();
+    res.json(result);
+  } catch (error) {
+    res.status(error.message === 'Projeto não encontrado.' ? 404 : 400).json({ error: error.message });
+  }
+}));
 
 // Avanço físico do projeto (RDO ponderado por serviço) — previsto × realizado dos RDOs.
 router.get('/projetos/:projectId/correcoes-realizado', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
@@ -858,7 +890,13 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     try {
-      const progress = await computeProjectProgress(req.params.projectId);
+      const divisionKey = typeof req.query.division === 'string' ? req.query.division : null;
+      const divisions = divisionKey ? await getTrackingDivisions(req.params.projectId) : null;
+      const division = divisionKey ? divisions.divisions.find(item => item.key === divisionKey) : null;
+      if (divisionKey && !division) return res.status(404).json({ error: 'Divisão não encontrada.' });
+      const progress = division
+        ? (await computeDivisionProgressDetails(req.params.projectId, division)).progress
+        : await computeProjectProgress(req.params.projectId);
       res.json(progress);
     } catch (error) {
       res.status(404).json({ error: error.message });

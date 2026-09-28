@@ -347,6 +347,16 @@ function fieldId(groupKey: string, field: string, suffix?: string | number) {
   return ['svc', groupKey, field, suffix].filter(value => value !== undefined && value !== '').join('-');
 }
 
+function SystemTypeField({ data, onChange, disabled, invalidKey, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'>) {
+  const id = fieldId(groupKey, 'tipoSistema');
+  return <div className={fieldClass(invalidKey, 'tipoSistema')}>
+    <label htmlFor={id}>Tipo de sistema {requiredMark()}</label>
+    <input id={id} value={getString(data.tipoSistema ?? data['Tipo de sistema'])}
+      placeholder="Ex.: APVs, tanques, reservatório, etc." disabled={disabled} required
+      onChange={event => onChange({ tipoSistema: event.target.value })} />
+  </div>;
+}
+
 function MaterialField({
   data,
   onChange,
@@ -1094,6 +1104,9 @@ export function ServiceFields({
               ))}
             </div>
           </div>
+          {limpezaTubulacao === 'Não' ? (
+            <SystemTypeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+          ) : null}
           {limpezaTubulacao === 'Sim' ? (
             <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
           ) : <div className={fieldClass(invalidKey, 'quantidadeSistemas')}>
@@ -1270,6 +1283,8 @@ export function ServiceFields({
                   onChange={() => onChange({
                     flushingTubulacao: label,
                     'Flushing em tubulação?': label,
+                    tipoSistema: '',
+                    'Tipo de sistema': '',
                     ...(label === 'Não' ? { tubes: [] } : {})
                   })}
                 />
@@ -1278,6 +1293,9 @@ export function ServiceFields({
             ))}
           </div>
           </div>
+          {flushingTubulacao === 'Não' ? (
+            <SystemTypeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+          ) : null}
           {flushingTubulacao === 'Sim' ? (
             <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
           ) : null}

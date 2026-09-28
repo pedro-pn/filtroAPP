@@ -16,6 +16,7 @@ import {
   assertEpiDateOrder,
   canAccessEpiCollaborator,
   confirmPublicEpiSignatureRequest,
+  createEpiSignatureRequestForRecords,
   epiCollaboratorAccessWhere,
   expirePendingPublicEpiRequest,
   expiredEpiSignatureRequestIdsForRecords,
@@ -755,7 +756,7 @@ test('EPI records with active pending signature requests cannot be updated or de
   assert.throws(() => assertCanDeleteEpiRecord(record), /solicitação de assinatura ativa/);
 });
 
-test('pending EPI signature requests cannot be overwritten by a new token', () => {
+test('pending EPI signature requests can be replaced, but signed requests cannot', () => {
   const activeRequest = {
     id: 'request-active',
     status: 'PENDING',
@@ -767,14 +768,99 @@ test('pending EPI signature requests cannot be overwritten by a new token', () =
     expiresAt: new Date(Date.now() - 60_000)
   };
 
+  assert.doesNotThrow(() => assertCanCreateEpiSignatureRequest([{ id: 'record-1', signatureRequest: activeRequest }], 1));
+  assert.doesNotThrow(() => assertCanCreateEpiSignatureRequest([{ id: 'record-1', signatureRequest: expiredRequest }], 1));
   assert.throws(
-    () => assertCanCreateEpiSignatureRequest([{ id: 'record-1', signatureRequest: activeRequest }], 1),
+    () => assertCanCreateEpiSignatureRequest([{
+      id: 'record-1',
+      signatureRequest: { ...expiredRequest, status: 'SIGNED' }
+    }], 1),
     /solicitação de assinatura ativa/
   );
-  assert.doesNotThrow(() => assertCanCreateEpiSignatureRequest([{ id: 'record-1', signatureRequest: expiredRequest }], 1));
   assert.deepEqual(
     expiredEpiSignatureRequestIdsForRecords([{ id: 'record-1', signatureRequest: expiredRequest }]),
     ['request-expired']
+  );
+});
+
+test('requesting an EPI signature again revokes the previous link and binds a new one', async () => {
+  const previous = signatureRequest();
+  const previousToken = 'previous-epi-token';
+  previous.tokenHash = crypto.createHash('sha256').update(previousToken).digest('hex');
+  const record = { ...previous.records[0], signatureRequest: previous };
+  let createdRequest = null;
+  const tx = {
+    epiRecord: {
+      findMany: async () => [record],
+      updateMany: async ({ where, data }) => {
+        assert.deepEqual(where.OR, [
+          { signatureRequestId: null },
+          { signatureRequestId: { in: [previous.id] } }
+        ]);
+        assert.equal(previous.status, 'PENDING');
+        record.signatureRequestId = data.signatureRequestId;
+        return { count: 1 };
+      }
+    },
+    epiSignatureRequest: {
+      updateMany: async ({ where, data }) => {
+        assert.deepEqual(where, { id: { in: [previous.id] }, status: 'PENDING' });
+        previous.status = data.status;
+        return { count: 1 };
+      },
+      create: async ({ data }) => {
+        createdRequest = { id: 'request-new', status: 'PENDING', records: [record], ...data };
+        return createdRequest;
+      },
+      findUniqueOrThrow: async () => createdRequest
+    },
+    collaborator: { findUniqueOrThrow: async () => previous.collaborator }
+  };
+
+  const result = await createEpiSignatureRequestForRecords({
+    collaboratorId: 'collab-1',
+    requestedByUserId: 'user-1',
+    recordIds: [record.id],
+    client: { $transaction: callback => callback(tx) }
+  });
+
+  assert.equal(previous.status, 'EXPIRED');
+  assert.equal(publicEpiSignaturePayload(previous).status, 'EXPIRED');
+  await assert.rejects(
+    activePublicEpiRequestOrThrow(previousToken, {
+      epiSignatureRequest: {
+        findUnique: async ({ where }) => where.tokenHash === previous.tokenHash ? previous : null
+      }
+    }),
+    error => error.status === 410
+  );
+  assert.equal(record.signatureRequestId, 'request-new');
+  assert.equal(result.request.id, 'request-new');
+  assert.ok(result.signUrl.endsWith(result.token));
+});
+
+test('a concurrent change to the previous EPI request rejects the replacement', async () => {
+  const previous = signatureRequest();
+  const tx = {
+    epiRecord: {
+      findMany: async () => [{ ...previous.records[0], signatureRequest: previous }],
+      updateMany: async () => ({ count: 1 })
+    },
+    epiSignatureRequest: {
+      updateMany: async () => ({ count: 0 }),
+      create: async () => ({ id: 'request-new' })
+    },
+    collaborator: { findUniqueOrThrow: async () => previous.collaborator }
+  };
+
+  await assert.rejects(
+    createEpiSignatureRequestForRecords({
+      collaboratorId: 'collab-1',
+      requestedByUserId: 'user-1',
+      recordIds: ['record-1'],
+      client: { $transaction: callback => callback(tx) }
+    }),
+    /solicitação de assinatura foi alterada/
   );
 });
 

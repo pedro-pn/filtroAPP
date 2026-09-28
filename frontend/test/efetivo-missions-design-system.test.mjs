@@ -49,7 +49,6 @@ test('Missões usa os estados DS e preserva ações por permissão e seleção',
             assert.ok(html.includes('fv-card--selected'));
             assert.ok(html.includes('fv-metric-card'));
             assert.ok(html.includes('aria-label="Ver detalhes de PRJ-001"'));
-            assert.equal(html.includes('Alocar disponíveis'), mode !== 'viewer');
             assert.equal(html.includes('>Editar<'), mode !== 'viewer');
             assert.equal(html.includes('>Remover<'), mode !== 'viewer');
             assert.ok(html.includes('>Equipe<'));

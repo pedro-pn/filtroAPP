@@ -53,7 +53,8 @@ import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
-import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../utils/ongoingServices';
+import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasurement';
+import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js';
 import type { AuthUser } from '../types/auth';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
@@ -693,6 +694,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const { confirm, confirmDialog } = useConfirmDialog();
   const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
+  const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
+  const [invalidSystemTypeServiceId, setInvalidSystemTypeServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
@@ -781,15 +784,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   });
   const pendingProjectServices = useMemo(() => {
     if (!showServiceContinuity || !continuityProjectId) return [];
-    const cutoffDate = form.reportDate || report.reportDate;
-    const cutoff = cutoffDate ? new Date(`${String(cutoffDate).slice(0, 10)}T23:59:59`) : new Date();
-    const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
-    const previousReports = (projectHistoryQuery.data || []).filter(item => (
+    const otherReports = (projectHistoryQuery.data || []).filter(item => (
       item.id !== report.id && item.reportType === 'RDO' && item.projectId === continuityProjectId
-      && !item.deletedAt && new Date(item.reportDate || item.createdAt || 0).getTime() <= cutoffTime
+      && !item.deletedAt
     ));
-    return collectPendingProjectServices(previousReports);
-  }, [continuityProjectId, form.reportDate, projectHistoryQuery.data, report.id, report.reportDate, showServiceContinuity]);
+    return pendingProjectServicesForDate(otherReports, form.reportDate || report.reportDate, canReview);
+  }, [canReview, continuityProjectId, form.reportDate, projectHistoryQuery.data, report.id, report.reportDate, showServiceContinuity]);
   const visiblePendingProjectServices = useMemo(() => {
     const activeKeys = new Set(form.services.flatMap(service => formServiceOngoingKeys(service.data || {})));
     return pendingProjectServices.filter(item => !activeKeys.has(item.key));
@@ -907,6 +907,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function updateService(id: string, data: Partial<RdoServiceForm>) {
+    if (id === invalidFinalizationServiceId && typeof data.data?.finalized === 'boolean') setInvalidFinalizationServiceId(null);
+    if (id === invalidSystemTypeServiceId && (data.data?.tipoSistema !== undefined || data.data?.limpezaTubulacao !== undefined || data.data?.flushingTubulacao !== undefined)) {
+      setInvalidSystemTypeServiceId(null);
+    }
     setForm(current => ({
       ...current,
       services: current.services.map(service => (
@@ -918,6 +922,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function removeService(id: string) {
+    if (id === invalidFinalizationServiceId) setInvalidFinalizationServiceId(null);
+    if (id === invalidSystemTypeServiceId) setInvalidSystemTypeServiceId(null);
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
@@ -956,6 +962,35 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       showToast(`Informe a ${label} do serviço ${missingServiceTime.serviceIndex + 1}.`, 'error');
       return false;
     }
+    const missingSystemTypeIndex = form.services.findIndex(service => {
+      const value = systemTypeValue(service.data);
+      return requiresSystemType(normalizeServiceType(service.type), service.data)
+        && !(typeof value === 'string' && value.trim());
+    });
+    if (missingSystemTypeIndex >= 0) {
+      const serviceId = form.services[missingSystemTypeIndex].id;
+      setInvalidSystemTypeServiceId(serviceId);
+      showToast(`Informe o tipo de sistema do serviço ${missingSystemTypeIndex + 1}.`, 'error');
+      window.setTimeout(() => document.getElementById(`svc-${serviceId}-tipoSistema`)?.focus(), 120);
+      return false;
+    }
+    setInvalidSystemTypeServiceId(null);
+    if (!serviceReportMode) {
+      const missingFinalizationIndex = form.services.findIndex(service => typeof service.data.finalized !== 'boolean');
+      if (missingFinalizationIndex >= 0) {
+        const serviceId = form.services[missingFinalizationIndex].id;
+        setInvalidFinalizationServiceId(serviceId);
+        showToast(`Selecione se o serviço ${missingFinalizationIndex + 1} foi finalizado.`, 'error');
+        window.setTimeout(() => {
+          const input = Array.from(document.querySelectorAll<HTMLInputElement>('[data-invalid-target]'))
+            .find(element => element.dataset.invalidTarget === `${serviceId}:finalized`);
+          (input?.closest('.service-finalized-field') || input)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          input?.focus({ preventScroll: true });
+        }, 120);
+        return false;
+      }
+    }
+    setInvalidFinalizationServiceId(null);
     if (!validateSequence()) return false;
     if (showDdsFields) {
       if (form.ddsDay && (!form.ddsDayStart.trim() || !form.ddsDayEnd.trim())) {
@@ -1168,17 +1203,20 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
       {showServiceContinuity && visiblePendingProjectServices.length > 0 ? (
         <Card className="rdo-form-card continuity-card" title="Serviços em andamento">
-          <p className="placeholder-copy">Serviços não finalizados em RDOs anteriores deste projeto que ainda não foram continuados neste relatório.</p>
+          <p className="placeholder-copy">Serviços não finalizados deste projeto que ainda não foram continuados neste relatório.</p>
           <div className="admin-list">
-            {visiblePendingProjectServices.map(({ key, report: sourceReport, service }) => {
+            {visiblePendingProjectServices.map(item => {
+              const { key, report: sourceReport, service, startedReport } = item;
+              const startedLater = isPendingServiceFromLaterDay(item, form.reportDate || report.reportDate);
               const type = normalizeServiceType(service.serviceType || '');
               const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
               const system = service.system || getString((service.extraData || {}).Sistema);
-              return <article className="ongoing-item-react" key={`${sourceReport.id}-${service.id}`}>
+              return <article className={`ongoing-item-react${startedLater ? ' ongoing-item-react--future' : ''}`} key={`${sourceReport.id}-${service.id}`}>
                 <div className="admin-item-row">
                   <div className="admin-item-main">
                     <strong>{serviceTypeLabels[type] || type}</strong>
                     <p>{equipment}{system ? ` · ${system}` : ''} · RDO {sourceReport.sequenceNumber || '---'}</p>
+                    {startedLater ? <p className="ongoing-future-note">Iniciado em dia posterior: {formatDateOnlyPtBr(startedReport.reportDate)} (RDO {startedReport.sequenceNumber || '---'}).</p> : null}
                   </div>
                   <div className="admin-card-actions">
                     <Button variant="secondary" size="sm" type="button" onClick={() => continueService(service, key)}>Continuar</Button>
@@ -1302,6 +1340,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
+                    invalidKey={invalidSystemTypeServiceId === service.id ? 'tipoSistema' : invalidFinalizationServiceId === service.id ? 'finalized' : null}
                     hideFinalization={serviceReportMode}
                     hideUploads={manualReport}
                     hideNotes={manualReport}
@@ -1531,6 +1570,10 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
     rows.push({ label: 'Equipamento', value: String(data.equipmentId) });
   }
   if (data.system) rows.push({ label: 'Sistema', value: String(data.system) });
+  if (((type === 'limpeza' && data.limpezaTubulacao === 'Não')
+    || (type === 'flushing' && data.flushingTubulacao === 'Não')) && data.tipoSistema) {
+    rows.push({ label: 'Tipo de sistema', value: String(data.tipoSistema) });
+  }
   if (type !== 'flushing' && data.material) rows.push({ label: 'Material', value: String(data.material) });
   if (data.startTime || data.endTime) {
     rows.push({ label: 'Horário', value: `${data.startTime || '--'} às ${data.endTime || '--'}` });

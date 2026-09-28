@@ -68,7 +68,7 @@ test('Arquivados reutiliza a grade de projetos e a listagem em cards sem mudar s
   assert.match(archived, /@media \(min-width: 1024px\)/);
   assert.match(archived, /container: rdo-archived-tile \/ inline-size/);
   assert.match(archived, /grid-template-areas: 'identity identity' 'reports quick-actions'/);
-  assert.match(dialogCss, /\.rdo-manager-listing__actions \{\s*flex-wrap: nowrap;/);
+  assert.match(css, /\.fv-mobile-list__actions\s*> \.rdo-manager-listing__actions \{\s*display: flex;\s*width: 100%;\s*flex-wrap: wrap;/);
   assert.match(dialogCss, /\.report-batch-select-all \.report-batch-action-label--full \{ display: inline; \}/);
   assert.match(archived, /\.rdo-archived-project-card__actions > \.fv-badge \{ grid-column: 1 \/ -1/);
   assert.doesNotMatch(archived, /grid-auto-flow:\s*(?:dense|column)|\.rdo-active-project-card/);

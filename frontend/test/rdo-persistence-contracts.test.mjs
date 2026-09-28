@@ -160,7 +160,7 @@ test('quantidade carregada é segmentada por projeto, tipo, tamanho e direção'
     'useReports'
   );
   assert.ok(
-    groupedList.includes('{visibleReports.length} de {totalReports} relatório')
+    groupedList.includes('${visibleReports.length} de ${totalReports}')
   );
   assert.ok(collaborator.includes('const REPORT_PAGE_SIZE = 25'));
   assert.ok(archived.includes('const REPORT_PAGE_SIZE = 25'));

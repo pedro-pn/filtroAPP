@@ -21,6 +21,7 @@ import { buildWorkedHoursProgress } from './project-cards.js';
 import {
   buildRequiredWeeklyProgress,
   computeProjectProgressDetails,
+  computeDivisionProgressDetails,
   isConfirmedReportParticipant,
   selectRealizedSourceReportData
 } from './avanco.js';
@@ -34,6 +35,8 @@ import { getAnnualCollaboratorCosts } from './settings.js';
 import { isSalaryCategory } from './salary.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
+import { dateInDivision, divisionDateWhere } from './tracking-divisions.js';
+import { getProjectInvoices } from './project-invoices.js';
 
 function toNum(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -246,7 +249,8 @@ export function buildProjectDetailCollaborator({
   workedMinutesByDate = new Map(),
   reportSourcesByDate = new Map(),
   reportCostsByDate = new Map(),
-  includeCollaboratorCosts = false
+  includeCollaboratorCosts = false,
+  division = null
 } = {}) {
   const custo = allocation?.cost ?? null;
   const horasApropriadas = Math.max(0, toNum(allocation?.hours) ?? 0);
@@ -269,7 +273,7 @@ export function buildProjectDetailCollaborator({
       relatorios: reportSourcesByDate.get(data) || []
     }));
   const diasApropriados = projectId && rate
-    ? buildProjectAppropriationDays(rate, projectId)
+    ? buildProjectAppropriationDays(rate, projectId).filter(day => dateInDivision(day.data, division))
     : [];
 
   return {
@@ -347,11 +351,52 @@ export function buildRecentReportDays(byDay, project, limit = 10) {
     }));
 }
 
+// O motor de ponto apura o custo por mês. Distribuímos a parcela do projeto
+// pelas horas apropriadas em cada dia do mesmo mês para obter o recorte.
+export function divisionLaborAllocation(labor, projectId, division) {
+  if (!division) return { total: labor.byProjectId.get(projectId) ?? null, byCollaboratorId: null };
+  if (!labor.pontoImport) return { total: null, byCollaboratorId: new Map() };
+  const byCollaboratorId = new Map();
+  const total = { laborCost: 0, laborCostBase: 0, hours: 0 };
+  for (const [id, rate] of labor.byCollaboratorId ?? []) {
+    const days = buildProjectAppropriationDays(rate, projectId).filter(day => dateInDivision(day.data, division));
+    if (!days.length) continue;
+    const alloc = { cost: 0, costBase: 0, hours: 0, travelHours: 0 };
+    for (const month of rate.months ?? []) {
+      const projectMonth = month.analyticalByProject?.[projectId] ?? month.byProject?.[projectId];
+      if (!projectMonth) continue;
+      const monthDays = days.filter(day => day.data.startsWith(month.month));
+      const selectedHours = monthDays.reduce((sum, day) => sum + day.horas, 0);
+      const monthHours = Number(projectMonth.hours) || 0;
+      if (monthHours <= 0) continue;
+      const share = Math.min(1, selectedHours / monthHours);
+      alloc.cost += (Number(projectMonth.cost) || 0) * share;
+      alloc.costBase += (Number(projectMonth.costBase) || 0) * share;
+      alloc.hours += selectedHours;
+      alloc.travelHours += monthDays.filter(day => day.emViagem).reduce((sum, day) => sum + day.horas, 0);
+    }
+    byCollaboratorId.set(id, alloc);
+    total.laborCost += alloc.cost;
+    total.laborCostBase += alloc.costBase;
+    total.hours += alloc.hours;
+  }
+  return { total, byCollaboratorId };
+}
+
+function purchaseDivisionWhere(division) {
+  if (!division) return {};
+  return { OR: [
+    divisionDateWhere('dataEmissao', division),
+    { dataEmissao: null, ...divisionDateWhere('dataVencimento', division) }
+  ] };
+}
+
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true,
   progressDetails: preloadedProgressDetails = null,
-  plannedHoursByProject: preloadedPlannedHoursByProject = null
+  plannedHoursByProject: preloadedPlannedHoursByProject = null,
+  division = null
 } = {}) {
   const rows = await listCommercialDashboard({
     includeAdminOnlyCategories,
@@ -377,7 +422,7 @@ export async function getProjectDetail(projectId, {
     loadedProgressDetails
   ] = await Promise.all([
     prisma.report.findMany({
-      where: { projectId, deletedAt: null },
+      where: { projectId, deletedAt: null, ...divisionDateWhere('reportDate', division) },
       select: {
         id: true,
         projectId: true,
@@ -391,7 +436,7 @@ export async function getProjectDetail(projectId, {
       orderBy: { reportDate: 'asc' }
     }),
     prisma.reportCollaborator.findMany({
-      where: { report: { projectId, deletedAt: null } },
+      where: { report: { projectId, deletedAt: null, ...divisionDateWhere('reportDate', division) } },
       select: {
         reportId: true,
         collaboratorId: true,
@@ -402,20 +447,20 @@ export async function getProjectDetail(projectId, {
     }),
     prisma.omiePurchase.groupBy({
       by: ['categoriaCodigo', 'categoriaDescricao'],
-      where: { projectId, ...categoryWhere },
+      where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
       _sum: { valor: true }
     }),
     prisma.omiePurchase.groupBy({
       by: ['statusTitulo', 'categoriaCodigo', 'categoriaDescricao'],
-      where: { projectId, ...categoryWhere },
+      where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
       _sum: { valor: true }
     }),
     laborCostByProject(), // custo de mão de obra (HH) do ponto vigente
     getEquipmentUsageByProject([projectId]),
-    getStockConsumptionCostByProject([projectId]),
-    getManualProjectCostsByProject([projectId], { includeEntries: true }),
+    getStockConsumptionCostByProject([projectId], prisma, division),
+    getManualProjectCostsByProject([projectId], { includeEntries: true, division }),
     preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
-    preloadedProgressDetails ?? computeProjectProgressDetails(projectId)
+    division ? computeDivisionProgressDetails(projectId, division) : preloadedProgressDetails ?? computeProjectProgressDetails(projectId)
   ]);
   const {
     project,
@@ -427,13 +472,14 @@ export async function getProjectDetail(projectId, {
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
 
   // Mão de obra (HH) do ponto — mantido SEPARADO do gasto Omie (em validação, não somado).
-  const laborAgg = labor.byProjectId.get(projectId) || null;
+  const divisionLabor = divisionLaborAllocation(labor, projectId, division);
+  const laborAgg = divisionLabor.total;
   const maoDeObra = {
     custo: laborAgg?.laborCost ?? null, // com adicional offshore
     custoBase: laborAgg?.laborCostBase ?? null, // sem offshore
     horas: laborAgg?.hours ?? null,
-    periodStart: labor.periodStart ?? null,
-    periodEnd: labor.periodEnd ?? null
+    periodStart: division?.startDate ?? labor.periodStart ?? null,
+    periodEnd: division?.endDate ?? labor.periodEnd ?? null
   };
 
   // --- Custos (Omie), excluindo salários ---
@@ -450,7 +496,7 @@ export async function getProjectDetail(projectId, {
   const stockCost = stockCosts.get(projectId) || { total: 0, categories: [] };
   const manualCost = manualCostsByProject.get(projectId) || { total: 0, entries: [], categories: [] };
   const gasto = omieGasto + stockCost.total + manualCost.total;
-  const previstoCusto = toNum(row.plannedTotalCost);
+  const previstoCusto = division ? division.plannedCost : toNum(row.plannedTotalCost);
   const maioresGastos = [...nonSalary, ...stockCost.categories, ...manualCost.categories]
     .filter(g => g.total > 0)
     .sort((a, b) => b.total - a.total || a.categoria.localeCompare(b.categoria, 'pt-BR'))
@@ -504,7 +550,9 @@ export async function getProjectDetail(projectId, {
   const reportById = new Map(reports.map(report => [report.id, report]));
   const projectAllocation = collaboratorId => {
     const rate = ratesById.get(collaboratorId) || null;
-    return rate?.analyticalByProject?.[projectId] || rate?.byProject?.[projectId] || null;
+    return divisionLabor.byCollaboratorId
+      ? divisionLabor.byCollaboratorId.get(collaboratorId) ?? null
+      : rate?.analyticalByProject?.[projectId] || rate?.byProject?.[projectId] || null;
   };
   const hasAllocatedHours = collaboratorId => (
     Math.max(0, toNum(projectAllocation(collaboratorId)?.hours) ?? 0) > 0
@@ -540,7 +588,8 @@ export async function getProjectDetail(projectId, {
       projectId,
       ...reportHoursByCollaborator.get(collaboratorId),
       reportCostsByDate: reportCostEstimates.get(collaboratorId),
-      includeCollaboratorCosts
+      includeCollaboratorCosts,
+      division
     }));
   };
   for (const c of collaborators) {
@@ -576,22 +625,28 @@ export async function getProjectDetail(projectId, {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   // --- Prazos / dias ---
-  const plannedDays = toNum(row.plannedDays);
-  const plannedWorkedDays = toNum(row.workedDays) ?? plannedDays;
+  const plannedDays = division ? division.plannedDays : toNum(row.plannedDays);
+  const plannedWorkedDays = division ? division.plannedDays : toNum(row.workedDays) ?? plannedDays;
   const today = new Date();
 
   // --- Equipamentos em obra (módulo Equipamentos), mesma lógica do card de projetos ---
-  const projectReferenceDate = row.archived && lastRdoDate ? new Date(lastRdoDate) : today;
+  const projectReferenceDate = division
+    ? division.endDate && division.endDate < today.toISOString().slice(0, 10)
+      ? new Date(`${division.endDate}T00:00:00.000Z`) : today
+    : row.archived && lastRdoDate ? new Date(lastRdoDate) : today;
   const equipmentEndDate = projectReferenceDate;
   const equipamentos = (equipmentByProject.get(projectId) || [])
+    .filter(e => !division || new Date(e.sinceDate) <= equipmentEndDate)
     .map(e => {
       const since = new Date(e.sinceDate);
-      const days = Math.max(0, Math.round((equipmentEndDate.getTime() - since.getTime()) / 86400000));
+      const effectiveSince = division ? new Date(Math.max(since.getTime(), new Date(`${division.startDate}T00:00:00.000Z`).getTime())) : since;
+      const days = Math.max(0, Math.round((equipmentEndDate.getTime() - effectiveSince.getTime()) / 86400000));
       return { code: e.code, name: e.name, days, since: e.sinceDate };
     })
     .sort((a, b) => b.days - a.days);
 
-  const elapsedCorridos = row.startDate ? Math.max(0, diffCalendarDays(row.startDate, projectReferenceDate) ?? 0) : null;
+  const activeStartDate = division?.startDate ?? row.startDate;
+  const elapsedCorridos = activeStartDate ? Math.max(0, diffCalendarDays(activeStartDate, projectReferenceDate) ?? 0) : null;
   const diasCorridos = {
     elapsed: elapsedCorridos,
     planned: plannedDays,
@@ -605,28 +660,28 @@ export async function getProjectDetail(projectId, {
   const hours = hoursByProject.get(projectId);
   const plannedNormalHours = hours?.normalHours ?? [];
   const plannedOvertime = hours?.overtime ?? [];
-  const plannedNormalHoursTotal = plannedNormalHours.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
-  const plannedOvertimeHoursTotal = plannedOvertime.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
+  const plannedNormalHoursTotal = division ? division.plannedHours ?? 0 : plannedNormalHours.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
+  const plannedOvertimeHoursTotal = division ? 0 : plannedOvertime.reduce((sum, item) => sum + (toNum(item.hours) ?? 0), 0);
   const workedHours = buildWorkedHoursProgress({
     normalWorkedMinutes: normalWorkedMinutesTotal,
     overtimeWorkedMinutes: overtimeWorkedMinutesTotal,
     plannedNormalHours: plannedNormalHoursTotal,
     plannedOvertimeHours: plannedOvertimeHoursTotal
   });
-  workedHours.roleCounts = buildPlannedRoleCounts(
+  workedHours.roleCounts = division ? [] : buildPlannedRoleCounts(
     [...plannedNormalHours, ...plannedOvertime],
     collaborators,
     workedHours.plannedTotalHours ?? 0,
     reports
   );
 
-  const expectedEndDate = row.startDate && plannedDays ? addCalendarDays(row.startDate, plannedDays) : null;
+  const expectedEndDate = division?.endDate ?? (activeStartDate && plannedDays ? addCalendarDays(activeStartDate, plannedDays) : null);
   const avancoPct = projectProgress.progressPct ?? null;
-  const projectedEndByPace = (row.startDate && elapsedCorridos && elapsedCorridos > 0 && avancoPct && avancoPct > 0)
-    ? addCalendarDays(row.startDate, elapsedCorridos * (100 / avancoPct))
+  const projectedEndByPace = (activeStartDate && elapsedCorridos && elapsedCorridos > 0 && avancoPct && avancoPct > 0)
+    ? addCalendarDays(activeStartDate, elapsedCorridos * (100 / avancoPct))
     : null;
   const requiredWeeklyProgress = buildRequiredWeeklyProgress(projectProgress, {
-    startDate: row.startDate,
+    startDate: activeStartDate,
     expectedEndDate,
     referenceDate: projectReferenceDate
   });
@@ -640,15 +695,15 @@ export async function getProjectDetail(projectId, {
       progressHistory,
       dailyProgressHistory,
       requiredWeeklyProgress: buildRequiredWeeklyProgress(progress, {
-        startDate: row.startDate,
+        startDate: activeStartDate,
         expectedEndDate,
         referenceDate: projectReferenceDate
       })
     }))
   } : null;
 
-  const alerts = [...plannedHoursAlerts(hours?.hoursPlan), ...computeAlerts({
-    startDate: row.startDate ?? null,
+  const alerts = [...(division ? [] : plannedHoursAlerts(hours?.hoursPlan)), ...computeAlerts({
+    startDate: activeStartDate ?? null,
     plannedDays,
     gasto: gasto + (maoDeObra.custo ?? 0), // realizado total = compras Omie + mão de obra
     plannedCost: previstoCusto,
@@ -657,6 +712,8 @@ export async function getProjectDetail(projectId, {
     progressPct: avancoPct,
     now: projectReferenceDate
   })];
+  const divisionInvoices = division ? (await getProjectInvoices(projectId))?.invoices
+    .filter(invoice => dateInDivision(invoice.issuedAt, division)) ?? [] : null;
 
   return {
     header: {
@@ -678,19 +735,19 @@ export async function getProjectDetail(projectId, {
       estoque: stockCost.total,
       manual: manualCost.total,
       previsto: previstoCusto,
-      previstoOriginal: toNum(row.originalPlannedTotalCost),
-      previstoAdicional: toNum(row.additionalPlannedTotalCost),
+      previstoOriginal: division ? null : toNum(row.originalPlannedTotalCost),
+      previstoAdicional: division ? null : toNum(row.additionalPlannedTotalCost),
       pct: previstoCusto && previstoCusto > 0 ? Math.round((gasto / previstoCusto) * 100) : null
     },
     faturamento: {
-      previsto: row.salePrice ?? null,
-      previstoOriginal: row.originalSalePrice ?? null,
-      previstoAdicional: row.additionalSalePrice ?? null,
-      realizado: row.invoicedRevenue ?? null,
-      notas: row.invoiceCount ?? 0
+      previsto: division ? division.plannedRevenue : row.salePrice ?? null,
+      previstoOriginal: division ? null : row.originalSalePrice ?? null,
+      previstoAdicional: division ? null : row.additionalSalePrice ?? null,
+      realizado: divisionInvoices ? divisionInvoices.reduce((sum, invoice) => sum + invoice.amount, 0) : row.invoicedRevenue ?? null,
+      notas: divisionInvoices ? divisionInvoices.length : row.invoiceCount ?? 0
     },
-    budgetBreakdown: row.budgetBreakdown ?? null,
-    presumedProfitTaxes: row.presumedProfitTaxes ?? null,
+    budgetBreakdown: division ? null : row.budgetBreakdown ?? null,
+    presumedProfitTaxes: division ? null : row.presumedProfitTaxes ?? null,
     maoDeObra,
     workedHours,
     maioresGastos,
@@ -706,9 +763,10 @@ export async function getProjectDetail(projectId, {
     overtimeMinutes: overtimeMinutesTotal,
     colaboradores,
     equipamentos,
+    division: division ?? null,
     footer: {
-      mobilizationDate: project?.mobilizationDate ?? null,
-      startDate: row.startDate ?? null,
+      mobilizationDate: division ? null : project?.mobilizationDate ?? null,
+      startDate: activeStartDate ?? null,
       expectedEndDate,
       projectedEndByPace
     }

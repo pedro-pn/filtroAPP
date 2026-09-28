@@ -331,6 +331,14 @@
   background: var(--warning-bg);
 }
 
+.rdo-form-page .ongoing-item-react--future {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.rdo-form-page .ongoing-item-react--future :is(.admin-item-title, .admin-item-sub),
+.rdo-form-page .ongoing-future-note { color: var(--muted); }
+.rdo-form-page .ongoing-future-note { margin: var(--space-1) 0 0; font-size: var(--text-xs); font-weight: var(--font-semibold); }
+
 .rdo-form-page .continuity-card {
   border-color: var(--warning-line);
   background: var(--surface);

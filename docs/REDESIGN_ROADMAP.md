@@ -1,5 +1,9 @@
 # Roadmap do redesign do frontend
 
+> **Fechamento de 28/09/2026:** `origin/main` até `31865b08` foi conciliada.
+> Efetivo F2 e Acompanhamento A7 passaram na matriz técnica com banco isolado,
+> Chromium/Firefox, permissões e persistência. A regressão WebKit fica em F6.
+
 > **Integração de 25/09/2026:** `origin/main` até `9df822c7` foi incorporada
 > à branch de redesign. O delta e as tarefas visuais estão em
 > [Novidades da main em 25/09](#novidades-da-main-em-25092026).
@@ -48,10 +52,10 @@ cada módulo continuam sendo a fonte de verdade para comportamento e dados.
 
 ## Novidades da main em 25/09/2026
 
-Esta integração acrescenta comportamento funcional já implementado na `main`.
-As tarefas abaixo descrevem a adaptação visual que ainda precisa ser entregue
-nas telas afetadas. Manter os contratos, permissões e cálculos da `main` e as
-entradas DS desta branch durante cada lote.
+Esta integração acrescentou comportamento funcional já implementado na `main`.
+O quadro abaixo registra o levantamento e o estado das tarefas em 25/09; os
+fechamentos atuais de F2 e A7 estão nas seções próprias. Os contratos,
+permissões e cálculos da `main` continuam válidos no redesign.
 
 | Lote | Mudança recebida | Adaptação necessária no redesign |
 | --- | --- | --- |
@@ -66,8 +70,9 @@ Após A3c, X3 recebeu adaptação visual nesta branch. `origin/main` já era
 ancestral da branch em 27/09/2026; a remoção da aba Simulações havia sido
 perdida na conciliação visual e agora segue a navegação da main. O serviço de
 cenários permanece disponível no backend, como na main.
-**F2.1/F2.5/F2.6** foram retomadas em 27/09. A7 e X2 incluem regressão
-integrada de todos os módulos já migrados.
+**F2.1/F2.5/F2.6** foram retomadas em 27/09. Em 28/09, a matriz integrada de
+F2 e A7 passou em banco isolado, Chromium e Firefox. A regressão WebKit do
+fechamento transversal continua em F6, pois o host local não tem suas bibliotecas.
 
 ## Estado após a integração
 
@@ -76,17 +81,18 @@ integrada de todos os módulos já migrados.
   lateral desktop pode ficar recolhida, usa a `LOGO_TAB` e expande ao passar o
   mouse; Equipamentos usa ícone de engrenagem, distinto de Manutenção.
 - O Efetivo foi retomado nesta worktree em 27/09, após a pausa solicitada em
-  10/09. Visão geral, colaboradores e diálogos anteriores permanecem no DS; o
-  delta recente de Disponibilidade e Evolução/Execução foi conciliado com a main;
-  Produtividade e Administração receberam a adaptação visual F2.4.
-  Falta a matriz integrada de F2 para declarar o módulo homologado.
+  10/09. As sete seções e os diálogos ativos estão no DS. A matriz F2 foi
+  validada em 28/09 com gestor, visualizador, Comercial, Operações, Ativos,
+  Suprimentos, Administrativo e QSMS; o Kanban bloqueado abre a etapa com as
+  pendências e apresenta apenas a contagem no aviso.
 - Assinaturas: shell, biblioteca, preparação, acompanhamento, auditoria e
   assinatura pública migrados em F1 + F3.1–F3.4. A prévia contínua da main foi
   incorporada ao editor e à página pública. Backend real isolado, Chromium,
   Firefox e WebKit validados na F3.5; conferência em celular físico combinada com o usuário.
-- Acompanhamento tem A1/A2/A3a implementados; faturamentos, romaneios, jornadas
-  RDO acionáveis e indicadores operacionais de Sede ampliam A3a/A4/A5. Estoque,
-  Romaneio, Qualidade e EPI continuam com as pendências já inventariadas.
+- Acompanhamento concluiu A1–A7 em 28/09. O fechamento cobriu as quatro áreas,
+  detalhe individual e agrupado, divisões por escopo/equipamento, persistência e
+  perfis. Estoque, Romaneio, Qualidade e EPI continuam com as pendências já
+  inventariadas.
 - A main acrescentou Manutenção/Produção, configuração/histórico em Equipamentos,
   API/Tokens no Admin e ativação de contas por link. São superfícies pendentes
   de migração, não entregas automáticas do redesign.
@@ -135,9 +141,9 @@ Todas as fases devem preservar os seguintes contratos:
 | Área | Superfícies que agora fazem parte do redesign | Situação |
 | --- | --- | --- |
 | Hub e navegação global | Efetivo, Assinaturas, Manutenção/Produção e novidades de API/Tokens; ícones e acesso por perfil/permissão | Integração preserva DS; revisão transversal X2 pendente |
-| Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Produtividade e Administração | **Em migração** — delta recente conciliado; validação integrada F2 pendente |
+| Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Produtividade e Administração | **F2 concluído tecnicamente** — matriz de oito perfis, conta sem acesso e persistência em banco isolado |
 | Assinaturas | Lista de ativos/arquivados, novo documento, configuração do PDF, assinantes, publicação, acompanhamento, auditoria e assinatura pública | **Migrado e validado tecnicamente** — F3.1–F3.5; teste em celular físico com o usuário |
-| Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | Migração visual A1–A6 implementada; fechamento integrado A7 pendente |
+| Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | **A1–A7 concluídos tecnicamente** — perfis, divisões e persistência conferidos |
 | Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
 | Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
@@ -504,16 +510,21 @@ Critério de saída: as páginas-raiz usam o shell novo e nenhuma navegação fu
 
 Prioridade: P0. Executar em quatro ondas para limitar regressões.
 
-**Retomado em 27/09/2026**, após o standby solicitado em 10/09. Os componentes
-e fluxos da outra frente foram conciliados com `origin/main`; a validação
-integrada de F2 ainda precisa cobrir dados reais, perfis e navegadores.
+**Concluído tecnicamente em 28/09/2026**, após a retomada de 27/09. Os
+componentes e fluxos foram conciliados com `origin/main`. A matriz integrada
+usou banco isolado com os oito perfis do módulo e conta sem acesso. No Chromium,
+as sete áreas passaram em 390 px para todos os perfis e em 1280 px para gestor,
+visualizador, Comercial e Operações. O visualizador também passou no Firefox em
+360 e 768 px. Persistência e limites de escrita foram conferidos para gestor,
+Operações, Ativos, Suprimentos, Administrativo e QSMS. A execução WebKit fica no
+fechamento transversal F6 por dependências ausentes neste host.
 
 #### F2.1 — Navegação e leitura executiva
 
-Status: **em andamento** — shell, sete áreas, seletor mobile, filtros, métricas e
+Status: **validado** — shell, sete áreas, seletor mobile, filtros, métricas e
 estados principais de Visão geral, Calendário e Disponibilidade implementados na
 primeira entrega. Detalhe diário em diálogo, vagas/conflitos e calendário ampliado
-implementados em 08/09; falta fechar a matriz das demais superfícies desta onda.
+implementados em 08/09; a matriz de leitura e acesso passou em 28/09.
 
 - navegação das sete seções e seletor mobile;
 - filtros de data e função;
@@ -522,9 +533,9 @@ implementados em 08/09; falta fechar a matriz das demais superfícies desta onda
 
 #### F2.2 — Pessoas
 
-Status: **em andamento** — botões, busca e formulários de colaborador/ausência
-adequados ao DS em 08/09; responsividade e perfis conferidos com fixtures. Falta
-validar a persistência integrada e consolidar todos os estados da listagem.
+Status: **validado** — botões, busca e formulários de colaborador/ausência
+adequados ao DS em 08/09; responsividade, perfis e estados conferidos na matriz
+integrada de 28/09.
 
 - Colaboradores e Ausências;
 - lista, busca, disponibilidade e estados selecionados pela URL;
@@ -533,11 +544,10 @@ validar a persistência integrada e consolidar todos os estados da listagem.
 
 #### F2.3 — Missões
 
-Status: **em andamento** — listagem/pendências, programação, conclusão e diálogos
+Status: **validado** — listagem/pendências, programação, conclusão e diálogos
 de seleção/alocação/ciclos no DS em 09/09. Sobreposição e somente consulta
-conferidos com fixtures; Kanban mantém líder/equipe visíveis. Restam sua
-consolidação estrutural, o comparativo e o fechamento integrado de persistência,
-permissões e navegadores.
+conferidos com fixtures; Kanban mantém líder/equipe visíveis. A matriz integrada
+confirmou leitura, movimentação bloqueada e ações por área com API real.
 
 - lista de missões e pendências;
 - Kanban de evolução;
@@ -546,12 +556,12 @@ permissões e navegadores.
 
 #### F2.4 — Planejamento avançado e administração
 
-Status: **adaptação visual implementada** — filtros, indicadores, evolução,
+Status: **validado** — filtros, indicadores, evolução,
 resultados, pendências, regras, acessos, feriados, notificações e atividade usam
 controles e estados DS. Detalhe mensal e edição da referência/feriados usam os
 diálogos DS; a tabela de produtividade vira cartões em tablet e celular. O
 tutorial permanente e os avisos de novidade usam a paleta e os controles do DS.
-Falta validar operações reais, permissões e navegadores na matriz F2.
+Operações reais, permissões e navegadores disponíveis passaram na matriz F2.
 
 - Produtividade, pendências e detalhe individual;
 - regras, referência, feriados e atividade/auditoria;
@@ -821,7 +831,7 @@ scroll localizado acidental em 360 px de largura.
 | A4 — Diálogos de apoio | Relatórios/PDF, standby, jornadas POINT/REPORT e novo `ProjectRomaneiosDialog` com seus gatilhos | **Migração visual implementada; validação completa em A7** |
 | A5 — Sede | Períodos, gastos globais, categorias, detalhamento e novos indicadores aprovados de manutenção/produção em `SedeOperationalCards` | **Migração visual implementada; validação completa em A7** |
 | A6 — Custo | Motor/simulação, cargos/perfis, parâmetros/EPI, importação e conciliação de ponto, pendências e auditoria de alocação | **Migração visual implementada; validação completa em A7** |
-| A7 — Fechamento | Matriz completa de perfis/navegadores/estados, persistência em ambiente isolado e retirada de CSS sem consumidores | **Pendente** |
+| A7 — Fechamento | Matriz de perfis/navegadores/estados, persistência em ambiente isolado e retirada de CSS sem consumidores | **Concluído em 28/09; WebKit em F6** |
 
 Atualização de 27/09/2026: A6 removeu as regras globais sem outros consumidores
 do Ponto e passou pendências, auditoria, cargos e simulador para estilos locais
@@ -829,8 +839,13 @@ com tokens do design system. As tabelas largas de Custos usam cartões também n
 tablet. A navegação por dez telas/subabas foi conferida no Chromium com conta
 gestora em banco isolado e respostas simuladas de Custo/Ponto em 360, 390,
 820 e 1440 px, sem overflow horizontal ou erros de JavaScript; o tema escuro
-foi conferido no Simulador. A7 ainda precisa
-da matriz completa de perfis, navegadores, dados reais e persistência.
+foi conferido no Simulador. Em 28/09, A7 validou gestor, visualizador e gestor
+interno com permissão fiscal em banco isolado; a API confirmou recortes, custos,
+nome local do card, agrupamento e proteção financeira. Chromium e Firefox
+cobriram 390, 768 e 1280 px sem overflow ou erro de JavaScript. Foram retiradas
+328 regras globais do Acompanhamento sem consumidores. A suíte passou com 652
+testes frontend e 1.771 backend aprovados (9 ignorados), além de build e lint
+sem erros. WebKit permanece em F6.
 
 A TAG mencionada em A3a.1 é o código de identificação do **equipamento em obra**,
 exibido antes do nome quando disponível. A exibição já existe em
@@ -843,8 +858,8 @@ foram transportados como dados do projeto. O recorte de escopo/equipamento alter
 avanço, meta, histórico e composição; prazos, gastos, equipe e desvios permanecem
 identificados como totais da missão. Faturamentos e impostos mantêm a permissão
 financeira existente. Em projetos sem meta semanal, a composição geral usa o
-avanço por serviço já calculado pela API. A7 deve conferir dados, estados
-vazios, agrupamentos, perfis e interações no ambiente integrado.
+avanço por serviço já calculado pela API. A7 conferiu dados, estados vazios,
+agrupamentos, perfis e interações no ambiente integrado em 28/09.
 
 O refinamento visual de A3a.2 aproxima a tela da prévia aprovada: histórico
 semanal em colunas, cartões de serviço com realizado/meta/excedente, linha do
@@ -1090,22 +1105,17 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 ## Ordem recomendada dos próximos lotes
 
-Antes da ordem histórica abaixo, executar os lotes **P0 R1–R3, A0, S1 e X0**
-do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md). A nova
-gestão de projetos F2.5/F2.6 segue o standby do Efetivo; as demais novidades
-estão vinculadas às fases A3b/A3c/A4/A5/A6, Estoque, Romaneio, M3/EQ2 e X1–X3.
+Com F2 e A7 fechados tecnicamente em 28/09, a sequência restante é:
 
-1. **X3**, para integrar visualmente liberação individual e assinatura física
-   às telas RDO e Cliente já migradas.
-2. Novos gatilhos/diálogos de **A4**, para fechar as inserções da main
-   nas telas de Acompanhamento já redesenhadas.
-3. Restante de **A4**, **A5/A6/A7**: concluir Acompanhamento.
-4. **EQ1–EQ3 + M1–M5**, respeitando a dependência de configuração da manutenção.
-5. Estoque e Romaneio (F4) com suas pendências anteriores.
-6. **API1–API4 + X1/X2** e ajustes localizados de Qualidade/EPI/Admin (F5).
-7. Retomar **F2** somente após liberação e conciliação da outra worktree; a
-   conferência de assinatura em celular físico continua combinada com o usuário.
-8. **F6**: remoção de legado e regressão visual final, após as frentes acima.
+1. **X3**: integrar visualmente liberação individual e assinatura física às telas
+   RDO e Cliente já migradas.
+2. **EQ1–EQ3 + M1–M5**: Equipamentos e Manutenção/Produção, respeitando a
+   dependência entre configuração e manutenção.
+3. **F4**: Estoque e Romaneio, incluindo os fluxos novos da main.
+4. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
+   de Qualidade, EPI e Administração.
+5. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
 
-Erros funcionais de integração têm precedência sobre essa fila. Esta rodada
-realizou merge/conciliação/planejamento, não a implementação dos novos lotes.
+Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
+lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)
+permanece registrado nas seções acima.

@@ -10,6 +10,7 @@ import {
   getProjectPlanningContext,
   getProjectDetail,
   getProjectProgress,
+  getTrackingDivisions,
   listProjectManagementNotes,
   type ManualProjectCost,
   type ManualProjectCostPayload,
@@ -29,6 +30,7 @@ import { ProjectReportsDialog } from './ProjectReportsDialog';
 import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
 import { ProjectInvoicesSection } from './ProjectInvoicesSection';
 import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
+import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
@@ -51,6 +53,7 @@ export function ProjectDetailDashboard({
   projectId,
   groupId,
   canManage = false,
+  canManageDivisions = false,
   canManageManualCosts = false,
   canManageProjectNotes = false,
   progressHistoryNoveltyUser = null,
@@ -59,6 +62,7 @@ export function ProjectDetailDashboard({
   projectId?: string;
   groupId?: string;
   canManage?: boolean;
+  canManageDivisions?: boolean;
   canManageManualCosts?: boolean;
   canManageProjectNotes?: boolean;
   progressHistoryNoveltyUser?: Pick<AuthUser, 'id'> | null;
@@ -66,6 +70,8 @@ export function ProjectDetailDashboard({
 }) {
   const queryClient = useQueryClient();
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
+  const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
+  const [trackingDivisionKey, setTrackingDivisionKey] = useState('');
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [progressScopeKey, setProgressScopeKey] = useState('');
   const [progressEquipmentKey, setProgressEquipmentKey] = useState('');
@@ -92,10 +98,17 @@ export function ProjectDetailDashboard({
   });
   const scheduleRef = useRef<ScheduleEditorHandle>(null);
   const isGroup = Boolean(groupId);
-  const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId];
+  const { data: trackingDivisions, isLoading: trackingDivisionsLoading, isError: trackingDivisionsError, refetch: reloadTrackingDivisions } = useQuery({
+    queryKey: ['tracking-divisions', projectId],
+    queryFn: () => getTrackingDivisions(projectId!),
+    enabled: !isGroup && Boolean(projectId),
+    ...acompanhamentoRefreshQueryOptions
+  });
+  const activeDivisionKey = trackingDivisions?.divisions.some(item => item.key === trackingDivisionKey) ? trackingDivisionKey : '';
+  const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])];
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: detailKey,
-    queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!),
+    queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!, activeDivisionKey),
     ...acompanhamentoRefreshQueryOptions
   });
   const projectNotesKey = ['project-management-notes', projectId] as const;
@@ -110,8 +123,8 @@ export function ProjectDetailDashboard({
     enabled: !isGroup && Boolean(projectId)
   });
   const { data: projectProgress } = useQuery({
-    queryKey: ['project-progress', projectId],
-    queryFn: () => getProjectProgress(projectId!),
+    queryKey: ['project-progress', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])],
+    queryFn: () => getProjectProgress(projectId!, activeDivisionKey),
     enabled: !isGroup && Boolean(projectId),
     ...acompanhamentoRefreshQueryOptions
   });
@@ -287,9 +300,14 @@ export function ProjectDetailDashboard({
       <div className="acp-detail-bar">
         <Button type="button" size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button>
         {canManage && !isGroup ? (
-          <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => setScheduleProject({ projectId: projectId!, code: h.code })}>
-            Editar cronograma
-          </Button>
+          <div className="acp-detail-bar-actions">
+            <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => setScheduleProject({ projectId: projectId!, code: h.code })}>
+              Editar cronograma
+            </Button>
+            {canManageDivisions ? <Button type="button" size="sm" variant="secondary" onClick={() => setTrackingDivisionsOpen(true)}>
+              Divisões do acompanhamento
+            </Button> : null}
+          </div>
         ) : null}
       </div>
 
@@ -339,6 +357,21 @@ export function ProjectDetailDashboard({
           </div>
         ) : null}
       </Card>
+
+      {!isGroup && trackingDivisions && trackingDivisions.divisions.length > 0 ? (
+        <nav className="acp-tracking-tabs" aria-label="Divisões do acompanhamento">
+          <button type="button" aria-pressed={!activeDivisionKey} onClick={() => setTrackingDivisionKey('')}>Projeto completo</button>
+          {trackingDivisions.candidates.flatMap(scope => [scope, ...(scope.equipments ?? [])])
+            .filter(candidate => trackingDivisions.divisions.some(item => item.key === candidate.key))
+            .map(candidate => <button key={candidate.key} type="button" aria-pressed={activeDivisionKey === candidate.key}
+              onClick={() => setTrackingDivisionKey(candidate.key)}>
+              {candidate.kind === 'SCOPE' ? `Escopo: ${candidate.label}` : `${candidate.scopeName || 'Sem escopo definido'}: ${candidate.label.replace(/^Unidade Geradora\s+/i, 'UG ')}`}
+            </button>)}
+        </nav>
+      ) : null}
+      {data.division ? <Card padding="sm" className="acp-tracking-period" aria-label="Período da divisão">
+        Período: {fmtDate(data.division.startDate)} até {data.division.endDate ? fmtDate(data.division.endDate) : 'hoje'}
+      </Card> : null}
 
       <ProjectDetailOverview
         data={data}
@@ -527,7 +560,7 @@ export function ProjectDetailDashboard({
 
       </div>
 
-      {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} /> : null}
+      {data.canViewProjectFinancials ? <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} /> : null}
 
       <div className="acp-detail-section-head" id="acp-quality">
         <p>Qualidade e gestão</p><h2>Desvios que pedem ação</h2>
@@ -765,8 +798,18 @@ export function ProjectDetailDashboard({
         project={standbyHistoryOpen && !isGroup && projectId
           ? { projectId, code: h.code }
           : null}
+        division={data.division}
         onClose={() => setStandbyHistoryOpen(false)}
       />
+
+      {canManageDivisions && trackingDivisionsOpen && projectId && trackingDivisions ? <ProjectTrackingDivisionsPanel
+        projectId={projectId} data={trackingDivisions} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
+      {canManageDivisions && trackingDivisionsOpen && projectId && !trackingDivisions ? <Modal open onClose={() => setTrackingDivisionsOpen(false)}
+        appearance="design-system" title="Divisões do acompanhamento" size="sm">
+        {trackingDivisionsError ? <Alert tone="danger" title="Não foi possível carregar as divisões."
+          action={<Button size="sm" variant="secondary" onClick={() => void reloadTrackingDivisions()}>Tentar novamente</Button>} />
+          : trackingDivisionsLoading ? <Skeleton variant="text" lines={3} label="Carregando divisões" /> : null}
+      </Modal> : null}
 
       <ProjectCollaboratorHoursDialog
         collaborator={hoursDetail?.collaborator ?? null}

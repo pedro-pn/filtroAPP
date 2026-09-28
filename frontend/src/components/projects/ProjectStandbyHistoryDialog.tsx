@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getProjectStandbyHistory, type ProjectStandbyHistoryEntry } from '../../api/acompanhamentoComercial';
+import { getProjectStandbyHistory, type ProjectStandbyHistoryEntry, type TrackingDivision } from '../../api/acompanhamentoComercial';
 import { Modal } from '../ui/Modal';
 import { Alert, Button, DataTable, EmptyState, Skeleton } from '../ui/ds';
 import './ProjectStandbyHistoryDialog.ds.css';
@@ -50,9 +50,11 @@ export function StandbyHistoryTable({ entries }: { entries: ProjectStandbyHistor
 
 export function ProjectStandbyHistoryDialog({
   project,
+  division,
   onClose
 }: {
   project: StandbyHistoryProject | null;
+  division?: TrackingDivision | null;
   onClose: () => void;
 }) {
   const historyQuery = useQuery({
@@ -63,7 +65,9 @@ export function ProjectStandbyHistoryDialog({
   });
 
   const titleProject = historyQuery.data?.project ?? project;
-  const entries = historyQuery.data?.entries ?? [];
+  const entries = (historyQuery.data?.entries ?? []).filter(entry => !division || (
+    entry.date >= division.startDate && entry.date <= (division.endDate ?? new Date().toISOString().slice(0, 10))
+  ));
   const projectLabel = titleProject
     ? [titleProject.code, titleProject.name].filter(Boolean).join(' — ')
     : 'Projeto';

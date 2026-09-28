@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 
-import { getMissionGroupInvoices, getProjectInvoices, type ProjectInvoice } from '../../api/acompanhamentoComercial';
+import { getMissionGroupInvoices, getProjectInvoices, type ProjectInvoice, type TrackingDivision } from '../../api/acompanhamentoComercial';
 import { AppIcon } from '../icons/AppIcon';
 import { HelpTip } from '../ui/HelpTip';
 import { Alert, Badge, Button, Card, DataTable, EmptyState, Pagination, Skeleton, type DataTableColumn, type SemanticTone } from '../ui/ds';
@@ -30,7 +30,7 @@ function ReceiptStatus({ invoice }: { invoice: ProjectInvoice }) {
   </span>;
 }
 
-export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: string; groupId?: string }) {
+export function ProjectInvoicesSection({ projectId, groupId, division }: { projectId?: string; groupId?: string; division?: TrackingDivision | null }) {
   const titleId = useId();
   const [page, setPage] = useState(1);
   const query = useQuery({
@@ -42,9 +42,13 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
   });
   const data = query.data;
   const hasSnapshot = Boolean(data?.lastSyncedAt);
-  const pages = Math.max(1, Math.ceil((data?.invoices.length ?? 0) / PAGE_SIZE));
+  const visibleInvoices = (data?.invoices ?? []).filter(invoice => !division || (
+    invoice.issuedAt.slice(0, 10) >= division.startDate && invoice.issuedAt.slice(0, 10) <= (division.endDate ?? new Date().toISOString().slice(0, 10))
+  ));
+  const visibleTotal = visibleInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+  const pages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
-  const invoices = data?.invoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) ?? [];
+  const invoices = visibleInvoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const columns: DataTableColumn<ProjectInvoice>[] = [
     { key: 'number', header: 'Nota fiscal', rowHeader: true, render: invoice => <span className="acp-invoices-ds__cell">
       <strong>{invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} {invoice.number}</strong>
@@ -70,8 +74,8 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
           <small>Notas fiscais emitidas no Omie{groupId ? ' para as missões do grupo' : ' para este projeto'}.</small>
         </span>
         {hasSnapshot && data ? <span className="acp-invoices-ds__total">
-          <small>{data.count} {data.count === 1 ? 'nota fiscal' : 'notas fiscais'} · total bruto</small>
-          <strong>{brl(data.total)}</strong>
+          <small>{visibleInvoices.length} {visibleInvoices.length === 1 ? 'nota fiscal' : 'notas fiscais'} · total bruto</small>
+          <strong>{brl(visibleTotal)}</strong>
         </span> : null}
       </summary>
       <div className="acp-invoices-ds__body">
@@ -93,7 +97,7 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
           {data.linkedProjectCount < data.projectCount ? <Alert tone="warning">
             {groupId ? 'Há missões deste grupo sem vínculo com um projeto no Omie.' : 'Este projeto ainda não possui vínculo com um projeto no Omie.'}
           </Alert> : null}
-          {data.invoices.length === 0 ? <EmptyState title="Nenhuma nota fiscal faturada"
+          {visibleInvoices.length === 0 ? <EmptyState title="Nenhuma nota fiscal faturada"
             description={`Nenhuma nota encontrada para ${groupId ? 'as missões deste grupo' : 'este projeto'} na última consulta.`} />
             : <DataTable rows={invoices} columns={columns} getRowId={invoice => invoice.id}
               ariaLabel="Histórico de notas fiscais faturadas" density="compact" mobileBreakpoint="xl"
@@ -110,7 +114,7 @@ export function ProjectInvoicesSection({ projectId, groupId }: { projectId?: str
                   ...(invoice.customerDiffers ? [{ label: 'Cadastro', value: 'Tomador diferente do projeto' }] : [])
                 ]
               }) }} />}
-          {pages > 1 ? <Pagination page={currentPage} total={data.invoices.length} pageSize={PAGE_SIZE}
+          {pages > 1 ? <Pagination page={currentPage} total={visibleInvoices.length} pageSize={PAGE_SIZE}
             onPageChange={setPage} label="Páginas de faturamentos" /> : null}
           <footer className="acp-invoices-ds__foot">
             <span>Consulta de {new Date(data.lastSyncedAt!).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{data.syncStatus === 'UPDATING' || query.isFetching ? ' · Atualizando…' : ''}</span>

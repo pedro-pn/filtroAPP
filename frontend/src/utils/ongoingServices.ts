@@ -1,4 +1,5 @@
 import type { ReportSummary } from '../types/domain';
+import { dateInputValue } from './dateOnly';
 import { normalizeServiceType } from './reportServicePayload';
 
 type ReportServiceSummary = NonNullable<ReportSummary['services']>[number];
@@ -211,7 +212,17 @@ export interface PendingProjectService {
   key: string;
   keys: string[];
   report: ReportSummary;
+  startedReport: ReportSummary;
   service: ReportServiceSummary;
+}
+
+function reportDay(report: ReportSummary) {
+  return dateInputValue(report.reportDate || report.createdAt);
+}
+
+export function isPendingServiceFromLaterDay(item: PendingProjectService, reportDate: string) {
+  const currentDay = dateInputValue(reportDate);
+  return Boolean(currentDay && reportDay(item.startedReport) > currentDay);
 }
 
 // Serviços ainda não finalizados de um projeto, na ordem cronológica dos RDOs: cada chave de
@@ -225,16 +236,30 @@ export function collectPendingProjectServices(reports: ReportSummary[]): Pending
     .forEach(report => {
       (report.services || []).forEach(service => {
         const keys = serviceOngoingKeys(report, service);
+        const previous = Array.from(items.values()).find(item => item.keys.some(key => keys.includes(key)));
         for (const [itemKey, item] of items.entries()) {
           if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
         }
         if (isServiceFinalized(service)) return;
         const key = keys[0] || service.id;
-        items.set(key, { key, keys, report, service });
+        items.set(key, { key, keys, report, startedReport: previous?.startedReport || report, service });
       });
     });
 
   return Array.from(items.values()).sort((a, b) => reportTime(b.report) - reportTime(a.report));
+}
+
+export function pendingProjectServicesForDate(reports: ReportSummary[], reportDate: string, includeLaterDays: boolean) {
+  const currentDay = dateInputValue(reportDate);
+  const upToCurrentDay = collectPendingProjectServices(reports.filter(report => currentDay && reportDay(report) <= currentDay));
+  if (!includeLaterDays) return upToCurrentDay;
+
+  // Preserva o estado pendente na data editada mesmo que tenha sido finalizado depois.
+  const futureStarted = collectPendingProjectServices(reports)
+    .filter(item => isPendingServiceFromLaterDay(item, reportDate))
+    .filter(item => !upToCurrentDay.some(previous => previous.keys.some(key => item.keys.includes(key))));
+  return [...upToCurrentDay, ...futureStarted]
+    .sort((a, b) => reportTime(b.report) - reportTime(a.report));
 }
 
 // Chaves de continuidade de um serviço que ainda está no formulário (não persistido).

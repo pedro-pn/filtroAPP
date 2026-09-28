@@ -113,7 +113,7 @@ test('scope save does not write without permission, loaded data or a current rev
 test('scope hierarchy is rendered in planned scope and weekly pace, with an accessible local scroll area', async () => {
   const { groupServicesByScope } = await functionsFrom('../src/utils/plannedScopeGroups.ts', ['groupServicesByScope']);
   const labels = await functionsFrom('../src/components/projects/projectDetailModel.ts',
-    ['SERVICE_LABELS', 'SYSTEM_LABELS', 'UNIT_LABELS', 'fmtPct']);
+    ['SERVICE_LABELS', 'SYSTEM_LABELS', 'UNIT_LABELS', 'fmtPct', 'physicalUnit', 'physicalQuantityLabel', 'weeklyPhysicalProgress']);
   const { RequiredWeeklyProgressCard, PlannedScopeView } = await functionsFrom('../src/components/projects/ProjectDetailVisuals.tsx',
     ['fmtQuantity', 'weeklyTargetText', 'RequiredWeeklyProgressCard', 'PlannedScopeView'],
     { React, groupServicesByScope, ...labels, Badge: ({ children }) => React.createElement('span', null, children) });

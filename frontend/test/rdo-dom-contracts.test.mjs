@@ -271,7 +271,7 @@ test('lista agrupada mantém interação por teclado e quantidade visível anunc
       'aria-expanded={!typeClosed}',
       'aria-controls={typePanelId}',
       'id={typePanelId}',
-      '{visibleReports.length} de {totalReports} relatório',
+      '${visibleReports.length} de ${totalReports}',
       'disabled={typeLoading}',
       "typeLoading ? 'Carregando...'",
       'aria-hidden="true"'

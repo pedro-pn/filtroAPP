@@ -25,6 +25,7 @@ import { withNativeMeasurementLinks } from './native-measurement-links.js';
 export { realizedFromExtraData } from './realized-measurements.js';
 import { withScopeGroups } from './scope-groups.js';
 import { normalizeRdoServiceType } from './service-types.js';
+import { dateInDivision } from './tracking-divisions.js';
 
 export { normalizeRdoServiceType } from './service-types.js';
 
@@ -777,6 +778,42 @@ export async function computeProjectProgressDetails(projectId) {
   const details = (await computeProgressDetailsForProjects([projectId])).get(projectId);
   if (!details) throw new Error('Projeto não encontrado.');
   return details;
+}
+
+// O recorte conserva as metas do escopo/equipamento escolhido e conta somente medições
+// finalizadas dentro da janela informada no painel de divisões.
+export function selectDivisionPlannedServices(allPlanned, divisionKey) {
+  const [kind, scopeName, equipmentKey] = JSON.parse(divisionKey);
+  return allPlanned.filter(service => (service.scopeName?.trim() || null) === scopeName)
+    .map(service => kind === 'EQUIPMENT'
+      ? { ...service, systems: service.systems.filter(system =>
+        systemNameKey(system.projectSystem?.equipment) === equipmentKey) }
+      : service)
+    .filter(service => service.systems.length > 0);
+}
+
+export async function computeDivisionProgressDetails(projectId, division) {
+  const [project, allPlanned, servicesByProject] = await Promise.all([
+    prisma.project.findUnique({ where: { id: projectId }, select: {
+      id: true, startDate: true, clientSegment: true, mobilizationDate: true,
+      workdayHours: true, weekendWorkdayHours: true, offshore: true,
+      laborSleepModeByCollaborator: true
+    } }),
+    prisma.projectPlannedService.findMany({ where: { projectId }, orderBy: { order: 'asc' },
+      include: { systems: { orderBy: { order: 'asc' }, include: { projectSystem: true } } } }),
+    loadReportServicesByProject([projectId])
+  ]);
+  if (!project) throw new Error('Projeto não encontrado.');
+  const plannedServices = selectDivisionPlannedServices(allPlanned, division.key);
+  const reports = (servicesByProject.get(projectId) ?? []).filter(service => dateInDivision(service.reportDate, division));
+  const timeline = buildProgressTimeline(plannedServices, reports);
+  const scopeProgress = buildProgress(plannedServices, timeline.realizedByType);
+  const progress = { ...scopeProgress, progressMethod: scopeProgress.progressPct == null ? null : 'RDO' };
+  return {
+    project, plannedServices, progress,
+    progressHistory: weeklyHistory(timeline.points, division.startDate),
+    progressSlices: null
+  };
 }
 
 // Recortes de avanço (escopo e/ou equipamento do cliente) de um projeto; null quando não há o

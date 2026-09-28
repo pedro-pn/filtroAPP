@@ -72,6 +72,7 @@ import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
 
 type DragState = { projectId: string; snapshot: ProjectKanbanColumns };
+type BlockedMoveFocus = { projectId: string; stage: ProjectWorkflowStage; count: number; token: number };
 type PendingTouch = {
   pointerId: number;
   projectId: string;
@@ -111,6 +112,11 @@ const LEGACY_PROJECT_STAGE_TO_MISSION: Partial<Record<ProjectKanbanStage, Missio
   FINISHED: 'FINISHED'
 };
 const LEGACY_PROJECT_STAGES = Object.keys(LEGACY_PROJECT_STAGE_TO_MISSION) as ProjectKanbanStage[];
+
+function compactWorkflowError(error: Error, action: string) {
+  const count = new Set(projectWorkflowErrorIssues(error)).size;
+  return count ? `${action}: ${count} pendência${count === 1 ? '' : 's'}. Confira a etapa aberta no planejamento.` : error.message;
+}
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).map(part => part[0]).slice(0, 2).join('').toLocaleUpperCase('pt-BR');
@@ -384,6 +390,7 @@ export function ProjectWorkflowBoard({
   const [teamContextLoadingProjectId, setTeamContextLoadingProjectId] = useState<string | null>(null);
   const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
+  const [blockedMoveFocus, setBlockedMoveFocus] = useState<BlockedMoveFocus | null>(null);
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
   const [showCancelledMissions, setShowCancelledMissions] = useState(false);
   const dragRef = useRef<DragState | null>(null);
@@ -478,8 +485,7 @@ export function ProjectWorkflowBoard({
       toast('Gestão resumida iniciada.', 'success');
     },
     onError: (error: Error) => {
-      const issues = projectWorkflowErrorIssues(error);
-      toast([...new Set([error.message, ...issues])].join(' · '), 'error');
+      toast(compactWorkflowError(error, 'Não foi possível iniciar a gestão'), 'error');
     }
   });
 
@@ -487,11 +493,11 @@ export function ProjectWorkflowBoard({
     mutationFn: (payload: ProjectWorkflowPatch) => updateProjectWorkflow(selectedProjectId!, payload),
     onSuccess: async data => {
       await refresh(data);
+      setBlockedMoveFocus(null);
       toast('Gestão do projeto atualizada.', 'success');
     },
     onError: (error: Error) => {
-      const issues = projectWorkflowErrorIssues(error);
-      toast([...new Set([error.message, ...issues])].join(' · '), 'error');
+      toast(compactWorkflowError(error, 'Não foi possível atualizar o projeto'), 'error');
       if ((error as { code?: string }).code === 'PROJECT_WORKFLOW_VERSION_CONFLICT') void detail.refetch();
     }
   });
@@ -550,6 +556,7 @@ export function ProjectWorkflowBoard({
   const managedMove = useMutation({
     mutationFn: ({ project, patch }: ManagedMove) => updateProjectWorkflow(project.id, patch),
     onSuccess: async (data, variables) => {
+      setBlockedMoveFocus(null);
       queryClient.setQueryData(['project-workflow', data.project.id], data);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
@@ -561,9 +568,12 @@ export function ProjectWorkflowBoard({
     },
     onError: async (error: Error, variables) => {
       setColumns(variables.snapshot);
+      const count = new Set(projectWorkflowErrorIssues(error)).size;
+      if (variables.project.workflow && count) {
+        setBlockedMoveFocus({ projectId: variables.project.id, stage: variables.project.workflow.stage, count, token: Date.now() });
+      }
       onProjectSelect(variables.project.id);
-      const issues = projectWorkflowErrorIssues(error);
-      toast([...new Set([error.message, ...issues])].join(' · '), 'error');
+      toast(compactWorkflowError(error, 'Movimentação bloqueada'), 'error');
       await queryClient.invalidateQueries({ queryKey: ['project-workflows'] });
       if ((error as { code?: string }).code === 'PROJECT_WORKFLOW_VERSION_CONFLICT' && selectedProjectId === variables.project.id) {
         void detail.refetch();
@@ -675,9 +685,10 @@ export function ProjectWorkflowBoard({
       }
       if (target === 'FINISHED') {
         if (!project.workflow.closureGate.ready) {
+          setBlockedMoveFocus({ projectId: project.id, stage: 'FINAL_MEASUREMENT', count: project.workflow.closureGate.blockers.length, token: Date.now() });
           onProjectSelect(project.id);
-          const reasons = project.workflow.closureGate.blockers.slice(0, 3).map(item => `${item.label}: ${item.reason}`);
-          toast(`Movimentação bloqueada: ${reasons.join(' · ')}${project.workflow.closureGate.blockers.length > 3 ? ` · e mais ${project.workflow.closureGate.blockers.length - 3}` : ''}.`, 'error');
+          const count = project.workflow.closureGate.blockers.length;
+          toast(`Movimentação bloqueada: ${count} pendência${count === 1 ? '' : 's'}. Confira Documentação / medição no planejamento.`, 'error');
           return;
         }
       }
@@ -725,7 +736,7 @@ export function ProjectWorkflowBoard({
       : mission.scheduleStatus === 'CONFIRMED' ? [] : ['Confirmar a programação'];
     if (blockers.length) {
       onProjectSelect(project.id);
-      toast('Movimentação bloqueada: ' + blockers.join(' · ') + '.', 'error');
+      toast(`Movimentação bloqueada: ${blockers.length} pendência${blockers.length === 1 ? '' : 's'} na programação da missão.`, 'error');
       return;
     }
     const order = legacyOrder(targetMissionStage);
@@ -1086,12 +1097,13 @@ export function ProjectWorkflowBoard({
       />
       <ProjectWorkflowModal
         detail={selectedProjectId ? detail.data || null : null}
+        blockedMoveFocus={blockedMoveFocus}
         leaders={leaders.data || []}
         loading={Boolean(selectedProjectId && detail.isLoading)}
         error={Boolean(selectedProjectId && detail.isError)}
         saving={start.isPending || startLegacySummary.isPending || update.isPending || saveInitialTeam.isPending || managedMove.isPending || moveLegacyMission.isPending}
         onRetry={() => void detail.refetch()}
-        onClose={() => onProjectSelect(undefined)}
+        onClose={() => { setBlockedMoveFocus(null); onProjectSelect(undefined); }}
         onStart={values => start.mutate(values)}
         onPatch={payload => update.mutate(payload)}
         onStartLegacySummary={payload => startLegacySummary.mutate(payload)}

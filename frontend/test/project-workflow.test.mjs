@@ -179,7 +179,11 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.doesNotMatch(touchStart, /onProjectSelect/);
   assert.match(drop, /sourceStage !== stage/);
   assert.doesNotMatch(drop, /onProjectSelect\(project\.id\)/);
-  assert.match(board, /onError: async \(error: Error, variables\) => \{\s+setColumns\(variables\.snapshot\);\s+onProjectSelect\(variables\.project\.id\)/);
+  assert.match(board, /onError: async \(error: Error, variables\) => \{\s+setColumns\(variables\.snapshot\);\s+const count = new Set\(projectWorkflowErrorIssues\(error\)\)\.size;/);
+  assert.match(board, /setBlockedMoveFocus\(\{ projectId: variables\.project\.id, stage: variables\.project\.workflow\.stage, count/);
+  assert.match(board, /onProjectSelect\(variables\.project\.id\);\s+toast\(compactWorkflowError\(error, 'Movimentação bloqueada'\), 'error'\)/);
+  assert.match(modal, /setActiveStage\(blockedMoveFocus\.stage\)/);
+  assert.match(modal, /Ver bloqueios/);
   assert.match(board, /suppressCardClickUntilRef/);
   assert.match(board, /managedMove\.isPending \? managedMove\.variables\?\.project\.id : undefined/);
   assert.match(dragStart, /const startedFromInteractiveControl = interactiveMouseRef\.current;\s+interactiveMouseRef\.current = false;/);

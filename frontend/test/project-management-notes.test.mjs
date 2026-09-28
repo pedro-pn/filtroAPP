@@ -35,6 +35,14 @@ test('somente gestores recebem a permissão de adicionar notas', async () => {
   assert.match(boardSource, /canManageProjectNotes=\{canManageProjectNotes\}/);
 });
 
+test('somente gestores podem abrir a edição das divisões do acompanhamento', async () => {
+  const board = await readSource('src/components/projects/ProjectCardsBoard.tsx');
+  const detail = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
+
+  assert.match(board, /canManageDivisions=\{canManageGroups\}/);
+  assert.match(detail, /canManageDivisions \? <Button[^>]*onClick=\{\(\) => setTrackingDivisionsOpen\(true\)\}/);
+});
+
 test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', async () => {
   const source = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
   const people = await readSource('src/components/projects/ProjectDetailPeople.tsx');
@@ -45,8 +53,8 @@ test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', asy
   assert.match(people, /Ainda não há RDO para este projeto/);
 });
 
-test('escopo do dashboard possui rolagem local após o limite de altura', async () => {
-  const styles = await readSource('src/styles/base.css');
+test('escopo do dashboard acomoda textos longos no layout atual', async () => {
+  const styles = await readSource('src/components/projects/ProjectDetailDashboard.ds.css');
 
-  assert.match(styles, /\.acp-det-scope\s*\{[^}]*max-height:\s*280px[^}]*overflow-y:\s*auto/);
+  assert.match(styles, /\.acp-detail-scope li \{[^}]*overflow-wrap: anywhere;/);
 });

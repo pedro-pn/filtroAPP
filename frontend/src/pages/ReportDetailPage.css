@@ -4,6 +4,14 @@
   padding-block-end: var(--space-4);
 }
 
+.rdo-edit-form .ongoing-item-react--future {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.rdo-edit-form .ongoing-item-react--future :is(.admin-item-title, .admin-item-sub, strong, p),
+.rdo-edit-form .ongoing-future-note { color: var(--muted); }
+.rdo-edit-form .ongoing-future-note { margin: var(--space-1) 0 0; font-size: var(--text-xs); font-weight: var(--font-semibold); }
+
 .rdo-edit-form .rdo-edit-field-hint,
 .rdo-edit-form .field-group > .placeholder-copy,
 .rdo-edit-form .field-group > .inline-error {

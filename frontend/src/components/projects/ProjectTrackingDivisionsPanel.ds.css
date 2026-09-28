@@ -1,0 +1,22 @@
+.fv-modal.acp-tracking-divisions-panel { --fv-modal-width: min(1100px, 96vw); max-height: calc(100dvh - var(--space-6)); }
+.acp-tracking-divisions-form { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-tracking-divisions-intro { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.acp-tracking-division-scope { min-width: 0; overflow: hidden; border: var(--border-width) solid var(--line); border-radius: var(--radius-md); }
+.acp-tracking-division-scope-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-bottom: var(--border-width) solid var(--line); }
+.acp-tracking-division-scope-head h3 { margin: 0; color: var(--ink); font-size: var(--text-base); }
+.acp-tracking-division-scope-head small { color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+.acp-tracking-division-row { display: grid; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); }
+.acp-tracking-division-system-list { border-top: var(--border-width) solid var(--line); padding-inline-start: var(--space-3); }
+.acp-tracking-division-system-list .acp-tracking-division-row + .acp-tracking-division-row { border-top: var(--border-width) solid var(--line); }
+.acp-tracking-division-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); min-width: 0; }
+.acp-tracking-division-fields > * { min-width: 0; }
+.acp-tracking-divisions-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+@media (max-width: 760px) {
+  .fv-modal.acp-tracking-divisions-panel { width: calc(100vw - var(--space-4)); max-height: calc(100dvh - var(--space-4)); }
+  .acp-tracking-division-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .acp-tracking-division-fields { grid-template-columns: minmax(0, 1fr); }
+  .acp-tracking-division-scope-head, .acp-tracking-division-row { padding-inline: var(--space-3); }
+  .acp-tracking-division-system-list { padding-inline-start: var(--space-2); }
+}

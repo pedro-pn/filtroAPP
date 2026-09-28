@@ -1,4 +1,23 @@
 .acp-detail { display: grid; gap: var(--space-5); min-width: 0; }
+.acp-detail-bar-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
+.acp-tracking-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+.acp-tracking-tabs button {
+  min-height: var(--space-9);
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.acp-tracking-tabs button[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-text); font-weight: var(--font-semibold); }
+.acp-tracking-tabs button:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.acp-tracking-period { color: var(--muted); font-size: var(--text-sm); font-weight: var(--font-semibold); }
 .acp-detail h1, .acp-detail h2, .acp-detail h3, .acp-detail p { margin: 0; }
 .acp-detail h1 { font-size: clamp(var(--text-2xl), 2.6vw, 34px); line-height: 1.16; }
 .acp-detail h3 { font-size: var(--text-base); }

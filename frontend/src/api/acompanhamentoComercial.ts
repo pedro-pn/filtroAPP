@@ -602,8 +602,10 @@ export interface ProgressFilters {
   lookup: Record<string, number | null>;
 }
 
-export async function getProjectProgress(projectId: string): Promise<ProjectProgress> {
-  const { data } = await apiClient.get<ProjectProgress>(`/acompanhamento/comercial/projetos/${projectId}/avanco`);
+export async function getProjectProgress(projectId: string, divisionKey?: string): Promise<ProjectProgress> {
+  const { data } = await apiClient.get<ProjectProgress>(`/acompanhamento/comercial/projetos/${projectId}/avanco`, {
+    params: divisionKey ? { division: divisionKey } : undefined
+  });
   return data;
 }
 
@@ -983,6 +985,7 @@ export interface ProjectDetail {
   colaboradores: ProjectDetailCollaborator[];
   equipamentos: Array<{ code: string | null; name: string; days: number; since: string }>;
   plannedScope?: PlannedScope;
+  division?: TrackingDivision | null;
   footer: {
     mobilizationDate: string | null;
     startDate: string | null;
@@ -991,8 +994,45 @@ export interface ProjectDetail {
   };
 }
 
-export async function getProjectDetail(projectId: string): Promise<ProjectDetail> {
-  const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/projetos/${projectId}/detalhe`);
+export async function getProjectDetail(projectId: string, divisionKey?: string): Promise<ProjectDetail> {
+  const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/projetos/${projectId}/detalhe`, {
+    params: divisionKey ? { division: divisionKey } : undefined
+  });
+  return data;
+}
+
+export interface TrackingDivision {
+  key: string;
+  startDate: string;
+  endDate: string | null;
+  plannedCost: number | null;
+  plannedRevenue: number | null;
+  plannedHours: number | null;
+  plannedDays: number | null;
+}
+
+export interface TrackingDivisionCandidate {
+  key: string;
+  kind: 'SCOPE' | 'EQUIPMENT';
+  scopeName: string | null;
+  equipmentKey?: string;
+  systemCount?: number;
+  label: string;
+  equipments?: TrackingDivisionCandidate[];
+}
+
+export interface TrackingDivisionsResponse {
+  candidates: TrackingDivisionCandidate[];
+  divisions: TrackingDivision[];
+}
+
+export async function getTrackingDivisions(projectId: string): Promise<TrackingDivisionsResponse> {
+  const { data } = await apiClient.get<TrackingDivisionsResponse>(`/acompanhamento/comercial/projetos/${projectId}/divisoes`);
+  return data;
+}
+
+export async function saveTrackingDivisions(projectId: string, divisions: TrackingDivision[]): Promise<TrackingDivisionsResponse> {
+  const { data } = await apiClient.put<TrackingDivisionsResponse>(`/acompanhamento/comercial/projetos/${projectId}/divisoes`, { divisions });
   return data;
 }
 

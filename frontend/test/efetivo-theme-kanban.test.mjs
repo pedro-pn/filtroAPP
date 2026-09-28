@@ -65,7 +65,7 @@ test('líder e todos os participantes aparecem sem interação prévia', async t
 test('evolução dos projetos mostra equipe e preserva ações de gestão', () => {
   const source = read('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx');
   assert.match(source, /Participantes da missão/);
-  assert.match(source, /Ver líder e equipe/);
+  assert.match(source, /Ocultar equipe/);
   assert.match(source, /Equipe e ciclos/);
   assert.match(source, /Editar equipe inicial/);
   const css = read('../src/pages/efetivo/efetivo.css');

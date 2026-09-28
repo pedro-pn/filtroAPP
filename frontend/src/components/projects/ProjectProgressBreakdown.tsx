@@ -31,13 +31,14 @@ function systemLine(sys: ProgressSystem) {
 // `filter`/`progressPct` são opcionais: quando o dashboard já filtra por Escopo e/ou equipamento,
 // ele controla o recorte (chaves normalizadas, '' = todos, e o percentual do topo) e o seletor
 // interno deixa de aparecer.
-export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false, appearance = 'legacy', collapsibleDetails = false }: {
+export function ProjectProgressBreakdown({ projectId, filter, progressPct, canManage = false, appearance = 'legacy', collapsibleDetails = false, divisionKey }: {
   projectId: string;
   filter?: { scopeKey: string; equipmentKey: string };
   progressPct?: number | null;
   canManage?: boolean;
   appearance?: 'legacy' | 'design-system';
   collapsibleDetails?: boolean;
+  divisionKey?: string;
 }) {
   const [ownEquipment, setEquipment] = useState('');
   const controlled = filter !== undefined;
@@ -46,8 +47,8 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
   const matchesEquipment = (name: string | null | undefined) => !equipment
     || (controlled ? systemNameKey(name) === equipment : name === equipment);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['project-progress', projectId],
-    queryFn: () => getProjectProgress(projectId),
+    queryKey: ['project-progress', projectId, ...(divisionKey ? [divisionKey] : [])],
+    queryFn: () => getProjectProgress(projectId, divisionKey),
     ...acompanhamentoRefreshQueryOptions
   });
 

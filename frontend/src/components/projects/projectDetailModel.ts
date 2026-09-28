@@ -2,6 +2,7 @@ import axios from 'axios';
 import { z } from 'zod';
 import type { Resolver } from 'react-hook-form';
 import type { BudgetBreakdownSlice, DayStatus, ManualProjectCostPayload, RequiredWeeklyProgress } from '../../api/acompanhamentoComercial';
+import { formatDateOnly } from '../../utils/dateOnly';
 
 export const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -145,6 +146,7 @@ export const toNum = (value?: string | number | null) => {
 };
 export function fmtDate(iso?: string | null) {
   if (!iso) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDateOnly(iso, '—');
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 }
