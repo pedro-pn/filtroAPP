@@ -1879,7 +1879,7 @@
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(11, minmax(230px, 1fr));
+  grid-template-columns: repeat(11, minmax(288px, 1fr));
   min-width: 0;
   width: 100%;
   overflow-x: auto;

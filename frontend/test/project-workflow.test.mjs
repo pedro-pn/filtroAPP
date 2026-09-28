@@ -443,7 +443,7 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   assert.match(modal, /data-project-workflow-gate/);
   assert.doesNotMatch(board, /Risco de mobilização|Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(11, minmax\(288px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });

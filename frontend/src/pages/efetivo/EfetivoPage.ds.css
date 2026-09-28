@@ -423,13 +423,16 @@
   line-height: var(--leading-sm);
 }
 
+.efetivo-page-v2 .project-workflow-card-summary > div:not(.project-workflow-card-summary-next) dd {
+  white-space: nowrap;
+}
+
 .efetivo-page-v2 .project-workflow-card-summary-next {
   display: grid;
   min-width: 0;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
   padding-block-start: var(--space-2);
   border-block-start: var(--border-width) solid var(--line);
 }
@@ -440,13 +443,13 @@
 
 .efetivo-page-v2 .project-workflow-card-summary-next dd {
   margin: 0;
+  overflow-wrap: normal;
 }
 
 .efetivo-page-v2 .project-workflow-card-summary-next small {
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
-  text-align: end;
 }
 
 .efetivo-page-v2 .project-workflow-card-summary-next small.is-overdue {
@@ -455,6 +458,11 @@
 
 .efetivo-page-v2 .project-workflow-card .efetivo-kanban-team-actions {
   gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.efetivo-page-v2 .project-workflow-card :is(.efetivo-team-toggle, .efetivo-kanban-team-manage) {
+  white-space: nowrap;
 }
 
 :where(.fv-ds, [data-fv-ds]) .efetivo-calendar-main,
