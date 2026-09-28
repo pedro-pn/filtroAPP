@@ -31,14 +31,16 @@ import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
-import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../../utils/ongoingServices';
+import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../../utils/ongoingServices';
 import { cleaningSystemQuantity, isSystemCleaning, requiresSystemType, systemTypeValue } from '../../utils/cleaningMeasurement';
+import { dateInputValue, formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
 import { calculateReportOvertimeSummary } from '../../utils/reportOvertime';
 import { canAccessReportSelection, normalizeReportSelection, resolveSiteReportSelection } from '../../auth/reportPermissions';
 import { OperationalReportFormPage } from './OperationalReportFormPage';
+import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -165,6 +167,7 @@ function SiteRdoFormPage() {
   const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatusValue>('idle');
   const canCreateServiceOnly = user?.role === 'MANAGER';
   const canCreateReportWithoutLeader = user?.role === 'MANAGER' || user?.role === 'COORDINATOR';
+  const canReview = canReviewRdoReports(user);
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
 
@@ -227,12 +230,14 @@ function SiteRdoFormPage() {
     staleTime: 30_000
   });
 
+  const projectHistoryReports = useMemo(() => (lastProjectReportQuery.data || [])
+    .filter(report => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt),
+  [lastProjectReportQuery.data, projectId]);
   const projectReports = useMemo(() => {
-    const reports = lastProjectReportQuery.data || [];
-    const cutoff = reportDate ? new Date(`${reportDate}T23:59:59`) : new Date();
-    const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
-    return reports.filter((report) => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime).sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
-  }, [lastProjectReportQuery.data, projectId, reportDate]);
+    const cutoffDay = reportDate ? dateInputValue(reportDate) : dateInputValue(new Date().toISOString());
+    return projectHistoryReports.filter(report => dateInputValue(report.reportDate || report.createdAt) <= cutoffDay)
+      .sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
+  }, [projectHistoryReports, reportDate]);
   const lastReport = projectReports[0] || null;
   const { planningContext, absenceConflicts, serverHoliday, collaboratorPrefillSource, missionSuggestionCollaboratorIds, canApplyMissionSuggestion, markCollaboratorsTouched, applyMissionSuggestion, dismissMissionSuggestion } = useReportWorkforcePrefill({
     projectId,
@@ -251,7 +256,9 @@ function SiteRdoFormPage() {
   }, [effectiveServiceOnly, lastProjectReportQuery.data, projectId, reportDate]);
   const isCheckingDuplicateReportDate = !effectiveServiceOnly && !!projectId && !!reportDate && lastProjectReportQuery.isLoading;
 
-  const pendingProjectServices = useMemo(() => collectPendingProjectServices(projectReports), [projectReports]);
+  const pendingProjectServices = useMemo(() => pendingProjectServicesForDate(
+    projectHistoryReports, reportDate || new Date().toISOString(), canReview
+  ), [canReview, projectHistoryReports, reportDate]);
 
   const visiblePendingProjectServices = useMemo(() => {
     const activeKeys = new Set(services.flatMap((service) => formServiceOngoingKeys(service.data || {})));
@@ -1015,12 +1022,14 @@ function SiteRdoFormPage() {
                 <div className="section-title">Serviços em andamento</div>
                 <p className="placeholder-copy">Selecione individualmente quais serviços deseja continuar neste RDO.</p>
                 <div className="admin-list" style={{ marginTop: 10 }}>
-                  {visiblePendingProjectServices.map(({ key, report, service }) => {
+                  {visiblePendingProjectServices.map(item => {
+                    const { key, report, service, startedReport } = item;
+                    const startedLater = isPendingServiceFromLaterDay(item, reportDate);
                     const type = normalizeServiceType(service.serviceType);
                     const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
                     const system = service.system || String((service.extraData || {}).Sistema || '');
                     return (
-                      <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>
+                      <article className={`ongoing-item-react${startedLater ? ' ongoing-item-react--future' : ''}`} key={`${report.id}-${service.id}`}>
                         <div className="admin-item-row">
                           <div className="admin-item-main">
                             <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
@@ -1028,6 +1037,7 @@ function SiteRdoFormPage() {
                               {equipment}
                               {system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
                             </div>
+                            {startedLater ? <div className="ongoing-future-note">Iniciado em dia posterior: {formatDateOnlyPtBr(startedReport.reportDate)} (RDO {startedReport.sequenceNumber || '---'}).</div> : null}
                           </div>
                           <div className="admin-card-actions">
                             <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
