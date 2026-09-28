@@ -43,7 +43,7 @@ import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasurement';
-import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../utils/ongoingServices';
+import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
 import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
 import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
@@ -629,8 +629,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }
 
-  // Histórico do projeto para sugerir a continuação de serviços não finalizados também durante a
-  // revisão/edição — o mesmo comportamento da criação do RDO (compartilha o cache da query).
+  // Histórico do projeto para sugerir serviços não finalizados durante a revisão/edição.
   const continuityProjectId = form.projectId || report.projectId;
   const showServiceContinuity = !readOnly && !serviceReportMode && !manualReport && report.reportType === 'RDO';
   const projectHistoryQuery = useQuery({
@@ -642,19 +641,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   const pendingProjectServices = useMemo(() => {
     if (!showServiceContinuity || !continuityProjectId) return [];
-    const cutoffDate = form.reportDate || report.reportDate;
-    const cutoff = cutoffDate ? new Date(`${String(cutoffDate).slice(0, 10)}T23:59:59`) : new Date();
-    const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
-    // Só os RDOs anteriores do projeto: o relatório em revisão entra pelos serviços do formulário.
-    const previousReports = (projectHistoryQuery.data || []).filter(item => (
+    const otherReports = (projectHistoryQuery.data || []).filter(item => (
       item.id !== report.id
       && item.reportType === 'RDO'
       && item.projectId === continuityProjectId
       && !item.deletedAt
-      && new Date(item.reportDate || item.createdAt || 0).getTime() <= cutoffTime
     ));
-    return collectPendingProjectServices(previousReports);
-  }, [continuityProjectId, form.reportDate, projectHistoryQuery.data, report.id, report.reportDate, showServiceContinuity]);
+    return pendingProjectServicesForDate(otherReports, form.reportDate || report.reportDate, canReview);
+  }, [canReview, continuityProjectId, form.reportDate, projectHistoryQuery.data, report.id, report.reportDate, showServiceContinuity]);
 
   const visiblePendingProjectServices = useMemo(() => {
     const activeKeys = new Set(form.services.flatMap(service => formServiceOngoingKeys(service.data || {})));
@@ -1004,15 +998,17 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         <section className="page-card continuity-card">
           <div className="section-title">Serviços em andamento</div>
           <p className="placeholder-copy">
-            Serviços não finalizados em RDOs anteriores deste projeto que ainda não foram continuados neste relatório.
+            Serviços não finalizados deste projeto que ainda não foram continuados neste relatório.
           </p>
           <div className="admin-list" style={{ marginTop: 10 }}>
-            {visiblePendingProjectServices.map(({ key, report: sourceReport, service }) => {
+            {visiblePendingProjectServices.map(item => {
+              const { key, report: sourceReport, service, startedReport } = item;
+              const startedLater = isPendingServiceFromLaterDay(item, form.reportDate || report.reportDate);
               const type = normalizeServiceType(service.serviceType || '');
               const equipment = serviceEquipmentLabel(service) || 'Equipamento não informado';
               const system = service.system || getString((service.extraData || {}).Sistema);
               return (
-                <article className="ongoing-item-react" key={`${sourceReport.id}-${service.id}`}>
+                <article className={`ongoing-item-react${startedLater ? ' ongoing-item-react--future' : ''}`} key={`${sourceReport.id}-${service.id}`}>
                   <div className="admin-item-row">
                     <div className="admin-item-main">
                       <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
@@ -1020,6 +1016,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                         {equipment}
                         {system ? ` · ${system}` : ''} · RDO {sourceReport.sequenceNumber || '---'}
                       </div>
+                      {startedLater ? <div className="ongoing-future-note">Iniciado em dia posterior: {formatDateOnlyPtBr(startedReport.reportDate)} (RDO {startedReport.sequenceNumber || '---'}).</div> : null}
                     </div>
                     <div className="admin-card-actions">
                       <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>

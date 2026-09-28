@@ -7702,6 +7702,28 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   padding: 10px 12px;
 }
 
+.ongoing-item-react--future {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.ongoing-item-react--future .admin-item-title,
+.ongoing-item-react--future .admin-item-sub,
+.ongoing-future-note {
+  color: #64748b;
+}
+
+.ongoing-future-note {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ongoing-item-react--future .ongoing-badge-react {
+  background: #64748b;
+}
+
 .ongoing-badge-react {
   border: 0;
   border-radius: 999px;

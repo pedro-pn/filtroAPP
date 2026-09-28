@@ -6,7 +6,8 @@ async function loadOngoingServices() {
   const server = await createServer({
     configFile: false,
     root: new URL('..', import.meta.url).pathname,
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false },
+    optimizeDeps: { noDiscovery: true },
     appType: 'custom'
   });
 
@@ -143,6 +144,7 @@ test('pending project services keep the latest occurrence of a chain and drop it
   assert.equal(pending[0].key, 'chain-1');
   assert.equal(pending[0].service.id, 'svc-2');
   assert.equal(pending[0].report.id, 'rdo-2');
+  assert.equal(pending[0].startedReport.id, 'rdo-1');
 
   const closed = collectPendingProjectServices([
     rdoReport('rdo-1', '2026-05-28T12:00:00.000Z', [started], 1),
@@ -150,6 +152,40 @@ test('pending project services keep the latest occurrence of a chain and drop it
   ]);
 
   assert.deepEqual(closed, []);
+});
+
+test('later-day pending services are hidden from collaborators and marked for reviewers', async () => {
+  const { pendingProjectServicesForDate, isPendingServiceFromLaterDay } = await loadOngoingServices();
+  const started = { id: 'svc-2', serviceType: 'limpeza', system: 'SYS-02', finalized: false,
+    extraData: { __serviceLinkKey: 'chain-2', Sistema: 'SYS-02' } };
+  const continued = { ...started, id: 'svc-3', extraData: { __ongoingKey: 'chain-2', __serviceLinkKey: 'chain-2', Sistema: 'SYS-02' } };
+  const history = [
+    rdoReport('rdo-3', '2026-05-30T00:00:00.000Z', [continued], 3),
+    rdoReport('rdo-2', '2026-05-29T00:00:00.000Z', [started], 2)
+  ];
+
+  assert.deepEqual(pendingProjectServicesForDate(history, '2026-05-28', false), []);
+  const reviewerItems = pendingProjectServicesForDate(history, '2026-05-28', true);
+  assert.equal(reviewerItems.length, 1);
+  assert.equal(reviewerItems[0].service.id, 'svc-3');
+  assert.equal(reviewerItems[0].startedReport.id, 'rdo-2');
+  assert.equal(isPendingServiceFromLaterDay(reviewerItems[0], '2026-05-28'), true);
+  assert.equal(isPendingServiceFromLaterDay(reviewerItems[0], '2026-05-29'), false);
+  assert.equal(pendingProjectServicesForDate(history, '2026-05-29', false)[0].service.id, 'svc-2');
+});
+
+test('reviewing an earlier RDO keeps its pending services even if finalized later', async () => {
+  const { pendingProjectServicesForDate, isPendingServiceFromLaterDay } = await loadOngoingServices();
+  const started = { id: 'svc-1', serviceType: 'limpeza', system: 'SYS-01', finalized: false,
+    extraData: { __serviceLinkKey: 'chain-1', Sistema: 'SYS-01' } };
+  const history = [
+    rdoReport('rdo-1', '2026-05-28T00:00:00.000Z', [started], 1),
+    rdoReport('rdo-3', '2026-05-30T00:00:00.000Z', [{ ...started, id: 'svc-3', finalized: true }], 3)
+  ];
+  const items = pendingProjectServicesForDate(history, '2026-05-29', true);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].service.id, 'svc-1');
+  assert.equal(isPendingServiceFromLaterDay(items[0], '2026-05-29'), false);
 });
 
 test('continued service data carries the ongoing key and clears the day-specific fields', async () => {
