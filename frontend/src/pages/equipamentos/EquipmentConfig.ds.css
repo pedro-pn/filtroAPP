@@ -250,6 +250,14 @@
   gap: var(--space-2);
 }
 
+.fv-ds .equip-config-form .equip-toggle-block {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.fv-ds .equip-config-form .equip-toggle-block .equip-toggle { width: 100%; }
+
 .fv-ds .equip-config-form :is(.equip-flags, .equip-toggle-block) .equip-toggle,
 .fv-ds .equip-config-form .operational-profile-item-active {
   min-width: 0;

@@ -1066,8 +1066,9 @@ conforme a permissão no menu lateral e na barra inferior mobile. Filtros, açõ
 e listagens iniciais usam superfícies e controles do DS; o seletor mobile legado
 de Equipamentos foi retirado. Rotas, busca, ordenação e política de acesso foram
 preservadas. Build, lint dos arquivos alterados e testes estáticos dos módulos
-passaram; inspeção visual em navegador ficou pendente porque o Chromium local
-não inicia sem `libnspr4.so`. EQ2/EQ3 e M2–M5 continuam na fila.
+passaram; a inspeção visual em navegador ficou pendente naquele momento por
+falta de `libnspr4.so` e foi retomada na validação de EQ2 abaixo. EQ3 e M2–M5
+continuam na fila.
 
 Revisão de EQ1: as categorias foram reunidas em uma única subaba. A lista mostra
 uma tabela por categoria no desktop e cards em telas menores, com busca e ordem
@@ -1078,9 +1079,13 @@ EQ2: configuração de manutenção e categorias usam superfícies, botões e di
 do DS. Foram migrados supervisor, lista/edição/remoção de perfis e seus serviços,
 perfil e prazo por categoria, exceções por equipamento, visibilidade e checklist
 da categoria, além dos vínculos com RDO. Estados vazios/erro e layout responsivo
-foram harmonizados. Regras de herança, validação e mutations foram preservadas;
-validação visual em navegador permanece pendente por falta das bibliotecas do
-browser no ambiente local.
+foram harmonizados. Regras de herança, validação e mutations foram preservadas.
+Após instalar as bibliotecas do browser, Configurações e Manutenção foram
+conferidas em Chromium, Firefox e WebKit nas larguras de 390, 768 e 1280 px,
+com abertura e fechamento dos diálogos sem rolagem horizontal. Edição de
+categoria e perfil, confirmação de remoção de perfil e os temas claro/escuro
+também foram conferidos. A validação encontrou e corrigiu o fundo claro do
+controle “Perfil ativo” no diálogo escuro; build de produção passou.
 
 ### F5 — RDO, Gestão e ajustes transversais
 
