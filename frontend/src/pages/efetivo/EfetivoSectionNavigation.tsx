@@ -1,6 +1,5 @@
 import type { KeyboardEvent } from 'react';
 
-import { Field, Select } from '../../components/ui/ds';
 import type { EfetivoPlanningSection } from '../../utils/planningNavigation';
 import type { EfetivoSectionDefinition } from './EfetivoAppShell';
 
@@ -72,22 +71,6 @@ export function EfetivoSectionNavigation({
             </button>
           );
         })}
-      </div>
-
-      <div className="efetivo-section-nav__mobile">
-        <Field id="efetivo-section" label="Seção do módulo" optionalText="">
-          <Select
-            size="sm"
-            value={current}
-            onChange={event => onNavigate(event.target.value as EfetivoPlanningSection)}
-          >
-            {sections.map(section => (
-              <option value={section.id} key={section.id}>
-                {section.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
       </div>
     </nav>
   );

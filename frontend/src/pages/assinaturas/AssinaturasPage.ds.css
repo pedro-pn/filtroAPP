@@ -214,8 +214,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__tabs > .fv-button {
-    flex: 1 1 0;
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__tabs {
+    display: none;
   }
 
   :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__metrics {

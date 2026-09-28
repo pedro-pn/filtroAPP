@@ -93,6 +93,35 @@ test('navigation model expands the active RDO module with its real secondary rou
   assert.equal(rdo.children.find((item) => item.active).id, 'projetos');
 });
 
+test('mobile bottom navigation uses only sections of the active module and keeps overflow reachable', async () => {
+  const { createNavigationModel, mobileSectionNavigation } = await loadModule('/src/layout/navigationModel.ts');
+  const modules = [
+    { id: 'rdo', title: 'RDO', copy: 'Relatórios', path: '/rdo/gestor' },
+    { id: 'efetivo', title: 'Efetivo', copy: 'Equipe', path: '/efetivo' }
+  ];
+  const items = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'evolucao', 'produtividade', 'administracao']
+    .map((id, index) => ({ id, label: id, href: `/efetivo?section=${id}`, active: index === 5 }));
+  const model = createNavigationModel({
+    modules,
+    pathname: '/efetivo',
+    subNavigation: { parentId: 'efetivo', items }
+  });
+  const mobile = mobileSectionNavigation(model);
+
+  assert.equal(mobile.module.id, 'efetivo');
+  assert.deepEqual(mobile.quickItems.map(item => item.id), ['visao-geral', 'calendario', 'colaboradores']);
+  assert.equal(mobile.hasMore, true);
+  assert.equal(mobile.moreActive, true);
+  assert.deepEqual(mobile.allItems.map(item => item.id), items.map(item => item.id));
+
+  const fourItems = items.slice(0, 4).map((item, index) => ({ ...item, active: index === 3 }));
+  const four = createNavigationModel({ modules, pathname: '/efetivo', subNavigation: { parentId: 'efetivo', items: fourItems } });
+  assert.equal(mobileSectionNavigation(four).hasMore, false);
+  assert.equal(mobileSectionNavigation(four).quickItems.length, 4);
+  assert.equal(mobileSectionNavigation(four).quickItems[3].active, true);
+  assert.equal(mobileSectionNavigation(createNavigationModel({ modules, pathname: '/modulos' })), null);
+});
+
 test('all navigation surfaces consume the shared NavigationModel', () => {
   for (const file of [
     'src/layout/Sidebar.tsx',
@@ -106,7 +135,7 @@ test('all navigation surfaces consume the shared NavigationModel', () => {
   assert.match(source('src/layout/NavigationDrawer.tsx'), /<Sidebar/);
   assert.match(
     source('src/layout/BottomBar.tsx'),
-    /navigationItems\(navigation\)/
+    /mobileSectionNavigation\(navigation\)/
   );
 
   const navigationList = source('src/layout/NavigationList.tsx');

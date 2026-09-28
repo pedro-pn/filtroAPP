@@ -245,8 +245,8 @@ específicos por tema para que o estado hover e o conteúdo do botão mantenham 
 **Regras:**
 
 - Substituir os ~23 breakpoints atuais por estes 5.
-- Corte primário mobile↔desktop de navegação em **`lg` (1024px)**: abaixo = BottomBar + drawer;
-  acima = Sidebar fixa.
+- Em **`md` (768px)** a BottomBar de seções dá lugar à navegação local e ao drawer.
+  Em **`lg` (1024px)** a Sidebar fixa substitui o drawer como navegação de módulos.
 - Não introduzir breakpoints intermediários (`430`, `560`, `860`…). Se um layout "quebra"
   entre pontos, ajustar o componente, não criar um novo breakpoint.
 

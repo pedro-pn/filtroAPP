@@ -677,31 +677,32 @@ anunciam contagem.
 
 ## BottomBar (tab bar mobile)
 
-**Finalidade.** Navegação primária **no mobile (< lg)**. Preserva o padrão atual de BottomBar.
+**Finalidade.** Navegação entre as seções do módulo ativo **no mobile (< md)**.
 
 **Aparência.** Barra fixa inferior `--surface`, borda superior `--line`, `--z-bottombar`,
-até 5 itens (ícone 24px + label `--text-xs`). Item central pode ser **FAB "Novo"** (ação de
-criação em `--brand`). Respeita `safe-area-inset-bottom`.
+até 4 itens (ícone + label `--text-xs`). Respeita `safe-area-inset-bottom`.
 
 **Estados do item.** default (`--muted`) · ativo (`--brand`) · com badge de contagem.
 
-**Comportamento.** Reflete a rota ativa. "Menu" abre o drawer com todos os módulos (os que não
-cabem nos 5 tabs). FAB abre BottomSheet/rota de criação contextual.
+**Comportamento.** Mostra as subabas já resolvidas no `NavigationModel` do módulo ativo.
+Com mais de 4 seções, fixa as três primeiras e usa **Mais** para abrir uma lista completa em
+BottomSheet; a seção atual fica marcada. Sem subabas, não ocupa o rodapé. A troca de módulos
+permanece no menu da TopBar.
 
 **Props.**
 
 ```ts
 type BottomBarProps = {
-  items: NavItem[]; // até 4 + FAB
-  fab?: { label: string; icon: ReactNode; onClick: () => void };
-  activeHref: string;
+  appearance: 'design-system';
+  navigation: NavigationModel;
 };
 ```
 
-**Responsividade.** **Some em `≥ lg`** (dá lugar à Sidebar). Alvos ≥ 44px.
+**Responsividade.** **Some em `≥ md`**; o tablet usa o drawer e a navegação local do módulo.
+Alvos ≥ 44px.
 
-**Acessibilidade.** `<nav aria-label="Navegação">`, item ativo `aria-current="page"`, labels
-sempre presentes (não só ícone).
+**Acessibilidade.** `<nav aria-label="Áreas de …">`, item ativo `aria-current="page"`, labels
+sempre presentes. O BottomSheet tem foco contido, fecha com Escape e devolve o foco ao acionador.
 
 ---
 

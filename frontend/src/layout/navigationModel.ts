@@ -104,3 +104,27 @@ export function createNavigationModel({
 export function navigationItems(model: NavigationModel) {
   return model.groups.flatMap((group) => group.items);
 }
+
+export interface MobileSectionNavigation {
+  module: NavigationItem;
+  quickItems: NavigationSubItem[];
+  allItems: NavigationSubItem[];
+  hasMore: boolean;
+  moreActive: boolean;
+}
+
+export function mobileSectionNavigation(model: NavigationModel): MobileSectionNavigation | null {
+  const module = navigationItems(model).find(item => item.active && !item.disabled && (item.children?.length ?? 0) > 1);
+  if (!module?.children) return null;
+
+  const hasMore = module.children.length > 4;
+  const quickItems = hasMore ? module.children.slice(0, 3) : module.children;
+
+  return {
+    module,
+    quickItems,
+    allItems: module.children,
+    hasMore,
+    moreActive: hasMore && module.children.some(item => item.active) && !quickItems.some(item => item.active)
+  };
+}

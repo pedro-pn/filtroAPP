@@ -1,17 +1,24 @@
 import {
   Activity,
+  Archive,
   BadgeCheck,
   BarChart3,
   Bell,
   Boxes,
+  Building2,
   CalendarDays,
   ChevronUp,
+  CircleCheck,
   CircleSlash2,
   ClipboardList,
+  Clock3,
   Cog,
+  Ellipsis,
+  FileText,
   HardHat,
   HelpCircle,
   FileSignature,
+  FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -20,9 +27,11 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  TrendingUp,
   Truck,
   UserRound,
   UsersRound,
+  Wallet,
   Wrench,
   X
 } from 'lucide-react';
@@ -54,6 +63,7 @@ export const NAVIGATION_CHROME_ICONS = {
   home: LayoutDashboard,
   logout: LogOut,
   menu: Menu,
+  more: Ellipsis,
   notifications: Bell,
   operations: Activity,
   search: Search,
@@ -61,3 +71,44 @@ export const NAVIGATION_CHROME_ICONS = {
   sidebarExpand: PanelLeftOpen,
   settings: Settings
 } as const;
+
+const SECTION_NAVIGATION_ICONS: Record<string, Record<string, LucideIcon>> = {
+  rdo: {
+    home: LayoutDashboard,
+    pending: Clock3,
+    approved: CircleCheck,
+    ongoing: Activity,
+    archived: Archive,
+    pendentes: Clock3,
+    aprovados: CircleCheck,
+    projetos: FolderKanban,
+    arquivados: Archive,
+    equipe: UsersRound,
+    usuarios: UserRound,
+    nps: BadgeCheck,
+    estatisticas: BarChart3
+  },
+  acompanhamento: {
+    dashboard: LayoutDashboard,
+    projetos: FolderKanban,
+    sede: Building2,
+    custo: Wallet
+  },
+  efetivo: {
+    'visao-geral': LayoutDashboard,
+    calendario: CalendarDays,
+    colaboradores: UsersRound,
+    disponibilidade: Clock3,
+    evolucao: TrendingUp,
+    produtividade: BarChart3,
+    administracao: Cog
+  },
+  assinaturas: {
+    active: FileSignature,
+    archived: Archive
+  }
+};
+
+export function navigationSectionIcon(moduleId: string, sectionId: string): LucideIcon {
+  return SECTION_NAVIGATION_ICONS[moduleId]?.[sectionId] ?? FileText;
+}

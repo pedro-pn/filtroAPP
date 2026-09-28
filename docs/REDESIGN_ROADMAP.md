@@ -483,7 +483,9 @@ Prioridade: P0.
 
 Status: **em andamento** — Efetivo, Assinaturas e Acompanhamento usam `AppShell`; a consolidação
 dos demais diálogos continua pendente. Os ajustes do Efetivo foram retomados
-nesta worktree em 27/09.
+nesta worktree em 27/09. No mobile, a barra inferior agora mostra as subabas
+do módulo ativo e oferece "Mais" quando há mais de quatro; módulos seguem
+acessíveis pelo menu superior.
 
 - migrar Efetivo e Assinaturas de `Shell`/`TopBar` legados para `AppShell`;
 - criar modelos de navegação dos dois módulos sem duplicar regras do registry;

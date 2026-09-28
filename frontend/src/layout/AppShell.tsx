@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { BottomBar } from './BottomBar';
 import { NavigationDrawer } from './NavigationDrawer';
-import type { NavigationModel } from './navigationModel';
+import { mobileSectionNavigation, type NavigationModel } from './navigationModel';
 import { Sidebar, type NavigationProfile } from './Sidebar';
 import { TopBar, type TopBarBreadcrumb } from './TopBar';
 import './AppShell.css';
@@ -50,6 +50,7 @@ export function AppShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(storedSidebarCollapsed);
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
   const effectiveSidebarCollapsed = sidebarCollapsed && !sidebarHoverExpanded;
+  const hasMobileSections = Boolean(mobileSectionNavigation(navigation));
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleSidebar = useCallback(() => {
     setSidebarHoverExpanded(false);
@@ -70,7 +71,7 @@ export function AppShell({
   }, [closeDrawer]);
 
   return (
-    <div className={`fv-app-shell${effectiveSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`} data-testid="fv-app-shell">
+    <div className={`fv-app-shell${effectiveSidebarCollapsed ? ' is-sidebar-collapsed' : ''}${hasMobileSections ? ' has-mobile-sections' : ''}`} data-testid="fv-app-shell">
       <Sidebar
         navigation={navigation}
         profile={profile}
@@ -111,7 +112,6 @@ export function AppShell({
       <BottomBar
         appearance="design-system"
         navigation={navigation}
-        onOpenMenu={() => setDrawerOpen(true)}
       />
 
       <NavigationDrawer

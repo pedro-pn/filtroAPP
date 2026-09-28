@@ -24,8 +24,12 @@ export function EfetivoTutorial({ userKey, ready, goToSection, triggerRef }: {
     goToSection('visao-geral');
     window.setTimeout(() => {
       const navigateNext = (section: EfetivoPlanningSection) => (_element: Element | undefined, _step: unknown, options: { driver: { moveNext: () => void } }) => { goToSection(section); window.setTimeout(() => options.driver.moveNext(), 300); };
+      const mobile = window.matchMedia('(max-width: 767.98px)').matches;
+      const navigationTarget = mobile ? '.fv-bottom-bar--sections'
+        : window.matchMedia('(max-width: 1023.98px)').matches ? '[data-efetivo-nav]'
+          : '.fv-app-shell__sidebar .fv-navigation-item.is-active';
       const steps: DriveStep[] = [
-        { element: '[data-efetivo-nav]', popover: { title: 'Sete áreas integradas', description: 'Visão geral, calendário, pessoas, disponibilidade, evolução, produtividade e administração compartilham a mesma base.', side: 'right', align: 'start' } },
+        { element: navigationTarget, popover: { title: 'Sete áreas integradas', description: 'Visão geral, calendário, pessoas, disponibilidade, evolução, produtividade e administração compartilham a mesma base.', side: mobile ? 'top' : 'right', align: 'start' } },
         { element: '[data-efetivo-planning-filters]', popover: { title: 'Posição do planejamento', description: 'A data e a função ficam na URL e sobrevivem ao refresh.', side: 'bottom', align: 'start' } },
         { element: '[data-efetivo-planning-kpis]', popover: { title: 'Capacidade diária', description: 'Veja ativos, alocados, indisponíveis, livres, déficit e utilização futura.', side: 'bottom', align: 'start', onNextClick: navigateNext('calendario') } },
         { element: '[data-efetivo-calendar]', popover: { title: 'Calendário integrado', description: 'Alterne entre dia, semana e mês e abra qualquer data para ver missões e ausências.', side: 'top', align: 'start', onNextClick: navigateNext('evolucao') } },

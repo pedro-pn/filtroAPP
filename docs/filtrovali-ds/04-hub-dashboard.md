@@ -3,6 +3,9 @@
 Especificação visual da tela aprovada no protótipo. É a **referência de composição** para o
 Hub — o ponto de entrada pós-login que lista módulos por papel e resume o estado operacional.
 
+Na implementação atual, o Hub não apresenta BottomBar: a barra mobile pertence às seções
+do módulo ativo. O menu da TopBar dá acesso aos módulos.
+
 ## 1. Estrutura (ordem dos elementos)
 
 ```

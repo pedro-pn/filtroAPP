@@ -14,7 +14,7 @@ Isto é **removido**. O novo shell é fluido e adapta a navegação ao tamanho d
 │ (≥ lg)   │  KPIs / grids / DataTable / …        │
 │          │                                      │
 ├──────────┴──────────────────────────────────── │
-│ BottomBar (< lg, fixa)                          │
+│ BottomBar (< md, se houver seções no módulo)    │
 └───────────────────────────────────────────────┘
 ```
 
@@ -36,7 +36,7 @@ Isto é **removido**. O novo shell é fluido e adapta a navegação ao tamanho d
 - Grids: 2 colunas. Conteúdo full-width com padding `--space-6`.
 
 ### Mobile (< md, até 767px)
-- **BottomBar fixa** (tab bar) como navegação primária, com FAB "Novo".
+- **BottomBar fixa** com as seções do módulo ativo; até 4 seções diretas ou 3 + "Mais".
 - **TopBar** compacta: botão menu + título; search recolhível.
 - Drawer lateral (pelo "Menu") com todos os módulos.
 - Conteúdo full-width, padding `--space-4`.
@@ -67,7 +67,7 @@ Isto é **removido**. O novo shell é fluido e adapta a navegação ao tamanho d
 
 | Componente | ≥ lg (desktop) | md (tablet) | < md (mobile) |
 |------------|----------------|-------------|----------------|
-| **Navegação** | Sidebar fixa | Drawer via "Menu" | BottomBar + Drawer + FAB |
+| **Navegação** | Sidebar fixa | Drawer via "Menu" | BottomBar de seções + Drawer |
 | **TopBar** | breadcrumb + search central | breadcrumb simples | menu + título + search recolhível |
 | **DataTable** | tabela real, header sticky | tabela real (scroll interno) | **cards chave→valor** (1 por linha) |
 | **Modal** | painel centralizado (sm/md/lg) | painel centralizado | **fullscreen ou BottomSheet** |
@@ -88,7 +88,7 @@ Isto é **removido**. O novo shell é fluido e adapta a navegação ao tamanho d
 
 ### 5.2 Sidebar desktop → menu mobile
 - Mesmos itens (`moduleRegistry` filtrado por papel).
-- `< lg`: botão "Menu" (TopBar/BottomBar) abre **drawer lateral** com os grupos.
+- `< lg`: botão "Menu" da TopBar abre **drawer lateral** com os módulos e seus grupos.
 - Item ativo e badges idênticos aos da Sidebar.
 
 ### 5.3 Modal → BottomSheet

@@ -95,7 +95,7 @@
   line-height: var(--leading-xs);
 }
 
-/* Local navigation bridges tablet layouts; desktop uses AppShell subnavigation. */
+/* Tablet uses local navigation; mobile uses BottomBar and desktop uses Sidebar. */
 :where(.fv-ds, [data-fv-ds]) .efetivo-section-nav {
   min-width: 0;
 }
@@ -179,10 +179,6 @@
   border-radius: var(--radius-pill);
   background: var(--brand);
   content: '';
-}
-
-:where(.fv-ds, [data-fv-ds]) .efetivo-section-nav__mobile {
-  display: none;
 }
 
 /* First executive slice: overview, calendar and availability. */
@@ -325,18 +321,8 @@
     gap: var(--space-4);
   }
 
-  :where(.fv-ds, [data-fv-ds]) .efetivo-section-nav__items {
+  :where(.fv-ds, [data-fv-ds]) .efetivo-section-nav {
     display: none;
-  }
-
-  :where(.fv-ds, [data-fv-ds]) .efetivo-section-nav__mobile {
-    display: block;
-    padding: var(--space-4);
-    border: var(--border-width) solid var(--line);
-    border-inline-start: var(--space-1) solid var(--brand);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-e1);
   }
 
   :where(.fv-ds, [data-fv-ds]) .efetivo-position-filters > .fv-card__body {
