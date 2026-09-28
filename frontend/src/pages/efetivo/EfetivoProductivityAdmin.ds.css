@@ -1,0 +1,410 @@
+/* Productivity and administration use the same DS surfaces on every viewport. */
+.efetivo-page-v2 :where(.efetivo-productivity-ds, .efetivo-administration-ds) {
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.efetivo-page-v2 :where(.efetivo-productivity-ds, .efetivo-administration-ds) .fv-card > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.efetivo-page-v2 .efetivo-productivity-filters > .fv-card__body {
+  grid-template-columns: repeat(2, minmax(160px, 220px)) minmax(220px, 1fr);
+  align-items: end;
+}
+
+.efetivo-page-v2 .efetivo-productivity-filters .efetivo-filter-note {
+  align-self: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.efetivo-page-v2 .efetivo-productivity-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.efetivo-page-v2 .efetivo-productivity-kpis .fv-metric-card {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-4);
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+
+.efetivo-page-v2 .efetivo-productivity-kpis .fv-metric-card.fv-tone--warning {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+.efetivo-page-v2 .efetivo-productivity-kpis .fv-metric-card__value {
+  color: var(--ink);
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+.efetivo-page-v2 .efetivo-productivity-reference > .fv-card__body {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.efetivo-page-v2 .efetivo-productivity-reference > .fv-card__body > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.efetivo-page-v2 .efetivo-productivity-reference .efetivo-eyebrow,
+.efetivo-page-v2 .efetivo-productivity-reference p,
+.efetivo-page-v2 .efetivo-productivity-data-note p,
+.efetivo-page-v2 :where(.efetivo-productivity-ds, .efetivo-administration-ds) .efetivo-section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.efetivo-page-v2 .efetivo-productivity-reference strong {
+  color: var(--brand-text);
+  font-size: var(--text-xl);
+}
+
+.efetivo-page-v2 :where(.efetivo-productivity-ds, .efetivo-administration-ds) .efetivo-section-heading {
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.efetivo-page-v2 :where(.efetivo-productivity-ds, .efetivo-administration-ds) .efetivo-section-heading h2 {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-reference-badge {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-evolution {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-month {
+  gap: var(--space-3);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-month-label {
+  color: var(--ink);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-month-track {
+  height: var(--space-3);
+  background: var(--surface-2);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-month-bar {
+  background: var(--brand);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-month-reference {
+  background: var(--ink);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-table-wrap,
+.efetivo-productivity-detail .efetivo-table-wrap {
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-table,
+.efetivo-productivity-detail .efetivo-table {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-table :is(th, td),
+.efetivo-productivity-detail .efetivo-table :is(th, td) {
+  border-color: var(--line);
+  padding: var(--space-3);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-table th,
+.efetivo-productivity-detail .efetivo-table th {
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.efetivo-page-v2 .efetivo-productivity-person-link {
+  min-height: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-vacation-note {
+  max-width: none;
+  color: var(--muted);
+  font-weight: var(--font-medium);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-pending-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-pending-item,
+.efetivo-page-v2 .efetivo-administration-ds :where(.efetivo-admin-role, .efetivo-user-grid article, .efetivo-compact-list > article, .efetivo-activity-list article) {
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-pending-item p,
+.efetivo-page-v2 .efetivo-administration-ds :where(.efetivo-admin-role__name p, .efetivo-user-grid span, .efetivo-activity-list p, .efetivo-compact-list article span) {
+  color: var(--muted);
+}
+
+.efetivo-page-v2 .efetivo-productivity-ds .efetivo-pending-link {
+  color: var(--link);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-e1);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs button {
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs button:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs button.active {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
+  box-shadow: var(--shadow-e1);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role-list,
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-compact-list,
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-activity-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role {
+  grid-template-columns: minmax(150px, 1fr) minmax(110px, auto) minmax(110px, auto) minmax(160px, .6fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role--email {
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 1fr) auto;
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role__name {
+  align-self: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role__name p {
+  width: 100%;
+  margin: 0;
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-color-input {
+  width: var(--space-12);
+  height: var(--space-10);
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-role-color {
+  flex: 0 0 auto;
+  border-color: var(--line-strong);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-target__controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-target__controls .fv-field {
+  width: min(100%, 180px);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-3);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-activity-marker {
+  background: var(--brand);
+}
+
+.efetivo-productivity-detail .efetivo-productivity-detail__content {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.efetivo-productivity-detail .efetivo-productivity-detail__name {
+  margin: 0;
+  color: var(--muted);
+}
+
+.efetivo-productivity-detail .efetivo-productivity-detail__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.efetivo-productivity-detail .efetivo-productivity-detail__metrics .fv-metric-card {
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.efetivo-productivity-detail .efetivo-detail-table tbody tr { cursor: default; }
+.efetivo-productivity-detail .efetivo-detail-table tbody tr:hover { background: transparent; }
+
+@media (min-width: 640.01px) and (max-width: 1023.98px) {
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table,
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table tbody,
+  .efetivo-productivity-detail .efetivo-table,
+  .efetivo-productivity-detail .efetivo-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table thead,
+  .efetivo-productivity-detail .efetivo-table thead { display: none; }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table tr,
+  .efetivo-productivity-detail .efetivo-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+    padding: var(--space-3);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+  }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table td,
+  .efetivo-productivity-detail .efetivo-table td {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-1);
+    padding: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table td::before,
+  .efetivo-productivity-detail .efetivo-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+  }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table td:first-child,
+  .efetivo-productivity-detail .efetivo-table td:first-child {
+    grid-column: 1 / -1;
+    padding-bottom: var(--space-2);
+    border-bottom: var(--border-width) solid var(--line);
+  }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-productivity-person-link,
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table .fv-badge,
+  .efetivo-productivity-detail .efetivo-table .fv-badge {
+    justify-self: start;
+  }
+
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-productivity-person-link {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1023.98px) {
+  .efetivo-page-v2 .efetivo-productivity-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role--email { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role > .fv-button { justify-self: start; }
+}
+
+@media (max-width: 767.98px) {
+  .efetivo-page-v2 .efetivo-productivity-filters > .fv-card__body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .efetivo-page-v2 .efetivo-productivity-filters .efetivo-filter-note { grid-column: 1 / -1; }
+  .efetivo-page-v2 .efetivo-productivity-reference > .fv-card__body { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table tbody tr,
+  .efetivo-productivity-detail .efetivo-table tbody tr { border-color: var(--line); background: var(--surface-2); }
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table td,
+  .efetivo-productivity-detail .efetivo-table td { border-color: var(--line); }
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-table td::before,
+  .efetivo-productivity-detail .efetivo-table td::before { color: var(--muted); }
+  .efetivo-productivity-detail .efetivo-productivity-detail__metrics { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 479.98px) {
+  .efetivo-page-v2 .efetivo-productivity-filters > .fv-card__body,
+  .efetivo-page-v2 .efetivo-productivity-kpis,
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role,
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role--email { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs button { min-width: 0; padding-inline: var(--space-1); }
+  .efetivo-page-v2 .efetivo-productivity-ds .efetivo-month { grid-template-columns: 40px minmax(0, 1fr) 64px; }
+}

@@ -15,6 +15,10 @@
 > `main` em `d078d960` e foi restaurada por engano na conciliação com o DS.
 > A navegação e o redirecionamento de links antigos foram alinhados à `main`.
 
+> **Migração F2.4 em 27/09/2026:** Produtividade e Administração, seus
+> diálogos, o tutorial e os avisos de novidade receberam apresentação DS.
+> A validação integrada com dados reais e perfis continua na matriz F2.
+
 > **Delta corrigido em 24/09/2026:** o merge de `origin/main` em `10599cf3`
 > havia substituído telas já migradas por versões legadas. RDO, Conta, Cliente,
 > Estatísticas, Acompanhamento, Assinaturas e partes do Efetivo foram restaurados
@@ -73,7 +77,8 @@ integrada de todos os módulos já migrados.
   mouse; Equipamentos usa ícone de engrenagem, distinto de Manutenção.
 - O Efetivo foi retomado nesta worktree em 27/09, após a pausa solicitada em
   10/09. Visão geral, colaboradores e diálogos anteriores permanecem no DS; o
-  delta recente de Disponibilidade e Evolução/Execução foi conciliado com a main.
+  delta recente de Disponibilidade e Evolução/Execução foi conciliado com a main;
+  Produtividade e Administração receberam a adaptação visual F2.4.
   Falta a matriz integrada de F2 para declarar o módulo homologado.
 - Assinaturas: shell, biblioteca, preparação, acompanhamento, auditoria e
   assinatura pública migrados em F1 + F3.1–F3.4. A prévia contínua da main foi
@@ -538,6 +543,13 @@ permissões e navegadores.
 - estados de conflito, confirmação e somente leitura.
 
 #### F2.4 — Planejamento avançado e administração
+
+Status: **adaptação visual implementada** — filtros, indicadores, evolução,
+resultados, pendências, regras, acessos, feriados, notificações e atividade usam
+controles e estados DS. Detalhe mensal e edição da referência/feriados usam os
+diálogos DS; a tabela de produtividade vira cartões em tablet e celular. O
+tutorial permanente e os avisos de novidade usam a paleta e os controles do DS.
+Falta validar operações reais, permissões e navegadores na matriz F2.
 
 - Produtividade, pendências e detalhe individual;
 - regras, referência, feriados e atividade/auditoria;

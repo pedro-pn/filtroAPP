@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import type { EfetivoPendingItem } from '../../../api/efetivo';
+import { Badge, Card } from '../../../components/ui/ds';
 
 function resolutionPath(item: EfetivoPendingItem) {
   if (item.tipo === 'CARGO_NAO_CADASTRADO') return '/gestor?tab=equipe';
@@ -15,13 +16,13 @@ function resolutionLabel(item: EfetivoPendingItem) {
 export function ProductivityPendingList({ items }: { items: EfetivoPendingItem[] }) {
   if (!items.length) return null;
   return (
-    <section className="page-card" aria-labelledby="efetivo-pending-title">
+    <Card className="efetivo-productivity-section" aria-labelledby="efetivo-pending-title">
       <div className="efetivo-section-heading">
         <div>
           <h2 id="efetivo-pending-title">Pendências fora da taxa oficial</h2>
           <p>Estas pessoas permanecem visíveis até que o cadastro ou o vínculo seja resolvido.</p>
         </div>
-        <span className="efetivo-reference-badge">{items.length}</span>
+        <Badge tone="warning">{items.length}</Badge>
       </div>
       <div className="efetivo-pending-list">
         {items.map((item, index) => (
@@ -34,6 +35,6 @@ export function ProductivityPendingList({ items }: { items: EfetivoPendingItem[]
           </article>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

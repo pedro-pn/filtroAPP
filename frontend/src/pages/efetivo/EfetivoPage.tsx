@@ -27,6 +27,8 @@ import { ProjectWorkflowNovelty } from './ProjectWorkflowNovelty';
 import './efetivo.css';
 import './EfetivoPage.ds.css';
 import './EfetivoDialogs.css';
+import './EfetivoProductivityAdmin.ds.css';
+import './EfetivoGuide.ds.css';
 
 const SECTIONS: readonly EfetivoSectionDefinition[] = [
   { id: 'visao-geral', label: 'Visão geral', description: 'Capacidade, alocação e alertas do dia.' },

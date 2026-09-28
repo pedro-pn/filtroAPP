@@ -33,7 +33,7 @@ export function EfetivoTutorial({ userKey, ready, goToSection, triggerRef }: {
         { element: '[data-efetivo-availability]', popover: { title: 'Disponibilidade no período', description: 'Escolha as datas e a função para ver a situação diária da equipe e as vagas em aberto. Alterne entre Kanban e calendário.', side: 'top', align: 'start' } }
       ];
       try {
-        driver({ showProgress: true, progressText: '{{current}} de {{total}}', nextBtnText: 'Próximo →', prevBtnText: '← Anterior', doneBtnText: 'Concluir', allowClose: true, animate: true, smoothScroll: true, overlayOpacity: 0.6, onDestroyed: () => releaseEfetivoGuide(), steps }).drive();
+        driver({ popoverClass: 'efetivo-guide-popover', showProgress: true, progressText: '{{current}} de {{total}}', nextBtnText: 'Próximo →', prevBtnText: '← Anterior', doneBtnText: 'Concluir', allowClose: true, animate: true, smoothScroll: true, overlayOpacity: 0.6, onDestroyed: () => releaseEfetivoGuide(), steps }).drive();
       } catch (error) {
         releaseEfetivoGuide();
         throw error;
