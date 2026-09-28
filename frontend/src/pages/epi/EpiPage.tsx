@@ -500,6 +500,10 @@ export function EpiPage() {
               const selectedActiveRecords = activeRecords.filter(record => selectedRecordIds.has(record.id));
               const selectedArchivedRecords = archivedRecords.filter(record => selectedArchivedRecordIds.has(record.id));
               const hasSelectedSigned = selectedActiveRecords.some(record => record.signedAt);
+              const hasSelectedActiveRequest = selectedActiveRecords.some(record =>
+                record.signatureRequest?.status === 'PENDING'
+                && new Date(record.signatureRequest.expiresAt).getTime() > Date.now()
+              );
               const hasSelectedArchivedSigned = selectedArchivedRecords.some(record => record.signedAt);
               const unsigned = activeRecords.filter(record => !record.signedAt).length;
               return (
@@ -656,7 +660,7 @@ export function EpiPage() {
                               disabled={!selectedRecordIds.size || hasSelectedSigned || requestSignatureMutation.isPending}
                               onClick={() => requestSignatureMutation.mutate(collaborator.id)}
                             >
-                              Solicitar assinatura
+                              {hasSelectedActiveRequest ? 'Solicitar novamente' : 'Solicitar assinatura'}
                             </button>
                           </>
                         ) : null}
