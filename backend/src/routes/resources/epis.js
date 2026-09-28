@@ -554,9 +554,10 @@ export function assertCanCreateEpiSignatureRequest(records, selectedCount) {
 
   const blocked = records.find(record => {
     const status = recordSignatureRequestStatus(record);
-    return status && status !== 'EXPIRED';
+    return record.signatureRequest?.status === 'SIGNED'
+      || (status && status !== 'EXPIRED' && !isActivePendingRequest(record.signatureRequest));
   });
-  if (blocked || records.some(record => isActivePendingRequest(record.signatureRequest))) {
+  if (blocked) {
     const error = new Error('Já existe uma solicitação de assinatura ativa para um dos EPIs selecionados.');
     error.status = 409;
     error.statusCode = 409;
@@ -1150,44 +1151,36 @@ router.delete('/records/:id', requireEpiTechnician, asyncHandler(async (req, res
   res.status(204).send();
 }));
 
-router.post('/collaborators/:id/signature-requests', requireEpiTechnician, asyncHandler(async (req, res) => {
-  const data = signatureRequestSchema.parse(req.body || {});
-  const uniqueIds = Array.from(new Set(data.recordIds));
-
+export async function createEpiSignatureRequestForRecords({ collaboratorId, requestedByUserId, recordIds, client = prisma }) {
+  const uniqueIds = Array.from(new Set(recordIds));
   const token = createToken();
-  const request = await prisma.$transaction(async tx => {
+  const request = await client.$transaction(async tx => {
     const records = await tx.epiRecord.findMany({
-      where: { id: { in: uniqueIds }, collaboratorId: req.params.id, signedAt: null, archivedAt: null },
+      where: { id: { in: uniqueIds }, collaboratorId, signedAt: null, archivedAt: null },
       include: { signatureRequest: true }
     });
     assertCanCreateEpiSignatureRequest(records, uniqueIds.length);
-    const expiredRequestIds = expiredEpiSignatureRequestIdsForRecords(records);
-
-    if (expiredRequestIds.length) {
-      await tx.epiSignatureRequest.updateMany({
-        where: { id: { in: Array.from(new Set(expiredRequestIds)) }, status: 'PENDING' },
-        data: { status: 'EXPIRED' }
-      });
-    }
+    const activeRequestIds = Array.from(new Set(activePendingEpiSignatureRequestIdsForRecords(records)));
+    const expiredRequestIds = Array.from(new Set(expiredEpiSignatureRequestIdsForRecords(records)));
 
     const created = await tx.epiSignatureRequest.create({
       data: {
-        collaboratorId: req.params.id,
-        requestedByUserId: req.auth.user.id,
+        collaboratorId,
+        requestedByUserId,
         tokenHash: tokenHash(token),
         expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS),
-        ...(await loadEpiRoleSnapshot(tx, req.params.id))
+        ...(await loadEpiRoleSnapshot(tx, collaboratorId))
       }
     });
     const result = await tx.epiRecord.updateMany({
       where: {
         id: { in: records.map(record => record.id) },
-        collaboratorId: req.params.id,
+        collaboratorId,
         signedAt: null,
         archivedAt: null,
         OR: [
           { signatureRequestId: null },
-          { signatureRequestId: { in: expiredRequestIds } }
+          { signatureRequestId: { in: [...activeRequestIds, ...expiredRequestIds] } }
         ]
       },
       data: { signatureRequestId: created.id }
@@ -1198,13 +1191,41 @@ router.post('/collaborators/:id/signature-requests', requireEpiTechnician, async
       error.statusCode = 409;
       throw error;
     }
+    if (activeRequestIds.length) {
+      const revoked = await tx.epiSignatureRequest.updateMany({
+        where: { id: { in: activeRequestIds }, status: 'PENDING' },
+        data: { status: 'EXPIRED' }
+      });
+      if (revoked.count !== activeRequestIds.length) {
+        const error = new Error('A solicitação de assinatura foi alterada. Tente novamente.');
+        error.status = 409;
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+    if (expiredRequestIds.length) {
+      await tx.epiSignatureRequest.updateMany({
+        where: { id: { in: expiredRequestIds }, status: 'PENDING' },
+        data: { status: 'EXPIRED' }
+      });
+    }
     return tx.epiSignatureRequest.findUniqueOrThrow({
       where: { id: created.id },
       include: { records: true, collaborator: { include: { jobRole: true, epiProfile: { include: { roleOverrideJobRole: true } } } } }
     });
   });
 
-  res.status(201).json({ request, token, signUrl: publicSignUrl(token) });
+  return { request, token, signUrl: publicSignUrl(token) };
+}
+
+router.post('/collaborators/:id/signature-requests', requireEpiTechnician, asyncHandler(async (req, res) => {
+  const data = signatureRequestSchema.parse(req.body || {});
+  const result = await createEpiSignatureRequestForRecords({
+    collaboratorId: req.params.id,
+    requestedByUserId: req.auth.user.id,
+    recordIds: data.recordIds
+  });
+  res.status(201).json(result);
 }));
 
 router.get('/catalog', asyncHandler(async (_req, res) => {
