@@ -1,5 +1,11 @@
 # Roadmap do redesign do frontend
 
+> **Fechamento X3 em 28/09/2026:** liberação individual, revogação e assinatura
+> física foram validadas com gestor e cliente em banco isolado. Gestor, detalhe
+> e portal do cliente passaram no Chromium em 390 e 1280 px, nos temas claro e
+> escuro. O diálogo de upload ficou compacto no celular e o estado de liberação
+> passou a ficar legível no card e no detalhe.
+
 > **Conciliação de 28/09/2026:** `origin/main` até `2adc706e` foi incorporada.
 > Metas das divisões do Acompanhamento agora aceitam percentual do total do
 > projeto no diálogo DS. O cálculo e a gravação foram conferidos em banco isolado
@@ -68,7 +74,7 @@ permissões e cálculos da `main` continuam válidos no redesign.
 | **A3b/A7 — Acompanhamento: contratos existentes** | A conciliação de sistemas e o escopo planejado passaram a exibir “Equipamento do cliente” e ajustes de nomes; a API de avanço considera as novas metragens validadas. | Revisar `ProjectSystemInput`, `ProjectSystemAliases`, `ProjectSystemReconciliation`, `ProjectPlannedScopeEditor`, `ProjectProgressBreakdown` e o detalhe já migrado para refletir os novos rótulos e dados. Revalidar consumo de metas, totais e permissões em projeto/grupo. |
 | **F2.1/F2.5 — Efetivo: disponibilidade por período** | Filtro de data final, API diária por intervalo, KPIs de pico/falta, cargos com déficit, riscos planejados e alternância Kanban/Calendário; status “Indisponível” e “Fora do vínculo”. | **Adaptação visual implementada:** cards DS, cores semânticas nos riscos e faixas do calendário, Kanban responsivo e estados de loading/erro/vazio. Falta validar com dados e perfis reais na matriz F2. |
 | **F2.5/F2.6 — Efetivo: evolução e execução** | Resumo inicial para obras legadas, equipe/datas/equipamentos, verificação semanal, desvios recolhíveis e ajustes de calendário, capacidade e tooltip. | **Adaptação visual implementada:** resumo legado com campos DS; execução com cartões, campos e relatórios DS; equipe/ciclos embutidos no fluxo com controles DS e regras novas da main. O diálogo de planejamento de missão foi preservado. Falta validar persistência, permissões e navegadores na matriz F2. |
-| **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | **Adaptação visual implementada:** ações ausentes da listagem DS restauradas, status de assinatura física e liberação exibidos, diálogo de upload migrado. Detalhe e portal já usam estados DS. Falta conferir upload, revogação, permissões, foco e temas com backend real. |
+| **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | **Concluído tecnicamente em 28/09:** ações, status, upload, revogação e permissões conferidos com API e banco isolado; gestor e cliente validados em claro/escuro a 390 e 1280 px. |
 | **X2 — Componentes compartilhados** | `Modal` recebeu proteção de teclado/propagação para painéis aninhados; o catálogo de API foi atualizado. | Revalidar diálogos de Cronograma, assinatura física e demais consumidores DS/legados. O catálogo de API não cria superfície visual nova nesta rodada. |
 
 Após A3c, X3 recebeu adaptação visual nesta branch. `origin/main` já era
@@ -1068,7 +1074,7 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 - [ ] **X2:** permissões de emissão, Hub/tours, rascunhos, fallback não autorizado,
   anexos com restauração, confirmações com conteúdo filho, busca e loading;
   regressão dos consumidores DS/legados sem retomar Efetivo.
-- [ ] **X3:** liberação individual e revogação de relatórios de serviço, assinatura
+- [x] **X3:** liberação individual e revogação de relatórios de serviço, assinatura
   física com PDF e estados correspondentes em Gestor, Detalhe e Cliente.
 - [ ] Ajustes de Qualidade/EPI/Admin previamente inventariados, independentes do RDO.
 
@@ -1110,16 +1116,14 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 ## Ordem recomendada dos próximos lotes
 
-Com F2 e A7 fechados tecnicamente em 28/09, a sequência restante é:
+Com F2, A7 e X3 fechados tecnicamente em 28/09, a sequência restante é:
 
-1. **X3**: integrar visualmente liberação individual e assinatura física às telas
-   RDO e Cliente já migradas.
-2. **EQ1–EQ3 + M1–M5**: Equipamentos e Manutenção/Produção, respeitando a
+1. **EQ1–EQ3 + M1–M5**: Equipamentos e Manutenção/Produção, respeitando a
    dependência entre configuração e manutenção.
-3. **F4**: Estoque e Romaneio, incluindo os fluxos novos da main.
-4. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
+2. **F4**: Estoque e Romaneio, incluindo os fluxos novos da main.
+3. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
    de Qualidade, EPI e Administração.
-5. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
+4. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
 
 Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
 lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)

@@ -42,6 +42,8 @@ export function PhysicalSignatureDialog({ report, onClose, upload, uploadPending
     closeOnEscape={!uploadPending}
     appearance="design-system"
     size="md"
+    fullscreenOnMobile={false}
+    backdropClassName="physical-signature-backdrop"
     panelClassName="physical-signature-dialog"
     title="Registrar RDO assinado em papel"
     ariaDescribedBy="physical-signature-description"

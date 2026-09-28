@@ -102,7 +102,7 @@ test('CSS compartilhado usa tokens, breakpoints oficiais e evita overflow mobile
   assert.doesNotMatch(css, /!important/);
 });
 
-test('cards do cliente mantêm texto compacto, ações em linha e contraste no tema escuro', () => {
+test('cards do cliente mantêm estados legíveis, ações em linha e contraste no tema escuro', () => {
   const client = source('src/pages/client/ClientPage.tsx');
   const css = source('src/pages/RdoRolePages.ds.css');
   const variables = source('src/styles/variables.css');
@@ -115,7 +115,7 @@ test('cards do cliente mantêm texto compacto, ações em linha e contraste no t
   assert.match(client, /\.filter\(item => item\.comment\)/);
   assert.doesNotMatch(client, /RDO pronto para conferência do cliente/);
   assert.match(css, /\.client-report-copy \.admin-card-title\s*\{[\s\S]*?text-overflow:\s*ellipsis[\s\S]*?white-space:\s*nowrap/);
-  assert.match(css, /\.client-report-context\s*\{[\s\S]*?text-overflow:\s*ellipsis[\s\S]*?white-space:\s*nowrap/);
+  assert.match(css, /\.client-report-context\s*\{[\s\S]*?overflow-wrap:\s*anywhere[\s\S]*?white-space:\s*normal/);
   assert.match(css, /\.client-report-action-buttons\s*\{[\s\S]*?flex-wrap:\s*nowrap/);
   assert.match(css, /\.det-val\s*\{[\s\S]*?max-width:\s*none[\s\S]*?text-align:\s*start/);
   assert.match(variables, /\.dark\s*\{[\s\S]*?--brand:\s*var\(--green-500\)[\s\S]*?--on-brand:\s*var\(--white\)/);

@@ -52,6 +52,7 @@ import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
+import { isReportManuallyReleased } from '../utils/reportClientRelease';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasurement';
 import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../utils/ongoingServices';
@@ -1856,6 +1857,10 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
               />
             </span>
           </div>
+          {isReportManuallyReleased(report) ? <div>
+            <span className="detail-label">Liberação ao cliente</span>
+            <span className="detail-value"><Badge tone="success">Liberado individualmente</Badge></span>
+          </div> : null}
           {isStandby ? <div><span className="detail-label">Standby</span><span className="detail-value">Sim</span></div> : null}
           {isNoturno ? <div><span className="detail-label">Turno noturno</span><span className="detail-value">Sim</span></div> : null}
         </div>

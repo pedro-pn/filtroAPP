@@ -618,10 +618,9 @@
 }
 
 :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-context {
-  overflow: hidden;
   color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-copy,

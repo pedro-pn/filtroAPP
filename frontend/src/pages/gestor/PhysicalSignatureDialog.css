@@ -8,3 +8,10 @@
   color: var(--muted);
   line-height: var(--leading-md);
 }
+
+@media (max-width: 767.98px) {
+  .fv-modal-backdrop.physical-signature-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+}
