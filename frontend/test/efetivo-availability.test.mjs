@@ -35,7 +35,7 @@ test('disponibilidade separa livres, aguardando, mobilizados e férias', async (
 
 test('quadro de disponibilidade é somente leitura e não expõe drag ou movimentação', () => {
   const source = fs.readFileSync(new URL('../src/pages/efetivo/components/AvailabilityBoard.tsx', import.meta.url), 'utf8');
-  assert.match(source, /Somente leitura/);
+  assert.doesNotMatch(source, /Somente leitura/);
   assert.doesNotMatch(source, /draggable=|onDrag|Mover para/);
   assert.doesNotMatch(source, /Livre para mobilização|Sem compromisso na data/);
 });

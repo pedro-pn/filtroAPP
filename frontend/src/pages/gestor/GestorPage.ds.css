@@ -3781,10 +3781,6 @@
   display: none;
 }
 
-:where(.fv-ds, [data-fv-ds]) .rdo-sequence-action-label--mobile {
-  display: none;
-}
-
 @media (max-width: 768px) {
   :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
     margin-block-end: var(--space-3);
@@ -4351,18 +4347,6 @@
     .fv-mobile-list__actions
     .fv-icon-button {
     flex-grow: 0;
-  }
-
-  :where(.fv-ds, [data-fv-ds])
-    .rdo-manager-listing
-    .rdo-sequence-action-label--desktop {
-    display: none;
-  }
-
-  :where(.fv-ds, [data-fv-ds])
-    .rdo-manager-listing
-    .rdo-sequence-action-label--mobile {
-    display: inline;
   }
 
   :where(.fv-ds, [data-fv-ds]) .rdo-team-workspace,

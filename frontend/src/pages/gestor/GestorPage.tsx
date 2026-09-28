@@ -1594,8 +1594,7 @@ export function GestorPage() {
           ) : null}
           {report.status !== 'SIGNED' ? (
             <Button variant="secondary" size="sm" aria-label="Editar número do relatório" disabled={reportMutations.updateSequence.isPending} onClick={() => openReportSequenceEdit(report)}>
-              <span className="rdo-sequence-action-label--desktop" aria-hidden="true">Nº</span>
-              <span className="rdo-sequence-action-label--mobile" aria-hidden="true">Editar número</span>
+              Nº
             </Button>
           ) : null}
           {report.status !== 'SIGNED' ? <IconButton icon={DS_ICONS.trash} label="Arquivar relatório" variant="danger" size="sm" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}

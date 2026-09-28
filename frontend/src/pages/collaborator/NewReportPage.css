@@ -326,9 +326,19 @@
 .rdo-form-page .ongoing-item-react {
   min-width: 0;
   padding: var(--space-3);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--warning-line);
   border-radius: var(--radius-md);
-  background: var(--surface-2);
+  background: var(--warning-bg);
+}
+
+.rdo-form-page .continuity-card {
+  border-color: var(--warning-line);
+  background: var(--surface);
+}
+
+.rdo-form-page .continuity-card .fv-card__heading,
+.rdo-form-page .continuity-card .admin-item-title {
+  color: var(--warning);
 }
 
 .rdo-form-page .admin-item-row {
@@ -1088,6 +1098,26 @@
 
   .rdo-form-page .admin-item-row {
     align-items: flex-start;
+  }
+
+  .rdo-form-page .continuity-card .admin-item-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .admin-card-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .admin-card-actions .fv-button {
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
   }
 
   :where(.fv-ds, [data-fv-ds]).rdo-service-picker-backdrop {

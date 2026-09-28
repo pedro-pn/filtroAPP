@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react';
 
+import { AppIcon } from '../icons/AppIcon';
+import { DS_ICONS } from '../ui/ds/icons';
 import type { Collaborator } from '../../types/domain';
 
 export interface DdsThemeSnapshot {
@@ -91,12 +93,13 @@ export function ManualReportOperationalFields({
       <span className="colab-tag" key={`${field}-${id}`}>
         <span>{collaboratorName(collaborators, id)}</span>
         <button
+          className="colab-tag__remove"
           type="button"
           disabled={disabled}
           onClick={() => onChange({ [field]: ids.filter(item => item !== id) })}
           aria-label="Remover colaborador"
         >
-          ×
+          <AppIcon icon={DS_ICONS.trash} size="sm" />
         </button>
       </span>
     ));

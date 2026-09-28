@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { AppIcon } from '../icons/AppIcon';
+import { DS_ICONS } from '../ui/ds/icons';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   formatReportMinutes,
@@ -236,11 +238,12 @@ function CollaboratorTags({
           <small className="colab-tag-role">{roleName}</small>
         </span>
         <button
+          className="colab-tag__remove"
           type="button"
           aria-label={`Remover ${collaborator?.name || id}`}
           onClick={() => onChange(selectedIds.filter((item) => item !== id))}
         >
-          ×
+          <AppIcon icon={DS_ICONS.trash} size="sm" />
         </button>
       </span>
     );

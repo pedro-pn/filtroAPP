@@ -85,15 +85,20 @@ export function OverviewBoard({ date, jobRoleId, onNavigate }: {
       </section>
 
       <Card className="efetivo-utilization-card" padding="md">
-        <div>
-          <span className="efetivo-eyebrow">Utilização planejada · 90 dias</span>
-          <strong>{percentage(data.plannedUtilization90d)}</strong>
-          <small>Meta configurada: {percentage(data.target)}</small>
+        <div className="efetivo-utilization-card__header">
+          <div className="efetivo-utilization-card__title">
+            <strong>Utilização planejada</strong>
+            <span>Próximos 90 dias</span>
+          </div>
           <Button variant="link" size="sm" onClick={() => onNavigate('produtividade')}>Abrir produtividade</Button>
         </div>
-        <div className="efetivo-utilization-track" aria-label={`Utilização ${percentage(data.plannedUtilization90d)}`}>
-          <span style={{ width: `${Math.min(100, data.plannedUtilization90d || 0)}%` }} />
-          <i style={{ left: `${Math.min(100, data.target)}%` }} />
+        <div className="efetivo-utilization-card__values">
+          <strong>{percentage(data.plannedUtilization90d)}</strong>
+          <span>Meta {percentage(data.target)}</span>
+        </div>
+        <div className="efetivo-utilization-track" aria-hidden="true">
+          <span style={{ width: `${Math.max(0, Math.min(100, data.plannedUtilization90d || 0))}%` }} />
+          <i style={{ left: `${Math.max(0, Math.min(100, data.target))}%` }} />
         </div>
       </Card>
 

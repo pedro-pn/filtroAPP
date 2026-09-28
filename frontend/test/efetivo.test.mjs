@@ -123,7 +123,7 @@ test('primeira fatia do redesign do Efetivo usa shell, navegação e estados do 
   assert.doesNotMatch(page, /<Shell>|<TopBar/);
   assert.match(shell, /createNavigationModel/);
   assert.match(shell, /parentId: 'efetivo'/);
-  assert.match(navigation, /<Select/);
+  assert.match(navigation, /className="efetivo-section-nav__items"/);
   assert.match(navigation, /ArrowLeft/);
   assert.match(page, /<PageHeader/);
   assert.match(page, /<Field id="efetivo-position-date"/);

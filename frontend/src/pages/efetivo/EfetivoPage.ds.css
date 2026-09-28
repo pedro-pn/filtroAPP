@@ -11,12 +11,18 @@
 
 /* Availability by period uses the same surfaces and semantic tones as the rest of Efetivo. */
 .efetivo-page-v2 .efetivo-period-board { gap: var(--space-4); }
-.efetivo-page-v2 .efetivo-period-kpis { gap: var(--space-3); }
+.efetivo-page-v2 .efetivo-period-kpis {
+  align-items: start;
+  gap: var(--space-3);
+}
 .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card {
   min-width: 0;
   min-height: 0;
   display: flex;
-  padding: var(--space-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
   background: var(--surface);
   border-color: var(--line);
   border-radius: var(--radius-lg);
@@ -26,11 +32,31 @@
   background: var(--warning-bg);
   border-color: var(--warning-line);
 }
-.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__copy { gap: var(--space-1); }
+.efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__copy { width: 100%; gap: var(--space-1); }
 .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__label,
 .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__description { color: var(--muted); font-size: var(--text-xs); }
 .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card__value { color: var(--ink); font-size: var(--text-xl); }
 .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card.fv-tone--warning .fv-metric-card__value { color: var(--warning); }
+.efetivo-page-v2 .efetivo-period-insights {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+.efetivo-page-v2 .efetivo-period-insights .efetivo-period-deficits {
+  min-width: 0;
+  align-self: start;
+}
+.efetivo-page-v2 :where(.efetivo-utilization-card, .efetivo-overview-card, .efetivo-period-deficits) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.efetivo-page-v2 .efetivo-period-insights .efetivo-section-heading h2 {
+  font-size: var(--text-base);
+}
+.efetivo-page-v2 .efetivo-period-insights .efetivo-section-heading p {
+  font-size: var(--text-xs);
+}
 .efetivo-page-v2 .efetivo-period-deficits > .fv-card__body,
 .efetivo-page-v2 .efetivo-period-calendar > .fv-card__body { display: grid; gap: var(--space-3); min-width: 0; }
 .efetivo-page-v2 .efetivo-period-role-grid article.has-deficit,
@@ -45,6 +71,18 @@
 .efetivo-page-v2 .efetivo-period-demand-day.has-risk { background: var(--info-bg); color: var(--info); }
 .efetivo-page-v2 .efetivo-period-person-counts span { background: color-mix(in srgb, var(--stage) 12%, var(--surface)); }
 .efetivo-page-v2 .efetivo-period-calendar { padding: var(--space-4); }
+.efetivo-page-v2 .efetivo-availability-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.efetivo-page-v2 .efetivo-availability-intro > .fv-card__body {
+  width: 100%;
+}
+.efetivo-page-v2 .efetivo-availability-actions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-inline-start: auto;
+}
 .efetivo-page-v2 .efetivo-period-board .efetivo-availability-kanban {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
   overflow-x: visible;
@@ -54,8 +92,13 @@
 .efetivo-page-v2 .efetivo-view-switch button.active { background: var(--surface); color: var(--brand-text); box-shadow: var(--shadow-e1); }
 
 @media (max-width: 767.98px) {
-  .efetivo-page-v2 .efetivo-period-kpis { grid-template-columns: minmax(0, 1fr); }
-  .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card { padding: var(--space-3); }
+  .efetivo-page-v2 .efetivo-period-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .efetivo-page-v2 .efetivo-period-kpis .fv-metric-card:last-child { grid-column: 1 / -1; }
+  .efetivo-page-v2 .efetivo-availability-intro > .fv-card__body {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .efetivo-page-v2 .efetivo-availability-actions { align-self: flex-end; }
   .efetivo-page-v2 .efetivo-period-board .efetivo-availability-kanban { grid-template-columns: minmax(0, 1fr); }
   .efetivo-page-v2 .efetivo-period-calendar { padding: var(--space-3); }
 }
@@ -212,10 +255,88 @@
 :where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card > .fv-card__body {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__header {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__title {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__title strong {
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__title span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__header .fv-button {
+  max-width: 100%;
+  margin-inline-start: auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__values strong {
+  color: var(--brand-text);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card__values span {
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-track {
+  position: relative;
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-utilization-track i {
+  position: absolute;
+  top: 50%;
+  width: var(--space-1);
+  height: var(--space-4);
+  border: var(--border-width) solid var(--surface);
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  transform: translate(-50%, -50%);
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-two-column { align-items: start; }
 
 :where(.fv-ds, [data-fv-ds]) .efetivo-availability-intro > .fv-card__body {
   display: flex;
@@ -341,10 +462,6 @@
 
   :where(.fv-ds, [data-fv-ds]) .efetivo-executive-metrics .fv-metric-card {
     min-height: 94px;
-  }
-
-  :where(.fv-ds, [data-fv-ds]) .efetivo-utilization-card > .fv-card__body {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

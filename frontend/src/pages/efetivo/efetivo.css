@@ -532,24 +532,6 @@
   border-color: var(--rd);
 }
 
-.efetivo-utilization-card {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(180px, .35fr) minmax(0, 1fr);
-}
-
-.efetivo-utilization-card > div:first-child {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.efetivo-utilization-card strong {
-  color: var(--g);
-  font-size: 26px;
-}
-
-.efetivo-utilization-card small,
 .efetivo-role-card small,
 .efetivo-mission-card p,
 .efetivo-kanban-card p,
@@ -558,29 +540,6 @@
 }
 
 .efetivo-operational-disclaimer { color: var(--mu); font-size: 12px; margin: 14px 0 0; }
-
-.efetivo-utilization-track {
-  align-self: center;
-  background: var(--bg);
-  border-radius: 999px;
-  height: 18px;
-  overflow: hidden;
-  position: relative;
-}
-
-.efetivo-utilization-track span {
-  background: var(--gl);
-  display: block;
-  height: 100%;
-}
-
-.efetivo-utilization-track i {
-  background: var(--tx);
-  bottom: 0;
-  position: absolute;
-  top: 0;
-  width: 2px;
-}
 
 .efetivo-role-grid,
 .efetivo-scenario-grid,
@@ -1612,8 +1571,7 @@
 
 @media (max-width: 760px) {
   .efetivo-calendar-layout,
-  .efetivo-two-column,
-  .efetivo-utilization-card { grid-template-columns: 1fr; }
+  .efetivo-two-column { grid-template-columns: 1fr; }
   .efetivo-calendar-grid.view-month { display: flex; flex-direction: column; }
   .efetivo-calendar-grid.view-month > button.outside { display: none; }
   .efetivo-calendar-grid > button { min-height: auto; }
@@ -1898,7 +1856,6 @@
 }
 
 .efetivo-panel-link:hover { text-decoration: underline; }
-.efetivo-utilization-card .efetivo-panel-link { align-self: flex-start; }
 
 /* Evolução única do projeto; equipe e ciclos ficam dentro da gestão de cada projeto. */
 .project-workflow-toolbar { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 330px), .55fr); }

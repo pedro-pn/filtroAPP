@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 
 import { PortalTip } from '../../../components/ui/PortalTip';
-import { Alert, Badge, Card, MetricCard, Skeleton } from '../../../components/ui/ds';
+import { Alert, Card, MetricCard, Skeleton } from '../../../components/ui/ds';
 import { getPlanningAvailability, type PeriodAvailabilityStatus, type PlanningAvailabilityPeriod } from '../../../api/efetivoPlanning';
 import { displayDateOnly, parseDateOnly } from '../../../utils/calendarGrid';
 import { buildCalendarBuckets, type CalendarBucket, type CalendarScale } from '../../../utils/availabilityCalendar';
@@ -145,34 +145,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
     <div className="efetivo-board efetivo-period-board" data-efetivo-availability>
       <Card className="efetivo-kanban-intro efetivo-availability-intro" padding="md">
         <div><span className="efetivo-eyebrow">Planejamento oficial · {displayDateOnly(date)} a {displayDateOnly(endDate)}</span><h2>Disponibilidade do efetivo</h2><p>Situação diária da equipe, vagas das missões e riscos nas mobilizações planejadas.</p></div>
-        <div className="efetivo-availability-actions"><div className="efetivo-view-switch" role="group" aria-label="Visualização da disponibilidade"><button type="button" className={view === 'kanban' ? 'active' : ''} aria-pressed={view === 'kanban'} onClick={() => onViewChange('kanban')}>Kanban</button><button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => onViewChange('calendar')}>Calendário</button></div><Badge tone="neutral">Somente leitura</Badge></div>
-      </Card>
-
-      <section className="efetivo-period-kpis" aria-label="Resumo do período" data-efetivo-availability-summary>
-        <MetricCard label="Pico de colaboradores alocados" value={peakAllocated} description="Trabalhando em missões no mesmo dia" />
-        <MetricCard label="Dias em que faltam pessoas" value={daysWithShortage} tone={daysWithShortage ? 'warning' : 'neutral'} description="Mesmo contando todos os colaboradores livres" />
-        <MetricCard label="Maior número de pessoas que faltam" value={peakShortage} tone={peakShortage ? 'warning' : 'neutral'} description="No dia com maior necessidade" />
-      </section>
-
-      <Card className="efetivo-period-deficits" padding="md" aria-label="Cargos que precisam de mais pessoas">
-        <div className="efetivo-section-heading"><div><h2>Cargos que precisam de mais pessoas</h2><p>Um cargo só aparece aqui quando as missões precisam de mais pessoas do que existem alocadas e livres naquele dia. Isso não significa contratar automaticamente.</p></div></div>
-        {shortageRoles.length ? <div className="efetivo-period-role-grid">{shortageRoles.map(role => {
-          const shortageDays = role.daily.filter(day => day.shortage > 0);
-          return <article key={role.jobRoleId} className="has-deficit" style={{ '--role-color': role.calendarColor } as CSSProperties}>
-            <span className="efetivo-period-role-name">{role.jobRoleName}</span>
-            <strong>{role.peakShortage === 1 ? 'Falta' : 'Faltam'} até {role.peakShortage} {role.peakShortage === 1 ? 'pessoa' : 'pessoas'}, mesmo usando quem está livre</strong>
-            <small>Isso acontece em {role.shortageDays} {role.shortageDays === 1 ? 'dia' : 'dias'} do período</small>
-            <details className="efetivo-role-deficit-days">
-              <summary>Ver dias e quantidades</summary>
-              <div>{shortageDays.map(day => <span key={day.date}><time dateTime={day.date}>{displayDateOnly(day.date)}</time><b>{day.shortage === 1 ? 'falta' : 'faltam'} {day.shortage}</b></span>)}</div>
-            </details>
-          </article>;
-        })}</div> : <p className="efetivo-period-clear">{openPositionRoles.length ? 'Há colaboradores livres dos cargos necessários para cobrir as vagas ainda sem alocação.' : 'O efetivo disponível atende às missões confirmadas em todos os dias deste período.'}</p>}
-      </Card>
-
-      <Card className="efetivo-period-deficits" padding="md" aria-label="Riscos nas mobilizações planejadas">
-        <div className="efetivo-section-heading"><div><h2>Riscos nas mobilizações planejadas</h2><p>Necessidades do planejamento ainda não incluídas nas missões confirmadas, comparadas com a equipe livre na data prevista.</p></div></div>
-        {data.plannedRisks.length ? <div className="efetivo-period-risk-grid">{data.plannedRisks.map(risk => <article key={`${risk.date}-${risk.jobRoleId}`}><span>{displayDateOnly(risk.date)} · {risk.jobRoleName}</span><strong>{risk.deficit} {risk.deficit === 1 ? 'pessoa em falta' : 'pessoas em falta'}</strong><small>{risk.required} ainda necessárias · {risk.free} livres após vagas confirmadas</small><p>{risk.projects.map(project => `${project.code} · ${project.name}`).join(' · ')}</p></article>)}</div> : <p className="efetivo-period-clear">Nenhum risco de equipe nas mobilizações planejadas deste período.</p>}
+        <div className="efetivo-availability-actions"><div className="efetivo-view-switch" role="group" aria-label="Visualização da disponibilidade"><button type="button" className={view === 'kanban' ? 'active' : ''} aria-pressed={view === 'kanban'} onClick={() => onViewChange('kanban')}>Kanban</button><button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => onViewChange('calendar')}>Calendário</button></div></div>
       </Card>
 
       {view === 'kanban' ? <section className="efetivo-availability-kanban" aria-label="Disponibilidade dos colaboradores">
@@ -223,6 +196,35 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
         </div></div>
         {!data.people.length ? <p className="efetivo-period-clear">Nenhum colaborador no período selecionado.</p> : null}
       </Card>}
+
+      <section className="efetivo-period-kpis" aria-label="Resumo do período" data-efetivo-availability-summary>
+        <MetricCard label="Pico de colaboradores alocados" value={peakAllocated} description="Trabalhando em missões no mesmo dia" />
+        <MetricCard label="Dias em que faltam pessoas" value={daysWithShortage} tone={daysWithShortage ? 'warning' : 'neutral'} description="Mesmo contando todos os colaboradores livres" />
+        <MetricCard label="Maior número de pessoas que faltam" value={peakShortage} tone={peakShortage ? 'warning' : 'neutral'} description="No dia com maior necessidade" />
+      </section>
+
+      <div className="efetivo-period-insights">
+        <Card className="efetivo-period-deficits" padding="sm" aria-label="Cargos que precisam de mais pessoas">
+          <div className="efetivo-section-heading"><div><h2>Cargos que precisam de mais pessoas</h2><p>Um cargo só aparece aqui quando as missões precisam de mais pessoas do que existem alocadas e livres naquele dia. Isso não significa contratar automaticamente.</p></div></div>
+          {shortageRoles.length ? <div className="efetivo-period-role-grid">{shortageRoles.map(role => {
+            const shortageDays = role.daily.filter(day => day.shortage > 0);
+            return <article key={role.jobRoleId} className="has-deficit" style={{ '--role-color': role.calendarColor } as CSSProperties}>
+              <span className="efetivo-period-role-name">{role.jobRoleName}</span>
+              <strong>{role.peakShortage === 1 ? 'Falta' : 'Faltam'} até {role.peakShortage} {role.peakShortage === 1 ? 'pessoa' : 'pessoas'}, mesmo usando quem está livre</strong>
+              <small>Isso acontece em {role.shortageDays} {role.shortageDays === 1 ? 'dia' : 'dias'} do período</small>
+              <details className="efetivo-role-deficit-days">
+                <summary>Ver dias e quantidades</summary>
+                <div>{shortageDays.map(day => <span key={day.date}><time dateTime={day.date}>{displayDateOnly(day.date)}</time><b>{day.shortage === 1 ? 'falta' : 'faltam'} {day.shortage}</b></span>)}</div>
+              </details>
+            </article>;
+          })}</div> : <p className="efetivo-period-clear">{openPositionRoles.length ? 'Há colaboradores livres dos cargos necessários para cobrir as vagas ainda sem alocação.' : 'O efetivo disponível atende às missões confirmadas em todos os dias deste período.'}</p>}
+        </Card>
+
+        <Card className="efetivo-period-deficits" padding="sm" aria-label="Riscos nas mobilizações planejadas">
+          <div className="efetivo-section-heading"><div><h2>Riscos nas mobilizações planejadas</h2><p>Necessidades do planejamento ainda não incluídas nas missões confirmadas, comparadas com a equipe livre na data prevista.</p></div></div>
+          {data.plannedRisks.length ? <div className="efetivo-period-risk-grid">{data.plannedRisks.map(risk => <article key={`${risk.date}-${risk.jobRoleId}`}><span>{displayDateOnly(risk.date)} · {risk.jobRoleName}</span><strong>{risk.deficit} {risk.deficit === 1 ? 'pessoa em falta' : 'pessoas em falta'}</strong><small>{risk.required} ainda necessárias · {risk.free} livres após vagas confirmadas</small><p>{risk.projects.map(project => `${project.code} · ${project.name}`).join(' · ')}</p></article>)}</div> : <p className="efetivo-period-clear">Nenhum risco de equipe nas mobilizações planejadas deste período.</p>}
+        </Card>
+      </div>
     </div>
   );
 }
