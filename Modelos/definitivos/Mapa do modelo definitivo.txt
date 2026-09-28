@@ -33,6 +33,12 @@
 {{collaboratorshift}} - turno em que aquele colaborador trabalhou
 {{activities}} - Atividades/observações adicionadas no final do relatório
 
+Tabela PROGRESSO: uma linha por RDO do contrato até o RDO atual, exibindo do mais recente ao mais antigo. Somente serviços finalizados entram no realizado e no acumulado. Escopos e equipamentos não filtram o total previsto nem o percentual do contrato. Quando houver unidades diferentes, exibir cada total separadamente (ex.: 100 m + 50 L).
+{{progressday}} - data do RDO da linha (dd/mm/aaaa)
+{{progressservicetype}} - tipos de serviço finalizados no RDO da linha, separados por vírgula
+{{progressmade}} - quantidade finalizada nesse RDO, com unidade (m, L ou un); sem quantidade mensurável finalizada, mostrar —
+{{totalprogress}} - quantidade acumulada até esse RDO, com unidade, seguida de / e percentual sobre todo o contrato (ex.: 1.000 m / 65%); com unidades diferentes, usar o avanço global ponderado dos serviços previstos; sem meta mensurável, mostrar — no percentual
+
 {{servicecount}} - numero do serviço, segue sequencial de 1 até o que for adicionado
 {{servicename}} - nome do serviço (Teste de pressão, limpeza química, etc.)
 {{equipament}} - equipamento que está sendo realizado o serviço

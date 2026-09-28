@@ -1,7 +1,41 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import prisma from '../src/lib/prisma.js';
+import { hasRdoProgressSourcesChanged } from '../src/lib/reports/rdo-progress-cache.js';
 import { pdfUploadUrlsForReport } from '../src/routes/resources/reports.js';
+
+test('RDO PDF cache expires when earlier reports or the planned scope change', async t => {
+  const originals = {
+    reportFindFirst: prisma.report.findFirst,
+    plannedFindFirst: prisma.projectPlannedService.findFirst,
+    plannedCount: prisma.projectPlannedService.count
+  };
+  t.after(() => {
+    prisma.report.findFirst = originals.reportFindFirst;
+    prisma.projectPlannedService.findFirst = originals.plannedFindFirst;
+    prisma.projectPlannedService.count = originals.plannedCount;
+  });
+  const savedAt = new Date('2026-09-04T12:00:00.000Z').getTime();
+  let reportUpdatedAt = new Date(savedAt - 1000);
+  let plannedCount = 2;
+  prisma.report.findFirst = async args => {
+    assert.equal(args.where.projectId, 'contract-1');
+    assert.equal(args.where.reportDate.lte.toISOString(), '2026-09-03T23:59:59.999Z');
+    return { updatedAt: reportUpdatedAt };
+  };
+  prisma.projectPlannedService.findFirst = async () => ({ updatedAt: new Date(savedAt - 1000) });
+  prisma.projectPlannedService.count = async () => plannedCount;
+  const report = { projectId: 'contract-1', reportDate: '2026-09-03' };
+  const metadata = { plannedServiceCount: 2 };
+
+  assert.equal(await hasRdoProgressSourcesChanged(report, metadata, savedAt), false);
+  reportUpdatedAt = new Date(savedAt + 1000);
+  assert.equal(await hasRdoProgressSourcesChanged(report, metadata, savedAt), true);
+  reportUpdatedAt = new Date(savedAt - 1000);
+  plannedCount = 1;
+  assert.equal(await hasRdoProgressSourcesChanged(report, metadata, savedAt), true);
+});
 
 test('pdf upload fingerprint includes persisted and derived service photos', () => {
   const report = {
