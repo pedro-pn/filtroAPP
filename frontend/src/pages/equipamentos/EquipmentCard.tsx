@@ -1,9 +1,8 @@
 import { useRef, useState, type DragEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
-import { useToast } from '../../components/ui/ToastContext';
-import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
-import { calibrationStatus, fileToDataUrl, formatDate, statusLabel } from './equipmentStatus';
+import { calibrationStatus, formatDate, statusLabel } from './equipmentStatus';
+import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
 
 interface Props {
   item: CompanyEquipment;
@@ -15,59 +14,25 @@ interface Props {
   onOpenMaintenanceHistory?: () => void;
 }
 
-type DocKind = 'tech' | 'cert';
-
 export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: Props) {
-  const { updateEquipment } = useEquipamentoMutations();
-  const showToast = useToast();
   const cardRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const status = calibrationStatus(item);
-  // "Doc. técnica" serve sempre o datasheet gerado mais recente; cai para o PDF legado.
-  const currentDoc = item.technicalDocGenerated || item.technicalDoc || null;
-  // Tipos de documento que ainda podem ser adicionados arrastando para o card.
-  const canTech = isManager && category.supportsTechnicalDoc && !item.technicalDoc;
-  const canCert = isManager && category.supportsCalibration && item.hasCalibration && !item.calibrationCertificate;
+  const { canTech, canCert, currentDoc, isUploading, uploadDoc } = useEquipmentDocumentUpload(item, category, isManager);
   const droppable = canTech || canCert;
 
-  async function uploadDoc(kind: DocKind, file: File | undefined) {
-    setDragging(false);
-    if (!file) return;
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!isPdf) {
-      showToast('O documento deve ser um arquivo PDF.', 'error');
-      return;
-    }
-    try {
-      const upload = {
-        fileName: file.name,
-        mimeType: 'application/pdf',
-        dataUrl: await fileToDataUrl(file)
-      };
-      const payload = kind === 'tech' ? { technicalDoc: upload } : { calibrationCertificate: upload };
-      updateEquipment.mutate(
-        { id: item.id, payload },
-        {
-          onSuccess: () => showToast(kind === 'tech' ? 'Documentação técnica enviada.' : 'Certificado de calibração enviado.', 'success'),
-          onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível enviar o documento.', 'error')
-        }
-      );
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível ler o arquivo.', 'error');
-    }
-  }
-
-  function zoneDrop(kind: DocKind) {
+  function zoneDrop(kind: EquipmentDocumentKind) {
     return (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
+      setDragging(false);
       void uploadDoc(kind, event.dataTransfer.files?.[0]);
     };
   }
 
   const dragHandlers =
-    droppable && !updateEquipment.isPending
+    droppable && !isUploading
       ? {
           onDragOver: (event: DragEvent<HTMLElement>) => {
             event.preventDefault();

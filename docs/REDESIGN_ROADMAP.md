@@ -1069,6 +1069,11 @@ preservadas. Build, lint dos arquivos alterados e testes estáticos dos módulos
 passaram; inspeção visual em navegador ficou pendente porque o Chromium local
 não inicia sem `libnspr4.so`. EQ2/EQ3 e M2–M5 continuam na fila.
 
+Revisão de EQ1: as categorias foram reunidas em uma única subaba. A lista mostra
+uma tabela por categoria no desktop e cards em telas menores, com busca e ordem
+globais. Cadastro, histórico, dados técnicos, downloads e envio de PDFs foram
+mantidos; URLs antigas `tab=cat:<id>` ainda abrem a categoria correspondente.
+
 ### F5 — RDO, Gestão e ajustes transversais
 
 Prioridade: P1.

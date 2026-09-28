@@ -12,7 +12,7 @@ import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRd
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { CategoryFormModal } from './CategoryFormModal';
 import { CategoryManager } from './CategoryManager';
-import { EquipmentCard } from './EquipmentCard';
+import { EquipmentCategorySection } from './EquipmentCategorySection';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
@@ -20,15 +20,14 @@ import { TechnicalDataModal } from './TechnicalDataModal';
 import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
 import { type ProjectSortDirection } from '../../utils/projectSort';
-import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { MaintenanceConfigPanel } from './MaintenanceConfigPanel';
 import { MaintenanceHistoryModal } from './MaintenanceHistoryModal';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
+import { equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, type EquipmentTab } from './equipmentCategoryView';
 import './EquipamentosPage.ds.css';
 
-type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'maintenance' } | { kind: 'notifications' };
-const EQUIPMENT_TAB_VALUES = new Set(['dashboard', 'config', 'maintenance', 'notifications']);
+type ActiveTab = { kind: EquipmentTab };
 
 const EQUIPMENT_TUTORIAL_STORAGE_KEY_PREFIX = 'filtrovali-equipment-tutorial-done';
 
@@ -63,25 +62,6 @@ function markEquipmentTutorialDone(identity: string) {
   }
 }
 
-function parseEquipmentTabParam(value: string | null) {
-  if (!value) return 'dashboard';
-  if (EQUIPMENT_TAB_VALUES.has(value)) return value;
-  if (value.startsWith('cat:') && value.slice(4)) return value;
-  return 'dashboard';
-}
-
-function activeTabFromParam(value: string): ActiveTab {
-  if (value.startsWith('cat:')) return { kind: 'category', id: value.slice(4) };
-  if (value === 'config') return { kind: 'config' };
-  if (value === 'maintenance') return { kind: 'maintenance' };
-  if (value === 'notifications') return { kind: 'notifications' };
-  return { kind: 'dashboard' };
-}
-
-function activeTabParam(tab: ActiveTab) {
-  return tab.kind === 'category' ? `cat:${tab.id}` : tab.kind;
-}
-
 function escapeCssSelectorValue(value: string) {
   if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
     return CSS.escape(value);
@@ -111,28 +91,21 @@ export function EquipamentosPage() {
     defaultValue: 'dashboard',
     parse: parseEquipmentTabParam
   });
-  const activeTab = activeTabFromParam(activeTabUrl);
+  const activeTab: ActiveTab = { kind: equipmentTabFromParam(activeTabUrl) };
+  const linkedCategoryId = activeTabUrl.startsWith('cat:') ? activeTabUrl.slice(4) : null;
   const subNavigation = [
     { id: 'dashboard', label: 'Visão geral', href: '/equipamentos?tab=dashboard', active: activeTab.kind === 'dashboard' },
-    ...categories.map(category => ({
-      id: `cat:${category.id}`,
-      label: category.name,
-      href: `/equipamentos?tab=${encodeURIComponent(`cat:${category.id}`)}`,
-      badge: equipment.filter(item => item.categoryId === category.id).length,
-      active: activeTab.kind === 'category' && activeTab.id === category.id
-    })),
+    { id: 'categories', label: 'Categorias', href: '/equipamentos?tab=categories', badge: equipment.length, active: activeTab.kind === 'categories' },
     ...(isManager ? [
       { id: 'config', label: 'Configurações', href: '/equipamentos?tab=config', active: activeTab.kind === 'config' },
       { id: 'maintenance', label: 'Manutenção', href: '/equipamentos?tab=maintenance', active: activeTab.kind === 'maintenance' },
       { id: 'notifications', label: 'Notificações', href: '/equipamentos?tab=notifications', active: activeTab.kind === 'notifications' }
     ] : [])
   ];
-  const sectionLabel = activeTab.kind === 'category'
-    ? categories.find(category => category.id === activeTab.id)?.name || 'Categoria'
-    : { dashboard: 'Visão geral', config: 'Configurações', maintenance: 'Manutenção', notifications: 'Notificações' }[activeTab.kind];
+  const sectionLabel = { dashboard: 'Visão geral', categories: 'Categorias', config: 'Configurações', maintenance: 'Manutenção', notifications: 'Notificações' }[activeTab.kind];
   const setActiveTab = useCallback(
     (nextTab: ActiveTab) => {
-      setActiveTabUrl(activeTabParam(nextTab));
+      setActiveTabUrl(nextTab.kind);
     },
     [setActiveTabUrl]
   );
@@ -158,34 +131,28 @@ export function EquipamentosPage() {
   } | null>(null);
   const tutorialStartedRef = useRef(false);
 
-  const selectedCategory = activeTab.kind === 'category' ? categories.find(c => c.id === activeTab.id) || null : null;
-  const activeTabKey = activeTab.kind === 'category' ? activeTab.id : activeTab.kind;
   useEffect(() => {
     if (!isManager && (activeTab.kind === 'config' || activeTab.kind === 'maintenance' || activeTab.kind === 'notifications')) {
       setActiveTab({ kind: 'dashboard' });
     }
   }, [activeTab.kind, isManager, setActiveTab]);
+  // Links antigos para uma categoria continuam abrindo a seção correspondente.
   useEffect(() => {
-    if (!categoriesQuery.isLoading && activeTab.kind === 'category' && !selectedCategory) {
-      setActiveTab({ kind: 'dashboard' });
-    }
-  }, [activeTab.kind, categoriesQuery.isLoading, selectedCategory, setActiveTab]);
-  // Limpa a busca ao trocar de aba/categoria.
+    if (!linkedCategoryId || categoriesQuery.isLoading || activeTab.kind !== 'categories') return;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector(`[data-equip-category-id="${escapeCssSelectorValue(linkedCategoryId)}"]`)
+        ?.scrollIntoView({ block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab.kind, categoriesQuery.isLoading, linkedCategoryId, categories]);
+  // Limpa a busca ao trocar de aba.
   useEffect(() => {
     setCategorySearch('');
-  }, [activeTabKey]);
-  const allCategoryEquipment = selectedCategory ? equipment.filter(item => item.categoryId === selectedCategory.id) : [];
-  const categoryEquipment = (() => {
-    const query = categorySearch.trim().toLowerCase();
-    const filtered = !query
-      ? allCategoryEquipment
-      : allCategoryEquipment.filter(item => {
-          const haystack = [item.code, item.name, ...Object.values(item.attributes || {}).map(value => String(value ?? ''))].filter(Boolean).join(' ').toLowerCase();
-          return haystack.includes(query);
-        });
-    const dir = equipmentSort === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { sensitivity: 'base' }) * dir);
-  })();
+  }, [activeTab.kind]);
+  const visibleEquipment = useMemo(
+    () => filterAndSortEquipment(equipment, categories, categorySearch, equipmentSort),
+    [categories, categorySearch, equipment, equipmentSort]
+  );
   const tutorialTarget = useMemo(() => {
     const candidates = categories.map(category => {
       const items = equipment.filter(item => item.categoryId === category.id);
@@ -255,7 +222,7 @@ export function EquipamentosPage() {
         element: navSelector,
         popover: {
           title: 'Menu do módulo',
-          description: 'Use este menu para alternar entre o Dashboard e as categorias de equipamentos. Gestores também veem Configurações e Notificações.',
+          description: 'Use este menu para alternar entre a visão geral e a lista de categorias. Gestores também veem Configurações e Notificações.',
           side: 'right',
           align: 'start',
           onNextClick: (_element, _step, { driver: driverObj }) => {
@@ -263,7 +230,7 @@ export function EquipamentosPage() {
               driverObj.moveNext();
               return;
             }
-            setActiveTab({ kind: 'category', id: category.id });
+            setActiveTab({ kind: 'categories' });
             window.setTimeout(() => driverObj.moveNext(), 180);
           }
         }
@@ -272,10 +239,10 @@ export function EquipamentosPage() {
 
     if (category) {
       steps.push({
-        element: '[data-equip-category-section]',
+        element: `[data-equip-category-id="${escapeCssSelectorValue(category.id)}"]`,
         popover: {
           title: `Categoria ${category.name}`,
-          description: 'Ao abrir uma categoria, os cards mostram os equipamentos daquela família, seus atributos principais e os documentos disponíveis.',
+          description: 'Cada categoria reúne seus equipamentos em tabela. Em telas menores, a lista aparece em cards com as mesmas ações.',
           side: 'top',
           align: 'start'
         }
@@ -497,17 +464,10 @@ export function EquipamentosPage() {
               </span>
               <span className="equip-nav-label">Dashboard</span>
             </button>
-            {categories.length > 0 && <div className="equip-nav-group">Categorias</div>}
-            {categories.map(category => {
-              const selected = activeTab.kind === 'category' && activeTab.id === category.id;
-              const count = equipment.filter(item => item.categoryId === category.id).length;
-              return (
-                <button key={category.id} className={`equip-nav-item ${selected ? 'active' : ''}`} type="button" aria-current={selected} data-equip-category-nav data-equip-category-id={category.id} onClick={() => setActiveTab({ kind: 'category', id: category.id })}>
-                  <span className="equip-nav-label">{category.name}</span>
-                  <span className="equip-nav-count">{count}</span>
-                </button>
-              );
-            })}
+            <button className={`equip-nav-item ${activeTab.kind === 'categories' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'categories'} onClick={() => setActiveTab({ kind: 'categories' })} data-equip-category-nav>
+              <span className="equip-nav-label">Categorias</span>
+              <span className="equip-nav-count">{equipment.length}</span>
+            </button>
             {isManager && (
               <>
                 <button className={`equip-nav-item equip-nav-config ${activeTab.kind === 'config' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'config'} onClick={() => setActiveTab({ kind: 'config' })}>
@@ -541,61 +501,45 @@ export function EquipamentosPage() {
 
             {activeTab.kind === 'dashboard' && <EquipmentDashboard categories={categories} equipment={equipment} />}
 
-            {activeTab.kind === 'category' && selectedCategory && (
-              <section className="page-card" data-equip-category-section>
-                <div className="admin-toolbar">
-                  <div className="sec">{selectedCategory.name}</div>
-                  <div className="equip-cat-tools">
-                    <ProjectSortButton direction={equipmentSort} onToggle={() => setEquipmentSort(equipmentSort === 'asc' ? 'desc' : 'asc')} />
-                    {isManager && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() =>
-                          setEquipmentForm({
-                            category: selectedCategory,
-                            item: null
-                          })
-                        }
-                      >
-                        + Novo equipamento
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {allCategoryEquipment.length > 0 && (
+            {activeTab.kind === 'categories' && (
+              <div className="equip-categories" data-equip-categories>
+                <div className="page-card equip-categories__toolbar">
                   <SearchBar
                     value={categorySearch}
                     onChange={setCategorySearch}
-                    placeholder={`Buscar em ${selectedCategory.name}… (código, nome, nº de série)`}
-                    ariaLabel={`Buscar equipamento em ${selectedCategory.name}`}
-                    count={{
-                      shown: categoryEquipment.length,
-                      total: allCategoryEquipment.length
+                    placeholder="Buscar por categoria, código, nome ou atributo"
+                    ariaLabel="Buscar equipamentos em todas as categorias"
+                    count={{ shown: visibleEquipment.length, total: equipment.length }}
+                  />
+                  <Button variant="secondary" size="sm" aria-label="Alternar ordem dos equipamentos" onClick={() => setEquipmentSort(equipmentSort === 'asc' ? 'desc' : 'asc')}>
+                    {equipmentSort === 'asc' ? 'A→Z' : 'Z→A'}
+                  </Button>
+                </div>
+                {categories.length === 0 && !categoriesQuery.isLoading ? (
+                  <div className="page-card equip-categories__empty">Nenhuma categoria cadastrada.</div>
+                ) : null}
+                {categorySearch.trim() && visibleEquipment.length === 0 ? (
+                  <div className="page-card equip-categories__empty">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</div>
+                ) : null}
+                {categories.filter(category => !categorySearch.trim() || visibleEquipment.some(item => item.categoryId === category.id)).map(category => (
+                  <EquipmentCategorySection
+                    key={category.id}
+                    category={category}
+                    items={visibleEquipment.filter(item => item.categoryId === category.id)}
+                    total={equipment.filter(item => item.categoryId === category.id).length}
+                    isManager={isManager}
+                    onAdd={() => setEquipmentForm({ category, item: null })}
+                    onEdit={item => setEquipmentForm({ category, item })}
+                    onRemove={handleRemoveEquipment}
+                    onOpenTechnical={item => setTechnicalForm({ category, item })}
+                    onOpenMaintenanceHistory={item => {
+                      const next = new URLSearchParams(searchParams);
+                      next.set('equipamento', item.id);
+                      setSearchParams(next, { replace: true });
                     }}
                   />
-                )}
-                {allCategoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento nesta categoria.</p>}
-                {allCategoryEquipment.length > 0 && categoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</p>}
-                <div className="equip-grid">
-                  {categoryEquipment.map(item => (
-                    <EquipmentCard
-                      key={item.id}
-                      item={item}
-                      category={selectedCategory}
-                      isManager={isManager}
-                      onEdit={() => setEquipmentForm({ category: selectedCategory, item })}
-                      onRemove={() => handleRemoveEquipment(item)}
-                      onOpenTechnical={() => setTechnicalForm({ category: selectedCategory, item })}
-                      onOpenMaintenanceHistory={() => {
-                        const next = new URLSearchParams(searchParams);
-                        next.set('equipamento', item.id);
-                        setSearchParams(next, { replace: true });
-                      }}
-                    />
-                  ))}
-                </div>
-              </section>
+                ))}
+              </div>
             )}
 
             {activeTab.kind === 'config' && isManager && (
