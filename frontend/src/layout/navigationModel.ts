@@ -15,6 +15,8 @@ export interface NavigationSubItem {
   href: string;
   badge?: NavigationBadge;
   active: boolean;
+  children?: NavigationSubItem[];
+  onSelect?: () => void;
 }
 
 export interface NavigationItem {

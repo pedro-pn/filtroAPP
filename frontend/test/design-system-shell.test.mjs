@@ -141,7 +141,9 @@ test('all navigation surfaces consume the shared NavigationModel', () => {
   const navigationList = source('src/layout/NavigationList.tsx');
   assert.match(navigationList, /aria-expanded=/);
   assert.match(navigationList, /fv-navigation-submenu/);
-  assert.match(navigationList, /aria-current=\{child\.active \? 'page'/);
+  assert.match(navigationList, /aria-current=\{item\.active \? 'page'/);
+  assert.match(navigationList, /aria-current=\{child\.active \? 'location'/);
+  assert.match(navigationList, /fv-navigation-submenu--nested/);
 });
 
 test('desktop sidebar stays in the viewport and owns its vertical scroll', () => {

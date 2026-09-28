@@ -73,6 +73,11 @@ function DesignSystemBottomBar({
           {sections.quickItems.map(item => (
             <li key={item.id}>
               <Link className={item.active ? 'is-active' : undefined} to={item.href}
+                onClick={event => {
+                  if (!item.onSelect || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  item.onSelect();
+                }}
                 aria-current={item.active ? 'page' : undefined} title={item.label}>
                 <span className="fv-bottom-bar__icon">
                   <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />
@@ -104,6 +109,11 @@ function DesignSystemBottomBar({
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
+                if (item.onSelect) {
+                  setMoreOpen(false);
+                  item.onSelect();
+                  return;
+                }
                 pendingHrefRef.current = item.href;
                 setMoreOpen(false);
               }}>

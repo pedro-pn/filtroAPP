@@ -93,9 +93,24 @@ export function EquipamentosPage() {
   });
   const activeTab: ActiveTab = { kind: equipmentTabFromParam(activeTabUrl) };
   const linkedCategoryId = activeTabUrl.startsWith('cat:') ? activeTabUrl.slice(4) : null;
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(linkedCategoryId);
+  const categoryMenuRef = useRef<HTMLDetailsElement>(null);
+  const openCategoryMenuOnMountRef = useRef(false);
+  const smoothCategoryScrollRef = useRef<string | null>(null);
   const subNavigation = [
     { id: 'dashboard', label: 'Visão geral', href: '/equipamentos?tab=dashboard', active: activeTab.kind === 'dashboard' },
-    { id: 'categories', label: 'Categorias', href: '/equipamentos?tab=categories', badge: equipment.length, active: activeTab.kind === 'categories' },
+    {
+      id: 'categories', label: 'Categorias', href: '/equipamentos?tab=categories', badge: equipment.length,
+      active: activeTab.kind === 'categories', onSelect: openCategoriesMenu,
+      children: categories.map(category => ({
+        id: `cat:${category.id}`,
+        label: category.name,
+        href: `/equipamentos?tab=${encodeURIComponent(`cat:${category.id}`)}`,
+        badge: equipment.filter(item => item.categoryId === category.id).length,
+        active: activeTab.kind === 'categories' && activeCategoryId === category.id,
+        onSelect: () => goToCategory(category.id)
+      }))
+    },
     ...(isManager ? [
       { id: 'config', label: 'Configurações', href: '/equipamentos?tab=config', active: activeTab.kind === 'config' },
       { id: 'maintenance', label: 'Manutenção', href: '/equipamentos?tab=maintenance', active: activeTab.kind === 'maintenance' },
@@ -131,6 +146,30 @@ export function EquipamentosPage() {
   } | null>(null);
   const tutorialStartedRef = useRef(false);
 
+  function openCategoriesMenu() {
+    if (activeTab.kind !== 'categories') {
+      openCategoryMenuOnMountRef.current = true;
+      setActiveTab({ kind: 'categories' });
+    } else if (categoryMenuRef.current) {
+      categoryMenuRef.current.open = !categoryMenuRef.current.open;
+    }
+  }
+
+  function goToCategory(categoryId: string) {
+    setActiveCategoryId(categoryId);
+    setCategorySearch('');
+    if (categoryMenuRef.current) categoryMenuRef.current.open = false;
+    smoothCategoryScrollRef.current = categoryId;
+    setActiveTabUrl(`cat:${categoryId}`);
+    if (activeTab.kind === 'categories' && !categorySearch.trim()) {
+      const section = document.querySelector(`[data-equip-category-id="${escapeCssSelectorValue(categoryId)}"]`);
+      if (section) {
+        section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        smoothCategoryScrollRef.current = null;
+      }
+    }
+  }
+
   useEffect(() => {
     if (!isManager && (activeTab.kind === 'config' || activeTab.kind === 'maintenance' || activeTab.kind === 'notifications')) {
       setActiveTab({ kind: 'dashboard' });
@@ -138,13 +177,19 @@ export function EquipamentosPage() {
   }, [activeTab.kind, isManager, setActiveTab]);
   // Links antigos para uma categoria continuam abrindo a seção correspondente.
   useEffect(() => {
-    if (!linkedCategoryId || categoriesQuery.isLoading || activeTab.kind !== 'categories') return;
+    if (!linkedCategoryId || categoriesQuery.isLoading || activeTab.kind !== 'categories' || categorySearch.trim()) return;
     const frame = window.requestAnimationFrame(() => {
       document.querySelector(`[data-equip-category-id="${escapeCssSelectorValue(linkedCategoryId)}"]`)
-        ?.scrollIntoView({ block: 'start' });
+        ?.scrollIntoView({ block: 'start', behavior: smoothCategoryScrollRef.current === linkedCategoryId ? 'smooth' : 'auto' });
+      smoothCategoryScrollRef.current = null;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeTab.kind, categoriesQuery.isLoading, linkedCategoryId, categories]);
+  }, [activeTab.kind, categoriesQuery.isLoading, linkedCategoryId, categories, categorySearch]);
+  useEffect(() => {
+    if (activeTab.kind !== 'categories' || !openCategoryMenuOnMountRef.current) return;
+    openCategoryMenuOnMountRef.current = false;
+    if (categoryMenuRef.current) categoryMenuRef.current.open = true;
+  }, [activeTab.kind]);
   // Limpa a busca ao trocar de aba.
   useEffect(() => {
     setCategorySearch('');
@@ -153,6 +198,39 @@ export function EquipamentosPage() {
     () => filterAndSortEquipment(equipment, categories, categorySearch, equipmentSort),
     [categories, categorySearch, equipment, equipmentSort]
   );
+  const visibleCategories = useMemo(
+    () => categories.filter(category => !categorySearch.trim() || visibleEquipment.some(item => item.categoryId === category.id)),
+    [categories, categorySearch, visibleEquipment]
+  );
+  const activeCategoryName = categories.find(category => category.id === activeCategoryId)?.name || 'Escolher categoria';
+  useEffect(() => {
+    if (activeTab.kind !== 'categories') return;
+    let frame = 0;
+    const updateActiveCategory = () => {
+      frame = 0;
+      const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-equip-category-section]'));
+      if (!sections.length) return;
+      const marker = (window.innerWidth < 768 ? 56 : 64) + Math.min(160, window.innerHeight * 0.22);
+      let current = sections[0].dataset.equipCategoryId || null;
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= marker) current = section.dataset.equipCategoryId || current;
+        else break;
+      }
+      if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 8) {
+        current = sections[sections.length - 1].dataset.equipCategoryId || current;
+      }
+      setActiveCategoryId(previous => previous === current ? previous : current);
+    };
+    const scheduleUpdate = () => { if (!frame) frame = window.requestAnimationFrame(updateActiveCategory); };
+    scheduleUpdate();
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
+    return () => {
+      window.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [activeTab.kind, visibleCategories]);
   const tutorialTarget = useMemo(() => {
     const candidates = categories.map(category => {
       const items = equipment.filter(item => item.categoryId === category.id);
@@ -464,7 +542,7 @@ export function EquipamentosPage() {
               </span>
               <span className="equip-nav-label">Dashboard</span>
             </button>
-            <button className={`equip-nav-item ${activeTab.kind === 'categories' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'categories'} onClick={() => setActiveTab({ kind: 'categories' })} data-equip-category-nav>
+            <button className={`equip-nav-item ${activeTab.kind === 'categories' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'categories'} onClick={openCategoriesMenu} data-equip-category-nav>
               <span className="equip-nav-label">Categorias</span>
               <span className="equip-nav-count">{equipment.length}</span>
             </button>
@@ -503,6 +581,23 @@ export function EquipamentosPage() {
 
             {activeTab.kind === 'categories' && (
               <div className="equip-categories" data-equip-categories>
+                <details ref={categoryMenuRef} className="equip-category-jump" data-equip-category-jump>
+                  <summary>
+                    <span>Ir para categoria</span>
+                    <strong>{activeCategoryName}</strong>
+                    <span aria-hidden="true">⌄</span>
+                  </summary>
+                  <div className="equip-category-jump__menu" role="group" aria-label="Categorias de equipamentos">
+                    {categories.map(category => (
+                      <button key={category.id} type="button" className={activeCategoryId === category.id ? 'is-active' : ''}
+                        aria-current={activeCategoryId === category.id ? 'location' : undefined}
+                        onClick={() => goToCategory(category.id)}>
+                        <span>{category.name}</span>
+                        <span>{equipment.filter(item => item.categoryId === category.id).length}</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
                 <div className="page-card equip-categories__toolbar">
                   <SearchBar
                     value={categorySearch}
@@ -521,7 +616,7 @@ export function EquipamentosPage() {
                 {categorySearch.trim() && visibleEquipment.length === 0 ? (
                   <div className="page-card equip-categories__empty">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</div>
                 ) : null}
-                {categories.filter(category => !categorySearch.trim() || visibleEquipment.some(item => item.categoryId === category.id)).map(category => (
+                {visibleCategories.map(category => (
                   <EquipmentCategorySection
                     key={category.id}
                     category={category}
