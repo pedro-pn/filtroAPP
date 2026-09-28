@@ -63,19 +63,6 @@ function rolePeriods(mission, jobRoleId, ignoredAllocationId = null) {
     .flatMap(item => allocationPeriods(item, mission));
 }
 
-function ensureDemandCapacity(mission, jobRoleId, period, ignoredAllocationId = null) {
-  const demand = mission.demands.find(item => item.jobRoleId === jobRoleId);
-  if (!demand) throw conflictError('A função não faz parte da demanda da missão.', [], 'JOB_ROLE_NOT_DEMANDED');
-  const concurrent = maximumConcurrentAllocationCount([
-    ...rolePeriods(mission, jobRoleId, ignoredAllocationId),
-    period
-  ]);
-  if (concurrent > demand.requiredCount) {
-    throw conflictError('A demanda desta função já está completa neste período.', [], 'DEMAND_FULL');
-  }
-  return demand;
-}
-
 function ensureDemandCapacityForPeriods(mission, jobRoleId, periods, ignoredAllocationId = null) {
   const demand = mission.demands.find(item => item.jobRoleId === jobRoleId);
   if (!demand) throw conflictError('A função não faz parte da demanda da missão.', [], 'JOB_ROLE_NOT_DEMANDED');
@@ -102,7 +89,17 @@ export async function allocateCollaboratorInTransaction(tx, mission, payload, co
   if (existingSame && !existingSame.deletedAt) return existingSame;
   const periods = requestedAllocationPeriods(mission, payload);
   const period = requestedAllocationPeriod(mission, payload);
-  const demand = ensureDemandCapacityForPeriods(mission, payload.jobRoleId, periods);
+  // A demanda continua como previsão; inclusões manuais podem registrar cargos e quantidades excepcionais.
+  const demand = source === 'AUTOMATIC'
+    ? ensureDemandCapacityForPeriods(mission, payload.jobRoleId, periods)
+    : mission.demands.find(item => item.jobRoleId === payload.jobRoleId);
+  const role = demand?.jobRole || await tx.jobRole.findUnique({
+    where: { id: payload.jobRoleId },
+    select: { name: true, isActive: true, isOperational: true }
+  });
+  if (!role || role.isActive === false || role.isOperational === false) {
+    throw planningError('O colaborador precisa ter uma função operacional ativa.', { code: 'INVALID_COLLABORATOR_JOB_ROLE' });
+  }
 
   await lockCollaborator(tx, payload.collaboratorId);
   for (const requestedPeriod of periods) {
@@ -129,14 +126,14 @@ export async function allocateCollaboratorInTransaction(tx, mission, payload, co
       missionId: mission.id,
       collaboratorId: payload.collaboratorId,
       jobRoleId: payload.jobRoleId,
-      jobRoleNameSnapshot: demand.jobRole.name,
+      jobRoleNameSnapshot: role.name,
       ...periodData,
       source,
       createdByUserId: context.actorUserId || null
     },
     update: {
       jobRoleId: payload.jobRoleId,
-      jobRoleNameSnapshot: demand.jobRole.name,
+      jobRoleNameSnapshot: role.name,
       ...periodData,
       source,
       deletedAt: null,
@@ -262,7 +259,6 @@ export async function updateMissionAllocationPeriod(missionId, allocationId, pay
       });
     }
     const period = requestedAllocationPeriod(mission, payload);
-    ensureDemandCapacity(mission, existing.jobRoleId, period, existing.id);
     await lockCollaborator(tx, existing.collaboratorId);
     const data = await loadCollaboratorConflictData(tx, existing.collaboratorId, period, mission.planId);
     if (!data.collaborator) throw notFound('Colaborador não encontrado.');
