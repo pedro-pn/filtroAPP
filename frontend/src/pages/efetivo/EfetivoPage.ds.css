@@ -369,6 +369,19 @@
   margin-block-start: 0;
 }
 
+:where(.fv-ds, [data-fv-ds]) .efetivo-overview-scroll-list {
+  max-block-size: min(16rem, 42vh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-inline-end: var(--space-1);
+  scrollbar-gutter: stable;
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-overview-scroll-list:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 :where(.fv-ds, [data-fv-ds]) .efetivo-calendar-main,
 :where(.fv-ds, [data-fv-ds]) .efetivo-availability-column,
 :where(.fv-ds, [data-fv-ds]) .efetivo-availability-card {

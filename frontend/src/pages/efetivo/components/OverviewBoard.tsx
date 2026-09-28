@@ -108,7 +108,7 @@ export function OverviewBoard({ date, jobRoleId, onNavigate }: {
           title={<div className="efetivo-overview-card__heading"><strong>Próximas mobilizações</strong><p>Equipe prevista e vagas pendentes.</p></div>}
           actions={<Button variant="link" size="sm" onClick={() => onNavigate('evolucao')}>Ver projetos</Button>}
         >
-          {data.upcomingMobilizations.length ? <div className="efetivo-compact-list">{data.upcomingMobilizations.map(mission => {
+          {data.upcomingMobilizations.length ? <div className="efetivo-compact-list efetivo-overview-scroll-list" role="region" aria-label="Lista de próximas mobilizações" tabIndex={0}>{data.upcomingMobilizations.map(mission => {
             return <button type="button" onClick={() => onNavigate('evolucao', { projeto: mission.project.id })} key={`${mission.id}-${mission.mobilizationDate}`}><strong>{mission.project.code} · {mission.project.name}</strong><span>{displayDateOnly(mission.mobilizationDate)} · {missionFinalAllocations(mission).length} participante(s)</span></button>;
           })}</div> : <EmptyState title="Nenhuma mobilização próxima" description="Não há mobilizações confirmadas nesta janela." icon={null} />}
         </Card>
@@ -117,7 +117,7 @@ export function OverviewBoard({ date, jobRoleId, onNavigate }: {
           title={<div className="efetivo-overview-card__heading"><strong>Folgas a programar</strong><p>Permanência contínua em obra e limite de cada função.</p></div>}
           actions={<Button variant="link" size="sm" onClick={() => onNavigate('colaboradores', { date })}>Ver colaboradores</Button>}
         >
-          {data.continuousStayAlerts.length ? <div className="efetivo-compact-list">{data.continuousStayAlerts.map(alert => <button type="button" onClick={() => onNavigate('colaboradores', { date, colaborador: alert.collaboratorId })} key={alert.collaboratorId}><strong>{alert.collaboratorName}</strong><span>{alert.jobRoleName} · limite de {alert.limitDays} dias atingido ({alert.projectedDays} projetados) · programar folga até {displayDateOnly(alert.restDueDate)}</span>{alert.missions?.length ? <small>Missões: {alert.missions.map(mission => mission.code || mission.name).join(', ')}</small> : null}</button>)}</div> : <p className="placeholder-copy">✓ Nenhum colaborador atingirá o alerta de permanência na janela projetada.</p>}
+          {data.continuousStayAlerts.length ? <div className="efetivo-compact-list efetivo-overview-scroll-list" role="region" aria-label="Lista de folgas a programar" tabIndex={0}>{data.continuousStayAlerts.map(alert => <button type="button" onClick={() => onNavigate('colaboradores', { date, colaborador: alert.collaboratorId })} key={alert.collaboratorId}><strong>{alert.collaboratorName}</strong><span>{alert.jobRoleName} · limite de {alert.limitDays} dias atingido ({alert.projectedDays} projetados) · programar folga até {displayDateOnly(alert.restDueDate)}</span>{alert.missions?.length ? <small>Missões: {alert.missions.map(mission => mission.code || mission.name).join(', ')}</small> : null}</button>)}</div> : <p className="placeholder-copy">✓ Nenhum colaborador atingirá o alerta de permanência na janela projetada.</p>}
         </Card>
       </div>
 

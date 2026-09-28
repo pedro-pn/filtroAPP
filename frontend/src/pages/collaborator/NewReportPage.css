@@ -341,6 +341,17 @@
   color: var(--warning);
 }
 
+.rdo-form-page .continuity-card .admin-item-row {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rdo-form-page .continuity-card .admin-card-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
 .rdo-form-page .admin-item-row {
   display: flex;
   min-width: 0;
@@ -1100,16 +1111,25 @@
     align-items: flex-start;
   }
 
-  .rdo-form-page .continuity-card .admin-item-row {
-    align-items: stretch;
-    flex-direction: column;
+  .rdo-form-page .continuity-card {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .rdo-form-page .continuity-card .fv-card__header {
+    padding-block-end: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .fv-card__body {
     gap: var(--space-2);
   }
 
-  .rdo-form-page .continuity-card .admin-card-actions {
-    width: 100%;
-    justify-content: flex-start;
+  .rdo-form-page .continuity-card .admin-list {
     gap: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .ongoing-item-react {
+    padding: var(--space-2);
   }
 
   .rdo-form-page .continuity-card .admin-card-actions .fv-button {

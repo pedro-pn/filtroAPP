@@ -4580,8 +4580,12 @@ a {
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--danger);
-  color: var(--on-danger);
+  color: var(--white);
   line-height: 1;
+}
+
+.colab-tag button.colab-tag__remove .fv-icon {
+  color: var(--white);
 }
 
 .colab-tag button.colab-tag__remove:hover:not(:disabled) {
