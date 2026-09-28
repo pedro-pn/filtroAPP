@@ -9,6 +9,11 @@
 > as novas superfícies de disponibilidade, execução, resumo legado e equipe/ciclos
 > receberam adaptação visual. A validação integrada de F2 permanece pendente.
 
+> **Conferência de 27/09/2026:** `origin/main` já estava integralmente no
+> histórico desta branch. Corrigidas as ações de liberação e assinatura física
+> que faltavam na listagem DS; a aba Simulações saiu da navegação do Efetivo
+> nesta branch por solicitação do usuário.
+
 > **Delta corrigido em 24/09/2026:** o merge de `origin/main` em `10599cf3`
 > havia substituído telas já migradas por versões legadas. RDO, Conta, Cliente,
 > Estatísticas, Acompanhamento, Assinaturas e partes do Efetivo foram restaurados
@@ -49,11 +54,13 @@ entradas DS desta branch durante cada lote.
 | **A3b/A7 — Acompanhamento: contratos existentes** | A conciliação de sistemas e o escopo planejado passaram a exibir “Equipamento do cliente” e ajustes de nomes; a API de avanço considera as novas metragens validadas. | Revisar `ProjectSystemInput`, `ProjectSystemAliases`, `ProjectSystemReconciliation`, `ProjectPlannedScopeEditor`, `ProjectProgressBreakdown` e o detalhe já migrado para refletir os novos rótulos e dados. Revalidar consumo de metas, totais e permissões em projeto/grupo. |
 | **F2.1/F2.5 — Efetivo: disponibilidade por período** | Filtro de data final, API diária por intervalo, KPIs de pico/falta, cargos com déficit, riscos planejados e alternância Kanban/Calendário; status “Indisponível” e “Fora do vínculo”. | **Adaptação visual implementada:** cards DS, cores semânticas nos riscos e faixas do calendário, Kanban responsivo e estados de loading/erro/vazio. Falta validar com dados e perfis reais na matriz F2. |
 | **F2.5/F2.6 — Efetivo: evolução e execução** | Resumo inicial para obras legadas, equipe/datas/equipamentos, verificação semanal, desvios recolhíveis e ajustes de calendário, capacidade e tooltip. | **Adaptação visual implementada:** resumo legado com campos DS; execução com cartões, campos e relatórios DS; equipe/ciclos embutidos no fluxo com controles DS e regras novas da main. O diálogo de planejamento de missão foi preservado. Falta validar persistência, permissões e navegadores na matriz F2. |
-| **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | Adaptar ações de `GestorPage`, `PhysicalSignatureDialog`, `ReportSummaryCard`, `ReportDetailPage` e `ClientPage` aos controles/estados DS; conferir upload, confirmação, sucesso/erro, leitura, revogação, permissões, teclado, foco e temas. Preservar a ordem e a disponibilidade dos relatórios para o cliente. |
+| **X3 — Relatórios de serviço e assinatura física** | Liberação individual de relatórios de serviço, revogação, registro de RDO assinado em papel com PDF, status próprio no detalhe e visibilidade no portal do cliente. | **Adaptação visual implementada:** ações ausentes da listagem DS restauradas, status de assinatura física e liberação exibidos, diálogo de upload migrado. Detalhe e portal já usam estados DS. Falta conferir upload, revogação, permissões, foco e temas com backend real. |
 | **X2 — Componentes compartilhados** | `Modal` recebeu proteção de teclado/propagação para painéis aninhados; o catálogo de API foi atualizado. | Revalidar diálogos de Cronograma, assinatura física e demais consumidores DS/legados. O catálogo de API não cria superfície visual nova nesta rodada. |
 
-Após A3c, a próxima prioridade deste delta é **X3**, que altera telas RDO e
-Cliente já migradas.
+Após A3c, X3 recebeu adaptação visual nesta branch. `origin/main` já era
+ancestral da branch em 27/09/2026; a aba Simulações ainda existe na main, mas
+foi retirada da navegação do Efetivo aqui conforme solicitado. O serviço de
+cenários permanece disponível no backend para não alterar dados existentes.
 **F2.1/F2.5/F2.6** foram retomadas em 27/09. A7 e X2 incluem regressão
 integrada de todos os módulos já migrados.
 
@@ -122,7 +129,7 @@ Todas as fases devem preservar os seguintes contratos:
 | Área | Superfícies que agora fazem parte do redesign | Situação |
 | --- | --- | --- |
 | Hub e navegação global | Efetivo, Assinaturas, Manutenção/Produção e novidades de API/Tokens; ícones e acesso por perfil/permissão | Integração preserva DS; revisão transversal X2 pendente |
-| Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Simulações, Produtividade e Administração | **Standby nesta worktree** — entregas preservadas; retomada após conciliar o desenvolvimento paralelo |
+| Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Produtividade e Administração | **Em migração** — delta recente conciliado; validação integrada F2 pendente |
 | Assinaturas | Lista de ativos/arquivados, novo documento, configuração do PDF, assinantes, publicação, acompanhamento, auditoria e assinatura pública | **Migrado e validado tecnicamente** — F3.1–F3.5; teste em celular físico com o usuário |
 | Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | Migração visual A1–A6 implementada; fechamento integrado A7 pendente |
 | Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
@@ -495,12 +502,12 @@ integrada de F2 ainda precisa cobrir dados reais, perfis e navegadores.
 
 #### F2.1 — Navegação e leitura executiva
 
-Status: **em andamento** — shell, nove áreas, seletor mobile, filtros, métricas e
+Status: **em andamento** — shell, sete áreas, seletor mobile, filtros, métricas e
 estados principais de Visão geral, Calendário e Disponibilidade implementados na
 primeira entrega. Detalhe diário em diálogo, vagas/conflitos e calendário ampliado
 implementados em 08/09; falta fechar a matriz das demais superfícies desta onda.
 
-- navegação das nove seções e seletor mobile;
+- navegação das sete seções e seletor mobile;
 - filtros de data e função;
 - Visão geral, Calendário e Disponibilidade;
 - detalhe do dia, vagas e conflitos.
@@ -531,12 +538,11 @@ permissões e navegadores.
 
 #### F2.4 — Planejamento avançado e administração
 
-- Simulações e comparação de cenários;
 - Produtividade, pendências e detalhe individual;
 - regras, referência, feriados e atividade/auditoria;
 - tutorial permanente e campanha de novidade.
 
-Critério de saída: todas as nove seções e os dez diálogos passam na matriz
+Critério de saída: todas as sete seções e os diálogos ativos passam na matriz
 desktop/mobile, inclusive com usuário viewer e manager.
 
 ### F3 — Assinaturas

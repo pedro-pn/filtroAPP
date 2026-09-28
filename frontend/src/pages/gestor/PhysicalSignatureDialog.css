@@ -1,0 +1,10 @@
+:where(.fv-ds, [data-fv-ds]) .physical-signature-dialog__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .physical-signature-dialog__form > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: var(--leading-md);
+}

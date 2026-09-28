@@ -60,6 +60,13 @@
   cursor: default;
 }
 
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__identity {
   display: flex;
   min-width: 0;

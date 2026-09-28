@@ -19,7 +19,6 @@ import { OperationalCalendar } from './components/OperationalCalendar';
 import { OverviewBoard } from './components/OverviewBoard';
 import { ProductivityBoard } from './components/ProductivityBoard';
 import { ProjectWorkflowBoard } from './components/ProjectWorkflowBoard';
-import { ScenariosBoard } from './components/ScenariosBoard';
 import { EfetivoAppShell, type EfetivoSectionDefinition } from './EfetivoAppShell';
 import { EfetivoPlanningNovelty } from './EfetivoPlanningNovelty';
 import { EfetivoSectionNavigation } from './EfetivoSectionNavigation';
@@ -35,7 +34,6 @@ const SECTIONS: readonly EfetivoSectionDefinition[] = [
   { id: 'colaboradores', label: 'Colaboradores', description: 'Pessoas, funções, férias e afastamentos.' },
   { id: 'disponibilidade', label: 'Disponibilidade', description: 'Situação diária e necessidade de equipe no período.' },
   { id: 'evolucao', label: 'Evolução', description: 'Acompanhamento das etapas de cada missão.' },
-  { id: 'simulacoes', label: 'Simulações', description: 'Cenários de capacidade antes da aplicação.' },
   { id: 'produtividade', label: 'Produtividade', description: 'Indicadores realizados e evolução mensal.' },
   { id: 'administracao', label: 'Administração', description: 'Regras, feriados e atividade do módulo.' }
 ];
@@ -59,14 +57,13 @@ export function EfetivoPage() {
   const selectedWorkflowProjectId = searchParams.get('projeto') || undefined;
   const selectedCollaboratorId = searchParams.get('colaborador') || undefined;
   const selectedAbsenceId = searchParams.get('ausencia') || undefined;
-  const scenarioId = searchParams.get('cenario') || undefined;
   const workflowStage = (PROJECT_KANBAN_STAGES.includes(searchParams.get('faseProjeto') as ProjectKanbanStage) ? searchParams.get('faseProjeto') : 'HANDOVER') as ProjectKanbanStage;
   const workflowSearch = searchParams.get('busca') || '';
   const parsedWorkflowPage = Number(searchParams.get('pagina') || 1);
   const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
   const adminTab = (['regras', 'feriados', 'notificacoes', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'notificacoes' | 'atividade';
   const canManage = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('efetivo:manager'));
-  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'simulacoes'].includes(section);
+  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade'].includes(section);
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles, enabled: needsPositionFilters });
   const currentSection = SECTIONS.find(item => item.id === section) || SECTIONS[0];
 
@@ -172,7 +169,6 @@ export function EfetivoPage() {
             {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={value => updateParam('search', value || undefined)} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
             {section === 'disponibilidade' ? <AvailabilityBoard date={date} endDate={endDate} jobRoleId={jobRoleId} view={availabilityView} onViewChange={value => updateParam('disponibilidadeView', value === 'kanban' ? undefined : value)} /> : null}
             {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={setWorkflowSearch} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
-            {section === 'simulacoes' ? <ScenariosBoard date={date} jobRoleId={jobRoleId} selectedScenarioId={scenarioId} canManage={canManage} onScenarioSelect={value => updateParam('cenario', value)} /> : null}
             {section === 'produtividade' ? <ProductivityBoard canManage={canManage} /> : null}
             {section === 'administracao' ? <AdministrationBoard canManage={canManage} tab={adminTab} onTabChange={value => updateParam('adminTab', value === 'regras' ? undefined : value)} /> : null}
         </section>

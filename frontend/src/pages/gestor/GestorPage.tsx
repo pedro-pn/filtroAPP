@@ -1562,7 +1562,22 @@ export function GestorPage() {
               DOCX
             </Button>
           ) : null}
-          {manualReport ? (
+          {linkedServiceReport && (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project.clientCnpj && !report.project.managerOnly ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={reportMutations.clientRelease.isPending}
+              onClick={() => void toggleReportClientRelease(report, release => reportMutations.clientRelease.mutateAsync({ id: report.id, release }), showToast)}
+            >
+              {isReportManuallyReleased(report) ? 'Revogar liberação' : 'Liberar ao cliente'}
+            </Button>
+          ) : null}
+          {report.reportType === 'RDO' && report.status === 'APPROVED' ? (
+            <Button variant="secondary" size="sm" onClick={() => setPhysicalSignatureReport(report)}>
+              Enviar assinado
+            </Button>
+          ) : null}
+          {manualReport && !report.physicalSignedAt ? (
             <Button aria-label="Editar manual" variant="secondary" size="sm" disabled={reportMutations.replaceManualReportPdf.isPending} onClick={() => openManualReportReplace(report)}>
               <span className="rdo-approved-action-label rdo-approved-action-label--full" aria-hidden="true">
                 Editar manual

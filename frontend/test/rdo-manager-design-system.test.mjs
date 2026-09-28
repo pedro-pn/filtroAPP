@@ -38,6 +38,29 @@ test('manager report tabs opt into the DS shell and listing without changing the
   }
 });
 
+test('manager DS listing exposes individual release and physical signature actions', () => {
+  const page = source('src/pages/gestor/GestorPage.tsx');
+  const actions = page.slice(
+    page.indexOf('function renderManagerReportActions'),
+    page.indexOf('function renderBatchReportActions')
+  );
+  const designSystemActions = actions.slice(
+    actions.indexOf('if (reportListingTab || forceDesignSystem)'),
+    actions.indexOf('\n    return (', actions.indexOf('if (reportListingTab || forceDesignSystem)'))
+  );
+  const signatureDialog = source('src/pages/gestor/PhysicalSignatureDialog.tsx');
+  const listing = source('src/components/reports/manager/ManagerReportListing.tsx');
+
+  assert.match(designSystemActions, /Liberar ao cliente/);
+  assert.match(designSystemActions, /Revogar liberação/);
+  assert.match(designSystemActions, /Enviar assinado/);
+  assert.match(designSystemActions, /manualReport && !report\.physicalSignedAt/);
+  assert.match(signatureDialog, /appearance="design-system"/);
+  assert.match(signatureDialog, /PdfDropzone appearance="design-system"/);
+  assert.match(listing, /Assinado em papel/);
+  assert.match(listing, /Liberado ao cliente/);
+});
+
 test('manager listing composes DataTable and MobileList explicitly while preserving DOM anchors', () => {
   const listing = source(
     'src/components/reports/manager/ManagerReportListing.tsx'

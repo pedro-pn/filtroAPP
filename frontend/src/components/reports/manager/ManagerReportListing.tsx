@@ -3,9 +3,11 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { ReportSummary } from '../../../types/domain';
 import { formatDateOnlyPtBr } from '../../../utils/dateOnly';
 import type { ProjectSortDirection } from '../../../utils/projectSort';
+import { isReportManuallyReleased } from '../../../utils/reportClientRelease';
 import { reportSignatureProgress } from '../../../utils/signatureProgress';
 import { AppIcon } from '../../icons/AppIcon';
 import {
+  Badge,
   DataTable,
   StatusPill,
   type DataTableColumn,
@@ -287,6 +289,10 @@ function reportStatus(report: ReportSummary) {
     return { key: 'EDITED', label: 'Editado' };
   }
 
+  if (report.status === 'SIGNED' && report.physicalSignedAt) {
+    return { key: report.status, label: 'Assinado em papel' };
+  }
+
   return {
     key: report.status,
     label: REPORT_STATUS_LABELS[report.status] || report.status
@@ -296,12 +302,10 @@ function reportStatus(report: ReportSummary) {
 function ReportStatus({ report }: { report: ReportSummary }) {
   const status = reportStatus(report);
   return (
-    <StatusPill
-      status={status.key}
-      label={status.label}
-      toneMap={REPORT_STATUS_TONES}
-      data-row-navigation-ignore="true"
-    />
+    <span className="rdo-manager-listing__status" data-row-navigation-ignore="true">
+      <StatusPill status={status.key} label={status.label} toneMap={REPORT_STATUS_TONES} />
+      {isReportManuallyReleased(report) ? <Badge tone="success">Liberado ao cliente</Badge> : null}
+    </span>
   );
 }
 

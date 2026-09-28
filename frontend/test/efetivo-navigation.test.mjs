@@ -34,7 +34,7 @@ test('formulário de missão usa apenas a conta vinculada como líder', () => {
 test('navegação inclui disponibilidade e preserva data e função', async () => {
   const navigation = await load('/src/utils/planningNavigation.ts');
   assert.ok(navigation.EFETIVO_SECTIONS.includes('disponibilidade'));
-  assert.ok(navigation.EFETIVO_SECTIONS.includes('simulacoes'));
+  assert.equal(navigation.EFETIVO_SECTIONS.includes('simulacoes'), false);
   const next = navigation.setPlanningSectionParams(new URLSearchParams('section=missoes&date=2026-08-21&funcao=r1&missao=m1'), 'disponibilidade');
   assert.equal(next.get('date'), '2026-08-21');
   assert.equal(next.get('funcao'), 'r1');
@@ -42,11 +42,11 @@ test('navegação inclui disponibilidade e preserva data e função', async () =
   const period = navigation.setPlanningSectionParams(new URLSearchParams('section=disponibilidade&date=2026-08-21&final=2026-09-21&disponibilidadeView=calendar'), 'disponibilidade');
   assert.equal(period.get('final'), '2026-09-21');
   assert.equal(period.get('disponibilidadeView'), 'calendar');
-  assert.equal(navigation.parsePlanningSection('simulacoes'), 'simulacoes');
-  const scenario = navigation.setPlanningSectionParams(new URLSearchParams('section=disponibilidade&cenario=c1&missao=m1&final=2026-09-21'), 'simulacoes');
-  assert.equal(scenario.get('cenario'), 'c1');
-  assert.equal(scenario.get('missao'), 'm1');
-  assert.equal(scenario.get('final'), '2026-09-21');
+  assert.equal(navigation.parsePlanningSection('simulacoes'), 'visao-geral');
+  const overview = navigation.setPlanningSectionParams(new URLSearchParams('section=simulacoes&cenario=c1&missao=m1&final=2026-09-21'), 'visao-geral');
+  assert.equal(overview.has('cenario'), false);
+  assert.equal(overview.has('missao'), false);
+  assert.equal(overview.get('final'), '2026-09-21');
 });
 
 test('período da disponibilidade persiste ao navegar por outras seções do módulo', async () => {
