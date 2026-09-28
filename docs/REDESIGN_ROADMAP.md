@@ -11,8 +11,9 @@
 
 > **Conferência de 27/09/2026:** `origin/main` já estava integralmente no
 > histórico desta branch. Corrigidas as ações de liberação e assinatura física
-> que faltavam na listagem DS; a aba Simulações saiu da navegação do Efetivo
-> nesta branch por solicitação do usuário.
+> que faltavam na listagem DS; a aba Simulações já tinha sido removida da
+> `main` em `d078d960` e foi restaurada por engano na conciliação com o DS.
+> A navegação e o redirecionamento de links antigos foram alinhados à `main`.
 
 > **Delta corrigido em 24/09/2026:** o merge de `origin/main` em `10599cf3`
 > havia substituído telas já migradas por versões legadas. RDO, Conta, Cliente,
@@ -58,9 +59,9 @@ entradas DS desta branch durante cada lote.
 | **X2 — Componentes compartilhados** | `Modal` recebeu proteção de teclado/propagação para painéis aninhados; o catálogo de API foi atualizado. | Revalidar diálogos de Cronograma, assinatura física e demais consumidores DS/legados. O catálogo de API não cria superfície visual nova nesta rodada. |
 
 Após A3c, X3 recebeu adaptação visual nesta branch. `origin/main` já era
-ancestral da branch em 27/09/2026; a aba Simulações ainda existe na main, mas
-foi retirada da navegação do Efetivo aqui conforme solicitado. O serviço de
-cenários permanece disponível no backend para não alterar dados existentes.
+ancestral da branch em 27/09/2026; a remoção da aba Simulações havia sido
+perdida na conciliação visual e agora segue a navegação da main. O serviço de
+cenários permanece disponível no backend, como na main.
 **F2.1/F2.5/F2.6** foram retomadas em 27/09. A7 e X2 incluem regressão
 integrada de todos os módulos já migrados.
 

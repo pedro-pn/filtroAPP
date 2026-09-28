@@ -2,6 +2,7 @@ export const EFETIVO_SECTIONS = ['visao-geral', 'calendario', 'colaboradores', '
 export type EfetivoPlanningSection = typeof EFETIVO_SECTIONS[number];
 
 export function parsePlanningSection(value: string | null): EfetivoPlanningSection {
+  if (value === 'simulacoes') return 'disponibilidade';
   return EFETIVO_SECTIONS.includes(value as EfetivoPlanningSection) ? value as EfetivoPlanningSection : 'visao-geral';
 }
 
