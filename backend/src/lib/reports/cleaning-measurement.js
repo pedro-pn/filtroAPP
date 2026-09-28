@@ -1,6 +1,6 @@
 // Campos de edição e rótulos persistidos no RLQ compartilham a mesma medição.
 export function isSystemCleaning(data = {}) {
-  const raw = data?.limpezaTubulacao ?? data?.['Limpeza de tubulação?'] ?? data?.['Limpeza de tubulacao?'];
+  const raw = data?.limpezaTubulacao || data?.['Limpeza de tubulação?'] || data?.['Limpeza de tubulacao?'];
   return String(Array.isArray(raw) ? raw[0] : raw ?? '').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'nao';
 }

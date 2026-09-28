@@ -1,7 +1,8 @@
 import prisma from '../prisma.js';
-import { addRealizedService, buildProgress, isServiceFinalized } from '../acompanhamento/avanco.js';
+import { addRealizedService, buildProgress, isServiceFinalized, normalizeRdoServiceType } from '../acompanhamento/avanco.js';
 import { withNativeMeasurementLinks } from '../acompanhamento/native-measurement-links.js';
 import { realizedFromExtraData } from '../acompanhamento/realized-measurements.js';
+import { isSystemCleaning } from './cleaning-measurement.js';
 
 const SERVICE_NAMES = {
   limpeza: 'Limpeza química',
@@ -38,6 +39,19 @@ function formatDay(value) {
 
 function quantitiesFor(service) {
   return realizedFromExtraData(service.extraData, service.serviceType);
+}
+
+function systemTypeWithoutTubes(service) {
+  const data = service.extraData || {};
+  const type = normalizeRdoServiceType(service.serviceType);
+  const flushingMode = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
+  const noFlushingTubes = String(Array.isArray(flushingMode) ? flushingMode[0] : flushingMode ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'nao';
+  const withoutTubes = (type === 'LIMPEZA_QUIMICA' && isSystemCleaning(data))
+    || (type === 'FLUSHING' && noFlushingTubes);
+  if (!withoutTubes) return '';
+  const value = data.tipoSistema ?? data['Tipo de sistema'];
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 }
 
 function formatQuantities(values, visibleUnits) {
@@ -84,8 +98,16 @@ export function buildRdoProgressRows(report, plannedServices = [], reports = [])
       report: { id: item.id, measurementLinks: item.measurementLinks || [] }
     }))).filter(isServiceFinalized);
     const daily = { tubulacaoM: 0, oleoL: 0, sistemasUn: 0 };
+    const serviceAmounts = [];
+    let hasSystemType = false;
     for (const service of linked) {
       const quantities = quantitiesFor(service);
+      const serviceUnits = new Set(UNITS.filter(([key]) => quantities[key] > 0).map(([, label]) => label));
+      if (serviceUnits.size) {
+        const systemType = systemTypeWithoutTubes(service);
+        serviceAmounts.push(`${formatQuantities(quantities, serviceUnits)}${systemType ? ` (${systemType})` : ''}`);
+        if (systemType) hasSystemType = true;
+      }
       for (const [key] of UNITS) {
         daily[key] += quantities[key] || 0;
         accumulated[key] += quantities[key] || 0;
@@ -101,7 +123,7 @@ export function buildRdoProgressRows(report, plannedServices = [], reports = [])
     return {
       progressday: formatDay(item.reportDate),
       progressservicetype: [...new Set(finalized.map(service => rdoServiceName(service.serviceType)))].join(', ') || '—',
-      progressmade: formatQuantities(daily, dailyUnits),
+      progressmade: hasSystemType ? serviceAmounts.join(' + ') : formatQuantities(daily, dailyUnits),
       totalprogress: `${formatQuantities(accumulated, totalUnits)} / ${percentage == null ? '—' : `${percentFormat.format(percentage)}%`}`
     };
   }).reverse();

@@ -32,7 +32,7 @@ import type { ReportSummary } from '../../types/domain';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../../utils/ongoingServices';
-import { cleaningSystemQuantity, isSystemCleaning } from '../../utils/cleaningMeasurement';
+import { cleaningSystemQuantity, isSystemCleaning, requiresSystemType, systemTypeValue } from '../../utils/cleaningMeasurement';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
@@ -499,6 +499,9 @@ function SiteRdoFormPage() {
       }
       if (serviceRequiresTubes(type, data) && !hasValidTubes(data.tubes)) {
         return failRequired(`Diâmetro e comprimento de cada ${type === 'pressao' ? pressureTubeItemLabel(data) : 'tubulação'}`, target('tubes'), 1);
+      }
+      if (requiresSystemType(type, data) && !hasText(systemTypeValue(data))) {
+        return failRequired('Tipo de sistema', target('tipoSistema'), 1);
       }
 
       if (type === 'limpeza') {

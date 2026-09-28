@@ -2512,7 +2512,7 @@ function pdfCacheMetadataForReport(report) {
   return {
     // Bump whenever DOCX/PDF layout rules change so previously rendered files
     // are not served indefinitely with stale pagination or conditional blocks.
-    version: report.reportType === ReportType.RDO ? 5 : 3,
+    version: report.reportType === ReportType.RDO ? 6 : 3,
     reportId: report.id,
     reportUpdatedAt: reportUpdatedAtToken(report),
     fingerprint: sha256Hex(JSON.stringify({

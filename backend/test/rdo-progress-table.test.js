@@ -75,6 +75,55 @@ test('completed system units are counted once and combined with other finished s
   assert.equal(row.totalprogress, '10 L + 2 un / 50%');
 });
 
+test('realized quantities show each non-tubing system type beside its own unit', () => {
+  const report = {
+    id: 'systems-rdo', reportType: 'RDO', sequenceNumber: 1, reportDate: '2026-09-05',
+    services: [
+      { serviceType: 'limpeza', finalized: true,
+        extraData: { limpezaTubulacao: 'Não', quantidadeSistemas: '3', tipoSistema: 'APVs' } },
+      { serviceType: 'limpeza', finalized: true,
+        extraData: { 'Limpeza de tubulação?': 'Não', quantidadeSistemas: '2', 'Tipo de sistema': 'Tanques' } },
+      { serviceType: 'flushing', finalized: true,
+        extraData: { flushingTubulacao: 'Não', volumeOleo: '20', tipoSistema: 'Reservatórios' } },
+      { serviceType: 'limpeza', finalized: false,
+        extraData: { limpezaTubulacao: 'Não', quantidadeSistemas: '10', tipoSistema: 'Ignorado' } }
+    ]
+  };
+  const scope = [
+    { serviceType: 'LIMPEZA_QUIMICA', systems: [{ systemType: 'SISTEMA', quantity: 10 }] },
+    { serviceType: 'FLUSHING', systems: [{ systemType: 'OLEO', quantity: 100 }] }
+  ];
+  const [row] = buildRdoProgressRows(report, scope);
+  assert.equal(row.progressmade, '3 un (APVs) + 2 un (Tanques) + 20 L (Reservatórios)');
+  assert.equal(row.totalprogress, '20 L + 5 un / 35%');
+});
+
+test('tubing services do not show a stale system type', () => {
+  const report = { id: 'tubes-rdo', reportType: 'RDO', reportDate: '2026-09-05', services: [
+    { serviceType: 'limpeza', finalized: true,
+      extraData: { limpezaTubulacao: 'Sim', tipoSistema: 'APVs', tubes: [{ c: '3', lengthUnit: 'm' }] } }
+  ] };
+  const [row] = buildRdoProgressRows(report, [
+    { serviceType: 'LIMPEZA_QUIMICA', systems: [{ systemType: 'TUBULACAO', quantity: 10 }] }
+  ]);
+  assert.equal(row.progressmade, '3 m');
+});
+
+test('DOCX prints the system type after completed units in the progress table', async () => {
+  const report = {
+    id: 'system-type-docx', reportType: 'RDO', sequenceNumber: 1, reportDate: '2026-09-06',
+    project: { code: '1', name: 'Contrato', clientName: '', clientCnpj: '', location: '', contractCode: '', operator: {} },
+    collaborators: [], services: [
+      { serviceType: 'limpeza', finalized: true,
+        extraData: { limpezaTubulacao: 'Não', quantidadeSistemas: '3', tipoSistema: 'APVs' } }
+    ]
+  };
+  const zip = new AdmZip(await buildReportDocx(report));
+  const doc = new DOMParser().parseFromString(zip.readAsText('word/document.xml'), 'text/xml');
+  const table = Array.from(doc.getElementsByTagName('w:tbl')).find(node => node.textContent?.includes('PROGRESSO'));
+  assert.match(table.textContent, /3 un \(APVs\)/);
+});
+
 test('DOCX loads contract RDOs, repeats the progress template row and replaces every placeholder', async t => {
   const findPlanned = prisma.projectPlannedService.findMany;
   const findReports = prisma.report.findMany;

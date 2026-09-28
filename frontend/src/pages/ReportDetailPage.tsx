@@ -42,6 +42,7 @@ import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
+import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasurement';
 import { buildContinuedServiceData, collectPendingProjectServices, formServiceOngoingKeys, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
 import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
@@ -470,6 +471,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const { confirm, confirmDialog } = useConfirmDialog();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
   const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
+  const [invalidSystemTypeServiceId, setInvalidSystemTypeServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
@@ -705,6 +707,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     if (id === invalidFinalizationServiceId && typeof data.data?.finalized === 'boolean') {
       setInvalidFinalizationServiceId(null);
     }
+    if (id === invalidSystemTypeServiceId && (data.data?.tipoSistema !== undefined || data.data?.limpezaTubulacao !== undefined || data.data?.flushingTubulacao !== undefined)) {
+      setInvalidSystemTypeServiceId(null);
+    }
     setForm(current => ({
       ...current,
       services: current.services.map(service => (
@@ -717,6 +722,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   function removeService(id: string) {
     if (id === invalidFinalizationServiceId) setInvalidFinalizationServiceId(null);
+    if (id === invalidSystemTypeServiceId) setInvalidSystemTypeServiceId(null);
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
@@ -755,6 +761,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       showToast(`Informe a ${label} do serviço ${missingServiceTime.serviceIndex + 1}.`, 'error');
       return false;
     }
+    const missingSystemTypeIndex = form.services.findIndex(service => {
+      const value = systemTypeValue(service.data);
+      return requiresSystemType(normalizeServiceType(service.type), service.data)
+        && !(typeof value === 'string' && value.trim());
+    });
+    if (missingSystemTypeIndex >= 0) {
+      const serviceId = form.services[missingSystemTypeIndex].id;
+      setInvalidSystemTypeServiceId(serviceId);
+      showToast(`Informe o tipo de sistema do serviço ${missingSystemTypeIndex + 1}.`, 'error');
+      window.setTimeout(() => document.getElementById(`svc-${serviceId}-tipoSistema`)?.focus(), 120);
+      return false;
+    }
+    setInvalidSystemTypeServiceId(null);
     if (!serviceReportMode) {
       const missingFinalizationIndex = form.services.findIndex(service => typeof service.data.finalized !== 'boolean');
       if (missingFinalizationIndex >= 0) {
@@ -1117,7 +1136,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
-                    invalidKey={invalidFinalizationServiceId === service.id ? 'finalized' : null}
+                    invalidKey={invalidSystemTypeServiceId === service.id ? 'tipoSistema' : invalidFinalizationServiceId === service.id ? 'finalized' : null}
                     hideFinalization={serviceReportMode}
                     hideUploads={manualReport}
                     hideNotes={manualReport}
@@ -1568,6 +1587,10 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
     rows.push({ label: 'Equipamento', value: String(data.equipmentId) });
   }
   if (data.system) rows.push({ label: 'Sistema', value: String(data.system) });
+  if (((type === 'limpeza' && data.limpezaTubulacao === 'Não')
+    || (type === 'flushing' && data.flushingTubulacao === 'Não')) && data.tipoSistema) {
+    rows.push({ label: 'Tipo de sistema', value: String(data.tipoSistema) });
+  }
   if (type !== 'flushing' && data.material) rows.push({ label: 'Material', value: String(data.material) });
   if (data.startTime || data.endTime) {
     rows.push({ label: 'Horário', value: `${data.startTime || '--'} às ${data.endTime || '--'}` });
