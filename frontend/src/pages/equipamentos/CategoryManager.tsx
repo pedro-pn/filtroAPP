@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from '
 
 import type { EquipmentCategory } from '../../api/equipamentos';
 import { useToast } from '../../components/ui/ToastContext';
+import { Button, EmptyState } from '../../components/ui/ds';
 import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
 import { type ProjectSortDirection } from '../../utils/projectSort';
-import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import {
   createPointerDragGhost,
   movePointerDragGhost,
@@ -177,11 +177,13 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
   }
 
   return (
-    <section className="page-card">
+    <section className="page-card equip-category-manager">
       <div className="admin-toolbar">
         <div className="sec">Categorias</div>
         <div className="equip-cat-tools">
-          <ProjectSortButton direction={sortDir} onToggle={sortAlphabetically} />
+          <Button variant="secondary" size="sm" type="button" aria-label="Alternar ordem alfabética" onClick={sortAlphabetically}>
+            {sortDir === 'asc' ? 'A→Z' : 'Z→A'}
+          </Button>
           <button
             className={`icon-toggle ${locked ? '' : 'active'}`}
             type="button"
@@ -189,13 +191,15 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
             title={locked ? 'Destravar para reordenar' : 'Travar ordenação'}
             onClick={() => setLocked(v => !v)}
           >
-            {locked ? '🔒' : '🔓'} {locked ? 'Reordenar' : 'Concluir'}
+            {locked ? 'Reordenar' : 'Concluir'}
           </button>
-          <button className="mini-btn" type="button" onClick={onAdd}>+ Nova categoria</button>
+          <Button variant="primary" size="sm" type="button" onClick={onAdd}>Nova categoria</Button>
         </div>
       </div>
 
-      {!locked && <p className="rel-meta equip-reorder-hint">Arraste os cards para reordenar as abas. Clique em “Concluir” para travar.</p>}
+      {!locked && <p className="rel-meta equip-reorder-hint">Arraste as categorias para ajustar a ordem. Clique em “Concluir” para travar.</p>}
+
+      {ordered.length === 0 ? <EmptyState title="Nenhuma categoria cadastrada" description="Crie uma categoria para organizar os equipamentos." variant="create" action={{ label: 'Nova categoria', onClick: onAdd }} /> : null}
 
       <div className={`equip-grid ${locked ? '' : 'reordering'}`}>
         {ordered.map(category => (
@@ -241,9 +245,9 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
             <div className="rel-meta">{category.fieldSchema.length} campo(s){category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}{category.showInMaintenance !== false ? ' · manutenção' : ' · fora da manutenção'}</div>
             {locked && (
               <div className="report-card-actions">
-                <button className="mini-btn alt" type="button" onClick={() => onEdit(category)}>Editar</button>
+                <Button variant="secondary" size="sm" type="button" onClick={() => onEdit(category)}>Editar</Button>
                 {!rdoLinkedCategoryIds.has(category.id) && (
-                  <button className="mini-btn danger" type="button" onClick={() => onRemove(category)}>Remover</button>
+                  <Button variant="danger" size="sm" type="button" onClick={() => onRemove(category)}>Remover</Button>
                 )}
               </div>
             )}

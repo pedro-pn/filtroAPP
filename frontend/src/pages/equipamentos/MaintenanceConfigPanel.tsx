@@ -17,7 +17,7 @@ import {
   type MaintenanceProfilePayload
 } from '../../api/equipamentos';
 import type { MaintenanceProfileSummary } from '../../api/operationalReports';
-import { Button } from '../../components/ui/Button';
+import { Button, EmptyState } from '../../components/ui/ds';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -156,7 +156,7 @@ function CategoryMaintenanceSettings({
               <div className="field-error">{intervalError.message}</div>
             ) : null}
           </div>
-          <Button type="submit" variant="mini" disabled={intervalPending}>
+          <Button type="submit" variant="primary" size="sm" loading={intervalPending}>
             {intervalPending ? 'Salvando…' : 'Salvar prazo'}
           </Button>
         </form>
@@ -454,9 +454,7 @@ export function MaintenanceConfigPanel({
     );
   if (configQuery.isError || !configQuery.data)
     return (
-      <div className="inline-error">
-        Não foi possível carregar a configuração de manutenção.
-      </div>
+      <EmptyState variant="error" title="Não foi possível carregar a configuração de manutenção" action={{ label: 'Tentar novamente', onClick: () => void configQuery.refetch() }} />
     );
   const config = configQuery.data;
   const profilesById = new Map(
@@ -467,7 +465,7 @@ export function MaintenanceConfigPanel({
   );
 
   return (
-    <div className="operational-config-stack">
+    <div className="operational-config-stack equip-maintenance-config">
       <section className="page-card">
         <div className="section-title">Supervisor global da manutenção</div>
         <p className="placeholder-copy">
@@ -498,7 +496,9 @@ export function MaintenanceConfigPanel({
         </div>
         <div className="admin-form-actions equip-form-actions">
           <Button
-            disabled={supervisorMutation.isPending}
+            variant="primary"
+            size="sm"
+            loading={supervisorMutation.isPending}
             onClick={() => supervisorMutation.mutate()}
           >
             {supervisorMutation.isPending ? 'Salvando…' : 'Salvar supervisor'}
@@ -515,7 +515,7 @@ export function MaintenanceConfigPanel({
               documento.
             </div>
           </div>
-          <Button variant="mini" onClick={() => openProfile()}>
+          <Button variant="primary" size="sm" onClick={() => openProfile()}>
             Novo perfil
           </Button>
         </div>
@@ -531,7 +531,7 @@ export function MaintenanceConfigPanel({
               </div>
               <div className="admin-actions">
                 <Button
-                  variant="mini"
+                  variant="secondary" size="sm"
                   disabled={index === 0 || profileOrderMutation.isPending}
                   aria-label={`Mover ${profile.name} para cima`}
                   onClick={() =>
@@ -541,7 +541,7 @@ export function MaintenanceConfigPanel({
                   ↑
                 </Button>
                 <Button
-                  variant="mini"
+                  variant="secondary" size="sm"
                   disabled={
                     index === config.profiles.length - 1 ||
                     profileOrderMutation.isPending
@@ -553,12 +553,11 @@ export function MaintenanceConfigPanel({
                 >
                   ↓
                 </Button>
-                <Button variant="mini" onClick={() => openProfile(profile)}>
+                <Button variant="secondary" size="sm" onClick={() => openProfile(profile)}>
                   Editar
                 </Button>
                 <Button
-                  variant="mini"
-                  className="danger"
+                  variant="danger" size="sm"
                   onClick={() => setDeleteProfile(profile)}
                 >
                   Remover
@@ -567,6 +566,7 @@ export function MaintenanceConfigPanel({
             </article>
           ))}
         </div>
+        {config.profiles.length === 0 ? <EmptyState variant="create" title="Nenhum perfil de manutenção" description="Crie um perfil para definir os serviços do checklist." action={{ label: 'Novo perfil', onClick: () => openProfile() }} /> : null}
       </section>
 
       <section className="page-card">
@@ -608,6 +608,7 @@ export function MaintenanceConfigPanel({
             />
           ))}
         </div>
+        {maintenanceCategories.length === 0 ? <EmptyState title="Nenhuma categoria habilitada para manutenção" description="Ative a visibilidade no cadastro da categoria para definir perfil e prazo." /> : null}
       </section>
 
       <section className="page-card">
@@ -679,35 +680,24 @@ export function MaintenanceConfigPanel({
             );
           })}
         </div>
+        {filteredEquipment.length === 0 ? <EmptyState variant={equipmentSearch ? 'search' : 'default'} title={equipmentSearch ? 'Nenhum equipamento encontrado' : 'Nenhum equipamento disponível'} description={equipmentSearch ? 'Tente outro código, nome ou categoria.' : 'Cadastre equipamentos em categorias habilitadas para manutenção.'} /> : null}
       </section>
 
       <Modal
         open={profileModalOpen}
-        onClose={closeProfile}
-        ariaLabelledBy="maintenance-profile-title"
-        panelClassName="modal-card equip-modal"
+        onClose={() => { if (!profileMutation.isPending) closeProfile(); }}
+        appearance="design-system"
+        title={editingProfileId ? 'Editar perfil de manutenção' : 'Novo perfil de manutenção'}
+        size="lg"
+        showCloseButton={!profileMutation.isPending}
+        closeOnEscape={!profileMutation.isPending}
+        panelClassName="equip-config-profile-modal"
       >
         {profileModalOpen ? (
           <form
-            className="equip-form"
+            className="equip-form equip-config-form"
             onSubmit={profileForm.handleSubmit(saveProfile)}
           >
-            <button
-              className="equip-modal-close-float icon-button"
-              type="button"
-              aria-label="Fechar perfil de manutenção"
-              title="Fechar"
-              onClick={closeProfile}
-              disabled={profileMutation.isPending}
-            >
-              ×
-            </button>
-            <header className="equip-form-head has-float-close">
-              <h3 id="maintenance-profile-title">
-                {editingProfileId ? 'Editar perfil' : 'Novo perfil'}
-              </h3>
-              <span className="equip-form-sub">Manutenção</span>
-            </header>
             <div
               className={`field-group ${profileForm.formState.errors.name ? 'field-invalid' : ''}`}
             >
@@ -780,7 +770,7 @@ export function MaintenanceConfigPanel({
                       </label>
                       <div className="admin-actions">
                         <Button
-                          variant="mini"
+                          variant="secondary" size="sm"
                           disabled={index === 0}
                           aria-label={`Mover serviço ${index + 1} para cima`}
                           onClick={() => profileItemFields.move(index, index - 1)}
@@ -788,7 +778,7 @@ export function MaintenanceConfigPanel({
                           ↑
                         </Button>
                         <Button
-                          variant="mini"
+                          variant="secondary" size="sm"
                           disabled={index === profileItemFields.fields.length - 1}
                           aria-label={`Mover serviço ${index + 1} para baixo`}
                           onClick={() => profileItemFields.move(index, index + 1)}
@@ -797,8 +787,7 @@ export function MaintenanceConfigPanel({
                         </Button>
                         {!item.id ? (
                           <Button
-                            variant="mini"
-                            className="danger"
+                            variant="danger" size="sm"
                             disabled={profileItemFields.fields.length === 1}
                             onClick={() => profileItemFields.remove(index)}
                           >
@@ -810,7 +799,7 @@ export function MaintenanceConfigPanel({
                   );
                 })}
                 <Button
-                  variant="secondary"
+                  variant="secondary" size="sm"
                   onClick={() =>
                     profileItemFields.append({
                       label: '',
@@ -834,10 +823,10 @@ export function MaintenanceConfigPanel({
               </div>
             ) : null}
             <div className="modal-actions">
-              <Button variant="secondary" onClick={closeProfile}>
+              <Button variant="secondary" size="sm" onClick={closeProfile} disabled={profileMutation.isPending}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={profileMutation.isPending}>
+              <Button variant="primary" size="sm" type="submit" loading={profileMutation.isPending}>
                 {profileMutation.isPending ? 'Salvando…' : 'Salvar perfil'}
               </Button>
             </div>
@@ -847,6 +836,8 @@ export function MaintenanceConfigPanel({
 
       <ConfirmDialog
         open={Boolean(deleteProfile)}
+        appearance="design-system"
+        confirmDisabled={deleteMutation.isPending}
         title="Remover perfil de manutenção?"
         description="Perfis já usados serão desativados para preservar o histórico."
         highlight={deleteProfile?.name}

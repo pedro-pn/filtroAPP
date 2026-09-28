@@ -26,6 +26,7 @@ import { MaintenanceHistoryModal } from './MaintenanceHistoryModal';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { equipmentCategoryShortLabel, equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, type EquipmentTab } from './equipmentCategoryView';
 import './EquipamentosPage.ds.css';
+import './EquipmentConfig.ds.css';
 
 type ActiveTab = { kind: EquipmentTab };
 
@@ -641,10 +642,10 @@ export function EquipamentosPage() {
             )}
 
             {activeTab.kind === 'config' && isManager && (
-              <>
+              <div className="equip-config-page">
                 <CategoryManager categories={categories} rdoLinkedCategoryIds={rdoLinkedCategoryIds} onAdd={() => setCategoryForm({ open: true, category: null })} onEdit={category => setCategoryForm({ open: true, category })} onRemove={handleRemoveCategory} />
                 <RdoSlotsConfig categories={categories} />
-              </>
+              </div>
             )}
 
             {activeTab.kind === 'notifications' && isManager && <NotificationsConfig />}
@@ -676,6 +677,7 @@ export function EquipamentosPage() {
 
       <ConfirmDialog
         open={!!confirm}
+        appearance="design-system"
         title={confirm?.title || ''}
         description={confirm?.description}
         highlight={confirm?.highlight}

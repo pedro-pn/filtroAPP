@@ -10,6 +10,7 @@ import type {
   TechnicalFieldDefinition
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/ds';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
 import { TechnicalSchemaBuilder } from './TechnicalSchemaBuilder';
 
@@ -85,26 +86,16 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      ariaLabelledBy="category-form-title"
+      onClose={() => { if (!saving) onClose(); }}
+      appearance="design-system"
+      title={category ? 'Editar categoria' : 'Nova categoria'}
+      size="lg"
+      showCloseButton={!saving}
       closeOnBackdrop={false}
       closeOnEscape={false}
-      panelClassName="modal-card equip-modal"
+      panelClassName="equip-config-category-modal"
     >
-      <form className="equip-form" onSubmit={handleSubmit}>
-        <header className="equip-form-head equip-form-head-with-close">
-          <h3 id="category-form-title">{category ? 'Editar categoria' : 'Nova categoria'}</h3>
-          <button
-            className="equip-modal-close icon-button"
-            type="button"
-            aria-label="Fechar edição de categoria"
-            title="Fechar"
-            onClick={onClose}
-            disabled={saving}
-          >
-            ×
-          </button>
-        </header>
+      <form className="equip-form equip-config-form" onSubmit={handleSubmit}>
         {category?.isSystemManaged && (
           <p className="rel-meta">O identificador interno desta categoria é usado pelos relatórios e não pode ser alterado. Nome, campos e vínculos podem ser editados normalmente.</p>
         )}
@@ -164,7 +155,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
         <div className="equip-fields-builder">
           <div className="admin-toolbar">
             <div className="sec">Campos do formulário</div>
-            <button className="mini-btn alt" type="button" onClick={() => setFields(prev => [...prev, emptyField()])}>Adicionar campo</button>
+            <Button variant="secondary" size="sm" type="button" onClick={() => setFields(prev => [...prev, emptyField()])}>Adicionar campo</Button>
           </div>
           {fields.length === 0 && <p className="rel-meta">Nenhum campo extra. Código e Nome já estão sempre presentes.</p>}
           {fields.map((field, index) => (
@@ -196,7 +187,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
                 <input type="checkbox" checked={Boolean(field.showInDashboard)} onChange={e => updateField(index, { showInDashboard: e.target.checked })} />
                 <span>Dashboard</span>
               </label>
-              <button className="mini-btn danger" type="button" onClick={() => setFields(prev => prev.filter((_, i) => i !== index))}>×</button>
+              <Button variant="danger" size="sm" type="button" aria-label={`Remover campo ${index + 1}`} onClick={() => setFields(prev => prev.filter((_, i) => i !== index))}>Remover</Button>
             </div>
           ))}
         </div>
@@ -206,8 +197,8 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
         )}
 
         <div className="admin-form-actions equip-form-actions">
-          <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="mini-btn" type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</button>
+          <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" size="sm" type="submit" loading={saving}>{saving ? 'Salvando…' : 'Salvar categoria'}</Button>
         </div>
       </form>
     </Modal>

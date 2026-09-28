@@ -395,7 +395,8 @@ test('configuração de manutenção usa perfil padrão por categoria e exceçõ
   assert.match(config, /useForm<MaintenanceProfileFormValues>/);
   assert.match(config, /zodResolver\(maintenanceProfileFormSchema\)/);
   assert.match(config, /item\.isActive/);
-  assert.match(config, /panelClassName="modal-card equip-modal"/);
+  assert.match(config, /appearance="design-system"/);
+  assert.match(config, /panelClassName="equip-config-profile-modal"/);
   assert.match(
     config,
     /className="admin-form-actions equip-form-actions"[\s\S]*?Salvar supervisor/

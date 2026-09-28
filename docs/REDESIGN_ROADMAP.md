@@ -1039,7 +1039,7 @@ real, revisão concorrente e matriz completa de perfis seguem em A7.
 #### F4.2 — Equipamentos e configuração de manutenção (novo escopo)
 
 - [x] **EQ1:** shell/abas, entrada de configuração e componentes compartilhados.
-- [ ] **EQ2:** supervisor, perfis/checklists, categorias/intervalo/visibilidade e
+- [x] **EQ2:** supervisor, perfis/checklists, categorias/intervalo/visibilidade e
   exceção por equipamento; formulário de perfil e confirmação de remoção.
 - [ ] **EQ3:** cards/ações, histórico e downloads; consulta e gestão nos dois temas.
 
@@ -1073,6 +1073,14 @@ Revisão de EQ1: as categorias foram reunidas em uma única subaba. A lista most
 uma tabela por categoria no desktop e cards em telas menores, com busca e ordem
 globais. Cadastro, histórico, dados técnicos, downloads e envio de PDFs foram
 mantidos; URLs antigas `tab=cat:<id>` ainda abrem a categoria correspondente.
+
+EQ2: configuração de manutenção e categorias usam superfícies, botões e diálogos
+do DS. Foram migrados supervisor, lista/edição/remoção de perfis e seus serviços,
+perfil e prazo por categoria, exceções por equipamento, visibilidade e checklist
+da categoria, além dos vínculos com RDO. Estados vazios/erro e layout responsivo
+foram harmonizados. Regras de herança, validação e mutations foram preservadas;
+validação visual em navegador permanece pendente por falta das bibliotecas do
+browser no ambiente local.
 
 ### F5 — RDO, Gestão e ajustes transversais
 

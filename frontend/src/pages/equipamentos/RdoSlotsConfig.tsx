@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { EquipmentCategory, RdoEquipmentSlot } from '../../api/equipamentos';
 import { useToast } from '../../components/ui/ToastContext';
+import { Button, EmptyState } from '../../components/ui/ds';
 import { useEquipamentoMutations, useRdoSlots } from '../../hooks/useEquipamentos';
 
 interface Props {
@@ -65,7 +66,7 @@ export function RdoSlotsConfig({ categories }: Props) {
   }
 
   return (
-    <section className="page-card">
+    <section className="page-card equip-rdo-slots-config">
       <div className="admin-toolbar">
         <div className="sec">Vínculo com relatórios (RDO)</div>
       </div>
@@ -77,6 +78,8 @@ export function RdoSlotsConfig({ categories }: Props) {
       </p>
 
       {slotsQuery.isLoading && <p className="rel-meta">Carregando…</p>}
+      {slotsQuery.isError ? <EmptyState variant="error" title="Não foi possível carregar os vínculos" action={{ label: 'Tentar novamente', onClick: () => void slotsQuery.refetch() }} /> : null}
+      {!slotsQuery.isLoading && !slotsQuery.isError && grouped.length === 0 ? <EmptyState title="Nenhum vínculo de relatório disponível" description="Os pontos do formulário aparecerão aqui quando forem configurados." /> : null}
 
       {grouped.map(([serviceType, slots]) => (
         <div className="equip-slots-group" key={serviceType}>
@@ -91,6 +94,7 @@ export function RdoSlotsConfig({ categories }: Props) {
                   {slot.categoryIds.map((categoryId, index) => (
                     <div className="equip-slot-cat" key={`${slot.key}-${index}`}>
                       <select
+                        aria-label={`${slot.label}: categoria ${index + 1}`}
                         value={categoryId}
                         disabled={updateSlot.isPending}
                         onChange={e => setAt(slot, index, e.target.value)}
@@ -102,7 +106,7 @@ export function RdoSlotsConfig({ categories }: Props) {
                       <button
                         type="button"
                         className="equip-slot-x"
-                        aria-label="Remover categoria"
+                        aria-label={`Remover categoria ${index + 1} de ${slot.label}`}
                         title="Remover categoria"
                         disabled={updateSlot.isPending}
                         onClick={() => setAt(slot, index, '')}
@@ -114,6 +118,7 @@ export function RdoSlotsConfig({ categories }: Props) {
 
                   {slot.categoryIds.length === 0 && !adding[slot.key] && (
                     <select
+                      aria-label={`${slot.label}: categoria`}
                       value=""
                       disabled={updateSlot.isPending}
                       onChange={e => setAt(slot, 0, e.target.value)}
@@ -127,6 +132,7 @@ export function RdoSlotsConfig({ categories }: Props) {
 
                   {adding[slot.key] && (
                     <select
+                      aria-label={`Adicionar categoria em ${slot.label}`}
                       value=""
                       autoFocus
                       disabled={updateSlot.isPending}
@@ -140,13 +146,14 @@ export function RdoSlotsConfig({ categories }: Props) {
                   )}
 
                   {canAddMore && slot.categoryIds.length > 0 && (
-                    <button
+                    <Button
+                      variant="secondary" size="sm"
                       type="button"
-                      className="mini-btn alt equip-slot-add"
+                      className="equip-slot-add"
                       onClick={() => setAdding(prev => ({ ...prev, [slot.key]: true }))}
                     >
-                      + Adicionar categoria
-                    </button>
+                      Adicionar categoria
+                    </Button>
                   )}
                 </div>
               );
