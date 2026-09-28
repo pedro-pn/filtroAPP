@@ -26,7 +26,8 @@ test('módulos operacionais usam toda a largura disponível', async () => {
     source('src/pages/assinaturas/AssinaturasPage.tsx')
   ]);
 
-  assert.match(css, /\.app-shell:has\(\.equip-page\),[\s\S]*?\.app-shell:has\(\.stock-page\)\s*\{\s*max-width:\s*none;/);
+  assert.match(css, /\.app-shell:has\(\.stock-page\)\s*\{\s*max-width:\s*none;/);
+  assert.match(equipamentos, /<OperationalModuleAppShell/);
   for (const page of [equipamentos, qualidade]) {
     assert.match(page, /<main className="[^"]*\bequip-page\b[^"]*">/);
   }
@@ -37,4 +38,6 @@ test('módulos operacionais usam toda a largura disponível', async () => {
   assert.match(acompanhamentoShell, /<AppShell[\s\S]*?contentWidth="fluid"/);
   const signatureShell = await source('src/pages/assinaturas/AssinaturasAppShell.tsx');
   assert.match(signatureShell, /<AppShell[\s\S]*?contentWidth="fluid"/);
+  const operationalShell = await source('src/pages/OperationalModuleAppShell.tsx');
+  assert.match(operationalShell, /<AppShell[\s\S]*?contentWidth="fluid"/);
 });

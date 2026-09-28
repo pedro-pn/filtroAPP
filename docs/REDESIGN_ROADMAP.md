@@ -158,8 +158,8 @@ Todas as fases devem preservar os seguintes contratos:
 | Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
 | Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
-| Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | Novo módulo legado; M1–M5 pendentes |
-| Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 pendentes; dependência dos fluxos de manutenção |
+| Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1 concluído; M2–M5 pendentes |
+| Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1 concluído; EQ2–EQ3 pendentes; dependência dos fluxos de manutenção |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 pendentes, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 pendente, preservando fluxos da main |
 | Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado pendente |
@@ -1038,7 +1038,7 @@ real, revisão concorrente e matriz completa de perfis seguem em A7.
 
 #### F4.2 — Equipamentos e configuração de manutenção (novo escopo)
 
-- [ ] **EQ1:** shell/abas, entrada de configuração e componentes compartilhados.
+- [x] **EQ1:** shell/abas, entrada de configuração e componentes compartilhados.
 - [ ] **EQ2:** supervisor, perfis/checklists, categorias/intervalo/visibilidade e
   exceção por equipamento; formulário de perfil e confirmação de remoção.
 - [ ] **EQ3:** cards/ações, histórico e downloads; consulta e gestão nos dois temas.
@@ -1049,7 +1049,7 @@ categorias, sem alterar a política herdada/explícita de cada equipamento.
 
 #### F4.3 — Manutenção/Produção (novo módulo)
 
-- [ ] **M1:** AppShell, Hub, abas/URL, cards/listagens e filtros por permissão.
+- [x] **M1:** AppShell, Hub, abas/URL, cards/listagens e filtros por permissão.
 - [ ] **M2:** campos centrais e stepper DS alinhados ao formulário RDO aprovado,
   preservando os autosaves distintos e os cálculos compartilhados de horas.
 - [ ] **M3:** manutenção, avulsa, produção, terceiros/anexos e revisão/devolução;
@@ -1060,6 +1060,14 @@ categorias, sem alterar a política herdada/explícita de cada equipamento.
 
 `ReportCoreFields` entrou com visual legado. Não reverter o RDO concluído para
 reutilizá-lo: sua adaptação e convergência visual são trabalho explícito de M2.
+
+EQ1/M1: Equipamentos e Manutenção/Produção agora usam o AppShell, com subabas
+conforme a permissão no menu lateral e na barra inferior mobile. Filtros, ações
+e listagens iniciais usam superfícies e controles do DS; o seletor mobile legado
+de Equipamentos foi retirado. Rotas, busca, ordenação e política de acesso foram
+preservadas. Build, lint dos arquivos alterados e testes estáticos dos módulos
+passaram; inspeção visual em navegador ficou pendente porque o Chromium local
+não inicia sem `libnspr4.so`. EQ2/EQ3 e M2–M5 continuam na fila.
 
 ### F5 — RDO, Gestão e ajustes transversais
 

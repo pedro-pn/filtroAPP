@@ -629,8 +629,8 @@ test('intervalos compartilhados preservam segundos e a validação aceita HH:mm:
   assert.doesNotMatch(shared, /normalizeReportMinuteTime/);
 });
 
-test('módulo usa largura de desktop e histórico ordenável no servidor', async () => {
-  const [page, table, api, styles] = await Promise.all([
+test('módulo usa AppShell fluido e histórico ordenável no servidor', async () => {
+  const [page, table, api, shell] = await Promise.all([
     readFile(
       new URL('../src/pages/MaintenanceProductionPage.tsx', import.meta.url),
       'utf8'
@@ -647,14 +647,14 @@ test('módulo usa largura de desktop e histórico ordenável no servidor', async
       'utf8'
     ),
     readFile(
-      new URL('../src/styles/operational-reports.css', import.meta.url),
+      new URL('../src/pages/OperationalModuleAppShell.tsx', import.meta.url),
       'utf8'
     )
   ]);
 
   assert.match(
-    styles,
-    /\.app-shell:has\(\.operational-module-page\)\s*\{[^}]*max-width:\s*none;/s
+    shell,
+    /<AppShell[\s\S]*?contentWidth="fluid"/s
   );
   assert.match(table, /aria-sort=\{ariaSort\}/);
   assert.match(table, /onSortChange\(field, nextDirection\)/);
@@ -724,10 +724,11 @@ test('programação preventiva fica restrita à manutenção, calcula prazos no 
     }).success,
     false
   );
-  assert.match(
-    styles,
-    /\.operational-module-tabs\s*\{[^}]*top:\s*0;/s
+  const moduleStyles = await readFile(
+    new URL('../src/pages/MaintenanceProductionPage.ds.css', import.meta.url),
+    'utf8'
   );
+  assert.match(moduleStyles, /@media \(max-width: 767\.98px\)[\s\S]*?\.operational-module-tabs \{ display: none; \}/s);
   assert.match(
     styles,
     /@media \(max-width: 720px\)[\s\S]*?\.operational-schedule-table\s*\{[^}]*display:\s*none/s

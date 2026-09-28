@@ -10593,7 +10593,6 @@ select:disabled {
 }
 
 /* Módulos operacionais usam toda a largura disponível, como o Efetivo. */
-.app-shell:has(.equip-page),
 .app-shell:has(.stock-page) {
   max-width: none;
 }

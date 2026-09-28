@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
 import {
   getOperationalContext,
@@ -12,7 +12,6 @@ import {
   type MaintenanceScheduleStatus,
   type OperationalStatus
 } from '../api/operationalReports';
-import { accountPageStateFromPath } from '../auth/moduleNavigation';
 import {
   allowedOperationalModuleTabs,
   operationalReportEditorPath,
@@ -27,10 +26,11 @@ import {
   StandaloneMaintenanceSummaryCard
 } from '../components/reports/OperationalReportSummaryCard';
 import { OperationalReportsNovelty } from '../components/reports/OperationalReportsNovelty';
-import { Button } from '../components/ui/Button';
+import { Alert, Button, Card, EmptyState, Field, Select, Skeleton } from '../components/ui/ds';
 import { SearchBar } from '../components/ui/SearchBar';
-import { Shell } from '../layout/Shell';
-import { TopBar } from '../layout/TopBar';
+import { PageHeader } from '../layout/PageHeader';
+import { OperationalModuleAppShell } from './OperationalModuleAppShell';
+import './MaintenanceProductionPage.ds.css';
 
 const tabLabels: Record<OperationalModuleTab, string> = {
   manutencao: 'Manutenção',
@@ -79,8 +79,7 @@ function validScheduleStatus(
 }
 
 export function MaintenanceProductionPage() {
-  const { user, logout } = useAuth();
-  const location = useLocation();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const permissions = user?.reportEmissionPermissions || [];
@@ -101,6 +100,12 @@ export function MaintenanceProductionPage() {
   const canManageEquipment =
     user?.accountType === 'ADMIN' ||
     Boolean(user?.moduleRoles?.includes('equipamentos:manager'));
+  const subNavigation = tabs.map(item => ({
+    id: item,
+    label: tabLabels[item],
+    href: `/manutencao-producao?tab=${item}`,
+    active: tab === item
+  }));
 
   const contextQuery = useQuery({
     queryKey: ['operational-reports', 'context'],
@@ -220,37 +225,21 @@ export function MaintenanceProductionPage() {
   const hasListItems = visibleReports.length || visibleStandalone.length;
 
   return (
-    <Shell>
-      <TopBar
-        title="Manutenção e produção"
-        subtitle={tabLabels[tab]}
-        showLogo
-        actions={
-          <>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() =>
-                navigate('/conta', { state: accountPageStateFromPath(location) })
-              }
-            >
-              Conta
-            </button>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={async () => {
-                await logout();
-                navigate('/login', { replace: true });
-              }}
-            >
-              Sair
-            </button>
-          </>
-        }
-      />
-
-      <main className="page-scroll operational-module-page">
+    <OperationalModuleAppShell
+      moduleId="maintenance-production"
+      title="Manutenção e produção"
+      sectionLabel={tabLabels[tab]}
+      subNavigation={subNavigation}
+    >
+      <main className="fv-ds operational-module-page operational-module-page-v2">
+        <PageHeader
+          title={tabLabels[tab]}
+          description={tab === 'historico-manutencao'
+            ? 'Consulte as manutenções aprovadas dos equipamentos.'
+            : tab === 'programacao-manutencao'
+              ? 'Acompanhe os prazos preventivos dos equipamentos.'
+              : 'Consulte os relatórios e registre novos serviços.'}
+        />
         <div
           className={`nav-tabs-wrap operational-module-tabs operational-module-tabs-${tabs.length}`}
           data-operational-module-tabs
@@ -276,7 +265,7 @@ export function MaintenanceProductionPage() {
 
         {tab === 'historico-manutencao' ? (
           <>
-            <section className="page-card operational-module-toolbar">
+            <Card className="operational-module-toolbar" padding="md">
               <div>
                 <div className="section-title">Histórico de manutenção</div>
                 <p className="placeholder-copy">
@@ -289,7 +278,7 @@ export function MaintenanceProductionPage() {
                 onChange={(value) => updateParams({ q: value, page: null })}
                 placeholder="Buscar TAG, nome ou categoria"
               />
-            </section>
+            </Card>
             <MaintenanceHistoryTable
               search={search}
               page={page}
@@ -307,7 +296,7 @@ export function MaintenanceProductionPage() {
           </>
         ) : tab === 'programacao-manutencao' ? (
           <>
-            <section className="page-card operational-module-toolbar">
+            <Card className="operational-module-toolbar" padding="md">
               <div>
                 <div className="section-title">Programação de manutenção</div>
                 <p className="placeholder-copy">
@@ -324,18 +313,17 @@ export function MaintenanceProductionPage() {
                   </Button>
                 </div>
               ) : null}
-            </section>
+            </Card>
 
-            <section className="page-card operational-schedule-filters">
+            <Card className="operational-schedule-filters" padding="md">
               <SearchBar
                 id="maintenance-schedule-search"
                 value={search}
                 onChange={(value) => updateParams({ q: value, page: null })}
                 placeholder="Buscar TAG, nome ou categoria"
               />
-              <div className="field-group">
-                <label htmlFor="maintenance-schedule-category">Categoria</label>
-                <select
+              <Field id="maintenance-schedule-category" label="Categoria">
+                <Select
                   id="maintenance-schedule-category"
                   value={scheduleCategoryId || ''}
                   onChange={(event) =>
@@ -348,11 +336,10 @@ export function MaintenanceProductionPage() {
                       {category.name}
                     </option>
                   ))}
-                </select>
-              </div>
-              <div className="field-group">
-                <label htmlFor="maintenance-schedule-status">Situação</label>
-                <select
+                </Select>
+              </Field>
+              <Field id="maintenance-schedule-status" label="Situação">
+                <Select
                   id="maintenance-schedule-status"
                   value={scheduleStatus || ''}
                   onChange={(event) =>
@@ -365,9 +352,9 @@ export function MaintenanceProductionPage() {
                   <option value="UPCOMING">Em dia</option>
                   <option value="NO_HISTORY">Sem histórico</option>
                   <option value="UNCONFIGURED">Não configurado</option>
-                </select>
-              </div>
-            </section>
+                </Select>
+              </Field>
+            </Card>
 
             {scheduleQuery.isLoading ? (
               <section className="page-card">Carregando programação…</section>
@@ -391,7 +378,7 @@ export function MaintenanceProductionPage() {
           </>
         ) : (
           <>
-            <section className="page-card operational-module-toolbar">
+            <Card className="operational-module-toolbar" padding="md">
               <div>
                 <div className="section-title">
                   {maintenanceActive ? 'Relatórios de manutenção' : 'Relatórios de produção'}
@@ -426,18 +413,17 @@ export function MaintenanceProductionPage() {
                   </Button>
                 )}
               </div>
-            </section>
+            </Card>
 
-            <section className="page-card operational-module-filters">
+            <Card className="operational-module-filters" padding="md">
               <SearchBar
                 id="operational-report-search"
                 value={search}
                 onChange={(value) => updateParams({ q: value })}
                 placeholder="Buscar no histórico"
               />
-              <div className="field-group">
-                <label htmlFor="operational-report-status">Status</label>
-                <select
+              <Field id="operational-report-status" label="Status">
+                <Select
                   id="operational-report-status"
                   value={status || ''}
                   onChange={(event) => updateParams({ status: event.target.value })}
@@ -446,12 +432,12 @@ export function MaintenanceProductionPage() {
                   <option value="PENDING">Pendente</option>
                   <option value="RETURNED">Devolvido</option>
                   <option value="APPROVED">Aprovado</option>
-                </select>
-              </div>
-            </section>
+                </Select>
+              </Field>
+            </Card>
 
-            {isListLoading ? <section className="page-card">Carregando relatórios…</section> : null}
-            {isListError ? <div className="inline-error">Não foi possível carregar os relatórios.</div> : null}
+            {isListLoading ? <Skeleton variant="card" label="Carregando relatórios…" /> : null}
+            {isListError ? <Alert tone="danger">Não foi possível carregar os relatórios.</Alert> : null}
             {!isListLoading && !isListError ? (
               <div className="report-type-list operational-module-report-list">
                 {visibleReports.map((report) => (
@@ -483,14 +469,12 @@ export function MaintenanceProductionPage() {
               </div>
             ) : null}
             {!isListLoading && !isListError && !hasListItems ? (
-              <section className="page-card placeholder-copy">
-                Nenhum relatório encontrado.
-              </section>
+              <EmptyState variant="search" title="Nenhum relatório encontrado." description="Ajuste a busca ou o filtro de status para ver outros registros." />
             ) : null}
           </>
         )}
       </main>
       <OperationalReportsNovelty user={user} eligible />
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
 
 import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload } from '../../api/equipamentos';
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useToast } from '../../components/ui/ToastContext';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { Button } from '../../components/ui/ds';
+import { PageHeader } from '../../layout/PageHeader';
 import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots, useUnitsCatalog } from '../../hooks/useEquipamentos';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { CategoryFormModal } from './CategoryFormModal';
@@ -25,6 +24,8 @@ import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { MaintenanceConfigPanel } from './MaintenanceConfigPanel';
 import { MaintenanceHistoryModal } from './MaintenanceHistoryModal';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
+import './EquipamentosPage.ds.css';
 
 type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'maintenance' } | { kind: 'notifications' };
 const EQUIPMENT_TAB_VALUES = new Set(['dashboard', 'config', 'maintenance', 'notifications']);
@@ -89,9 +90,7 @@ function escapeCssSelectorValue(value: string) {
 }
 
 export function EquipamentosPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const showToast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const isManager = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('equipamentos:manager'));
@@ -113,6 +112,24 @@ export function EquipamentosPage() {
     parse: parseEquipmentTabParam
   });
   const activeTab = activeTabFromParam(activeTabUrl);
+  const subNavigation = [
+    { id: 'dashboard', label: 'Visão geral', href: '/equipamentos?tab=dashboard', active: activeTab.kind === 'dashboard' },
+    ...categories.map(category => ({
+      id: `cat:${category.id}`,
+      label: category.name,
+      href: `/equipamentos?tab=${encodeURIComponent(`cat:${category.id}`)}`,
+      badge: equipment.filter(item => item.categoryId === category.id).length,
+      active: activeTab.kind === 'category' && activeTab.id === category.id
+    })),
+    ...(isManager ? [
+      { id: 'config', label: 'Configurações', href: '/equipamentos?tab=config', active: activeTab.kind === 'config' },
+      { id: 'maintenance', label: 'Manutenção', href: '/equipamentos?tab=maintenance', active: activeTab.kind === 'maintenance' },
+      { id: 'notifications', label: 'Notificações', href: '/equipamentos?tab=notifications', active: activeTab.kind === 'notifications' }
+    ] : [])
+  ];
+  const sectionLabel = activeTab.kind === 'category'
+    ? categories.find(category => category.id === activeTab.id)?.name || 'Categoria'
+    : { dashboard: 'Visão geral', config: 'Configurações', maintenance: 'Manutenção', notifications: 'Notificações' }[activeTab.kind];
   const setActiveTab = useCallback(
     (nextTab: ActiveTab) => {
       setActiveTabUrl(activeTabParam(nextTab));
@@ -201,7 +218,11 @@ export function EquipamentosPage() {
 
     const target = tutorialTarget;
     const category = target?.category || null;
-    const navSelector = window.matchMedia('(max-width: 900px)').matches ? '[data-equip-mobile-nav]' : '[data-equip-nav]';
+    const navSelector = window.matchMedia('(max-width: 767.98px)').matches
+      ? '.fv-bottom-bar'
+      : window.matchMedia('(max-width: 1023.98px)').matches
+        ? '[data-equip-nav]'
+        : '.fv-sidebar__navigation';
     const steps: DriveStep[] = [
       {
         element: '[data-equip-dashboard]',
@@ -361,11 +382,6 @@ export function EquipamentosPage() {
     return () => window.clearTimeout(timer);
   }, [startEquipmentTutorial, tutorialReady, tutorialUserKey]);
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login');
-  }
-
   function handleEquipmentSubmit(payload: EquipmentPayload) {
     const onDone = () => {
       showToast('Equipamento salvo.', 'success');
@@ -461,33 +477,18 @@ export function EquipamentosPage() {
   const savingCategory = mutations.createCategory.isPending || mutations.updateCategory.isPending;
 
   return (
-    <Shell>
-      <TopBar
-        title="Equipamentos"
-        subtitle="Cadastro, calibração e documentação técnica"
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={startEquipmentTutorial}>
-              Ver tutorial
-            </button>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() =>
-                navigate('/conta', {
-                  state: accountPageStateFromPath(location)
-                })
-              }
-            >
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <main className="page-scroll equip-page">
+    <OperationalModuleAppShell
+      moduleId="equipamentos"
+      title="Equipamentos"
+      sectionLabel={sectionLabel}
+      subNavigation={subNavigation}
+    >
+      <main className="fv-ds equip-page equip-page-v2">
+        <PageHeader
+          title={sectionLabel}
+          description="Cadastro, calibração e documentação técnica dos equipamentos."
+          actions={<Button variant="secondary" size="sm" onClick={startEquipmentTutorial}>Ver tutorial</Button>}
+        />
         <div className="equip-layout">
           <nav className="equip-nav" aria-label="Áreas de Equipamentos" data-equip-nav>
             <button className={`equip-nav-item ${activeTab.kind === 'dashboard' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'dashboard'} onClick={() => setActiveTab({ kind: 'dashboard' })} data-equip-nav-dashboard>
@@ -531,46 +532,6 @@ export function EquipamentosPage() {
             )}
           </nav>
 
-          <div className="equip-mobile-nav" data-equip-mobile-nav>
-            <label className="equip-mobile-nav-label" htmlFor="equip-section-select">
-              Seção do módulo
-            </label>
-            <select
-              id="equip-section-select"
-              className="equip-nav-select"
-              value={activeTab.kind === 'category' ? `cat:${activeTab.id}` : activeTab.kind}
-              onChange={event => {
-                const value = event.target.value;
-                if (value === 'dashboard') setActiveTab({ kind: 'dashboard' });
-                else if (value === 'config') setActiveTab({ kind: 'config' });
-                else if (value === 'maintenance') setActiveTab({ kind: 'maintenance' });
-                else if (value === 'notifications') setActiveTab({ kind: 'notifications' });
-                else if (value.startsWith('cat:')) setActiveTab({ kind: 'category', id: value.slice(4) });
-              }}
-            >
-              <option value="dashboard">Dashboard</option>
-              {categories.length > 0 && (
-                <optgroup label="Categorias">
-                  {categories.map(category => {
-                    const count = equipment.filter(item => item.categoryId === category.id).length;
-                    return (
-                      <option key={category.id} value={`cat:${category.id}`}>
-                        {category.name} ({count})
-                      </option>
-                    );
-                  })}
-                </optgroup>
-              )}
-              {isManager && (
-                <optgroup label="Gestão">
-                  <option value="config">Configurações</option>
-                  <option value="maintenance">Manutenção</option>
-                  <option value="notifications">Notificações</option>
-                </optgroup>
-              )}
-            </select>
-          </div>
-
           <div className="equip-main">
             {(categoriesQuery.isLoading || equipmentQuery.isLoading) && (
               <section className="page-card">
@@ -587,9 +548,9 @@ export function EquipamentosPage() {
                   <div className="equip-cat-tools">
                     <ProjectSortButton direction={equipmentSort} onToggle={() => setEquipmentSort(equipmentSort === 'asc' ? 'desc' : 'asc')} />
                     {isManager && (
-                      <button
-                        className="mini-btn"
-                        type="button"
+                      <Button
+                        size="sm"
+                        variant="primary"
                         onClick={() =>
                           setEquipmentForm({
                             category: selectedCategory,
@@ -598,7 +559,7 @@ export function EquipamentosPage() {
                         }
                       >
                         + Novo equipamento
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -682,6 +643,6 @@ export function EquipamentosPage() {
         }}
         onCancel={() => setConfirm(null)}
       />
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

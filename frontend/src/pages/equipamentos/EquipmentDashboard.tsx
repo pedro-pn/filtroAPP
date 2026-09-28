@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { Button, Field, Select } from '../../components/ui/ds';
 import { calibrationStatus, formatDate, statusLabel, type CalibrationStatus } from './equipmentStatus';
 
 interface Props {
@@ -61,7 +62,7 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
     <section className="page-card" data-equip-dashboard>
       <div className="admin-toolbar">
         <div className="sec">Visão geral de calibração</div>
-        <button className="mini-btn alt" type="button" onClick={exportCsv}>Exportar CSV</button>
+        <Button variant="secondary" size="sm" onClick={exportCsv}>Exportar CSV</Button>
       </div>
       <div className="equip-dashboard-filters" role="group" aria-labelledby="equip-dashboard-filters-title" data-equip-dashboard-filters>
         <div id="equip-dashboard-filters-title" className="equip-dashboard-filters-title">Filtros do Dashboard</div>
@@ -71,13 +72,17 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
           placeholder="Buscar por código, nome ou categoria"
           count={{ shown: rows.length, total: equipment.length }}
         />
-        <select aria-label="Filtrar por categoria" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-          <option value="all">Todas as categorias</option>
-          {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
-        <select aria-label="Filtrar por status de calibração" value={status} onChange={e => setStatus(e.target.value as CalibrationStatus | 'all')}>
-          {statusFilters.map(filter => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
-        </select>
+        <Field id="equipment-dashboard-category" label="Categoria">
+          <Select id="equipment-dashboard-category" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+            <option value="all">Todas as categorias</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </Select>
+        </Field>
+        <Field id="equipment-dashboard-status" label="Calibração">
+          <Select id="equipment-dashboard-status" value={status} onChange={e => setStatus(e.target.value as CalibrationStatus | 'all')}>
+            {statusFilters.map(filter => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
+          </Select>
+        </Field>
       </div>
       <div className="equip-table-wrap" data-equip-dashboard-table>
         <table className="equip-table">
