@@ -12,6 +12,7 @@ export type NavigationBadge = string | number;
 export interface NavigationSubItem {
   id: string;
   label: string;
+  shortLabel?: string;
   href: string;
   badge?: NavigationBadge;
   active: boolean;

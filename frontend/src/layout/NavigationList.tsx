@@ -47,9 +47,11 @@ function NavigationSubmenuItem({ item, onNavigate, menuId }: {
     return (
       <Link className={`fv-navigation-subitem${item.active ? ' is-active' : ''}`}
         to={item.href} aria-current={item.active ? 'page' : undefined}
+        aria-label={item.shortLabel ? item.label : undefined}
+        title={item.shortLabel ? item.label : undefined}
         onClick={event => handleSubItemClick(event, item, onNavigate)}>
         <span className="fv-navigation-subitem__marker" aria-hidden="true" />
-        <span className="fv-navigation-item__label">{item.label}</span>
+        <span className="fv-navigation-item__label">{item.shortLabel || item.label}</span>
         {item.badge !== undefined ? <Badge tone={item.active ? 'brand' : 'neutral'}>{item.badge}</Badge> : null}
       </Link>
     );
@@ -76,9 +78,11 @@ function NavigationSubmenuItem({ item, onNavigate, menuId }: {
               <Link ref={child.active ? activeChildRef : undefined}
                 className={`fv-navigation-subitem${child.active ? ' is-active' : ''}`}
                 to={child.href} aria-current={child.active ? 'location' : undefined}
+                aria-label={child.shortLabel ? child.label : undefined}
+                title={child.shortLabel ? child.label : undefined}
                 onClick={event => handleSubItemClick(event, child, onNavigate)}>
                 <span className="fv-navigation-subitem__marker" aria-hidden="true" />
-                <span className="fv-navigation-item__label">{child.label}</span>
+                <span className="fv-navigation-item__label">{child.shortLabel || child.label}</span>
                 {child.badge !== undefined ? <Badge tone={child.active ? 'brand' : 'neutral'}>{child.badge}</Badge> : null}
               </Link>
             </li>

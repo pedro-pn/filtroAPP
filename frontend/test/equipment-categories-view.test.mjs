@@ -43,3 +43,14 @@ test('busca abrange todas as categorias, códigos e atributos sem perder a orden
   assert.deepEqual(filterAndSortEquipment(equipment, categories, 'sn-10', 'asc').map(item => item.code), ['F-10']);
   assert.deepEqual(filterAndSortEquipment(equipment, categories, '', 'desc').map(item => item.code), ['F-10', 'B-20', 'B-01']);
 });
+
+test('nomes longos usam prefixos dos códigos e preservam fallback legível', async () => {
+  const { equipmentCategoryShortLabel } = await loadView();
+  const category = { id: 'limpeza', name: 'Unidades de Limpeza Química' };
+  const withCode = (code) => ({ categoryId: category.id, code });
+
+  assert.equal(equipmentCategoryShortLabel(category, [withCode('ULQ 014'), withCode('ULQ-002')]), 'ULQ');
+  assert.equal(equipmentCategoryShortLabel(category, [withCode('CF-01'), withCode('TV-01')]), 'CF/TV');
+  assert.equal(equipmentCategoryShortLabel(category, []), 'ULQ');
+  assert.equal(equipmentCategoryShortLabel({ id: 'filtros', name: 'Filtros' }, [withCode('FIL-01')]), 'Filtros');
+});

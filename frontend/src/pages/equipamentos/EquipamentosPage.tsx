@@ -24,7 +24,7 @@ import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { MaintenanceConfigPanel } from './MaintenanceConfigPanel';
 import { MaintenanceHistoryModal } from './MaintenanceHistoryModal';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
-import { equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, type EquipmentTab } from './equipmentCategoryView';
+import { equipmentCategoryShortLabel, equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, type EquipmentTab } from './equipmentCategoryView';
 import './EquipamentosPage.ds.css';
 
 type ActiveTab = { kind: EquipmentTab };
@@ -83,6 +83,7 @@ export function EquipamentosPage() {
 
   const categories = useMemo(() => [...(categoriesQuery.data || [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)), [categoriesQuery.data]);
   const equipment = useMemo(() => equipmentQuery.data || [], [equipmentQuery.data]);
+  const categoryShortLabels = useMemo(() => new Map(categories.map(category => [category.id, equipmentCategoryShortLabel(category, equipment)])), [categories, equipment]);
   // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
   const rdoLinkedCategoryIds = useMemo(() => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)), [rdoSlotsQuery.data]);
 
@@ -105,6 +106,7 @@ export function EquipamentosPage() {
       children: categories.map(category => ({
         id: `cat:${category.id}`,
         label: category.name,
+        shortLabel: categoryShortLabels.get(category.id),
         href: `/equipamentos?tab=${encodeURIComponent(`cat:${category.id}`)}`,
         badge: equipment.filter(item => item.categoryId === category.id).length,
         active: activeTab.kind === 'categories' && activeCategoryId === category.id,
@@ -203,6 +205,7 @@ export function EquipamentosPage() {
     [categories, categorySearch, visibleEquipment]
   );
   const activeCategoryName = categories.find(category => category.id === activeCategoryId)?.name || 'Escolher categoria';
+  const activeCategoryShortName = activeCategoryId ? categoryShortLabels.get(activeCategoryId) : null;
   useEffect(() => {
     if (activeTab.kind !== 'categories') return;
     let frame = 0;
@@ -582,9 +585,9 @@ export function EquipamentosPage() {
             {activeTab.kind === 'categories' && (
               <div className="equip-categories" data-equip-categories>
                 <details ref={categoryMenuRef} className="equip-category-jump" data-equip-category-jump>
-                  <summary>
+                  <summary aria-label={`Ir para categoria; atual: ${activeCategoryName}`}>
                     <span>Ir para categoria</span>
-                    <strong>{activeCategoryName}</strong>
+                    <strong title={activeCategoryShortName && activeCategoryShortName !== activeCategoryName ? activeCategoryName : undefined}>{activeCategoryShortName || activeCategoryName}</strong>
                     <span aria-hidden="true">⌄</span>
                   </summary>
                   <div className="equip-category-jump__menu" role="group" aria-label="Categorias de equipamentos">

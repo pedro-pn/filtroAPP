@@ -108,6 +108,7 @@
   background: var(--brand-soft);
   color: var(--brand-text);
 }
+.equip-page-v2 .equip-category-jump__menu button > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .equip-page-v2 .equip-category-jump__menu button > span:last-child { color: var(--muted); font-size: var(--text-xs); }
 .equip-page-v2 .equip-category-section__header {
   display: flex;

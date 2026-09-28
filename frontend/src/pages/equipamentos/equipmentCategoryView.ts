@@ -17,6 +17,24 @@ export function equipmentTabFromParam(value: string): EquipmentTab {
   return EQUIPMENT_TAB_VALUES.has(value as EquipmentTab) ? value as EquipmentTab : 'dashboard';
 }
 
+export function equipmentCategoryShortLabel(category: EquipmentCategory, equipment: readonly CompanyEquipment[]) {
+  const name = category.name.trim();
+  if (name.length <= 18) return name;
+
+  const prefixes = new Set(equipment
+    .filter(item => item.categoryId === category.id)
+    .map(item => item.code.trim().toUpperCase().match(/^([A-Z]{2,6})(?=[\s._/-]*\d)/)?.[1])
+    .filter((prefix): prefix is string => Boolean(prefix)));
+  if (prefixes.size > 0 && prefixes.size <= 2) return [...prefixes].sort().join('/');
+
+  const initials = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(word => word && !['de', 'da', 'do', 'dos', 'das', 'e'].includes(word.toLowerCase()))
+    .map(word => word[0].toUpperCase())
+    .join('');
+  return initials.slice(0, 6) || name;
+}
+
 export function filterAndSortEquipment(
   equipment: readonly CompanyEquipment[],
   categories: readonly EquipmentCategory[],
