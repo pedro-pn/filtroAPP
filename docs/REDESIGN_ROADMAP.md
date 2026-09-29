@@ -1080,10 +1080,11 @@ horizontal; 768 px foi conferido no tema escuro. Conta interna com permissão
 apenas para manutenção não mostrou Produção, e a consulta aprovada permaneceu
 desabilitada. O rascunho de manutenção restaurou os dados após atualização e
 não preencheu o formulário de produção. Build, lint, 22 testes frontend focados
-e 32 testes backend de contratos operacionais passaram. A suíte frontend ampla
+e 32 testes backend de contratos operacionais passaram. A persistência de um
+relatório sintético de manutenção e outro de produção foi conferida no banco
+local em transação revertida, sem registros remanescentes. A suíte frontend ampla
 teve 648 de 660 testes aprovados; os 12 resultados com falha apontam para
-assertivas estáticas em superfícies não alteradas nesta rodada. Esta validação
-não gravou relatórios reais no banco.
+assertivas estáticas em superfícies não alteradas nesta rodada.
 
 Revisão de EQ1: as categorias foram reunidas em uma única subaba. A lista mostra
 uma tabela por categoria no desktop e cards em telas menores, com busca e ordem
