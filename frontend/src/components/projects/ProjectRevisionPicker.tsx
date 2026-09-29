@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  getCommercialAppRevisions,
   getProjectRevisions,
   removeProjectAdditionalRevision,
+  selectCommercialAppRevision,
   setProjectAdditionalRevision,
   setProjectRevision
 } from '../../api/acompanhamentoComercial';
@@ -29,11 +31,17 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   const queryKey = ['commercial-revisions', projectId];
 
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => getProjectRevisions(projectId) });
+  const { data: appData, isLoading: appLoading } = useQuery({
+    queryKey: ['commercialapp-revisions', projectId],
+    queryFn: () => getCommercialAppRevisions(projectId)
+  });
   const [selected, setSelected] = useState<number | null>(null);
+  const [selectedApp, setSelectedApp] = useState('');
   const [selectedAdditionals, setSelectedAdditionals] = useState<Record<string, number | null>>({});
 
   function refreshAcompanhamentoQueries() {
     queryClient.invalidateQueries({ queryKey });
+    queryClient.invalidateQueries({ queryKey: ['commercialapp-revisions', projectId] });
     queryClient.invalidateQueries({ queryKey: ['commercial-pendencias'] });
     queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['project-cards'] });
@@ -69,7 +77,17 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
     onError: () => showToast('Não foi possível remover a proposta adicional.')
   });
 
-  if (isLoading) {
+  const appMutation = useMutation({
+    mutationFn: ({ externalId, replaceLegacy }: { externalId: string; replaceLegacy: boolean }) =>
+      selectCommercialAppRevision(projectId, externalId, replaceLegacy),
+    onSuccess: () => {
+      showToast('Revisão do ComercialAPP selecionada para o orçamento.');
+      refreshAcompanhamentoQueries();
+    },
+    onError: () => showToast('Não foi possível selecionar a revisão do ComercialAPP.')
+  });
+
+  if (isLoading || appLoading) {
     return (
       <div className="det-row">
         <span className="det-label">Proposta</span>
@@ -79,14 +97,40 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   }
 
   const revisions = data?.revisions ?? [];
+  const appRevisions = appData?.items ?? [];
   const additionalGroups = data?.additionalProposals ?? [];
   const current = data?.currentCodBd ?? null;
-  if (revisions.length === 0 && additionalGroups.length === 0) return null;
+  if (revisions.length === 0 && additionalGroups.length === 0 && appRevisions.length === 0) return null;
 
   const chosen = selected ?? current ?? revisions[0]?.codBd ?? null;
+  const currentApp = appRevisions.find(item => item.selectionStatus === 'SELECTED');
+  const chosenApp = selectedApp || currentApp?.externalId || appRevisions[0]?.externalId || '';
 
   return (
     <div className="project-revision-picker">
+      {appRevisions.length > 0 ? <div className="det-row">
+        <span className="det-label">Revisão do ComercialAPP</span>
+        <span className="det-val det-inline-actions">
+          <select value={chosenApp} onChange={event => setSelectedApp(event.target.value)}>
+            {appRevisions.map(item => <option key={item.externalId} value={item.externalId}>
+              {`${item.proposalCode} Rev ${item.revisionNumber} · ${formatBRL(item.salePrice)}${item.selectionStatus === 'SELECTED' ? ' (atual)' : ' (aguardando)'}`}
+            </option>)}
+          </select>
+          <button type="button" className="mini-btn"
+            disabled={appMutation.isPending || !chosenApp || chosenApp === currentApp?.externalId}
+            onClick={() => {
+              if (!chosenApp) return;
+              const replaceLegacy = Boolean(appData?.budgetSource &&
+                appData.budgetSource !== 'COMERCIAL_APP');
+              if (replaceLegacy && !window.confirm(
+                'O orçamento atual vem do Access. Deseja selecionar esta revisão do ComercialAPP para o projeto?'
+              )) return;
+              appMutation.mutate({ externalId: chosenApp, replaceLegacy });
+            }}>
+            {appMutation.isPending ? 'Aplicando…' : 'Aplicar'}
+          </button>
+        </span>
+      </div> : null}
       {revisions.length > 0 ? (
         <div className="det-row">
           <span className="det-label">Revisão que vale</span>

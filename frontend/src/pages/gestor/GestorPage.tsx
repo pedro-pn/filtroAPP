@@ -1035,7 +1035,7 @@ function renderProjectCard(
             <span className="det-label">Local</span>
             <span className="det-val">{project.location || '-'}</span>
           </div>
-          {options.commercialPendencia ? <ProjectRevisionPicker projectId={project.id} /> : null}
+          <ProjectRevisionPicker projectId={project.id} />
           <div className="det-row">
             <span className="det-label">Operador</span>
             <span className="det-val">{project.operator?.name || '-'}</span>

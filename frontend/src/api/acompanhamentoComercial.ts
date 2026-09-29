@@ -162,6 +162,38 @@ export async function getProjectRevisions(projectId: string): Promise<ProjectRev
   return data;
 }
 
+export interface CommercialAppRevision {
+  id: string;
+  externalId: string;
+  proposalCode: string;
+  revisionNumber: number;
+  title: string;
+  clientName: string;
+  salePrice: string | number;
+  plannedTotalCost: string | number | null;
+  selectionStatus: 'STAGED' | 'SELECTED';
+  approvedAt: string;
+  receivedAt: string;
+}
+
+export async function getCommercialAppRevisions(projectId: string): Promise<{
+  items: CommercialAppRevision[]; budgetSource: string | null;
+}> {
+  const { data } = await apiClient.get<{
+    items: CommercialAppRevision[]; budgetSource: string | null;
+  }>(
+    `/acompanhamento/comercial/projetos/${projectId}/comercialapp/revisoes`);
+  return data;
+}
+
+export async function selectCommercialAppRevision(projectId: string, externalId: string,
+  replaceLegacy = false) {
+  const { data } = await apiClient.post<{ budgetStatus: string }>(
+    `/acompanhamento/comercial/projetos/${projectId}/comercialapp/selecionar`,
+    { externalId, replaceLegacy });
+  return data;
+}
+
 export async function getProjectPlanningContext(projectId: string, date: string): Promise<OfficialMissionContext | null> {
   const { data } = await apiClient.get<OfficialMissionContext | null>(`/acompanhamento/comercial/projetos/${projectId}/planning-context`, { params: { date } });
   return data;
