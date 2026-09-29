@@ -43,6 +43,7 @@ function MaintenanceServices({ record }: { record: MaintenanceRecord }) {
 
 export function MaintenanceHistoryTable({
   search,
+  categoryId,
   page,
   sortBy,
   sortDirection,
@@ -50,6 +51,7 @@ export function MaintenanceHistoryTable({
   onSortChange
 }: {
   search: string;
+  categoryId?: string;
   page: number;
   sortBy: MaintenanceHistorySort;
   sortDirection: MaintenanceHistorySortDirection;
@@ -65,6 +67,7 @@ export function MaintenanceHistoryTable({
       'operational-reports',
       'maintenance-history',
       search,
+      categoryId,
       page,
       sortBy,
       sortDirection
@@ -72,6 +75,7 @@ export function MaintenanceHistoryTable({
     queryFn: () =>
       listMaintenanceHistory({
         q: search || undefined,
+        categoryId,
         page,
         pageSize: 20,
         sortBy,

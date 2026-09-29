@@ -4,6 +4,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
 import {
   getOperationalContext,
+  listMaintenanceHistoryCategories,
   listMaintenanceSchedule,
   listOperationalReports,
   listStandaloneMaintenances,
@@ -87,7 +88,7 @@ export function MaintenanceProductionPage() {
   const status = validStatus(searchParams.get('status'));
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const scheduleStatus = validScheduleStatus(searchParams.get('prazo'));
-  const scheduleCategoryId = searchParams.get('categoria') || undefined;
+  const categoryId = searchParams.get('categoria') || undefined;
   const historySort = validMaintenanceHistorySort(searchParams.get('sort'));
   const historySortDirection = validSortDirection(
     searchParams.get('direction')
@@ -130,19 +131,24 @@ export function MaintenanceProductionPage() {
       'operational-reports',
       'maintenance-schedule',
       search,
-      scheduleCategoryId,
+      categoryId,
       scheduleStatus,
       page
     ],
     queryFn: () =>
       listMaintenanceSchedule({
         q: search || undefined,
-        categoryId: scheduleCategoryId,
+        categoryId,
         status: scheduleStatus,
         page,
         pageSize: 50
       }),
     enabled: scheduleActive
+  });
+  const historyCategoriesQuery = useQuery({
+    queryKey: ['operational-reports', 'maintenance-history-categories'],
+    queryFn: listMaintenanceHistoryCategories,
+    enabled: tab === 'historico-manutencao'
   });
 
   useEffect(() => {
@@ -264,15 +270,41 @@ export function MaintenanceProductionPage() {
         {tab === 'historico-manutencao' ? (
           <>
             <div className="operational-history-search-panel" role="search">
-              <SearchBar
-                id="maintenance-history-search"
-                value={search}
-                onChange={(value) => updateParams({ q: value, page: null })}
-                placeholder="Buscar TAG, equipamento ou categoria"
-              />
+              <Field id="maintenance-history-search" label="Buscar" optionalText="">
+                <SearchBar
+                  id="maintenance-history-search-control"
+                  value={search}
+                  onChange={(value) => updateParams({ q: value, page: null })}
+                  placeholder="TAG, equipamento ou categoria"
+                />
+              </Field>
+              <Field
+                id="maintenance-history-category"
+                label="Categoria"
+                optionalText=""
+                errorText={historyCategoriesQuery.isError
+                  ? 'Não foi possível carregar as categorias.'
+                  : undefined}
+              >
+                <Select
+                  value={categoryId || ''}
+                  disabled={historyCategoriesQuery.isError}
+                  onChange={(event) =>
+                    updateParams({ categoria: event.target.value, page: null })
+                  }
+                >
+                  <option value="">Todas as categorias</option>
+                  {(historyCategoriesQuery.data || []).map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
             </div>
             <MaintenanceHistoryTable
               search={search}
+              categoryId={categoryId}
               page={page}
               sortBy={historySort}
               sortDirection={historySortDirection}
@@ -317,7 +349,7 @@ export function MaintenanceProductionPage() {
               <Field id="maintenance-schedule-category" label="Categoria">
                 <Select
                   id="maintenance-schedule-category"
-                  value={scheduleCategoryId || ''}
+                  value={categoryId || ''}
                   onChange={(event) =>
                     updateParams({ categoria: event.target.value, page: null })
                   }

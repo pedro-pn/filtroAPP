@@ -195,6 +195,7 @@ export const maintenanceListQuerySchema = operationalListQuerySchema
 
 export const maintenanceHistoryQuerySchema = z.object({
   q: z.string().trim().max(160).optional().default(""),
+  categoryId: idSchema.optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   sortBy: z

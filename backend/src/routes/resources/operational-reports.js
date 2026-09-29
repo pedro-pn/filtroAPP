@@ -741,6 +741,26 @@ router.post(
 );
 
 router.get(
+  "/maintenance/history/categories",
+  asyncHandler(async (req, res) => {
+    assertReportEmissionPermission(
+      req.auth.user,
+      ReportEmissionPermissions.MAINTENANCE,
+    );
+    const categories = await prisma.equipmentCategory.findMany({
+      where: {
+        equipment: {
+          some: { maintenanceRecords: { some: { status: "APPROVED" } } },
+        },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    res.json(categories);
+  }),
+);
+
+router.get(
   "/maintenance/history",
   asyncHandler(async (req, res) => {
     assertReportEmissionPermission(
@@ -751,6 +771,9 @@ router.get(
     const search = query.q.trim();
     const where = {
       status: "APPROVED",
+      ...(query.categoryId
+        ? { equipment: { is: { categoryId: query.categoryId } } }
+        : {}),
       ...(search
         ? {
             OR: [

@@ -328,6 +328,7 @@ export async function listStandaloneMaintenances(
 export async function listMaintenanceHistory(
   params: {
     q?: string;
+    categoryId?: string;
     page?: number;
     pageSize?: number;
     sortBy?: MaintenanceHistorySort;
@@ -337,6 +338,13 @@ export async function listMaintenanceHistory(
   const response = await apiClient.get<MaintenanceHistoryPage>(
     operationalPath('/maintenance/history'),
     { params }
+  );
+  return response.data;
+}
+
+export async function listMaintenanceHistoryCategories() {
+  const response = await apiClient.get<Array<{ id: string; name: string }>>(
+    operationalPath('/maintenance/history/categories')
   );
   return response.data;
 }

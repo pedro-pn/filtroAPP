@@ -121,14 +121,16 @@
 .operational-module-page-v2 .operational-module-report-list .rel-meta { color: var(--muted); }
 
 .operational-module-page-v2 .operational-history-search-panel {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 480px) minmax(12rem, 16rem);
+  align-items: end;
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
-  justify-content: flex-start;
 }
 
 .operational-module-page-v2 .operational-history-search-panel .app-search {
-  width: min(100%, 480px);
+  width: 100%;
 }
 
 .operational-module-page-v2 .operational-maintenance-history-table {
@@ -283,6 +285,7 @@
 }
 
 @media (max-width: 767.98px) {
+  .operational-module-page-v2 .operational-history-search-panel { grid-template-columns: minmax(0, 1fr); }
   .operational-module-page-v2 .operational-history-services ul {
     max-height: none;
     overflow: visible;
