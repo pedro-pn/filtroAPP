@@ -234,7 +234,7 @@ test('checklist de serviços da manutenção não possui scroll interno no mobil
 });
 
 test('cabeçalhos e anexos do formulário operacional cabem em celulares estreitos', async () => {
-  const [form, styles] = await Promise.all([
+  const [form, styles, dsStyles] = await Promise.all([
     readFile(
       new URL(
         '../src/pages/collaborator/OperationalReportFormPage.tsx',
@@ -245,14 +245,20 @@ test('cabeçalhos e anexos do formulário operacional cabem em celulares estreit
     readFile(
       new URL('../src/styles/operational-reports.css', import.meta.url),
       'utf8'
+    ),
+    readFile(
+      new URL('../src/pages/collaborator/OperationalReportFormPage.ds.css', import.meta.url),
+      'utf8'
     )
   ]);
 
   assert.equal(
     (form.match(/operational-card-head operational-section-head/g) || [])
       .length,
-    2
+    3
   );
+  assert.match(dsStyles, /\.operational-form-page-v2 \.operational-section-head\s*\{[^}]*flex-direction:\s*column/s);
+  assert.match(dsStyles, /\.operational-form-page-v2 \.operational-section-head > \.fv-button\s*\{[^}]*width:\s*100%/s);
   assert.match(styles, /@media \(max-width: 360px\)/);
   assert.match(
     styles,

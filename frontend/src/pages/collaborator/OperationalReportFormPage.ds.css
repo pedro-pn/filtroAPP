@@ -101,6 +101,25 @@
 
 @media (max-width: 767.98px) {
   .operational-form-page-v2 { padding: var(--space-3); }
+  .operational-form-page-v2--maintenance {
+    width: min(100%, 540px);
+    padding-inline: 0;
+  }
+  .operational-form-page-v2--maintenance .operational-form-card,
+  .operational-form-page-v2--maintenance .operational-form-stepper {
+    padding: var(--space-3);
+  }
+  .operational-form-page-v2--maintenance .operational-repeat-card,
+  .operational-form-page-v2--maintenance .operational-subsection {
+    padding: var(--space-3) 0 0;
+    border: 0;
+    border-top: var(--border-width) solid var(--line);
+    border-radius: 0;
+    background: transparent;
+  }
+  .operational-form-page-v2--maintenance .operational-third-party {
+    padding: var(--space-3);
+  }
   .operational-form-page-v2 .operational-section-head {
     align-items: stretch;
     flex-direction: column;

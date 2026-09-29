@@ -5,15 +5,18 @@
   flex: 0 0 auto;
   place-items: center;
   border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--g);
-  color: var(--white);
-  font-size: var(--text-base);
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
   line-height: 1;
 }
 
 .report-collaborator-tag > button.colab-tag__remove:hover:not(:disabled) {
-  background: var(--gd);
+  background: transparent;
+  color: var(--danger-hover);
 }
 
 .report-collaborator-tag > button.colab-tag__remove:focus-visible {

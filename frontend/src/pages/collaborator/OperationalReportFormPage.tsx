@@ -390,7 +390,7 @@ function MaintenanceCardEditor({
       </Field>
 
       <div className="operational-subsection">
-        <div className="operational-card-head">
+        <div className="operational-card-head operational-section-head">
           <div>
             <strong>Serviços de terceiros</strong>
             <div className="form-hint">Adicione quantos forem necessários.</div>
@@ -978,7 +978,7 @@ export function OperationalReportFormPage({
       subNavigation={subNavigation}
     >
       <FormProvider {...form}>
-        <main className="fv-ds operational-form-page operational-form-page-v2">
+        <main className={`fv-ds operational-form-page operational-form-page-v2${kind === 'MAINTENANCE' ? ' operational-form-page-v2--maintenance' : ''}`}>
           <PageHeader
             title={formTitle}
             description={reviewMode

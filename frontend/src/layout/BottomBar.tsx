@@ -19,38 +19,53 @@ interface DesignSystemBottomBarProps {
 
 export type BottomBarProps = LegacyBottomBarProps | DesignSystemBottomBarProps;
 
-const MORE_SHEET_EXIT_MS = 220;
+const MORE_SHEET_TRANSITION_MS = 280;
+type MoreSheetPhase = 'closed' | 'opening' | 'open' | 'closing';
 
 function DesignSystemBottomBar({
   navigation
 }: DesignSystemBottomBarProps) {
   const navigate = useNavigate();
   const sections = mobileSectionNavigation(navigation);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [moreMounted, setMoreMounted] = useState(false);
+  const [morePhase, setMorePhase] = useState<MoreSheetPhase>('closed');
   const activeSectionRef = useRef<HTMLAnchorElement>(null);
-  const pendingHrefRef = useRef<string | null>(null);
+  const pendingActionRef = useRef<(() => void) | null>(null);
   const activeSection = sections?.allItems.find(item => item.active);
 
   useEffect(() => {
-    pendingHrefRef.current = null;
-    setMoreOpen(false);
+    pendingActionRef.current = null;
+    setMorePhase('closed');
   }, [sections?.module.id, activeSection?.id]);
   useEffect(() => {
-    if (moreOpen || !moreMounted) return;
+    if (morePhase !== 'opening') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setMorePhase('open');
+      return;
+    }
+    let nextFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      nextFrame = window.requestAnimationFrame(() => setMorePhase('open'));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(nextFrame);
+    };
+  }, [morePhase]);
+  useEffect(() => {
+    if (morePhase !== 'closing') return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const timeout = window.setTimeout(() => {
-      setMoreMounted(false);
-      const href = pendingHrefRef.current;
-      pendingHrefRef.current = null;
-      if (href) void navigate(href);
-    }, reduceMotion ? 0 : MORE_SHEET_EXIT_MS);
+      setMorePhase('closed');
+      const action = pendingActionRef.current;
+      pendingActionRef.current = null;
+      action?.();
+    }, reduceMotion ? 0 : MORE_SHEET_TRANSITION_MS);
     return () => window.clearTimeout(timeout);
-  }, [moreOpen, moreMounted, navigate]);
+  }, [morePhase]);
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 768px)');
     const closeOnDesktop = (event: MediaQueryListEvent) => {
-      if (event.matches) setMoreOpen(false);
+      if (event.matches) setMorePhase('closed');
     };
     desktop.addEventListener('change', closeOnDesktop);
     return () => desktop.removeEventListener('change', closeOnDesktop);
@@ -89,18 +104,18 @@ function DesignSystemBottomBar({
           ))}
           {sections.hasMore ? <li>
             <button type="button" className={sections.moreActive ? 'is-active' : undefined}
-              onClick={() => { pendingHrefRef.current = null; setMoreMounted(true); setMoreOpen(true); }}
+              onClick={() => { pendingActionRef.current = null; setMorePhase('opening'); }}
               aria-label={`Mais áreas de ${sections.module.label}${sections.moreActive && activeSection ? `, atual: ${activeSection.label}` : ''}`}
-              aria-haspopup="dialog" aria-expanded={moreOpen}>
+              aria-haspopup="dialog" aria-expanded={morePhase === 'opening' || morePhase === 'open'}>
               <span className="fv-bottom-bar__icon"><AppIcon icon={NAVIGATION_CHROME_ICONS.more} size="md" /></span>
               <span className="fv-bottom-bar__label">Mais</span>
             </button>
           </li> : null}
         </ul>
       </nav>
-      {sections.hasMore ? <Modal open={moreMounted} onClose={() => setMoreOpen(false)} closeOnBackdrop
+      {sections.hasMore ? <Modal open={morePhase !== 'closed'} onClose={() => setMorePhase('closing')} closeOnBackdrop
         appearance="design-system" size="md" title={`Áreas de ${sections.module.label}`}
-        fullscreenOnMobile={false} backdropClassName={`fv-bottom-bar__sheet-backdrop${moreOpen ? '' : ' is-closing'}`}
+        fullscreenOnMobile={false} backdropClassName={`fv-bottom-bar__sheet-backdrop${morePhase === 'open' ? ' is-open' : morePhase === 'closing' ? ' is-closing' : ''}`}
         panelClassName="fv-bottom-bar__sheet" initialFocusRef={activeSectionRef}>
         <ul className="fv-bottom-bar__sheet-list">
           {sections.allItems.map(item => <li key={item.id}>
@@ -109,13 +124,8 @@ function DesignSystemBottomBar({
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                if (item.onSelect) {
-                  setMoreOpen(false);
-                  item.onSelect();
-                  return;
-                }
-                pendingHrefRef.current = item.href;
-                setMoreOpen(false);
+                pendingActionRef.current = item.onSelect ?? (() => { void navigate(item.href); });
+                setMorePhase('closing');
               }}>
               <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />
               <span>{item.label}</span>
