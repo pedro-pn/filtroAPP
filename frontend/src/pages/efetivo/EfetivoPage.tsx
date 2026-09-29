@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { listPlanningJobRoles } from '../../api/efetivoPlanning';
 import { useAuth } from '../../auth/AuthContext';
 import { DateInput } from '../../components/ui/DateInput';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { addDateOnlyDays, parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
@@ -47,14 +48,15 @@ export function EfetivoPage() {
   const endDate = safeDate(searchParams.get('final') || addDateOnlyDays(date, 29));
   const availabilityView = searchParams.get('disponibilidadeView') === 'calendar' ? 'calendar' : 'kanban';
   const jobRoleId = searchParams.get('funcao') || undefined;
-  const search = searchParams.get('search') || '';
+  const userSearchKey = user?.id || user?.username || 'anonymous';
+  const [search, setSearch] = usePersistentSearch(`efetivo-collaborators-search:${userSearchKey}`, searchParams.get('search') || '');
   const calendarView = (['day', 'week', 'month'].includes(searchParams.get('view') || '') ? searchParams.get('view') : 'month') as 'day' | 'week' | 'month';
   const selectedDay = safeDate(searchParams.get('dia') || date);
   const selectedWorkflowProjectId = searchParams.get('projeto') || undefined;
   const selectedCollaboratorId = searchParams.get('colaborador') || undefined;
   const selectedAbsenceId = searchParams.get('ausencia') || undefined;
   const workflowStage = (PROJECT_KANBAN_STAGES.includes(searchParams.get('faseProjeto') as ProjectKanbanStage) ? searchParams.get('faseProjeto') : 'HANDOVER') as ProjectKanbanStage;
-  const workflowSearch = searchParams.get('busca') || '';
+  const [workflowSearch, setWorkflowSearch] = usePersistentSearch(`efetivo-workflow-search:${userSearchKey}`, searchParams.get('busca') || '');
   const parsedWorkflowPage = Number(searchParams.get('pagina') || 1);
   const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
   const adminTab = (['regras', 'feriados', 'notificacoes', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'notificacoes' | 'atividade';
@@ -79,14 +81,23 @@ export function EfetivoPage() {
   const setSection = useCallback((nextSection: EfetivoPlanningSection) => {
     setSearchParams(current => setPlanningSectionParams(current, nextSection), { replace: true });
   }, [setSearchParams]);
-  const setWorkflowSearch = useCallback((value: string) => {
+  // Links antigos com buscas na URL continuam abrindo o recorte correto. Depois
+  // da leitura inicial, a busca fica no estado da sessão, como nos Relatórios.
+  useEffect(() => {
+    if (!searchParams.has('search') && !searchParams.has('busca')) return;
+    if (searchParams.has('search')) setSearch(searchParams.get('search') || '');
+    if (searchParams.has('busca')) setWorkflowSearch(searchParams.get('busca') || '');
     setSearchParams(current => {
       const next = new URLSearchParams(current);
-      if (value) next.set('busca', value); else next.delete('busca');
-      next.delete('pagina');
+      next.delete('search');
+      next.delete('busca');
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [searchParams, setSearch, setSearchParams, setWorkflowSearch]);
+  const handleWorkflowSearchChange = useCallback((value: string) => {
+    setWorkflowSearch(value);
+    if (workflowPage > 1) updateParam('pagina');
+  }, [setWorkflowSearch, updateParam, workflowPage]);
   // Atalhos entre painéis: troca de seção sem recarregar a página, preservando o parâmetro alvo.
   const goToSection = useCallback((nextSection: EfetivoPlanningSection, params: Record<string, string> = {}) => {
     setSearchParams(current => {
@@ -106,9 +117,9 @@ export function EfetivoPage() {
             {needsPositionFilters ? <section className="page-card efetivo-context-toolbar" data-efetivo-planning-filters><div className="field-group"><label htmlFor="efetivo-position-date">Data de posição</label><DateInput id="efetivo-position-date" value={date} onCommit={setPositionDate} /></div>{section === 'disponibilidade' ? <div className="field-group"><label htmlFor="efetivo-final-date">Data final</label><DateInput id="efetivo-final-date" value={endDate} min={date} max={addDateOnlyDays(date, 370)} onCommit={value => updateParam('final', value)} /></div> : null}<div className="field-group"><label htmlFor="efetivo-role-filter">Função</label><select id="efetivo-role-filter" value={jobRoleId || ''} onChange={event => updateParam('funcao', event.target.value || undefined)}><option value="">Todas as funções</option>{groupJobRoles((roles.data || []).filter(item => item.isOperational)).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></div><p>{section === 'disponibilidade' ? 'Situação diária e necessidade de equipe conforme o planejamento dos projetos.' : 'Planejamento oficial por dias úteis. Produtividade realizada continua baseada no Ponto Mais.'}</p></section> : null}
             {section === 'visao-geral' ? <OverviewBoard date={date} jobRoleId={jobRoleId} onNavigate={goToSection} /> : null}
             {section === 'calendario' ? <OperationalCalendar date={date} view={calendarView} jobRoleId={jobRoleId} selectedDay={selectedDay} onDateChange={value => updateParam('date', value)} onViewChange={value => updateParam('view', value === 'month' ? undefined : value)} onDaySelect={value => updateParam('dia', value)} /> : null}
-            {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={value => updateParam('search', value || undefined)} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
+            {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={setSearch} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
             {section === 'disponibilidade' ? <AvailabilityBoard date={date} endDate={endDate} jobRoleId={jobRoleId} view={availabilityView} onViewChange={value => updateParam('disponibilidadeView', value === 'kanban' ? undefined : value)} /> : null}
-            {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={setWorkflowSearch} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
+            {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={handleWorkflowSearchChange} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
             {section === 'produtividade' ? <ProductivityBoard canManage={canManage} /> : null}
             {section === 'administracao' ? <AdministrationBoard canManage={canManage} tab={adminTab} onTabChange={value => updateParam('adminTab', value === 'regras' ? undefined : value)} /> : null}
           </section>
