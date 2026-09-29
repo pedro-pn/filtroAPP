@@ -263,20 +263,14 @@ export function MaintenanceProductionPage() {
 
         {tab === 'historico-manutencao' ? (
           <>
-            <Card className="operational-module-toolbar" padding="md">
-              <div>
-                <div className="section-title">Histórico de manutenção</div>
-                <p className="placeholder-copy">
-                  Todas as manutenções de equipamentos já aprovadas.
-                </p>
-              </div>
+            <div className="operational-history-search-panel" role="search">
               <SearchBar
                 id="maintenance-history-search"
                 value={search}
                 onChange={(value) => updateParams({ q: value, page: null })}
-                placeholder="Buscar TAG, nome ou categoria"
+                placeholder="Buscar TAG, equipamento ou categoria"
               />
-            </Card>
+            </div>
             <MaintenanceHistoryTable
               search={search}
               page={page}

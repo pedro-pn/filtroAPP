@@ -120,6 +120,17 @@
 .operational-module-page-v2 .operational-module-report-list .rel-name { color: var(--ink); }
 .operational-module-page-v2 .operational-module-report-list .rel-meta { color: var(--muted); }
 
+.operational-module-page-v2 .operational-history-search-panel {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.operational-module-page-v2 .operational-history-search-panel .app-search {
+  width: min(100%, 480px);
+}
+
 .operational-module-page-v2 .operational-maintenance-history-table {
   padding: 0;
   overflow: hidden;
