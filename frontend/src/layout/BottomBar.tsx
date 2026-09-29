@@ -28,6 +28,7 @@ function DesignSystemBottomBar({
   const navigate = useNavigate();
   const sections = mobileSectionNavigation(navigation);
   const [morePhase, setMorePhase] = useState<MoreSheetPhase>('closed');
+  const moreMounted = morePhase !== 'closed';
   const pendingActionRef = useRef<(() => void) | null>(null);
   const activeSection = sections?.allItems.find(item => item.active);
 
@@ -69,6 +70,134 @@ function DesignSystemBottomBar({
     desktop.addEventListener('change', closeOnDesktop);
     return () => desktop.removeEventListener('change', closeOnDesktop);
   }, []);
+  useEffect(() => {
+    if (!moreMounted) return;
+    const root = document.documentElement;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const previous = {
+      rootOverflow: root.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width
+    };
+    root.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+    return () => {
+      root.style.overflow = previous.rootOverflow;
+      body.style.position = previous.bodyPosition;
+      body.style.top = previous.bodyTop;
+      body.style.width = previous.bodyWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [moreMounted]);
+  useEffect(() => {
+    if (morePhase !== 'open') return;
+    const backdrop = document.querySelector<HTMLElement>('.fv-bottom-bar__sheet-backdrop');
+    const sheet = backdrop?.querySelector<HTMLElement>('.fv-bottom-bar__sheet');
+    const header = sheet?.querySelector<HTMLElement>('.fv-modal__header');
+    const list = sheet?.querySelector<HTMLElement>('.fv-modal__body');
+    if (!sheet || !header || !list) return;
+
+    let pointerId: number | null = null;
+    let startY = 0;
+    let startTime = 0;
+    let distance = 0;
+    const settleDrag = (dragDistance: number, elapsed: number, cancelled: boolean) => {
+      sheet.style.removeProperty('transition');
+      if (!cancelled && (dragDistance > 96 || (dragDistance > 32 && dragDistance / Math.max(1, elapsed) > 0.6))) {
+        setMorePhase('closing');
+      } else {
+        sheet.style.removeProperty('--fv-sheet-drag-y');
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || (event.target instanceof Element && event.target.closest('button, a'))) return;
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      startTime = event.timeStamp;
+      distance = 0;
+      header.setPointerCapture(event.pointerId);
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      distance = Math.max(0, event.clientY - startY);
+      if (distance === 0) {
+        sheet.style.removeProperty('--fv-sheet-drag-y');
+        return;
+      }
+      sheet.style.transition = 'none';
+      sheet.style.setProperty('--fv-sheet-drag-y', `${distance}px`);
+    };
+    const finish = (event: PointerEvent, cancelled: boolean) => {
+      if (event.pointerId !== pointerId) return;
+      pointerId = null;
+      if (header.hasPointerCapture(event.pointerId)) header.releasePointerCapture(event.pointerId);
+      settleDrag(distance, event.timeStamp - startTime, cancelled);
+    };
+    const onPointerUp = (event: PointerEvent) => finish(event, false);
+    const onPointerCancel = (event: PointerEvent) => finish(event, true);
+    let touchStartY: number | null = null;
+    let touchStartTime = 0;
+    let touchDistance = 0;
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1 || list.scrollTop > 0) return;
+      touchStartY = event.touches[0].clientY;
+      touchStartTime = event.timeStamp;
+      touchDistance = 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (touchStartY === null || event.touches.length !== 1) return;
+      const nextDistance = Math.max(0, event.touches[0].clientY - touchStartY);
+      if (nextDistance === 0) {
+        touchDistance = 0;
+        sheet.style.removeProperty('transition');
+        sheet.style.removeProperty('--fv-sheet-drag-y');
+        return;
+      }
+      if (list.scrollTop > 0) {
+        touchStartY = null;
+        touchDistance = 0;
+        sheet.style.removeProperty('transition');
+        sheet.style.removeProperty('--fv-sheet-drag-y');
+        return;
+      }
+      if (event.cancelable) event.preventDefault();
+      touchDistance = nextDistance;
+      sheet.style.transition = 'none';
+      sheet.style.setProperty('--fv-sheet-drag-y', `${touchDistance}px`);
+    };
+    const finishTouch = (event: TouchEvent, cancelled: boolean) => {
+      if (touchStartY === null) return;
+      touchStartY = null;
+      if (touchDistance > 0) settleDrag(touchDistance, event.timeStamp - touchStartTime, cancelled);
+      touchDistance = 0;
+    };
+    const onTouchEnd = (event: TouchEvent) => finishTouch(event, false);
+    const onTouchCancel = (event: TouchEvent) => finishTouch(event, true);
+    header.addEventListener('pointerdown', onPointerDown);
+    header.addEventListener('pointermove', onPointerMove);
+    header.addEventListener('pointerup', onPointerUp);
+    header.addEventListener('pointercancel', onPointerCancel);
+    list.addEventListener('touchstart', onTouchStart, { passive: true });
+    list.addEventListener('touchmove', onTouchMove, { passive: false });
+    list.addEventListener('touchend', onTouchEnd);
+    list.addEventListener('touchcancel', onTouchCancel);
+    return () => {
+      header.removeEventListener('pointerdown', onPointerDown);
+      header.removeEventListener('pointermove', onPointerMove);
+      header.removeEventListener('pointerup', onPointerUp);
+      header.removeEventListener('pointercancel', onPointerCancel);
+      list.removeEventListener('touchstart', onTouchStart);
+      list.removeEventListener('touchmove', onTouchMove);
+      list.removeEventListener('touchend', onTouchEnd);
+      list.removeEventListener('touchcancel', onTouchCancel);
+      sheet.style.removeProperty('transition');
+      sheet.style.removeProperty('--fv-sheet-drag-y');
+    };
+  }, [morePhase]);
 
   if (!sections) return null;
 
@@ -112,7 +241,7 @@ function DesignSystemBottomBar({
           </li> : null}
         </ul>
       </nav>
-      {sections.hasMore ? <Modal open={morePhase !== 'closed'} onClose={() => setMorePhase('closing')} closeOnBackdrop
+      {sections.hasMore ? <Modal open={moreMounted} onClose={() => setMorePhase('closing')} closeOnBackdrop
         appearance="design-system" size="md" title={`Áreas de ${sections.module.label}`}
         fullscreenOnMobile={false} preventInitialFocusScroll
         backdropClassName={`fv-bottom-bar__sheet-backdrop${morePhase === 'open' ? ' is-open' : morePhase === 'closing' ? ' is-closing' : ''}`}

@@ -668,7 +668,7 @@
 }
 
 :where(.fv-ds, [data-fv-ds]).fv-bottom-bar__sheet-backdrop.is-open .fv-bottom-bar__sheet {
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, var(--fv-sheet-drag-y, 0px), 0);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -691,6 +691,9 @@
 
 .fv-bottom-bar__sheet .fv-modal__header {
   padding-block-start: var(--space-6);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
 }
 
 .fv-bottom-bar__sheet .fv-modal__body {
