@@ -45,6 +45,7 @@ test('navigation model receives only modules already resolved by existing access
     resolvedModules.map((module) => module.id)
   );
   assert.equal(moduleItems.find((item) => item.id === 'estoque').active, true);
+  assert.equal(moduleItems.every((item) => item.badge === undefined), true);
   assert.equal(
     moduleItems.some((item) => item.id === 'admin'),
     false

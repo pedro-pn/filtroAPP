@@ -28,7 +28,6 @@ function DesignSystemBottomBar({
   const navigate = useNavigate();
   const sections = mobileSectionNavigation(navigation);
   const [morePhase, setMorePhase] = useState<MoreSheetPhase>('closed');
-  const activeSectionRef = useRef<HTMLAnchorElement>(null);
   const pendingActionRef = useRef<(() => void) | null>(null);
   const activeSection = sections?.allItems.find(item => item.active);
 
@@ -115,11 +114,12 @@ function DesignSystemBottomBar({
       </nav>
       {sections.hasMore ? <Modal open={morePhase !== 'closed'} onClose={() => setMorePhase('closing')} closeOnBackdrop
         appearance="design-system" size="md" title={`Áreas de ${sections.module.label}`}
-        fullscreenOnMobile={false} backdropClassName={`fv-bottom-bar__sheet-backdrop${morePhase === 'open' ? ' is-open' : morePhase === 'closing' ? ' is-closing' : ''}`}
-        panelClassName="fv-bottom-bar__sheet" initialFocusRef={activeSectionRef}>
+        fullscreenOnMobile={false} preventInitialFocusScroll
+        backdropClassName={`fv-bottom-bar__sheet-backdrop${morePhase === 'open' ? ' is-open' : morePhase === 'closing' ? ' is-closing' : ''}`}
+        panelClassName="fv-bottom-bar__sheet">
         <ul className="fv-bottom-bar__sheet-list">
           {sections.allItems.map(item => <li key={item.id}>
-            <Link ref={item.active ? activeSectionRef : undefined} to={item.href}
+            <Link to={item.href}
               className={item.active ? 'is-active' : undefined} aria-current={item.active ? 'page' : undefined}
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

@@ -72,6 +72,7 @@ export interface ModalProps {
   closeLabel?: string;
   fullscreenOnMobile?: boolean;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  preventInitialFocusScroll?: boolean;
 }
 
 export function Modal({
@@ -93,7 +94,8 @@ export function Modal({
   showCloseButton = true,
   closeLabel = 'Fechar',
   fullscreenOnMobile = true,
-  initialFocusRef
+  initialFocusRef,
+  preventInitialFocusScroll = false
 }: ModalProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -113,7 +115,9 @@ export function Modal({
     const frame = window.requestAnimationFrame(() => {
       const initialFocus = initialFocusRef?.current;
       const firstFocusable = panelRef.current ? visibleFocusableElements(panelRef.current)[0] : undefined;
-      (initialFocus ?? firstFocusable ?? panelRef.current)?.focus();
+      (initialFocus ?? firstFocusable ?? panelRef.current)?.focus({
+        preventScroll: preventInitialFocusScroll
+      });
     });
 
     return () => {
@@ -123,7 +127,7 @@ export function Modal({
       if (previousFocus && document.contains(previousFocus))
         previousFocus.focus();
     };
-  }, [initialFocusRef, open]);
+  }, [initialFocusRef, open, preventInitialFocusScroll]);
 
   if (!open || typeof document === 'undefined') return null;
 

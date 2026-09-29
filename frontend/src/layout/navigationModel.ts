@@ -92,7 +92,6 @@ export function createNavigationModel({
             href: module.path,
             group: 'modules',
             icon: MODULE_NAVIGATION_ICONS[module.id],
-            badge: module.badge,
             active: activeModuleId === module.id,
             disabled: module.disabled || !module.path,
             expanded: Boolean(children?.length),
