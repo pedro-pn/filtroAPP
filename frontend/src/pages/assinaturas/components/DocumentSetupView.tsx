@@ -104,12 +104,12 @@ export function DocumentSetupView({
             onFieldsChange={next => { setFields(next); setFieldsDirty(true); setSaveStatus('idle'); }}
           />}
         />
-        <div className="signature-editor-actions">
-          <DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} />
-          <Button variant="secondary" disabled={mutations.replaceFields.isPending || !fieldsDirty} onClick={saveFields}>{fieldsDirty ? 'Salvar campos' : 'Campos salvos'}</Button>
-          <span data-signature-publish><Button disabled={!document.signers.length || mutations.replaceFields.isPending} onClick={() => setPublishOpen(true)}>Publicar</Button></span>
-        </div>
       </section>
+      <div className="signature-editor-actions">
+        <DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} />
+        <Button variant="secondary" disabled={mutations.replaceFields.isPending || !fieldsDirty} onClick={saveFields}>{fieldsDirty ? 'Salvar campos' : 'Campos salvos'}</Button>
+        <span data-signature-publish><Button disabled={!document.signers.length || mutations.replaceFields.isPending} onClick={() => setPublishOpen(true)}>Publicar</Button></span>
+      </div>
       <PublishDialog
         open={publishOpen}
         signers={document.signers}

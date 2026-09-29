@@ -20,6 +20,7 @@ export function AssinaturasPublicSignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageKind, setMessageKind] = useState<'success' | 'warning'>('warning');
   const inviteQuery = usePublicSignatureInvite(token, polling);
 
   const loadPage = useCallback((page: number, signal: AbortSignal) => publicSignaturePage(token, page, signal), [token]);
@@ -35,6 +36,7 @@ export function AssinaturasPublicSignPage() {
       setSubmitting(false);
       setPolling(false);
       setMessage('');
+      setMessageKind('warning');
     };
 
     window.addEventListener('hashchange', captureRenewedInvite);
@@ -59,10 +61,12 @@ export function AssinaturasPublicSignPage() {
       });
       setDialogOpen(false);
       setMessage(result.documentStatus === 'FINALIZANDO' ? 'Assinatura recebida. Estamos finalizando o PDF.' : 'Assinatura registrada com sucesso.');
+      setMessageKind('success');
       setPolling(result.documentStatus === 'FINALIZANDO');
       await inviteQuery.refetch();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível registrar a assinatura.');
+      setMessageKind('warning');
     } finally {
       setSubmitting(false);
     }
@@ -79,6 +83,7 @@ export function AssinaturasPublicSignPage() {
       URL.revokeObjectURL(url);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível baixar o documento.');
+      setMessageKind('warning');
     }
   }
 
@@ -100,15 +105,18 @@ export function AssinaturasPublicSignPage() {
           key={invite.document.sourceDocumentHash}
           pageCount={invite.document.pageCount}
           loadPage={loadPage}
+          revision={invite.document.progress.signed}
           renderPage={({ imageUrl, pageNumber, onImageError }) => <div className="signature-public-preview">
             <img src={imageUrl} alt={`Página ${pageNumber} do documento`} onError={onImageError} />
-            {invite.fields.filter(field => field.pageNumber === pageNumber).map((field, index) => <div className="signature-public-field" key={index} style={{ left: `${field.x * 100}%`, top: `${field.y * 100}%`, width: `${field.width * 100}%`, height: `${field.height * 100}%` }}>Seu campo</div>)}
+            {invite.signer.status !== 'ASSINADO' ? invite.fields.filter(field => field.pageNumber === pageNumber).map((field, index) => <div className="signature-public-field" key={index} style={{ left: `${field.x * 100}%`, top: `${field.y * 100}%`, width: `${field.width * 100}%`, height: `${field.height * 100}%` }}>Seu campo</div>) : null}
           </div>}
         />
-        {message ? <p className="signature-inline-warning">{message}</p> : null}
-        {invite.document.status === 'FINALIZANDO' ? <p>Finalizando o PDF assinado...</p> : null}
-        {invite.downloadAvailable ? <Button onClick={download}>Baixar PDF assinado</Button> : null}
-        {invite.signer.status !== 'ASSINADO' ? <Button onClick={() => setDialogOpen(true)}>Assinar documento</Button> : null}
+        <div className="signature-public-actions">
+          {message ? <p className={messageKind === 'success' ? 'signature-inline-success' : 'signature-inline-warning'} role={messageKind === 'success' ? 'status' : 'alert'}>{message}</p> : null}
+          {invite.document.status === 'FINALIZANDO' ? <p>Finalizando o PDF assinado...</p> : null}
+          {invite.downloadAvailable ? <Button onClick={download}>Baixar PDF assinado</Button> : null}
+          {invite.signer.status !== 'ASSINADO' ? <Button onClick={() => setDialogOpen(true)}>Assinar documento</Button> : null}
+        </div>
       </section>
       <SignatureDialog
         open={dialogOpen}

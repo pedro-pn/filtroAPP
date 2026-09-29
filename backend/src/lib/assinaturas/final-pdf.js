@@ -13,6 +13,7 @@ import {
 import env from '../../config/env.js';
 import { createValidationQrCodeMatrix } from '../qr-code.js';
 import { parseSignatureImageDataUrl } from '../signatures/common.js';
+import { signatureInkImage } from './signature-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,20 +80,6 @@ export function normalizedFieldToPdfRect(field, pageGeometry) {
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
-}
-
-function fitInside(image, rect, padding = 3) {
-  const maxWidth = Math.max(1, rect.width - (padding * 2));
-  const maxHeight = Math.max(1, rect.height - (padding * 2));
-  const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
-  const width = image.width * scale;
-  const height = image.height * scale;
-  return {
-    x: rect.x + ((rect.width - width) / 2),
-    y: rect.y + ((rect.height - height) / 2),
-    width,
-    height
-  };
 }
 
 function evidenceText(value, fallback = '—') {
@@ -313,6 +300,7 @@ export async function buildFinalPdfBytes(snapshot, sourceBytes) {
   };
   const signersById = new Map((snapshot.signers || []).map(signer => [signer.id, signer]));
   const imageCache = new Map();
+  const fieldImageCache = new Map();
   const pages = pdf.getPages();
 
   for (const field of snapshot.fields || []) {
@@ -327,8 +315,11 @@ export async function buildFinalPdfBytes(snapshot, sourceBytes) {
       height: cropBox.height,
       rotation: page.getRotation().angle
     });
-    const image = await embeddedSignerImage(pdf, signer, imageCache);
-    page.drawImage(image, fitInside(image, rect, 0));
+    if (!fieldImageCache.has(signer.id)) {
+      fieldImageCache.set(signer.id, await pdf.embedPng(await signatureInkImage(signer.signatureImageDataUrl)));
+    }
+    const image = fieldImageCache.get(signer.id);
+    page.drawImage(image, rect);
   }
 
   await appendEvidencePages(pdf, snapshot, sourceHash, imageCache, fonts);

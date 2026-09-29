@@ -11,7 +11,7 @@ import {
   revokeInvite
 } from '../../lib/assinaturas/invites.js';
 import { resendInviteEmail, sendInviteEmail } from '../../lib/assinaturas/notifications.js';
-import { renderPage } from '../../lib/assinaturas/preview.js';
+import { renderPage, renderSignedPage } from '../../lib/assinaturas/preview.js';
 import {
   archiveDocument,
   cancelDocument,
@@ -134,7 +134,21 @@ router.get('/publico/pdf', publicSignatureLimiter, publicHeaders, asyncHandler(a
 router.get('/publico/paginas/:n.png', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
   const invite = await resolveInviteByToken(prisma, invitationToken(req));
   assertInviteUsable(invite);
-  const png = await renderPage(invite.document, req.params.n);
+  const pageNumber = Number(req.params.n);
+  if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > Number(invite.document.pageCount)) {
+    const error = new Error('Página não encontrada.');
+    error.statusCode = 404;
+    throw error;
+  }
+  const signedSigners = await prisma.signatureDocumentSigner.findMany({
+    where: { documentId: invite.document.id, status: 'ASSINADO' },
+    select: {
+      id: true,
+      signatureImageDataUrl: true,
+      fields: { where: { pageNumber }, select: { pageNumber: true, x: true, y: true, width: true, height: true } }
+    }
+  });
+  const png = await renderSignedPage(invite.document, pageNumber, signedSigners);
   res.type('image/png');
   return res.send(png);
 }));

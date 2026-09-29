@@ -80,7 +80,7 @@ test('campo usa uma cor suave, nome centralizado e controles transparentes', asy
   assert.match(css, /\.signature-field,[\s\S]*?border:\s*0;[\s\S]*?justify-content:\s*center/);
   assert.match(css, /\.signature-field > span:first-child \{[\s\S]*?text-align:\s*center/);
   assert.match(css, /\.signature-field-remove \{[\s\S]*?background:\s*transparent;[\s\S]*?right:\s*-20px;[\s\S]*?top:\s*-20px/);
-  assert.match(css, /\.signature-field-resize \{[\s\S]*?repeating-linear-gradient\([\s\S]*?border:\s*0/);
+  assert.match(css, /\.signature-field-resize-se \{[\s\S]*?repeating-linear-gradient\(/);
   assert.doesNotMatch(css, /\.signature-field-color-[1-5]\s*\{/);
 });
 
@@ -143,7 +143,7 @@ test('diálogo de publicação separa conteúdo, campos e ações', async () => 
   ]);
   assert.match(dialog, /className="signature-publish-form"/);
   assert.match(css, /\.signature-publish-form \{[\s\S]*?display:\s*flex[\s\S]*?gap:\s*14px/);
-  assert.match(css, /\.signature-publish-form \.modal-actions \{[\s\S]*?border-top:[\s\S]*?padding-top:/);
+  assert.match(css, /\.signature-publish-form \.modal-actions \{[\s\S]*?border-top:[\s\S]*?padding:/);
 });
 
 test('upload separa ações do anexo e documentos usam listagem vertical', async () => {
