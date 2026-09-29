@@ -266,6 +266,57 @@
   gap: var(--space-2);
 }
 
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .rdo-manager-listing__actions {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-remove-icon-button {
+    position: relative;
+    margin-inline-start: auto;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-remove-icon-button::before {
+    position: absolute;
+    inset: 5px;
+    border-radius: var(--radius-md);
+    background: var(--danger);
+    content: '';
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-remove-icon-button:hover:not(:disabled)::before {
+    background: var(--danger-hover);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-remove-icon-button:disabled::before {
+    background: var(--disabled-bg);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-remove-icon-button svg {
+    position: relative;
+  }
+}
+
 @media (min-width: 768px) {
   :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__mobile-sort {
     display: none;
