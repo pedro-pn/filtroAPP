@@ -3532,7 +3532,7 @@
 
 :where(.fv-ds, [data-fv-ds]) .rdo-admin-form :where(input, select, textarea) {
   border-color: var(--line-strong);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--ink);
 }
 

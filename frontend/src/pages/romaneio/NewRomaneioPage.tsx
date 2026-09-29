@@ -28,6 +28,7 @@ import {
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { Modal } from '../../components/ui/Modal';
@@ -1114,7 +1115,7 @@ export function NewRomaneioPage() {
                         onChange={event => updateSelectedItemQuantity(item.key, event.target.value)}
                       />
                     )}
-                    <button className="mini-btn danger" type="button" onClick={() => removeSelectedItem(item.key)}>Remover</button>
+                    <RemoveIconButton label={`Remover item ${item.itemCode || item.itemName}`} onClick={() => removeSelectedItem(item.key)} />
                   </div>
                 </div>
               );

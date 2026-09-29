@@ -18,6 +18,7 @@ import {
 import { listProjects } from '../../api/projects';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { makeEstoqueSchemas } from '../../../../shared/schemas/estoque.js';
@@ -257,16 +258,12 @@ function ReturnMovementLineRow({
           />
         </div>
 
-        <button
-          className="icon-button stock-return-remove"
-          type="button"
-          aria-label="Remover produto da devolução"
-          title="Remover produto"
+        <RemoveIconButton
+          className="stock-return-remove"
+          label="Remover produto da devolução"
           disabled={saving || !canRemove}
           onClick={onRemove}
-        >
-          ×
-        </button>
+        />
       </div>
       {batchesQuery.isSuccess && line.itemId && projectId && !batches.length ? (
         <small className="field-error">Este produto não possui lote com saldo disponível na obra.</small>

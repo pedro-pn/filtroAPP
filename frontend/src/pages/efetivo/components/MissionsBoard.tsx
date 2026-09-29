@@ -15,6 +15,7 @@ import {
   type PlanningMission
 } from '../../../api/efetivoPlanning';
 import { Alert, Badge, Button, Card, EmptyState, Field, MetricCard, SearchInput, Select, Skeleton } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
@@ -180,7 +181,7 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
                       <span>Líder: <strong>{mission.headquartersResponsibleName}</strong></span>
                       <div className="efetivo-action-row efetivo-mission-card-actions">
                         <Button variant="secondary" size="sm" onClick={() => setAllocating(mission)}>Equipe</Button>
-                        {canManage ? <><Button variant="secondary" size="sm" onClick={() => setFormTarget({ mission, project: null })}>Editar</Button><Button variant="danger" size="sm" onClick={() => setDeleting(mission)}>Remover</Button></> : null}
+                        {canManage ? <><Button variant="secondary" size="sm" onClick={() => setFormTarget({ mission, project: null })}>Editar</Button><RemoveIconButton label={`Remover missão ${mission.project.code}`} onClick={() => setDeleting(mission)} /></> : null}
                       </div>
                     </footer>
                   </Card>

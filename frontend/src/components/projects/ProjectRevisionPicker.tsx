@@ -8,6 +8,7 @@ import {
   setProjectRevision
 } from '../../api/acompanhamentoComercial';
 import { Button, Select } from '../ui/ds';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { useToast } from '../ui/ToastContext';
 
 function formatBRL(value?: string | number | null) {
@@ -153,16 +154,13 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
                 {additionalMutation.isPending ? 'Aplicando…' : group.currentCodBd ? 'Aplicar' : 'Adicionar'}
               </Button>
               {group.currentCodBd ? (
-                <Button
+                <RemoveIconButton
                   className="project-revision-picker__button"
-                  variant="secondary"
-                  size="sm"
-                  type="button"
+                  label="Remover revisão adicional"
                   disabled={removeAdditionalMutation.isPending || !Number.isInteger(proposalCode)}
+                  loading={removeAdditionalMutation.isPending}
                   onClick={() => Number.isInteger(proposalCode) && removeAdditionalMutation.mutate(proposalCode)}
-                >
-                  {removeAdditionalMutation.isPending ? 'Removendo…' : 'Remover'}
-                </Button>
+                />
               ) : null}
             </span>
           </div>

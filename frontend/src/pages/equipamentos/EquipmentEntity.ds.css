@@ -67,6 +67,22 @@
   padding-block: var(--space-2);
 }
 
+.equip-page-v2 .equip-card .report-card-actions .fv-remove-icon-button {
+  justify-self: end;
+  width: var(--space-8);
+  height: var(--space-8);
+  min-height: var(--space-8);
+  padding: 0;
+}
+
+@media (max-width: 767.98px) {
+  .equip-page-v2 .equip-card .report-card-actions .fv-remove-icon-button {
+    width: calc(var(--space-10) + var(--space-1));
+    height: calc(var(--space-10) + var(--space-1));
+    min-height: calc(var(--space-10) + var(--space-1));
+  }
+}
+
 .equip-page-v2 .equip-card .report-card-actions {
   margin-top: auto;
   padding-top: var(--space-3);
@@ -176,7 +192,7 @@
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--control-border);
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--ink);
 }
 
@@ -187,7 +203,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(90px, 110px);
   align-items: stretch;
 }
-.fv-ds .equip-entity-modal .equip-entity-form :is(input, select, textarea):disabled { background: var(--disabled-bg); color: var(--disabled-ink); }
+.fv-ds .equip-entity-modal .equip-entity-form :is(input, select, textarea):disabled { background-color: var(--disabled-bg); color: var(--disabled-ink); }
 .fv-ds .equip-entity-modal .equip-entity-form input[type='checkbox'] { accent-color: var(--brand); }
 .fv-ds .equip-entity-modal .equip-entity-form :is(.rel-meta, .tech-group-empty) { color: var(--muted); }
 .fv-ds .equip-entity-modal .equip-entity-form .sec { color: var(--ink); }
@@ -242,7 +258,6 @@
 .fv-ds .equip-entity-modal .equip-entity-form .upload-dropzone.drag-over { border-color: var(--brand); background: var(--brand-soft); }
 .fv-ds .equip-entity-modal .equip-entity-form .upload-dropzone-text small { color: var(--muted); }
 .fv-ds .equip-entity-modal .equip-entity-form .tech-photo { border-color: var(--line); background: var(--surface-2); }
-.fv-ds .equip-entity-modal .equip-entity-form .tech-photo-remove { background: var(--danger); color: var(--on-danger); }
 
 .fv-ds .equip-maintenance-history-modal .fv-modal__body { display: grid; align-content: start; gap: var(--space-3); }
 .fv-ds .equip-maintenance-history-modal .equip-history-equipment { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }

@@ -17,6 +17,7 @@ import {
   type MaintenanceProfilePayload
 } from '../../api/equipamentos';
 import type { MaintenanceProfileSummary } from '../../api/operationalReports';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button, EmptyState } from '../../components/ui/ds';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
@@ -556,12 +557,7 @@ export function MaintenanceConfigPanel({
                 <Button variant="secondary" size="sm" onClick={() => openProfile(profile)}>
                   Editar
                 </Button>
-                <Button
-                  variant="danger" size="sm"
-                  onClick={() => setDeleteProfile(profile)}
-                >
-                  Remover
-                </Button>
+                <RemoveIconButton label={`Remover perfil ${profile.name}`} onClick={() => setDeleteProfile(profile)} />
               </div>
             </article>
           ))}
@@ -786,13 +782,7 @@ export function MaintenanceConfigPanel({
                           ↓
                         </Button>
                         {!item.id ? (
-                          <Button
-                            variant="danger" size="sm"
-                            disabled={profileItemFields.fields.length === 1}
-                            onClick={() => profileItemFields.remove(index)}
-                          >
-                            Remover
-                          </Button>
+                          <RemoveIconButton label={`Remover serviço ${index + 1}`} disabled={profileItemFields.fields.length === 1} onClick={() => profileItemFields.remove(index)} />
                         ) : null}
                       </div>
                     </div>

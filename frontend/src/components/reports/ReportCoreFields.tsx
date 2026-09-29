@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { AppIcon } from '../icons/AppIcon';
-import { DS_ICONS } from '../ui/ds/icons';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import './ReportCollaboratorTags.css';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
@@ -238,14 +237,11 @@ function CollaboratorTags({
           <span>{collaborator?.name || id}</span>
           <small className="colab-tag-role">{roleName}</small>
         </span>
-        <button
+        <RemoveIconButton
           className="colab-tag__remove"
-          type="button"
-          aria-label={`Remover ${collaborator?.name || id}`}
+          label={`Remover ${collaborator?.name || id}`}
           onClick={() => onChange(selectedIds.filter((item) => item !== id))}
-        >
-          <AppIcon icon={DS_ICONS.trash} size="sm" />
-        </button>
+        />
       </span>
     );
   });

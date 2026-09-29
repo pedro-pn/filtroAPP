@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { AppIcon } from '../icons/AppIcon';
-import { IconButton } from './ds/Button';
+import { RemoveIconButton } from './RemoveIconButton';
 import { DS_ICONS } from './ds/icons';
 import './PdfDropzone.css';
 
@@ -115,14 +115,12 @@ export function PdfDropzone({
           <small>{selectedName ? (selectedHint || (multiple ? 'Clique ou solte para adicionar mais' : 'Clique ou solte outro para substituir')) : emptyHint}</small>
         </span>
         {selectedName && !disabled ? (
-          appearance === 'design-system' ? <IconButton
-            variant="secondary" size="sm" icon={DS_ICONS.close} label="Remover arquivo selecionado"
+          appearance === 'design-system' ? <RemoveIconButton
+            label="Remover arquivo selecionado"
             onKeyDown={event => event.stopPropagation()}
             onClick={event => { event.stopPropagation(); if (multiple && onFiles) onFiles([]); else onFile(null); }}
-          /> : <button
-            type="button"
-            className="pdf-dropzone-clear"
-            aria-label="Remover arquivo selecionado"
+          /> : <RemoveIconButton
+            label="Remover arquivo selecionado"
             onClick={event => {
               event.stopPropagation();
               if (multiple && onFiles) {
@@ -131,9 +129,7 @@ export function PdfDropzone({
                 onFile(null);
               }
             }}
-          >
-            ×
-          </button>
+          />
         ) : null}
       </div>
       {error ? <div className="field-error" id={`${id}-error`}>{error}</div> : null}
@@ -143,13 +139,7 @@ export function PdfDropzone({
             ? <a className="equip-link" href={currentUrl} target="_blank" rel="noreferrer">Atual: {currentName}</a>
             : <span className="equip-muted">Atual: {currentName}</span>}
           {onCurrentRemovedChange ? (
-            <button
-              type="button"
-              className="mini-btn alt pdf-dropzone-remove-current"
-              onClick={() => onCurrentRemovedChange(true)}
-            >
-              Remover
-            </button>
+            <RemoveIconButton className="pdf-dropzone-current-remove" label={`Remover arquivo ${currentName}`} onClick={() => onCurrentRemovedChange(true)} />
           ) : null}
         </div>
       ) : null}

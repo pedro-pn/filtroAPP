@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import type { NotificationConfig } from '../../api/equipamentos';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import {
   useNotificationAccounts,
@@ -164,7 +165,7 @@ export function NotificationsConfig() {
                 />
                 <span>Ativo</span>
               </label>
-              <button className="mini-btn danger" type="button" onClick={() => removeRecipient.mutate(recipient.id)}>Remover</button>
+              <RemoveIconButton label={`Remover destinatário ${recipient.email}`} onClick={() => removeRecipient.mutate(recipient.id)} />
             </li>
           ))}
         </ul>

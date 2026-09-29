@@ -14,6 +14,7 @@ import {
 } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { HelpTip } from '../ui/HelpTip';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { ProjectSystemInput } from './ProjectSystemInput';
 import { PlannedHoursReview } from './PlannedHoursReview';
 import { useToast } from '../ui/ToastContext';
@@ -583,9 +584,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                   <Button variant="secondary" size="sm" onClick={() => duplicateService(svc.key)}>
                     Duplicar serviço
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => removeService(svc.key)}>
-                    Remover serviço
-                  </Button>
+                  <RemoveIconButton label="Remover serviço" onClick={() => removeService(svc.key)} />
                 </div>
               </div>
 
@@ -690,7 +689,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                             <span className="acp-unit-tag">{UNIT_LABELS[SYSTEM_UNIT[sys.systemType]]}</span>
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm" className="acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">Remover</Button>
+                        <RemoveIconButton className="acp-sys-del" label="Remover sistema" onClick={() => removeSystem(svc.key, sys.key)} />
                       </div>
                       </div>
                     );
@@ -772,7 +771,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                   onChange={e => updateRow(setNormalHours, row.key, { hours: e.target.value })}
                 />
               </div>
-              <Button variant="ghost" size="sm" className="acp-sys-del" onClick={() => removeRow(setNormalHours, row.key)} aria-label="Remover horas normais">Remover</Button>
+              <RemoveIconButton className="acp-sys-del" label="Remover horas normais" onClick={() => removeRow(setNormalHours, row.key)} />
             </div>
           ))}
         </div>
@@ -812,7 +811,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                   onChange={e => updateRow(setOvertime, row.key, { hours: e.target.value })}
                 />
               </div>
-              <Button variant="ghost" size="sm" className="acp-sys-del" onClick={() => removeRow(setOvertime, row.key)} aria-label="Remover hora extra">Remover</Button>
+              <RemoveIconButton className="acp-sys-del" label="Remover hora extra" onClick={() => removeRow(setOvertime, row.key)} />
             </div>
           ))}
         </div>

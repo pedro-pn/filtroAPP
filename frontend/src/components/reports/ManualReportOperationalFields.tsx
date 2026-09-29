@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
-import { AppIcon } from '../icons/AppIcon';
-import { DS_ICONS } from '../ui/ds/icons';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import './ReportCollaboratorTags.css';
 import type { Collaborator } from '../../types/domain';
 
@@ -93,15 +92,12 @@ export function ManualReportOperationalFields({
     return ids.map(id => (
       <span className="colab-tag report-collaborator-tag" key={`${field}-${id}`}>
         <span>{collaboratorName(collaborators, id)}</span>
-        <button
+        <RemoveIconButton
           className="colab-tag__remove"
-          type="button"
           disabled={disabled}
           onClick={() => onChange({ [field]: ids.filter(item => item !== id) })}
-          aria-label="Remover colaborador"
-        >
-          <AppIcon icon={DS_ICONS.trash} size="sm" />
-        </button>
+          label={`Remover colaborador ${collaboratorName(collaborators, id)}`}
+        />
       </span>
     ));
   }
@@ -163,14 +159,11 @@ export function ManualReportOperationalFields({
             selected.map(theme => (
               <span className={`colab-tag ${theme.custom ? 'colab-tag-custom' : ''}`} key={`${field}-${theme.id}`}>
                 <span>{theme.custom ? `${theme.name} (novo)` : theme.name}</span>
-                <button
-                  type="button"
+                <RemoveIconButton
                   disabled={disabled}
                   onClick={() => onChange({ [field]: selected.filter(item => item.id !== theme.id) })}
-                  aria-label="Remover tema"
-                >
-                  ×
-                </button>
+                  label={`Remover tema ${theme.name}`}
+                />
               </span>
             ))
           ) : (

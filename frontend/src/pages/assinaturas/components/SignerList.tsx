@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 import type { SignatureSigner } from '../../../api/assinaturas';
 import { AppIcon } from '../../../components/icons/AppIcon';
-import { Alert, Badge, Button, Card, Field, IconButton, Input } from '../../../components/ui/ds';
+import { Alert, Badge, Button, Card, Field, Input } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 
 const schema = z.object({
@@ -78,7 +79,7 @@ export function SignerList({
               <div className="signature-signer-identity">
                 <strong>{index + 1}. {signer.name}</strong><span>{signer.email || 'Sem e-mail · link manual'}</span>
               </div>
-              <IconButton className="assinaturas-setup__remove-signer" variant="secondary" size="sm" icon={DS_ICONS.trash} label={`Remover ${signer.name}`} disabled={busy} onClick={() => void remove(signer.id)} />
+              <RemoveIconButton className="assinaturas-setup__remove-signer" label={`Remover ${signer.name}`} disabled={busy} onClick={() => void remove(signer.id)} />
             </div>
           ))}
         </div>

@@ -2408,17 +2408,11 @@ a {
   border-color: var(--g);
   box-shadow: 0 0 0 3px rgba(32, 126, 64, 0.12);
 }
-.acp-sleep-remove {
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 6px 9px;
-}
 @media (max-width: 860px) { .acp-sleep-list { grid-template-columns: 1fr; } }
 @media (max-width: 480px) {
   .acp-sleep-add,
   .acp-sleep-row { grid-template-columns: 1fr; }
   .acp-sleep-controls { align-items: stretch; flex-direction: column; }
-  .acp-sleep-remove { width: 100%; }
 }
 
 /* Escopo previsto (serviços vendidos + previsão de hora extra) no modal do cronograma */
@@ -2534,7 +2528,6 @@ a {
 .acp-diameter-field > input:first-child { flex: 1 1 auto; min-width: 0; }
 .acp-diameter-field > select:last-child { flex: 0 0 68px; }
 .acp-sys-del, .acp-svc-head .mini-btn { align-self: end; }
-.acp-sys-del { padding: 6px 10px; }
 .acp-add-sys { margin-top: 8px; }
 .acp-weight-sum { font-size: 12px; margin-top: 6px; }
 .acp-weight-sum.ok { color: var(--mu); }
@@ -3348,7 +3341,7 @@ a {
 
 .tube-row-react {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) var(--space-8);
   gap: 8px;
   align-items: end;
 }
@@ -3370,27 +3363,6 @@ a {
   min-width: 0;
   padding: 7px 6px;
   font-size: 12px;
-}
-
-.tube-remove {
-  width: 24px;
-  height: 24px;
-  align-self: end;
-  margin-bottom: 5px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--rd);
-  padding: 0;
-  font-size: 18px;
-  line-height: 24px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tube-remove:disabled {
-  opacity: .35;
-  cursor: not-allowed;
 }
 
 .report-services-step,
@@ -3436,24 +3408,9 @@ a {
 
 .unit-row-react {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
+  grid-template-columns: minmax(0, 1fr) var(--space-8);
   gap: 8px;
   align-items: center;
-}
-
-.unit-row-remove {
-  border: 0;
-  background: transparent;
-  color: #9ca3af;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0;
-}
-
-.unit-row-remove:disabled {
-  opacity: .4;
-  cursor: default;
 }
 
 .project-signer-stack {
@@ -6707,19 +6664,16 @@ a.upload-list-name {
   }
 
   .tube-row-react {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) 22px;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) calc(var(--space-10) + var(--space-1));
     gap: 6px;
+  }
+
+  .unit-row-react {
+    grid-template-columns: minmax(0, 1fr) calc(var(--space-10) + var(--space-1));
   }
 
   .tube-row-react .num-unit {
     gap: 4px;
-  }
-
-  .tube-remove {
-    width: 22px;
-    height: 22px;
-    line-height: 22px;
-    margin-bottom: 6px;
   }
 
   .project-signer-row {
@@ -8680,14 +8634,6 @@ select:disabled {
   position: absolute;
   top: 10px;
   right: 10px;
-  border: 1px solid var(--br);
-  border-radius: var(--rs);
-  background: var(--wh);
-  color: var(--rd);
-  padding: 6px 9px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .signature-remember-option {
@@ -11813,19 +11759,6 @@ select:disabled {
   position: absolute;
   top: 2px;
   right: 2px;
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-  border: none;
-  border-radius: 50%;
-  background: rgba(164, 16, 26, 0.85);
-  color: #fff;
-  cursor: pointer;
 }
 
 .tech-photo-add {
@@ -12257,11 +12190,6 @@ select:disabled {
   background: var(--brand-softer);
 }
 
-.dark .pdf-dropzone-clear {
-  background: var(--line-strong);
-  color: var(--ink);
-}
-
 .dark .pdf-dropzone-icon,
 .dark .pdf-dropzone-text strong,
 .dark .upload-dropzone-icon,
@@ -12314,25 +12242,6 @@ select:disabled {
   margin-top: 2px;
 }
 
-.pdf-dropzone-clear {
-  flex: 0 0 auto;
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--tx);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.pdf-dropzone-clear:hover {
-  background: var(--rd);
-  color: var(--wh);
-}
-
 .pdf-dropzone-current {
   display: flex;
   align-items: center;
@@ -12350,23 +12259,13 @@ select:disabled {
   color: var(--rd);
 }
 
-.pdf-dropzone-remove-current,
 .pdf-dropzone-undo-current {
   flex: 0 0 auto;
   margin-left: auto;
   padding: 6px 12px;
 }
 
-.pdf-dropzone-remove-current {
-  border-color: rgba(196, 18, 28, 0.4);
-  color: var(--rd);
-}
-
-.pdf-dropzone-remove-current:hover {
-  background: var(--rd);
-  border-color: var(--rd);
-  color: var(--wh);
-}
+.pdf-dropzone-current-remove { margin-left: auto; }
 
 /* Aba de Notificações */
 .equip-notif-config {

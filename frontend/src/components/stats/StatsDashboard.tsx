@@ -31,6 +31,7 @@ import {
 } from '../../api/statistics';
 import { BrandLogo } from '../brand/BrandLogo';
 import { AppIcon } from '../icons/AppIcon';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import {
   useAllocationReport,
   useAllocationReportRecipientMutations,
@@ -3155,9 +3156,7 @@ function DesignSystemRecipientCard({
           <Button variant="secondary" size="md" onClick={onToggle}>
             {recipient.isActive ? 'Desativar' : 'Ativar'}
           </Button>
-          <Button variant="danger" size="md" onClick={onRemove}>
-            Remover
-          </Button>
+          <RemoveIconButton label={`Remover destinatário ${recipient.name || recipient.email}`} onClick={onRemove} />
         </div>
       }
     >
@@ -3610,9 +3609,7 @@ function MonthlyAllocationDashboard({
                   <button className="mini-btn alt" type="button" onClick={() => handleToggleRecipient(recipient.id, recipient.isActive)}>
                     {recipient.isActive ? 'Desativar' : 'Ativar'}
                   </button>
-                  <button className="mini-btn danger" type="button" onClick={() => handleRemoveRecipient(recipient.id)}>
-                    Remover
-                  </button>
+                  <RemoveIconButton label={`Remover destinatário ${recipient.name || recipient.email}`} onClick={() => handleRemoveRecipient(recipient.id)} />
                 </div>
               </div>
             ))}

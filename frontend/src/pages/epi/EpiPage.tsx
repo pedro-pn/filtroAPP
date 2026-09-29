@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 
 import {
   archiveEpiRecords,
@@ -708,9 +709,7 @@ export function EpiPage() {
                                   </button>
                                 ) : null}
                                 {!hasSignatureEvidence(record) ? (
-                                  <button className="mini-btn danger" type="button" onClick={() => confirmRemoveRecord(record)}>
-                                    Remover
-                                  </button>
+                                  <RemoveIconButton label={`Remover EPI ${record.epiName}`} onClick={() => confirmRemoveRecord(record)} />
                                 ) : null}
                               </div>
                             ) : null}
@@ -752,7 +751,7 @@ export function EpiPage() {
                     {isTechnician ? (
                       <div className="epi-row-buttons">
                         <button className="mini-btn" type="button" onClick={() => editCatalog(item)}>Editar</button>
-                        <button className="mini-btn danger" type="button" onClick={() => confirmRemoveCatalog(item)}>Remover</button>
+                        <RemoveIconButton label={`Remover item ${item.name}`} onClick={() => confirmRemoveCatalog(item)} />
                       </div>
                     ) : null}
                   </div>
@@ -786,9 +785,7 @@ export function EpiPage() {
           <button className="secondary-button" type="button" onClick={() => setRemoveDialog(null)}>
             Cancelar
           </button>
-          <button className="danger-button" type="button" onClick={confirmRemoveDialog}>
-            Remover
-          </button>
+          <RemoveIconButton label={removeDialog?.title || 'Remover EPI'} onClick={confirmRemoveDialog} />
         </div>
       </Modal>
       {confirmDialog}

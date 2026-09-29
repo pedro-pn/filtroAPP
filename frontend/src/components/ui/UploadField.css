@@ -1,4 +1,4 @@
-/* Keep the shared photo action independent of the legacy 18px text-only X. */
+/* Mantém a ação de restauração independente do botão legado de texto. */
 :where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button {
   flex: 0 0 var(--fv-button-height);
   width: var(--fv-button-height);

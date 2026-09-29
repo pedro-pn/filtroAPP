@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { deletePlanningHoliday, listPlanningHolidays, savePlanningHoliday, type Holiday } from '../../../api/efetivoPlanning';
 import { Button, Card, EmptyState, Field, Input, Skeleton } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastContext';
@@ -43,7 +44,7 @@ export function HolidayManager({ canManage }: { canManage: boolean }) {
 
   return <Card className="efetivo-administration-section efetivo-holidays-ds">
     <div className="efetivo-section-heading"><div><h2>Feriados globais</h2><p>Saem da capacidade útil e continuam visíveis no calendário.</p></div>{canManage ? <Button variant="primary" size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>Cadastrar feriado</Button> : null}</div>
-    {query.isLoading ? <Skeleton variant="card" /> : query.isError ? <EmptyState variant="error" title="Não foi possível carregar os feriados." action={{ label: 'Tentar novamente', onClick: () => void query.refetch() }} /> : query.data?.length ? <div className="efetivo-compact-list">{query.data.map(item => <article key={item.id}><div><strong>{item.name}</strong><span>{displayDateOnly(item.holidayDate)}</span></div>{canManage ? <div className="efetivo-action-row"><Button variant="secondary" size="sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</Button><Button variant="danger" size="sm" onClick={() => setDeleting(item)}>Remover</Button></div> : null}</article>)}</div> : <EmptyState title="Nenhum feriado global cadastrado." />}
+    {query.isLoading ? <Skeleton variant="card" /> : query.isError ? <EmptyState variant="error" title="Não foi possível carregar os feriados." action={{ label: 'Tentar novamente', onClick: () => void query.refetch() }} /> : query.data?.length ? <div className="efetivo-compact-list">{query.data.map(item => <article key={item.id}><div><strong>{item.name}</strong><span>{displayDateOnly(item.holidayDate)}</span></div>{canManage ? <div className="efetivo-action-row"><Button variant="secondary" size="sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</Button><RemoveIconButton label={`Remover feriado ${item.name}`} onClick={() => setDeleting(item)} /></div> : null}</article>)}</div> : <EmptyState title="Nenhum feriado global cadastrado." />}
     <Modal open={formOpen} onClose={() => { if (!save.isPending) setFormOpen(false); }} closeOnEscape={!save.isPending} showCloseButton={!save.isPending}
       appearance="design-system" title={editing ? 'Editar feriado' : 'Novo feriado'} size="md" fullscreenOnMobile={false}
       panelClassName="efetivo-dialog" ariaDescribedBy="holiday-form-description"

@@ -16,6 +16,7 @@ import type {
 import { Button } from '../../../components/ui/Button';
 import { DateInput } from '../../../components/ui/DateInput';
 import { Modal } from '../../../components/ui/Modal';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedule';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
@@ -423,7 +424,7 @@ function DocumentationRequirementEditor({ item, version, saving, canEdit, onPatc
           </div>
         </div>
       </div>
-      <div className="project-workflow-documentation-requirement-footer"><RequirementHistory item={item} />{canEdit ? <Button type="button" variant="mini" disabled={saving} onClick={() => onPatch({ action: 'documentation_requirement_archive', version, requirementId: item.id, archived: true })}>Remover item</Button> : null}</div>
+      <div className="project-workflow-documentation-requirement-footer"><RequirementHistory item={item} />{canEdit ? <RemoveIconButton label="Remover item de documentação" disabled={saving} onClick={() => onPatch({ action: 'documentation_requirement_archive', version, requirementId: item.id, archived: true })} /> : null}</div>
     </article>
   );
 }

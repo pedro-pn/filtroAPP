@@ -37,6 +37,7 @@ import {
   type ProjectWorkflowSummary
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
@@ -938,7 +939,7 @@ export function ProjectWorkflowBoard({
                 {canManage ? (
                   <div className="efetivo-action-row">
                     <Button variant="secondary" disabled={setMissionStatus.isPending} onClick={() => setMissionStatus.mutate({ mission, status: 'CONFIRMED' })}>Reativar</Button>
-                    <Button variant="danger" disabled={removeMission.isPending} onClick={() => setDeletingMissionId(mission.id)}>Remover</Button>
+                    <RemoveIconButton label={`Remover missão ${mission.project.code}`} disabled={removeMission.isPending} onClick={() => setDeletingMissionId(mission.id)} />
                   </div>
                 ) : null}
               </article>

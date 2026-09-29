@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 
 import type { EquipmentCategory, RdoEquipmentSlot } from '../../api/equipamentos';
 import { useToast } from '../../components/ui/ToastContext';
-import { Button, EmptyState, IconButton } from '../../components/ui/ds';
-import { DS_ICONS } from '../../components/ui/ds/icons';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button, EmptyState } from '../../components/ui/ds';
 import { useEquipamentoMutations, useRdoSlots } from '../../hooks/useEquipamentos';
 
 interface Props {
@@ -104,13 +104,9 @@ export function RdoSlotsConfig({ categories }: Props) {
                           <option key={category.id} value={category.id}>{category.name}</option>
                         ))}
                       </select>
-                      <IconButton
+                      <RemoveIconButton
                         type="button"
-                        variant="danger"
-                        size="sm"
-                        icon={DS_ICONS.trash}
                         label={`Remover categoria ${index + 1} de ${slot.label}`}
-                        title="Remover categoria"
                         disabled={updateSlot.isPending}
                         onClick={() => setAt(slot, index, '')}
                       />

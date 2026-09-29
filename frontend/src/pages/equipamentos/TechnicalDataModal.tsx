@@ -9,6 +9,7 @@ import type {
   TechnicalFieldDefinition
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
 import { formatDate } from './equipmentStatus';
 
@@ -342,7 +343,7 @@ function GroupField({ field, value, onChange, catalog, idPrefix }: {
         <div className="tech-group-item" key={index}>
           <div className="tech-group-item-head">
             <strong>{itemLabel} #{index + 1}</strong>
-            <Button variant="danger" size="sm" onClick={() => removeItem(index)}>Remover</Button>
+            <RemoveIconButton label={`Remover ${itemLabel.toLowerCase()} ${index + 1}`} onClick={() => removeItem(index)} />
           </div>
           <div className="tech-group-fields">
             {subFields.map(sub => (
@@ -633,16 +634,14 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
                   <div className="tech-photo" key={photo.id}>
                     <img src={photo.publicUrl} alt={photo.fileName} loading="lazy" />
                     {isManager && (
-                      <button type="button" className="tech-photo-remove" aria-label="Remover foto"
-                        onClick={() => setRemovedPhotoIds(prev => [...prev, photo.id])}>×</button>
+                      <RemoveIconButton className="tech-photo-remove" label={`Remover foto ${photo.fileName}`} onClick={() => setRemovedPhotoIds(prev => [...prev, photo.id])} />
                     )}
                   </div>
                 ))}
                 {newPhotos.map((photo, i) => (
                   <div className="tech-photo is-new" key={`new-${i}`}>
                     <img src={photo.dataUrl} alt={photo.fileName || 'Nova foto'} />
-                    <button type="button" className="tech-photo-remove" aria-label="Remover foto"
-                      onClick={() => setNewPhotos(prev => prev.filter((_, j) => j !== i))}>×</button>
+                    <RemoveIconButton className="tech-photo-remove" label={`Remover foto ${photo.fileName || i + 1}`} onClick={() => setNewPhotos(prev => prev.filter((_, j) => j !== i))} />
                   </div>
                 ))}
                 {existingPhotos.length === 0 && newPhotos.length === 0 && (

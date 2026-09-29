@@ -15,6 +15,7 @@ import { getActiveCollaborators } from '../../api/acompanhamentoPonto';
 import { systemReconciliationPath } from '../../api/systemReconciliation';
 import { useToast } from '../ui/ToastContext';
 import { HelpTip } from '../ui/HelpTip';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { Alert, Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
@@ -330,10 +331,10 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
                     <option value="HOME">Dorme em casa</option>
                   </Select>
                   {canRemoveManual ? (
-                    <Button variant="ghost" size="sm" className="acp-sleep-remove"
+                    <RemoveIconButton className="acp-sleep-remove"
                       onClick={() => removeManualLaborCollaborator(collaborator.id)}
-                      aria-label={`Remover inclusão manual de ${collaborator.name}`}
-                    >Remover</Button>
+                      label={`Remover inclusão manual de ${collaborator.name}`}
+                    />
                   ) : null}
                 </div>
               </div>

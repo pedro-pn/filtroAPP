@@ -182,15 +182,6 @@
   right: calc(-1 * var(--space-4));
   top: calc(-1 * var(--space-8));
   opacity: 1;
-  color: var(--danger);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-}
-
-.assinaturas-setup .signature-field-remove:hover {
-  background: var(--danger-bg);
-  color: var(--danger);
 }
 
 .assinaturas-setup :is(.signature-field, .signature-pdf-scroll, .signature-field-remove, .signature-signer-picker-option):focus-visible {

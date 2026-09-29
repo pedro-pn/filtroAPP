@@ -3,6 +3,7 @@ import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibit
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { cleaningModePatch } from '../../utils/cleaningMeasurement';
 
 const etapasPorTipo: Record<string, string[]> = {
@@ -504,15 +505,11 @@ function TubesBlock({
                 </select>
               </div>
             </div>
-            <button
-              className="tube-remove"
-              type="button"
+            <RemoveIconButton
               disabled={disabled || rows.length === 1}
               onClick={() => onChange({ tubes: rows.filter((_, rowIndex) => rowIndex !== index) })}
-              aria-label={`Remover ${normalizedItemLabel} ${index + 1}`}
-            >
-              ×
-            </button>
+              label={`Remover ${normalizedItemLabel} ${index + 1}`}
+            />
           </div>
         ))}
       </div>
@@ -586,15 +583,11 @@ function UnitMultiField({
               <option value="">Selecionar...</option>
               {options.map(unit => <option key={unit.id} value={unit.id}>{[unit.code, unit.name].filter(Boolean).join(' - ')}</option>)}
             </select>
-            <button
-              className="unit-row-remove"
-              type="button"
+            <RemoveIconButton
               disabled={disabled || selected.length === 1}
               onClick={() => onChange({ [field]: selected.filter((_, itemIndex) => itemIndex !== index) })}
-              aria-label={`Remover ${label}`}
-            >
-              ×
-            </button>
+              label={`Remover ${label}`}
+            />
           </div>
         ))}
       </div>

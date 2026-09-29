@@ -438,9 +438,13 @@
   min-width: 0;
   border: 0;
   padding: 0;
-  background: transparent;
+  background-color: transparent;
   color: inherit;
   font: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-stats-dashboard select.stats-filter-select:not(.fv-select) {
+  padding-inline-end: var(--space-6);
 }
 
 :where(.fv-ds, [data-fv-ds])

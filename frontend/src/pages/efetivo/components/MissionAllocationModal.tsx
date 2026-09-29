@@ -18,6 +18,7 @@ import {
 } from '../../../api/efetivoPlanning';
 import { Alert, Badge, Button, Card, EmptyState, Field, Select } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { useToast } from '../../../components/ui/ToastContext';
@@ -266,7 +267,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
       </div>
       {canChangeCycles && !inherited ? <div className="efetivo-team-actions">
         <Button variant="secondary" size="sm" disabled={busy} onClick={event => { editCycleTrigger.current = event.currentTarget; setEditingCycle({ scope: allocation ? 'ALLOCATION' : 'MISSION', allocationId: allocation?.id, cycleId: cycle.id, draft: cycleDraft(cycle) }); }}>{cycle.demobilizationDate ? 'Editar' : 'Registrar desmobilização'}</Button>
-        {allocation ? <Button variant="danger" size="sm" disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })}>Remover ciclo</Button> : null}
+        {allocation ? <RemoveIconButton label={`Remover ciclo ${index + 1}`} disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })} /> : null}
       </div> : null}
       {!inherited ? cycleEditor(allocation ? 'ALLOCATION' : 'MISSION', cycle, allocation?.id) : null}
     </article>
@@ -342,7 +343,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                   {canManageTeam ? <div className="efetivo-team-actions">
                     {canChangeCycles ? inherited ? <Button variant="secondary" size="sm" loading={initializeCycles.isPending && initializeCycles.variables === allocation.id} disabled={busy} onClick={() => initializeCycles.mutate(allocation.id)}>Personalizar ciclos</Button>
                       : <Button variant="secondary" size="sm" disabled={busy || Boolean(openCycle)} onClick={event => { addCycleTrigger.current = event.currentTarget; setAddingCycleAllocationId(allocation.id); setAllocationCycleDraft(emptyPeriod()); }}>Novo ciclo individual</Button> : null}
-                    <Button variant="danger" size="sm" loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)}>Remover da equipe</Button>
+                    <RemoveIconButton label={`Remover ${allocation.collaborator?.name || 'colaborador'} da equipe`} loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)} />
                   </div> : null}
                   <div className="efetivo-team-cycle-list">
                     {visibleCycles.length ? visibleCycles.map((cycle, index) => renderCycle(cycle, index, allocation, inherited))

@@ -1,6 +1,7 @@
 import { useRef, type ChangeEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Badge, Button } from '../../components/ui/ds';
 import { useListingMobileViewport } from '../../components/ui/ds/listings/useListingMedia';
 import { EquipmentCard } from './EquipmentCard';
@@ -100,7 +101,7 @@ function EquipmentRow({ category, item, isManager, onEdit, onRemove, onOpenTechn
           {isManager ? (
             <>
               <Button size="sm" multiline variant="secondary" onClick={() => onEdit(item)} title="Editar cadastro">Cadastro</Button>
-              <Button size="sm" multiline variant="danger" onClick={() => onRemove(item)}>Remover</Button>
+              <RemoveIconButton label={`Remover equipamento ${item.code}`} onClick={() => onRemove(item)} />
             </>
           ) : null}
         </div>

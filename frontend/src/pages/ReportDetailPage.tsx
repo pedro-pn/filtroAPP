@@ -30,6 +30,7 @@ import { AppShell } from '../layout/AppShell';
 import { createNavigationModel } from '../layout/navigationModel';
 import { PageHeader } from '../layout/PageHeader';
 import { Modal } from '../components/ui/Modal';
+import { RemoveIconButton } from '../components/ui/RemoveIconButton';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import {
@@ -37,7 +38,6 @@ import {
   Badge,
   Button,
   Card,
-  IconButton,
   Input,
   Select,
   StatusPill,
@@ -1249,11 +1249,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                   </div>
                 }
                 actions={!readOnly && !serviceReportMode && !manualReport ? (
-                  <IconButton
-                    icon={DS_ICONS.trash}
+                  <RemoveIconButton
                     label={`Remover serviço ${index + 1}`}
-                    variant="danger"
-                    size="sm"
                     onClick={() => removeService(service.id)}
                   />
                 ) : undefined}

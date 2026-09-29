@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from '
 
 import type { EquipmentCategory } from '../../api/equipamentos';
 import { useToast } from '../../components/ui/ToastContext';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button, EmptyState } from '../../components/ui/ds';
 import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
 import { type ProjectSortDirection } from '../../utils/projectSort';
@@ -247,7 +248,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
               <div className="report-card-actions">
                 <Button variant="secondary" size="sm" type="button" onClick={() => onEdit(category)}>Editar</Button>
                 {!rdoLinkedCategoryIds.has(category.id) && (
-                  <Button variant="danger" size="sm" type="button" onClick={() => onRemove(category)}>Remover</Button>
+                  <RemoveIconButton type="button" label={`Remover categoria ${category.name}`} onClick={() => onRemove(category)} />
                 )}
               </div>
             )}

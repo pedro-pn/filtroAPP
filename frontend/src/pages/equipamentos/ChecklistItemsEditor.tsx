@@ -1,8 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-import { AppIcon } from '../../components/icons/AppIcon';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
-import { DS_ICONS } from '../../components/ui/ds/icons';
 
 interface ChecklistItemsEditorProps {
   appearance?: 'legacy' | 'design-system';
@@ -88,19 +87,16 @@ export function ChecklistItemsEditor({
               >
                 ↓
               </EditorButton>
-              <EditorButton
-                appearance={appearance} variant="danger" className="checklist-item-editor-action"
-                aria-label="Remover ponto"
-                title="Remover ponto"
+              <RemoveIconButton
+                className="checklist-item-editor-action"
+                label={`Remover ponto ${index + 1}`}
                 disabled={disabled}
                 onClick={() =>
                   onChange(
                     value.filter((_, currentIndex) => currentIndex !== index)
                   )
                 }
-              >
-                {appearance === 'design-system' ? <AppIcon icon={DS_ICONS.trash} size="sm" /> : '×'}
-              </EditorButton>
+              />
             </div>
           </div>
         </div>

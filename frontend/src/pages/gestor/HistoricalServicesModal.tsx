@@ -13,6 +13,7 @@ import { isRouteAllowed } from '../../auth/routeAccess';
 import { moduleRouteAccess } from '../../modules/registry';
 import type { Project } from '../../types/domain';
 import { Modal } from '../../components/ui/Modal';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import { downloadBlob } from '../../utils/download';
 import { matchesSearch } from '../../utils/search';
@@ -201,7 +202,7 @@ export function HistoricalServicesContent({ projects, projectId, onProjectChange
               {item.serviceType !== 'filtragem' && <><option value="m">m — metros</option><option value="cm">cm — centímetros</option></>}{['filtragem', 'flushing'].includes(item.serviceType) && <><option value="L">L — litros</option><option value="mL">mL — mililitros</option></>}
             </select></div>
           </div>
-          {form.items.length > 1 && <button type="button" className="mini-btn alt" onClick={() => { setPreview(null); setForm({ ...form, items: form.items.filter((_, i) => i !== index) }); }}>Remover linha {index + 1}</button>}
+          {form.items.length > 1 && <RemoveIconButton label={`Remover linha ${index + 1}`} onClick={() => { setPreview(null); setForm({ ...form, items: form.items.filter((_, i) => i !== index) }); }} />}
         </div>)}
         <div className="historical-toolbar">
           <button type="button" className="mini-btn alt" onClick={() => {

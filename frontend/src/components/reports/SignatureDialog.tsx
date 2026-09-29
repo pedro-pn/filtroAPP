@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Modal } from '../ui/Modal';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { Button } from '../ui/ds';
 import './SignatureDialog.ds.css';
 
@@ -368,9 +369,7 @@ export function SignatureDialog({
             {uploadedDataUrl ? (
               <div className="signature-upload-drop signature-upload-drop-filled">
                 <img src={uploadedDataUrl} alt="Prévia da assinatura" />
-                <button className="signature-upload-remove" type="button" onClick={removeUploadedImage}>
-                  Remover
-                </button>
+                <RemoveIconButton className="signature-upload-remove" label="Remover imagem da assinatura" onClick={removeUploadedImage} />
               </div>
             ) : (
               <button

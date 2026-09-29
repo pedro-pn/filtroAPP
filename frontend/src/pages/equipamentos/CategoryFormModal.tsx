@@ -10,6 +10,7 @@ import type {
   TechnicalFieldDefinition
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
 import { TechnicalSchemaBuilder } from './TechnicalSchemaBuilder';
@@ -187,7 +188,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
                 <input type="checkbox" checked={Boolean(field.showInDashboard)} onChange={e => updateField(index, { showInDashboard: e.target.checked })} />
                 <span>Dashboard</span>
               </label>
-              <Button variant="danger" size="sm" type="button" aria-label={`Remover campo ${index + 1}`} onClick={() => setFields(prev => prev.filter((_, i) => i !== index))}>Remover</Button>
+              <RemoveIconButton type="button" label={`Remover campo ${index + 1}`} onClick={() => setFields(prev => prev.filter((_, i) => i !== index))} />
             </div>
           ))}
         </div>

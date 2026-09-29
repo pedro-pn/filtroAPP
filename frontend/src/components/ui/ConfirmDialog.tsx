@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 
 import { Alert, Button, Field, Input } from './ds';
 import { Modal, type ModalAppearance } from './Modal';
+import { RemoveIconButton } from './RemoveIconButton';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -44,6 +45,14 @@ export function ConfirmDialog({
   }, [open]);
   const confirmationMatches = !confirmationText || typedConfirmation === confirmationText;
   const designSystem = appearance === 'design-system';
+  const removeAction = confirmLabel.startsWith('Remover') || confirmLabel.startsWith('Removendo');
+  const confirmAction = removeAction ? (
+    <RemoveIconButton label={title} loading={confirmLabel.startsWith('Removendo')} onClick={onConfirm} disabled={!confirmationMatches || confirmDisabled} />
+  ) : designSystem ? (
+    <Button variant={danger ? 'danger' : 'primary'} size="sm" type="button" onClick={onConfirm} disabled={!confirmationMatches || confirmDisabled}>{confirmLabel}</Button>
+  ) : (
+    <button className={danger ? 'danger-button' : 'primary-button'} type="button" onClick={onConfirm} disabled={!confirmationMatches || confirmDisabled}>{confirmLabel}</button>
+  );
   const descriptionContent = description ? (
     <p className="placeholder-copy" id="confirm-dialog-description">{description}</p>
   ) : null;
@@ -75,7 +84,7 @@ export function ConfirmDialog({
   const footer = designSystem ? (
     <>
       <Button variant="secondary" size="sm" type="button" onClick={onCancel}>{cancelLabel}</Button>
-      <Button variant={danger ? 'danger' : 'primary'} size="sm" type="button" onClick={onConfirm} disabled={!confirmationMatches || confirmDisabled}>{confirmLabel}</Button>
+      {confirmAction}
     </>
   ) : undefined;
   const dialog = (
@@ -101,7 +110,7 @@ export function ConfirmDialog({
       {!designSystem ? (
         <div className="admin-form-actions confirm-dialog-actions">
           <button className="secondary-button" type="button" onClick={onCancel}>{cancelLabel}</button>
-          <button className={danger ? 'danger-button' : 'primary-button'} type="button" onClick={onConfirm} disabled={!confirmationMatches || confirmDisabled}>{confirmLabel}</button>
+          {confirmAction}
         </div>
       ) : null}
     </Modal>

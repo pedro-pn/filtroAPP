@@ -10,6 +10,7 @@ import {
   type PlanningMission
 } from '../../../api/efetivoPlanning';
 import { Alert, Badge, Button, Card, EmptyState, Field, SearchInput, Select, Skeleton } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly } from '../../../utils/calendarGrid';
@@ -224,7 +225,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                     <header><h4>Selecionados fora do quadro</h4><p>Use o filtro Inativos para consultar os colaboradores desligados.</p></header>
                     {hiddenSelected.map(collaborator => <div className="efetivo-team-cycle-row" key={collaborator.id}>
                       <div className="efetivo-team-person-heading"><div><strong>{collaborator.name}</strong><p>{collaborator.role || 'Cargo não informado'}</p></div></div>
-                      <div className="efetivo-team-actions"><Button variant="secondary" size="sm" disabled={disabled} onClick={() => setDraftIds(current => toggleMissionCollaborator(current, collaborator.id, false))}>Remover</Button></div>
+                      <div className="efetivo-team-actions"><RemoveIconButton label={`Remover colaborador ${collaborator.name}`} disabled={disabled} onClick={() => setDraftIds(current => toggleMissionCollaborator(current, collaborator.id, false))} /></div>
                     </div>)}
                   </section> : null}
                   {activityFilter !== 'ACTIVE' ? <section className="efetivo-team-section" aria-label="Colaboradores inativos">

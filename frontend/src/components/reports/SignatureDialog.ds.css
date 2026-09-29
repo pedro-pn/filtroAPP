@@ -130,12 +130,6 @@
   color: var(--link);
 }
 
-:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-upload-remove {
-  border-color: var(--danger-line);
-  background: var(--surface);
-  color: var(--danger);
-}
-
 :where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-remember-option {
   margin: 0;
   color: var(--ink);

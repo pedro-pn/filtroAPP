@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { AppIcon } from '../../components/icons/AppIcon';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button, Card, StatusPill } from '../../components/ui/ds';
 import { DS_ICONS } from '../../components/ui/ds/icons';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -27,7 +28,6 @@ const TEXT = {
   myReports: 'Meus relatórios',
   newReport: 'Novo relatório',
   noDate: 'Sem data definida',
-  remove: 'Remover',
   resume: 'Retomar preenchimento'
 };
 
@@ -230,13 +230,7 @@ export function HomePage() {
                       <Button variant="primary" size="sm" onClick={() => handleResumeDraft(draft)}>
                         {TEXT.continue}
                       </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => draftMutations.removeDraft.mutate(draft.id)}
-                      >
-                        {TEXT.remove}
-                      </Button>
+                      <RemoveIconButton label={`Remover rascunho ${draft.title || 'RDO em andamento'}`} onClick={() => draftMutations.removeDraft.mutate(draft.id)} />
                     </div>
                   </div>
                 </Card>

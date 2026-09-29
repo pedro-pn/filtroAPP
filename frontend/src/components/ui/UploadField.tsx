@@ -7,6 +7,7 @@ import { prepareImageForUpload } from '../../utils/imageUpload';
 import { AppIcon } from '../icons/AppIcon';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PhotoCaptureButton } from './PhotoCaptureButton';
+import { RemoveIconButton } from './RemoveIconButton';
 import { IconButton } from './ds/Button';
 import { DS_ICONS } from './ds/icons';
 import { stageUploadDeletion } from './photoDeletionStaging';
@@ -132,12 +133,12 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
         <span className="upload-list-name">{file.fileName}</span>
       )}
       {wasPreviouslyAdded(file) ? <span className="upload-previous-badge">Adicionada anteriormente</span> : null}
-      {!disabled ? (
+      {!disabled ? removed ? (
         appearance === 'design-system' ? (
           <IconButton
             className="upload-remove-button"
-            icon={removed ? RotateCcw : DS_ICONS.trash}
-            label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
+            icon={RotateCcw}
+            label={`Restaurar ${file.fileName}`}
             variant="secondary"
             size="sm"
             onClick={() => onRemove(index)}
@@ -147,12 +148,14 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
             className="upload-remove-button"
             type="button"
             onClick={() => onRemove(index)}
-            aria-label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
-            title={removed ? 'Restaurar' : 'Remover'}
+            aria-label={`Restaurar ${file.fileName}`}
+            title="Restaurar"
           >
-            {removed ? '↶' : 'X'}
+            ↶
           </button>
         )
+      ) : (
+        <RemoveIconButton label={`Remover ${file.fileName}`} onClick={() => onRemove(index)} />
       ) : null}
     </div>
   );

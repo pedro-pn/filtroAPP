@@ -68,7 +68,7 @@
 
 :is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled {
   border-color: var(--disabled-line);
-  background: var(--disabled-bg);
+  background-color: var(--disabled-bg);
   color: var(--disabled-ink);
 }
 

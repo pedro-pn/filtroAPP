@@ -27,6 +27,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useToast } from '../../components/ui/ToastContext';
 import { Shell } from '../../layout/Shell';
@@ -665,7 +666,7 @@ export function RomaneioPage() {
                                   {isManager && !isRdoOwnedCatalogItem(item) ? (
                                     <>
                                       <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
-                                      <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
+                                      <RemoveIconButton label={`Remover item ${item.code || item.name}`} onClick={() => removeCatalogMutation.mutate(item.id)} />
                                     </>
                                   ) : isManager && isRdoOwnedCatalogItem(item) ? (
                                     <span className="rel-meta">{managedCatalogSourceLabel(item)}</span>
@@ -774,7 +775,7 @@ export function RomaneioPage() {
                     <strong>{item.name || item.email}</strong>
                     <div className="rel-meta">{item.email} · {item.isActive ? 'ativo' : 'inativo'}</div>
                   </div>
-                  <button className="mini-btn danger" type="button" onClick={() => removeRecipientMutation.mutate(item.id)}>Remover</button>
+                  <RemoveIconButton label={`Remover destinatário ${item.name || item.email}`} onClick={() => removeRecipientMutation.mutate(item.id)} />
                 </div>
               ))}
             </div>

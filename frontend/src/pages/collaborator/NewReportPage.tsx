@@ -12,6 +12,7 @@ import { listReports } from '../../api/reports';
 import { DraftSaveStatus, type DraftSaveStatusValue } from '../../components/reports/DraftSaveStatus';
 import { NewReportSpecialConditions } from '../../components/reports/NewReportSpecialConditions';
 import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { RdoDdsNovelty } from '../../components/reports/RdoDdsNovelty';
 import { ReportWorkforceNotices } from '../../components/reports/ReportWorkforceNotices';
@@ -25,7 +26,6 @@ import {
   Badge,
   Button,
   Card,
-  IconButton,
   Input,
   ProgressSteps,
   Select,
@@ -1243,11 +1243,8 @@ function SiteRdoFormPage() {
                     </div>
                   }
                   actions={
-                    <IconButton
-                      icon={DS_ICONS.trash}
+                    <RemoveIconButton
                       label={`${TEXT.remove} serviço ${index + 1}`}
-                      variant="danger"
-                      size="sm"
                       onClick={() => removeService(service.id)}
                     />
                   }

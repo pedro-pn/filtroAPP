@@ -8,6 +8,7 @@ import {
 } from '../../api/estoque';
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 
@@ -151,16 +152,11 @@ export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Prop
                 <a className="upload-list-name" href={document.publicUrl} target="_blank" rel="noreferrer">
                   {document.fileName}
                 </a>
-                <button
-                  className="upload-remove-button"
-                  type="button"
-                  aria-label={`Remover ${document.fileName}`}
-                  title="Remover"
+                <RemoveIconButton
+                  label={`Remover ${document.fileName}`}
                   disabled={busy}
                   onClick={() => void removeDocument(document.id, document.fileName)}
-                >
-                  ×
-                </button>
+                />
               </div>
             ))}
           </div>

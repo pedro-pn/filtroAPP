@@ -87,25 +87,12 @@
 
 :where(.fv-ds, [data-fv-ds]).pdf-upload--ds .pdf-dropzone-current .equip-muted { color: var(--muted); }
 :where(.fv-ds, [data-fv-ds]).pdf-upload--ds .pdf-dropzone-current .equip-removed { color: var(--danger); }
-:where(.fv-ds, [data-fv-ds]).pdf-upload--ds .pdf-dropzone-remove-current,
 :where(.fv-ds, [data-fv-ds]).pdf-upload--ds .pdf-dropzone-undo-current {
   min-height: var(--space-8);
   border: var(--border-width) solid var(--line-strong);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
-}
-
-:where(.fv-ds, [data-fv-ds]).pdf-upload--ds .pdf-dropzone-remove-current {
-  border-color: var(--danger-line);
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-:where(.fv-ds, [data-fv-ds]).pdf-upload--ds .pdf-dropzone-remove-current:hover {
-  border-color: var(--danger);
-  background: var(--danger);
-  color: var(--on-danger);
 }
 
 @media (max-width: 767.98px) {

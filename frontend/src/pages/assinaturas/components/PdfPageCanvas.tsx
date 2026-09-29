@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 import type { SignatureField, SignatureSigner } from '../../../api/assinaturas';
 import { Button, IconButton, Skeleton } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { clampNormalizedRect, normalizedToPercent } from '../utils/coordinates';
 
@@ -190,12 +191,9 @@ export function PdfPageCanvas({
               onPointerDown={event => begin(event, index, 'move')}
             >
               <span>{signer?.name || 'Assinante'}</span>
-              <IconButton
+              <RemoveIconButton
                 className="signature-field-remove"
-                variant="secondary"
-                size="sm"
                 label={`Remover campo de ${signer?.name || 'assinante'}`}
-                icon={DS_ICONS.trash}
                 onPointerDown={event => event.stopPropagation()}
                 onKeyDown={event => event.stopPropagation()}
                 onClick={event => { event.stopPropagation(); onFieldsChange(fields.filter((_, itemIndex) => itemIndex !== index)); }}

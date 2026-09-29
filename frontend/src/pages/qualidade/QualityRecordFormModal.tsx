@@ -18,6 +18,7 @@ import type {
 } from '../../api/qualidade';
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
 
 interface Props {
@@ -465,14 +466,7 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
                     aria-label={`Link de evidência ${index + 1}`}
                     onChange={event => updateEvidenceLink(index, event.target.value)}
                   />
-                  <button
-                    className="mini-btn alt"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => removeEvidenceLink(index)}
-                  >
-                    Remover
-                  </button>
+                  <RemoveIconButton label={`Remover link de evidência ${index + 1}`} disabled={saving} onClick={() => removeEvidenceLink(index)} />
                 </div>
               ))}
             </div>
@@ -501,17 +495,13 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
                     ) : (
                       <span>{evidence.fileName || 'Anexo'}</span>
                     )}
-                    <button className="mini-btn alt" type="button" disabled={saving} onClick={() => removeExistingEvidence(evidence.id)}>
-                      Remover
-                    </button>
+                    <RemoveIconButton label={`Remover anexo ${evidence.fileName || 'de evidência'}`} disabled={saving} onClick={() => removeExistingEvidence(evidence.id)} />
                   </div>
                 ))}
                 {newEvidenceFiles.map(draft => (
                   <div className="quality-evidence-file-row" key={draft.id}>
                     <span>{draft.file.name}</span>
-                    <button className="mini-btn alt" type="button" disabled={saving} onClick={() => removeNewEvidenceFile(draft.id)}>
-                      Remover
-                    </button>
+                    <RemoveIconButton label={`Remover anexo ${draft.file.name}`} disabled={saving} onClick={() => removeNewEvidenceFile(draft.id)} />
                   </div>
                 ))}
               </div>

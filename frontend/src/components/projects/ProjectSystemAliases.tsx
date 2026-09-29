@@ -5,6 +5,7 @@ import { listProjectSystems, saveProjectSystemAlias, type ProjectSystem, type Pr
 import { getProjectProgress } from '../../api/acompanhamentoComercial';
 import { pendingMeasurementSystem, projectSystemAliasKey, projectSystemAliasTargets } from '../../utils/projectSystemAliases';
 import { useToast } from '../ui/ToastContext';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 
 const labels: Record<string, string> = { LIMPEZA_QUIMICA: 'Limpeza química', TESTE_PRESSAO: 'Teste de pressão', FILTRAGEM: 'Filtragem', FLUSHING: 'Flushing' };
 
@@ -100,9 +101,7 @@ export function ProjectSystemAliases({ projectId }: { projectId: string }) {
       <summary>Equivalências confirmadas</summary>
       {systems.data.flatMap(system => (system.aliases ?? []).map((alias, index) => <p key={`${system.id}-${index}`}>
         {alias.equipment} · {alias.system} ({labels[alias.serviceType] || alias.serviceType}) → {system.equipment} · {system.name}{' '}
-        <button type="button" className="mini-btn alt" disabled={Boolean(busy) || unavailable} onClick={() => void save(system, alias, true)}>
-          {busy === `remove:${system.id}:${projectSystemAliasKey(alias)}` ? 'Removendo…' : 'Remover equivalência'}
-        </button>
+        <RemoveIconButton label="Remover equivalência" disabled={Boolean(busy) || unavailable} loading={busy === `remove:${system.id}:${projectSystemAliasKey(alias)}`} onClick={() => void save(system, alias, true)} />
       </p>))}
     </details> : null}
   </details>;

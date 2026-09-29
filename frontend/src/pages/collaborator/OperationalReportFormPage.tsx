@@ -46,6 +46,7 @@ import {
   RequiredMark
 } from '../../components/reports/ReportCoreFields';
 import { Button } from '../../components/ui/Button';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { PhotoCaptureButton } from '../../components/ui/PhotoCaptureButton';
@@ -489,13 +490,7 @@ function MaintenanceCardEditor({
                 </div>
               ) : null}
             </div>
-            <Button
-              variant="mini"
-              className="danger"
-              onClick={() => thirdParties.remove(thirdIndex)}
-            >
-              Remover
-            </Button>
+            <RemoveIconButton label={`Remover serviço de terceiro ${thirdIndex + 1}`} onClick={() => thirdParties.remove(thirdIndex)} />
           </div>
         ))}
       </div>
@@ -1249,13 +1244,7 @@ export function OperationalReportFormPage({
                       <div className="operational-card-head">
                         <strong>Manutenção {index + 1}</strong>
                         {!standalone ? (
-                          <Button
-                            variant="mini"
-                            className="danger"
-                            onClick={() => maintenanceFields.remove(index)}
-                          >
-                            Remover
-                          </Button>
+                          <RemoveIconButton label={`Remover manutenção ${index + 1}`} onClick={() => maintenanceFields.remove(index)} />
                         ) : null}
                       </div>
                       <MaintenanceCardEditor
@@ -1297,13 +1286,7 @@ export function OperationalReportFormPage({
                         <div className="operational-card-head">
                           <strong>Limpeza {index + 1}</strong>
                           {chemicalFields.fields.length > 1 ? (
-                            <Button
-                              variant="mini"
-                              className="danger"
-                              onClick={() => chemicalFields.remove(index)}
-                            >
-                              Remover
-                            </Button>
+                            <RemoveIconButton label={`Remover limpeza ${index + 1}`} onClick={() => chemicalFields.remove(index)} />
                           ) : null}
                         </div>
                         <div

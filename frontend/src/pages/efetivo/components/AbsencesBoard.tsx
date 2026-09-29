@@ -12,6 +12,7 @@ import {
   type EfetivoAbsencePayload
 } from '../../../api/efetivo';
 import { Button, Field, Select } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { defaultProductivityPeriod, productivityYearOptions } from '../utils/productivityPeriods';
@@ -145,7 +146,7 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
                   {canManage ? (
                     <div className="efetivo-absence-actions">
                       <Button variant="secondary" size="sm" onClick={() => openEdit(absence)}>Editar</Button>
-                      <Button variant="danger" size="sm" onClick={() => setDeleting(absence)}>Remover</Button>
+                      <RemoveIconButton label={`Remover afastamento de ${absence.collaborator.name}`} onClick={() => setDeleting(absence)} />
                     </div>
                   ) : null}
                 </article>

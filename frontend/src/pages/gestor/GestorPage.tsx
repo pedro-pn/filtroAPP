@@ -27,6 +27,7 @@ import type { ManualReportOperationalFieldsValue } from '../../components/report
 import { buildManualReportOperationalData, emptyManualReportOperationalFields, validateManualReportOperationalFields } from '../../components/reports/manualReportOperationalData';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ImageDropzone } from '../../components/ui/ImageDropzone';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, FilterBar, IconButton, Input, MetricCard, SearchInput, Select, Skeleton, StatusPill, type DataTableColumn } from '../../components/ui/ds';
 import { DS_ICONS } from '../../components/ui/ds/icons';
@@ -1597,7 +1598,7 @@ export function GestorPage() {
               Nº
             </Button>
           ) : null}
-          {report.status !== 'SIGNED' ? <IconButton icon={DS_ICONS.trash} label="Arquivar relatório" variant="danger" size="sm" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
+          {report.status !== 'SIGNED' ? <IconButton icon={DS_ICONS.archive} label="Arquivar relatório" variant="secondary" size="sm" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
         </>
       );
     }
@@ -1659,8 +1660,8 @@ export function GestorPage() {
           </button>
         ) : null}
         {report.status !== 'SIGNED' ? (
-          <button className="icon-button danger-icon-button" type="button" title="Arquivar relatório" aria-label="Arquivar relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)}>
-            🗑
+          <button className="icon-button" type="button" title="Arquivar relatório" aria-label="Arquivar relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)}>
+            <AppIcon icon={DS_ICONS.archive} size="sm" />
           </button>
         ) : null}
       </>
@@ -2871,17 +2872,7 @@ export function GestorPage() {
             Editar
           </Button>
           {collaborator.isActive !== false ? (
-            <Button
-              variant="danger"
-              size="sm"
-              type="button"
-              iconLeft={<AppIcon icon={DS_ICONS.trash} size="sm" />}
-              disabled={collaboratorMutations.removeCollaborator.isPending}
-              loading={collaboratorMutations.removeCollaborator.isPending}
-              onClick={() => void handleCollaboratorToggle(collaborator)}
-            >
-              Remover
-            </Button>
+            <RemoveIconButton label={`Remover colaborador ${collaborator.name}`} disabled={collaboratorMutations.removeCollaborator.isPending} loading={collaboratorMutations.removeCollaborator.isPending} onClick={() => void handleCollaboratorToggle(collaborator)} />
           ) : null}
         </>
       );
@@ -3387,7 +3378,7 @@ export function GestorPage() {
           <Button variant="secondary" size="sm" type="button" iconLeft={<AppIcon icon={DS_ICONS.edit} size="sm" />} aria-expanded={editing} aria-controls={`rdo-user-edit-${item.id}`} onClick={() => openInternalUserEditor(item)}>
             Editar
           </Button>
-          <IconButton variant="danger" size="sm" type="button" icon={DS_ICONS.trash} label={`Remover ${item.name}`} onClick={() => void handleUserDelete(item.id)} />
+          <RemoveIconButton label={`Remover ${item.name}`} onClick={() => void handleUserDelete(item.id)} />
         </>
       );
     }
@@ -3598,9 +3589,7 @@ export function GestorPage() {
                             <Button variant="secondary" size="sm" type="button" disabled={userMutations.resendClientAccess.isPending} onClick={() => void handleResendClientAccess(item.id)}>
                               Reenviar acesso
                             </Button>
-                            <Button variant="danger" size="sm" type="button" onClick={() => void handleUserDelete(item.id)}>
-                              Remover
-                            </Button>
+                            <RemoveIconButton label={`Remover conta ${item.name || item.username}`} onClick={() => void handleUserDelete(item.id)} />
                           </div>
                         </div>
                       </Card>
@@ -4448,9 +4437,7 @@ export function GestorPage() {
                           {surveyDraftOptions(question).map((option) => (
                             <span className="colab-tag" key={option}>
                               <span>{option}</span>
-                              <button type="button" onClick={() => removeSurveyQuestionOption(index, option)}>
-                                ×
-                              </button>
+                              <RemoveIconButton label={`Remover opção ${option}`} onClick={() => removeSurveyQuestionOption(index, option)} />
                             </span>
                           ))}
                         </div>
@@ -4492,9 +4479,7 @@ export function GestorPage() {
                     >
                       Descer
                     </button>
-                    <button className="mini-btn danger" type="button" onClick={() => setSurveyQuestionDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
-                      Remover
-                    </button>
+                    <RemoveIconButton label={`Remover pergunta ${index + 1}`} onClick={() => setSurveyQuestionDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))} />
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Badge, Button } from '../../components/ui/ds';
 import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
@@ -149,9 +150,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
               <Button variant="secondary" size="sm" multiline onClick={onEdit} title="Editar cadastro">
                 Cadastro
               </Button>
-              <Button variant="danger" size="sm" multiline onClick={onRemove}>
-                Remover
-              </Button>
+              <RemoveIconButton label={`Remover equipamento ${item.code}`} onClick={onRemove} />
             </>
           )}
         </div>

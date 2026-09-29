@@ -6,6 +6,7 @@ import { AppIcon } from '../../components/icons/AppIcon';
 import type { ManualReportOperationalFieldsValue } from '../../components/reports/ManualReportOperationalFields';
 import { emptyManualReportOperationalFields } from '../../components/reports/manualReportOperationalData';
 import { Alert, Badge, Button, Card, IconButton, Select, StatusPill, type SemanticTone } from '../../components/ui/ds';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { DS_ICONS } from '../../components/ui/ds/icons';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import type { CollaboratorFormState } from './CollaboratorForm';
@@ -1019,11 +1020,8 @@ export function renderProjectCard(
                 onClick={() => options.onToggleArchive(project)}
               />
               {options.onRemove ? (
-                <IconButton
-                  icon={DS_ICONS.trash}
+                <RemoveIconButton
                   label={`Excluir: ${title}`}
-                  variant="danger"
-                  size="sm"
                   onClick={() => options.onRemove?.(project)}
                 />
               ) : null}
@@ -1347,11 +1345,8 @@ export function renderProjectCard(
                   onClick={() => options.onEdit(project)}
                 />
                 {options.onRemove ? (
-                  <IconButton
-                    icon={DS_ICONS.trash}
+                  <RemoveIconButton
                     label={`Excluir permanentemente: ${title}`}
-                    variant="danger"
-                    size="sm"
                     onClick={() => options.onRemove?.(project)}
                   />
                 ) : null}
