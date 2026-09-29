@@ -11,6 +11,7 @@ export interface PixelSize {
 }
 
 const MIN_FIELD_SIZE = 0.02;
+export type ResizeDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
@@ -25,6 +26,14 @@ export function clampNormalizedRect(rect: NormalizedRect): NormalizedRect {
     width,
     height
   };
+}
+
+export function resizeNormalizedRect(rect: NormalizedRect, direction: ResizeDirection, dx: number, dy: number): NormalizedRect {
+  const left = direction.includes('w') ? clamp(rect.x + dx, 0, rect.x + rect.width - MIN_FIELD_SIZE) : rect.x;
+  const top = direction.includes('n') ? clamp(rect.y + dy, 0, rect.y + rect.height - MIN_FIELD_SIZE) : rect.y;
+  const right = direction.includes('e') ? clamp(rect.x + rect.width + dx, rect.x + MIN_FIELD_SIZE, 1) : rect.x + rect.width;
+  const bottom = direction.includes('s') ? clamp(rect.y + rect.height + dy, rect.y + MIN_FIELD_SIZE, 1) : rect.y + rect.height;
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 export function pixelToNormalized(rect: NormalizedRect, container: PixelSize): NormalizedRect {

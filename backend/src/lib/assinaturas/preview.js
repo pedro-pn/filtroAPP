@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import env from '../../config/env.js';
 import { safeDocumentPathPart } from '../documents/storage.js';
 import { sourcePdfBuffer } from './document.js';
 import { signatureOperationLog } from './observability.js';
+import { signatureInkImage } from './signature-image.js';
 
 const standardFontDataUrl = fileURLToPath(new URL('./standard_fonts/', import.meta.resolve('pdfjs-dist/package.json')));
 const wasmUrl = fileURLToPath(new URL('./wasm/', import.meta.resolve('pdfjs-dist/package.json')));
@@ -83,6 +84,31 @@ export async function renderPage(document, pageNumber, { rootDir = env.uploadDir
   } finally {
     if (pendingRenders.get(renderKey) === pending) pendingRenders.delete(renderKey);
   }
+}
+
+export async function renderSignedPage(document, pageNumber, signedSigners, options = {}) {
+  const base = await renderPage(document, pageNumber, options);
+  const onPage = signedSigners.flatMap(signer => (signer.fields || [])
+    .filter(field => Number(field.pageNumber) === Number(pageNumber))
+    .map(field => ({ field, signer })));
+  if (!onPage.length) return base;
+  const pageImage = await loadImage(base);
+  const canvas = createCanvas(pageImage.width, pageImage.height);
+  const context = canvas.getContext('2d');
+  context.drawImage(pageImage, 0, 0);
+  const images = new Map();
+  for (const { field, signer } of onPage) {
+    if (!signer.signatureImageDataUrl) continue;
+    if (!images.has(signer.id)) images.set(signer.id, await loadImage(await signatureInkImage(signer.signatureImageDataUrl)));
+    context.drawImage(
+      images.get(signer.id),
+      Number(field.x) * canvas.width,
+      Number(field.y) * canvas.height,
+      Number(field.width) * canvas.width,
+      Number(field.height) * canvas.height
+    );
+  }
+  return canvas.toBuffer('image/png');
 }
 
 async function renderPageUncached(document, number, { rootDir, directory, targetPath, startedAt }) {

@@ -11,7 +11,41 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import env from '../src/config/env.js';
 import { sourcePdfBuffer, storeSourcePdf } from '../src/lib/assinaturas/document.js';
-import { renderPage } from '../src/lib/assinaturas/preview.js';
+import { renderPage, renderSignedPage } from '../src/lib/assinaturas/preview.js';
+
+test('prévia pública compõe a assinatura registrada em todo o campo sem alterar o cache original', async t => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'assinaturas-preview-signed-'));
+  t.after(() => fs.rm(rootDir, { recursive: true, force: true }));
+  const pdf = await PDFDocument.create();
+  pdf.addPage([200, 100]);
+  const bytes = Buffer.from(await pdf.save());
+  const document = {
+    id: 'preview-signed', pageCount: 1,
+    sourceStoragePath: await storeSourcePdf({ fileName: 'assinado.pdf', bytes, rootDir }),
+    sourceDocumentHash: createHash('sha256').update(bytes).digest('hex')
+  };
+  const ink = createCanvas(40, 20);
+  const inkContext = ink.getContext('2d');
+  inkContext.fillStyle = '#111827';
+  inkContext.fillRect(15, 7, 10, 6);
+  const signers = [{
+    id: 'signed-1',
+    signatureImageDataUrl: `data:image/png;base64,${ink.toBuffer('image/png').toString('base64')}`,
+    fields: [{ pageNumber: 1, x: 0.25, y: 0.25, width: 0.5, height: 0.25 }]
+  }];
+  const base = await renderPage(document, 1, { rootDir });
+  const signed = await renderSignedPage(document, 1, signers, { rootDir });
+  assert.notDeepEqual(signed, base);
+  const image = await loadImage(signed);
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0);
+  const inside = context.getImageData(Math.floor(image.width * 0.3), Math.floor(image.height * 0.3), 1, 1).data;
+  const outside = context.getImageData(2, 2, 1, 1).data;
+  assert.ok(inside[0] < 50 && inside[1] < 50 && inside[2] < 50);
+  assert.ok(outside[0] > 245 && outside[1] > 245 && outside[2] > 245);
+  assert.deepEqual(await renderPage(document, 1, { rootDir }), base);
+});
 
 test('prévia usa glifos das fontes padrão do PDF sem depender das fontes instaladas no servidor', async t => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'assinaturas-preview-'));

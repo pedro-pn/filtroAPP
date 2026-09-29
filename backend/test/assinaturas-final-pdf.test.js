@@ -149,6 +149,11 @@ test('builder recusa hash-base divergente e gera PDF com evidências', async () 
   assert.equal(finalPdf.getPageCount(), 2);
   const documentPageContent = pageContent(finalPdf, finalPdf.getPage(0));
   assert.match(documentPageContent, /\/Image-[^\s]+ Do/);
+  const imageTransform = [...documentPageContent.matchAll(/([\d.]+) 0 0 ([\d.]+) 0 0 cm/g)]
+    .find(match => Number(match[1]) > 1 && Number(match[2]) > 1);
+  assert.ok(imageTransform, 'a assinatura deve ser desenhada no campo do documento');
+  assert.ok(Math.abs(Number(imageTransform[1]) - 183.6) < 0.001, 'a largura deve preencher o campo');
+  assert.ok(Math.abs(Number(imageTransform[2]) - 79.2) < 0.001, 'a altura deve preencher o campo');
   assert.doesNotMatch(documentPageContent, /1 1 1 rg|0\.15 0\.35 0\.55 RG|417373696E61646F20706F72/);
 
   const evidencePage = finalPdf.getPages().at(-1);
