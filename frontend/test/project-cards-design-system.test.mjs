@@ -23,9 +23,10 @@ test('cards de acompanhamento preservam informações, ações e agrupamentos no
       equipment: [{ name: 'Unidade de filtragem', days: 8 }], alerts: [{ level: 'warn', label: 'Atenção ao cronograma' }] };
     const base = { card, onOpen() {}, onToggleSelect() {} };
     const render = props => renderToStaticMarkup(createElement(ProjectOverviewCard, { ...base, ...props }));
-    await t.test('dados de execução, custos e equipamentos continuam visíveis', () => {
+    await t.test('card mostra o resumo até colaboradores em obra', () => {
       const html = render({ canManage: true });
-      for (const text of ['4069', 'Projeto com nome extenso', '60%', 'manual', '1.000.000,00', '250.000,00', 'Original', 'Adicional', '50h', '40h', '10h', 'Colaboradores', 'Unidade de filtragem']) assert.ok(html.includes(text), text);
+      for (const text of ['4069', 'Projeto com nome extenso', '60%', 'manual', '1.000.000,00', '250.000,00', 'Original', 'Adicional', '50h', '40h', '10h', 'Colaboradores em obra']) assert.ok(html.includes(text), text);
+      assert.doesNotMatch(html, /Unidade de filtragem|Equipamentos em obra|Previsão de término|Apropriação da mão de obra/);
       assert.match(html, /fv-card/); assert.doesNotMatch(html, /acp-pcard|role="button"/);
       assert.match(html, /fv-card--surface-action/);
       assert.match(html, /aria-label="Abrir projeto 4069"/);
@@ -50,11 +51,11 @@ test('cards de acompanhamento preservam informações, ações e agrupamentos no
       assert.doesNotMatch(render({ card: { ...archived, archivedInAcompanhamento: false }, canManage: true }), /Restaurar no acompanhamento/);
       assert.match(render({ card: { ...archived, reviewed: true }, canManage: true }), /Desmarcar conferência/);
     });
-    await t.test('grupos conservam membros e políticas, com renomeação inline acessível', () => {
+    await t.test('grupos conservam membros e ações, com renomeação inline acessível', () => {
       const group = { ...card, kind: 'GROUP', groupId: 'g1', code: 'Grupo', members: [{ projectId: 'p1', code: '4069', name: 'Missão original', progressPct: 50 }], laborAllocationMode: 'CONSOLIDATE_PRIMARY', primaryLaborProjectId: 'p1' };
       const html = render({ card: group, canManageGroups: true, onStartRename() {} });
-      assert.match(html, /Missão original/); assert.match(html, /Missão principal/);
-      assert.match(html, /Repetir jornada em cada missão/); assert.match(html, /Desmesclar/);
+      assert.match(html, /Missão original/); assert.match(html, /Desmesclar/);
+      assert.doesNotMatch(html, /Missão principal|Repetir jornada em cada missão|<select/);
       assert.match(html, /data-acp-card-rename-title/);
       assert.match(html, /data-acp-group-rename-start/);
       assert.match(html, /class="acp-project__title-edit"[^>]*aria-label="Editar nome do card: Grupo"/);
@@ -106,6 +107,9 @@ test('controller mantém endpoints, invalidações e permissões sem estilizar o
   assert.match(board, /Promise\.all\(projectIds\.map\(projectId => setProjectTrackingState\(projectId, payload\)\)\)/);
   assert.match(board, /canManageProjectNotes=\{canManageProjectNotes\}/);
   assert.match(board, /canManage=\{canManageGroups\}/);
+  const detail = source('components/projects/ProjectDetailDashboard.tsx');
+  assert.match(detail, /updateMissionGroupLaborPolicy\(groupId!/);
+  assert.match(detail, /data-acp-labor-policy/);
   assert.match(board, /appearance="design-system"/);
   assert.match(board, /confirmDisabled=\{trackingMutation\.isPending\}/);
   assert.ok(board.indexOf('if (selected)') < board.indexOf('className="fv-ds'));

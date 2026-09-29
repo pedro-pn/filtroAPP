@@ -12,10 +12,12 @@ import {
   getProjectProgress,
   getTrackingDivisions,
   listProjectManagementNotes,
+  updateMissionGroupLaborPolicy,
   type ManualProjectCost,
   type ManualProjectCostPayload,
   type ProjectDetailCollaborator,
   type ProjectManagementNote,
+  type MissionGroupLaborAllocationMode,
 } from '../../api/acompanhamentoComercial';
 import { listProjectQualityDeviations, type ProjectDeviation } from '../../api/qualidade';
 import { qualityDeviationProjects } from './projectQualityDeviations';
@@ -24,6 +26,7 @@ import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectSched
 import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
 import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
 import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
+import { ProjectLaborPolicyNovelty } from './ProjectLaborPolicyNovelty';
 import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
@@ -78,6 +81,7 @@ export function ProjectDetailDashboard({
   const [progressHistoryNoveltyActive, setProgressHistoryNoveltyActive] = useState(true);
   const [weeklyTargetNoveltyActive, setWeeklyTargetNoveltyActive] = useState(true);
   const [manualCostNoveltyActive, setManualCostNoveltyActive] = useState(true);
+  const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
   const [qualityDeviationsNoveltyActive, setQualityDeviationsNoveltyActive] = useState(true);
   const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
   const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
@@ -89,6 +93,7 @@ export function ProjectDetailDashboard({
   const [expandedQualityDeviationIds, setExpandedQualityDeviationIds] = useState<Set<string>>(() => new Set());
   const [manualCostFormOpen, setManualCostFormOpen] = useState(false);
   const [manualCostError, setManualCostError] = useState<string | null>(null);
+  const [laborPolicyError, setLaborPolicyError] = useState<string | null>(null);
   const [deletingManualCostId, setDeletingManualCostId] = useState<string | null>(null);
   const [projectNoteContent, setProjectNoteContent] = useState('');
   const [projectNoteError, setProjectNoteError] = useState<string | null>(null);
@@ -187,6 +192,26 @@ export function ProjectDetailDashboard({
     },
     onSettled: () => setDeletingManualCostId(null)
   });
+  const laborPolicyMutation = useMutation({
+    mutationFn: ({ laborAllocationMode, primaryLaborProjectId }: {
+      laborAllocationMode: MissionGroupLaborAllocationMode;
+      primaryLaborProjectId: string | null;
+    }) => updateMissionGroupLaborPolicy(groupId!, { laborAllocationMode, primaryLaborProjectId }),
+    onSuccess: async () => {
+      setLaborPolicyError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-groups'] }),
+        queryClient.invalidateQueries({ queryKey: ['ponto-pontomais-pending'] }),
+        queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] })
+      ]);
+    },
+    onError: (error: unknown) => {
+      setLaborPolicyError(mutationErrorMessage(error, 'Não foi possível atualizar a apropriação de mão de obra.'));
+    }
+  });
   const createProjectNoteMutation = useMutation({
     mutationFn: (content: string) => {
       if (!projectId) throw new Error('Abra uma missão individual para adicionar a nota.');
@@ -251,6 +276,7 @@ export function ProjectDetailDashboard({
   }
 
   const h = data.header;
+  const group = data.group;
   const equipamentos = [...(data.equipamentos ?? [])].sort((a, b) =>
     equipmentNameCollator.compare(a.name, b.name) || equipmentNameCollator.compare(a.code ?? '', b.code ?? '')
   );
@@ -357,6 +383,46 @@ export function ProjectDetailDashboard({
           </div>
         ) : null}
       </Card>
+
+      {isGroup && group && canManageDivisions ? (
+        <Card padding="sm" className="acp-detail-group-policy">
+          <details data-acp-labor-policy>
+            <summary className="acp-detail-summary">Apropriação da mão de obra</summary>
+            <div className="acp-detail-group-policy__content">
+              {laborPolicyError ? <Alert tone="danger">{laborPolicyError}</Alert> : null}
+              <div className="acp-detail-group-policy__fields">
+                <Field id={`group-labor-mode-${group.id}`} label="Regra do grupo" optionalText=""
+                  helperText={group.laborAllocationMode === 'SHARED_EXECUTION'
+                    ? 'Cada RDO confirmado recebe a jornada integral do Ponto Mais; a folha mensal continua única.'
+                    : group.laborAllocationMode === 'CONSOLIDATE_PRIMARY'
+                      ? 'Os RDOs deste grupo são apropriados uma única vez na missão principal.'
+                      : 'O agrupamento não altera a regra de apropriação da jornada.'}>
+                  <Select size="sm" value={group.laborAllocationMode || 'VISUAL_ONLY'} disabled={laborPolicyMutation.isPending}
+                    onChange={event => {
+                      const mode = event.target.value as MissionGroupLaborAllocationMode;
+                      laborPolicyMutation.mutate({ laborAllocationMode: mode,
+                        primaryLaborProjectId: mode === 'CONSOLIDATE_PRIMARY'
+                          ? group.primaryLaborProjectId || group.members[0]?.projectId || null : null });
+                    }}>
+                    <option value="VISUAL_ONLY">Somente mesclar o card</option>
+                    <option value="SHARED_EXECUTION">Repetir jornada em cada missão</option>
+                    <option value="CONSOLIDATE_PRIMARY">Consolidar em uma missão principal</option>
+                  </Select>
+                </Field>
+                {group.laborAllocationMode === 'CONSOLIDATE_PRIMARY' ? (
+                  <Field id={`group-labor-primary-${group.id}`} label="Missão principal" optionalText="">
+                    <Select size="sm" value={group.primaryLaborProjectId || group.members[0]?.projectId || ''}
+                      disabled={laborPolicyMutation.isPending}
+                      onChange={event => laborPolicyMutation.mutate({ laborAllocationMode: 'CONSOLIDATE_PRIMARY', primaryLaborProjectId: event.target.value || null })}>
+                      {group.members.map(member => <option key={member.projectId} value={member.projectId}>{member.code} — {member.name || member.clientName || 'Missão'}</option>)}
+                    </Select>
+                  </Field>
+                ) : null}
+              </div>
+            </div>
+          </details>
+        </Card>
+      ) : null}
 
       {!isGroup && trackingDivisions && trackingDivisions.divisions.length > 0 ? (
         <nav className="acp-tracking-tabs" aria-label="Divisões do acompanhamento">
@@ -842,6 +908,11 @@ export function ProjectDetailDashboard({
         user={progressHistoryNoveltyUser}
         enabled={manualCostNoveltyActive && canAddManualCost}
         onSeen={() => setManualCostNoveltyActive(false)}
+      />
+      <ProjectLaborPolicyNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={laborPolicyNoveltyActive && isGroup && canManageDivisions}
+        onSeen={() => setLaborPolicyNoveltyActive(false)}
       />
       <ProjectQualityDeviationsNovelty
         user={progressHistoryNoveltyUser}

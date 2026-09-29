@@ -41,12 +41,5 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
         {' · '}HE: {fmtHours(hours?.overtimeWorkedHours ?? 0)}{hours?.overtimePct != null ? ` (${pct(hours.overtimePct)})` : ''}</p>
       <dl className="acp-project__facts"><div><dt>Colaboradores em obra</dt><dd>{card.collaboratorsCount}</dd></div></dl>
     </div>
-    {card.equipment.length ? <div className="acp-project__section">
-      <h3>Equipamentos em obra ({card.equipment.length})</h3>
-      <dl className="acp-project__facts">{card.equipment.slice(0, 6).map((equipment, index) => <div key={index}>
-        <dt>{equipment.code ? `${equipment.code} — ${equipment.name}` : equipment.name}</dt><dd>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</dd>
-      </div>)}</dl>
-      {card.equipment.length > 6 ? <p className="acp-project__secondary">+{card.equipment.length - 6} equipamento(s)</p> : null}
-    </div> : null}
   </div>;
 }

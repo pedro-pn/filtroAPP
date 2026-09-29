@@ -1,7 +1,7 @@
 import { Archive, Check, CheckCheck, Pencil, RotateCcw, Unlink, X } from 'lucide-react';
-import type { MissionGroupLaborAllocationMode, ProjectCardItem } from '../../api/acompanhamentoComercial';
+import type { ProjectCardItem } from '../../api/acompanhamentoComercial';
 import { AppIcon } from '../icons/AppIcon';
-import { Badge, Button, Card, Field, IconButton, Input, Select, StatusPill } from '../ui/ds';
+import { Badge, Button, Card, Field, IconButton, Input, StatusPill } from '../ui/ds';
 import { formatDate, isGroupCard, pct } from './projectCardFormatting';
 import { ProjectOverviewMetrics } from './ProjectOverviewMetrics';
 export function ProjectOverviewCard({
@@ -20,8 +20,6 @@ export function ProjectOverviewCard({
   onSubmitRename,
   onCancelRename,
   onDissolve,
-  laborPolicySaving = false,
-  onLaborPolicyChange,
   canManage = false,
   trackingSaving = false,
   onArchive,
@@ -43,8 +41,6 @@ export function ProjectOverviewCard({
   onSubmitRename?: () => void;
   onCancelRename?: () => void;
   onDissolve?: () => void;
-  laborPolicySaving?: boolean;
-  onLaborPolicyChange?: (mode: MissionGroupLaborAllocationMode, primaryProjectId: string | null) => void;
   canManage?: boolean;
   trackingSaving?: boolean;
   onArchive?: () => void;
@@ -99,7 +95,7 @@ export function ProjectOverviewCard({
           {canManageGroups && !renaming ? <IconButton icon={Pencil} size="sm" label={`Editar nome do card: ${card.code}`}
             title="Editar nome do card" data-acp-card-rename-start data-acp-group-rename-start={grouped || undefined} onClick={onStartRename} /> : null}
           {grouped && canManageGroups ? <IconButton icon={Unlink} size="sm" label={`Desmesclar missões: ${card.code}`}
-            title="Desmesclar missões" onClick={onDissolve} disabled={laborPolicySaving || renameSaving || trackingSaving} /> : null}
+            title="Desmesclar missões" onClick={onDissolve} disabled={renameSaving || trackingSaving} /> : null}
           {canManage && card.archived ? <IconButton icon={card.reviewed ? CheckCheck : Check} size="sm"
             label={`${card.reviewed ? 'Desmarcar conferência' : 'Marcar como conferido'}: ${card.code}`}
             title={card.reviewed ? 'Desmarcar conferência' : 'Marcar como conferido'}
@@ -132,34 +128,6 @@ export function ProjectOverviewCard({
           </li>)}
         </ul> : null}
         <ProjectOverviewMetrics card={card} />
-        <dl className="acp-project__pair acp-project__section">
-          <div><dt>Início</dt><dd>{formatDate(card.startDate)}</dd></div>
-          <div><dt>Previsão de término</dt><dd>{formatDate(card.expectedEndDate)}</dd></div>
-        </dl>
-        {grouped && canManageGroups ? <div className="acp-project__section" data-acp-labor-policy>
-          <Field id={`group-labor-mode-${card.groupId}`} label="Apropriação da mão de obra" optionalText=""
-            helperText={card.laborAllocationMode === 'SHARED_EXECUTION'
-              ? 'Cada RDO confirmado recebe a jornada integral do Ponto Mais; a folha mensal continua única.'
-              : card.laborAllocationMode === 'CONSOLIDATE_PRIMARY'
-                ? 'Os RDOs deste grupo são apropriados uma única vez na missão principal.'
-                : 'O agrupamento não altera a regra de apropriação da jornada.'}>
-            <Select size="sm" value={card.laborAllocationMode || 'VISUAL_ONLY'} disabled={laborPolicySaving}
-              onChange={event => {
-                const mode = event.target.value as MissionGroupLaborAllocationMode;
-                onLaborPolicyChange?.(mode, mode === 'CONSOLIDATE_PRIMARY' ? card.primaryLaborProjectId || card.members[0]?.projectId || null : null);
-              }}>
-              <option value="VISUAL_ONLY">Somente mesclar o card</option>
-              <option value="SHARED_EXECUTION">Repetir jornada em cada missão</option>
-              <option value="CONSOLIDATE_PRIMARY">Consolidar em uma missão principal</option>
-            </Select>
-          </Field>
-          {card.laborAllocationMode === 'CONSOLIDATE_PRIMARY' ? <Field id={`group-labor-primary-${card.groupId}`} label="Missão principal" optionalText="">
-            <Select size="sm" value={card.primaryLaborProjectId || card.members[0]?.projectId || ''} disabled={laborPolicySaving}
-              onChange={event => onLaborPolicyChange?.('CONSOLIDATE_PRIMARY', event.target.value || null)}>
-              {card.members.map(member => <option key={member.projectId} value={member.projectId}>{member.code} — {member.name || member.clientName || 'Missão'}</option>)}
-            </Select>
-          </Field> : null}
-        </div> : null}
       </div>
     </Card>
   );

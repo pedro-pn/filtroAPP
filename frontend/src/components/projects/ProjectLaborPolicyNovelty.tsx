@@ -46,14 +46,14 @@ export function ProjectLaborPolicyNovelty({
         {
           popover: {
             title: '✨ Nova apropriação de mão de obra',
-            description: 'A folha mensal continua única, enquanto os cards podem mostrar o custo integral de cada missão executada ao mesmo tempo.'
+            description: 'A folha mensal continua única, enquanto os projetos podem mostrar o custo integral de cada missão executada ao mesmo tempo.'
           }
         },
         {
           element: LABOR_POLICY_SELECTOR,
           popover: {
             title: 'Escolha a regra do grupo',
-            description: 'Use “Repetir jornada” para frentes simultâneas ou “Consolidar” para a exceção em que todos os RDOs devem ir a uma missão principal.',
+            description: 'Abra esta seção e use “Repetir jornada” para frentes simultâneas ou “Consolidar” para direcionar os RDOs a uma missão principal.',
             side: 'top',
             align: 'start'
           }

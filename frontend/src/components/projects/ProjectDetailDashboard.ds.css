@@ -40,6 +40,8 @@
 .acp-detail-hero-track i { display: block; height: 100%; border-radius: inherit; background: var(--on-brand); }
 .acp-detail-header .acp-detail-group-members { border-top: var(--border-width) solid var(--line-strong); padding-top: var(--space-3); }
 .acp-detail-header .acp-detail-alerts { justify-content: start; }
+.acp-detail-group-policy__content { display: grid; gap: var(--space-3); padding-block: var(--space-3); }
+.acp-detail-group-policy__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--space-4); align-items: start; }
 .acp-detail-section-head { display: grid; gap: var(--space-1); scroll-margin-top: calc(var(--topbar-h) + var(--space-5)); }
 .acp-detail-section-head p { color: var(--brand-text); font-size: var(--text-xs); font-weight: var(--font-bold); letter-spacing: .08em; text-transform: uppercase; }
 .acp-detail-section-head h2 { font-size: var(--text-2xl); line-height: var(--leading-2xl); }

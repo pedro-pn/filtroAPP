@@ -10,15 +10,12 @@ import {
   renameMissionGroup,
   renameProjectCard,
   setProjectTrackingState,
-  updateMissionGroupLaborPolicy,
   type MissionGroupCard,
-  type MissionGroupLaborAllocationMode,
   type ProjectCardItem
 } from '../../api/acompanhamentoComercial';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ProjectDetailDashboard } from './ProjectDetailDashboard';
 import { ProjectGroupRenameNovelty } from './ProjectGroupRenameNovelty';
-import { ProjectLaborPolicyNovelty } from './ProjectLaborPolicyNovelty';
 import { ProjectTrackingNovelties } from './ProjectTrackingNovelties';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import {
@@ -80,7 +77,6 @@ export function ProjectCardsBoard({
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [groupRenameNoveltyActive, setGroupRenameNoveltyActive] = useState(true);
-  const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
   const [dissolveTarget, setDissolveTarget] = useState<MissionGroupCard | null>(null);
   const [trackingTarget, setTrackingTarget] = useState<{ card: ProjectCardItem; action: 'archive' | 'restore' } | null>(null);
   const [seenFinalizations, setSeenFinalizations] = useState<Set<string>>(() => new Set());
@@ -142,31 +138,6 @@ export function ProjectCardsBoard({
     },
     onError: (error: unknown) => {
       setRenameError(mutationErrorMessage(error, 'Não foi possível alterar o nome deste card.'));
-    }
-  });
-  const laborPolicyMutation = useMutation({
-    mutationFn: ({
-      groupId,
-      laborAllocationMode,
-      primaryLaborProjectId
-    }: {
-      groupId: string;
-      laborAllocationMode: MissionGroupLaborAllocationMode;
-      primaryLaborProjectId: string | null;
-    }) => updateMissionGroupLaborPolicy(groupId, { laborAllocationMode, primaryLaborProjectId }),
-    onSuccess: async () => {
-      setGroupError(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
-        queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
-        queryClient.invalidateQueries({ queryKey: ['mission-groups'] }),
-        queryClient.invalidateQueries({ queryKey: ['ponto-pontomais-pending'] }),
-        queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] })
-      ]);
-    },
-    onError: (error: unknown) => {
-      setGroupError(mutationErrorMessage(error, 'Não foi possível atualizar a apropriação de mão de obra.'));
     }
   });
   const trackingMutation = useMutation({
@@ -352,10 +323,6 @@ export function ProjectCardsBoard({
               onSubmitRename={submitRenameCard}
               onCancelRename={closeRenameCard}
               onDissolve={isGroupCard(card) ? () => { setGroupError(null); setDissolveTarget(card); } : undefined}
-              laborPolicySaving={laborPolicyMutation.isPending}
-              onLaborPolicyChange={isGroupCard(card) ? (laborAllocationMode, primaryLaborProjectId) => {
-                laborPolicyMutation.mutate({ groupId: card.groupId, laborAllocationMode, primaryLaborProjectId });
-              } : undefined}
               onArchive={() => { setGroupError(null); setTrackingTarget({ card, action: card.archivedInAcompanhamento ? 'restore' : 'archive' }); }}
               onReview={() => trackingMutation.mutate({ card, payload: { reviewed: !card.reviewed } })}
             />
@@ -406,11 +373,6 @@ export function ProjectCardsBoard({
         user={progressHistoryNoveltyUser}
         enabled={groupRenameNoveltyActive && canManageGroups && !selectionMode && renameTarget === null}
         onSeen={() => setGroupRenameNoveltyActive(false)}
-      />
-      <ProjectLaborPolicyNovelty
-        user={progressHistoryNoveltyUser}
-        enabled={laborPolicyNoveltyActive && canManageGroups && !selectionMode && renameTarget === null}
-        onSeen={() => setLaborPolicyNoveltyActive(false)}
       />
       <ProjectTrackingNovelties
         user={progressHistoryNoveltyUser}
