@@ -1,7 +1,8 @@
-import { useRef, useState, type DragEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
-import { calibrationStatus, formatDate, statusLabel } from './equipmentStatus';
+import { Badge, Button } from '../../components/ui/ds';
+import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
 
 interface Props {
@@ -16,11 +17,19 @@ interface Props {
 
 export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: Props) {
   const cardRef = useRef<HTMLElement | null>(null);
+  const techInput = useRef<HTMLInputElement>(null);
+  const certInput = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
   const status = calibrationStatus(item);
   const { canTech, canCert, currentDoc, isUploading, uploadDoc } = useEquipmentDocumentUpload(item, category, isManager);
   const droppable = canTech || canCert;
+
+  function handleFile(kind: EquipmentDocumentKind, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    void uploadDoc(kind, file);
+  }
 
   function zoneDrop(kind: EquipmentDocumentKind) {
     return (event: DragEvent<HTMLDivElement>) => {
@@ -63,7 +72,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
 
       <div className="equip-card-head">
         <strong>{item.code}</strong>
-        {status !== 'none' && <span className={`equip-badge equip-badge-${status}`}>{statusLabel[status]}</span>}
+        {status !== 'none' && <Badge tone={statusTone[status]} dot multiline>{statusLabel[status]}</Badge>}
       </div>
       <div className="equip-card-name">{item.name}</div>
       <dl className="equip-attrs">
@@ -91,42 +100,58 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           {item.calibrationCertificate && (
             <div className="equip-doc">
               <span className="equip-doc-title">Certificado de calibração</span>
-              <a className="mini-btn equip-doc-pdf" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>
-                ⤓ PDF
+              <a className="fv-button fv-button--secondary fv-button--sm equip-doc-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" aria-label={`Abrir certificado de calibração de ${item.code}`} data-equip-cert-link>
+                Abrir PDF
               </a>
             </div>
           )}
           {currentDoc && (
             <div className="equip-doc">
               <span className="equip-doc-title">Dados técnicos</span>
-              <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>
-                ⤓ PDF
+              <a className="fv-button fv-button--secondary fv-button--sm equip-doc-link" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" aria-label={`Abrir dados técnicos de ${item.code}`} data-equip-technical-doc-link>
+                Abrir PDF
               </a>
             </div>
+          )}
+        </div>
+      )}
+      {(canTech || canCert) && (
+        <div className="equip-card-uploads">
+          {canCert && (
+            <>
+              <input ref={certInput} type="file" accept="application/pdf,.pdf" hidden aria-label={`Selecionar certificado de ${item.code}`} onChange={event => handleFile('cert', event)} />
+              <Button size="sm" multiline variant="secondary" disabled={isUploading} onClick={() => certInput.current?.click()}>Enviar certificado</Button>
+            </>
+          )}
+          {canTech && (
+            <>
+              <input ref={techInput} type="file" accept="application/pdf,.pdf" hidden aria-label={`Selecionar documento técnico de ${item.code}`} onChange={event => handleFile('tech', event)} />
+              <Button size="sm" multiline variant="secondary" disabled={isUploading} onClick={() => techInput.current?.click()}>Enviar PDF técnico</Button>
+            </>
           )}
         </div>
       )}
       {(isManager || (category.technicalDocEnabled && onOpenTechnical) || onOpenMaintenanceHistory) && (
         <div className="report-card-actions">
           {onOpenMaintenanceHistory ? (
-            <button className="mini-btn alt equip-maintenance-action" type="button" onClick={onOpenMaintenanceHistory}>
+            <Button variant="secondary" size="sm" multiline className="equip-maintenance-action" onClick={onOpenMaintenanceHistory}>
               Manutenções
-            </button>
+            </Button>
           ) : null}
           {category.technicalDocEnabled && onOpenTechnical && (
-            <button className="mini-btn alt equip-technical-action" type="button" onClick={onOpenTechnical} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
+            <Button variant="secondary" size="sm" multiline className="equip-technical-action" onClick={onOpenTechnical} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
               {isManager ? 'Dados' : 'Ver dados'}
               {item.technicalRevision > 0 ? ' ●' : ''}
-            </button>
+            </Button>
           )}
           {isManager && (
             <>
-              <button className="mini-btn alt" type="button" onClick={onEdit} title="Editar cadastro">
+              <Button variant="secondary" size="sm" multiline onClick={onEdit} title="Editar cadastro">
                 Cadastro
-              </button>
-              <button className="mini-btn danger" type="button" onClick={onRemove}>
+              </Button>
+              <Button variant="danger" size="sm" multiline onClick={onRemove}>
                 Remover
-              </button>
+              </Button>
             </>
           )}
         </div>

@@ -27,6 +27,7 @@ import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { equipmentCategoryShortLabel, equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, type EquipmentTab } from './equipmentCategoryView';
 import './EquipamentosPage.ds.css';
 import './EquipmentConfig.ds.css';
+import './EquipmentEntity.ds.css';
 
 type ActiveTab = { kind: EquipmentTab };
 

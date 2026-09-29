@@ -6,10 +6,10 @@ import {
   downloadMaintenanceAttachment,
   type MaintenanceAttachment
 } from '../../api/operationalReports';
-import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/ToastContext';
+import { Alert, Button, EmptyState } from '../../components/ui/ds';
 
 interface MaintenanceHistoryModalProps {
   equipmentId: string | null;
@@ -58,42 +58,32 @@ export function MaintenanceHistoryModal({
     <Modal
       open={Boolean(equipmentId)}
       onClose={onClose}
-      ariaLabelledBy="equipment-maintenance-history-title"
-      panelClassName="modal-card operational-history-modal"
+      appearance="design-system"
+      title="Histórico de manutenção"
+      size="lg"
+      panelClassName="equip-maintenance-history-modal"
     >
-      <div className="operational-card-head">
-        <div>
-          <h2 id="equipment-maintenance-history-title">
-            Histórico de manutenção
-          </h2>
-          {historyQuery.data ? (
-            <div className="form-hint">
-              {historyQuery.data.equipment.code} —{' '}
-              {historyQuery.data.equipment.name}
-            </div>
-          ) : null}
-        </div>
-        <Button variant="mini" onClick={onClose}>
-          Fechar
-        </Button>
-      </div>
+      {historyQuery.data ? (
+        <p className="equip-history-equipment">
+          {historyQuery.data.equipment.code} — {historyQuery.data.equipment.name}
+        </p>
+      ) : null}
       {historyQuery.isLoading ? <Skeleton lines={5} /> : null}
       {historyQuery.isError ? (
-        <div className="inline-error">
-          Não foi possível carregar o histórico.
-        </div>
+        <Alert tone="danger">Não foi possível carregar o histórico.</Alert>
       ) : null}
       {historyQuery.data?.items.map((item) => (
-        <article className="operational-history-card" key={item.id}>
-          <div className="operational-card-head">
+        <article className="equip-maintenance-history-item" key={item.id}>
+          <div className="equip-maintenance-history-item__head">
             <div>
               <strong>{dateLabel(item.maintenanceDate)}</strong>
               <div className="form-hint">{item.profileName}</div>
             </div>
             {item.document ? (
               <Button
-                variant="mini"
-                disabled={downloadingId === item.id}
+                variant="secondary"
+                size="sm"
+                loading={downloadingId === item.id}
                 onClick={() => void handleDownload(item.id, item.document!)}
               >
                 {downloadingId === item.id ? 'Baixando…' : 'Baixar PDF'}
@@ -125,9 +115,7 @@ export function MaintenanceHistoryModal({
         </article>
       ))}
       {historyQuery.data && !historyQuery.data.items.length ? (
-        <p className="placeholder-copy">
-          Nenhuma manutenção aprovada para este equipamento.
-        </p>
+        <EmptyState variant="default" title="Nenhuma manutenção aprovada" description="O histórico deste equipamento aparecerá aqui quando houver uma manutenção aprovada." />
       ) : null}
     </Modal>
   );

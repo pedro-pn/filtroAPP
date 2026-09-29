@@ -149,7 +149,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
               ))}
             </select>
           </div>
-          <ChecklistItemsEditor value={checklistItems} onChange={setChecklistItems} disabled={!checklistEnabled} />
+          <ChecklistItemsEditor appearance="design-system" value={checklistItems} onChange={setChecklistItems} disabled={!checklistEnabled} />
         </div>
 
         <div className="equip-fields-builder">

@@ -9,6 +9,7 @@ import type {
   TechnicalFieldDefinition
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/ds';
 import { formatDate } from './equipmentStatus';
 
 export interface TechnicalPhotosPayload {
@@ -341,7 +342,7 @@ function GroupField({ field, value, onChange, catalog, idPrefix }: {
         <div className="tech-group-item" key={index}>
           <div className="tech-group-item-head">
             <strong>{itemLabel} #{index + 1}</strong>
-            <button type="button" className="mini-btn danger" onClick={() => removeItem(index)}>Remover</button>
+            <Button variant="danger" size="sm" onClick={() => removeItem(index)}>Remover</Button>
           </div>
           <div className="tech-group-fields">
             {subFields.map(sub => (
@@ -359,9 +360,9 @@ function GroupField({ field, value, onChange, catalog, idPrefix }: {
           </div>
         </div>
       ))}
-      <button type="button" className="mini-btn alt" onClick={addItem} disabled={atMax}>
+      <Button variant="secondary" size="sm" onClick={addItem} disabled={atMax}>
         + Adicionar {itemLabel.toLowerCase()}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -494,33 +495,30 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      ariaLabelledBy="tech-data-title"
-      panelClassName="modal-card equip-modal"
+      onClose={() => { if (!saving) onClose(); }}
+      appearance="design-system"
+      title="Dados técnicos"
+      size="lg"
+      panelClassName="equip-entity-modal equip-technical-modal"
       closeOnBackdrop={false}
+      showCloseButton={!saving}
+      closeOnEscape={!saving}
+      footer={activeTab === 'dados' && isManager ? (
+        <Button variant="primary" size="sm" type="submit" form="technical-data-form" loading={saving} disabled={fields.length === 0} data-equip-technical-save>
+          Salvar e fechar
+        </Button>
+      ) : (
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Fechar</Button>
+      )}
     >
-      <button
-        className="equip-modal-close-float icon-button"
-        type="button"
-        aria-label="Fechar dados técnicos"
-        title="Fechar"
-        onClick={onClose}
-        disabled={saving}
-      >
-        ×
-      </button>
-      {/* Cabeçalho + abas ficam FORA da área que rola (não somem ao rolar os campos). */}
       <div className="equip-modal-head">
-        <header className="equip-form-head has-float-close">
-          <h3 id="tech-data-title">Dados Técnicos</h3>
-          <span className="equip-form-sub">{equipment.code} — {equipment.name}</span>
-        </header>
+        <p className="equip-entity-subtitle">{equipment.code} — {equipment.name}</p>
 
         {/* Histórico de revisões fica disponível apenas para admins/gestores do módulo. */}
         {isManager && (
-          <div className="filter-tabs equip-form-tabs" role="tablist" aria-label="Seções dos dados técnicos">
+          <div className="equip-entity-tabs" role="tablist" aria-label="Seções dos dados técnicos">
             <button
-              className={`filter-tab ${activeTab === 'dados' ? 'active' : ''}`}
+              className={activeTab === 'dados' ? 'active' : ''}
               type="button"
               role="tab"
               aria-selected={activeTab === 'dados'}
@@ -529,7 +527,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
               Dados
             </button>
             <button
-              className={`filter-tab ${activeTab === 'historico' ? 'active' : ''}`}
+              className={activeTab === 'historico' ? 'active' : ''}
               type="button"
               role="tab"
               aria-selected={activeTab === 'historico'}
@@ -541,7 +539,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
         )}
       </div>
 
-      <form className="equip-form tech-form" onSubmit={handleSubmit} data-equip-technical-modal>
+      <form id="technical-data-form" className="equip-form equip-entity-form tech-form" onSubmit={handleSubmit} data-equip-technical-modal>
         {activeTab === 'dados' ? (
           isManager ? (
             <>
@@ -682,8 +680,8 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
                     <strong>{title}</strong>
                     <span>{formatDate(pdf.createdAt)} · {pdf.fileName}</span>
                   </div>
-                  <a className="mini-btn alt" href={pdf.publicUrl} target="_blank" rel="noreferrer">
-                    Baixar
+                  <a className="fv-button fv-button--secondary fv-button--sm equip-history-download" href={pdf.publicUrl} target="_blank" rel="noreferrer">
+                    Abrir PDF
                   </a>
                 </div>
               );
@@ -694,15 +692,6 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
           </div>
         )}
 
-        <div className="admin-form-actions equip-form-actions">
-          {activeTab === 'dados' && isManager ? (
-            <button className="mini-btn" type="submit" disabled={saving || fields.length === 0} data-equip-technical-save>
-              {saving ? 'Salvando…' : 'Salvar e fechar'}
-            </button>
-          ) : (
-            <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Fechar</button>
-          )}
-        </div>
       </form>
     </Modal>
   );

@@ -1,10 +1,10 @@
 import { useRef, type ChangeEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
-import { Button } from '../../components/ui/ds';
+import { Badge, Button } from '../../components/ui/ds';
 import { useListingMobileViewport } from '../../components/ui/ds/listings/useListingMedia';
 import { EquipmentCard } from './EquipmentCard';
-import { calibrationStatus, formatDate, statusLabel } from './equipmentStatus';
+import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
 
 interface EquipmentCategorySectionProps {
@@ -54,9 +54,9 @@ function EquipmentRow({ category, item, isManager, onEdit, onRemove, onOpenTechn
       <td>
         {item.hasCalibration ? (
           <div className="equip-category-table__calibration">
-            <span className={`equip-badge equip-badge-${status}`}>
+            <Badge tone={statusTone[status]} dot multiline>
               {status === 'none' ? 'Sem calibração' : statusLabel[status]}
-            </span>
+            </Badge>
             <span>Calibrado: {formatDate(item.calibratedAt)}</span>
             <span>Vence: {formatDate(item.expiresAt)}</span>
           </div>
@@ -65,12 +65,12 @@ function EquipmentRow({ category, item, isManager, onEdit, onRemove, onOpenTechn
       <td>
         <div className="equip-category-table__documents">
           {item.calibrationCertificate ? (
-            <a href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>
+            <a className="fv-button fv-button--secondary fv-button--sm equip-category-table__doc-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>
               Certificado PDF
             </a>
           ) : null}
           {currentDoc ? (
-            <a href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>
+            <a className="fv-button fv-button--secondary fv-button--sm equip-category-table__doc-link" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>
               Dados técnicos PDF
             </a>
           ) : null}

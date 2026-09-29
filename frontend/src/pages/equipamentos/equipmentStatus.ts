@@ -22,6 +22,13 @@ export const statusLabel: Record<CalibrationStatus, string> = {
   expired: 'Calibração expirada'
 };
 
+export const statusTone: Record<CalibrationStatus, 'neutral' | 'success' | 'warning' | 'danger'> = {
+  none: 'neutral',
+  ok: 'success',
+  expiring: 'warning',
+  expired: 'danger'
+};
+
 export function formatDate(value?: string | null) {
   if (!value) return '—';
   const date = new Date(value);

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Button, Field, Select } from '../../components/ui/ds';
-import { calibrationStatus, formatDate, statusLabel, type CalibrationStatus } from './equipmentStatus';
+import { Badge, Button, Field, Select } from '../../components/ui/ds';
+import { calibrationStatus, formatDate, statusLabel, statusTone, type CalibrationStatus } from './equipmentStatus';
 
 interface Props {
   categories: EquipmentCategory[];
@@ -106,7 +106,7 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
                   <td data-label="Categoria">{categoryById.get(item.categoryId)?.name || '—'}</td>
                   <td data-label="Calibração">{formatDate(item.calibratedAt)}</td>
                   <td data-label="Vencimento">{formatDate(item.expiresAt)}</td>
-                  <td data-label="Status">{itemStatus === 'none' ? '—' : <span className={`equip-badge equip-badge-${itemStatus}`}>{statusLabel[itemStatus]}</span>}</td>
+                  <td data-label="Status">{itemStatus === 'none' ? '—' : <Badge tone={statusTone[itemStatus]} dot multiline>{statusLabel[itemStatus]}</Badge>}</td>
                 </tr>
               );
             })}

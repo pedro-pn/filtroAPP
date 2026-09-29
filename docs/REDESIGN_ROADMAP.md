@@ -159,7 +159,7 @@ Todas as fases devem preservar os seguintes contratos:
 | Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
 | Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1 concluído; M2–M5 pendentes |
-| Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1 concluído; EQ2–EQ3 pendentes; dependência dos fluxos de manutenção |
+| Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 pendentes, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 pendente, preservando fluxos da main |
 | Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado pendente |
@@ -1041,7 +1041,7 @@ real, revisão concorrente e matriz completa de perfis seguem em A7.
 - [x] **EQ1:** shell/abas, entrada de configuração e componentes compartilhados.
 - [x] **EQ2:** supervisor, perfis/checklists, categorias/intervalo/visibilidade e
   exceção por equipamento; formulário de perfil e confirmação de remoção.
-- [ ] **EQ3:** cards/ações, histórico e downloads; consulta e gestão nos dois temas.
+- [x] **EQ3:** cards/ações, histórico e downloads; consulta e gestão nos dois temas.
 
 Equipamentos não estava explicitamente coberto na fila anterior. Sua configuração
 é dependência de M3/M4; migrar conjuntamente os consumidores de checklists e
@@ -1067,7 +1067,7 @@ e listagens iniciais usam superfícies e controles do DS; o seletor mobile legad
 de Equipamentos foi retirado. Rotas, busca, ordenação e política de acesso foram
 preservadas. Build, lint dos arquivos alterados e testes estáticos dos módulos
 passaram; a inspeção visual em navegador ficou pendente naquele momento por
-falta de `libnspr4.so` e foi retomada na validação de EQ2 abaixo. EQ3 e M2–M5
+falta de `libnspr4.so` e foi retomada na validação de EQ2 abaixo. M2–M5
 continuam na fila.
 
 Revisão de EQ1: as categorias foram reunidas em uma única subaba. A lista mostra
@@ -1086,6 +1086,16 @@ com abertura e fechamento dos diálogos sem rolagem horizontal. Edição de
 categoria e perfil, confirmação de remoção de perfil e os temas claro/escuro
 também foram conferidos. A validação encontrou e corrigiu o fundo claro do
 controle “Perfil ativo” no diálogo escuro; build de produção passou.
+
+EQ3: cards mobile, status de calibração, ações e links de documentos usam o DS.
+Gestores podem escolher PDFs para envio também nos cards mobile; arrastar e
+soltar continua disponível. Cadastro, dados técnicos, históricos de calibração,
+revisões e manutenção usam diálogos DS, incluindo estados vazios e download de
+manutenção. O editor de checklist usa o novo visual em Equipamentos e mantém a
+apresentação anterior nos consumidores de Estoque. Gestor e visualizador foram
+conferidos em claro/escuro com Chromium, Firefox e WebKit entre 320 e 1280 px,
+sem rolagem horizontal. O download da manutenção e as URLs PDF de certificado e
+datasheet foram verificados no banco local; build, lint e 26 testes focados passaram.
 
 ### F5 — RDO, Gestão e ajustes transversais
 

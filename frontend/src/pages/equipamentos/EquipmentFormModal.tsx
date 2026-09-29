@@ -9,6 +9,7 @@ import type {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
+import { Button } from '../../components/ui/ds';
 import { dateInputValue, fileToDataUrl, formatDate } from './equipmentStatus';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
 
@@ -100,27 +101,29 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
   }
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="equipment-form-title" panelClassName="modal-card equip-modal">
-      <button
-        className="equip-modal-close-float icon-button"
-        type="button"
-        aria-label="Fechar cadastro do equipamento"
-        title="Fechar"
-        onClick={onClose}
-        disabled={saving}
-      >
-        ×
-      </button>
-      <form className="equip-form" onSubmit={handleSubmit}>
-        <header className="equip-form-head has-float-close">
-          <h3 id="equipment-form-title">{equipment ? 'Editar equipamento' : 'Novo equipamento'}</h3>
-          <span className="equip-form-sub">{category.name}</span>
-        </header>
+    <Modal
+      open={open}
+      onClose={() => { if (!saving) onClose(); }}
+      appearance="design-system"
+      title={equipment ? 'Editar equipamento' : 'Novo equipamento'}
+      size="lg"
+      panelClassName="equip-entity-modal"
+      showCloseButton={!saving}
+      closeOnEscape={!saving}
+      footer={(
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" size="sm" type="submit" form="equipment-form" loading={saving}>Salvar</Button>
+        </>
+      )}
+    >
+      <form id="equipment-form" className="equip-form equip-entity-form" onSubmit={handleSubmit}>
+        <p className="equip-entity-subtitle">{category.name}</p>
 
         {canShowCalibrationHistory && (
-          <div className="filter-tabs equip-form-tabs" role="tablist" aria-label="Seções do equipamento">
+          <div className="equip-entity-tabs" role="tablist" aria-label="Seções do equipamento">
             <button
-              className={`filter-tab ${activeTab === 'dados' ? 'active' : ''}`}
+              className={activeTab === 'dados' ? 'active' : ''}
               type="button"
               role="tab"
               aria-selected={activeTab === 'dados'}
@@ -129,7 +132,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
               Dados
             </button>
             <button
-              className={`filter-tab ${activeTab === 'historico' ? 'active' : ''}`}
+              className={activeTab === 'historico' ? 'active' : ''}
               type="button"
               role="tab"
               aria-selected={activeTab === 'historico'}
@@ -202,6 +205,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
                       </div>
                     </div>
                     <PdfDropzone
+                      appearance="design-system"
                       id="equip-cert"
                       label="Certificado de calibração (PDF)"
                       file={certFile}
@@ -219,6 +223,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
             {category.supportsTechnicalDoc && (
               <div className="equip-toggle-block">
                 <PdfDropzone
+                  appearance="design-system"
                   id="equip-doc"
                   label="Documentação técnica (PDF) — opcional"
                   file={docFile}
@@ -238,16 +243,16 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
                     <div className="sec">Checklist</div>
                     <div className="rel-meta">{hasChecklistOverride ? 'Lista própria do equipamento' : 'Herdado da categoria'}</div>
                   </div>
-                  <button
-                    className="mini-btn alt"
-                    type="button"
+                  <Button
+                    variant="secondary" size="sm"
                     disabled={!hasChecklistOverride || !isManager}
                     onClick={() => setRestoreChecklistConfirm(true)}
                   >
                     Restaurar padrão
-                  </button>
+                  </Button>
                 </div>
                 <ChecklistItemsEditor
+                  appearance="design-system"
                   value={hasChecklistOverride ? checklistItems : category.checklistItems || []}
                   disabled={!isManager}
                   onChange={items => {
@@ -266,8 +271,8 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
                   <strong>{index === 0 ? 'Certificado atual' : `Certificado arquivado #${index}`}</strong>
                   <span>{formatDate(certificate!.createdAt)} · {certificate!.fileName}</span>
                 </div>
-                <a className="mini-btn alt" href={certificate!.publicUrl} target="_blank" rel="noreferrer">
-                  Baixar
+                <a className="fv-button fv-button--secondary fv-button--sm equip-history-download" href={certificate!.publicUrl} target="_blank" rel="noreferrer">
+                  Abrir PDF
                 </a>
               </div>
             ))}
@@ -279,15 +284,14 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
 
         {error && <p className="equip-form-error">{error}</p>}
 
-        <div className="admin-form-actions equip-form-actions">
-          <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="mini-btn" type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</button>
-        </div>
       </form>
       <ConfirmDialog
         open={restoreChecklistConfirm}
+        appearance="design-system"
         title="Restaurar checklist"
         description="A lista própria deste equipamento será substituída pelo padrão da categoria."
+        confirmLabel="Restaurar"
+        danger={false}
         onConfirm={() => {
           setHasChecklistOverride(false);
           setChecklistItems(category.checklistItems || []);
