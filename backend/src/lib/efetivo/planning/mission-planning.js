@@ -232,14 +232,13 @@ async function validateDemandRoles(tx, demands) {
   if (roles.length !== new Set(ids).size) throw planningError('A demanda contém função inexistente, inativa ou não operacional.', { code: 'INVALID_JOB_ROLE' });
 }
 
-async function validateExistingAllocations(tx, mission, payload, demands) {
+async function validateExistingAllocations(tx, mission, payload) {
   const proposedMission = { ...mission, ...payload };
   for (const cycle of missionCycles(proposedMission)) {
     if (!allocationPeriodWithinMission(cycle, proposedMission)) {
       throw conflictError('A nova programação deixa um ciclo do projeto fora das datas gerais da missão.', [], 'MISSION_CYCLE_OUTSIDE_MISSION_PERIOD');
     }
   }
-  const allocationsByRole = new Map();
   for (const allocation of mission.allocations || []) {
     const allocationCyclePeriods = allocationPeriods(allocation, proposedMission);
     for (const period of allocationCyclePeriods) {
@@ -251,17 +250,6 @@ async function validateExistingAllocations(tx, mission, payload, demands) {
         );
       }
     }
-    const periods = allocationsByRole.get(allocation.jobRoleId) || [];
-    periods.push(...allocationCyclePeriods);
-    allocationsByRole.set(allocation.jobRoleId, periods);
-  }
-  for (const demand of demands) {
-    if (maximumConcurrentAllocationCount(allocationsByRole.get(demand.jobRoleId) || []) > demand.requiredCount) {
-      throw conflictError('A nova demanda é menor que a equipe já alocada.', [], 'DEMAND_BELOW_ALLOCATION');
-    }
-  }
-  if ([...allocationsByRole].some(([jobRoleId]) => !demands.some(item => item.jobRoleId === jobRoleId))) {
-    throw conflictError('Remova ou realoque pessoas antes de retirar a função da demanda.', [], 'ALLOCATED_ROLE_REMOVED');
   }
   if (payload.scheduleStatus !== 'CONFIRMED') return;
   for (const allocation of mission.allocations || []) {
@@ -435,7 +423,7 @@ export async function updateMission(missionId, payload, context = {}, dependenci
       : null;
     const demands = team?.demands || normalizeMissionDemands(payload.demands, payload.scheduleStatus);
     await validateDemandRoles(tx, demands);
-    if (!team) await validateExistingAllocations(tx, missionForValidation, payload, demands);
+    if (!team) await validateExistingAllocations(tx, missionForValidation, payload);
     await tx.efetivoMissionDemand.deleteMany({ where: { missionId } });
     let updated = await tx.efetivoMissionPlan.update({
       where: { id: missionId },

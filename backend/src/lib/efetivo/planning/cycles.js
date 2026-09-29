@@ -2,7 +2,6 @@ import { recordEfetivoAudit } from './audit.js';
 import {
   allocationPeriodWithinMission,
   allocationPeriods,
-  maximumConcurrentAllocationCount,
   missionCycles
 } from './allocation-period.js';
 import {
@@ -113,21 +112,6 @@ function ensureInsideProjectCycle(mission, period) {
   }
 }
 
-function ensureRoleCapacity(mission, allocation, period, ignoredCycleId = null) {
-  const demand = mission.demands.find(item => item.jobRoleId === allocation.jobRoleId);
-  if (!demand) throw conflictError('A função não faz parte da demanda da missão.', [], 'JOB_ROLE_NOT_DEMANDED');
-  const periods = mission.allocations
-    .filter(item => !item.deletedAt && item.jobRoleId === allocation.jobRoleId)
-    .flatMap(item => {
-      if (item.id !== allocation.id) return allocationPeriods(item, mission);
-      const remainingCycles = (item.cycles || []).filter(cycle => cycle.id !== ignoredCycleId);
-      return remainingCycles.length ? allocationPeriods({ ...item, cycles: remainingCycles }, mission) : [];
-    });
-  if (maximumConcurrentAllocationCount([...periods, period]) > demand.requiredCount) {
-    throw conflictError('A demanda desta função já está completa neste período.', [], 'DEMAND_FULL');
-  }
-}
-
 async function validateCollaboratorPeriod(tx, mission, allocation, period, allowInactiveCollaborator = false) {
   await lockCollaborator(tx, allocation.collaboratorId);
   const data = await loadCollaboratorConflictData(tx, allocation.collaboratorId, period, mission.planId);
@@ -234,7 +218,6 @@ export async function createAllocationCycle(missionId, allocationId, payload, co
     const label = allocation.collaborator?.name || 'O colaborador';
     const period = validateNewCycle(allocation.cycles || [], payload, mission, label);
     ensureInsideProjectCycle(mission, period);
-    ensureRoleCapacity(mission, allocation, period);
     await validateCollaboratorPeriod(tx, mission, allocation, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoAllocationCycle.create({
       data: { allocationId, ...storedCycle(payload), createdByUserId: context.actorUserId || null }
@@ -288,7 +271,6 @@ export async function updateAllocationCycle(missionId, allocationId, cycleId, pa
     const label = allocation.collaborator?.name || 'O colaborador';
     const period = validateUpdatedCycle(allocation.cycles, existing, payload, mission, label);
     ensureInsideProjectCycle(mission, period);
-    ensureRoleCapacity(mission, allocation, period, cycleId);
     await validateCollaboratorPeriod(tx, mission, allocation, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoAllocationCycle.update({ where: { id: cycleId }, data: storedCycle(payload) });
     await finishCycleMutation(tx, mission, context, {

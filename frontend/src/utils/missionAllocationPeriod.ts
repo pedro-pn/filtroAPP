@@ -1,7 +1,18 @@
 import type { MissionAllocation, PlanningMission } from '../api/efetivoPlanning';
+import { todayDateOnly } from './calendarGrid';
 
 export function dateKey(value: string) {
   return value.slice(0, 10);
+}
+
+export function defaultNewAllocationPeriod(mission: Pick<PlanningMission, 'mobilizationDate' | 'executionEndDate' | 'returnDate' | 'stage'>, allowCycleChanges: boolean, today = todayDateOnly()) {
+  const startDate = dateKey(mission.mobilizationDate);
+  const endDate = dateKey(mission.returnDate || mission.executionEndDate);
+  if (!allowCycleChanges || mission.stage !== 'EXECUTION') return { mobilizationDate: startDate, demobilizationDate: endDate };
+  return {
+    mobilizationDate: today < startDate ? startDate : today > endDate ? endDate : today,
+    demobilizationDate: ''
+  };
 }
 
 export function missionCyclePeriods(mission: PlanningMission) {
