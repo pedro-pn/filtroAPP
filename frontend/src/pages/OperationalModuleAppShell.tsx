@@ -9,7 +9,7 @@ import { hubModulesForUser } from './hubModules';
 
 interface OperationalModuleAppShellProps {
   children: ReactNode;
-  moduleId: 'equipamentos' | 'maintenance-production';
+  moduleId: 'equipamentos' | 'maintenance-production' | 'estoque';
   title: string;
   sectionLabel: string;
   subNavigation: readonly NavigationSubItem[];
@@ -43,7 +43,7 @@ export function OperationalModuleAppShell({
       contentWidth="fluid"
       breadcrumb={[
         { label: 'Filtrovali', href: '/modulos' },
-        { label: title, href: moduleId === 'equipamentos' ? '/equipamentos' : '/manutencao-producao' },
+        { label: title, href: moduleId === 'equipamentos' ? '/equipamentos' : moduleId === 'estoque' ? '/estoque' : '/manutencao-producao' },
         { label: sectionLabel }
       ]}
       topBarActions={actions}

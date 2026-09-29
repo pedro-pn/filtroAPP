@@ -226,7 +226,7 @@ function DesignSystemBottomBar({
                   <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />
                   {item.badge !== undefined ? <span className="fv-bottom-bar__badge">{item.badge}</span> : null}
                 </span>
-                <span className="fv-bottom-bar__label">{item.label}</span>
+                <span className="fv-bottom-bar__label">{item.shortLabel || item.label}</span>
               </Link>
             </li>
           ))}

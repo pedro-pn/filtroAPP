@@ -14,6 +14,7 @@ import {
 } from '../../api/estoque';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { Badge, Select } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
 import { StockCategoryFormModal } from './StockCategoryFormModal';
 
@@ -127,8 +128,8 @@ export function StockCategoriesTab({ isManager }: Props) {
   }
 
   return (
-    <section className="page-card">
-      <div className="admin-toolbar">
+    <section className="page-card stock-panel">
+      <div className="admin-toolbar stock-panel-header">
         <div className="sec">Categorias do estoque</div>
         {isManager ? (
           <button className="mini-btn" type="button" onClick={() => setFormCategory(null)}>Nova categoria</button>
@@ -146,11 +147,11 @@ export function StockCategoriesTab({ isManager }: Props) {
           />
         </div>
         <div className="nps-tab-toolbar-right">
-          <select aria-label="Filtrar tipo de categoria" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
+          <Select aria-label="Filtrar tipo de categoria" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
             <option value="">Todos os tipos</option>
             <option value="FILTRO">Filtros</option>
             <option value="PRODUTO_QUIMICO">Produtos químicos</option>
-          </select>
+          </Select>
           <label className="equip-toggle">
             <input type="checkbox" checked={includeInactive} onChange={event => setIncludeInactive(event.target.checked)} />
             <span>Inativas</span>
@@ -162,22 +163,22 @@ export function StockCategoriesTab({ isManager }: Props) {
       {categoriesQuery.isError ? <p className="equip-form-error">Não foi possível carregar as categorias.</p> : null}
       {!categoriesQuery.isLoading && !categories.length ? <p className="placeholder-copy">Nenhuma categoria encontrada.</p> : null}
 
-      <div className="equip-grid">
+      <div className="equip-grid stock-entity-grid">
         {categories.map(category => (
-          <article className="card" key={category.id}>
+          <article className="card stock-entity-card" key={category.id}>
             <div className="admin-toolbar">
               <div>
                 <div className="sec">{category.name}</div>
                 <p className="rel-meta">{typeLabel(category.type)} · {category.itemCount} item(ns)</p>
               </div>
-              <span className="badge">{category.checklistEnabled ? 'Checklist' : 'Sem checklist'}</span>
+              <Badge tone={category.checklistEnabled ? 'success' : 'neutral'}>{category.checklistEnabled ? 'Checklist' : 'Sem checklist'}</Badge>
             </div>
             {category.checklistEnabled ? (
               <p className="rel-meta">{category.checklistItems.length} ponto(s) de checagem</p>
             ) : (
               <p className="rel-meta">Itens vinculados não geram checklist enquanto a categoria estiver sem checklist.</p>
             )}
-            {!category.isActive ? <span className="badge danger">Inativa</span> : null}
+            {!category.isActive ? <Badge tone="danger">Inativa</Badge> : null}
             {isManager ? (
               <div className="admin-form-actions">
                 <button className="mini-btn alt" type="button" onClick={() => setFormCategory(category)}>Editar</button>

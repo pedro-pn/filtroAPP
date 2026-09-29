@@ -123,25 +123,14 @@ export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Prop
       open={open}
       onClose={onClose}
       closeOnEscape={!busy}
-      ariaLabelledBy="stock-documents-title"
-      panelClassName="modal-card equip-modal stock-modal"
+      appearance="design-system"
+      title="Documentos do item"
+      size="lg"
+      showCloseButton={!busy}
+      panelClassName="stock-dialog"
     >
-      <button
-        className="equip-modal-close-float icon-button"
-        type="button"
-        aria-label="Fechar documentos do item"
-        title="Fechar"
-        onClick={onClose}
-        disabled={busy}
-      >
-        ×
-      </button>
-
       <div className="equip-form">
-        <header className="equip-form-head has-float-close">
-          <h3 id="stock-documents-title">Documentos do item</h3>
-          <span className="equip-form-sub">{item.code} — {item.name}</span>
-        </header>
+        <p className="equip-form-sub">{item.code} — {item.name}</p>
 
         <p className="rel-meta stock-documents-description">{documentLabel(item)}. Somente arquivos PDF, com até 20 MB cada.</p>
 
@@ -165,6 +154,7 @@ export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Prop
         )}
 
         <PdfDropzone
+          appearance="design-system"
           id="stock-item-documents"
           label="Adicionar documentos"
           fileName={pendingFiles.length ? `${pendingFiles.length} PDF(s) selecionado(s)` : ''}
@@ -181,16 +171,11 @@ export function StockItemDocumentsModal({ open, item, onClose, onChanged }: Prop
             {pendingFiles.map((file, index) => (
               <div className="upload-list-item" key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
                 <span className="upload-list-name">{file.name}</span>
-                <button
-                  className="upload-remove-button"
-                  type="button"
-                  aria-label={`Retirar ${file.name} da seleção`}
-                  title="Retirar da seleção"
+                <RemoveIconButton
+                  label={`Retirar ${file.name} da seleção`}
                   disabled={busy}
                   onClick={() => setPendingFiles(current => current.filter((_, currentIndex) => currentIndex !== index))}
-                >
-                  ×
-                </button>
+                />
               </div>
             ))}
           </div>

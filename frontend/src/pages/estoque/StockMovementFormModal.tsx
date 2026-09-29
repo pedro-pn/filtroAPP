@@ -450,24 +450,14 @@ export function StockMovementFormModal({ open, onClose }: Props) {
       <Modal
         open={open}
         onClose={onClose}
-        ariaLabelledBy="stock-movement-form-title"
-        panelClassName={`modal-card equip-modal stock-modal${isProjectReturn ? ' stock-return-modal' : ''}`}
+        appearance="design-system"
+        title="Registrar movimentação"
+        size="lg"
+        showCloseButton={!savingMutation.isPending}
+        closeOnEscape={!savingMutation.isPending}
+        panelClassName={`stock-dialog${isProjectReturn ? ' stock-dialog--return' : ''}`}
       >
-        <button
-          className="equip-modal-close-float icon-button"
-          type="button"
-          aria-label="Fechar movimentação"
-          title="Fechar"
-          onClick={onClose}
-          disabled={savingMutation.isPending}
-        >
-          ×
-        </button>
         <form className="equip-form" onSubmit={handleSubmit(submit)}>
-          <header className="equip-form-head has-float-close">
-            <h3 id="stock-movement-form-title">Movimentação</h3>
-            <span className="equip-form-sub">Estoque</span>
-          </header>
 
           <div className="field-group">
             <label htmlFor="stock-move-reason">Movimentação *</label>

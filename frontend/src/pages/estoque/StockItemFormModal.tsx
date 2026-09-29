@@ -180,22 +180,8 @@ export function StockItemFormModal({ open, item, categories, saving, onClose, on
   }
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="stock-item-form-title" panelClassName="modal-card equip-modal stock-modal">
-      <button
-        className="equip-modal-close-float icon-button"
-        type="button"
-        aria-label="Fechar cadastro do item"
-        title="Fechar"
-        onClick={onClose}
-        disabled={saving}
-      >
-        ×
-      </button>
+    <Modal open={open} onClose={onClose} appearance="design-system" title={item ? 'Editar item' : 'Novo item'} size="lg" showCloseButton={!saving} closeOnEscape={!saving} panelClassName="stock-dialog">
       <form className="equip-form" onSubmit={handleSubmit(submit)}>
-        <header className="equip-form-head has-float-close">
-          <h3 id="stock-item-form-title">{item ? 'Editar item' : 'Novo item'}</h3>
-          <span className="equip-form-sub">Estoque</span>
-        </header>
 
         <div className="field-group">
           <label htmlFor="stock-item-type">Tipo *</label>

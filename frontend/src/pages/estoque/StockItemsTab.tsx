@@ -15,6 +15,7 @@ import {
 } from '../../api/estoque';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { Badge, Select } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
 import { StockItemDocumentsModal } from './StockItemDocumentsModal';
 import { StockItemFormModal } from './StockItemFormModal';
@@ -143,8 +144,8 @@ export function StockItemsTab({ isManager }: Props) {
   }
 
   return (
-    <section className="page-card">
-      <div className="admin-toolbar">
+    <section className="page-card stock-panel">
+      <div className="admin-toolbar stock-panel-header">
         <div className="sec">Itens</div>
         {isManager ? (
           <button className="mini-btn" type="button" onClick={() => setFormItem(null)}>Novo item</button>
@@ -162,11 +163,11 @@ export function StockItemsTab({ isManager }: Props) {
           />
         </div>
         <div className="nps-tab-toolbar-right">
-          <select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
+          <Select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
             <option value="">Todos os tipos</option>
             <option value="FILTRO">Filtros</option>
             <option value="PRODUTO_QUIMICO">Produtos químicos</option>
-          </select>
+          </Select>
           <label className="equip-toggle">
             <input type="checkbox" checked={includeInactive} onChange={event => setIncludeInactive(event.target.checked)} />
             <span>Inativos</span>
@@ -178,23 +179,23 @@ export function StockItemsTab({ isManager }: Props) {
       {itemsQuery.isError ? <p className="equip-form-error">Não foi possível carregar os itens.</p> : null}
       {!itemsQuery.isLoading && !items.length ? <p className="placeholder-copy">Nenhum item encontrado.</p> : null}
 
-      <div className="equip-grid">
+      <div className="equip-grid stock-entity-grid">
         {items.map(item => (
-          <article className="card" key={item.id}>
+          <article className="card stock-entity-card" key={item.id}>
             <div className="admin-toolbar">
               <div>
                 <div className="sec">{item.code}</div>
                 <strong>{item.name}</strong>
                 <p className="rel-meta">{itemSubtitle(item) || typeLabel(item.type)}</p>
               </div>
-              <span className="badge">{item.category?.name || typeLabel(item.type)}</span>
+              <Badge>{item.category?.name || typeLabel(item.type)}</Badge>
             </div>
             <p className="rel-meta">
               Unidade: <strong>{item.unitLabel}</strong>
               {item.minQuantity ? <> · Mínimo: <strong>{item.minQuantity}</strong></> : null}
               {item.location ? <> · Local: <strong>{item.location}</strong></> : null}
             </p>
-            {!item.isActive ? <span className="badge danger">Inativo</span> : null}
+            {!item.isActive ? <Badge tone="danger">Inativo</Badge> : null}
             {item.documents.length ? (
               <div className="upload-list stock-item-document-list" aria-label={`Documentos de ${item.name}`}>
                 {item.documents.map(document => (
