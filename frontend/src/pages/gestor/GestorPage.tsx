@@ -29,7 +29,7 @@ import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ImageDropzone } from '../../components/ui/ImageDropzone';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
-import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, FilterBar, IconButton, Input, MetricCard, SearchInput, Select, Skeleton, StatusPill, type DataTableColumn } from '../../components/ui/ds';
+import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, FilterBar, Input, MetricCard, SearchInput, Select, Skeleton, StatusPill, type DataTableColumn } from '../../components/ui/ds';
 import { DS_ICONS } from '../../components/ui/ds/icons';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -1598,7 +1598,7 @@ export function GestorPage() {
               Nº
             </Button>
           ) : null}
-          {report.status !== 'SIGNED' ? <IconButton icon={DS_ICONS.archive} label="Arquivar relatório" variant="secondary" size="sm" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
+          {report.status !== 'SIGNED' ? <RemoveIconButton label="Remover relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
         </>
       );
     }
@@ -1659,11 +1659,7 @@ export function GestorPage() {
             Nº
           </button>
         ) : null}
-        {report.status !== 'SIGNED' ? (
-          <button className="icon-button" type="button" title="Arquivar relatório" aria-label="Arquivar relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)}>
-            <AppIcon icon={DS_ICONS.archive} size="sm" />
-          </button>
-        ) : null}
+        {report.status !== 'SIGNED' ? <RemoveIconButton label="Remover relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
       </>
     );
   }
