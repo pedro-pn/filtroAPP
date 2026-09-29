@@ -20,11 +20,9 @@ import {
 } from '../auth/reportPermissions';
 import { useAuth } from '../auth/AuthContext';
 import { MaintenanceHistoryTable } from '../components/reports/MaintenanceHistoryTable';
+import { MaintenanceReportListing } from '../components/reports/MaintenanceReportListing';
 import { MaintenanceScheduleBoard } from '../components/reports/MaintenanceScheduleBoard';
-import {
-  OperationalReportSummaryCard,
-  StandaloneMaintenanceSummaryCard
-} from '../components/reports/OperationalReportSummaryCard';
+import { OperationalReportSummaryCard } from '../components/reports/OperationalReportSummaryCard';
 import { OperationalReportsNovelty } from '../components/reports/OperationalReportsNovelty';
 import { Alert, Button, Card, EmptyState, Field, Select, Skeleton } from '../components/ui/ds';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -222,7 +220,7 @@ export function MaintenanceProductionPage() {
     reportsQuery.isLoading || (maintenanceActive && standaloneQuery.isLoading);
   const isListError =
     reportsQuery.isError || (maintenanceActive && standaloneQuery.isError);
-  const hasListItems = visibleReports.length || visibleStandalone.length;
+  const hasListItems = visibleReports.length || (maintenanceActive && visibleStandalone.length);
 
   return (
     <OperationalModuleAppShell
@@ -391,6 +389,7 @@ export function MaintenanceProductionPage() {
                 {maintenanceActive ? (
                   <>
                     <Button
+                      variant="primary"
                       data-operational-new-report
                       onClick={() => navigate('/manutencao-producao/relatorio/novo?tipo=manutencao')}
                     >
@@ -438,35 +437,29 @@ export function MaintenanceProductionPage() {
 
             {isListLoading ? <Skeleton variant="card" label="Carregando relatórios…" /> : null}
             {isListError ? <Alert tone="danger">Não foi possível carregar os relatórios.</Alert> : null}
-            {!isListLoading && !isListError ? (
-              <div className="report-type-list operational-module-report-list">
-                {visibleReports.map((report) => (
-                  <OperationalReportSummaryCard
+            {!isListLoading && !isListError && hasListItems ? (
+              maintenanceActive ? (
+                <MaintenanceReportListing
+                  reports={visibleReports}
+                  standalone={visibleStandalone}
+                  onOpenReport={report => navigate(operationalReportEditorPath(
+                    'manutencao', report.id, Boolean(contextQuery.data?.canReviewMaintenance)
+                  ))}
+                  onOpenStandalone={record => navigate(operationalReportEditorPath(
+                    'manutencao-avulsa', record.id, Boolean(contextQuery.data?.canReviewMaintenance)
+                  ))}
+                />
+              ) : (
+                <div className="report-type-list operational-module-report-list">
+                  {visibleReports.map(report => <OperationalReportSummaryCard
                     key={report.id}
                     report={report}
                     onOpen={() => navigate(operationalReportEditorPath(
-                      report.kind === 'MAINTENANCE' ? 'manutencao' : 'producao',
-                      report.id,
-                      report.kind === 'MAINTENANCE'
-                        ? Boolean(contextQuery.data?.canReviewMaintenance)
-                        : Boolean(contextQuery.data?.canReviewProduction)
+                      'producao', report.id, Boolean(contextQuery.data?.canReviewProduction)
                     ))}
-                  />
-                ))}
-                {maintenanceActive
-                  ? visibleStandalone.map((record) => (
-                      <StandaloneMaintenanceSummaryCard
-                        key={record.id}
-                        record={record}
-                        onOpen={() => navigate(operationalReportEditorPath(
-                          'manutencao-avulsa',
-                          record.id,
-                          Boolean(contextQuery.data?.canReviewMaintenance)
-                        ))}
-                      />
-                    ))
-                  : null}
-              </div>
+                  />)}
+                </div>
+              )
             ) : null}
             {!isListLoading && !isListError && !hasListItems ? (
               <EmptyState variant="search" title="Nenhum relatório encontrado." description="Ajuste a busca ou o filtro de status para ver outros registros." />

@@ -7,7 +7,9 @@ import {
   type MaintenanceHistorySortDirection,
   type MaintenanceRecord
 } from '../../api/operationalReports';
-import { Button } from '../ui/Button';
+import { AppIcon } from '../icons/AppIcon';
+import { Button, StatusPill } from '../ui/ds';
+import { DS_ICONS } from '../ui/ds/icons';
 import { useToast } from '../ui/ToastContext';
 
 function dateLabel(value: string) {
@@ -20,11 +22,23 @@ function categoryLabel(record: MaintenanceRecord) {
   return record.equipment.category?.name || record.profileNameSnapshot || '—';
 }
 
-function servicesLabel(record: MaintenanceRecord) {
+function serviceLabels(record: MaintenanceRecord) {
   return [...record.selectedServices]
     .sort((left, right) => left.order - right.order)
-    .map((item) => item.label)
-    .join(', ');
+    .map((item) => item.label);
+}
+
+function MaintenanceServices({ record }: { record: MaintenanceRecord }) {
+  const services = serviceLabels(record);
+  if (!services.length) return <span className="operational-history-empty">Nenhum serviço</span>;
+
+  return <details className="operational-history-services">
+    <summary>
+      <strong>{services.length} {services.length === 1 ? 'serviço' : 'serviços'}</strong>
+      <AppIcon icon={DS_ICONS.chevronDown} size="sm" />
+    </summary>
+    <ul>{services.map((service, index) => <li key={`${index}-${service}`}>{service}</li>)}</ul>
+  </details>;
 }
 
 export function MaintenanceHistoryTable({
@@ -75,7 +89,7 @@ export function MaintenanceHistoryTable({
         : 'descending'
       : 'none';
     return (
-      <th aria-sort={ariaSort}>
+      <th scope="col" aria-sort={ariaSort}>
         <button
           className="operational-sort-button"
           type="button"
@@ -127,8 +141,12 @@ export function MaintenanceHistoryTable({
   return (
     <>
       <section className="page-card operational-maintenance-history-table">
+        <div className="operational-history-table-heading">
+          <div><strong>Manutenções aprovadas</strong><span>{pagination?.total || items.length} registros</span></div>
+          <span>Ordene pelos títulos das colunas</span>
+        </div>
         <div className="operational-table-scroll">
-          <table>
+          <table aria-label="Histórico de manutenção">
             <thead>
               <tr>
                 {sortableHeader('Data', 'maintenanceDate')}
@@ -136,29 +154,31 @@ export function MaintenanceHistoryTable({
                 {sortableHeader('Equipamento', 'equipment')}
                 {sortableHeader('Categoria / perfil', 'category')}
                 {sortableHeader('Responsável', 'responsible')}
-                <th>Serviços realizados</th>
-                <th>Documento</th>
+                <th scope="col">Serviços realizados</th>
+                <th scope="col">Documento</th>
               </tr>
             </thead>
             <tbody>
               {items.map((record) => (
                 <tr key={record.id}>
-                  <td>{dateLabel(record.maintenanceDate)}</td>
-                  <td><strong>{record.equipment.code}</strong></td>
-                  <td>{record.equipment.name}</td>
+                  <td className="operational-history-date">{dateLabel(record.maintenanceDate)}</td>
+                  <td className="operational-history-tag"><strong>{record.equipment.code}</strong></td>
+                  <td className="operational-history-equipment">{record.equipment.name}</td>
                   <td>{categoryLabel(record)}</td>
                   <td>{record.responsibleNameSnapshot}</td>
-                  <td>{servicesLabel(record)}</td>
-                  <td>
+                  <td><MaintenanceServices record={record} /></td>
+                  <td className="operational-history-document">
                     {record.document ? (
                       <Button
-                        variant="mini"
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Baixar PDF da manutenção ${record.equipment.code}`}
                         onClick={() => void handleDownload(record)}
                       >
-                        Baixar PDF
+                        PDF
                       </Button>
                     ) : (
-                      <span className="form-hint">Indisponível</span>
+                      <span className="operational-history-empty">Indisponível</span>
                     )}
                   </td>
                 </tr>
@@ -173,29 +193,30 @@ export function MaintenanceHistoryTable({
         aria-label="Histórico de manutenção"
       >
         {items.map((record) => (
-          <article className="page-card" key={record.id}>
+          <article className="page-card operational-history-mobile-card" key={record.id}>
             <div className="operational-card-head">
               <div>
-                <strong>{record.equipment.code}</strong>
-                <div>{record.equipment.name}</div>
+                <strong className="operational-history-mobile-tag">{record.equipment.code}</strong>
+                <div className="operational-history-mobile-name">{record.equipment.name}</div>
               </div>
-              <span className="status-pill status-approved">Aprovado</span>
+              <StatusPill status="APPROVED" label="Aprovado" tone="success" />
             </div>
             <dl className="operational-detail-list">
               <div><dt>Data</dt><dd>{dateLabel(record.maintenanceDate)}</dd></div>
               <div><dt>Categoria / perfil</dt><dd>{categoryLabel(record)}</dd></div>
               <div><dt>Responsável</dt><dd>{record.responsibleNameSnapshot}</dd></div>
-              <div><dt>Serviços</dt><dd>{servicesLabel(record)}</dd></div>
+              <div><dt>Serviços</dt><dd><MaintenanceServices record={record} /></dd></div>
             </dl>
             {record.document ? (
               <Button
                 variant="secondary"
+                size="sm"
                 onClick={() => void handleDownload(record)}
               >
                 Baixar PDF
               </Button>
             ) : (
-              <span className="form-hint">Documento indisponível</span>
+              <span className="operational-history-empty">Documento indisponível</span>
             )}
           </article>
         ))}

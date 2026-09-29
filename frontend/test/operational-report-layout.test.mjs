@@ -315,7 +315,7 @@ test('envio operacional é direto e a revisão abre o editor completo sem resumo
   assert.doesNotMatch(modulePage, /<Modal|<ConfirmDialog|openReport\(/);
 });
 
-test('cards internos seguem o padrão dos RDOs e aprovados ficam disponíveis para consulta', async () => {
+test('relatórios operacionais aprovados ficam disponíveis para consulta', async () => {
   const [modulePage, card, form] = await Promise.all([
     readFile(new URL('../src/pages/MaintenanceProductionPage.tsx', import.meta.url), 'utf8'),
     readFile(
@@ -335,7 +335,6 @@ test('cards internos seguem o padrão dos RDOs e aprovados ficam disponíveis pa
   ]);
 
   assert.match(modulePage, /<OperationalReportSummaryCard/);
-  assert.match(modulePage, /<StandaloneMaintenanceSummaryCard/);
   assert.match(modulePage, /value="APPROVED">Aprovado/);
   assert.match(card, /rel-item report-card report-card-clickable/);
   assert.match(card, /className="report-card-main"/);
