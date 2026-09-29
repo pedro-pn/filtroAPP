@@ -1,22 +1,19 @@
 .report-collaborator-tag > button.colab-tag__remove {
   display: inline-grid;
-  width: var(--space-8);
-  height: var(--space-8);
+  width: var(--space-6);
+  height: var(--space-6);
   flex: 0 0 auto;
   place-items: center;
-  border-radius: var(--radius-sm);
-  background: var(--danger);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--g);
   color: var(--white);
+  font-size: var(--text-base);
   line-height: 1;
 }
 
-.report-collaborator-tag > button.colab-tag__remove .fv-icon {
-  color: var(--white);
-  stroke: var(--white);
-}
-
 .report-collaborator-tag > button.colab-tag__remove:hover:not(:disabled) {
-  background: var(--danger-hover);
+  background: var(--gd);
 }
 
 .report-collaborator-tag > button.colab-tag__remove:focus-visible {

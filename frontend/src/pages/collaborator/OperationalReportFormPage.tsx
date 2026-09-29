@@ -8,7 +8,7 @@ import {
   useFormContext,
   useWatch
 } from 'react-hook-form';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import {
   createOperationalReport,
@@ -27,8 +27,8 @@ import {
   type OperationalReport,
   type OperationalStatus
 } from '../../api/operationalReports';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import {
+  allowedOperationalModuleTabs,
   canAccessReportSelection,
   type ReportSelection
 } from '../../auth/reportPermissions';
@@ -45,7 +45,7 @@ import {
   ReportSummaryCard,
   RequiredMark
 } from '../../components/reports/ReportCoreFields';
-import { Button } from '../../components/ui/Button';
+import { Alert, Button, Card, Field, Input, Select, Skeleton, Textarea } from '../../components/ui/ds';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
@@ -55,8 +55,9 @@ import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { UploadPreviewListItem } from '../../components/ui/UploadField';
 import { useReportWorkforceAvailability } from '../../hooks/useReportWorkforcePlanning';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
+import './OperationalReportFormPage.ds.css';
 import {
   operationalReportFormSchema,
   standaloneOperationalReportFormSchema,
@@ -262,12 +263,8 @@ function MaintenanceCardEditor({
 
   return (
     <div className="operational-repeat-card">
-      <div className="field-group">
-        <label htmlFor={`maintenance-equipment-category-${index}`}>
-          Categoria do equipamento<RequiredMark />
-        </label>
-        <select
-          id={`maintenance-equipment-category-${index}`}
+      <Field id={`maintenance-equipment-category-${index}`} label="Categoria do equipamento" required>
+        <Select
           value={equipmentCategoryId}
           required
           onChange={(event) => {
@@ -288,17 +285,11 @@ function MaintenanceCardEditor({
               {category.name}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div
-        className={`field-group ${cardErrors?.equipmentId ? 'field-invalid' : ''}`}
-      >
-        <label htmlFor={`maintenance-equipment-${index}`}>
-          Equipamento<RequiredMark />
-        </label>
-        <select
-          id={`maintenance-equipment-${index}`}
+      <Field id={`maintenance-equipment-${index}`} label="Equipamento" required errorText={cardErrors?.equipmentId?.message}>
+        <Select
           disabled={!equipmentCategoryId}
           aria-invalid={Boolean(cardErrors?.equipmentId)}
           required
@@ -326,11 +317,8 @@ function MaintenanceCardEditor({
               {item.code} — {item.name}
             </option>
           ))}
-        </select>
-        {cardErrors?.equipmentId ? (
-          <div className="field-error">{cardErrors.equipmentId.message}</div>
-        ) : null}
-      </div>
+        </Select>
+      </Field>
 
       {selectedEquipment ? (
         <section className="operational-equipment-data" aria-live="polite">
@@ -394,16 +382,12 @@ function MaintenanceCardEditor({
         ) : null}
       </div>
 
-      <div className="field-group">
-        <label htmlFor={`maintenance-observations-${index}`}>
-          Observações (opcional)
-        </label>
-        <textarea
-          id={`maintenance-observations-${index}`}
+      <Field id={`maintenance-observations-${index}`} label="Observações" optionalText="Opcional">
+        <Textarea
           rows={3}
           {...register(`maintenanceRecords.${index}.observations`)}
         />
-      </div>
+      </Field>
 
       <div className="operational-subsection">
         <div className="operational-card-head">
@@ -412,7 +396,8 @@ function MaintenanceCardEditor({
             <div className="form-hint">Adicione quantos forem necessários.</div>
           </div>
           <Button
-            variant="mini"
+            variant="secondary"
+            size="sm"
             onClick={() =>
               thirdParties.append({
                 serviceDate: localDate(),
@@ -426,11 +411,9 @@ function MaintenanceCardEditor({
         </div>
         {thirdParties.fields.map((field, thirdIndex) => (
           <div className="operational-third-party" key={field.id}>
-            <div
-              className={`field-group ${cardErrors?.thirdPartyServices?.[thirdIndex]?.serviceDate ? 'field-invalid' : ''}`}
-            >
-              <label>Data<RequiredMark /></label>
-              <input
+            <Field id={`maintenance-third-party-date-${index}-${thirdIndex}`} label="Data" required
+              errorText={cardErrors?.thirdPartyServices?.[thirdIndex]?.serviceDate?.message}>
+              <Input
                 type="date"
                 aria-invalid={Boolean(
                   cardErrors?.thirdPartyServices?.[thirdIndex]?.serviceDate
@@ -440,20 +423,10 @@ function MaintenanceCardEditor({
                   `maintenanceRecords.${index}.thirdPartyServices.${thirdIndex}.serviceDate`
                 )}
               />
-              {cardErrors?.thirdPartyServices?.[thirdIndex]?.serviceDate ? (
-                <div className="field-error">
-                  {
-                    cardErrors.thirdPartyServices[thirdIndex]?.serviceDate
-                      ?.message
-                  }
-                </div>
-              ) : null}
-            </div>
-            <div
-              className={`field-group ${cardErrors?.thirdPartyServices?.[thirdIndex]?.location ? 'field-invalid' : ''}`}
-            >
-              <label>Local<RequiredMark /></label>
-              <input
+            </Field>
+            <Field id={`maintenance-third-party-location-${index}-${thirdIndex}`} label="Local" required
+              errorText={cardErrors?.thirdPartyServices?.[thirdIndex]?.location?.message}>
+              <Input
                 aria-invalid={Boolean(
                   cardErrors?.thirdPartyServices?.[thirdIndex]?.location
                 )}
@@ -462,17 +435,10 @@ function MaintenanceCardEditor({
                   `maintenanceRecords.${index}.thirdPartyServices.${thirdIndex}.location`
                 )}
               />
-              {cardErrors?.thirdPartyServices?.[thirdIndex]?.location ? (
-                <div className="field-error">
-                  {cardErrors.thirdPartyServices[thirdIndex]?.location?.message}
-                </div>
-              ) : null}
-            </div>
-            <div
-              className={`field-group ${cardErrors?.thirdPartyServices?.[thirdIndex]?.description ? 'field-invalid' : ''}`}
-            >
-              <label>Serviço<RequiredMark /></label>
-              <input
+            </Field>
+            <Field id={`maintenance-third-party-description-${index}-${thirdIndex}`} label="Serviço" required
+              errorText={cardErrors?.thirdPartyServices?.[thirdIndex]?.description?.message}>
+              <Input
                 aria-invalid={Boolean(
                   cardErrors?.thirdPartyServices?.[thirdIndex]?.description
                 )}
@@ -481,15 +447,7 @@ function MaintenanceCardEditor({
                   `maintenanceRecords.${index}.thirdPartyServices.${thirdIndex}.description`
                 )}
               />
-              {cardErrors?.thirdPartyServices?.[thirdIndex]?.description ? (
-                <div className="field-error">
-                  {
-                    cardErrors.thirdPartyServices[thirdIndex]?.description
-                      ?.message
-                  }
-                </div>
-              ) : null}
-            </div>
+            </Field>
             <RemoveIconButton label={`Remover serviço de terceiro ${thirdIndex + 1}`} onClick={() => thirdParties.remove(thirdIndex)} />
           </div>
         ))}
@@ -497,6 +455,7 @@ function MaintenanceCardEditor({
 
       <div className="operational-maintenance-photos">
         <PdfDropzone
+          appearance="design-system"
           id={`maintenance-photos-${index}`}
           label="Fotos (opcional, até 10)"
           accept="image/*,.heic,.heif"
@@ -586,9 +545,8 @@ export function OperationalReportFormPage({
 }: OperationalReportFormPageProps) {
   const kind = mode === 'producao' ? 'PRODUCTION' : 'MAINTENANCE';
   const standalone = mode === 'manutencao-avulsa';
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
   const showToast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -666,7 +624,7 @@ export function OperationalReportFormPage({
     enabled: !standalone
   });
   const serverHoliday = Boolean(
-    holidayQuery.data?.holidays.some((holiday) => holiday.date === reportDate)
+    holidayQuery.data?.holidays?.some((holiday) => holiday.date === reportDate)
   );
   const overtimeSummary = useMemo(
     () =>
@@ -950,11 +908,6 @@ export function OperationalReportFormPage({
     );
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   const title = standalone
     ? 'Manutenção avulsa'
     : kind === 'MAINTENANCE'
@@ -999,45 +952,39 @@ export function OperationalReportFormPage({
         kind === 'MAINTENANCE' ? 'Manutenções' : 'Limpeza química',
         'Finalização'
       ];
+  const formTitle = approvedReadOnly
+    ? `Consultar ${title.toLowerCase()}`
+    : reviewMode
+      ? `Revisar ${title.toLowerCase()}`
+      : title;
+  const tabNames = {
+    manutencao: 'Manutenção',
+    producao: 'Produção',
+    'programacao-manutencao': 'Programação',
+    'historico-manutencao': 'Histórico de manutenção'
+  } as const;
+  const subNavigation = allowedOperationalModuleTabs(user?.reportEmissionPermissions || []).map(tab => ({
+    id: tab,
+    label: tabNames[tab],
+    href: `/manutencao-producao?tab=${tab}`,
+    active: tab === (kind === 'PRODUCTION' ? 'producao' : 'manutencao')
+  }));
 
   return (
-    <Shell>
-      <TopBar
-        title={approvedReadOnly
-          ? `Consultar ${title.toLowerCase()}`
-          : reviewMode
-            ? `Revisar ${title.toLowerCase()}`
-            : title}
-        subtitle={reviewMode
-          ? `${projectCode} · ${approvedReadOnly ? 'Relatório aprovado' : 'Editor do relatório'}`
-          : steps[currentStep]}
-        step={reviewMode ? undefined : `${currentStep + 1} / ${steps.length}`}
-        showLogo
-        actions={
-          <>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() =>
-                navigate('/conta', {
-                  state: accountPageStateFromPath(location)
-                })
-              }
-            >
-              Conta
-            </button>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() => void handleLogout()}
-            >
-              Sair
-            </button>
-          </>
-        }
-      />
+    <OperationalModuleAppShell
+      moduleId="maintenance-production"
+      title="Manutenção e produção"
+      sectionLabel={formTitle}
+      subNavigation={subNavigation}
+    >
       <FormProvider {...form}>
-        <main className="page-scroll operational-form-page">
+        <main className="fv-ds operational-form-page operational-form-page-v2">
+          <PageHeader
+            title={formTitle}
+            description={reviewMode
+              ? `${projectCode} · ${approvedReadOnly ? 'Relatório aprovado' : 'Editor do relatório'}`
+              : `${steps[currentStep]} · Etapa ${currentStep + 1} de ${steps.length}`}
+          />
           {!reviewMode ? (
             <ReportFormStepper
               steps={steps}
@@ -1053,24 +1000,24 @@ export function OperationalReportFormPage({
           ) : null}
 
           {contextQuery.isLoading || editQuery.isLoading ? (
-            <section className="page-card">Carregando formulário…</section>
+            <Card padding="md"><Skeleton variant="text" lines={3} label="Carregando formulário" /></Card>
           ) : null}
           {contextQuery.isError || editQuery.isError ? (
-            <div className="inline-error">
+            <Alert tone="danger">
               Não foi possível carregar os dados do formulário.
-            </div>
+            </Alert>
           ) : null}
 
           {reviewMode && !contextQuery.isLoading && !canReview ? (
-            <div className="inline-error">
+            <Alert tone="danger">
               Sua conta não possui permissão para revisar este relatório.
-            </div>
+            </Alert>
           ) : null}
 
           {approvedReadOnly ? (
-            <div className="inline-warning">
+            <Alert tone="info">
               Este relatório está aprovado e disponível somente para consulta.
-            </div>
+            </Alert>
           ) : null}
 
           <fieldset
@@ -1079,18 +1026,15 @@ export function OperationalReportFormPage({
           >
           {reviewMode || currentStep === 0 ? (
             <>
-              <section className="page-card">
-                <div className="section-title">Identificação</div>
+              <Card className="operational-form-card" title="Identificação">
                 <div className="admin-form-grid">
                   {!standalone ? (
-                    <div className="field-group">
-                      <label htmlFor="operational-project">Projeto</label>
-                      <input
-                        id="operational-project"
+                    <Field id="operational-project" label="Projeto" optionalText="">
+                      <Input
                         value={`${projectCode} - ${selectedProject?.name || title}`}
                         readOnly
                       />
-                    </div>
+                    </Field>
                   ) : null}
                   <ReportDateField
                     id="operational-report-date"
@@ -1106,7 +1050,7 @@ export function OperationalReportFormPage({
                     error={errors.reportDate?.message}
                   />
                 </div>
-              </section>
+              </Card>
               {!standalone ? (
                 <>
                   <ReportScheduleCard
@@ -1149,8 +1093,7 @@ export function OperationalReportFormPage({
                     invalid={Boolean(errors.collaboratorIds)}
                     error={errors.collaboratorIds?.message}
                   />
-                  <section className="page-card">
-                    <div className="section-title">Condições especiais</div>
+                  <Card className="operational-form-card" title="Condições especiais">
                     <ReportNightShiftFields
                       idPrefix="operational"
                       collaborators={collaborators}
@@ -1197,22 +1140,22 @@ export function OperationalReportFormPage({
                       }
                       invalidTargetPrefix="operational"
                     />
-                  </section>
+                  </Card>
                 </>
               ) : null}
             </>
           ) : null}
 
           {reviewMode || currentStep === 1 ? (
-            <section className="page-card">
+            <Card className="operational-form-card">
               {kind === 'MAINTENANCE' ? (
                 <>
                   {!contextQuery.data?.maintenanceSupervisor.valid ? (
-                    <div className="inline-warning">
+                    <Alert tone="warning">
                       O preenchimento está liberado, mas a aprovação ficará
                       bloqueada:{' '}
                       {contextQuery.data?.maintenanceSupervisor.reason}
-                    </div>
+                    </Alert>
                   ) : null}
                   <div className="operational-card-head operational-section-head">
                     <div>
@@ -1225,7 +1168,8 @@ export function OperationalReportFormPage({
                     </div>
                     {!standalone ? (
                       <Button
-                        variant="mini"
+                        variant="secondary"
+                        size="sm"
                         onClick={() =>
                           maintenanceFields.append(emptyMaintenance())
                         }
@@ -1268,7 +1212,8 @@ export function OperationalReportFormPage({
                       </div>
                     </div>
                     <Button
-                      variant="mini"
+                      variant="secondary"
+                      size="sm"
                       onClick={() =>
                         chemicalFields.append(emptyChemicalCleaning())
                       }
@@ -1289,11 +1234,8 @@ export function OperationalReportFormPage({
                             <RemoveIconButton label={`Remover limpeza ${index + 1}`} onClick={() => chemicalFields.remove(index)} />
                           ) : null}
                         </div>
-                        <div
-                          className={`field-group ${itemErrors?.description ? 'field-invalid' : ''}`}
-                        >
-                          <label>Descrição<RequiredMark /></label>
-                          <textarea
+                        <Field id={`chemical-description-${index}`} label="Descrição" required errorText={itemErrors?.description?.message}>
+                          <Textarea
                             rows={3}
                             aria-invalid={Boolean(itemErrors?.description)}
                             required
@@ -1301,17 +1243,9 @@ export function OperationalReportFormPage({
                               `chemicalCleanings.${index}.description`
                             )}
                           />
-                          {itemErrors?.description ? (
-                            <div className="field-error">
-                              {itemErrors.description.message}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div
-                          className={`field-group ${itemErrors?.material ? 'field-invalid' : ''}`}
-                        >
-                          <label>Material<RequiredMark /></label>
-                          <select
+                        </Field>
+                        <Field id={`chemical-material-${index}`} label="Material" required errorText={itemErrors?.material?.message}>
+                          <Select
                             aria-invalid={Boolean(itemErrors?.material)}
                             required
                             {...register(`chemicalCleanings.${index}.material`)}
@@ -1321,37 +1255,21 @@ export function OperationalReportFormPage({
                                 {option.label}
                               </option>
                             ))}
-                          </select>
-                          {itemErrors?.material ? (
-                            <div className="field-error">
-                              {itemErrors.material.message}
-                            </div>
-                          ) : null}
-                        </div>
+                          </Select>
+                        </Field>
                         {material === 'OTHER' ? (
-                          <div
-                            className={`field-group ${itemErrors?.otherMaterial ? 'field-invalid' : ''}`}
-                          >
-                            <label>Qual material?<RequiredMark /></label>
-                            <input
+                          <Field id={`chemical-other-material-${index}`} label="Qual material?" required errorText={itemErrors?.otherMaterial?.message}>
+                            <Input
                               aria-invalid={Boolean(itemErrors?.otherMaterial)}
                               required
                               {...register(
                                 `chemicalCleanings.${index}.otherMaterial`
                               )}
                             />
-                            {itemErrors?.otherMaterial ? (
-                              <div className="field-error">
-                                {itemErrors.otherMaterial.message}
-                              </div>
-                            ) : null}
-                          </div>
+                          </Field>
                         ) : null}
-                        <div
-                          className={`field-group ${itemErrors?.quantityKg ? 'field-invalid' : ''}`}
-                        >
-                          <label>Quantidade (kg)<RequiredMark /></label>
-                          <input
+                        <Field id={`chemical-quantity-${index}`} label="Quantidade (kg)" required errorText={itemErrors?.quantityKg?.message}>
+                          <Input
                             type="number"
                             min="0.001"
                             step="0.001"
@@ -1363,12 +1281,7 @@ export function OperationalReportFormPage({
                               { valueAsNumber: true }
                             )}
                           />
-                          {itemErrors?.quantityKg ? (
-                            <div className="field-error">
-                              {itemErrors.quantityKg.message}
-                            </div>
-                          ) : null}
-                        </div>
+                        </Field>
                       </div>
                     );
                   })}
@@ -1377,7 +1290,7 @@ export function OperationalReportFormPage({
                   ) : null}
                 </>
               )}
-            </section>
+            </Card>
           ) : null}
 
           {!standalone && (reviewMode || currentStep === 2) ? (
@@ -1420,7 +1333,7 @@ export function OperationalReportFormPage({
           </fieldset>
 
           {submitError ? (
-            <div className="inline-error">{submitError}</div>
+            <Alert tone="danger">{submitError}</Alert>
           ) : null}
           {draftSaved && !editId ? (
             <div className="form-hint operational-draft-status">
@@ -1430,34 +1343,34 @@ export function OperationalReportFormPage({
           {reviewMode || formReadOnly ? (
             <>
               {editQuery.data?.reviewNotes ? (
-                <div className="inline-warning">
+                <Alert tone="warning">
                   <strong>Observação da revisão:</strong>{' '}
                   {editQuery.data.reviewNotes}
-                </div>
+                </Alert>
               ) : null}
               <div className="detail-action-bar detail-manager-action-bar operational-review-actions">
-                <button
-                  className="secondary-button"
+                <Button
+                  variant="secondary"
                   type="button"
                   disabled={reviewPending}
                   onClick={() => navigate(-1)}
                 >
                   Voltar
-                </button>
+                </Button>
                 {canEdit && canReviewCurrentStatus ? (
-                  <button
-                    className="primary-button"
+                  <Button
+                    variant="primary"
                     type="button"
                     disabled={reviewPending}
                     onClick={() => requestReview('SAVE')}
                   >
                     {reviewPending ? 'Salvando…' : 'Salvar'}
-                  </button>
+                  </Button>
                 ) : null}
                 {canReview && canReviewCurrentStatus ? (
                   <>
-                    <button
-                      className="primary-button"
+                    <Button
+                      variant="primary"
                       type="button"
                       disabled={
                         reviewPending ||
@@ -1475,9 +1388,9 @@ export function OperationalReportFormPage({
                       onClick={() => requestReview('APPROVED')}
                     >
                       Aprovar
-                    </button>
-                    <button
-                      className="danger-button"
+                    </Button>
+                    <Button
+                      variant="danger"
                       type="button"
                       disabled={reviewPending || hasUnsavedReviewChanges}
                       title={
@@ -1488,11 +1401,12 @@ export function OperationalReportFormPage({
                       onClick={() => setReturnDialogOpen(true)}
                     >
                       Devolver
-                    </button>
+                    </Button>
                   </>
                 ) : null}
               </div>
               <ReasonDialog
+                appearance="design-system"
                 open={returnDialogOpen}
                 title="Devolver relatório"
                 description="Informe o que precisa ser corrigido antes de devolver o relatório."
@@ -1523,6 +1437,6 @@ export function OperationalReportFormPage({
         </main>
       </FormProvider>
       <PhotoCaptureNovelty user={user} placement="maintenance" enabled={kind === 'MAINTENANCE'} />
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

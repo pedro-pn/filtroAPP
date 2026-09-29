@@ -85,6 +85,20 @@
 
 .operational-module-page-v2 .section-title { color: var(--ink); }
 .operational-module-page-v2 .placeholder-copy { color: var(--muted); }
+.operational-module-page-v2 .operational-schedule-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.operational-module-page-v2 .operational-schedule-summary > .fv-metric-card { min-width: 0; }
+.operational-module-page-v2 .operational-maintenance-schedule-group > .fv-card__body {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.operational-module-page-v2 .operational-schedule-table .fv-badge + .form-hint {
+  margin-block-start: var(--space-1);
+}
 .operational-module-page-v2 .app-search { min-width: 0; }
 .operational-module-page-v2 .app-search-input {
   min-height: var(--space-10);
@@ -141,6 +155,7 @@
   background: var(--surface);
   box-shadow: var(--shadow-e1);
 }
+.operational-module-page-v2 .operational-maintenance-history-table > .fv-card__body { padding: 0; }
 
 .operational-module-page-v2 .operational-history-table-heading {
   display: flex;
@@ -268,6 +283,11 @@
   background: var(--surface);
   box-shadow: var(--shadow-e1);
 }
+.operational-module-page-v2 .operational-history-mobile-card > .fv-card__body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
 
 .operational-module-page-v2 .operational-history-mobile-name {
   margin-block-start: var(--space-1);
@@ -275,7 +295,7 @@
   font-weight: var(--font-medium);
 }
 
-.operational-module-page-v2 .operational-history-mobile-card > .fv-button {
+.operational-module-page-v2 .operational-history-mobile-card .fv-button {
   justify-self: end;
 }
 
@@ -286,6 +306,7 @@
 
 @media (max-width: 767.98px) {
   .operational-module-page-v2 .operational-history-search-panel { grid-template-columns: minmax(0, 1fr); }
+  .operational-module-page-v2 .operational-schedule-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .operational-module-page-v2 .operational-history-services ul {
     max-height: none;
     overflow: visible;

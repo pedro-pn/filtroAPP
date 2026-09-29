@@ -158,7 +158,7 @@ Todas as fases devem preservar os seguintes contratos:
 | Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
 | Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
-| Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1 concluído; M2–M5 pendentes |
+| Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1–M5 concluídos tecnicamente; fluxo visual, permissões e rascunho isolado conferidos |
 | Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 pendentes, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 pendente, preservando fluxos da main |
@@ -1050,16 +1050,17 @@ categorias, sem alterar a política herdada/explícita de cada equipamento.
 #### F4.3 — Manutenção/Produção (novo módulo)
 
 - [x] **M1:** AppShell, Hub, abas/URL, cards/listagens e filtros por permissão.
-- [ ] **M2:** campos centrais e stepper DS alinhados ao formulário RDO aprovado,
+- [x] **M2:** campos centrais e stepper DS alinhados ao formulário RDO aprovado,
   preservando os autosaves distintos e os cálculos compartilhados de horas.
-- [ ] **M3:** manutenção, avulsa, produção, terceiros/anexos e revisão/devolução;
+- [x] **M3:** manutenção, avulsa, produção, terceiros/anexos e revisão/devolução;
   aprovado em consulta; zero manutenções no RDO é permitido pelo contrato atual.
-- [ ] **M4:** programação preventiva e histórico com ordenação, paginação e
+- [x] **M4:** programação preventiva e histórico com ordenação, paginação e
   documentos; alinhamento com EQ2 sem introduzir cálculos no frontend.
-- [ ] **M5:** fechamento de perfis/estados/temas/navegadores e persistência isolada.
+- [x] **M5:** fechamento de perfis/estados/temas/navegadores e persistência isolada.
 
-`ReportCoreFields` entrou com visual legado. Não reverter o RDO concluído para
-reutilizá-lo: sua adaptação e convergência visual são trabalho explícito de M2.
+`ReportCoreFields` foi adaptado com stepper, cartões, campos e ações do DS sem
+alterar o editor RDO. O rascunho operacional continua separado por usuário e
+tipo de relatório.
 
 EQ1/M1: Equipamentos e Manutenção/Produção agora usam o AppShell, com subabas
 conforme a permissão no menu lateral e na barra inferior mobile. Filtros, ações
@@ -1067,8 +1068,22 @@ e listagens iniciais usam superfícies e controles do DS; o seletor mobile legad
 de Equipamentos foi retirado. Rotas, busca, ordenação e política de acesso foram
 preservadas. Build, lint dos arquivos alterados e testes estáticos dos módulos
 passaram; a inspeção visual em navegador ficou pendente naquele momento por
-falta de `libnspr4.so` e foi retomada na validação de EQ2 abaixo. M2–M5
-continuam na fila.
+falta de `libnspr4.so` e foi retomada na validação de EQ2 abaixo.
+
+M2–M5: formulário operacional, manutenção avulsa, produção, terceiros, anexos,
+revisão e consulta aprovada usam o shell e os controles do DS. Programação e
+histórico usam indicadores, cards, badges e estados de carregamento, vazio e
+erro do DS; filtros, paginação, ordenação e downloads preservam as chamadas à
+API. A inspeção com respostas sintéticas cobriu oito telas em Chromium a 390,
+768 e 1280 px, e cinco telas em Firefox e WebKit a 390 px, sem rolagem
+horizontal; 768 px foi conferido no tema escuro. Conta interna com permissão
+apenas para manutenção não mostrou Produção, e a consulta aprovada permaneceu
+desabilitada. O rascunho de manutenção restaurou os dados após atualização e
+não preencheu o formulário de produção. Build, lint, 22 testes frontend focados
+e 32 testes backend de contratos operacionais passaram. A suíte frontend ampla
+teve 648 de 660 testes aprovados; os 12 resultados com falha apontam para
+assertivas estáticas em superfícies não alteradas nesta rodada. Esta validação
+não gravou relatórios reais no banco.
 
 Revisão de EQ1: as categorias foram reunidas em uma única subaba. A lista mostra
 uma tabela por categoria no desktop e cards em telas menores, com busca e ordem
@@ -1152,14 +1167,12 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 ## Ordem recomendada dos próximos lotes
 
-Com F2, A7 e X3 fechados tecnicamente em 28/09, a sequência restante é:
+Com F2, A7, X3, EQ1–EQ3 e M1–M5 fechados tecnicamente, a sequência restante é:
 
-1. **EQ1–EQ3 + M1–M5**: Equipamentos e Manutenção/Produção, respeitando a
-   dependência entre configuração e manutenção.
-2. **F4**: Estoque e Romaneio, incluindo os fluxos novos da main.
-3. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
+1. **F4**: Estoque e Romaneio, incluindo os fluxos novos da main.
+2. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
    de Qualidade, EPI e Administração.
-4. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
+3. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
 
 Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
 lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)

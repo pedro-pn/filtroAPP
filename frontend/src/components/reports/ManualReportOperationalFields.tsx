@@ -92,12 +92,16 @@ export function ManualReportOperationalFields({
     return ids.map(id => (
       <span className="colab-tag report-collaborator-tag" key={`${field}-${id}`}>
         <span>{collaboratorName(collaborators, id)}</span>
-        <RemoveIconButton
+        <button
           className="colab-tag__remove"
+          type="button"
           disabled={disabled}
           onClick={() => onChange({ [field]: ids.filter(item => item !== id) })}
-          label={`Remover colaborador ${collaboratorName(collaborators, id)}`}
-        />
+          aria-label={`Remover colaborador ${collaboratorName(collaborators, id)}`}
+          title="Remover"
+        >
+          ×
+        </button>
       </span>
     ));
   }

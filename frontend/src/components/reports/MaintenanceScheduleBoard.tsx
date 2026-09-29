@@ -3,7 +3,7 @@ import type {
   MaintenanceSchedulePage,
   MaintenanceScheduleStatus
 } from '../../api/operationalReports';
-import { Button } from '../ui/Button';
+import { Badge, Button, Card, MetricCard } from '../ui/ds';
 
 const statusLabels: Record<MaintenanceScheduleStatus, string> = {
   OVERDUE: 'Vencida',
@@ -33,11 +33,9 @@ function dueDetail(item: MaintenanceScheduleItem) {
 
 function statusPill(item: MaintenanceScheduleItem) {
   return (
-    <span
-      className={`status-pill operational-schedule-status status-${item.status.toLocaleLowerCase().replace('_', '-')}`}
-    >
+    <Badge tone={item.status === 'OVERDUE' ? 'danger' : item.status === 'DUE_TODAY' ? 'warning' : item.status === 'UPCOMING' ? 'success' : 'neutral'}>
       {statusLabels[item.status]}
-    </span>
+    </Badge>
   );
 }
 
@@ -66,27 +64,15 @@ export function MaintenanceScheduleBoard({
         className="operational-schedule-summary"
         aria-label="Resumo da programação de manutenção"
       >
-        <div className="is-overdue">
-          <strong>{data.summary.OVERDUE}</strong>
-          <span>Vencidas</span>
-        </div>
-        <div className="is-due-today">
-          <strong>{data.summary.DUE_TODAY}</strong>
-          <span>Vencem hoje</span>
-        </div>
-        <div>
-          <strong>{data.summary.UPCOMING}</strong>
-          <span>Em dia</span>
-        </div>
-        <div>
-          <strong>{data.summary.NO_HISTORY + data.summary.UNCONFIGURED}</strong>
-          <span>A configurar</span>
-        </div>
+        <MetricCard tone="danger" value={data.summary.OVERDUE} label="Vencidas" />
+        <MetricCard tone="warning" value={data.summary.DUE_TODAY} label="Vencem hoje" />
+        <MetricCard tone="success" value={data.summary.UPCOMING} label="Em dia" />
+        <MetricCard value={data.summary.NO_HISTORY + data.summary.UNCONFIGURED} label="A configurar" />
       </section>
 
       {groups.map(({ category, items }) => (
-        <section
-          className="page-card operational-maintenance-schedule-group"
+        <Card
+          className="operational-maintenance-schedule-group"
           key={category.id}
         >
           <header className="operational-schedule-group-head">
@@ -176,7 +162,7 @@ export function MaintenanceScheduleBoard({
               </article>
             ))}
           </div>
-        </section>
+        </Card>
       ))}
 
       {data.pagination.totalPages > 1 ? (

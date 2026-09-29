@@ -35,7 +35,7 @@ async function loadOperationalReportsNovelty() {
   }
 }
 
-test('RDO preserva o DS e operacionais mantêm campos centrais até a migração M2', async () => {
+test('RDO e relatórios operacionais compartilham cálculos e usam controles DS', async () => {
   const [rdo, operational] = await Promise.all([
     readFile(
       new URL('../src/pages/collaborator/NewReportPage.tsx', import.meta.url),
@@ -69,6 +69,8 @@ test('RDO preserva o DS e operacionais mantêm campos centrais até a migração
     for (const field of ['reportDate', 'arrivalTime', 'departureTime', 'lunchBreak', 'collaboratorIds']) assert.ok(page.includes(field), field);
   }
   assert.match(rdo, /<OperationalReportFormPage mode=\{operationalSelection\}/);
+  assert.match(operational, /<OperationalModuleAppShell/);
+  for (const component of ['Card', 'Field', 'Input', 'Select', 'Button']) assert.match(operational, new RegExp(`<${component}\\b`));
 });
 
 test('turno noturno preserva os campos nos dois fluxos, sem reverter o DS do RDO', async () => {
@@ -96,19 +98,23 @@ test('turno noturno preserva os campos nos dois fluxos, sem reverter o DS do RDO
   assert.doesNotMatch(operational, /operational-toggle/);
 });
 
-test('componente compartilhado preserva a estrutura visual consolidada do RDO', async () => {
+test('campos compartilhados operacionais usam o stepper e controles DS', async () => {
   const shared = await readFile(
     new URL('../src/components/reports/ReportCoreFields.tsx', import.meta.url),
     'utf8'
   );
 
-  assert.match(shared, /className="page-card rdo-step-panel"/);
-  assert.match(shared, /className="fg-r2"/);
+  assert.match(shared, /<ProgressSteps/);
+  assert.match(shared, /<Card className="operational-form-stepper"/);
+  assert.match(shared, /<Field/);
+  assert.match(shared, /<Input/);
+  assert.match(shared, /<Select/);
+  assert.match(shared, /<Switch/);
+  assert.match(shared, /<Textarea/);
   assert.match(shared, /colab-list/);
   assert.match(shared, /className="cadd"/);
-  assert.match(shared, /className="tog-row"/);
-  assert.match(shared, /className="collapse-section noturno-section"/);
-  assert.match(shared, /className="page-card rdo-bottom-actions"/);
+  assert.match(shared, /className="operational-form-night-fields"/);
+  assert.match(shared, /className="operational-form-actions"/);
 });
 
 test('manutenção usa o padrão visual de anexos e exibe os dados cadastrados do equipamento', async () => {
@@ -743,7 +749,7 @@ test('programação preventiva fica restrita à manutenção, calcula prazos no 
   );
 });
 
-test('campos obrigatórios operacionais exibem asterisco vermelho', async () => {
+test('campos obrigatórios operacionais usam rótulos DS com indicação de obrigatório', async () => {
   const [form, shared] = await Promise.all([
     readFile(
       new URL(
@@ -761,7 +767,6 @@ test('campos obrigatórios operacionais exibem asterisco vermelho', async () => 
   for (const label of [
     'Categoria do equipamento',
     'Equipamento',
-    'Serviços realizados',
     'Data',
     'Local',
     'Serviço',
@@ -769,12 +774,11 @@ test('campos obrigatórios operacionais exibem asterisco vermelho', async () => 
     'Material',
     'Qual material?',
     'Quantidade (kg)'
-  ]) {
-    assert.match(form, new RegExp(`${label.replace(/[?()]/g, '\\$&')}<RequiredMark \\/>`));
-  }
+  ]) assert.match(form, new RegExp(`label="${label.replace(/[?()]/g, '\\$&')}" required`));
+  assert.match(form, /Serviços realizados<RequiredMark \/>/);
   assert.match(shared, /Equipe diurna\{requiredMark\(required\)\}/);
-  assert.match(shared, /Intervalo noturno\{requiredMark\(true\)\}/);
+  assert.match(shared, /label="Intervalo noturno" required/);
   assert.match(shared, /Equipe noturna\{requiredMark\(true\)\}/);
-  assert.match(shared, /color: 'var\(--rd\)'/);
+  assert.match(shared, /color: 'var\(--danger\)'/);
   assert.match(form, /<ReportActivitiesCard[\s\S]*?required[\s\S]*?\/>/);
 });

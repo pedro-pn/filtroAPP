@@ -8,7 +8,7 @@ import {
   type MaintenanceRecord
 } from '../../api/operationalReports';
 import { AppIcon } from '../icons/AppIcon';
-import { Button, StatusPill } from '../ui/ds';
+import { Alert, Button, Card, EmptyState, Skeleton, StatusPill } from '../ui/ds';
 import { DS_ICONS } from '../ui/ds/icons';
 import { useToast } from '../ui/ToastContext';
 
@@ -119,13 +119,13 @@ export function MaintenanceHistoryTable({
   }
 
   if (historyQuery.isLoading) {
-    return <section className="page-card">Carregando histórico…</section>;
+    return <Card><Skeleton variant="text" lines={4} label="Carregando histórico" /></Card>;
   }
   if (historyQuery.isError) {
     return (
-      <div className="inline-error">
+      <Alert tone="danger">
         Não foi possível carregar o histórico de manutenção.
-      </div>
+      </Alert>
     );
   }
 
@@ -134,17 +134,14 @@ export function MaintenanceHistoryTable({
 
   if (!items.length) {
     return (
-      <section className="page-card placeholder-copy">
-        {search
-          ? 'Nenhuma manutenção encontrada com esta busca.'
-          : 'Nenhuma manutenção aprovada disponível.'}
-      </section>
+      <EmptyState title={search || categoryId ? 'Nenhuma manutenção encontrada.' : 'Nenhuma manutenção aprovada disponível.'}
+        description={search || categoryId ? 'Altere a busca ou a categoria para consultar outros registros.' : undefined} />
     );
   }
 
   return (
     <>
-      <section className="page-card operational-maintenance-history-table">
+      <Card className="operational-maintenance-history-table">
         <div className="operational-history-table-heading">
           <div><strong>Manutenções aprovadas</strong><span>{pagination?.total || items.length} registros</span></div>
           <span>Ordene pelos títulos das colunas</span>
@@ -190,14 +187,14 @@ export function MaintenanceHistoryTable({
             </tbody>
           </table>
         </div>
-      </section>
+      </Card>
 
       <section
         className="operational-maintenance-history-cards"
         aria-label="Histórico de manutenção"
       >
         {items.map((record) => (
-          <article className="page-card operational-history-mobile-card" key={record.id}>
+          <Card className="operational-history-mobile-card" key={record.id}>
             <div className="operational-card-head">
               <div>
                 <strong className="operational-history-mobile-tag">{record.equipment.code}</strong>
@@ -222,7 +219,7 @@ export function MaintenanceHistoryTable({
             ) : (
               <span className="operational-history-empty">Documento indisponível</span>
             )}
-          </article>
+          </Card>
         ))}
       </section>
 
