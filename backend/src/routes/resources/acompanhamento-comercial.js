@@ -44,8 +44,73 @@ import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { createSystemReconciliationRouter } from './system-reconciliation.js';
 import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
 import { getTrackingDivisions, setTrackingDivisions } from '../../lib/acompanhamento/tracking-divisions.js';
+import {
+  CommercialAppBridgeError, receiveCommercialAppProposal,
+  listCommercialAppRevisions, selectCommercialAppRevision
+} from '../../lib/acompanhamento/comercialapp-bridge.js';
 
 const router = Router();
+
+function requireComercialAppToken(req, res, next) {
+  const expected = env.comercialAppServiceToken;
+  if (!expected) return res.status(503).json({ error: 'COMERCIALAPP_SERVICE_TOKEN não configurado.' });
+  const provided = (req.get('authorization') || '').match(/^Bearer (\S+)$/)?.[1] || '';
+  const a = createHash('sha256').update(provided).digest();
+  const b = createHash('sha256').update(expected).digest();
+  if (!provided || !timingSafeEqual(a, b)) return res.status(401).json({ error: 'Token de serviço inválido.' });
+  next();
+}
+
+router.post('/comercialapp/propostas', requireComercialAppToken, asyncHandler(async (req, res) => {
+  try {
+    const result = await receiveCommercialAppProposal(req.body);
+    res.status(result.duplicate ? 200 : 201).json(result);
+  } catch (error) {
+    if (error instanceof CommercialAppBridgeError) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
+}));
+
+router.get('/comercialapp/projetos', requireComercialAppToken, asyncHandler(async (req, res) => {
+  const { busca } = z.object({ busca: z.string().trim().min(2).max(100) }).parse(req.query);
+  const items = await prisma.project.findMany({
+    where: { deletedAt: null, isActive: true,
+      OR: [
+        { code: { contains: busca, mode: 'insensitive' } },
+        { name: { contains: busca, mode: 'insensitive' } },
+        { clientName: { contains: busca, mode: 'insensitive' } }
+      ] },
+    select: { id: true, code: true, name: true, clientName: true },
+    orderBy: { code: 'asc' }, take: 20
+  });
+  res.json({ items });
+}));
+
+router.get('/projetos/:projectId/comercialapp/revisoes', requireAuth, requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const [items, budget] = await Promise.all([
+      listCommercialAppRevisions(req.params.projectId),
+      prisma.projectBudget.findUnique({
+        where: { projectId_version: { projectId: req.params.projectId, version: 1 } },
+        select: { source: true }
+      })
+    ]);
+    res.json({ items, budgetSource: budget?.source || null });
+  }));
+
+router.post('/projetos/:projectId/comercialapp/selecionar', requireAuth, requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const { externalId, replaceLegacy } = z.object({ externalId: z.string().min(1),
+      replaceLegacy: z.boolean().optional().default(false) }).parse(req.body);
+    try {
+      res.json(await selectCommercialAppRevision(req.params.projectId, externalId,
+        req.auth?.user?.id, { replaceLegacy }));
+    } catch (error) {
+      if (error instanceof CommercialAppBridgeError) return res.status(error.status).json({ error: error.message });
+      throw error;
+    }
+  }));
+
 router.use('/projetos/:projectId/conciliacao', createSystemReconciliationRouter());
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB (arquivo real ~1 MB)
