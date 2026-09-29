@@ -7,31 +7,30 @@ import {
   createMissionCycle,
   deleteMissionAllocationCycle,
   initializeMissionAllocationCycles,
-  listEligibleCollaborators,
+  listPlanningJobRoles,
   planningErrorConflicts,
   removeMissionAllocation,
   updateMissionAllocationCycle,
   updateMissionCycle,
-  type EligibleMissionCollaborator,
   type MobilizationCycle,
   type PlanningMission
 } from '../../../api/efetivoPlanning';
-import { Alert, Badge, Button, Card, EmptyState, Field, Select } from '../../../components/ui/ds';
+import { Alert, Badge, Button, Card, EmptyState } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { Modal } from '../../../components/ui/Modal';
-import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { refreshMissionPlanningQueries } from '../../../utils/efetivoPlanningQueries';
-import { missionAllocationPeriod, missionAllocationsOn, missionCyclePeriods } from '../../../utils/missionAllocationPeriod';
+import { defaultNewAllocationPeriod, missionAllocationPeriod, missionAllocationsOn, missionCyclePeriods } from '../../../utils/missionAllocationPeriod';
 import { MissionPeriodFields, type MissionPeriodDraft } from './MissionPeriodFields';
+import { MissionTeamSelector } from './MissionTeamSelector';
 import '../EfetivoTeam.ds.css';
-import { filterCollaboratorsByActivity, type CollaboratorActivityFilter } from '../../../utils/missionTeam';
 
 type PeriodDraft = MissionPeriodDraft;
 type EditingCycle = { scope: 'MISSION' | 'ALLOCATION'; allocationId?: string; cycleId: string; draft: PeriodDraft };
 type PendingDelete = { allocationId: string; cycle: MobilizationCycle; collaboratorName: string };
+const EMPTY_IDS: string[] = [];
 
 function missionBounds(mission: PlanningMission) {
   return {
@@ -69,42 +68,40 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
 }) {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [roleId, setRoleId] = useState('');
-  const [collaboratorId, setCollaboratorId] = useState('');
-  const [activityFilter, setActivityFilter] = useState<CollaboratorActivityFilter>('ACTIVE');
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [pendingInactiveAction, setPendingInactiveAction] = useState<{ names: string[]; confirm: () => void } | null>(null);
   const [period, setPeriod] = useState<PeriodDraft>(emptyPeriod());
   const [missionCycleDraft, setMissionCycleDraft] = useState<PeriodDraft>(emptyPeriod());
   const [allocationCycleDraft, setAllocationCycleDraft] = useState<PeriodDraft>(emptyPeriod());
   const [addingCycleAllocationId, setAddingCycleAllocationId] = useState<string | null>(null);
   const [editingCycle, setEditingCycle] = useState<EditingCycle | null>(null);
-  const [pendingOverlap, setPendingOverlap] = useState<EligibleMissionCollaborator | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const editCycleTrigger = useRef<HTMLButtonElement | null>(null);
   const addCycleTrigger = useRef<HTMLButtonElement | null>(null);
   const canManageTeam = canManage ?? !readOnly;
   const canChangeCycles = canManageTeam && allowCycleChanges;
-  const selectedRoleId = roleId || mission?.demands[0]?.jobRoleId || '';
   const requestedPeriod = mission && !allowCycleChanges ? missionBounds(mission) : period;
-  const validPeriod = Boolean(requestedPeriod.mobilizationDate && requestedPeriod.demobilizationDate
-    && requestedPeriod.mobilizationDate <= requestedPeriod.demobilizationDate);
+  const validPeriod = Boolean(mission && requestedPeriod.mobilizationDate
+    && requestedPeriod.mobilizationDate >= missionBounds(mission).mobilizationDate
+    && requestedPeriod.mobilizationDate <= missionBounds(mission).demobilizationDate
+    && (!requestedPeriod.demobilizationDate || (requestedPeriod.demobilizationDate >= requestedPeriod.mobilizationDate
+      && requestedPeriod.demobilizationDate <= missionBounds(mission).demobilizationDate)));
 
   useEffect(() => {
     if (!open || !mission) return;
-    setPeriod(missionBounds(mission));
+    setPeriod(defaultNewAllocationPeriod(mission, allowCycleChanges));
     setMissionCycleDraft(emptyPeriod());
     setAllocationCycleDraft(emptyPeriod());
     setAddingCycleAllocationId(null);
     setEditingCycle(null);
-    setPendingOverlap(null);
+    setTeamPickerOpen(false);
     setPendingDelete(null);
     setPendingInactiveAction(null);
-  }, [mission, open]);
+  }, [allowCycleChanges, mission, open]);
 
   useEffect(() => {
     if (!canManageTeam) {
-      setPendingOverlap(null);
-      setCollaboratorId('');
+      setTeamPickerOpen(false);
     }
     if (!canChangeCycles) {
       setAddingCycleAllocationId(null);
@@ -125,13 +122,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
     return () => cancelAnimationFrame(frame);
   }, [addingCycleAllocationId, open]);
 
-  const eligible = useQuery({
-    queryKey: ['efetivo-eligible', mission?.id, selectedRoleId, requestedPeriod.mobilizationDate, requestedPeriod.demobilizationDate, activityFilter],
-    queryFn: () => listEligibleCollaborators(mission!.id, selectedRoleId, { ...requestedPeriod, includeInactive: activityFilter !== 'ACTIVE' }),
-    enabled: open && canManageTeam && Boolean(mission && selectedRoleId && validPeriod)
-  });
-  const candidates = filterCollaboratorsByActivity(eligible.data || [], activityFilter);
-  const selectedCandidate = candidates.find(item => item.id === collaboratorId) || null;
+  const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles, enabled: open && canManageTeam });
   const invalidate = () => refreshMissionPlanningQueries(queryClient, onPlanningMutated);
   const showPlanningError = (error: Error) => {
     const conflict = planningErrorConflicts(error)?.[0];
@@ -140,17 +131,9 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
       : error.message, 'error');
   };
   const add = useMutation({
-    mutationFn: ({ allowMissionOverlap, allowInactiveCollaborator }: { allowMissionOverlap: boolean; allowInactiveCollaborator: boolean }) => addMissionAllocation(mission!.id, {
-      collaboratorId,
-      jobRoleId: selectedRoleId,
-      ...requestedPeriod,
-      allowMissionOverlap,
-      allowInactiveCollaborator
-    }),
+    mutationFn: (payload: { collaboratorId: string; jobRoleId: string; mobilizationDate: string; demobilizationDate?: string; allowMissionOverlap: boolean; allowInactiveCollaborator: boolean }) => addMissionAllocation(mission!.id, payload),
     onSuccess: async () => {
       await invalidate();
-      setCollaboratorId('');
-      setPendingOverlap(null);
       toast('Pessoa alocada.', 'success');
     },
     onError: showPlanningError
@@ -227,14 +210,6 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
   const bounds = missionBounds(mission);
   const projectCycles = mission.cycles || [];
   const openProjectCycle = projectCycles.find(cycle => !cycle.demobilizationDate) || null;
-  const submitAdd = () => {
-    if (!canManageTeam || busy || !selectedCandidate || !validPeriod || eligible.isError) return;
-    if (selectedCandidate.requiresMissionOverlapConfirmation || selectedCandidate.requiresInactiveConfirmation) {
-      setPendingOverlap(selectedCandidate);
-      return;
-    }
-    add.mutate({ allowMissionOverlap: false, allowInactiveCollaborator: false });
-  };
   const confirmInactiveCycle = (allocationId: string | undefined, action: (confirmed: boolean) => void) => {
     const inactive = mission.allocations.filter(allocation => allocation.collaborator?.isActive === false
       && (allocationId ? allocation.id === allocationId : !allocation.cycles?.length));
@@ -297,33 +272,20 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
           </section>
 
           <section className="efetivo-team-section" aria-labelledby="mission-team-allocation-title">
-            <header><h3 id="mission-team-allocation-title">Equipe e alocações</h3><p>Ao usar as datas gerais, o colaborador seguirá todos os ciclos do projeto. Personalize somente quando a participação dele for diferente.</p></header>
+            <header><h3 id="mission-team-allocation-title">Equipe e alocações</h3><p>Consulte todos os colaboradores por disponibilidade. Os cargos previstos servem como referência.</p></header>
             <div className="efetivo-team-role-summary" aria-label="Cobertura da equipe por cargo">
-              {mission.demands.map(demand => <Badge tone={(counts.get(demand.jobRoleId) || 0) < demand.requiredCount ? 'warning' : 'neutral'} key={demand.jobRoleId}>{demand.jobRole?.name || 'Cargo'}: {counts.get(demand.jobRoleId) || 0}/{demand.requiredCount}</Badge>)}
+              {mission.demands.map(demand => <Badge tone={(counts.get(demand.jobRoleId) || 0) < demand.requiredCount ? 'warning' : 'neutral'} key={demand.jobRoleId}>{demand.jobRole?.name || 'Cargo'}: {counts.get(demand.jobRoleId) || 0}/{demand.requiredCount} previsto(s)</Badge>)}
             </div>
             {canManageTeam ? <div className="efetivo-team-allocation-form">
               <h4>Adicionar colaboradores</h4>
-              <Field id="allocation-role" label="Cargo" optionalText="">
-                <Select size="sm" value={selectedRoleId} disabled={busy || !mission.demands.length} onChange={event => { setRoleId(event.target.value); setCollaboratorId(''); }}>
-                  {!mission.demands.length ? <option value="">Nenhum cargo planejado</option> : null}
-                  {mission.demands.map(demand => <option key={demand.jobRoleId} value={demand.jobRoleId}>{demand.jobRole?.name || 'Cargo'} ({counts.get(demand.jobRoleId) || 0}/{demand.requiredCount})</option>)}
-                </Select>
-              </Field>
-              <Field id="allocation-activity-filter" label="Situação cadastral" optionalText="">
-                <Select size="sm" value={activityFilter} disabled={busy} onChange={event => { setActivityFilter(event.target.value as CollaboratorActivityFilter); setCollaboratorId(''); }}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option><option value="ALL">Todos</option></Select>
-              </Field>
-              {allowCycleChanges ? <MissionPeriodFields id="allocation-initial" value={period} min={bounds.mobilizationDate} max={bounds.demobilizationDate} startLabel="Mobilização inicial" endLabel="Desmobilização inicial" disabled={busy} onChange={setPeriod} /> : null}
-              <SearchCombobox id="allocation-collaborator" label="Colaborador" value={collaboratorId} onChange={setCollaboratorId} loading={eligible.isLoading}
-                disabled={!selectedRoleId || busy || !validPeriod || eligible.isError}
-                emptyText="Nenhum colaborador encontrado para este cargo e período."
-                options={candidates.map(item => ({ value: item.id, label: item.name, description: [item.requiresInactiveConfirmation ? 'Inativo · registro histórico exige confirmação' : '', item.requiresMissionOverlapConfirmation ? 'Já está em outra missão neste período · exige confirmação' : ''].filter(Boolean).join(' · ') || 'Disponível no período' }))} />
-              {!validPeriod ? <Alert tone="info">Informe o período de participação para consultar os colaboradores.</Alert>
-                : eligible.isError ? <Alert tone="danger" title="Não foi possível consultar os colaboradores" action={{ label: 'Tentar novamente', onClick: () => { void eligible.refetch(); } }}>As datas preenchidas foram mantidas.</Alert> : null}
+              {allowCycleChanges ? <MissionPeriodFields id="allocation-initial" value={period} min={bounds.mobilizationDate} max={bounds.demobilizationDate} startLabel="Data de início/mobilização" endLabel="Data de saída/desmobilização" optionalEnd disabled={busy} onChange={setPeriod} /> : null}
+              {!validPeriod ? <Alert tone="info">Informe uma data de entrada dentro do período da missão para consultar os colaboradores.</Alert>
+                : roles.isError ? <Alert tone="danger" title="Não foi possível carregar os cargos" action={{ label: 'Tentar novamente', onClick: () => { void roles.refetch(); } }}>As datas preenchidas foram mantidas.</Alert> : null}
               <div className="efetivo-team-actions efetivo-allocation-add-actions">
-                <Button variant="primary" size="sm" loading={add.isPending} disabled={!selectedCandidate || busy || !validPeriod || eligible.isError || eligible.isLoading} onClick={submitAdd}>Adicionar à equipe</Button>
+                <Button variant="primary" size="sm" loading={add.isPending} disabled={busy || !validPeriod || roles.isError} onClick={() => setTeamPickerOpen(true)}>Adicionar colaborador à equipe</Button>
               </div>
             </div> : null}
-            {canManageTeam && activityFilter !== 'ACTIVE' ? <Alert tone="info">Colaboradores inativos podem ser incluídos para registrar o histórico de mobilização e desmobilização, mediante confirmação.</Alert> : null}
+            {canManageTeam && allowCycleChanges ? <p className="efetivo-team-help">Sem data de saída, a participação vai até o fim previsto da missão. Os ciclos individuais podem ser ajustados abaixo sem apagar o histórico.</p> : null}
             <div className="efetivo-team-stack" role="group" aria-labelledby="mission-allocated-team-title">
               <h4 id="mission-allocated-team-title">Equipe alocada <span className="efetivo-team-help">({mission.allocations.length})</span></h4>
               {mission.allocations.length ? mission.allocations.map(allocation => {
@@ -338,6 +300,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                     <div><h4>{allocation.collaborator?.name || 'Colaborador'}</h4><p>{allocation.jobRole?.name || allocation.collaborator?.role || 'Cargo não informado'}</p></div>
                     <Badge tone={inherited ? 'neutral' : 'info'}>{inherited ? 'Segue os ciclos do projeto' : 'Ciclos individuais'}</Badge>
                   </header>
+                  {!mission.demands.some(demand => demand.jobRoleId === allocation.jobRoleId) ? <Badge tone="warning">Cargo fora do planejamento</Badge> : null}
                   {allocation.collaborator?.isActive === false ? <Badge tone="warning">Colaborador inativo</Badge> : null}
                   {allocation.allowMissionOverlap ? <Badge tone="warning">Sobreposição confirmada</Badge> : null}
                   {canManageTeam ? <div className="efetivo-team-actions">
@@ -368,10 +331,39 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
         panelClassName="efetivo-dialog efetivo-team-v2 efetivo-team-management-dialog"
         closeOnEscape={!busy} showCloseButton={!busy}
         footer={<Button variant="secondary" size="sm" disabled={busy} onClick={onClose}>Fechar</Button>}>{content}</Modal>}
-      <ConfirmDialog appearance="design-system" open={canManageTeam && Boolean(pendingOverlap)} title={pendingOverlap?.requiresInactiveConfirmation ? 'Registrar histórico de colaborador inativo?' : 'Confirmar colaborador em mais de uma missão?'} description={[
-        pendingOverlap?.requiresInactiveConfirmation ? 'O colaborador está inativo. Confirme a inclusão para registrar o histórico de mobilização e desmobilização.' : '',
-        pendingOverlap?.requiresMissionOverlapConfirmation ? 'O colaborador já possui outra missão durante parte deste período. Ao confirmar, as duas alocações permanecerão ativas e o aviso ficará registrado.' : ''
-      ].filter(Boolean).join(' ')} highlight={pendingOverlap?.name} confirmLabel={add.isPending ? 'Confirmando…' : pendingOverlap?.requiresInactiveConfirmation ? 'Confirmar inclusão' : 'Confirmar sobreposição'} confirmDisabled={busy} danger={false} onConfirm={() => canManageTeam && !busy && pendingOverlap && add.mutate({ allowMissionOverlap: pendingOverlap.requiresMissionOverlapConfirmation, allowInactiveCollaborator: pendingOverlap.requiresInactiveConfirmation })} onCancel={() => { if (!busy) setPendingOverlap(null); }} />
+      {canManageTeam && teamPickerOpen ? <MissionTeamSelector
+        mission={mission}
+        planId={mission.planId}
+        roles={roles.data || []}
+        selectedIds={EMPTY_IDS}
+        excludedIds={mission.allocations.map(allocation => allocation.collaboratorId)}
+        allocationPeriods={[]}
+        startDate={requestedPeriod.mobilizationDate}
+        endDate={requestedPeriod.demobilizationDate || bounds.demobilizationDate}
+        loading={roles.isLoading}
+        disabled={busy}
+        autoOpen
+        singleSelection
+        minSelected={1}
+        onAllocationPeriodsChange={() => {}}
+        onCancel={() => setTeamPickerOpen(false)}
+        onChange={(_ids, overlapIds, inactiveIds, selected) => {
+          setTeamPickerOpen(false);
+          const collaborator = selected[0];
+          if (!collaborator?.jobRoleId) {
+            toast('Selecione um colaborador com cargo operacional ativo.', 'error');
+            return;
+          }
+          add.mutate({
+            collaboratorId: collaborator.id,
+            jobRoleId: collaborator.jobRoleId,
+            mobilizationDate: requestedPeriod.mobilizationDate,
+            ...(requestedPeriod.demobilizationDate ? { demobilizationDate: requestedPeriod.demobilizationDate } : {}),
+            allowMissionOverlap: overlapIds.includes(collaborator.id),
+            allowInactiveCollaborator: inactiveIds.includes(collaborator.id)
+          });
+        }}
+      /> : null}
       <ConfirmDialog appearance="design-system" open={canChangeCycles && Boolean(pendingInactiveAction)} title="Registrar histórico de colaboradores inativos?" description="Este ciclo inclui colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão." highlight={pendingInactiveAction?.names.join(', ')} confirmLabel="Confirmar e salvar" confirmDisabled={busy} danger={false} onConfirm={() => { if (!canChangeCycles || busy) return; const action = pendingInactiveAction; setPendingInactiveAction(null); action?.confirm(); }} onCancel={() => setPendingInactiveAction(null)} />
       <ConfirmDialog appearance="design-system" open={canChangeCycles && Boolean(pendingDelete)} title="Remover este ciclo individual?" description="O período deixará de contar como mobilizado. Se este for o último ciclo próprio, o colaborador voltará a seguir os ciclos gerais do projeto." highlight={pendingDelete ? `${pendingDelete.collaboratorName} · ${displayDateOnly(pendingDelete.cycle.mobilizationDate)}` : undefined} confirmLabel={deletePersonCycle.isPending ? 'Removendo…' : 'Remover ciclo'} confirmDisabled={busy} danger onConfirm={() => canChangeCycles && !busy && pendingDelete && deletePersonCycle.mutate({ allocationId: pendingDelete.allocationId, cycleId: pendingDelete.cycle.id })} onCancel={() => { if (!busy) setPendingDelete(null); }} />
     </>

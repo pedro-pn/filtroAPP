@@ -97,12 +97,12 @@ export function DocumentSetupView({
           dimensions={document.pageDimensions} loadPage={loadPage}
           renderPage={page => <PdfPageCanvas {...page} embedded signers={document.signers} fields={fields}
             onFieldsChange={next => { setFields(next); setFieldsDirty(true); setSaveStatus('idle'); }} />} />
-        <div className="assinaturas-setup__save-status" aria-live="polite"><DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} /></div>
-        <div className="signature-editor-actions">
-          <Button variant="secondary" size="sm" loading={mutations.replaceFields.isPending} disabled={mutations.replaceFields.isPending || !fieldsDirty} onClick={saveFields}>{fieldsDirty ? 'Salvar campos' : 'Campos salvos'}</Button>
-          <span data-signature-publish><Button variant="primary" size="sm" disabled={!document.signers.length || mutations.replaceFields.isPending} onClick={() => setPublishOpen(true)}>Publicar</Button></span>
-        </div>
       </Card>
+      <div className="signature-editor-actions">
+        <DraftSaveStatus status={saveStatus} visible={saveStatus !== 'idle'} />
+        <Button variant="secondary" size="sm" loading={mutations.replaceFields.isPending} disabled={mutations.replaceFields.isPending || !fieldsDirty} onClick={saveFields}>{fieldsDirty ? 'Salvar campos' : 'Campos salvos'}</Button>
+        <span data-signature-publish><Button variant="primary" size="sm" disabled={!document.signers.length || mutations.replaceFields.isPending} onClick={() => setPublishOpen(true)}>Publicar</Button></span>
+      </div>
       <PublishDialog
         open={publishOpen}
         signers={document.signers}

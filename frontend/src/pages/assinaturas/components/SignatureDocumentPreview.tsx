@@ -6,13 +6,14 @@ import { sequentialSignaturePageLoader, type SignaturePageLoader } from '../util
 type PageContent = { imageUrl: string; pageNumber: number; onImageError: () => void };
 type PageDimension = { page: number; widthPt: number; heightPt: number; rotation: number };
 
-function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, dimension }: {
+function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, dimension, revision }: {
   pageNumber: number;
   pageCount: number;
   loadPage: SignaturePageLoader;
   renderPage: (page: PageContent) => ReactNode;
   scrollRef: RefObject<HTMLDivElement | null>;
   dimension?: PageDimension;
+  revision?: string | number;
 }) {
   const pageRef = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -48,7 +49,7 @@ function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, d
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [loadPage, pageNumber, visible, attempt]);
+  }, [loadPage, pageNumber, visible, attempt, revision]);
   const rotated = dimension && dimension.rotation % 180 !== 0;
   const aspectRatio = dimension
     ? `${rotated ? dimension.heightPt : dimension.widthPt} / ${rotated ? dimension.widthPt : dimension.heightPt}`
@@ -69,12 +70,13 @@ function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, d
   );
 }
 
-export function SignatureDocumentPreview({ pageCount, initialPage = 1, dimensions = [], loadPage, renderPage }: {
+export function SignatureDocumentPreview({ pageCount, initialPage = 1, dimensions = [], loadPage, renderPage, revision }: {
   pageCount: number;
   initialPage?: number;
   dimensions?: PageDimension[];
   loadPage: SignaturePageLoader;
   renderPage: (page: PageContent) => ReactNode;
+  revision?: string | number;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const queuedLoadPage = useMemo(() => sequentialSignaturePageLoader(loadPage), [loadPage]);
@@ -94,6 +96,7 @@ export function SignatureDocumentPreview({ pageCount, initialPage = 1, dimension
           dimension={dimensions.find(dimension => dimension.page === index + 1)}
           loadPage={queuedLoadPage}
           renderPage={renderPage}
+          revision={revision}
         />)}
       </div>
     </div>

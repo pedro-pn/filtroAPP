@@ -6,6 +6,7 @@ import {
   listPlanningAbsences,
   listPlanningCollaborators,
   listPlanningMissions,
+  type PlanningCollaborator,
   type PlanningJobRole,
   type PlanningMission
 } from '../../../api/efetivoPlanning';
@@ -41,7 +42,9 @@ function selectedAllocationCollaborator(mission: PlanningMission | null, collabo
   return mission?.allocations.find(allocation => allocation.collaboratorId === collaboratorId)?.collaborator || null;
 }
 
-export function MissionTeamSelector({ mission, planId, roles, plannedRoles, selectedIds, allocationPeriods, startDate, endDate, loading, disabled, allowIndividualPeriods = true, error, autoOpen = false, minSelected = 0, onChange, onAllocationPeriodsChange, onCancel }: {
+const EMPTY_IDS: string[] = [];
+
+export function MissionTeamSelector({ mission, planId, roles, plannedRoles, selectedIds, allocationPeriods, startDate, endDate, loading, disabled, allowIndividualPeriods = true, error, autoOpen = false, minSelected = 0, singleSelection = false, excludedIds = EMPTY_IDS, onChange, onAllocationPeriodsChange, onCancel }: {
   mission: PlanningMission | null;
   planId?: string;
   roles: PlanningJobRole[];
@@ -56,7 +59,9 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   error?: string;
   autoOpen?: boolean;
   minSelected?: number;
-  onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[]) => void;
+  singleSelection?: boolean;
+  excludedIds?: string[];
+  onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[], selectedCollaborators: PlanningCollaborator[]) => void;
   onAllocationPeriodsChange: (value: AllocationPeriodDraft[]) => void;
   onCancel?: () => void;
 }) {
@@ -90,7 +95,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   }, [open, selectedIds]);
 
   const options = useMemo(() => {
-    const result = [...(collaborators.data || [])];
+    const result = (collaborators.data || []).filter(item => !excludedIds.includes(item.id));
     for (const collaboratorId of selectedIds) {
       if (result.some(item => item.id === collaboratorId)) continue;
       const collaborator = selectedAllocationCollaborator(mission, collaboratorId);
@@ -109,7 +114,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
       });
     }
     return result;
-  }, [collaborators.data, mission, selectedIds]);
+  }, [collaborators.data, excludedIds, mission, selectedIds]);
   const { columns, otherUnavailable } = useMemo(() => validPeriod
     ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id)
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
@@ -146,7 +151,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     onChange(draftIds, [...new Set([
       ...existingConfirmedOverlapIds.filter(id => draftIds.includes(id)),
       ...confirmedIds
-    ])], confirmedInactiveIds);
+    ])], confirmedInactiveIds, options.filter(item => draftIds.includes(item.id)));
     setOverlapConfirmationIds([]);
     setInactiveConfirmationIds([]);
     setOpen(false);
@@ -166,6 +171,9 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
       { collaboratorId, ...value }
     ]);
   };
+  const toggleDraft = (current: string[], collaboratorId: string, checked: boolean) => singleSelection
+    ? checked ? [collaboratorId] : []
+    : toggleMissionCollaborator(current, collaboratorId, checked);
 
   return (
     <>
@@ -199,7 +207,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
         panelClassName="efetivo-dialog efetivo-team-v2 efetivo-team-selection-dialog"
         footer={<>
           <Button variant="secondary" size="sm" onClick={closeDialog}>Cancelar</Button>
-          <Button variant="primary" size="sm" disabled={disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected} onClick={requestApplyTeam}>Aplicar equipe</Button>
+          <Button variant="primary" size="sm" disabled={disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected} onClick={requestApplyTeam}>{singleSelection ? 'Adicionar à equipe' : 'Aplicar equipe'}</Button>
         </>}>
         <div className="efetivo-team-stack">
           <p className="efetivo-dialog-description" id="mission-team-dialog-description">{validPeriod ? displayDateOnly(startDate) + ' a ' + displayDateOnly(endDate) + ' · ' : ''}Pessoas já alocadas podem ser selecionadas mediante confirmação.</p>
@@ -225,7 +233,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                     <header><h4>Selecionados fora do quadro</h4><p>Use o filtro Inativos para consultar os colaboradores desligados.</p></header>
                     {hiddenSelected.map(collaborator => <div className="efetivo-team-cycle-row" key={collaborator.id}>
                       <div className="efetivo-team-person-heading"><div><strong>{collaborator.name}</strong><p>{collaborator.role || 'Cargo não informado'}</p></div></div>
-                      <div className="efetivo-team-actions"><RemoveIconButton label={`Remover colaborador ${collaborator.name}`} disabled={disabled} onClick={() => setDraftIds(current => toggleMissionCollaborator(current, collaborator.id, false))} /></div>
+                      <div className="efetivo-team-actions"><RemoveIconButton label={`Remover colaborador ${collaborator.name}`} disabled={disabled} onClick={() => setDraftIds(current => toggleDraft(current, collaborator.id, false))} /></div>
                     </div>)}
                   </section> : null}
                   {activityFilter !== 'ACTIVE' ? <section className="efetivo-team-section" aria-label="Colaboradores inativos">
@@ -234,7 +242,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                       const selected = draftIds.includes(person.id);
                       const hasRole = Boolean(person.jobRoleId && operationalRoleIds.has(person.jobRoleId));
                       return <Card padding="sm" selected={selected} className="efetivo-team-choice-card" key={person.id}>
-                        <label className="efetivo-team-choice"><input type="checkbox" checked={selected} disabled={disabled || (!hasRole && !selected)} onChange={event => setDraftIds(current => toggleMissionCollaborator(current, person.id, event.target.checked))} /><div className="efetivo-team-choice-person"><i aria-hidden="true">{initials(person.name)}</i><span><strong>{person.name}</strong><small>{person.role || 'Cargo não informado'} · Inativo</small></span></div></label>
+                        <label className="efetivo-team-choice"><input type="checkbox" checked={selected} disabled={disabled || (!hasRole && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, person.id, event.target.checked))} /><div className="efetivo-team-choice-person"><i aria-hidden="true">{initials(person.name)}</i><span><strong>{person.name}</strong><small>{person.role || 'Cargo não informado'} · Inativo</small></span></div></label>
                       </Card>;
                     })}{!inactivePeople.length ? <p>Nenhum colaborador inativo encontrado.</p> : null}</div>
                   </section> : null}
@@ -256,7 +264,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                             const selectable = status !== 'ON_VACATION' && entry.collaborator.isActive && hasOperationalRole;
                             return <Card padding="sm" selected={selected} className="efetivo-team-choice-card" data-collaborator-id={entry.collaborator.id} key={entry.collaborator.id}>
                               <label className="efetivo-team-choice">
-                                <input type="checkbox" checked={selected} disabled={disabled || (!selectable && !selected)} onChange={event => setDraftIds(current => toggleMissionCollaborator(current, entry.collaborator.id, event.target.checked))} />
+                                <input type="checkbox" checked={selected} disabled={disabled || (!selectable && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, entry.collaborator.id, event.target.checked))} />
                                 <span className="efetivo-team-choice-person"><i aria-hidden="true">{initials(entry.collaborator.name)}</i><span><strong>{entry.collaborator.name}</strong><small>{entry.collaborator.role || 'Cargo não informado'}</small></span></span>
                               </label>
                               {entry.mission ? <p className="efetivo-team-help">{entry.mission.project.code} · {entry.mission.project.name}<br />Mobilização em {displayDateOnly(entry.mission.mobilizationDate)}</p> : null}

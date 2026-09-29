@@ -4,11 +4,11 @@ import type { SignatureField, SignatureSigner } from '../../../api/assinaturas';
 import { Button, IconButton, Skeleton } from '../../../components/ui/ds';
 import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
-import { clampNormalizedRect, normalizedToPercent } from '../utils/coordinates';
+import { clampNormalizedRect, normalizedToPercent, resizeNormalizedRect, type ResizeDirection } from '../utils/coordinates';
 
 type Interaction = {
   index: number;
-  mode: 'move' | 'resize';
+  mode: 'move' | ResizeDirection;
   startX: number;
   startY: number;
   original: SignatureField;
@@ -20,6 +20,7 @@ type PendingPlacement = {
 };
 
 const DEFAULT_FIELD_RECT = { width: 0.2, height: 0.055 };
+const RESIZE_DIRECTIONS: ResizeDirection[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
 
 export function PdfPageCanvas({
   imageUrl,
@@ -112,17 +113,12 @@ export function PdfPageCanvas({
     const next = [...fields];
     next[interaction.index] = {
       ...interaction.original,
-      ...clampNormalizedRect(interaction.mode === 'move' ? {
+      ...(interaction.mode === 'move' ? clampNormalizedRect({
         x: interaction.original.x + dx,
         y: interaction.original.y + dy,
         width: interaction.original.width,
         height: interaction.original.height
-      } : {
-        x: interaction.original.x,
-        y: interaction.original.y,
-        width: interaction.original.width + dx,
-        height: interaction.original.height + dy
-      })
+      }) : resizeNormalizedRect(interaction.original, interaction.mode, dx, dy))
     };
     onFieldsChange(next);
   }
@@ -198,7 +194,12 @@ export function PdfPageCanvas({
                 onKeyDown={event => event.stopPropagation()}
                 onClick={event => { event.stopPropagation(); onFieldsChange(fields.filter((_, itemIndex) => itemIndex !== index)); }}
               />
-              <span className="signature-field-resize" onPointerDown={event => begin(event, index, 'resize')} aria-hidden="true" />
+              {RESIZE_DIRECTIONS.map(direction => <span
+                key={direction}
+                className={`signature-field-resize signature-field-resize-${direction}`}
+                onPointerDown={event => begin(event, index, direction)}
+                aria-hidden="true"
+              />)}
             </div>
           );
         })}

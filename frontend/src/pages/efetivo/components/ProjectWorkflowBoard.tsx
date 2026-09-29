@@ -41,6 +41,7 @@ import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { refreshMissionPlanningQueries } from '../../../utils/efetivoPlanningQueries';
 import { missionPendencies } from '../../../utils/missionPendencies';
@@ -346,9 +347,11 @@ export function ProjectWorkflowBoard({
 }) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const debouncedSearch = useDebouncedValue(search, 200);
   const list = useQuery({
-    queryKey: ['project-workflows', search, page],
-    queryFn: () => listProjectWorkflows(search, page)
+    queryKey: ['project-workflows', debouncedSearch, page],
+    queryFn: () => listProjectWorkflows(debouncedSearch, page),
+    enabled: search === debouncedSearch
   });
   useEffect(() => {
     const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -383,7 +386,8 @@ export function ProjectWorkflowBoard({
     enabled: Boolean(selectedProjectId),
     placeholderData: undefined
   });
-  const [columns, setColumns] = useState<ProjectKanbanColumns>(() => projectWorkflowsToColumns([]));
+  const [visibleList, setVisibleList] = useState(() => list.data);
+  const [columns, setColumns] = useState<ProjectKanbanColumns>(() => projectWorkflowsToColumns(list.data?.items || []));
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProjectKanbanStage | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -401,8 +405,10 @@ export function ProjectWorkflowBoard({
   const suppressCardClickUntilRef = useRef(0);
 
   useEffect(() => {
-    if (list.data) setColumns(projectWorkflowsToColumns(list.data.items));
-  }, [list.data]);
+    if (!list.data || list.isFetching || search !== debouncedSearch) return;
+    setVisibleList(list.data);
+    setColumns(projectWorkflowsToColumns(list.data.items));
+  }, [debouncedSearch, list.data, list.isFetching, search]);
 
   const missionFormMission = (planningMissions.data || [])
     .find(mission => mission.projectId === missionFormProjectId) || null;
@@ -860,68 +866,70 @@ export function ProjectWorkflowBoard({
     endDrag();
   }
 
-  if (list.isLoading) {
-    return <section className="page-card placeholder-copy">Carregando gestão de projetos…</section>;
+  const isSearchPending = search !== debouncedSearch || list.isFetching || Boolean(list.data && list.data !== visibleList);
+  const toolbar = (
+    <section className="page-card project-workflow-toolbar" key="workflow-toolbar">
+      <div>
+        <h2>Evolução dos projetos</h2>
+        <p>Fluxo único do handover ao encerramento. Arraste o projeto entre etapas; se houver um bloqueio, o sistema informa exatamente o que precisa ser resolvido.</p>
+      </div>
+      <SearchBar
+        id="project-workflow-search"
+        value={search}
+        onChange={onSearchChange}
+        loading={isSearchPending}
+        placeholder="Buscar projeto, cliente ou código"
+        count={visibleList ? { shown: visibleList.items.length, total: visibleList.total } : null}
+      />
+      <div className="field-group project-workflow-mobile-stage">
+        <label htmlFor="project-workflow-stage">Etapa exibida</label>
+        <select
+          id="project-workflow-stage"
+          value={mobileStage}
+          onChange={event => onMobileStageChange(event.target.value as ProjectKanbanStage)}
+        >
+          {PROJECT_KANBAN_STAGES.map(stage => (
+            <option value={stage} key={stage}>{PROJECT_KANBAN_STAGE_LABELS[stage]}</option>
+          ))}
+        </select>
+      </div>
+      {cancelledMissions.length ? (
+        <button
+          type="button"
+          className="project-workflow-link project-workflow-cancelled-toggle"
+          aria-pressed={showCancelledMissions}
+          data-project-workflow-cancelled-toggle
+          onClick={() => setShowCancelledMissions(open => !open)}
+        >
+          {showCancelledMissions ? 'Ocultar missões canceladas' : 'Ver missões canceladas'}
+        </button>
+      ) : null}
+    </section>
+  );
+
+  if (!visibleList && list.isError) {
+    return <div className="efetivo-board project-workflow-board" data-project-workflow-board>{toolbar}<section className="page-card placeholder-copy"><p>Não foi possível carregar a gestão de projetos.</p><Button variant="secondary" onClick={() => void list.refetch()}>Tentar novamente</Button></section></div>;
   }
-  if (list.isError || !list.data) {
-    return (
-      <section className="page-card placeholder-copy">
-        <p>Não foi possível carregar a gestão de projetos.</p>
-        <Button variant="secondary" onClick={() => void list.refetch()}>Tentar novamente</Button>
-      </section>
-    );
+  if (!visibleList) {
+    return <div className="efetivo-board project-workflow-board" data-project-workflow-board>{toolbar}<section className="page-card placeholder-copy">Carregando gestão de projetos…</section></div>;
   }
 
-  const managedCount = list.data.items.filter(item => item.workflow).length;
-  const overdueCount = list.data.items.reduce((sum, item) => sum + (item.workflow?.overdueIssueCount || 0), 0);
-  const weeklyPendingCount = list.data.items.reduce((sum, item) => sum + (item.workflow?.weeklyReviewPendingCount || 0), 0);
+  const managedCount = visibleList.items.filter(item => item.workflow).length;
+  const overdueCount = visibleList.items.reduce((sum, item) => sum + (item.workflow?.overdueIssueCount || 0), 0);
+  const weeklyPendingCount = visibleList.items.reduce((sum, item) => sum + (item.workflow?.weeklyReviewPendingCount || 0), 0);
   const movingProjectId = (managedMove.isPending ? managedMove.variables?.project.id : undefined)
     || (moveLegacyMission.isPending ? moveLegacyMission.variables?.project.id : undefined);
 
   return (
     <div className="efetivo-board project-workflow-board" data-project-workflow-board>
       <section className="page-card efetivo-summary-strip">
-        <span><strong>{list.data.total}</strong> projetos elegíveis</span>
+        <span><strong>{visibleList.total}</strong> projetos elegíveis</span>
         <span><strong>{managedCount}</strong> com gestão iniciada nesta página</span>
         <span><strong>{overdueCount}</strong> pendências vencidas</span>
         {weeklyPendingCount ? <span><strong>{weeklyPendingCount}</strong> verificações semanais pendentes</span> : null}
       </section>
-      <section className="page-card project-workflow-toolbar">
-        <div>
-          <h2>Evolução dos projetos</h2>
-          <p>Fluxo único do handover ao encerramento. Arraste o projeto entre etapas; se houver um bloqueio, o sistema informa exatamente o que precisa ser resolvido.</p>
-        </div>
-        <SearchBar
-          id="project-workflow-search"
-          value={search}
-          onChange={onSearchChange}
-          placeholder="Buscar projeto, cliente ou código"
-          count={{ shown: list.data.items.length, total: list.data.total }}
-        />
-        <div className="field-group project-workflow-mobile-stage">
-          <label htmlFor="project-workflow-stage">Etapa exibida</label>
-          <select
-            id="project-workflow-stage"
-            value={mobileStage}
-            onChange={event => onMobileStageChange(event.target.value as ProjectKanbanStage)}
-          >
-            {PROJECT_KANBAN_STAGES.map(stage => (
-              <option value={stage} key={stage}>{PROJECT_KANBAN_STAGE_LABELS[stage]}</option>
-            ))}
-          </select>
-        </div>
-        {cancelledMissions.length ? (
-          <button
-            type="button"
-            className="project-workflow-link project-workflow-cancelled-toggle"
-            aria-pressed={showCancelledMissions}
-            data-project-workflow-cancelled-toggle
-            onClick={() => setShowCancelledMissions(open => !open)}
-          >
-            {showCancelledMissions ? 'Ocultar missões canceladas' : 'Ver missões canceladas'}
-          </button>
-        ) : null}
-      </section>
+      {toolbar}
+      {list.isError ? <section className="page-card placeholder-copy" role="alert">Não foi possível atualizar os projetos. <Button variant="secondary" onClick={() => void list.refetch()}>Tentar novamente</Button></section> : null}
       {showCancelledMissions && cancelledMissions.length ? (
         <section className="page-card project-workflow-cancelled-missions" data-project-workflow-cancelled-missions>
           <header>
@@ -950,6 +958,7 @@ export function ProjectWorkflowBoard({
       <section
         className={'project-workflow-columns' + (draggingId ? ' is-dragging' : '')}
         aria-label="Evolução única dos projetos"
+        aria-busy={isSearchPending}
       >
         {PROJECT_KANBAN_STAGES.map(stage => {
           // Enquanto a missão está cancelada, o projeto some da coluna e só aparece em "Cancelados"; a etapa
@@ -1046,14 +1055,14 @@ export function ProjectWorkflowBoard({
           );
         })}
       </section>
-      {list.data.total > list.data.pageSize ? (
+      {visibleList.total > visibleList.pageSize ? (
         <nav className="project-workflow-pagination" aria-label="Paginação dos projetos">
-          <Button variant="secondary" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Anterior</Button>
-          <span>Página {page} de {Math.ceil(list.data.total / list.data.pageSize)}</span>
+          <Button variant="secondary" disabled={isSearchPending || visibleList.page <= 1} onClick={() => onPageChange(visibleList.page - 1)}>Anterior</Button>
+          <span>Página {visibleList.page} de {Math.ceil(visibleList.total / visibleList.pageSize)}</span>
           <Button
             variant="secondary"
-            disabled={page * list.data.pageSize >= list.data.total}
-            onClick={() => onPageChange(page + 1)}
+            disabled={isSearchPending || visibleList.page * visibleList.pageSize >= visibleList.total}
+            onClick={() => onPageChange(visibleList.page + 1)}
           >
             Próxima
           </Button>

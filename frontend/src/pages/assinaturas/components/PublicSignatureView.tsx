@@ -78,10 +78,10 @@ export function PublicSignatureView({ invite, loadPage, downloading, feedback, o
         <h2>Leia o documento</h2>
         <p className="assinaturas-public__hint">Confira o conteúdo antes de assinar. As marcações indicam onde sua assinatura será inserida.</p>
         <div id="assinaturas-public-preview" className="assinaturas-public__preview">
-          <SignatureDocumentPreview key={invite.document.sourceDocumentHash} pageCount={invite.document.pageCount} loadPage={loadPage}
+          <SignatureDocumentPreview key={invite.document.sourceDocumentHash} pageCount={invite.document.pageCount} loadPage={loadPage} revision={invite.document.progress.signed}
             renderPage={({ imageUrl, pageNumber, onImageError }) => <div className="assinaturas-public__paper">
               <img src={imageUrl} alt={`Página ${pageNumber} de ${invite.document.pageCount} do documento ${invite.document.title}`} onError={onImageError} />
-              {invite.fields.filter(field => field.pageNumber === pageNumber).map((field, index) => <div className="assinaturas-public__field" key={index} style={normalizedToPercent(field)} aria-hidden="true"><span>Sua assinatura</span></div>)}
+              {!signed ? invite.fields.filter(field => field.pageNumber === pageNumber).map((field, index) => <div className="assinaturas-public__field" key={index} style={normalizedToPercent(field)} aria-hidden="true"><span>Sua assinatura</span></div>) : null}
             </div>} />
         </div>
       </Card>

@@ -142,14 +142,15 @@ test('seleção da equipe abre diálogo kanban em vez de lista embutida', () => 
   assert.doesNotMatch(source, /className="efetivo-team-list"/);
 });
 
-test('gestão direta da equipe permite múltiplos ciclos e confirma sobreposição', () => {
+test('gestão direta da equipe permite múltiplos ciclos e usa o kanban para confirmar sobreposição', () => {
   const source = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionAllocationModal.tsx', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoTeam.ds.css', import.meta.url), 'utf8');
   assert.match(source, /Ciclos do projeto/);
   assert.match(source, /Novo ciclo individual/);
   assert.match(source, /Personalizar ciclos/);
   assert.match(source, /Registre a desmobilização antes de criar outro ciclo/);
-  assert.match(source, /Confirmar sobreposição/);
+  assert.match(source, /<MissionTeamSelector[\s\S]*singleSelection/);
+  assert.match(source, /allowMissionOverlap: overlapIds\.includes\(collaborator\.id\)/);
   assert.match(source, /efetivo-allocation-add-actions/);
   assert.match(source, /<MissionPeriodFields/);
   assert.match(css, /\.efetivo-team-period-fields\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);

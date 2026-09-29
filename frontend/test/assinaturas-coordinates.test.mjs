@@ -30,6 +30,24 @@ test('coordenadas fazem round-trip, clamp e tamanho mínimo', async () => {
   });
 });
 
+test('campo redimensiona pelas quatro bordas e cantos mantendo a borda oposta', async () => {
+  const { resizeNormalizedRect } = await loadUtils();
+  const rect = { x: 0.2, y: 0.3, width: 0.4, height: 0.2 };
+  const check = (direction, dx, dy, expected) => {
+    const actual = resizeNormalizedRect(rect, direction, dx, dy);
+    for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(actual[key] - expected[key]) < 1e-9, `${direction}: ${key}`);
+  };
+  check('w', 0.1, 0, { x: 0.3, y: 0.3, width: 0.3, height: 0.2 });
+  check('n', 0, -0.1, { x: 0.2, y: 0.2, width: 0.4, height: 0.3 });
+  check('e', 0.1, 0, { x: 0.2, y: 0.3, width: 0.5, height: 0.2 });
+  check('s', 0, 0.1, { x: 0.2, y: 0.3, width: 0.4, height: 0.3 });
+  check('nw', -0.1, -0.1, { x: 0.1, y: 0.2, width: 0.5, height: 0.3 });
+  check('se', 0.1, 0.1, { x: 0.2, y: 0.3, width: 0.5, height: 0.3 });
+  check('ne', 0.1, -0.1, { x: 0.2, y: 0.2, width: 0.5, height: 0.3 });
+  check('sw', -0.1, 0.1, { x: 0.1, y: 0.3, width: 0.5, height: 0.3 });
+  check('w', 1, 0, { x: 0.58, y: 0.3, width: 0.02, height: 0.2 });
+});
+
 test('fragmento é capturado, removido e nunca persistido', async () => {
   const { captureInviteFromFragment } = await loadUtils();
   const replacements = [];

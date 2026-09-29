@@ -81,10 +81,11 @@ test('campo usa cor de identificação e remoção DS com foco visível', async 
   const canvas = await source('src/pages/assinaturas/components/PdfPageCanvas.tsx');
   assert.match(css, /\.signature-field,[\s\S]*?border:\s*0;[\s\S]*?justify-content:\s*center/);
   assert.match(css, /\.signature-field > span:first-child \{[\s\S]*?text-align:\s*center/);
-  assert.match(canvas, /<IconButton[\s\S]*?className="signature-field-remove"[\s\S]*?icon=\{DS_ICONS.trash\}/);
-  assert.match(migratedCss, /\.signature-field-remove \{[^}]*background: var\(--surface\)/);
+  assert.match(canvas, /<RemoveIconButton[\s\S]*?className="signature-field-remove"/);
+  assert.match(migratedCss, /\.signature-field-remove \{[^}]*right: calc\(-1 \* var\(--space-4\)\)/);
   assert.match(migratedCss, /:focus-visible \{[^}]*outline: 2px solid var\(--brand\)/);
-  assert.match(css, /\.signature-field-resize \{[\s\S]*?repeating-linear-gradient\([\s\S]*?border:\s*0/);
+  assert.match(canvas, /RESIZE_DIRECTIONS\.map\(direction/);
+  assert.match(css, /\.signature-field-resize-se \{[\s\S]*?repeating-linear-gradient\(/);
   assert.doesNotMatch(css, /\.signature-field-color-[1-5]\s*\{/);
 });
 
