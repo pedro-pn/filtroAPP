@@ -181,6 +181,12 @@
 }
 
 .fv-ds .equip-entity-modal .equip-entity-form .field-group :is(input:not([type='checkbox']):not([type='file']), select, textarea) { width: 100%; }
+.fv-ds .equip-technical-modal .tech-group-fields > .field-group > label { flex-grow: 1; }
+.fv-ds .equip-technical-modal .tech-measure {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 110px);
+  align-items: stretch;
+}
 .fv-ds .equip-entity-modal .equip-entity-form :is(input, select, textarea):disabled { background: var(--disabled-bg); color: var(--disabled-ink); }
 .fv-ds .equip-entity-modal .equip-entity-form input[type='checkbox'] { accent-color: var(--brand); }
 .fv-ds .equip-entity-modal .equip-entity-form :is(.rel-meta, .tech-group-empty) { color: var(--muted); }
@@ -302,8 +308,6 @@
 @media (max-width: 767.98px) {
   .fv-ds .equip-entity-modal .fv-modal__body { --equip-modal-pad: var(--space-4); }
   .fv-ds .equip-entity-modal .fv-modal__footer { padding-bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
-  .fv-ds .equip-entity-modal .equip-entity-form .tech-measure { flex-wrap: wrap; }
-  .fv-ds .equip-entity-modal .equip-entity-form .tech-measure > * { min-width: min(100%, 110px); }
 }
 
 @media (max-width: 640px) {

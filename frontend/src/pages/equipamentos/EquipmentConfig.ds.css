@@ -110,19 +110,6 @@
   color: var(--ink);
 }
 
-.equip-page-v2 .equip-rdo-slots-config .equip-slot-x {
-  width: var(--space-9);
-  height: var(--space-9);
-  border-color: var(--danger-line);
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-.equip-page-v2 .equip-rdo-slots-config .equip-slot-x:hover {
-  border-color: var(--danger);
-  background: var(--danger-bg);
-}
-
 .equip-page-v2 .equip-maintenance-config .operational-profile-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: var(--space-3);
@@ -282,12 +269,13 @@
 .fv-ds .equip-config-form .equip-fields-builder { background: var(--surface); }
 .fv-ds .equip-config-form .checklist-item-editor-index { background: var(--surface); border-color: var(--line); color: var(--muted); }
 .fv-ds .equip-config-form .tech-drag-handle { background: var(--surface); border-color: var(--line); color: var(--muted); }
-.fv-ds .equip-config-form .tech-remove-btn,
 .fv-ds .equip-config-form .mini-btn.danger {
   border-color: var(--danger-line);
   background: var(--danger-bg);
   color: var(--danger);
 }
+
+.fv-ds .equip-config-form .tech-field-remove { margin-inline-start: auto; }
 
 .fv-ds .equip-config-form .mini-btn:not(.danger),
 .fv-ds .equip-config-form .icon-toggle {

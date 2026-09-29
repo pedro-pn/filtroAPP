@@ -1,6 +1,8 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
+import { AppIcon } from '../../components/icons/AppIcon';
 import { Button } from '../../components/ui/ds';
+import { DS_ICONS } from '../../components/ui/ds/icons';
 
 interface ChecklistItemsEditorProps {
   appearance?: 'legacy' | 'design-system';
@@ -97,7 +99,7 @@ export function ChecklistItemsEditor({
                   )
                 }
               >
-                ×
+                {appearance === 'design-system' ? <AppIcon icon={DS_ICONS.trash} size="sm" /> : '×'}
               </EditorButton>
             </div>
           </div>
