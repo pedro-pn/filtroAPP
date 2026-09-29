@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import {
   createRomaneio,
@@ -27,14 +27,14 @@ import {
 } from '../../api/romaneio';
 
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button } from '../../components/ui/ds';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity } from '../../utils/romaneioMeasure';
 import { mergeRomaneioReturnSelection, romaneioReturnKey } from '../../utils/romaneioReturnItems';
@@ -43,6 +43,7 @@ import { romaneioQrRequiresQuantity } from '../../utils/romaneioQr';
 import { RomaneioProjectAvailabilityNovelty } from './RomaneioProjectAvailabilityNovelty';
 import { RomaneioQrNovelty } from './RomaneioQrNovelty';
 import { RomaneioQrScannerModal } from './RomaneioQrScannerModal';
+import './RomaneioPage.ds.css';
 
 interface SelectedItem {
   key: string;
@@ -192,9 +193,8 @@ function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: st
 
 export function NewRomaneioPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const draftSaveTimerRef = useRef<number | null>(null);
@@ -274,7 +274,7 @@ export function NewRomaneioPage() {
     // the romaneio and permits the edit for authorized users.
     if (editProject && !projects.some(project => project.id === editProject.id)) projects.push(editProject);
     return projects;
-  }, [editQuery.data?.project, projectsQuery.data, romaneioType]);
+  }, [editQuery.data?.project, projectsQuery.data]);
 
   const selectedProject = useMemo(
     () => projectOptions.find(project => project.id === projectId) || null,
@@ -943,41 +943,33 @@ export function NewRomaneioPage() {
     }
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   const activeChecklistInfo = activeChecklistItem ? checklistInfoForItem(activeChecklistItem) : null;
   const selectedChecklistPayload = checklistsPayload();
   const existingChecklistSignatureImage = isEditing ? editQuery.data?.checklistSignatureImage || '' : '';
   const reviewChecklistSignatureImage = checklistSignatureImage || existingChecklistSignatureImage;
   const needsChecklistSignature = selectedChecklistPayload.length > 0 && checklistMapQuery.data?.hasSavedSignature === false;
+  const formTitle = isEditing ? `Editar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}` : `Novo romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`;
+  const formHref = `/romaneio/novo${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  const subNavigation = [
+    { id: 'form', label: isEditing ? 'Editar romaneio' : 'Criar romaneio', shortLabel: isEditing ? 'Editar' : 'Criar', href: formHref, active: true },
+    { id: 'romaneios', label: 'Romaneios', href: '/romaneio', active: false },
+    { id: 'equipamentos', label: 'Equipamentos', href: '/romaneio?tab=equipamentos', active: false },
+    ...(user?.moduleRoles?.includes('romaneio:manager') ? [{ id: 'notificacoes', label: 'E-mails', href: '/romaneio?tab=notificacoes', active: false }] : [])
+  ];
 
   return (
-    <Shell>
-      <TopBar
-        title={isEditing ? `Editar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}` : `Novo romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
-        subtitle={romaneioType === 'INBOUND' ? 'Retorno de equipamentos e consumíveis' : 'Formulário de equipamentos'}
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <form className="page-scroll" onSubmit={submit}>
+    <OperationalModuleAppShell moduleId="romaneio" title="Romaneio" sectionLabel={formTitle} subNavigation={subNavigation}>
+      <main className="fv-ds romaneio-page-v2 romaneio-form-page-v2">
+        <PageHeader title={formTitle} description={romaneioType === 'INBOUND' ? 'Retorno de equipamentos e consumíveis.' : 'Saída de equipamentos e materiais.'} actions={
+          <Button variant="secondary" size="sm" onClick={() => navigate('/romaneio')}>Voltar</Button>
+        } />
+      <form className="romaneio-form-v2" onSubmit={submit}>
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div>
               <div className="sec">Cabeçalho</div>
               {!isEditing && draftId && <div className="rel-meta">Rascunho salvo na nuvem</div>}
             </div>
-            <button className="secondary-button" type="button" onClick={() => navigate('/romaneio')}>Voltar</button>
           </div>
           <div className="admin-form-grid manager-header-grid">
             <label className="field-group" data-romaneio-project-type>
@@ -1247,6 +1239,7 @@ export function NewRomaneioPage() {
           </button>
         </section>
       </form>
+      </main>
       <RomaneioQrNovelty
         user={user}
         enabled={romaneioType === 'OUTBOUND' && !catalogQuery.isLoading}
@@ -1261,12 +1254,13 @@ export function NewRomaneioPage() {
       <Modal
         open={Boolean(qrQuantityItem)}
         onClose={() => { setQrQuantityItem(null); setQrQuantity(''); }}
-        ariaLabelledBy="romaneio-qr-quantity-title"
+        appearance="design-system"
+        title="Informar quantidade"
+        size="sm"
         ariaDescribedBy="romaneio-qr-quantity-description"
-        panelClassName="modal-card romaneio-qr-quantity-modal"
+        panelClassName="romaneio-dialog romaneio-qr-quantity-modal"
       >
         <form onSubmit={confirmScannedItemQuantity}>
-          <div className="section-title" id="romaneio-qr-quantity-title">Informar quantidade</div>
           <p className="placeholder-copy" id="romaneio-qr-quantity-description">
             {[qrQuantityItem?.code, qrQuantityItem?.name].filter(Boolean).join(' - ')}
           </p>
@@ -1293,10 +1287,13 @@ export function NewRomaneioPage() {
       <Modal
         open={extraItemModalOpen}
         onClose={() => setExtraItemModalOpen(false)}
-        ariaLabelledBy="romaneio-extra-item-title"
-        panelClassName="modal-card romaneio-extra-modal"
+        appearance="design-system"
+        title="Adicionar item extra"
+        size="lg"
+        fullscreenOnMobile={false}
+        backdropClassName="romaneio-extra-backdrop"
+        panelClassName="romaneio-dialog romaneio-extra-dialog"
       >
-        <div className="section-title" id="romaneio-extra-item-title">Adicionar item extra</div>
         <div className="romaneio-extra-filters">
           <label className="field-group">
             <span>Pesquisar item</span>
@@ -1380,11 +1377,12 @@ export function NewRomaneioPage() {
       <Modal
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
-        ariaLabelledBy="romaneio-review-title"
+        appearance="design-system"
+        title={`Revisar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
+        size="lg"
         ariaDescribedBy="romaneio-review-description"
-        panelClassName="modal-card romaneio-review-modal"
+        panelClassName="romaneio-dialog"
       >
-        <div className="section-title" id="romaneio-review-title">Revisar romaneio de {romaneioTypeLabel(romaneioType).toLowerCase()}</div>
         <p className="placeholder-copy" id="romaneio-review-description">
           Confira os itens adicionados antes de confirmar o envio.
         </p>
@@ -1447,6 +1445,7 @@ export function NewRomaneioPage() {
       )}
       <SignatureDialog
         open={checklistSignatureOpen}
+        appearance="design-system"
         title="Assinatura do responsável"
         initialSignerName={user?.name || ''}
         allowCachedSignerName={false}
@@ -1456,6 +1455,6 @@ export function NewRomaneioPage() {
           setChecklistSignatureOpen(false);
         }}
       />
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

@@ -65,12 +65,13 @@ export function RomaneioChecklistModal({
     <Modal
       open={open}
       onClose={onClose}
-      ariaLabelledBy="romaneio-checklist-title"
-      panelClassName="modal-card romaneio-checklist-modal"
+      appearance="design-system"
+      title={title}
+      size="lg"
+      panelClassName="romaneio-dialog"
     >
       <div className="romaneio-checklist-head">
         <div>
-          <div className="section-title" id="romaneio-checklist-title">{title}</div>
           <div className="rel-meta">
             {counts.CONFORME} conforme · {counts.NAO_CONFORME} não conforme · {counts.NAO_APLICAVEL} não aplicável · {total} ponto(s)
           </div>

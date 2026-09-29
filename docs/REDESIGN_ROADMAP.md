@@ -1113,6 +1113,21 @@ conferidos em claro/escuro com Chromium, Firefox e WebKit entre 320 e 1280 px,
 sem rolagem horizontal. O download da manutenção e as URLs PDF de certificado e
 datasheet foram verificados no banco local; build, lint e 26 testes focados passaram.
 
+#### F4.4 — Estoque e Romaneio
+
+Estoque foi harmonizado no lote anterior. Romaneio usa o AppShell com subabas de
+Romaneios, Equipamentos e E-mails conforme a permissão, além da navegação do
+formulário de saída/entrada. Listagem, catálogo, destinatários, formulário e
+ações seguem os tokens e controles do DS. Os diálogos de revisão, item extra,
+quantidade, checklist, assinatura, scanner e etiquetas QR usam a apresentação
+do DS. O fluxo de câmera mantém a opção de foto quando a câmera ao vivo não
+está disponível. O tour de QR aponta para a navegação nova.
+
+As telas principais e os diálogos foram conferidos com dados sintéticos em
+390 e 1440 px, sem rolagem horizontal. A prévia de etiqueta QR foi gerada na
+versão compilada. Os testes focados de Romaneio passaram. A gravação integrada
+com o backend não foi repetida nesta etapa visual.
+
 ### F5 — RDO, Gestão e ajustes transversais
 
 Prioridade: P1.
@@ -1168,12 +1183,11 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 ## Ordem recomendada dos próximos lotes
 
-Com F2, A7, X3, EQ1–EQ3 e M1–M5 fechados tecnicamente, a sequência restante é:
+Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
 
-1. **F4**: Estoque e Romaneio, incluindo os fluxos novos da main.
-2. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
+1. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
    de Qualidade, EPI e Administração.
-3. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
+2. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
 
 Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
 lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)
