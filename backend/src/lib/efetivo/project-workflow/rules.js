@@ -714,7 +714,7 @@ function checklistDefinitions({ sections = [], keys = [] }) {
 
 export function projectWorkflowMobilizationGate(workflow, milestones = null, today = null) {
   // Fluxo legado resumido: a Preparação foi deliberadamente pulada na origem do projeto (nunca existiu para
-  // ele), então o gate não pode bloquear romaneios/retiradas por frentes que nunca foram preenchidas.
+  // ele), então o gate não pode bloquear retiradas do Estoque por frentes que nunca foram preenchidas.
   if (workflow?.legacySummaryEntryStage) {
     return {
       ready: true,
@@ -786,8 +786,8 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
 // (ou da Execução, na Sede), com o gate limpo, o projeto está liberado — reavaliado a cada consulta, nunca um
 // flag fixo que possa ficar "suspenso".
 export function projectWorkflowMobilizationAuthorization(workflow, gate) {
-  // A Desmobilização fica de fora: ela encerra a autorização para novas saídas operacionais (romaneios,
-  // retiradas do Estoque). O retorno da Desmobilização para a Execução usa o gate diretamente, não este status.
+  // A Desmobilização fica de fora: ela encerra a autorização para retiradas do Estoque.
+  // O retorno da Desmobilização para a Execução usa o gate diretamente, não este status.
   const relevantStages = isHeadquartersWorkflow(workflow)
     ? ['EXECUTION']
     : ['MOBILIZATION', 'EXECUTION'];

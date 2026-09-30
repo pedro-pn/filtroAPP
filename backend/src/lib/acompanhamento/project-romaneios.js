@@ -34,10 +34,10 @@ async function listRomaneios(db, projectIds) {
   });
 }
 
-export async function getProjectRomaneios(projectId, { db = null } = {}) {
+export async function getProjectRomaneios(projectId, { db = null, projectWhere = {} } = {}) {
   db = await getDb(db);
   const project = await db.project.findFirst({
-    where: { id: projectId, deletedAt: null },
+    where: { ...projectWhere, id: projectId, deletedAt: null },
     select: { id: true }
   });
   if (!project) return null;
