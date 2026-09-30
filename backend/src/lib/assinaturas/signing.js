@@ -4,6 +4,7 @@ import {
 } from '../privacy-consent.js';
 import { decodableSignatureImageDataUrl } from '../signatures/common.js';
 import { recordDocumentEvent } from './audit.js';
+import { MAX_SIGNATURE_IMAGE_BYTES } from './image-limits.js';
 import { resolveInviteByToken } from './invites.js';
 
 function httpError(message, statusCode, code) {
@@ -145,7 +146,9 @@ export async function confirmSignature(client, token, input, evidence = {}, depe
   }
   const privacyError = validatePrivacyNoticeAcknowledgement(input, SIGNATURE_AVULSA_NOTICE_VERSION);
   if (privacyError) throw httpError(privacyError, 400);
-  const signatureImage = await decodableSignatureImageDataUrl(input?.signatureImageDataUrl);
+  const signatureImage = await decodableSignatureImageDataUrl(input?.signatureImageDataUrl, {
+    maxBytes: MAX_SIGNATURE_IMAGE_BYTES
+  });
   if (!signatureImage) throw httpError('Assinatura visual inválida.', 400);
 
   const now = dependencies.now || new Date();
@@ -239,17 +242,19 @@ export async function confirmSignature(client, token, input, evidence = {}, depe
   });
 
   if (transitionedToFinalizing) {
+    const scheduleFinalization = dependencies.scheduleFinalization || setImmediate;
     try {
-      const finalize = dependencies.processFinalization
-        || (await import('./jobs.js')).processDocumentFinalization;
-      await finalize(client, preflight.document.id);
-      const current = await client.signatureDocument.findUnique({ where: { id: preflight.document.id } });
-      if (current?.status) {
-        result.documentStatus = current.status;
-        result.downloadAvailable = current.status === 'CONCLUIDO';
-      }
+      scheduleFinalization(async () => {
+        try {
+          const finalize = dependencies.processFinalization
+            || (await import('./jobs.js')).processDocumentFinalization;
+          await finalize(client, preflight.document.id);
+        } catch {
+          // O job durável retoma a finalização; a assinatura já foi aceita.
+        }
+      });
     } catch {
-      // O job durável retoma a finalização; a assinatura já foi aceita.
+      // A assinatura já foi aceita; o job durável fará a finalização.
     }
   }
   return result;

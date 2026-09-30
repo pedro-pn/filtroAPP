@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-09-24';
+export const DATA_CATALOG_VERSION = '2026-09-30';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -135,7 +135,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'commercial', label: 'Comercial, orçamento e planejamento',
-    models: [...modelEntries(['CommercialProposal', 'ProjectBudget', 'ProjectAdditionalProposal', 'ProjectPlannedService', 'ProjectPlannedServiceSystem', 'ProjectPlannedNormalHours', 'ProjectPlannedOvertime'], 'SENSITIVE'), ...modelEntries(['AccessImport', 'ProjectServiceSystem'], 'RESERVED')],
+    models: [...modelEntries(['CommercialProposal', 'CommercialAppProposal', 'ProjectBudget', 'ProjectAdditionalProposal', 'ProjectPlannedService', 'ProjectPlannedServiceSystem', 'ProjectPlannedNormalHours', 'ProjectPlannedOvertime'], 'SENSITIVE'), ...modelEntries(['CommercialAppDelivery', 'AccessImport', 'ProjectServiceSystem'], 'RESERVED')],
     candidateScopes: ['comercial.propostas.read', 'comercial.orcamentos.read', 'comercial.servicos-planejados.read', 'comercial.horas.read', 'comercial.contatos.read'], candidateAvailability: 'SENSITIVE', endpointFamilies: ['/comercial/propostas', '/comercial/orcamentos'],
     excludedFields: ['rawRow', 'arquivo/hash de importação', 'contato/CNPJ sem escopo', 'observações', 'custos/margens sem escopo']
   }),

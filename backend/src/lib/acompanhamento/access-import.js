@@ -447,7 +447,8 @@ async function listProjectLaborCollaborators(project, sleepModeMap) {
 // approvedAt é definido no ato da 1ª seleção (editável depois) e preservado ao trocar de revisão.
 // selectionStatus permanece como está (marcação manual da vencedora — P-19).
 async function upsertBudget(client, projectId, proposal) {
-  const fields = budgetFieldsFromProposal(proposal);
+  const fields = { ...budgetFieldsFromProposal(proposal), source: 'ACCESS_IMPORT',
+    commercialAppProposalId: null, commercialAppRevision: null };
   return client.projectBudget.upsert({
     where: { projectId_version: { projectId, version: 1 } },
     create: { projectId, version: 1, source: 'ACCESS_IMPORT', approvedAt: new Date(), ...fields },
@@ -743,6 +744,11 @@ export async function setProjectBudgetRevisionWithClient(client, projectId, codB
   }
   const applyRevision = async (tx) => {
     const budget = await upsertBudget(tx, projectId, proposal);
+    if (tx.commercialAppProposal) {
+      await tx.commercialAppProposal.updateMany({
+        where: { projectId, selectionStatus: 'SELECTED' }, data: { selectionStatus: 'STAGED' }
+      });
+    }
     await tx.project.update({
       where: { id: projectId },
       data: { commercialProposalCode: String(codProp) }
@@ -857,7 +863,7 @@ async function listCommercialDashboardUncached({
       }
     ]
   };
-  const [proposals, projects, budgets, selectedAdditionals, rdoGroups, omieTotals, omiePaid, omieReceivables] = await Promise.all([
+  const [proposals, projects, budgets, selectedAdditionals, rdoGroups, omieTotals, omiePaid, omieReceivables, commercialAppProposals] = await Promise.all([
     prisma.commercialProposal.findMany({
       select: {
         codBd: true, codProp: true, parentCodProp: true, nRev: true, salePrice: true, plannedCost: true,
@@ -890,7 +896,8 @@ async function listCommercialDashboardUncached({
     prisma.projectBudget.findMany({
       where: { version: 1, ...(projectIds ? { projectId: { in: projectIds } } : {}) },
       select: {
-        projectId: true, sourceProposalCodBd: true, approvedAt: true, mobilizationLeadDays: true,
+        projectId: true, source: true, commercialAppProposalId: true,
+        sourceProposalCodBd: true, approvedAt: true, mobilizationLeadDays: true,
         salePrice: true, plannedTotalCost: true, expectedProfit: true, expectedMargin: true, taxes: true, plannedDays: true
       }
     }),
@@ -915,6 +922,11 @@ async function listCommercialDashboardUncached({
         codigoLc116: true,
         codigoServico: true
       }
+    }),
+    prisma.commercialAppProposal.findMany({
+      where: { selectionStatus: 'SELECTED', ...(projectIds ? { projectId: { in: projectIds } } : {}) },
+      select: { externalId: true, projectId: true, proposalCode: true, revisionNumber: true,
+        salePrice: true, plannedTotalCost: true, expectedMargin: true, snapshot: true }
     })
   ]);
 
@@ -927,6 +939,7 @@ async function listCommercialDashboardUncached({
     if (!cur || p.nRev > cur.nRev) latestByProp.set(p.codProp, p);
   }
   const budgetByProject = new Map(budgets.map(b => [b.projectId, b]));
+  const commercialAppByExternalId = new Map(commercialAppProposals.map(p => [p.externalId, p]));
   const selectedAdditionalsByProject = new Map();
   for (const selection of selectedAdditionals) {
     if (!selectedAdditionalsByProject.has(selection.projectId)) selectedAdditionalsByProject.set(selection.projectId, []);
@@ -956,12 +969,19 @@ async function listCommercialDashboardUncached({
 
   const rows = [];
   for (const project of projects) {
-    const codProp = projectProposalCode(project);
-    if (!Number.isInteger(codProp) || !latestByProp.has(codProp)) continue;
     const budget = budgetByProject.get(project.id) || null;
-    const resolved = Boolean(project.commercialProposalCode) && Boolean(budget);
-    const source = (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
-    const additionalSources = (selectedAdditionalsByProject.get(project.id) ?? [])
+    const appProposal = budget?.source === 'COMERCIAL_APP'
+      ? commercialAppByExternalId.get(budget.commercialAppProposalId) : null;
+    const codProp = appProposal ? Number(appProposal.proposalCode) : projectProposalCode(project);
+    if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp))) continue;
+    const resolved = appProposal ? true : Boolean(project.commercialProposalCode) && Boolean(budget);
+    const source = appProposal ? {
+      codBd: null, codProp, nRev: appProposal.revisionNumber,
+      salePrice: appProposal.salePrice, plannedCost: appProposal.plannedTotalCost,
+      expectedMargin: appProposal.expectedMargin, components: {},
+      plannedDays: null, workedDays: null
+    } : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
+    const additionalSources = (appProposal ? [] : selectedAdditionalsByProject.get(project.id) ?? [])
       .map(selection => byCodBd.get(selection.sourceProposalCodBd))
       .filter(proposal => proposal && proposal.parentCodProp === codProp)
       .sort((a, b) => a.codProp - b.codProp || b.nRev - a.nRev);
@@ -982,7 +1002,7 @@ async function listCommercialDashboardUncached({
       name: project.name,
       clientName: project.clientName,
       clientCnpj: project.clientCnpj,
-      proposalCode: String(codProp),
+      proposalCode: appProposal?.proposalCode ?? String(codProp),
       resolved,
       archived: !project.isActive, // status original dos Relatórios; o arquivamento local é aplicado nos cards
       acompanhamentoArchivedAt: project.acompanhamentoArchivedAt ?? null,

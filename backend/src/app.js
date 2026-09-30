@@ -84,6 +84,8 @@ export function jsonBodyLimitForRequest(method, requestPath) {
     && requestPath === '/api/assinaturas/documentos';
   if (isStandaloneSignatureUpload) return '30mb';
 
+  if (method === 'POST' && requestPath === '/api/assinaturas/publico/assinar') return '15mb';
+
   const isStandalonePublicSignatureApi = requestPath === '/api/assinaturas/publico'
     || requestPath.startsWith('/api/assinaturas/publico/');
   if (isStandalonePublicSignatureApi) return '3mb';
