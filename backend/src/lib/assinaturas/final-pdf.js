@@ -13,6 +13,7 @@ import {
 import env from '../../config/env.js';
 import { createValidationQrCodeMatrix } from '../qr-code.js';
 import { parseSignatureImageDataUrl } from '../signatures/common.js';
+import { MAX_SIGNATURE_IMAGE_BYTES } from './image-limits.js';
 import { signatureInkImage } from './signature-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,7 +100,9 @@ function formatSaoPaulo(value) {
 
 async function embeddedSignerImage(pdf, signer, cache) {
   if (cache.has(signer.id)) return cache.get(signer.id);
-  const parsed = parseSignatureImageDataUrl(signer.signatureImageDataUrl);
+  const parsed = parseSignatureImageDataUrl(signer.signatureImageDataUrl, {
+    maxBytes: MAX_SIGNATURE_IMAGE_BYTES
+  });
   if (!parsed) throw httpError(`Assinatura visual inválida para ${signer.name}.`);
   const image = parsed.mimeType === 'image/png'
     ? await pdf.embedPng(parsed.bytes)

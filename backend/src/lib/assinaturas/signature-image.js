@@ -1,11 +1,12 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 
 import { parseSignatureImageDataUrl } from '../signatures/common.js';
+import { MAX_SIGNATURE_IMAGE_BYTES } from './image-limits.js';
 
 // Remove the empty canvas around a drawn signature (and white margins in uploads).
 // The same cropped image is used by the final PDF and the live preview.
 export async function signatureInkImage(dataUrl) {
-  const parsed = parseSignatureImageDataUrl(dataUrl);
+  const parsed = parseSignatureImageDataUrl(dataUrl, { maxBytes: MAX_SIGNATURE_IMAGE_BYTES });
   if (!parsed) throw new Error('Imagem de assinatura inválida.');
   const image = await loadImage(parsed.bytes);
   const canvas = createCanvas(image.width, image.height);

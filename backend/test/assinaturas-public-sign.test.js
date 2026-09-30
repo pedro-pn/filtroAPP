@@ -134,6 +134,7 @@ test('assinatura válida é idempotente e a última apenas inicia FINALIZANDO', 
   const token = 'b'.repeat(64);
   const { client, state } = signingClient(token);
   let finalizations = 0;
+  let scheduledFinalization;
   const payload = {
     signerName: 'Maria Silva',
     signatureImageDataUrl: validSignatureImageDataUrl,
@@ -142,7 +143,8 @@ test('assinatura válida é idempotente e a última apenas inicia FINALIZANDO', 
   };
   const dependencies = {
     now: new Date('2026-08-28T15:00:00.000Z'),
-    processFinalization: async () => { finalizations += 1; }
+    processFinalization: async () => { finalizations += 1; },
+    scheduleFinalization: callback => { scheduledFinalization = callback; }
   };
 
   const first = await confirmSignature(client, token, payload, { ipAddress: '203.0.113.10', userAgent: 'Node Test' }, dependencies);
@@ -151,6 +153,9 @@ test('assinatura válida é idempotente e a última apenas inicia FINALIZANDO', 
   assert.equal(state.invite.declaredSignerName, 'Maria Silva');
   assert.equal(state.invite.privacyNoticeVersion, 'signature_avulsa_v1');
   assert.equal(state.transitions, 1);
+  assert.equal(finalizations, 0, 'a resposta não deve esperar pela geração do PDF');
+  assert.equal(typeof scheduledFinalization, 'function');
+  await scheduledFinalization();
   assert.equal(finalizations, 1);
   assert.match(state.advisoryLocks[0].query, /pg_advisory_xact_lock[\s\S]*::text AS lock_result/);
   assert.deepEqual(state.advisoryLocks[0].params, ['document-1']);
@@ -162,6 +167,24 @@ test('assinatura válida é idempotente e a última apenas inicia FINALIZANDO', 
   assert.equal(state.transitions, 1);
   assert.equal(finalizations, 1);
   assert.equal(state.audits.length, 2);
+});
+
+test('falha ao agendar a finalização não transforma assinatura aceita em erro', async () => {
+  const token = 'd'.repeat(64);
+  const { client, state } = signingClient(token);
+  const result = await confirmSignature(client, token, {
+    signerName: 'Maria Silva',
+    signatureImageDataUrl: validSignatureImageDataUrl,
+    privacyNoticeAccepted: true,
+    privacyNoticeVersion: 'signature_avulsa_v1'
+  }, {}, {
+    now: new Date('2026-08-28T15:00:00.000Z'),
+    scheduleFinalization: () => { throw new Error('Agendamento indisponível'); }
+  });
+
+  assert.equal(result.documentStatus, 'FINALIZANDO');
+  assert.equal(state.invite.status, 'ASSINADO');
+  assert.deepEqual(state.audits.map(item => item.action), ['ASSINATURA_REALIZADA', 'FINALIZACAO_INICIADA']);
 });
 
 test('superfície pública usa header, sem segredo em URL, e respostas privadas não entram em cache', async () => {

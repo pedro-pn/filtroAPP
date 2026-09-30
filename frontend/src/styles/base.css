@@ -9770,6 +9770,11 @@ select:disabled {
   line-height: 1.45;
 }
 
+.signature-modal .modal-actions .form-error {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
 .privacy-notice-title {
   font-size: 13px;
   font-weight: 800;

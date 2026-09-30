@@ -20,6 +20,7 @@ export function AssinaturasPublicSignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(false);
   const [message, setMessage] = useState('');
+  const [dialogError, setDialogError] = useState('');
   const [messageKind, setMessageKind] = useState<'success' | 'warning'>('warning');
   const inviteQuery = usePublicSignatureInvite(token, polling);
 
@@ -36,6 +37,7 @@ export function AssinaturasPublicSignPage() {
       setSubmitting(false);
       setPolling(false);
       setMessage('');
+      setDialogError('');
       setMessageKind('warning');
     };
 
@@ -53,6 +55,7 @@ export function AssinaturasPublicSignPage() {
   async function sign(payload: { signerName: string; signatureImageDataUrl: string }) {
     setSubmitting(true);
     setMessage('');
+    setDialogError('');
     try {
       const result = await confirmPublicSignature(token, {
         ...payload,
@@ -65,7 +68,11 @@ export function AssinaturasPublicSignPage() {
       setPolling(result.documentStatus === 'FINALIZANDO');
       await inviteQuery.refetch();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível registrar a assinatura.');
+      const errorMessage = error instanceof ApiClientError
+        ? error.message
+        : 'Não foi possível enviar a assinatura. Verifique sua conexão e tente novamente.';
+      setMessage(errorMessage);
+      setDialogError(errorMessage);
       setMessageKind('warning');
     } finally {
       setSubmitting(false);
@@ -115,7 +122,7 @@ export function AssinaturasPublicSignPage() {
           {message ? <p className={messageKind === 'success' ? 'signature-inline-success' : 'signature-inline-warning'} role={messageKind === 'success' ? 'status' : 'alert'}>{message}</p> : null}
           {invite.document.status === 'FINALIZANDO' ? <p>Finalizando o PDF assinado...</p> : null}
           {invite.downloadAvailable ? <Button onClick={download}>Baixar PDF assinado</Button> : null}
-          {invite.signer.status !== 'ASSINADO' ? <Button onClick={() => setDialogOpen(true)}>Assinar documento</Button> : null}
+          {invite.signer.status !== 'ASSINADO' ? <Button onClick={() => { setDialogError(''); setDialogOpen(true); }}>Assinar documento</Button> : null}
         </div>
       </section>
       <SignatureDialog
@@ -123,10 +130,12 @@ export function AssinaturasPublicSignPage() {
         title="Assinar documento"
         initialSignerName={invite.signer.name}
         allowCachedSignerName={false}
+        maxUploadMb={10}
         isSubmitting={submitting}
+        submissionError={dialogError}
         confirmDisabled={!privacyAccepted}
         notice={<PrivacyNotice variant="signatureAvulsa" checked={privacyAccepted} onCheckedChange={setPrivacyAccepted} disabled={submitting} />}
-        onCancel={() => setDialogOpen(false)}
+        onCancel={() => { setDialogOpen(false); setDialogError(''); }}
         onConfirm={sign}
       />
     </main>

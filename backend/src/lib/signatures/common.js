@@ -53,21 +53,21 @@ function validSignatureImageSize(size) {
     && width * height <= 4_000_000;
 }
 
-export function parseSignatureImageDataUrl(value) {
+export function parseSignatureImageDataUrl(value, { maxBytes = 1.5 * 1024 * 1024 } = {}) {
   const match = String(value || '').match(/^data:(image\/(?:png|jpe?g));base64,([a-z0-9+/=\s]+)$/i);
   if (!match) return null;
   const mimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
   const encoded = match[2].replace(/\s/g, '');
   if (!encoded || encoded.length % 4 === 1) return null;
   const bytes = Buffer.from(encoded, 'base64');
-  if (!bytes.length || bytes.length > 1.5 * 1024 * 1024) return null;
+  if (!bytes.length || bytes.length > maxBytes) return null;
   const size = mimeType === 'image/png' ? parsePngImageSize(bytes) : parseJpegImageSize(bytes);
   if (!validSignatureImageSize(size)) return null;
   return { mimeType, bytes, width: size.width, height: size.height };
 }
 
-export async function decodableSignatureImageDataUrl(value) {
-  const parsed = parseSignatureImageDataUrl(value);
+export async function decodableSignatureImageDataUrl(value, options = {}) {
+  const parsed = parseSignatureImageDataUrl(value, options);
   if (!parsed) return null;
   try {
     const pdf = await PDFDocument.create();
