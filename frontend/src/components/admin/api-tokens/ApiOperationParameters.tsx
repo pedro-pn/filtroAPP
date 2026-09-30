@@ -124,6 +124,8 @@ export function ApiOperationParameters({
               Informe o identificador do recurso indicado abaixo. Ele não é o ID
               do token.
             </p>
+          ) : operation.method === 'POST' ? (
+            <p>Esta operação envia dados ao FiltroAPP. Informe o ID do projeto quando solicitado e revise o corpo JSON antes de enviar.</p>
           ) : (
             <p>
               Esta operação lista registros. Não exige um ID individual; use os
@@ -148,6 +150,16 @@ export function ApiOperationParameters({
           <div className="api-form-grid">
             {fields.filter((field) => !field.advanced).map(renderField)}
           </div>
+          {operation.method === 'POST' ? (
+            <div className={`field-group${errors.bodyJson ? ' field-invalid' : ''}`}>
+              <label htmlFor="playground-body-json">Corpo JSON *</label>
+              <textarea id="playground-body-json" {...register?.('bodyJson')} value={String(value.bodyJson ?? '')}
+                onChange={event => update('bodyJson', event.target.value)} rows={12} maxLength={10000}
+                aria-invalid={Boolean(errors.bodyJson)} aria-describedby="playground-body-json-help playground-body-json-error" />
+              <small id="playground-body-json-help">O POST grava dados reais. O método, destino e headers são definidos pela operação.</small>
+              <span id="playground-body-json-error" className="field-error">{errors.bodyJson || ''}</span>
+            </div>
+          ) : null}
           {fields.some((field) => field.advanced) ? (
             <details>
               <summary>Paginação e filtros avançados</summary>
@@ -167,7 +179,7 @@ export function ApiOperationParameters({
         </>
       )}
       <p className="api-safe-note">
-        Destino, método, headers e corpo não são campos editáveis.
+        Destino, método e headers não são campos editáveis.{operation?.method !== 'POST' ? ' Consultas GET não aceitam corpo.' : ''}
       </p>
     </section>
   );

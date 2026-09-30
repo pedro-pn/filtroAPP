@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { apiRequestContext, integrationApiBoundary } from '../src/middleware/api-request-context.js';
+import { apiRequestContext, integrationApiBoundary, integrationApiErrorHandler } from '../src/middleware/api-request-context.js';
 
 function responseDouble() {
   return {
@@ -44,7 +44,7 @@ test('browser CORS is closed by default while server-to-server GET remains allow
   assert.equal(continued, true);
 });
 
-test('allowed preflight is narrow and mutating/body-bearing requests are rejected', () => {
+test('allowed preflight and POST are limited to contracted CRM write paths', () => {
   const allowedOrigin = 'https://app.example';
   const preflight = request({ method: 'OPTIONS', headers: { origin: allowedOrigin }, requestId: 'request-safe-123' });
   const preflightRes = responseDouble();
@@ -58,8 +58,37 @@ test('allowed preflight is narrow and mutating/body-bearing requests are rejecte
   assert.equal(postRes.statusCode, 405);
   assert.equal(postRes.headers.allow, 'GET');
 
+  const crmPath = '/api/integracoes/v1/efetivo/projetos';
+  const crmPreflight = request({ method: 'OPTIONS', originalUrl: crmPath, headers: { origin: allowedOrigin }, requestId: 'request-safe-456' });
+  const crmPreflightRes = responseDouble();
+  integrationApiBoundary({ allowedOrigins: [allowedOrigin] })(crmPreflight, crmPreflightRes, () => assert.fail('preflight deveria terminar'));
+  assert.equal(crmPreflightRes.headers['access-control-allow-methods'], 'GET, POST');
+
+  const crmPost = request({ method: 'POST', originalUrl: crmPath, headers: { 'content-type': 'application/json', 'content-length': '20' }, requestId: 'request-safe-789' });
+  let continued = false;
+  integrationApiBoundary()(crmPost, responseDouble(), () => { continued = true; });
+  assert.equal(continued, true);
+
+  const wrongType = request({ method: 'POST', originalUrl: crmPath, headers: { 'content-type': 'text/plain' }, requestId: 'request-safe-789' });
+  const wrongTypeRes = responseDouble();
+  integrationApiBoundary()(wrongType, wrongTypeRes, () => assert.fail('tipo de corpo deveria ser negado'));
+  assert.equal(wrongTypeRes.statusCode, 415);
+
   const body = request({ headers: { 'content-length': '10' }, requestId: 'request-safe-789' });
   const bodyRes = responseDouble();
   integrationApiBoundary()(body, bodyRes, () => assert.fail('corpo não deveria continuar'));
   assert.equal(bodyRes.statusCode, 400);
+});
+
+test('malformed and oversized CRM JSON keep the integration error envelope', () => {
+  for (const [type, status, code] of [
+    ['entity.parse.failed', 400, 'VALIDATION_ERROR'],
+    ['entity.too.large', 413, 'BODY_TOO_LARGE']
+  ]) {
+    const res = responseDouble();
+    integrationApiErrorHandler({ type, statusCode: status, message: 'private parser detail' }, request({ requestId: 'request-safe-123' }), res, () => {});
+    assert.equal(res.statusCode, status);
+    assert.equal(res.payload.code, code);
+    assert.equal(JSON.stringify(res.payload).includes('private parser detail'), false);
+  }
 });

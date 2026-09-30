@@ -105,7 +105,8 @@ export function makeApiCredentialSchemas(z, { globalMaxPageSize = 500, allowLoca
   const playground = z.object({
     operationId: z.string().trim().min(1).max(120),
     pathParams: z.record(z.string(), z.string()).optional().default({}),
-    query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional().default({})
+    query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional().default({}),
+    body: z.record(z.string(), z.unknown()).optional()
   }).strict();
 
   return { create, reduce, rotate, revoke, playground, projectAccess, limits, scopeCodes };

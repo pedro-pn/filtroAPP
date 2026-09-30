@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: 1.4.0
+  version: 1.5.0
   description: >-
-    Contrato da gestão administrativa de credenciais e da primeira versão externa,
-    somente leitura, de Qualidade e dos cadastros/coleções operacionais publicados. Tokens de integração e sessões humanas
+    Contrato da gestão administrativa de credenciais, consultas externas e escrita
+    contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
     compartilham o esquema HTTP Bearer, mas têm formatos, middlewares e árvores de
     rota separados; um nunca substitui o outro.
 servers:
@@ -59,11 +59,11 @@ paths:
                     items:
                       type: object
                       additionalProperties: false
-                      required: [operationId, label, method, path, requiredScopes, optionalScopes, queryParams, pathParams, domain, responseKind, parameters]
+                      required: [operationId, label, method, path, requiredScopes, optionalScopes, queryParams, pathParams, domain, responseKind, parameters, bodyExample]
                       properties:
                         operationId: { type: string }
                         label: { type: string }
-                        method: { const: GET }
+                        method: { type: string, enum: [GET, POST] }
                         path: { type: string }
                         requiredScopes: { type: array, items: { type: string } }
                         optionalScopes: { type: array, items: { type: string } }
@@ -72,6 +72,7 @@ paths:
                         parameters: { type: array, items: { $ref: '#/components/schemas/PlaygroundParameter' } }
                         queryParams: { type: array, items: { type: string } }
                         pathParams: { type: array, items: { type: string } }
+                        bodyExample: { type: [object, 'null'], additionalProperties: true }
         '401': { $ref: '#/components/responses/AdminUnauthorized' }
         '403': { $ref: '#/components/responses/AdminForbidden' }
 
@@ -307,9 +308,10 @@ paths:
     post:
       tags: [AdminApiPlayground]
       operationId: testApiCredentialOperation
-      summary: Simula uma operação allowlisted com a política da credencial
+      summary: Executa uma operação allowlisted com a política da credencial
       description: >-
-        Não aceita URL, método, headers ou corpo livres. Aplica o mesmo catálogo,
+        Não aceita URL, método ou headers livres. O corpo JSON de POST é validado pelo
+        contrato da operação e grava dados reais. Aplica o mesmo catálogo,
         escopos, projetos, filtros e limites da API externa e registra evento TESTED.
         Não simula um IP arbitrário; a allowlist de rede só é comprovada por chamada
         real do consumidor.
@@ -334,6 +336,9 @@ paths:
                     - quality.natures.list
                     - quality.evidence.download
                     - efetivo.projects.status.get
+                    - efetivo.projects.create
+                    - efetivo.projects.commercialFact.post
+                    - efetivo.projects.document.post
                     - operational.ReportAttachment.download
                     - operational.StockItemDocument.download
                     - operational.MaintenanceAttachment.download
@@ -370,6 +375,9 @@ paths:
                   additionalProperties: { type: string, maxLength: 100 }
                   default: {}
                 query:
+                  type: object
+                  additionalProperties: true
+                body:
                   type: object
                   additionalProperties: true
       responses:
@@ -545,6 +553,83 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/efetivo/projetos:
+    post:
+      tags: [IntegrationOperational]
+      operationId: createIntegrationEfetivoProject
+      summary: Cria projeto a partir do CRM Prisma
+      description: Exige credencial com acesso a todos os projetos. Reenvio idêntico retorna 200; código existente com dados diferentes retorna 409.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [efetivo.projetos.create]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CrmProjectIntake' }
+      responses:
+        '201': { description: Projeto criado; resposta inclui status, project e commercialRevision. }
+        '200': { description: Projeto já existente com os mesmos dados. }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/efetivo/projetos/{id}/fatos-comerciais:
+    post:
+      tags: [IntegrationOperational]
+      operationId: postIntegrationEfetivoCommercialFact
+      summary: Envia um fato comercial versionado do CRM Prisma
+      description: Exige projeto autorizado e gestão de efetivo iniciada. Versão repetida retorna REPLAYED, versão antiga IGNORED_OLDER e conflito na mesma versão retorna 409.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [efetivo.projetos.fatos-comerciais.write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CrmCommercialFact' }
+      responses:
+        '201': { description: Fato criado. }
+        '200': { description: Fato atualizado, reprocessado ou evento antigo ignorado. }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/efetivo/projetos/{id}/documentos:
+    post:
+      tags: [IntegrationOperational]
+      operationId: postIntegrationEfetivoDocument
+      summary: Envia referência e versão de documento do CRM Prisma
+      description: Exige projeto autorizado. O documento é uma referência HTTP(S), não um arquivo binário. Reenvio e versões fora de ordem seguem os resultados do adaptador CRM.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [efetivo.projetos.documentos.write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CrmProjectDocument' }
+      responses:
+        '201': { description: Documento criado. }
+        '200': { description: Versão atualizada, reprocessada ou antiga ignorada. }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1905,6 +1990,47 @@ components:
                   code: { const: RATE_LIMITED }
 
   schemas:
+    CrmProjectIntake:
+      type: object
+      additionalProperties: false
+      required: [code, name, clientName, clientCnpj, proposalCode, revision, location]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 80 }
+        name: { type: string, minLength: 1, maxLength: 240 }
+        clientName: { type: string, minLength: 1, maxLength: 240 }
+        clientCnpj: { type: string, description: CNPJ com 14 dígitos; pontuação opcional. }
+        proposalCode: { type: string, description: Código numérico da proposta. }
+        revision: { type: integer, minimum: -1, maximum: 2147483647 }
+        location: { type: string, minLength: 1, maxLength: 240 }
+    CrmCommercialFact:
+      type: object
+      additionalProperties: false
+      required: [key, status, externalId, sourceVersion, sourceUpdatedAt]
+      properties:
+        key: { type: string, enum: [COMMERCIAL_PROPOSAL_CREATED, TECHNICAL_PROPOSAL_CREATED, PROPOSAL_ACCEPTED, PURCHASE_ORDER_RECEIVED, CONTRACT_SIGNED, COMMERCIAL_REGISTRATION_READY, MEASUREMENT_TERMS_DEFINED, BILLING_TERMS_DEFINED] }
+        status: { type: string, enum: [PENDING, CONFIRMED, NOT_APPLICABLE] }
+        reference: { type: [string, 'null'], maxLength: 500 }
+        note: { type: [string, 'null'], maxLength: 1000 }
+        occurredOn: { type: [string, 'null'], format: date, description: Obrigatório para CONFIRMED. }
+        externalId: { type: string, minLength: 1, maxLength: 180 }
+        externalUrl: { type: [string, 'null'], format: uri, description: HTTP(S). }
+        sourceVersion: { type: string, minLength: 1, maxLength: 80 }
+        sourceUpdatedAt: { type: string, format: date-time }
+    CrmProjectDocument:
+      type: object
+      additionalProperties: false
+      required: [type, title, externalId, sourceVersion, sourceUpdatedAt]
+      properties:
+        type: { type: string, enum: [COMMERCIAL_PROPOSAL, TECHNICAL_PROPOSAL, PURCHASE_ORDER, CONTRACT, DRAWING, SPECIFICATION, CERTIFICATE, CLIENT_REQUIREMENT, TECHNICAL_EVIDENCE, OTHER] }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        externalId: { type: string, minLength: 1, maxLength: 180 }
+        externalUrl: { type: [string, 'null'], format: uri, description: HTTP(S). }
+        sourceVersion: { type: string, minLength: 1, maxLength: 80 }
+        sourceUpdatedAt: { type: string, format: date-time }
+        versionLabel: { type: [string, 'null'], maxLength: 80 }
+        requirementStage: { type: [string, 'null'], enum: [HANDOVER, MOBILIZATION, CLOSEOUT, null] }
+        acceptanceMode: { type: string, enum: [NONE, INTERNAL, CLIENT, SIGNATURE], default: NONE }
     EfetivoProjectStatus:
       type: object
       additionalProperties: false
@@ -2294,12 +2420,13 @@ components:
         request:
           type: object
           additionalProperties: false
-          required: [method, path, authorization, curl]
+          required: [method, path, authorization, curl, body]
           properties:
-            method: { const: GET }
+            method: { type: string, enum: [GET, POST] }
             path: { type: string }
             authorization: { type: string, example: 'Bearer ••••a9Qx' }
             curl: { type: string, description: Usa `$FILTRO_API_TOKEN`, nunca o valor real. }
+            body: { type: [object, 'null'], additionalProperties: true }
         response:
           type: object
           additionalProperties: false
