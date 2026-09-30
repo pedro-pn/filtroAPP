@@ -13787,13 +13787,6 @@ body.app-reorder-touching {
   max-width: 100%;
 }
 
-/* Mobile cards clip overflow on the x axis; an open list must overlay the next card. */
-.page-card:has(.app-combobox [aria-expanded="true"]) {
-  position: relative;
-  z-index: 10;
-  overflow: visible;
-}
-
 .app-combobox-control {
   align-items: stretch;
   display: flex;
@@ -13844,6 +13837,16 @@ body.app-reorder-touching {
   right: 0;
   top: calc(100% + 4px);
   z-index: 50;
+}
+
+.app-combobox-list--portal {
+  position: fixed;
+  right: auto;
+  z-index: 1100;
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+  box-shadow: var(--shadow-e2);
 }
 
 .app-combobox-list button {
@@ -13903,6 +13906,15 @@ body.app-reorder-touching {
 .app-combobox-select .app-combobox-list button.active,
 .app-combobox-select .app-combobox-list button:hover {
   background: var(--bg);
+}
+
+.app-combobox-list--portal button {
+  color: var(--ink);
+}
+
+.app-combobox-list--portal button:is(.active, :hover),
+.app-combobox-select .app-combobox-list--portal button:is(.active, :hover) {
+  background: var(--surface-2);
 }
 
 .app-combobox-select .app-combobox-empty {

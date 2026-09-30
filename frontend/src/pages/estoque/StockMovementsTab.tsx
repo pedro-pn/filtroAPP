@@ -201,6 +201,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
             value={itemId}
             onChange={value => resetPage(() => setItemId(value))}
             variant="select"
+            portal
             placeholder="Pesquisar item"
             options={[{ value: '', label: 'Todos os itens' }, ...(itemsQuery.data || []).map(item => ({ value: item.id, label: `${item.code} — ${item.name}` }))]}
           />
@@ -227,6 +228,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
             value={projectId}
             onChange={value => resetPage(() => setProjectId(value))}
             variant="select"
+            portal
             placeholder="Pesquisar projeto"
             options={[{ value: '', label: 'Todos os projetos' }, ...(projectsQuery.data || []).map(project => ({ value: project.id, label: `${project.code} — ${project.name}` }))]}
           />

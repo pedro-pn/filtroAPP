@@ -455,6 +455,7 @@ export function RomaneioPage() {
                   value={projectId}
                   onChange={setProjectId}
                   variant="select"
+                  portal
                   placeholder="Pesquisar projeto"
                   options={[
                     { value: '', label: 'Todos os projetos' },

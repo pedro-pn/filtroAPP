@@ -89,6 +89,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
             value={equipment}
             onChange={setEquipment}
             variant="select"
+            portal
             placeholder="Pesquisar equipamento"
             options={equipmentFilterOptions(data)}
           />
@@ -146,6 +147,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
           value={equipment}
           onChange={setEquipment}
           variant="select"
+          portal
           placeholder="Pesquisar equipamento"
           options={equipmentFilterOptions(data)}
         />

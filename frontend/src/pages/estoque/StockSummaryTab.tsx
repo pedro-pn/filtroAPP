@@ -105,6 +105,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
           value={itemId}
           onChange={setItemId}
           variant="select"
+          portal
           placeholder="Pesquisar item"
           options={[{ value: '', label: 'Todos os itens' }, ...rows.map(row => ({ value: row.item.id, label: `${row.item.code} — ${row.item.name}` }))]}
         />
@@ -119,6 +120,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
           value={categoryId}
           onChange={setCategoryId}
           variant="select"
+          portal
           placeholder="Pesquisar categoria"
           options={[{ value: '', label: 'Todas as categorias' }, ...categories.map(([id, name]) => ({ value: id, label: name }))]}
         />

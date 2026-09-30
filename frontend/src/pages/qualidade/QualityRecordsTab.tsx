@@ -279,6 +279,7 @@ export function QualityRecordsTab({ isManager }: Props) {
           value={projectId}
           onChange={setProjectId}
           variant="select"
+          portal
           placeholder="Pesquisar projeto"
           options={[
             { value: '', label: 'Todos os projetos' },
@@ -292,6 +293,7 @@ export function QualityRecordsTab({ isManager }: Props) {
           value={natureId}
           onChange={setNatureId}
           variant="select"
+          portal
           placeholder="Pesquisar natureza"
           options={[
             { value: '', label: 'Todas as Naturezas' },

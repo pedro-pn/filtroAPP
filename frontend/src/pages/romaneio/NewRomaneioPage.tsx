@@ -986,6 +986,7 @@ export function NewRomaneioPage() {
                 label="Projeto"
                 value={projectSelectValue}
                 variant="select"
+                portal
                 placeholder="Pesquisar projeto"
                 options={[
                   { value: '', label: 'Selecione' },
@@ -1330,6 +1331,7 @@ export function NewRomaneioPage() {
                 value={selectedExtraCategory}
                 onChange={setExtraCategoryFilter}
                 variant="select"
+                portal
                 placeholder="Pesquisar categoria"
                 options={extraVisibleCategories.map(({ category, count }) => ({ value: category, label: `${category} (${count})` }))}
               />
