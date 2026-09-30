@@ -5,14 +5,14 @@ import test from 'node:test';
 import { API_DATA_DOMAINS, CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS, flattenDataCatalogModels } from '../src/lib/api-credentials/data-catalog.js';
 import { OPERATIONAL_RESOURCES } from '../src/lib/api-credentials/operational-resources.js';
 
-test('executable catalog classifies every one of the 151 business Prisma models exactly once', async () => {
+test('executable catalog classifies every one of the 153 business Prisma models exactly once', async () => {
   const schema = await readFile(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   const prismaModels = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map(match => match[1]);
   const excluded = new Set(CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS.map(item => item.model));
   const businessModels = prismaModels.filter(model => !excluded.has(model));
   const catalogModels = flattenDataCatalogModels().map(item => item.model);
   assert.equal(API_DATA_DOMAINS.length, 20);
-  assert.equal(businessModels.length, 151);
+  assert.equal(businessModels.length, 153);
   assert.equal(new Set(catalogModels).size, catalogModels.length);
   assert.deepEqual([...catalogModels].sort(), [...businessModels].sort());
   const invoiceModel = flattenDataCatalogModels().find(item => item.model === 'OmieInvoice');
@@ -22,6 +22,17 @@ test('executable catalog classifies every one of the 151 business Prisma models 
     assert.ok(['AVAILABLE', 'PLANNED', 'SENSITIVE', 'RESERVED', 'PROHIBITED'].includes(item.availability));
     assert.ok(item.domainCode);
   }
+});
+
+test('commercial app proposals stay sensitive and delivery records stay reserved', () => {
+  const models = flattenDataCatalogModels();
+  const proposal = models.find(item => item.model === 'CommercialAppProposal');
+  const delivery = models.find(item => item.model === 'CommercialAppDelivery');
+  assert.equal(proposal?.domainCode, 'commercial');
+  assert.equal(proposal?.availability, 'SENSITIVE');
+  assert.equal(delivery?.domainCode, 'commercial');
+  assert.equal(delivery?.availability, 'RESERVED');
+  assert.equal(OPERATIONAL_RESOURCES.some(item => ['CommercialAppProposal', 'CommercialAppDelivery'].includes(item.model)), false);
 });
 
 test('weekly execution reviews remain reserved in the external API catalog', () => {
