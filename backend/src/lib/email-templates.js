@@ -1191,7 +1191,8 @@ export function buildReleasedServiceReportsEmailTemplate({
   rdoNumber,
   rdoDate,
   reports = [],
-  appUrl
+  appUrl,
+  manualRelease = false
 }) {
   const safeProjectCode = escapeHtml(projectCode || '---');
   const safeProjectName = escapeHtml(projectName || 'Sem projeto');
@@ -1202,7 +1203,9 @@ export function buildReleasedServiceReportsEmailTemplate({
   const reportCount = reports.length;
   const plural = reportCount === 1 ? '' : 's';
   const title = 'Relatórios de serviço liberados';
-  const intro = `Com a assinatura do ${rdoLabel}, ${reportCount} relatório${plural} de serviço do projeto ${safeProjectCode} - ${safeProjectName} foram liberados.`;
+  const intro = manualRelease
+    ? `${reportCount} relatório${plural} de serviço do projeto ${safeProjectCode} - ${safeProjectName} ${reportCount === 1 ? 'foi liberado' : 'foram liberados'} para o cliente pelo gestor.`
+    : `Com a assinatura do ${rdoLabel}, ${reportCount} relatório${plural} de serviço do projeto ${safeProjectCode} - ${safeProjectName} ${reportCount === 1 ? 'foi liberado' : 'foram liberados'}.`;
   const reportLines = reports.map(report => {
     const number = report.sequenceNumber == null ? '' : ` ${report.sequenceNumber}`;
     const date = report.reportDate ? ` - ${formatEmailDate(report.reportDate)}` : '';
@@ -1215,7 +1218,7 @@ export function buildReleasedServiceReportsEmailTemplate({
     <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
-        <div><strong>RDO assinado:</strong> ${rdoLabel}</div>
+        <div><strong>${manualRelease ? 'RDO vinculado' : 'RDO assinado'}:</strong> ${rdoLabel}</div>
         <div><strong>Data do RDO:</strong> ${safeRdoDate}</div>
         <div><strong>Relatórios liberados:</strong></div>
         <ul style="margin:8px 0 0 20px;padding:0">${reportItems}</ul>
@@ -1229,7 +1232,9 @@ export function buildReleasedServiceReportsEmailTemplate({
   return {
     subject: `[Filtrovali] Relatórios de serviço liberados - ${projectCode || 'Projeto'}`,
     text: [
-      `Com a assinatura do ${rdoNumber ? `RDO ${rdoNumber}` : 'RDO'}, ${reportCount} relatório${plural} de serviço foram liberados.`,
+      manualRelease
+        ? `${reportCount} relatório${plural} de serviço ${reportCount === 1 ? 'foi liberado' : 'foram liberados'} para o cliente pelo gestor.`
+        : `Com a assinatura do ${rdoNumber ? `RDO ${rdoNumber}` : 'RDO'}, ${reportCount} relatório${plural} de serviço ${reportCount === 1 ? 'foi liberado' : 'foram liberados'}.`,
       '',
       `Projeto: ${projectCode || '---'} - ${projectName || 'Sem projeto'}`,
       `Data do RDO: ${rdoDate || '-'}`,

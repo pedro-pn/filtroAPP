@@ -12,6 +12,7 @@ import {
   releasedServiceReportsAfterRdoSignature,
   sendReleasedServiceReportsEmail
 } from '../src/routes/resources/reports.js';
+import { processManualReleasedServiceReportEmail } from '../src/routes/resources/report-release-routes.js';
 
 function report(overrides = {}) {
   return {
@@ -414,4 +415,50 @@ test('released service reports email decodes percent-encoded attachment filename
     sent[0].attachments[0].filename,
     'Missão 5719 Ilha Solteira - RCPU 53 - UG01 - Unidade hidráulica do RV.pdf'
   );
+});
+
+test('manual release email identifies the manager action and sends the PDF to registered addresses', async () => {
+  const rdo = report({ id: 'rdo-1', sequenceNumber: 12, project: {
+    code: 'P-1', name: 'Projeto 1', clientEmailPrimary: 'responsavel@example.com',
+    clientEmailCc: ['copia@example.com']
+  } });
+  const service = report({ id: 'service-1', reportType: ReportType.RLQ, sequenceNumber: 3,
+    specialConditions: { parentRdoId: rdo.id }, project: rdo.project });
+  const sent = [];
+
+  const result = await sendReleasedServiceReportsEmail(rdo, [service], {
+    manualRelease: true,
+    missingMailerConfig: [],
+    client: {},
+    mailer: async message => { sent.push(message); },
+    getPdfDownload: async () => ({ fileName: 'RLQ-3.pdf', buffer: Buffer.from('pdf-service-1') })
+  });
+
+  assert.deepEqual(result, { ok: true, sentCount: 2, attachmentCount: 1 });
+  assert.deepEqual(sent.map(message => message.to), ['responsavel@example.com', 'copia@example.com']);
+  assert.match(sent[0].text, /liberado para o cliente pelo gestor/);
+  assert.doesNotMatch(sent[0].text, /Com a assinatura/);
+  assert.match(sent[0].html, /RDO vinculado/);
+  assert.equal(sent[0].attachments[0].content.toString(), 'pdf-service-1');
+});
+
+test('manual release delivery skips reports revoked before background processing', async () => {
+  const releasedAt = new Date('2026-09-24T12:00:00.000Z');
+  const parent = report({ id: 'rdo-1' });
+  const service = report({ id: 'service-1', reportType: ReportType.RLQ,
+    clientReleasedAt: releasedAt, updatedAt: releasedAt,
+    specialConditions: { parentRdoId: parent.id } });
+  const client = { report: { findUnique: async ({ where }) => where.id === service.id ? service : parent } };
+  const calls = [];
+  const sendEmail = async (...args) => { calls.push(args); };
+
+  await processManualReleasedServiceReportEmail(service.id, releasedAt, { client, sendEmail });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], parent);
+  assert.deepEqual(calls[0][1], [service]);
+  assert.equal(calls[0][2].manualRelease, true);
+
+  service.clientReleasedAt = null;
+  await processManualReleasedServiceReportEmail(service.id, releasedAt, { client, sendEmail });
+  assert.equal(calls.length, 1);
 });

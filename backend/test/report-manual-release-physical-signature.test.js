@@ -110,6 +110,10 @@ test('gestor libera e revoga apenas um relatório de serviço vinculado', async 
   assert.equal(released.json.clientReleasedAt, released.json.updatedAt);
   assert.equal(canClientSeeReport(service, new Map([[parent.id, parent], [service.id, service]])), true);
 
+  const repeated = await dispatch('PATCH', '/api/reports/service-1/client-release', { release: true });
+  assert.equal(repeated.statusCode, 200);
+  assert.deepEqual(auditActions, ['CLIENT_RELEASED']);
+
   const revoked = await dispatch('PATCH', '/api/reports/service-1/client-release', { release: false });
   assert.equal(revoked.statusCode, 200);
   assert.equal(revoked.json.clientReleasedAt, null);
