@@ -39,7 +39,7 @@ test('all implemented permissions select matching operations, including optional
     assert.ok(matches.length, scope.code);
     assert.ok(matches.every(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code)));
   }
-  assert.equal(operationsForScope(operations, '').length, 35);
+  assert.equal(operationsForScope(operations, '').length, 36);
   assert.equal(operationsForScope(operations, 'rdo.anexos.download')[0].responseKind, 'DOWNLOAD_CHECK');
   assert.equal(operationsForScope(operations, 'ponto.resumos.read').length, 0);
 });

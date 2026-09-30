@@ -2,7 +2,7 @@
 
 ## Decisão de arquitetura
 
-O `Project` continua sendo o registro mestre operacional no FiltroAPP. O Nectar será a fonte oficial dos fatos comerciais que originam e alteram o projeto. A Gestão de Projetos não deve duplicar esses fatos como checkboxes independentes quando a integração estiver ativa.
+O `Project` continua sendo o registro mestre operacional no FiltroAPP. O Prisma será a fonte oficial dos fatos comerciais que originam e alteram o projeto. A Gestão de Projetos não deve duplicar esses fatos como checkboxes independentes quando a integração estiver ativa.
 
 O CRM informa fatos como “proposta criada”, “proposta aceita” e “pedido de compra recebido”. O FiltroAPP registra ações internas como “proposta revisada pelo Líder”, coordena as frentes operacionais e calcula os gates a partir dos fatos recebidos e das confirmações internas.
 
@@ -10,12 +10,12 @@ Os fatos comerciais são exibidos no FiltroAPP como sinais de consulta. O preenc
 
 As decisões consolidadas para CRM, Omie, conformidade de colaboradores, equipamentos, estoque e alertas estão em [integration-decisions.md](integration-decisions.md).
 
-## Decisões validadas em 11/09/2026
+## Decisões validadas em 11/09/2026, com nome do CRM corrigido em 30/09/2026
 
-- O CRM será o Nectar.
-- A integração será bidirecional: o Nectar fornece fatos comerciais e recebe informações operacionais do projeto.
+- O CRM será o Prisma.
+- A integração será bidirecional: o Prisma fornece fatos comerciais e recebe informações operacionais do projeto.
 - Serão usados webhook e sincronização periódica. O webhook atende eventos novos; a sincronização atende carga inicial, recuperação e reconciliação.
-- Aprovações do cliente serão recebidas pelo Nectar.
+- Aprovações do cliente serão recebidas pelo Prisma.
 - Omie permanece somente como fonte de consulta e não receberá solicitações ou pedidos de compra do FiltroAPP.
 - Alertas usarão e-mail inicialmente; WhatsApp permanece no radar.
 
@@ -23,8 +23,8 @@ As decisões consolidadas para CRM, Omie, conformidade de colaboradores, equipam
 
 - O webhook de entrada de projetos já recebe número e nome do projeto, cliente, CNPJ, proposta, revisão e local, cria o projeto de forma idempotente e exige conferência manual.
 - A entrada atual já tenta selecionar a revisão correspondente da proposta comercial importada.
-- `CommercialProposal` guarda número, revisão, identificador Nectar, data, cliente, contato, local, vendedor, valor, prazo, antecedência de mobilização e quantitativos preliminares.
-- O identificador Nectar hoje é apenas um dado importado do Access. Não existe sincronização direta e contínua com um CRM para os estados comerciais descritos abaixo.
+- `CommercialProposal` guarda número, revisão, data, cliente, contato, local, vendedor, valor, prazo, antecedência de mobilização e quantitativos preliminares. O campo legado `codNectar` veio do Access e não pode ser presumido como identificador do Prisma.
+- Ainda não existe vínculo confiável entre um projeto e o identificador do Prisma, nem sincronização contínua dos estados comerciais descritos abaixo.
 - Faturamento, recebíveis e compras realizados já possuem integração com o Omie e não devem ser transferidos para o CRM.
 
 ## Matriz de dependências
@@ -58,12 +58,12 @@ As decisões consolidadas para CRM, Omie, conformidade de colaboradores, equipam
 | Planejamento, preparação e mobilização | Sem dependência bloqueante do CRM | — | Equipe, equipamentos, materiais, documentação, QSMS, hospedagem, logística e cliente |
 | Aditivos e propostas adicionais durante a execução | Direta | Nova proposta, versão, valor, escopo e aceite | Líder avalia impacto; Acompanhamento incorpora o valor aprovado |
 | RDOs, relatórios, desvios e avanço | Sem dependência | — | Relatórios, Acompanhamento e Qualidade |
-| Medição aprovada pelo cliente | Direta | Nectar registra negociação, aceite, versão, data e evidência | FiltroAPP controla quantitativos, evidências e envio e consolida a aprovação recebida |
+| Medição aprovada pelo cliente | Direta | Prisma registra negociação, aceite, versão, data e evidência | FiltroAPP controla quantitativos, evidências e envio e consolida a aprovação recebida |
 | Faturado e recebido | Sem dependência do CRM | — | Omie continua sendo a fonte oficial |
 
-## Retorno do FiltroAPP ao Nectar
+## Retorno do FiltroAPP ao Prisma
 
-O contrato de saída será detalhado na especificação do conector. O conjunto inicial deve contemplar etapa atual do projeto, datas operacionais principais, situação dos gates, riscos ou pendências críticas, avanço e encerramento. A sincronização de retorno não transfere ao Nectar a propriedade sobre equipe, reservas, RDOs, relatórios, desvios ou decisões operacionais.
+O contrato de saída será detalhado na especificação do conector. O conjunto inicial deve contemplar etapa atual do projeto, datas operacionais principais, situação dos gates, riscos ou pendências críticas, avanço e encerramento. A sincronização de retorno não transfere ao Prisma a propriedade sobre equipe, reservas, RDOs, relatórios, desvios ou decisões operacionais.
 
 ## Regras necessárias para não acoplar o módulo ao CRM
 
@@ -76,7 +76,7 @@ O contrato de saída será detalhado na especificação do conector. O conjunto 
 7. Falha de sincronização deve aparecer como estado próprio. Dados desatualizados não podem gerar uma nova liberação comercial automática.
 8. Documentos externos devem ser referenciados por metadados e versão. Cópia para o armazenamento do FiltroAPP ocorre apenas quando retenção, assinatura ou uso offline exigir.
 9. O webhook e a sincronização periódica usam a mesma regra de ordenação e idempotência.
-10. O retorno operacional ao Nectar precisa registrar versão e instante da origem para evitar atualização circular.
+10. O retorno operacional ao Prisma precisa registrar versão e instante da origem para evitar atualização circular.
 
 ## Impacto na sequência de implementação
 

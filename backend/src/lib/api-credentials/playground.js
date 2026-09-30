@@ -12,6 +12,7 @@ import { listOperationalResources, prepareOperationalQuery } from './operational
 import { createPrismaQuotaStore, reserveCredentialQuota, settleCredentialQuota } from './quota.js';
 import { ApiCredentialServiceError, effectiveCredentialStatus, validateCredentialId } from './service.js';
 import { checkPlaygroundDownload } from './playground-downloads.js';
+import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './efetivo-project-status.js';
 
 const PLAYGROUND_MAX_ITEMS = 20;
 const requestSchema = makeApiCredentialSchemas(z).playground;
@@ -35,6 +36,7 @@ export function validatePlaygroundRequest(input) {
   if (operation.operationId === 'quality.records.list') parsed.query = integrationSchemas.qualityRecordsQuery.parse(parsed.query);
   else if (operation.operationId === 'quality.records.get') parsed.query = integrationSchemas.qualityRecordDetailQuery.parse(parsed.query);
   else if (operation.operationId === 'quality.natures.list') parsed.query = integrationSchemas.qualityNaturesQuery.parse(parsed.query);
+  else if (operation.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, parsed.query, { projectAccessMode: 'ALL' });
   else if (getOperationalResource(operation.operationId)) parsed.query = makeOperationalReadQuerySchema(z).parse(parsed.query);
   if (!hasExplicitLimit) delete parsed.query.limit;
   return parsed;
@@ -100,6 +102,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   };
   const started = process.hrtime.bigint();
   if (getOperationalResource(parsed.operationId)) prepareOperationalQuery(parsed.operationId, query, context);
+  if (parsed.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, query, context);
   const requestId = options.requestId || randomUUID();
   const isDownload = operation.responseKind === 'DOWNLOAD_CHECK';
   const requestedRows = isDownload ? 0 : parsed.operationId.endsWith('.list') ? Number(query.limit) || PLAYGROUND_MAX_ITEMS : 1;
@@ -130,6 +133,12 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
       const result = await listIntegrationQualityNatures(prisma, integrationSchemas.qualityNaturesQuery.parse(query), context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
       rows = result.items.length;
+    } else if (parsed.operationId === 'efetivo.projects.status.get') {
+      body = {
+        ...await getEfetivoProjectStatus(prisma, parsed.pathParams.id, context),
+        generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId
+      };
+      rows = 1;
     } else {
       const result = await listOperationalResources(prisma, parsed.operationId, query, context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };

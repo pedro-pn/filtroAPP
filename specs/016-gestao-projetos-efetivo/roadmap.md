@@ -8,7 +8,7 @@ Handover comercial → Análise inicial → Aguardando planejamento → Planejam
 
 Liberação comercial/contratual e documentação antecipada são frentes paralelas dentro do projeto. D-90/D-30/D-15/D-7/D-1 são marcos configuráveis, não colunas.
 
-A futura integração com o Nectar será a fonte dos fatos comerciais, enquanto o FiltroAPP continuará responsável pelas confirmações e decisões operacionais. A matriz detalhada de propriedade, contingência manual e impacto por entrega está em [crm-integration-dependencies.md](crm-integration-dependencies.md); as decisões validadas para todas as integrações estão em [integration-decisions.md](integration-decisions.md).
+A futura integração com o Prisma será a fonte dos fatos comerciais, enquanto o FiltroAPP continuará responsável pelas confirmações e decisões operacionais. A matriz detalhada de propriedade, contingência manual e impacto por entrega está em [crm-integration-dependencies.md](crm-integration-dependencies.md); as decisões validadas para todas as integrações estão em [integration-decisions.md](integration-decisions.md).
 
 ## Estado de implementação em 11/09/2026
 
@@ -29,8 +29,8 @@ A futura integração com o Nectar será a fonte dos fatos comerciais, enquanto 
 - Entrega 032 concluída: o projeto vincula Líder e Planejador e envia a ambos alertas idempotentes por e-mail nos marcos D-90, D-30, D-15, D-7 e D-1; equipamentos e insumos confirmados formam reservas internas, com conflitos, saldo reservado, liberação automática e exceções justificadas não bloqueantes. O Omie permanece fora desta automação.
 - Entrega 027 concluída: Encerramento finaliza o Kanban único com dez confirmações finais, gate consolidado de 24 controles, aprovação estruturada da medição, pós-job e pendências zeradas. O encerramento registra autor/data, sincroniza a missão oficial, mantém a obra em modo de consulta e exige justificativa auditável para reabrir.
 - Entrega 028 concluída: catálogo versionado de documentos no diálogo do projeto, aceite por versão, requisitos explícitos por etapa, vínculo com Assinaturas, projeção dos RDOs/relatórios e adaptador interno preparado para documentos do futuro CRM. Propostas podem ser vinculadas como evidência sem confirmar fatos comerciais automaticamente.
-- Decisões de integração validadas: Nectar bidirecional por webhook e sincronização periódica; Omie somente consulta; conformidade de colaboradores fornecida por plataforma externa; reservas de equipamentos e estoque com avisos e exceções manuais; alertas inicialmente por e-mail; aprovações do cliente recebidas pelo Nectar; logística, hospedagem e QSMS mantidos no workflow.
-- O fluxo funcional planejado de Handover a Encerrado, o catálogo documental, as reservas internas e os alertas por e-mail estão concluídos. Os próximos incrementos externos são o conector Nectar e a consulta de conformidade dos colaboradores; a consulta opcional ao Omie permanece no radar.
+- Decisões de integração validadas: Prisma bidirecional por webhook e sincronização periódica; Omie somente consulta; conformidade de colaboradores fornecida por plataforma externa; reservas de equipamentos e estoque com avisos e exceções manuais; alertas inicialmente por e-mail; aprovações do cliente recebidas pelo Prisma; logística, hospedagem e QSMS mantidos no workflow.
+- O fluxo funcional planejado de Handover a Encerrado, o catálogo documental, as reservas internas e os alertas por e-mail estão concluídos. Os próximos incrementos externos são o conector Prisma e a consulta de conformidade dos colaboradores; a consulta opcional ao Omie permanece no radar.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 
