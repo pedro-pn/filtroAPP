@@ -13201,6 +13201,16 @@ body.app-reorder-touching {
   background-color: var(--wh);
 }
 
+.quality-filters .app-combobox-control input {
+  min-height: 38px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 8px 30px 8px 10px;
+  background-color: var(--wh);
+  color: var(--tx);
+  font: inherit;
+}
+
 .quality-table-wrap {
   margin-top: 4px;
 }
@@ -13667,6 +13677,12 @@ body.app-reorder-touching {
     text-overflow: ellipsis;
   }
 
+  .quality-filters .app-combobox-control input {
+    min-height: 34px;
+    padding: 6px 30px 6px 8px;
+    font-size: 12px;
+  }
+
   .quality-action-bar,
   .quality-action-bar > button {
     width: 100%;
@@ -13766,6 +13782,16 @@ body.app-reorder-touching {
 }
 .app-combobox {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Mobile cards clip overflow on the x axis; an open list must overlay the next card. */
+.page-card:has(.app-combobox [aria-expanded="true"]) {
+  position: relative;
+  z-index: 10;
+  overflow: visible;
 }
 
 .app-combobox-control {
@@ -13778,6 +13804,7 @@ body.app-reorder-touching {
 .app-combobox-control input {
   min-width: 0;
   padding-right: 30px;
+  text-overflow: ellipsis;
   width: 100%;
 }
 
@@ -13804,12 +13831,15 @@ body.app-reorder-touching {
   background: var(--wh);
   border: 1px solid var(--br);
   border-radius: var(--rs);
+  box-sizing: border-box;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
   left: 0;
-  max-height: 240px;
+  max-height: min(240px, 42dvh);
+  max-width: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
@@ -13825,8 +13855,12 @@ body.app-reorder-touching {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 10px 12px;
   text-align: left;
+  white-space: normal;
 }
 
 .app-combobox-list button.active,

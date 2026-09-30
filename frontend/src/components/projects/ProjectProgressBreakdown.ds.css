@@ -1,3 +1,4 @@
+.acp-progress-filter { display: grid; min-width: 0; gap: var(--space-1); }
 .acp-progress-ds, .acp-progress-ds__groups, .acp-progress-ds__group, .acp-progress-ds__service { display: grid; gap: var(--space-3); min-width: 0; }
 .acp-progress-ds__groups { gap: var(--space-4); }
 .acp-progress-ds__group { padding-block-start: var(--space-3); border-block-start: var(--border-width) solid var(--line); }
@@ -21,3 +22,7 @@
 .acp-progress-ds__pending summary { cursor: pointer; font-weight: var(--font-semibold); }
 .acp-progress-ds__pending p { margin-block: var(--space-3); }
 .acp-progress-ds__note { line-height: var(--leading-base); }
+.acp-progress-ds .app-combobox-control input { min-height: var(--space-10); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); font: inherit; }
+.acp-progress-ds .app-combobox-list { border-color: var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-e2); }
+.acp-progress-ds .app-combobox-list button { color: var(--ink); }
+.acp-progress-ds .app-combobox-list button:is(.active, :hover) { background: var(--surface-2); }

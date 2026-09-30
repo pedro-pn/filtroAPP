@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getStockSummary, type StockSummaryItem } from '../../api/estoque';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { Badge, Select } from '../../components/ui/ds';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 
@@ -98,19 +99,29 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
 
       <div className="stock-summary-filters">
         <SearchBar value={search} onChange={setSearch} placeholder="Buscar item, código ou lote" ariaLabel="Buscar no estoque" count={{ shown: filteredRows.length, total: rows.length }} />
-        <Select aria-label="Filtrar item" value={itemId} onChange={event => setItemId(event.target.value)}>
-          <option value="">Todos os itens</option>
-          {rows.map(row => <option key={row.item.id} value={row.item.id}>{row.item.code} — {row.item.name}</option>)}
-        </Select>
+        <SearchCombobox
+          label="Filtrar item"
+          hideLabel
+          value={itemId}
+          onChange={setItemId}
+          variant="select"
+          placeholder="Pesquisar item"
+          options={[{ value: '', label: 'Todos os itens' }, ...rows.map(row => ({ value: row.item.id, label: `${row.item.code} — ${row.item.name}` }))]}
+        />
         <Select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value)}>
           <option value="">Todos os tipos</option>
           <option value="FILTRO">Filtros</option>
           <option value="PRODUTO_QUIMICO">Produtos químicos</option>
         </Select>
-        <Select aria-label="Filtrar categoria" value={categoryId} onChange={event => setCategoryId(event.target.value)}>
-          <option value="">Todas as categorias</option>
-          {categories.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </Select>
+        <SearchCombobox
+          label="Filtrar categoria"
+          hideLabel
+          value={categoryId}
+          onChange={setCategoryId}
+          variant="select"
+          placeholder="Pesquisar categoria"
+          options={[{ value: '', label: 'Todas as categorias' }, ...categories.map(([id, name]) => ({ value: id, label: name }))]}
+        />
         <Select aria-label="Filtrar situação do estoque" value={status} onChange={event => setStatus(event.target.value)}>
           <option value="">Todas as situações</option>
           <option value="REGULAR">Regular</option>

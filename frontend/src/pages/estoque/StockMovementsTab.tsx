@@ -11,6 +11,7 @@ import {
 } from '../../api/estoque';
 import { listProjects } from '../../api/projects';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
 import { Badge, Select } from '../../components/ui/ds';
 
@@ -193,17 +194,17 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
       </div>
 
       <div className="stock-movement-filters">
-        <Select
-          containerClassName="stock-filter-item"
-          aria-label="Filtrar item"
-          value={itemId}
-          onChange={event => resetPage(() => setItemId(event.target.value))}
-        >
-          <option value="">Todos os itens</option>
-          {(itemsQuery.data || []).map(item => (
-            <option key={item.id} value={item.id}>{item.code} — {item.name}</option>
-          ))}
-        </Select>
+        <div className="stock-filter-item">
+          <SearchCombobox
+            label="Filtrar item"
+            hideLabel
+            value={itemId}
+            onChange={value => resetPage(() => setItemId(value))}
+            variant="select"
+            placeholder="Pesquisar item"
+            options={[{ value: '', label: 'Todos os itens' }, ...(itemsQuery.data || []).map(item => ({ value: item.id, label: `${item.code} — ${item.name}` }))]}
+          />
+        </div>
         <Select aria-label="Filtrar tipo" value={type} onChange={event => resetPage(() => setType(event.target.value as StockMovementType | ''))}>
           <option value="">Entrada e saída</option>
           <option value="ENTRADA">Entrada</option>
@@ -219,17 +220,17 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
           <option value="DESCARTE_VALIDADE">Descarte por validade</option>
           <option value="ESTORNO">Estorno</option>
         </Select>
-        <Select
-          containerClassName="stock-filter-project"
-          aria-label="Filtrar projeto"
-          value={projectId}
-          onChange={event => resetPage(() => setProjectId(event.target.value))}
-        >
-          <option value="">Todos os projetos</option>
-          {(projectsQuery.data || []).map(project => (
-            <option key={project.id} value={project.id}>{project.code} — {project.name}</option>
-          ))}
-        </Select>
+        <div className="stock-filter-project">
+          <SearchCombobox
+            label="Filtrar projeto"
+            hideLabel
+            value={projectId}
+            onChange={value => resetPage(() => setProjectId(value))}
+            variant="select"
+            placeholder="Pesquisar projeto"
+            options={[{ value: '', label: 'Todos os projetos' }, ...(projectsQuery.data || []).map(project => ({ value: project.id, label: `${project.code} — ${project.name}` }))]}
+          />
+        </div>
         <div className="field-group stock-date-filter">
           <label htmlFor="stock-movements-from">Data inicial</label>
           <input

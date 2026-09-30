@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { getProjectProgress, type ProgressSystem } from '../../api/acompanhamentoComercial';
+import { getProjectProgress, type ProjectProgress, type ProgressSystem } from '../../api/acompanhamentoComercial';
 import { scopeKeyOf, systemNameKey } from '../../utils/projectSystemSelection';
-import { Alert, EmptyState, Field, ProgressBar, Select, Skeleton } from '../ui/ds';
+import { Alert, EmptyState, Field, ProgressBar, Skeleton } from '../ui/ds';
+import { SearchCombobox } from '../ui/SearchCombobox';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import './ProjectProgressBreakdown.ds.css';
 import { ProjectRealizedCorrections } from './ProjectRealizedCorrections';
@@ -25,6 +26,15 @@ function systemLine(sys: ProgressSystem) {
   const identity = sys.projectSystemId ? `${sys.equipment} · ${sys.systemName} · ` : '';
   const diameter = sys.diameter ? ` (${sys.diameter} ${sys.diameterUnit || 'pol'})` : '';
   return `${identity}${SYSTEM_LABELS[sys.systemType] ?? sys.systemType}${diameter}: ${fmtQty(sys.realizedQty, sys.unit)} / ${fmtQty(sys.plannedQty, sys.unit)} · ${fmtPct(sys.pct)}`;
+}
+
+function equipmentFilterOptions(data: ProjectProgress) {
+  const names = data.services.flatMap(service => service.systems.map(system => system.equipment))
+    .filter((name): name is string => Boolean(name));
+  return [
+    { value: '', label: 'Todos os equipamentos' },
+    ...[...new Set(names)].map(name => ({ value: name, label: name }))
+  ];
 }
 
 // Avanço físico do projeto (RDO ponderado por serviço) — realizado dos RDOs × escopo previsto.
@@ -72,11 +82,16 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
       {!controlled && data.services.some(service => service.systems.some(system => system.projectSystemId)) ?
         <Field id={`acp-progress-equipment-${projectId}`} label="Filtrar equipamento" optionalText=""
           helperText="O percentual geral mantém todo o escopo; o filtro altera apenas as linhas exibidas.">
-          <Select value={equipment} onChange={event => setEquipment(event.target.value)}>
-            <option value="">Todos os equipamentos</option>
-            {[...new Set(data.services.flatMap(service => service.systems.map(system => system.equipment)).filter(Boolean))]
-              .map(value => <option key={value} value={value!}>{value}</option>)}
-          </Select>
+          <SearchCombobox
+            id={`acp-progress-equipment-${projectId}`}
+            label="Filtrar equipamento"
+            hideLabel
+            value={equipment}
+            onChange={setEquipment}
+            variant="select"
+            placeholder="Pesquisar equipamento"
+            options={equipmentFilterOptions(data)}
+          />
         </Field> : null}
       <ProgressBar label="Avanço total do escopo" value={shownPct} valueLabel={fmtPct(shownPct)} />
       {groups.length ? <div className="acp-progress-ds__groups">
@@ -125,12 +140,15 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
 
   return (
     <div className="acp-progress">
-      {!controlled && data.services.some(service => service.systems.some(system => system.projectSystemId)) ? <div className="field-group">
-        <label>Filtrar equipamento</label>
-        <select aria-label="Filtrar equipamento" value={equipment} onChange={event => setEquipment(event.target.value)}>
-          <option value="">Todos os equipamentos</option>
-          {[...new Set(data.services.flatMap(service => service.systems.map(system => system.equipment)).filter(Boolean))].map(value => <option key={value} value={value!}>{value}</option>)}
-        </select>
+      {!controlled && data.services.some(service => service.systems.some(system => system.projectSystemId)) ? <div className="acp-progress-filter">
+        <SearchCombobox
+          label="Filtrar equipamento"
+          value={equipment}
+          onChange={setEquipment}
+          variant="select"
+          placeholder="Pesquisar equipamento"
+          options={equipmentFilterOptions(data)}
+        />
         <small>O percentual geral mantém todo o escopo; o filtro altera apenas as linhas exibidas.</small>
       </div> : null}
       <div className="acp-progress-total">

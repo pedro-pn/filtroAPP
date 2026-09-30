@@ -22,6 +22,7 @@ import {
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
 import { QualityRecordFormModal } from './QualityRecordFormModal';
@@ -272,15 +273,31 @@ export function QualityRecordsTab({ isManager }: Props) {
           <option value="">Todos os impactos</option>
           {schemas.impactOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <select aria-label="Filtrar projeto" value={projectId} onChange={event => setProjectId(event.target.value)}>
-          <option value="">Todos os projetos</option>
-          <option value="INTERNAL">Interno/SGQ</option>
-          {projects.map(project => <option key={project.id} value={project.id}>{project.code} - {project.name}</option>)}
-        </select>
-        <select aria-label="Filtrar Natureza" value={natureId} onChange={event => setNatureId(event.target.value)}>
-          <option value="">Todas as Naturezas</option>
-          {natures.map(nature => <option key={nature.id} value={nature.id}>{nature.name}{nature.isActive ? '' : ' (inativa)'}</option>)}
-        </select>
+        <SearchCombobox
+          label="Filtrar projeto"
+          hideLabel
+          value={projectId}
+          onChange={setProjectId}
+          variant="select"
+          placeholder="Pesquisar projeto"
+          options={[
+            { value: '', label: 'Todos os projetos' },
+            { value: 'INTERNAL', label: 'Interno/SGQ' },
+            ...projects.map(project => ({ value: project.id, label: `${project.code} - ${project.name}` }))
+          ]}
+        />
+        <SearchCombobox
+          label="Filtrar Natureza"
+          hideLabel
+          value={natureId}
+          onChange={setNatureId}
+          variant="select"
+          placeholder="Pesquisar natureza"
+          options={[
+            { value: '', label: 'Todas as Naturezas' },
+            ...natures.map(nature => ({ value: nature.id, label: `${nature.name}${nature.isActive ? '' : ' (inativa)'}` }))
+          ]}
+        />
         <button className="mini-btn alt" type="button" onClick={resetFilters}>Limpar</button>
       </div>
 

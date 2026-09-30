@@ -26,6 +26,7 @@ import {
 
 import { useAuth } from '../../auth/AuthContext';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -448,15 +449,18 @@ export function RomaneioPage() {
                   <span>Pesquisa</span>
                   <SearchBar loading={search !== debouncedSearch || romaneiosQuery.isFetching} value={search} onChange={setSearch} placeholder="Projeto, placa, motorista ou item" />
                 </label>
-                <label className="field-group">
-                  <span>Projeto</span>
-                  <select value={projectId} onChange={event => setProjectId(event.target.value)}>
-                    <option value="">Todos</option>
-                    {(projectsQuery.data || []).map(project => (
-                      <option key={project.id} value={project.id}>Missão {project.code} - {project.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <SearchCombobox
+                  id="romaneio-project-filter"
+                  label="Projeto"
+                  value={projectId}
+                  onChange={setProjectId}
+                  variant="select"
+                  placeholder="Pesquisar projeto"
+                  options={[
+                    { value: '', label: 'Todos os projetos' },
+                    ...(projectsQuery.data || []).map(project => ({ value: project.id, label: `Missão ${project.code} - ${project.name}` }))
+                  ]}
+                />
               </div>
             </section>
 
@@ -753,12 +757,12 @@ export function RomaneioPage() {
             </form>
             <div className="romaneio-catalog-list">
               {(recipientsQuery.data || []).map(item => (
-                <div className="romaneio-catalog-row" key={item.id}>
-                  <div>
+                <div className="romaneio-catalog-row romaneio-recipient-row" key={item.id}>
+                  <div className="romaneio-recipient-details">
                     <strong>{item.name || item.email}</strong>
                     <div className="rel-meta">{item.email} · {item.isActive ? 'ativo' : 'inativo'}</div>
                   </div>
-                  <RemoveIconButton label={`Remover destinatário ${item.name || item.email}`} onClick={() => removeRecipientMutation.mutate(item.id)} />
+                  <RemoveIconButton className="romaneio-recipient-remove" label={`Remover destinatário ${item.name || item.email}`} onClick={() => removeRecipientMutation.mutate(item.id)} />
                 </div>
               ))}
             </div>

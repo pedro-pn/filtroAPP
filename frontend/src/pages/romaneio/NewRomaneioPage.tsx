@@ -33,6 +33,7 @@ import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { PageHeader } from '../../layout/PageHeader';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
@@ -979,33 +980,37 @@ export function NewRomaneioPage() {
                 <option value="INBOUND">Entrada</option>
               </select>
             </label>
-            <label className="field-group field-group-wide" data-romaneio-project-select>
-              <span>Projeto</span>
-              <select value={projectSelectValue} onChange={event => {
-                const value = event.target.value;
-                if (value === MANUAL_PROJECT_OPTION) {
-                  setProjectId('');
-                  setManualProjectMode(true);
+            <div className="field-group-wide" data-romaneio-project-select>
+              <SearchCombobox
+                id="romaneio-project-select"
+                label="Projeto"
+                value={projectSelectValue}
+                variant="select"
+                placeholder="Pesquisar projeto"
+                options={[
+                  { value: '', label: 'Selecione' },
+                  ...projectOptions.map(project => ({ value: project.id, label: projectLabel(project) })),
+                  ...(romaneioType === 'INBOUND' ? [{ value: MANUAL_PROJECT_OPTION, label: 'Não encontrei a missão na lista' }] : [])
+                ]}
+                onChange={value => {
+                  if (value === MANUAL_PROJECT_OPTION) {
+                    setProjectId('');
+                    setManualProjectMode(true);
+                    if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
+                    return;
+                  }
+                  setProjectId(value);
+                  setManualProjectMode(false);
+                  setManualProjectCode('');
                   if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
-                  return;
-                }
-                setProjectId(value);
-                setManualProjectMode(false);
-                setManualProjectCode('');
-                if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
-              }}>
-                <option value="">Selecione</option>
-                {projectOptions.map(project => (
-                  <option key={project.id} value={project.id}>{projectLabel(project)}</option>
-                ))}
-                {romaneioType === 'INBOUND' ? <option value={MANUAL_PROJECT_OPTION}>Não encontrei a missão na lista</option> : null}
-              </select>
+                }}
+              />
               <small className="form-hint">
                 {romaneioType === 'OUTBOUND'
                   ? 'Somente obras autorizadas para mobilização e obras antigas não concluídas.'
                   : 'Todas as obras acessíveis ficam disponíveis para entrada.'}
               </small>
-            </label>
+            </div>
             {manualProjectMode ? (
               <label className="field-group">
                 <span>Código da missão</span>
@@ -1319,14 +1324,16 @@ export function NewRomaneioPage() {
                 </button>
               ))}
             </div>
-            <label className="field-group romaneio-extra-mobile-category">
-              <span>Categoria</span>
-              <select value={selectedExtraCategory} onChange={event => setExtraCategoryFilter(event.target.value)}>
-                {extraVisibleCategories.map(({ category, count }) => (
-                  <option key={category} value={category}>{category} ({count})</option>
-                ))}
-              </select>
-            </label>
+            <div className="romaneio-extra-mobile-category">
+              <SearchCombobox
+                label="Categoria"
+                value={selectedExtraCategory}
+                onChange={setExtraCategoryFilter}
+                variant="select"
+                placeholder="Pesquisar categoria"
+                options={extraVisibleCategories.map(({ category, count }) => ({ value: category, label: `${category} (${count})` }))}
+              />
+            </div>
             <div className="romaneio-extra-list">
               <div className="romaneio-extra-category">
                 <div className="romaneio-extra-category-title">

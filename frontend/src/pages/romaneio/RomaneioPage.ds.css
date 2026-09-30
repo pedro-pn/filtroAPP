@@ -49,10 +49,14 @@
 .romaneio-page-v2 .romaneio-accordion .romaneio-catalog-list { border-color: var(--line); }
 .romaneio-page-v2 .romaneio-catalog-row,
 .romaneio-page-v2 .romaneio-selected-row { padding: var(--space-3); background: var(--surface-2); }
+.romaneio-page-v2 .romaneio-recipient-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.romaneio-page-v2 .romaneio-recipient-details { min-width: 0; overflow-wrap: anywhere; }
+.romaneio-page-v2 .romaneio-recipient-remove { justify-self: end; margin-inline-start: auto; }
 .romaneio-page-v2 .romaneio-catalog-row-main { flex-wrap: wrap; }
 .romaneio-page-v2 .romaneio-category-actions { justify-content: flex-start; }
 .romaneio-page-v2 .admin-inline-form { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .romaneio-page-v2 .romaneio-form-v2 .admin-form-grid.manager-header-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.romaneio-page-v2 [data-romaneio-project-select] { display: grid; gap: var(--space-1); }
 .romaneio-page-v2 .checkbox-line { grid-column: 1 / -1; justify-self: start; color: var(--muted); }
 .romaneio-page-v2 .romaneio-cargo-weight-field { grid-template-columns: minmax(0, 1fr) minmax(90px, .4fr); }
 .romaneio-page-v2 .field-group { min-width: 0; }
@@ -72,6 +76,12 @@
 }
 .romaneio-page-v2 .field-group :is(input, select, textarea):focus-visible,
 .romaneio-dialog .field-group :is(input, select, textarea):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.romaneio-page-v2 .app-combobox-list { border-color: var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-e2); }
+.romaneio-page-v2 .app-combobox-list button { color: var(--ink); }
+.romaneio-page-v2 .app-combobox-list button:is(.active, :hover) { background: var(--surface-2); }
+.romaneio-dialog .app-combobox-list { border-color: var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-e2); }
+.romaneio-dialog .app-combobox-list button { color: var(--ink); }
+.romaneio-dialog .app-combobox-list button:is(.active, :hover) { background: var(--surface-2); }
 .romaneio-page-v2 .app-search { min-width: 0; width: 100%; }
 .romaneio-page-v2 .app-search-input { min-height: var(--space-10); border-color: var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); }
 .romaneio-page-v2 .romaneio-add-control,
@@ -153,6 +163,24 @@
   .romaneio-page-v2 .romaneio-cargo-weight-field { grid-template-columns: minmax(0, 1fr) minmax(84px, .4fr); }
   .romaneio-page-v2 .romaneio-add-control,
   .romaneio-page-v2 .romaneio-selected-actions { width: 100%; justify-content: flex-start; }
+  .romaneio-page-v2 .romaneio-recipient-remove {
+    position: relative;
+    width: calc(var(--space-10) + var(--space-1));
+    min-width: calc(var(--space-10) + var(--space-1));
+    height: calc(var(--space-10) + var(--space-1));
+    border-color: transparent;
+    background: transparent;
+  }
+  .romaneio-page-v2 .romaneio-recipient-remove::before {
+    position: absolute;
+    inset: 5px;
+    border-radius: var(--radius-md);
+    background: var(--danger);
+    content: '';
+  }
+  .romaneio-page-v2 .romaneio-recipient-remove:hover:not(:disabled)::before { background: var(--danger-hover); }
+  .romaneio-page-v2 .romaneio-recipient-remove:disabled::before { background: var(--disabled-bg); }
+  .romaneio-page-v2 .romaneio-recipient-remove svg { position: relative; }
   .romaneio-page-v2 .bottom-bar-react { bottom: calc(var(--bottom-bar-h, 64px) + env(safe-area-inset-bottom)); justify-content: stretch; }
   .romaneio-page-v2 .bottom-bar-react > button { width: 100%; }
   .fv-ds.romaneio-extra-backdrop { align-items: center; padding: var(--space-3); }
