@@ -1009,7 +1009,7 @@ export function NewRomaneioPage() {
               </select>
               <small className="form-hint">
                 {romaneioType === 'OUTBOUND'
-                  ? 'Somente obras autorizadas para mobilização e obras antigas não concluídas.'
+                  ? 'Obras ativas ficam disponíveis para saída, mesmo antes da mobilização.'
                   : 'Todas as obras acessíveis ficam disponíveis para entrada.'}
               </small>
             </label>

@@ -5,7 +5,9 @@ import { makeProjectWorkflowSchemas } from '../../../shared/schemas/project-work
 import { makeProjectExecutionSchemas } from '../../../shared/schemas/project-execution.js';
 import { makeProjectDocumentSchemas } from '../../../shared/schemas/project-documents.js';
 import asyncHandler from '../lib/async-handler.js';
+import { getProjectRomaneios } from '../lib/acompanhamento/project-romaneios.js';
 import { isEfetivoManager, requireEfetivoManager, requireEfetivoViewer } from '../lib/efetivo/access.js';
+import { efetivoProjectWhere } from '../lib/efetivo/project-visibility.js';
 import {
   getProjectWorkflow,
   listProjectWorkflowLeaders,
@@ -58,6 +60,15 @@ router.get('/', requireEfetivoViewer, asyncHandler(async (req, res) => {
 
 router.get('/leaders', requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listProjectWorkflowLeaders());
+}));
+
+router.get('/:projectId/romaneios', requireEfetivoViewer, asyncHandler(async (req, res) => {
+  const projectId = projectIdSchema.parse(req.params.projectId);
+  const result = await getProjectRomaneios(projectId, {
+    projectWhere: { isActive: true, ...efetivoProjectWhere() }
+  });
+  if (!result) return res.status(404).json({ error: 'Projeto não encontrado ou indisponível no Efetivo.' });
+  return res.json(result);
 }));
 
 router.get('/:projectId/legacy-summary/equipment', requireEfetivoViewer, asyncHandler(async (req, res) => {

@@ -28,7 +28,7 @@ test('formulário consulta projetos pelo tipo e limita código manual à Entrada
   assert.match(page, /\['romaneio-projects', romaneioType\]/);
   assert.match(page, /listRomaneioProjects\(\{ type: romaneioType \}\)/);
   assert.match(page, /romaneioType === 'INBOUND'.*MANUAL_PROJECT_OPTION/s);
-  assert.match(page, /Somente obras autorizadas para mobilização e obras antigas não concluídas/);
+  assert.match(page, /Obras ativas ficam disponíveis para saída, mesmo antes da mobilização/);
   assert.match(page, /Todas as obras acessíveis ficam disponíveis para entrada/);
 });
 

@@ -733,7 +733,7 @@ test('fluxo legado resumido nasce direto na etapa escolhida, sincroniza a missã
   assert.equal(state.equipmentCategoryPlans.length, 1);
   assert.deepEqual(state.equipmentCategoryPlans[0].equipmentIds, ['equipment-1']);
   assert.equal(result.workflow.equipmentPlanDefined, true);
-  // Preparação foi deliberadamente pulada: o gate não pode bloquear romaneios/retiradas do Estoque por frentes
+  // Preparação foi deliberadamente pulada: o gate não pode bloquear retiradas do Estoque por frentes
   // que nunca existiram para este projeto.
   assert.equal(result.workflow.mobilizationGate.ready, true);
   assert.deepEqual(result.workflow.mobilizationGate.blockers, []);
@@ -1387,7 +1387,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
   assert.equal(result.workflow.demobilizationReadiness.total, 17);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION']);
-  // a Desmobilização encerra a autorização para novas saídas operacionais (romaneios, Estoque); o retorno à
+  // a Desmobilização encerra a autorização para retiradas do Estoque; o retorno à
   // Execução usa o gate de mobilização diretamente, não esse status
   assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
 

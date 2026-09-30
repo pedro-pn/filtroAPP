@@ -150,13 +150,14 @@ test('gate incompleto informa os bloqueios sem aceitar data histórica', async (
   assert.ok(decision.blockers.some(item => item.key === 'QSMS_VERIFIED'));
 });
 
-test('romaneio valida saída antes de gerar arquivos e preserva entrada', () => {
+test('romaneio valida obra ativa antes de gerar arquivos sem consultar o gate de mobilização', () => {
   const source = fs.readFileSync(new URL('../src/routes/resources/romaneios.js', import.meta.url), 'utf8');
   const createRoute = source.slice(source.indexOf("router.post('/',"), source.indexOf("router.put('/:id'"));
   const updateRoute = source.slice(source.indexOf("router.put('/:id'"));
-  assert.match(createRoute, /assertRomaneioMobilizationAuthorized/);
-  assert.match(updateRoute, /assertRomaneioMobilizationAuthorized/);
-  assert.ok(createRoute.indexOf('assertRomaneioMobilizationAuthorized') < createRoute.indexOf('saveRomaneioPdf(preview)'));
-  assert.ok(updateRoute.indexOf('assertRomaneioMobilizationAuthorized') < updateRoute.indexOf('saveRomaneioPdf(preview)'));
+  assert.match(createRoute, /assertRomaneioOutboundProjectAvailable/);
+  assert.match(updateRoute, /assertRomaneioOutboundProjectAvailable/);
+  assert.ok(createRoute.indexOf('assertRomaneioOutboundProjectAvailable') < createRoute.indexOf('saveRomaneioPdf(preview)'));
+  assert.ok(updateRoute.indexOf('assertRomaneioOutboundProjectAvailable') < updateRoute.indexOf('saveRomaneioPdf(preview)'));
+  assert.doesNotMatch(source, /assertProjectMobilizationAuthorized/);
   assert.match(source, /payload\.type === 'OUTBOUND'/);
 });

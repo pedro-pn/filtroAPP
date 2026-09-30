@@ -2025,6 +2025,7 @@
 .project-workflow-modal .project-workflow-header { align-items: center; border-bottom: 1px solid var(--pw-border-soft); display: grid; gap: 12px 28px; grid-template-columns: minmax(0, 1fr) auto auto; padding: 16px 16px 14px 24px; }
 .project-workflow-header-id { align-items: center; display: flex; gap: 14px; min-width: 0; }
 .project-workflow-header-id > div { min-width: 0; }
+.project-workflow-romaneios-action:not(:empty) { border-bottom: 1px solid var(--pw-border-soft); display: flex; justify-content: flex-start; padding: 8px 18px; }
 .project-workflow-code { background: var(--pw-accent-soft); border-radius: 8px; color: var(--pw-accent); flex: 0 0 auto; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12.5px; font-weight: 600; padding: 6px 9px; }
 .project-workflow-modal .project-workflow-header h3 { font-size: 17px; font-weight: 650; letter-spacing: -.015em; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-workflow-modal .project-workflow-header p { color: var(--pw-muted); font-size: 13px; margin-top: 1px; }
