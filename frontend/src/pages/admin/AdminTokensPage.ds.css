@@ -510,6 +510,12 @@
   font-size: var(--text-sm);
 }
 
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-permission-copy .api-write-scope {
+  justify-self: start;
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
 :is(.api-token-page-v2, .fv-modal.api-policy-modal) :is(.api-permission-copy > span, .api-permission-copy small, .api-scope-technical > summary, .api-catalog-entry-body) {
   color: var(--muted);
   font-size: var(--text-xs);
@@ -746,6 +752,11 @@
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
+}
+
+.api-token-page-v2 .api-operation-parameters .api-body-json {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
 }
 
 .api-token-page-v2 .api-playground-section .field-group .fv-control-shell :is(.fv-input, .fv-select) {

@@ -18,6 +18,7 @@ export function AssinaturasPublicSignPage() {
   const [polling, setPolling] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null);
+  const [dialogError, setDialogError] = useState('');
   const inviteQuery = usePublicSignatureInvite(token, polling);
   const loadPage = useCallback((page: number, signal: AbortSignal) => publicSignaturePage(token, page, signal), [token]);
 
@@ -31,6 +32,7 @@ export function AssinaturasPublicSignPage() {
       setSubmitting(false);
       setPolling(false);
       setMessage(null);
+      setDialogError('');
     };
     window.addEventListener('hashchange', captureRenewedInvite);
     captureRenewedInvite();
@@ -47,6 +49,7 @@ export function AssinaturasPublicSignPage() {
     if (submitting) return;
     setSubmitting(true);
     setMessage(null);
+    setDialogError('');
     try {
       const result = await confirmPublicSignature(token, {
         ...payload,
@@ -59,7 +62,11 @@ export function AssinaturasPublicSignPage() {
       await inviteQuery.refetch();
       requestAnimationFrame(() => document.getElementById('assinaturas-public-title')?.focus({ preventScroll: true }));
     } catch (error) {
-      setMessage({ tone: 'danger', text: error instanceof Error ? error.message : 'Não foi possível registrar a assinatura.' });
+      const errorMessage = error instanceof ApiClientError
+        ? error.message
+        : 'Não foi possível enviar a assinatura. Verifique sua conexão e tente novamente.';
+      setMessage({ tone: 'danger', text: errorMessage });
+      setDialogError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -100,7 +107,7 @@ export function AssinaturasPublicSignPage() {
     <PublicSignatureShell>
       <PublicSignatureView invite={invite} loadPage={loadPage}
         downloading={downloading} onDownload={download}
-        onSign={() => { setMessage(null); setDialogOpen(true); }}
+        onSign={() => { setMessage(null); setDialogError(''); setDialogOpen(true); }}
         feedback={message && !dialogOpen && (message.tone === 'danger' || invite.signer.status !== 'ASSINADO') ? <Alert tone={message.tone}>{message.text}</Alert> : null} />
       <SignatureDialog
         open={dialogOpen}
@@ -110,14 +117,15 @@ export function AssinaturasPublicSignPage() {
         title="Assinar documento"
         initialSignerName={invite.signer.name}
         allowCachedSignerName={false}
+        maxUploadMb={10}
         isSubmitting={submitting}
         loadingLabel="Assinando documento"
+        submissionError={dialogError}
         confirmDisabled={!privacyAccepted}
         notice={<div className="assinaturas-public__consent">
           <PrivacyNotice variant="signatureAvulsa" checked={privacyAccepted} onCheckedChange={setPrivacyAccepted} disabled={submitting} />
-          {message?.tone === 'danger' ? <Alert tone="danger" title="Não foi possível assinar">{message.text}</Alert> : null}
         </div>}
-        onCancel={() => { if (!submitting) { setDialogOpen(false); setMessage(null); } }}
+        onCancel={() => { if (!submitting) { setDialogOpen(false); setMessage(null); setDialogError(''); } }}
         onConfirm={sign}
       />
     </PublicSignatureShell>

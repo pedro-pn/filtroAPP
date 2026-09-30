@@ -74,10 +74,9 @@ export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
     >
       <div className="api-section-heading">
         <div>
-          <h3 id="scope-catalog-title">Selecione os dados permitidos</h3>
+          <h3 id="scope-catalog-title">Defina as permissões do token</h3>
           <p>
-            Abra um módulo e marque exatamente o que este token poderá
-            consultar.
+            Abra um módulo e marque o que este token poderá consultar ou atualizar.
           </p>
         </div>
         <Badge tone="brand" className="api-selection-count">
@@ -145,6 +144,7 @@ export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
                     />
                     <span className="api-permission-copy">
                       <strong>{scope.label}</strong>
+                      {scope.code.endsWith('.write') ? <Badge tone="warning" className="api-write-scope">Escrita</Badge> : null}
                       <span id={`scope-description-${scope.code}`}>
                         {scope.description}
                       </span>

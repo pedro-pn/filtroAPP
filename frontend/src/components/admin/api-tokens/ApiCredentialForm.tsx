@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { makeApiCredentialSchemas, NEVER_EXPIRES_CONFIRMATION } from '../../../../../shared/schemas/api-credentials.js';
 import type { CreateApiCredentialInput } from '../../../../../shared/schemas/api-credentials.js';
 import type { ApiScopeDefinition } from '../../../api/apiCredentials';
-import { Button, Input, Select, Textarea } from '../../ui/ds';
+import { Alert, Button, Input, Select, Textarea } from '../../ui/ds';
 import { ApiScopeCatalog } from './ApiScopeCatalog';
 import { localCredentialDate } from '../../../../../shared/schemas/api-credential-lifecycle.js';
 import { apiValidationError } from '../../../../../shared/schemas/api-validation-messages.js';
@@ -149,7 +149,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
 
           <section className="page-card api-form-section">
             <ApiScopeCatalog scopes={scopes} selected={scopeCodes} onChange={value => setValue('scopeCodes', value, { shouldValidate: true })} />
-            {errors.scopeCodes ? <p className="field-error" role="alert">Selecione ao menos uma permissão de leitura.</p> : null}
+            {errors.scopeCodes ? <p className="field-error" role="alert">Selecione ao menos uma permissão.</p> : null}
           </section>
         </div>
 
@@ -202,9 +202,10 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
           <div><dt>Início</dt><dd>{new Date(pending.startsAt).toLocaleString('pt-BR')}</dd></div>
           <div><dt>Limites</dt><dd>{pending.limits.requestsPerMinute} requisições/min · {pending.limits.requestsPerDay} requisições/dia · {pending.limits.rowsPerDay} registros/dia · {pending.limits.maxPageSize} por página</dd></div>
         </dl>
+        {pending.scopeCodes.some(code => code.endsWith('.write')) ? <Alert tone="warning">Este token poderá alterar dados nas áreas com permissão de escrita.</Alert> : null}
         <p className="api-safe-note">O token completo será mostrado uma única vez.</p>
         <div className="api-review-actions">{onCancel ? <Button variant="secondary" disabled={busy} onClick={onCancel}>Cancelar</Button> : null}<Button variant="secondary" disabled={busy} onClick={() => { setPending(null); setSubmitError(''); }}>Voltar e ajustar</Button><Button variant="primary" disabled={busy} loading={issuing} onClick={confirmIssue}>{issuing ? 'Gerando…' : 'Confirmar e gerar token'}</Button></div>
-      </section> : <div className="api-form-actions"><p className="api-safe-note">Somente leitura · Token exibido uma única vez</p>{onCancel ? <Button variant="secondary" disabled={busy} onClick={onCancel}>Cancelar</Button> : null}<Button variant="primary" type="submit" disabled={busy}>Revisar e gerar token</Button></div>}
+      </section> : <div className="api-form-actions"><p className="api-safe-note">{scopeCodes.some(code => code.endsWith('.write')) ? 'Inclui escrita' : 'Somente leitura'} · Token exibido uma única vez</p>{onCancel ? <Button variant="secondary" disabled={busy} onClick={onCancel}>Cancelar</Button> : null}<Button variant="primary" type="submit" disabled={busy}>Revisar e gerar token</Button></div>}
       {advancedHasErrors ? <p className="field-error" role="alert">Revise os campos destacados nas configurações avançadas.</p> : null}
       {submitError ? <div className="inline-error" role="alert">{submitError}</div> : null}
     </form>

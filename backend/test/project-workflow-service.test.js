@@ -736,7 +736,7 @@ test('fluxo legado resumido nasce direto na etapa escolhida, sincroniza a missã
   assert.equal(state.equipmentCategoryPlans.length, 1);
   assert.deepEqual(state.equipmentCategoryPlans[0].equipmentIds, ['equipment-1']);
   assert.equal(result.workflow.equipmentPlanDefined, true);
-  // Preparação foi deliberadamente pulada: o gate não pode bloquear romaneios/retiradas do Estoque por frentes
+  // Preparação foi deliberadamente pulada: o gate não pode bloquear retiradas do Estoque por frentes
   // que nunca existiram para este projeto.
   assert.equal(result.workflow.mobilizationGate.ready, true);
   assert.deepEqual(result.workflow.mobilizationGate.blockers, []);
@@ -1390,7 +1390,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
   assert.equal(result.workflow.demobilizationReadiness.total, 17);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION']);
-  // a Desmobilização encerra a autorização para novas saídas operacionais (romaneios, Estoque); o retorno à
+  // a Desmobilização encerra a autorização para retiradas do Estoque; o retorno à
   // Execução usa o gate de mobilização diretamente, não esse status
   assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
 
@@ -1615,6 +1615,8 @@ test('modo de correção libera todos os controles de etapas concluídas para qu
   assert.ok(analysisChecklist(detail).every(item => item.canEdit), 'checklist da análise inicial editável na correção');
   assert.equal(detail.workflow.permissions.canEditTeamPlanning, true);
   assert.equal(detail.workflow.permissions.canEditEquipmentPlanning, true);
+  assert.deepEqual(detail.workflow.resourcePlanning.equipment.catalog.map(category => category.id), ['category-1']);
+  assert.deepEqual(detail.workflow.resourcePlanning.equipment.catalog[0].equipment.map(item => item.id), ['equipment-1']);
   assert.equal(detail.workflow.permissions.canEditSupplyPlanning, true);
   assert.equal(detail.workflow.permissions.canEditLogisticsPlanning, true);
   assert.equal(detail.workflow.preJob.canEdit, true);
@@ -1626,6 +1628,15 @@ test('modo de correção libera todos os controles de etapas concluídas para qu
   assert.ok(analysisChecklist(detail).every(item => !item.canEdit));
   assert.equal(detail.workflow.permissions.canEditTeamPlanning, false);
   assert.equal(detail.workflow.preJob.canEdit, false);
+
+  // O catálogo e os itens da preparação precisam continuar disponíveis após o D-30 para a correção.
+  const equipmentCorrection = await updateProjectWorkflow('project-1', {
+    action: 'equipment_plan', version: state.workflow.version, correctionStage: 'MOBILIZATION_PLANNING',
+    defined: true, selections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'], exceptions: [] }]
+  }, leader, { database });
+  assert.equal(equipmentCorrection.workflow.stage, 'EXECUTION');
+  assert.deepEqual(equipmentCorrection.workflow.resourcePlanning.equipment.equipmentIds, ['equipment-1']);
+  assert.equal(equipmentCorrection.workflow.preparationResources.equipment.items[0].name, 'Bomba 1');
 
   // a correção realmente grava em etapa anterior
   const edited = await updateProjectWorkflow('project-1', {

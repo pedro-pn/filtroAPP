@@ -640,7 +640,8 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
     rdoNumber: reportNumberLabel(rdo),
     rdoDate: formatDatePtBr(rdo.reportDate),
     reports: serviceReports,
-    appUrl: env.appUrl || ''
+    appUrl: env.appUrl || '',
+    manualRelease: options.manualRelease === true
   });
   const attachments = await releasedServiceReportEmailAttachments(serviceReports, options);
   const mailer = options.mailer || sendClientMail;
@@ -6169,7 +6170,8 @@ registerReportReleaseRoutes(router, {
   requireRdoManager, include, isReportUnavailable, hasActiveClientRejection,
   projectReportsForClientVisibility, previousRdosSignedForServiceReport,
   saveManualReportPdf, supersedeActiveReportVersions, createManualReportVersion,
-  releasedServiceReportsAfterRdoSignature, queueReleasedServiceReportsEmailAfterRdoSignature
+  releasedServiceReportsAfterRdoSignature, queueReleasedServiceReportsEmailAfterRdoSignature,
+  sendReleasedServiceReportsEmail
 });
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {

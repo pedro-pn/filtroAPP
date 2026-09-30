@@ -14,8 +14,10 @@ interface SignatureDialogProps {
   initialSignerName?: string | null;
   cacheIdentity?: string | null;
   allowCachedSignerName?: boolean;
+  maxUploadMb?: number;
   isSubmitting?: boolean;
   loadingLabel?: string;
+  submissionError?: string;
   confirmDisabled?: boolean;
   confirmDisabledMessage?: string;
   notice?: ReactNode;
@@ -109,8 +111,10 @@ export function SignatureDialog({
   initialSignerName = '',
   cacheIdentity = '',
   allowCachedSignerName = true,
+  maxUploadMb = 1.5,
   isSubmitting = false,
   loadingLabel = 'Assinando relatório',
+  submissionError = '',
   confirmDisabled = false,
   confirmDisabledMessage = 'Confirme os termos para continuar.',
   notice = null,
@@ -130,7 +134,7 @@ export function SignatureDialog({
   const [uploadDragOver, setUploadDragOver] = useState(false);
   const signatureCacheKey = allowCachedSignerName ? cacheKey(cacheIdentity) : '';
   const signerNameInvalid = (signerNameTouched || confirmAttempted) && !hasFirstAndLastName(signerName);
-  const visibleError = signerNameInvalid ? SIGNER_FULL_NAME_ERROR : error;
+  const visibleError = signerNameInvalid ? SIGNER_FULL_NAME_ERROR : error || submissionError;
   const isDesignSystem = appearance === 'design-system';
 
   useEffect(() => {
@@ -142,11 +146,12 @@ export function SignatureDialog({
     setHasDrawing(false);
     const activeCanvas = canvas;
     const activeContext = context;
-    let drawing = false;
+    let activePointerId: number | null = null;
 
     function pointerDown(event: PointerEvent) {
+      if (activePointerId !== null) return;
       event.preventDefault();
-      drawing = true;
+      activePointerId = event.pointerId;
       const point = canvasPoint(activeCanvas, event);
       activeContext.beginPath();
       activeContext.moveTo(point.x, point.y);
@@ -154,7 +159,7 @@ export function SignatureDialog({
     }
 
     function pointerMove(event: PointerEvent) {
-      if (!drawing) return;
+      if (activePointerId !== event.pointerId) return;
       event.preventDefault();
       const point = canvasPoint(activeCanvas, event);
       activeContext.lineTo(point.x, point.y);
@@ -163,18 +168,23 @@ export function SignatureDialog({
     }
 
     function pointerUp(event: PointerEvent) {
-      drawing = false;
-      activeCanvas.releasePointerCapture?.(event.pointerId);
+      if (activePointerId !== event.pointerId) return;
+      activePointerId = null;
+      if (activeCanvas.hasPointerCapture?.(event.pointerId)) {
+        activeCanvas.releasePointerCapture(event.pointerId);
+      }
     }
 
     activeCanvas.addEventListener('pointerdown', pointerDown);
     activeCanvas.addEventListener('pointermove', pointerMove);
     activeCanvas.addEventListener('pointerup', pointerUp);
+    activeCanvas.addEventListener('pointercancel', pointerUp);
     activeCanvas.addEventListener('pointerleave', pointerUp);
     return () => {
       activeCanvas.removeEventListener('pointerdown', pointerDown);
       activeCanvas.removeEventListener('pointermove', pointerMove);
       activeCanvas.removeEventListener('pointerup', pointerUp);
+      activeCanvas.removeEventListener('pointercancel', pointerUp);
       activeCanvas.removeEventListener('pointerleave', pointerUp);
     };
   }, [open, mode]);
@@ -211,8 +221,8 @@ export function SignatureDialog({
       setError('Envie uma imagem PNG ou JPG.');
       return;
     }
-    if (file.size > 1.5 * 1024 * 1024) {
-      setError('A imagem deve ter até 1,5 MB.');
+    if (file.size > maxUploadMb * 1024 * 1024) {
+      setError(`A imagem deve ter até ${maxUploadMb.toLocaleString('pt-BR')} MB.`);
       return;
     }
     const reader = new FileReader();
@@ -406,7 +416,7 @@ export function SignatureDialog({
           </div>
         ) : null}
         {notice}
-        {visibleError ? <div className="form-error" id="signature-dialog-error">{visibleError}</div> : null}
+        {visibleError ? <div className="form-error" id="signature-dialog-error" role="alert">{visibleError}</div> : null}
       </div>
       {!isDesignSystem ? (
         <div className="modal-actions">

@@ -20,6 +20,33 @@ const physicalSignatureSchema = z.object({
   pdfDataUrl: z.string().trim().min(1).max(30_000_000)
 });
 
+export async function processManualReleasedServiceReportEmail(reportId, releasedAt, options) {
+  const client = options.client || prisma;
+  const report = await client.report.findUnique({ where: { id: reportId }, include: options.include });
+  if (!report || report.deletedAt || report.project?.deletedAt || !isManualClientReleaseActive(report)
+    || new Date(report.clientReleasedAt).getTime() !== new Date(releasedAt).getTime()) return;
+
+  const parentId = report.specialConditions?.parentRdoId;
+  if (!parentId) return;
+  const parent = await client.report.findUnique({ where: { id: parentId }, include: options.include });
+  if (!parent || parent.reportType !== ReportType.RDO || parent.projectId !== report.projectId
+    || parent.deletedAt || parent.project?.deletedAt) return;
+
+  await options.sendEmail(parent, [report], { ...options, manualRelease: true });
+}
+
+function queueManualReleasedServiceReportEmail(report, options) {
+  setImmediate(() => {
+    processManualReleasedServiceReportEmail(report.id, report.clientReleasedAt, options).catch(error => {
+      console.error('Falha ao enviar relatório de serviço liberado manualmente.', {
+        reportId: report.id,
+        projectId: report.projectId,
+        error: error?.message || error
+      });
+    });
+  });
+}
+
 export function registerReportReleaseRoutes(router, {
   requireRdoManager,
   include,
@@ -31,7 +58,8 @@ export function registerReportReleaseRoutes(router, {
   supersedeActiveReportVersions,
   createManualReportVersion,
   releasedServiceReportsAfterRdoSignature,
-  queueReleasedServiceReportsEmailAfterRdoSignature
+  queueReleasedServiceReportsEmailAfterRdoSignature,
+  sendReleasedServiceReportsEmail
 }) {
   router.patch('/:id/client-release', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
     const { release } = clientReleaseSchema.parse(req.body || {});
@@ -89,6 +117,7 @@ export function registerReportReleaseRoutes(router, {
       return tx.report.findUniqueOrThrow({ where: { id: existing.id }, include });
     });
     clearProjectDerivedCaches();
+    if (release) queueManualReleasedServiceReportEmail(item, { include, sendEmail: sendReleasedServiceReportsEmail });
     res.json(item);
   }));
 

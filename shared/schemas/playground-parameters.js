@@ -1,5 +1,5 @@
 // Formulário dirigido exclusivamente pelos descritores publicados pelo servidor.
-export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20, scopes = [] } = {}) {
+export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20, scopes = [], method = 'GET' } = {}) {
   const shape = {};
   for (const field of parameters) {
     let schema;
@@ -14,6 +14,9 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
     shape[field.name] = z.preprocess(value => value === '' || value === undefined || (typeof value === 'string' && !value.trim()) ? undefined : value,
       field.required ? schema : schema.optional());
   }
+  if (method === 'POST') shape.bodyJson = z.string().min(2, 'Informe o corpo JSON.').max(10000, 'O corpo JSON é muito longo.').refine(value => {
+    try { const body = JSON.parse(value); return body !== null && typeof body === 'object' && !Array.isArray(body); } catch { return false; }
+  }, 'Informe um objeto JSON válido.');
   return z.object(shape).strict().superRefine((value, ctx) => {
     if (shape.projectId && shape.projectCode && value.projectId && value.projectCode) {
       ctx.addIssue({ code: 'custom', path: ['projectCode'], message: 'Informe o código ou o ID interno do projeto, não ambos.' });
@@ -23,6 +26,7 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
 
 export function playgroundParameterDefaults(operation, maxPageSize = 20, scopeCode = '', grantedScopes = []) {
   return {
+    ...(operation?.method === 'POST' ? { bodyJson: JSON.stringify(operation.bodyExample || {}, null, 2) } : {}),
     ...(operation?.queryParams.includes('limit') ? { limit: String(Math.min(10, maxPageSize)) } : {}),
     ...(operation?.queryParams.includes('includeDeleted') && scopeCode === 'qualidade.excluidos.read' && grantedScopes.includes(scopeCode) ? { includeDeleted: 'true' } : {})
   };
@@ -41,5 +45,6 @@ export function buildPlaygroundInput(operation, values) {
         : field.type === 'boolean' ? normalized === true || normalized === 'true'
           : field.type === 'enum-list' ? String(normalized).split(',').map(item => item.trim()) : normalized;
   }
-  return { operationId: operation.operationId, pathParams, query };
+  return { operationId: operation.operationId, pathParams, query,
+    ...(operation.method === 'POST' ? { body: JSON.parse(values.bodyJson) } : {}) };
 }

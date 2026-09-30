@@ -450,7 +450,7 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   assert.equal(gate.blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), true);
 });
 
-test('fluxo legado resumido: gate de mobilização não bloqueia romaneios/retiradas — a Preparação foi pulada de propósito', () => {
+test('fluxo legado resumido: gate de mobilização não bloqueia retiradas — a Preparação foi pulada de propósito', () => {
   // Mesmo com um workflow praticamente vazio (nenhuma frente preenchida), `legacySummaryEntryStage` garante que
   // o gate nunca cobre uma etapa que este projeto nunca passou.
   const gate = projectWorkflowMobilizationGate({ legacySummaryEntryStage: 'EXECUTION', stage: 'EXECUTION' });

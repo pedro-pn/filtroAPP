@@ -1,4 +1,5 @@
 import { apiClient, type ApiClientError } from './client';
+import type { ProjectRomaneiosResponse } from './acompanhamentoComercial';
 import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
@@ -938,6 +939,10 @@ export async function listProjectWorkflowLeaders() {
 
 export async function getProjectWorkflow(projectId: string) {
   return (await apiClient.get<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`)).data;
+}
+
+export async function getEfetivoProjectRomaneios(projectId: string): Promise<ProjectRomaneiosResponse> {
+  return (await apiClient.get<ProjectRomaneiosResponse>(`${base}/${encodeURIComponent(projectId)}/romaneios`)).data;
 }
 
 export async function startProjectWorkflow(projectId: string, input: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }) {

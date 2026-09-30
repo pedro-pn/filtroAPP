@@ -72,7 +72,7 @@ export function ApiTokenRevealModal({ issued, operations, onClose }: ApiTokenRev
           <section className="api-token-reveal-section" aria-labelledby="api-token-base-label">
             <h3 id="api-token-base-label">Endereço base da API</h3>
             <code className="api-token-base-url">{apiBaseUrl}</code>
-            <p>O caminho de cada consulta depende da área e das permissões concedidas ao token.</p>
+            <p>O caminho de cada operação depende da área e das permissões concedidas ao token.</p>
           </section>
           {exampleOperation ? <section className="api-token-reveal-section" aria-labelledby="api-token-curl-label">
             <div className="api-token-example-heading">

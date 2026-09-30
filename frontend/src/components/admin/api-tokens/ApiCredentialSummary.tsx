@@ -19,7 +19,7 @@ export function ApiCredentialSummary({ credential }: { credential: ApiCredential
       <div><dt>Projetos</dt><dd>{credential.projectAccess.mode === 'ALL' ? 'Todos os permitidos' : `${credential.projectAccess.projectIds.length} selecionados`}</dd></div>
       <div><dt>Redes permitidas</dt><dd>{credential.allowedIpCidrs.length ? `${credential.allowedIpCidrs.length} IPs ou faixas` : 'Sem restrição de IP'}</dd></div>
     </dl>
-    <div className="api-summary-scopes"><h4>Permissões de leitura</h4><div className="api-chip-list">{credential.scopeCodes.map(scope => <Badge key={scope} tone="neutral" multiline>{scope}</Badge>)}</div></div>
+    <div className="api-summary-scopes"><h4>Permissões do token</h4><div className="api-chip-list">{credential.scopeCodes.map(scope => <Badge key={scope} tone={scope.endsWith('.write') ? 'warning' : 'neutral'} multiline>{scope}</Badge>)}</div></div>
     {credential.rotatedFromId ? <p className="api-lineage">Substitui a credencial {credential.rotatedFromId}.</p> : null}
     {credential.replacementId ? <p className="api-lineage">Rotacionada para {credential.replacementId}.</p> : null}
   </Card>;

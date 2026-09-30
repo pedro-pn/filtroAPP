@@ -79,7 +79,8 @@ test('migração pública preserva token, consentimento, coordenadas e consulta 
   assert.match(page, /const loadPage = useCallback/);
   const preview = source('pages/assinaturas/components/SignatureDocumentPreview.tsx');
   assert.match(preview, /URL.revokeObjectURL\(url\)/);
-  assert.match(preview, /\[loadPage, pageNumber, visible, attempt\]/, 'polling não recarrega a mesma imagem');
+  assert.match(preview, /\[loadPage, pageNumber, visible, attempt, revision\]/, 'o PDF só é recarregado quando a revisão da assinatura muda');
+  assert.match(view, /revision=\{invite\.document\.progress\.signed\}/);
   assert.doesNotMatch(page + view, /localStorage|sessionStorage|console\.|token=|#convite=/);
   assert.match(view, /style=\{normalizedToPercent\(field\)\}/);
   assert.match(view, /invite\.fields\.filter\(field => field\.pageNumber === pageNumber\)/);

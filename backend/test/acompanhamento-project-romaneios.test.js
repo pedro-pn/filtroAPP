@@ -44,6 +44,17 @@ test('projeto sem romaneio retorna lista vazia; projeto inexistente não consult
   } }), null);
 });
 
+test('consulta do Efetivo aplica a visibilidade do projeto antes de listar romaneios', async () => {
+  const result = await getProjectRomaneios('p1', { projectWhere: { isActive: true, managerOnly: false }, db: {
+    project: { findFirst: async query => {
+      assert.deepEqual(query.where, { id: 'p1', deletedAt: null, isActive: true, managerOnly: false });
+      return null;
+    } },
+    romaneio: { findMany: async () => assert.fail('Projeto indisponível não pode expor romaneios.') }
+  } });
+  assert.equal(result, null);
+});
+
 test('grupo reúne todas as missões atuais, inclusive inativas, sem duplicar consultas ou incluir excluídas', async () => {
   const result = await getMissionGroupRomaneios('g1', { db: {
     acompanhamentoMissionGroup: { findUnique: async query => {
@@ -131,4 +142,35 @@ test('rotas exigem acesso ao Acompanhamento e permitem consultar itens sem papel
   }
   assert.equal((await dispatch(app, '/api/acompanhamento/comercial/projetos/missing/romaneios')).status, 404);
   assert.equal((await dispatch(app, '/api/acompanhamento/comercial/grupos-missoes/missing/romaneios')).status, 404);
+});
+
+test('Efetivo consulta romaneios de projeto visível sem exigir papel do Romaneio', async t => {
+  const [{ default: app }, { default: prisma }] = await Promise.all([import('../src/app.js'), import('../src/lib/prisma.js')]);
+  function stub(model, method, implementation) {
+    const original = model[method];
+    model[method] = implementation;
+    t.after(() => { model[method] = original; });
+  }
+  let hasAccess = true;
+  stub(prisma.userSession, 'findUnique', async () => ({
+    expiresAt: new Date(Date.now() + 60_000),
+    user: { id: 'viewer', name: 'Visualizador', role: 'COLLABORATOR', accountType: 'INTERNAL', isActive: true,
+      moduleRoles: hasAccess ? [{ role: 'EFETIVO_VIEWER' }] : [] }
+  }));
+  stub(prisma.project, 'findFirst', async query => {
+    assert.equal(query.where.isActive, true);
+    assert.equal(query.where.managerOnly, false);
+    assert.equal(query.where.deletedAt, null);
+    return query.where.id === 'missing' ? null : { id: query.where.id };
+  });
+  stub(prisma.romaneio, 'findMany', async () => entries);
+  const url = '/api/efetivo/project-workflow/p1/romaneios';
+  assert.equal((await dispatch(app, url, false)).status, 401);
+  hasAccess = false;
+  assert.equal((await dispatch(app, url)).status, 403);
+  hasAccess = true;
+  const response = await dispatch(app, url);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.data.romaneios, entries);
+  assert.equal((await dispatch(app, '/api/efetivo/project-workflow/missing/romaneios')).status, 404);
 });

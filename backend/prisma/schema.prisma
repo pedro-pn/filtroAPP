@@ -975,6 +975,7 @@ model Project {
   surveys                    SatisfactionSurvey[]
   romaneios                  Romaneio[]
   budgets                    ProjectBudget[]
+  commercialAppProposals      CommercialAppProposal[]
   omieProjects               OmieProject[]
   omiePurchases              OmiePurchase[]
   omieReceivables            OmieReceivable[]
@@ -3465,6 +3466,8 @@ model ProjectBudget {
   projectId            String
   version              Int                   @default(1)
   sourceProposalCodBd  Int?
+  commercialAppProposalId String?
+  commercialAppRevision Int?
   serviceModality      ServiceModality?
   salePrice            Decimal?              @db.Decimal(14, 2)
   plannedTotalCost     Decimal?              @db.Decimal(14, 2)
@@ -3488,6 +3491,39 @@ model ProjectBudget {
   @@index([projectId])
   @@index([sourceProposalCodBd])
   @@index([selectionStatus])
+}
+
+model CommercialAppProposal {
+  id               String   @id @default(cuid())
+  externalId       String   @unique
+  proposalCode     String
+  revisionNumber   Int
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nectarOpportunityId String?
+  approvedAt       DateTime
+  clientName       String
+  clientCnpj       String
+  title            String
+  site             String
+  salePrice        Decimal  @db.Decimal(14, 2)
+  plannedTotalCost Decimal? @db.Decimal(14, 2)
+  expectedMargin   Decimal? @db.Decimal(6, 2)
+  snapshot         Json
+  snapshotHash     String
+  selectionStatus  String   @default("STAGED")
+  receivedAt       DateTime @default(now())
+  selectedAt       DateTime?
+
+  @@unique([proposalCode, revisionNumber])
+  @@index([projectId, selectionStatus])
+}
+
+model CommercialAppDelivery {
+  eventId          String   @id
+  externalId       String
+  receivedAt       DateTime @default(now())
+  snapshotHash     String
 }
 
 // Revisão de proposta adicional selecionada para compor o orçamento previsto de um projeto.

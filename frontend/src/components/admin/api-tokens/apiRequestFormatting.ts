@@ -1,8 +1,12 @@
 import type { ApiPlaygroundInput, ApiPlaygroundResult } from '../../../api/apiCredentials';
 
-export function formatSafeCurl(path: string, download = false) {
+export function formatSafeCurl(path: string, download = false, method: 'GET' | 'POST' = 'GET', body?: Record<string, unknown> | null) {
   const url = '$FILTRO_API_BASE_URL' + path;
   if (download) return `curl --fail -H "Authorization: Bearer $FILTRO_API_TOKEN" --output "arquivo-baixado.bin" "${url}"`;
+  if (method === 'POST') {
+    const quotedBody = JSON.stringify(body || {}).replaceAll("'", "'\\''");
+    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json" --data-raw '${quotedBody}' "${url}"`;
+  }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }
 
@@ -10,7 +14,7 @@ export function redactedRequestPreview(result: ApiPlaygroundResult | null, pendi
   if (result?.request) return {
     ...result.request,
     authorization: /^Bearer ••••[A-Za-z0-9_-]{4}$/.test(result.request.authorization) ? result.request.authorization : 'Bearer ••••',
-    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result))
+    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result), result.request.method === 'POST' ? 'POST' : 'GET', result.request.body)
   };
   return pending ? { method: 'GET', path: '(gerado pelo catálogo)', authorization: 'Bearer ••••', curl: formatSafeCurl('(caminho gerado pelo catálogo)') } : null;
 }
@@ -26,6 +30,6 @@ export function failedPlaygroundResult(error: unknown, durationMs: number): ApiP
   const code = typeof value.code === 'string' && /^[A-Z0-9_]{1,80}$/.test(value.code) ? value.code : status ? 'REQUEST_FAILED' : 'NETWORK_ERROR';
   const unsafe = /fva_|\bBearer\s|\b(secret|password|authorization|hmac)\b|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\/home\/|\/var\/|\/tmp\/|[a-f0-9]{64}/i;
   const message = status && status < 500 && typeof value.message === 'string' && !unsafe.test(value.message)
-    ? value.message.slice(0, 500) : status ? 'Não foi possível concluir a consulta.' : 'Não foi possível conectar ao servidor.';
+    ? value.message.slice(0, 500) : status ? 'Não foi possível concluir a operação.' : 'Não foi possível conectar ao servidor.';
   return { request: null, response: { status, requestId, durationMs: Math.max(0, Math.round(durationMs)), truncated: false, body: { code, message, requestId } } };
 }

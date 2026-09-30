@@ -312,30 +312,20 @@ test('automatic inbound romaneio stock movement creates return batch when none e
   assert.equal(created[0].romaneioId, 'romaneio-2');
 });
 
-test('integração do romaneio bloqueia saída e mantém entrada em projeto gerenciado', async () => {
+test('movimentação automática de romaneio permite saída antes da mobilização e mantém entrada', async () => {
   const workflow = {
     projectId: 'project-1', stage: 'PREPARATION', version: 1,
     mobilizationAuthorizedAt: null, mobilizationAuthorizationVersion: null,
     checklists: [], commercialFacts: [], issues: []
   };
   const tx = fakeTx({ workflow });
-  await assert.rejects(
-    createAutomaticRomaneioStockMovementsInTransaction(tx, {
-      romaneioType: 'OUTBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',
-      projectId: 'project-1', createdById: 'user-1', romaneioId: 'romaneio-1'
-    }),
-    error => error.code === 'PROJECT_MOBILIZATION_NOT_AUTHORIZED'
-  );
-  assert.equal(tx.state.movements.length, 1);
-  await assert.rejects(
-    createAutomaticRomaneioStockMovementsInTransaction(tx, {
-      romaneioType: 'OUTBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',
-      projectId: 'project-1', createdById: 'user-1', romaneioId: 'romaneio-1',
-      mobilizationDecision: { allowed: true, projectId: 'project-2' }
-    }),
-    error => error.code === 'PROJECT_MOBILIZATION_NOT_AUTHORIZED'
-  );
-  assert.equal(tx.state.movements.length, 1);
+  const outbound = await createAutomaticRomaneioStockMovementsInTransaction(tx, {
+    romaneioType: 'OUTBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',
+    projectId: 'project-1', createdById: 'user-1', romaneioId: 'romaneio-1'
+  });
+  assert.equal(outbound[0].type, 'SAIDA');
+  assert.equal(outbound[0].romaneioId, 'romaneio-1');
+  assert.equal(tx.state.movements.length, 2);
 
   const returned = await createAutomaticRomaneioStockMovementsInTransaction(tx, {
     romaneioType: 'INBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',

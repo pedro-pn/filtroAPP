@@ -379,8 +379,7 @@ export async function createAutomaticRomaneioStockMovementsInTransaction(tx, {
   notes = null,
   excludeFromProjectCost = false,
   createdById,
-  romaneioId,
-  mobilizationDecision = null
+  romaneioId
 }) {
   if (!createdById) throw appError('Usuário autenticado não identificado.', 401);
   const item = await itemOrThrow(tx, itemId);
@@ -389,9 +388,6 @@ export async function createAutomaticRomaneioStockMovementsInTransaction(tx, {
   const parsedDate = parseDate(date, 'data');
 
   if (romaneioType === 'OUTBOUND') {
-    if (!mobilizationDecision?.allowed || mobilizationDecision.projectId !== projectId) {
-      await assertProjectMobilizationAuthorized(tx, projectId);
-    }
     const movements = [];
     const allocations = await allocateFefoBatches(tx, item, parsedQuantity);
     for (const allocation of allocations) {

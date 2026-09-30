@@ -45,14 +45,14 @@ export function RomaneioProjectAvailabilityNovelty({
           {
             popover: {
               title: '✨ Projetos disponíveis por tipo',
-              description: 'A lista de obras do romaneio agora acompanha o tipo selecionado e a autorização de mobilização.'
+              description: 'A lista de obras do romaneio acompanha o tipo selecionado.'
             }
           },
           {
             element: '[data-romaneio-project-type]',
             popover: {
               title: 'Escolha entre Saída e Entrada',
-              description: 'Saída mostra obras autorizadas para mobilização e obras antigas ainda abertas. Entrada permanece disponível para todas as obras acessíveis.',
+              description: 'Saída mostra obras ativas, mesmo antes da mobilização. Entrada permanece disponível para todas as obras acessíveis.',
               side: 'bottom',
               align: 'start'
             }

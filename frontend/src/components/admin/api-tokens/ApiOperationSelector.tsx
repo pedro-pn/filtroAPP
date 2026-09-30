@@ -74,7 +74,7 @@ export function ApiOperationSelector({
       />
       {selected ? (
         <div className="api-operation-contract">
-          <Badge tone="info" className="api-method">{selected.method}</Badge>
+          <Badge tone={selected.method === 'POST' ? 'warning' : 'info'} className="api-method">{selected.method}</Badge>
           <code>{selected.path}</code>
           <small>
             Método e caminho são definidos pelo catálogo e não podem ser

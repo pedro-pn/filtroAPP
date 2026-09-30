@@ -25,6 +25,7 @@ import type { PlanningJobRole, PlanningMission } from '../../../api/efetivoPlann
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { PortalTip } from '../../../components/ui/PortalTip';
+import { ProjectRomaneiosDialog } from '../../../components/projects/ProjectRomaneiosDialog';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import {
   canManageProjectTeamCycles,
@@ -518,8 +519,8 @@ function WorkflowChecklistSection({ title, description, status, area, items, ver
 
 function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
   const authorization = workflow.mobilizationAuthorization;
-  // Sem "Pronto para mobilizar": não há mais autorização manual, para ninguém — o gate liberado já dá acesso
-  // a equipe no Efetivo, romaneios de saída e retiradas do Estoque, reavaliado a cada consulta.
+  // Sem "Pronto para mobilizar": o gate liberado dá acesso a equipe no Efetivo e retiradas do Estoque,
+  // reavaliado a cada consulta.
   const headquarters = workflow.executedAtHeadquarters === true;
   const statusLabel = workflow.mobilizationGate.ready
     ? (headquarters ? 'Liberado para iniciar a execução' : 'Liberado para mobilizar')
@@ -540,7 +541,7 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
       className={`project-workflow-gate-panel is-${authorization.status.toLowerCase()}`}
       data-project-workflow-gate
     >
-      <p className="project-workflow-category-note">{headquarters ? 'Projeto executado na Sede: não há mobilização em campo. Equipamentos, materiais, logística e QSMS são opcionais.' : 'Em projetos com gestão iniciada, o gate liberado dá acesso a equipe no Efetivo, romaneios de saída e retiradas do Estoque.'}</p>
+      <p className="project-workflow-category-note">{headquarters ? 'Projeto executado na Sede: não há mobilização em campo. Equipamentos, materiais, logística e QSMS são opcionais.' : 'Em projetos com gestão iniciada, o gate liberado dá acesso a equipe no Efetivo e retiradas do Estoque.'}</p>
       <div className="project-workflow-gate-table" role="table" aria-label="Prontidão para mobilização">
         <div className="project-workflow-gate-table-head" role="row"><span role="columnheader">Frente</span><span role="columnheader">Situação</span><span role="columnheader">Progresso</span></div>
         {workflow.mobilizationGate.fronts.map(front => <div className="project-workflow-gate-row" role="row" key={front.key}><strong role="cell">{front.label}</strong><span role="cell" className={front.status === 'READY' ? 'is-ready' : 'is-blocked'}>{front.status === 'READY' ? '🟢 Liberada' : '🔴 Pendente'}{front.optional ? ' · opcional' : ''}</span><span role="cell">{front.completed}/{front.total}</span></div>)}
@@ -785,6 +786,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   const isCurrentStage = activeStage === workflow.stage;
   const stageSaving = saving || (!isCurrentStage && !correctionMode);
   const stagePatch = (payload: ProjectWorkflowPatch) => onPatch(correctionMode ? { ...payload, correctionStage: activeStage } : payload);
+  const correctEquipmentPlan = (payload: ProjectWorkflowPatch) => onPatch({ ...payload, correctionStage: 'MOBILIZATION_PLANNING' });
   const initialTeam = detail.project.operationalMission || null;
   const mainRef = useRef<HTMLDivElement>(null);
   const { sections, Provider: StageSectionProvider } = useStageSectionRegistry();
@@ -844,6 +846,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
       <ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowDefinitiveTeam workflow={workflow} saving={stageSaving} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} showTeamEditAction={activeStage === 'PREPARATION'} />
       <ProjectWorkflowClientReleasesPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
+      {activeStage === 'PREPARATION' && correctionMode ? <ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={correctEquipmentPlan} /> : null}
       <ProjectWorkflowEquipmentPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowMaterialsPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowPreJobPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
@@ -1170,6 +1173,7 @@ export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loadin
           </dl> : null}
           <button className="project-workflow-icon-button" type="button" disabled={saving || legacySummaryBusy} aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
         </header>
+        {detail ? <div className="fv-ds project-workflow-romaneios-action"><ProjectRomaneiosDialog key={detail.project.id} projectId={detail.project.id} missionLabel={`Missão ${detail.project.code}`} source="efetivo" showOnlyWhenAvailable /></div> : null}
         {workflow && canManageMission && detail?.project.operationalMission ? (
           <div className="project-workflow-mission-bar" data-project-workflow-mission-bar>
             <span>Programação operacional: <strong>{LEGACY_MISSION_STAGE_LABELS[detail.project.operationalMission.stage]}</strong> · {detail.project.operationalMission.participantCount} participante(s)</span>

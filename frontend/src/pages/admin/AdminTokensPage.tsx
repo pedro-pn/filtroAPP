@@ -107,7 +107,7 @@ export function AdminTokensPage() {
   const grantedScopes = selectedCredential?.scopeCodes || [];
   const scopeSignature = grantedScopes.join('|');
   const parameterForm = useForm<ApiPlaygroundParameters>({
-    resolver: zodResolver(makePlaygroundParameterSchema(z, selectedOperation?.parameters || [], { maxPageSize: maxTestItems, scopes: grantedScopes }), { error: apiValidationError }), defaultValues: {}
+    resolver: zodResolver(makePlaygroundParameterSchema(z, selectedOperation?.parameters || [], { maxPageSize: maxTestItems, scopes: grantedScopes, method: selectedOperation?.method }), { error: apiValidationError }), defaultValues: {}
   });
   const { reset: resetParameters } = parameterForm;
   useEffect(() => {
@@ -148,6 +148,7 @@ export function AdminTokensPage() {
 
   async function runPlayground(values: ApiPlaygroundParameters) {
     if (!selectedCredential || !selectedOperation || !canTest) return;
+    if (selectedOperation.method === 'POST' && !window.confirm('Esta operação grava dados reais. Deseja enviar o POST agora?')) return;
     setTesting(true);
     setError('');
     setPlaygroundResult(null);
@@ -175,7 +176,7 @@ export function AdminTokensPage() {
     <AdminModuleAppShell sectionLabel="Tokens de API">
       <main className="fv-ds api-token-page api-token-page-v2">
         <div data-api-token-hero>
-          <PageHeader title="Tokens e integrações" description="Gerencie acessos de leitura aos dados do app e teste suas consultas."
+          <PageHeader title="Tokens e integrações" description="Gerencie permissões de integração e teste as operações autorizadas."
             auxiliary={showNovelty ? <Badge tone="info">Novo API Playground</Badge> : null}
             actions={<div className="api-hero-actions">{noveltyWindowActive ? <Button variant="secondary" onClick={() => startApiTokenPlaygroundTour({ user, force: true })}>Ver tutorial</Button> : null}{etapa !== 'configurar' ? <Button variant="primary" onClick={() => setEtapa('configurar')}>Gerar token</Button> : <Button variant="secondary" onClick={() => setEtapa('credenciais')}>Voltar à lista</Button>}</div>} />
         </div>
@@ -205,7 +206,7 @@ export function AdminTokensPage() {
           <ApiOperationParameters operation={selectedOperation} value={parameterForm.watch()} register={parameterForm.register} maxPageSize={maxTestItems} scopes={grantedScopes}
             errors={Object.fromEntries(Object.entries(parameterForm.formState.errors).map(([name, error]) => [name, String(error?.message || '')]))}
             onChange={value => { for (const [name, item] of Object.entries(value)) parameterForm.setValue(name, item, { shouldValidate: parameterForm.formState.isSubmitted }); testSequence.current += 1; setTesting(false); setPlaygroundResult(null); }} />
-          <div className="api-playground-run"><Button variant="primary" loading={testing} disabled={!canTest} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
+          <div className="api-playground-run"><Button variant="primary" loading={testing} disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.method === 'POST' ? 'Enviar POST' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
           <ApiRequestConsole result={playgroundResult} loading={testing} />
         </section> : <>
           <FilterBar className="api-token-filters" label="Filtros dos tokens" resultsId="api-token-results"

@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getMissionGroupRomaneios, getProjectRomaneios, type ProjectRomaneio } from '../../api/acompanhamentoComercial';
+import { getEfetivoProjectRomaneios } from '../../api/projectWorkflow';
 import { Modal } from '../ui/Modal';
 import { Alert, Badge, Button, Card, DataTable, EmptyState, Skeleton } from '../ui/ds';
 import './ProjectRomaneiosDialog.ds.css';
@@ -50,25 +51,33 @@ export function RomaneioItemsCard({ romaneio }: { romaneio: ProjectRomaneio }) {
   </Card>;
 }
 
-export function ProjectRomaneiosDialog({ projectId, groupId, missionLabel }: {
+export function ProjectRomaneiosDialog({ projectId, groupId, missionLabel, source = 'acompanhamento', showOnlyWhenAvailable = false }: {
   projectId?: string;
   groupId?: string;
   missionLabel: string;
+  source?: 'acompanhamento' | 'efetivo';
+  showOnlyWhenAvailable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const descriptionId = useId();
   const query = useQuery({
-    queryKey: ['project-romaneios', groupId ? 'group' : 'project', groupId || projectId],
-    queryFn: () => groupId ? getMissionGroupRomaneios(groupId) : getProjectRomaneios(projectId!),
-    enabled: open && Boolean(groupId || projectId),
+    queryKey: ['project-romaneios', source, groupId ? 'group' : 'project', groupId || projectId],
+    queryFn: () => source === 'efetivo'
+      ? getEfetivoProjectRomaneios(projectId!)
+      : groupId ? getMissionGroupRomaneios(groupId) : getProjectRomaneios(projectId!),
+    enabled: (open || showOnlyWhenAvailable) && Boolean(groupId || projectId),
     staleTime: 0
   });
   const romaneios = query.data?.romaneios ?? [];
   const itemCount = romaneios.reduce((total, romaneio) => total + romaneio.items.length, 0);
 
+  if (showOnlyWhenAvailable && !open && (query.isPending || (query.isSuccess && romaneios.length === 0))) return null;
+
   return (
     <>
-      <Button size="sm" variant="secondary" onClick={() => setOpen(true)} aria-haspopup="dialog">Ver itens dos romaneios</Button>
+      <Button size="sm" variant="secondary" onClick={() => { setOpen(true); if (showOnlyWhenAvailable) void query.refetch(); }} aria-haspopup="dialog">
+        {source === 'efetivo' ? `Ver romaneios${query.isSuccess ? ` (${romaneios.length})` : ''}` : 'Ver itens dos romaneios'}
+      </Button>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
