@@ -44,7 +44,7 @@ O status é um retrato calculado no momento da consulta. `workflowVersion` não 
 
 ### Credenciais e escrita
 
-- Emitir um token no painel com `projetos.read`, `efetivo.projetos.status.read` e os três escopos de escrita acima. O mesmo token `fva_...` autentica todos os GETs e POSTs por `Authorization: Bearer ...` em `https://app.filtrovali.com.br/api/integracoes/v1`.
+- A credencial do CRM ainda não foi emitida. Quando for criada no painel, selecionar `projetos.read`, `efetivo.projetos.status.read` e os três escopos de escrita acima. Essa credencial autenticará os GETs e POSTs por `Authorization: Bearer <token>` em `https://app.filtrovali.com.br/api/integracoes/v1`.
 - A criação exige recorte de projetos `ALL`, pois o novo projeto ainda não pode integrar a lista de IDs selecionados. Fatos e documentos respeitam `ALL` ou `SELECTED`; com `SELECTED`, o projeto precisa constar no token.
 - O painel testa POSTs reais mediante confirmação explícita. Para uma credencial já emitida sem os novos escopos, emitir/rotacionar outra com as permissões corretas; a política de um token não pode ser ampliada em edição.
 - O webhook antigo aceita reenvio idêntico, mas usa outra credencial. O Prisma deve migrar para a rota nova para usar o mesmo token. Nenhuma das rotas de criação atualiza campos de um projeto já criado com dados diferentes.
@@ -79,7 +79,7 @@ O exemplo mostra o formato contratado, não o estado de um projeto real. `stage`
 
 ## Mensagem para o desenvolvedor do Prisma
 
-> A base da API do FiltroAPP é `https://app.filtrovali.com.br`. Vamos usar **um token Bearer `fva_...` emitido em Tokens da API** para consultar e enviar dados. Os escopos são `projetos.read`, `efetivo.projetos.status.read`, `efetivo.projetos.create`, `efetivo.projetos.fatos-comerciais.write` e `efetivo.projetos.documentos.write`. Para criar projetos, a credencial precisa de acesso `ALL`. Usaremos `Content-Type: application/json` nos POSTs.
+> A base da API do FiltroAPP é `https://app.filtrovali.com.br`. A credencial do CRM **ainda será criada** em Tokens da API e compartilhada por canal seguro. Depois da emissão, usaremos `Authorization: Bearer <token>` para consultar e enviar dados. Os escopos previstos são `projetos.read`, `efetivo.projetos.status.read`, `efetivo.projetos.create`, `efetivo.projetos.fatos-comerciais.write` e `efetivo.projetos.documentos.write`. Para criar projetos, a credencial precisa de acesso `ALL`. Usaremos `Content-Type: application/json` nos POSTs.
 >
 > Endpoints disponíveis: `GET /api/integracoes/v1/projetos`, `GET /api/integracoes/v1/efetivo/projetos/{id}/status`, `POST /api/integracoes/v1/efetivo/projetos`, `POST /api/integracoes/v1/efetivo/projetos/{id}/fatos-comerciais` e `POST /api/integracoes/v1/efetivo/projetos/{id}/documentos`. O exemplo de resposta de status está acima e os esquemas completos estão no OpenAPI da PR. O status usa o ID interno do projeto retornado na criação ou listagem. Os POSTs do playground gravam dados reais.
 >
