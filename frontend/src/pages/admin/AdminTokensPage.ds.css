@@ -246,6 +246,384 @@
   box-shadow: var(--shadow-e1);
 }
 
+/* API2: policy editor and scope catalog. The same form is used inside rotation. */
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-credential-form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-configuration-grid {
+  gap: var(--space-4);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) :is(.api-form-section, .api-advanced-settings, .api-review-card) {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-section-heading {
+  align-items: start;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-section-heading h3,
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-card h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) :is(.api-section-heading p, .api-safe-note, .api-credential-form .field-group small) {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .field-group {
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .field-group > label {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group .fv-control-shell :is(.fv-input, .fv-select) {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group .fv-control-shell :is(.fv-input, .fv-select):focus {
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group .fv-textarea {
+  width: 100%;
+  min-height: var(--space-16);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group .field-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-advanced-settings > summary {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-md);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-advanced-settings > summary > span {
+  margin: var(--space-1) 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-regular);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-advanced-settings > .api-safe-note {
+  margin: var(--space-4) 0;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-limits-grid {
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-expiry-warning {
+  border-color: var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-expiry-warning p {
+  color: var(--warning);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-form-actions,
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-actions {
+  align-items: center;
+  gap: var(--space-2);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-form-actions {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-card {
+  border-color: var(--brand);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-summary {
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-summary dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-summary dd {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-scope-catalog {
+  min-width: 0;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-selection-count {
+  align-self: flex-start;
+  margin: 0;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  white-space: nowrap;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-scope-domain {
+  min-width: 0;
+  padding: var(--space-3);
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-scope-domain > summary {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-scope-domain > summary > span {
+  color: var(--muted);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-catalog-entry {
+  border-color: var(--line);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-permission-row {
+  align-items: start;
+  gap: var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-permission-row.selected {
+  background: var(--brand-soft);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-permission-row:hover {
+  background: var(--surface-2);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-permission-row input[type='checkbox'] {
+  width: var(--space-5);
+  height: var(--space-5);
+  accent-color: var(--brand);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-permission-copy strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) :is(.api-permission-copy > span, .api-permission-copy small, .api-scope-technical > summary, .api-catalog-entry-body) {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-scope-status {
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+/* Portaled dialogs use their own DS boundary. */
+.fv-modal.api-policy-modal {
+  width: min(calc(100vw - var(--space-8)), 76rem);
+  height: min(90dvh, 60rem);
+  max-height: calc(100dvh - var(--space-8));
+}
+
+.fv-modal.api-policy-modal > .fv-modal__body {
+  padding: var(--space-5);
+}
+
+.fv-modal.api-policy-modal .api-modal-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0;
+  overflow: visible;
+}
+
+.fv-modal.api-policy-modal .api-modal-body > p,
+.fv-modal.api-policy-modal > .fv-modal__body > p {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.fv-modal.api-policy-modal .api-modal-footer {
+  position: sticky;
+  bottom: calc(-1 * var(--space-5));
+  z-index: 2;
+  gap: var(--space-2);
+  margin: var(--space-4) calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
+  padding: var(--space-3) var(--space-5);
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.fv-modal.api-policy-modal .api-policy-options {
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.fv-modal.api-policy-modal .api-confirmation-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.fv-modal.api-policy-modal .api-confirmation-fields > :first-child {
+  grid-column: 1 / -1;
+}
+
+.fv-modal.confirm-dialog .api-confirmation-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.fv-modal.confirm-dialog .api-confirmation-fields .field-group {
+  gap: var(--space-2);
+}
+
+.fv-modal.confirm-dialog .api-confirmation-fields .field-group > label {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.fv-modal.api-token-reveal-modal .api-modal-body {
+  gap: var(--space-5);
+  padding: 0;
+  overflow: visible;
+}
+
+.fv-modal.api-token-reveal-modal .api-token-reveal-header p,
+.fv-modal.api-token-reveal-modal .api-token-reveal-section p {
+  color: var(--muted);
+}
+
+.fv-modal.api-token-reveal-modal .api-token-secret {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+
+.fv-modal.api-token-reveal-modal .api-confirm-copy {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.fv-modal.api-token-reveal-modal .api-confirm-copy input {
+  accent-color: var(--brand);
+}
+
+@media (max-width: 767.98px) {
+  .fv-modal.api-policy-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-configuration-grid,
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-summary,
+  .fv-modal.api-policy-modal .api-confirmation-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal) :is(.api-form-section, .api-advanced-settings, .api-review-card) {
+    padding: var(--space-4);
+  }
+
+  .fv-modal.api-policy-modal > .fv-modal__body {
+    padding: var(--space-4);
+  }
+
+  .fv-modal.api-policy-modal .api-modal-footer {
+    bottom: calc(-1 * var(--space-4));
+    margin: var(--space-4) calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+    padding-inline: var(--space-4);
+  }
+
+  .fv-modal.api-token-reveal-modal .api-token-secret-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 600px) {
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-catalog-entry .api-permission-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-scope-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
 @media (max-width: 640px) {
   .api-token-page-v2 .api-workflow-tabs button {
     flex-direction: column;

@@ -13,7 +13,8 @@ test('credential form uses RHF, shared Zod, scope dependencies and accessible er
   assert.match(form, /useForm/);
   assert.match(form, /makeApiCredentialSchemas/);
   assert.match(form, /NEVER_EXPIRES_CONFIRMATION/);
-  assert.match(form, /aria-invalid/);
+  assert.match(form, /invalid=\{Boolean\(field\('name'\)\)\}/);
+  assert.match(form, /import \{ Button, Input, Select, Textarea \} from '\.\.\/\.\.\/ui\/ds'/);
   assert.match(form, /field-group.*field-invalid|field-invalid.*field-group/s);
   assert.match(form, /field-error/);
   assert.match(scopes, /dependencies|requiredScopes/);

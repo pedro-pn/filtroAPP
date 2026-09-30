@@ -1148,7 +1148,7 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 #### F5.1 — Administração: API/Tokens
 
 - [x] **API1:** shell/etapas, listagem/filtros/status e detalhe da credencial.
-- [ ] **API2:** política/escopos/projetos, limites/validade, revisão, segredo único,
+- [x] **API2:** política/escopos/projetos, limites/validade, revisão, segredo único,
   redução, rotação e revogação com confirmação/motivo.
 - [ ] **API3:** parâmetros por operação, consulta por código de projeto, console
   redigido/resultado, uso e histórico de eventos, paginação por cursor.
@@ -1157,8 +1157,13 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 
 API1 concluído em 30/09: shell administrativo com navegação para Contas/Tokens,
 etapas visuais, filtros responsivos com URL, cards e status DS, resumo da
-credencial e acesso direto aos detalhes. Fluxos de emissão, política e Playground
-seguem funcionais e entram nos lotes API2–API4 para migração completa.
+credencial e acesso direto aos detalhes. Os fluxos de emissão e política foram
+migrados em API2; Playground e validação geral seguem em API3–API4.
+
+API2 concluído em 30/09: campos de política e limites, catálogo de escopos,
+revisão, segredo de exibição única e diálogos de redução, rotação e revogação
+alinhados ao DS. Contratos de confirmação e segurança preservados; API3 cobre
+Playground, uso e histórico.
 
 Critério de saída: todo fluxo novo que entrou pelo merge está visualmente coberto e
 os contratos do piloto do RDO continuam verdes.
