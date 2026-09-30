@@ -12,7 +12,6 @@ import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports
 import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
 import {
   canClientSeeReportWithRules,
-  isManualClientReleaseActive,
   releasedServiceReportsForSignedRdo
 } from '../../lib/reports/client-visibility.js';
 import env from '../../config/env.js';
@@ -2161,35 +2160,6 @@ function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports 
         error: error?.message || error
       });
     }
-  });
-}
-
-export async function processManualReleasedServiceReportEmail(reportId, releasedAt, options = {}) {
-  const client = options.client || prisma;
-  const report = await client.report.findUnique({ where: { id: reportId }, include });
-  if (!report || !isManualClientReleaseActive(report)
-    || new Date(report.clientReleasedAt).getTime() !== new Date(releasedAt).getTime()) return;
-
-  const parentId = report.specialConditions?.parentRdoId;
-  if (!parentId) return;
-  const parent = await client.report.findUnique({ where: { id: parentId }, include });
-  if (!parent || parent.reportType !== ReportType.RDO || parent.projectId !== report.projectId || isReportUnavailable(parent)) return;
-
-  await (options.sendEmail || sendReleasedServiceReportsEmail)(parent, [report], {
-    ...options,
-    manualRelease: true
-  });
-}
-
-function queueManualReleasedServiceReportEmail(report) {
-  setImmediate(() => {
-    processManualReleasedServiceReportEmail(report.id, report.clientReleasedAt).catch(error => {
-      console.error('Falha ao enviar relatório de serviço liberado manualmente.', {
-        reportId: report.id,
-        projectId: report.projectId,
-        error: error?.message || error
-      });
-    });
   });
 }
 
@@ -6201,7 +6171,7 @@ registerReportReleaseRoutes(router, {
   projectReportsForClientVisibility, previousRdosSignedForServiceReport,
   saveManualReportPdf, supersedeActiveReportVersions, createManualReportVersion,
   releasedServiceReportsAfterRdoSignature, queueReleasedServiceReportsEmailAfterRdoSignature,
-  queueManualReleasedServiceReportEmail
+  sendReleasedServiceReportsEmail
 });
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {

@@ -8,11 +8,11 @@ import {
   isManualClientReleaseActive,
   removedPendingRequiredClientSignatureIds,
   previousRdosSignedForServiceReport,
-  processManualReleasedServiceReportEmail,
   projectEmailRecipients,
   releasedServiceReportsAfterRdoSignature,
   sendReleasedServiceReportsEmail
 } from '../src/routes/resources/reports.js';
+import { processManualReleasedServiceReportEmail } from '../src/routes/resources/report-release-routes.js';
 
 function report(overrides = {}) {
   return {
