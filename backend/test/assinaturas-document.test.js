@@ -20,10 +20,10 @@ function dataUrl(bytes, mimeType = 'application/pdf') {
   return `data:${mimeType};base64,${bytes.toString('base64')}`;
 }
 
-test('parser reserva 30 MB só para o upload e mantém 3 MB nas rotas públicas', () => {
+test('parser reserva espaço para imagem de assinatura de 10 MB sem ampliar outras rotas públicas', () => {
   assert.equal(jsonBodyLimitForRequest('POST', '/api/assinaturas/documentos'), '30mb');
   assert.equal(jsonBodyLimitForRequest('GET', '/api/assinaturas/documentos'), '1mb');
-  assert.equal(jsonBodyLimitForRequest('POST', '/api/assinaturas/publico/assinar'), '3mb');
+  assert.equal(jsonBodyLimitForRequest('POST', '/api/assinaturas/publico/assinar'), '15mb');
   assert.equal(jsonBodyLimitForRequest('GET', '/api/assinaturas/publico'), '3mb');
 });
 

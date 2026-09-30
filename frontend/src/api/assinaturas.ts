@@ -198,7 +198,10 @@ async function publicRequest(path: string, token: string, init: RequestInit = {}
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string; code?: string } | null;
-    throw new ApiClientError(payload?.error || 'Não foi possível carregar o convite.', response.status, { code: payload?.code });
+    const fallbackMessage = path === '/publico/assinar'
+      ? 'Não foi possível registrar a assinatura.'
+      : 'Não foi possível carregar o convite.';
+    throw new ApiClientError(payload?.error || fallbackMessage, response.status, { code: payload?.code });
   }
   return response;
 }

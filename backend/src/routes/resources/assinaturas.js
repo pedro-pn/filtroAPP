@@ -4,6 +4,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { requireAssinaturasAccess, documentForOwnerOrThrow } from '../../lib/assinaturas/access.js';
 import { createDocument, finalPdfBuffer, sourcePdfBuffer } from '../../lib/assinaturas/document.js';
+import { MAX_SIGNATURE_IMAGE_DATA_URL_LENGTH } from '../../lib/assinaturas/image-limits.js';
 import {
   recoverInviteLink,
   renewInvite,
@@ -74,7 +75,7 @@ const publishSchema = z.union([
 ]);
 const publicSignSchema = z.strictObject({
   signerName: z.string().trim().min(2).max(160),
-  signatureImageDataUrl: z.string().trim().min(1).max(750_000),
+  signatureImageDataUrl: z.string().trim().min(1).max(MAX_SIGNATURE_IMAGE_DATA_URL_LENGTH),
   privacyNoticeAccepted: z.boolean(),
   privacyNoticeVersion: z.string().trim().min(1)
 });
