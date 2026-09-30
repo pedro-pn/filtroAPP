@@ -31,7 +31,8 @@ export function registerReportReleaseRoutes(router, {
   supersedeActiveReportVersions,
   createManualReportVersion,
   releasedServiceReportsAfterRdoSignature,
-  queueReleasedServiceReportsEmailAfterRdoSignature
+  queueReleasedServiceReportsEmailAfterRdoSignature,
+  queueManualReleasedServiceReportEmail
 }) {
   router.patch('/:id/client-release', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
     const { release } = clientReleaseSchema.parse(req.body || {});
@@ -89,6 +90,7 @@ export function registerReportReleaseRoutes(router, {
       return tx.report.findUniqueOrThrow({ where: { id: existing.id }, include });
     });
     clearProjectDerivedCaches();
+    if (release) queueManualReleasedServiceReportEmail(item);
     res.json(item);
   }));
 
