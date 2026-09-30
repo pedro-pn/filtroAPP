@@ -1076,7 +1076,9 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
   const services = projectServiceTypes(project);
   const history = project.workflow ? await relatedPostJobs(database, project) : [];
-  const resourcePlanning = ['MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION'].includes(project.workflow?.stage)
+  const needsResourcePlanning = ['MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION'].includes(project.workflow?.stage)
+    || canCorrectStage(project.workflow, 'MOBILIZATION_PLANNING', context);
+  const resourcePlanning = needsResourcePlanning
     ? await loadProjectWorkflowResourcePlanning(database, project.workflow)
     : emptyProjectWorkflowResourcePlanning(project.workflow || {});
   // Consulta própria, sem o limite dos 50 eventos recentes: uma obra longa acumula eventos de

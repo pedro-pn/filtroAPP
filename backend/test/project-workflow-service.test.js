@@ -1612,6 +1612,8 @@ test('modo de correção libera todos os controles de etapas concluídas para qu
   assert.ok(analysisChecklist(detail).every(item => item.canEdit), 'checklist da análise inicial editável na correção');
   assert.equal(detail.workflow.permissions.canEditTeamPlanning, true);
   assert.equal(detail.workflow.permissions.canEditEquipmentPlanning, true);
+  assert.deepEqual(detail.workflow.resourcePlanning.equipment.catalog.map(category => category.id), ['category-1']);
+  assert.deepEqual(detail.workflow.resourcePlanning.equipment.catalog[0].equipment.map(item => item.id), ['equipment-1']);
   assert.equal(detail.workflow.permissions.canEditSupplyPlanning, true);
   assert.equal(detail.workflow.permissions.canEditLogisticsPlanning, true);
   assert.equal(detail.workflow.preJob.canEdit, true);
@@ -1623,6 +1625,15 @@ test('modo de correção libera todos os controles de etapas concluídas para qu
   assert.ok(analysisChecklist(detail).every(item => !item.canEdit));
   assert.equal(detail.workflow.permissions.canEditTeamPlanning, false);
   assert.equal(detail.workflow.preJob.canEdit, false);
+
+  // O catálogo e os itens da preparação precisam continuar disponíveis após o D-30 para a correção.
+  const equipmentCorrection = await updateProjectWorkflow('project-1', {
+    action: 'equipment_plan', version: state.workflow.version, correctionStage: 'MOBILIZATION_PLANNING',
+    defined: true, selections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'], exceptions: [] }]
+  }, leader, { database });
+  assert.equal(equipmentCorrection.workflow.stage, 'EXECUTION');
+  assert.deepEqual(equipmentCorrection.workflow.resourcePlanning.equipment.equipmentIds, ['equipment-1']);
+  assert.equal(equipmentCorrection.workflow.preparationResources.equipment.items[0].name, 'Bomba 1');
 
   // a correção realmente grava em etapa anterior
   const edited = await updateProjectWorkflow('project-1', {
