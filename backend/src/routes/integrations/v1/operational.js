@@ -6,6 +6,7 @@ import prisma from '../../../lib/prisma.js';
 import { OPERATIONAL_RESOURCES } from '../../../lib/api-credentials/operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-operational-resources.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
+import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
 import { openOperationalDownload, validateOperationalDownload } from '../../../lib/api-credentials/operational-downloads.js';
 import {
   listOperationalResources,
@@ -21,6 +22,44 @@ export function createOperationalRouter({
   envConfig = env
 } = {}) {
   const router = Router();
+  router.post('/efetivo/projetos', requireApiOperation('efetivo.projects.create'), asyncHandler(async (req, res) => {
+    validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
+    validateProjectCreation(req.body);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'efetivo.projects.create', requestedRows: 1,
+      execute: async () => {
+        const body = await createCrmProject(prismaClient, req.body);
+        return { rows: 1, statusCode: body.status === 'created' ? 201 : 200, outcomeCode: body.status.toUpperCase(), body: { ...body, requestId: req.requestId } };
+      }
+    });
+    res.status(result.statusCode).json(result.body);
+  }));
+  router.post('/efetivo/projetos/:id/fatos-comerciais', requireApiOperation('efetivo.projects.commercialFact.post'), asyncHandler(async (req, res) => {
+    const id = validateProjectWriteAccess(req.params.id, req.query, { projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds });
+    validateCommercialFact(req.body);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'efetivo.projects.commercialFact.post', requestedRows: 1,
+      filterSummary: { projectId: id },
+      execute: async () => {
+        const body = await upsertCrmCommercialFact(prismaClient, id, req.body);
+        return { rows: 1, statusCode: body.outcome === 'CREATED' ? 201 : 200, outcomeCode: body.outcome, body: { ...body, requestId: req.requestId } };
+      }
+    });
+    res.status(result.statusCode).json(result.body);
+  }));
+  router.post('/efetivo/projetos/:id/documentos', requireApiOperation('efetivo.projects.document.post'), asyncHandler(async (req, res) => {
+    const id = validateProjectWriteAccess(req.params.id, req.query, { projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds });
+    validateCrmDocument(req.body);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'efetivo.projects.document.post', requestedRows: 1,
+      filterSummary: { projectId: id },
+      execute: async () => {
+        const body = await createCrmDocument(prismaClient, id, req.body);
+        return { rows: 1, statusCode: body.outcome === 'CREATED' ? 201 : 200, outcomeCode: body.outcome, body: { ...body, requestId: req.requestId } };
+      }
+    });
+    res.status(result.statusCode).json(result.body);
+  }));
   router.get('/efetivo/projetos/:id/status', requireApiOperation('efetivo.projects.status.get'), asyncHandler(async (req, res) => {
     const context = {
       projectAccessMode: req.apiAuth.credential.projectAccessMode,

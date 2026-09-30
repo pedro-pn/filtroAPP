@@ -15,7 +15,7 @@ import { resolvePublicStockAttachment, stockAttachmentFileName } from './lib/est
 import { qualityAttachmentFileName, resolvePublicQualityAttachment } from './lib/qualidade/attachments.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
-import { apiRequestContext, integrationApiBoundary } from './middleware/api-request-context.js';
+import { apiRequestContext, integrationApiBoundary, integrationApiErrorHandler } from './middleware/api-request-context.js';
 import { requestMetrics } from './middleware/request-metrics.js';
 import apiRouter from './routes/index.js';
 import {
@@ -118,6 +118,7 @@ app.use((req, res, next) => {
   const limit = jsonBodyLimitForRequest(req.method, req.path);
   return express.json({ limit })(req, res, next);
 });
+app.use('/api/integracoes/v1', integrationApiErrorHandler);
 morgan.token('safe-url', req => req.originalUrl?.split('?')[0] || req.url?.split('?')[0] || '/');
 app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 app.use(requestMetrics);

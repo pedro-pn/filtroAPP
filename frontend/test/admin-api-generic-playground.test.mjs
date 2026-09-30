@@ -8,7 +8,7 @@ import { redactedRequestPreview } from '../src/components/admin/api-tokens/apiRe
 
 const operations = publicApiOperations();
 const operation = id => operations.find(op => op.operationId === id);
-const schema = (op, scopes = API_SCOPES.map(scope => scope.code)) => makePlaygroundParameterSchema(z, op.parameters, { maxPageSize: 3, scopes });
+const schema = (op, scopes = API_SCOPES.map(scope => scope.code)) => makePlaygroundParameterSchema(z, op.parameters, { maxPageSize: 3, scopes, method: op.method });
 
 test('one-time token example uses a collection allowed by the granted permissions in each area', () => {
   for (const [scope, path] of [
@@ -39,7 +39,7 @@ test('all implemented permissions select matching operations, including optional
     assert.ok(matches.length, scope.code);
     assert.ok(matches.every(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code)));
   }
-  assert.equal(operationsForScope(operations, '').length, 36);
+  assert.equal(operationsForScope(operations, '').length, 39);
   assert.equal(operationsForScope(operations, 'rdo.anexos.download')[0].responseKind, 'DOWNLOAD_CHECK');
   assert.equal(operationsForScope(operations, 'ponto.resumos.read').length, 0);
 });
@@ -50,7 +50,7 @@ test('dynamic forms cover all fields and only resource operations require an ind
     const result = schema(op).safeParse(initial);
     assert.equal(result.success, !op.pathParams.length, op.operationId);
     if (op.pathParams.length) {
-      assert.equal(schema(op).safeParse({ id: 'record-demo' }).success, true);
+      assert.equal(schema(op).safeParse({ ...initial, id: 'record-demo' }).success, true);
       assert.equal(schema(op).safeParse({ id: ' ' }).success, false);
       assert.equal(schema(op).safeParse({ id: 'x'.repeat(101) }).success, false);
     }
@@ -84,4 +84,20 @@ test('download console builds binary curl without reusing the supplied curl comm
   assert.match(preview.curl, /\$FILTRO_API_TOKEN/);
   assert.match(preview.curl, /\$FILTRO_API_BASE_URL\/api\/integracoes\/v1/);
   assert.doesNotMatch(preview.curl, /Accept: application\/json|untrusted/);
+});
+
+test('CRM POST form requires JSON and console builds a POST curl from the validated body', () => {
+  const op = operation('efetivo.projects.create');
+  const defaults = playgroundParameterDefaults(op);
+  assert.equal(schema(op).safeParse(defaults).success, true);
+  assert.equal(schema(op).safeParse({ bodyJson: '{invalid}' }).success, false);
+  const input = buildPlaygroundInput(op, defaults);
+  assert.equal(input.body.code, '05776');
+  const preview = redactedRequestPreview({
+    request: { method: 'POST', path: '/api/integracoes/v1/efetivo/projetos', authorization: 'Bearer ••••demo', curl: 'untrusted', body: input.body },
+    response: { status: 201, body: { status: 'created' } }
+  });
+  assert.match(preview.curl, /-X POST/);
+  assert.match(preview.curl, /--data-raw/);
+  assert.doesNotMatch(preview.curl, /untrusted/);
 });

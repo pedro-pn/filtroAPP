@@ -103,7 +103,7 @@ export function AdminTokensPage() {
   const grantedScopes = selectedCredential?.scopeCodes || [];
   const scopeSignature = grantedScopes.join('|');
   const parameterForm = useForm<ApiPlaygroundParameters>({
-    resolver: zodResolver(makePlaygroundParameterSchema(z, selectedOperation?.parameters || [], { maxPageSize: maxTestItems, scopes: grantedScopes }), { error: apiValidationError }), defaultValues: {}
+    resolver: zodResolver(makePlaygroundParameterSchema(z, selectedOperation?.parameters || [], { maxPageSize: maxTestItems, scopes: grantedScopes, method: selectedOperation?.method }), { error: apiValidationError }), defaultValues: {}
   });
   const { reset: resetParameters } = parameterForm;
   useEffect(() => {
@@ -124,6 +124,7 @@ export function AdminTokensPage() {
 
   async function runPlayground(values: ApiPlaygroundParameters) {
     if (!selectedCredential || !selectedOperation || !canTest) return;
+    if (selectedOperation.method === 'POST' && !window.confirm('Esta operação grava dados reais. Deseja enviar o POST agora?')) return;
     setTesting(true);
     setError('');
     setPlaygroundResult(null);
@@ -167,7 +168,7 @@ export function AdminTokensPage() {
             : scopesQuery.isError ? <div className="inline-error">Não foi possível carregar o catálogo de permissões.</div>
               : <ApiCredentialForm scopes={scopesQuery.data?.items || []} onSubmit={issueCredential} />
         ) : etapa === 'playground' ? <section className="api-playground">
-          <section className="page-card api-playground-section"><h3>Credencial usada na simulação</h3><div className="field-group"><label htmlFor="playground-credential">Credencial</label><select id="playground-credential" value={selectedCredentialId} onChange={event => { replaceSafeParams({ credential: event.target.value }); setPlaygroundResult(null); }}><option value="">Selecione</option>{selectedCredentialId && !credentialOptions.some(item => item.id === selectedCredentialId) ? <option value={selectedCredentialId}>Credencial indisponível</option> : null}{credentialOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.displayToken}</option>)}</select></div>{selectedQuery.isError ? <p className="inline-error" role="alert">Não foi possível carregar a credencial selecionada. Selecione outra ou <button type="button" onClick={() => void selectedQuery.refetch()}>tente novamente</button>.</p> : null}<p>Para encontrar outros tokens, use os filtros e a paginação em Meus tokens e abra o token no Playground.</p><p>A restrição de IP não é simulada no painel; valide-a a partir da rede real do consumidor.</p></section>
+          <section className="page-card api-playground-section"><h3>Credencial usada no playground</h3><div className="field-group"><label htmlFor="playground-credential">Credencial</label><select id="playground-credential" value={selectedCredentialId} onChange={event => { replaceSafeParams({ credential: event.target.value }); setPlaygroundResult(null); }}><option value="">Selecione</option>{selectedCredentialId && !credentialOptions.some(item => item.id === selectedCredentialId) ? <option value={selectedCredentialId}>Credencial indisponível</option> : null}{credentialOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.displayToken}</option>)}</select></div>{selectedQuery.isError ? <p className="inline-error" role="alert">Não foi possível carregar a credencial selecionada. Selecione outra ou <button type="button" onClick={() => void selectedQuery.refetch()}>tente novamente</button>.</p> : null}<p>Para encontrar outros tokens, use os filtros e a paginação em Meus tokens e abra o token no Playground.</p><p>A restrição de IP não é simulada no painel; valide-a a partir da rede real do consumidor.</p></section>
           {scopesQuery.isError ? <div className="inline-error">Não foi possível carregar as operações disponíveis.</div> : null}
           <ApiOperationSelector operations={operations} scopes={scopesQuery.data?.items || []} scopeCode={testScope} credential={selectedCredential} value={operation}
             onScopeChange={value => replaceSafeParams({ etapa: 'playground', testScope: value, operation: value ? operationsForScope(operations, value)[0]?.operationId || '' : '' })}
@@ -175,7 +176,7 @@ export function AdminTokensPage() {
           <ApiOperationParameters operation={selectedOperation} value={parameterForm.watch()} register={parameterForm.register} maxPageSize={maxTestItems} scopes={grantedScopes}
             errors={Object.fromEntries(Object.entries(parameterForm.formState.errors).map(([name, error]) => [name, String(error?.message || '')]))}
             onChange={value => { for (const [name, item] of Object.entries(value)) parameterForm.setValue(name, item, { shouldValidate: parameterForm.formState.isSubmitted }); testSequence.current += 1; setTesting(false); setPlaygroundResult(null); }} />
-          <div className="api-playground-run"><Button disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
+          <div className="api-playground-run"><Button disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.method === 'POST' ? 'Enviar POST' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
           <ApiRequestConsole result={playgroundResult} loading={testing} />
         </section> : <>
           <section className="page-card api-token-filters"><div className="field-group"><label htmlFor="api-token-search">Buscar</label><SearchBar id="api-token-search" value={search} onChange={value => replaceSafeParams({ q: value })} placeholder="Nome, finalidade ou destinatário"  /></div><div className="field-group"><label htmlFor="api-token-status">Status</label><select id="api-token-status" value={statusFilter} onChange={event => replaceSafeParams({ status: event.target.value })}><option value="">Todos</option><option value="ACTIVE">Ativos</option><option value="NEAR_EXPIRY">Vencem em breve</option><option value="SCHEDULED">Agendados</option><option value="EXPIRED">Expirados</option><option value="REVOKED">Revogados</option></select></div><div className="field-group"><label htmlFor="api-token-scope">Escopo</label><input id="api-token-scope" value={scopeFilter} onChange={event => replaceSafeParams({ scope: event.target.value })} placeholder="qualidade.registros.read" /></div><div className="field-group"><label htmlFor="api-token-expiry-filter">Vence até</label><input id="api-token-expiry-filter" type="date" value={expiresBeforeFilter} onChange={event => replaceSafeParams({ expiresBefore: event.target.value })} /></div></section>

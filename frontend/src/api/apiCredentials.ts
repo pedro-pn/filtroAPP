@@ -74,10 +74,11 @@ export interface ApiPlaygroundInput {
   operationId: string;
   pathParams: Record<string, string>;
   query: Record<string, string | number | boolean | string[]>;
+  body?: Record<string, unknown>;
 }
 
 export interface ApiPlaygroundResult {
-  request: { method: 'GET'; path: string; authorization: string; curl: string } | null;
+  request: { method: 'GET' | 'POST'; path: string; authorization: string; curl: string; body?: Record<string, unknown> | null } | null;
   response: { status: number | null; durationMs: number; requestId: string | null; truncated: boolean; body: unknown };
 }
 

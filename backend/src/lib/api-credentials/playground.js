@@ -13,6 +13,7 @@ import { createPrismaQuotaStore, reserveCredentialQuota, settleCredentialQuota }
 import { ApiCredentialServiceError, effectiveCredentialStatus, validateCredentialId } from './service.js';
 import { checkPlaygroundDownload } from './playground-downloads.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './efetivo-project-status.js';
+import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 
 const PLAYGROUND_MAX_ITEMS = 20;
 const requestSchema = makeApiCredentialSchemas(z).playground;
@@ -23,6 +24,8 @@ export function validatePlaygroundRequest(input) {
   const hasExplicitLimit = parsed.query.limit !== undefined;
   const operation = getApiOperation(parsed.operationId);
   if (!operation?.supportsPlayground) throw new ApiCredentialServiceError(400, 'UNKNOWN_OPERATION', 'Operação indisponível no playground.');
+  if (operation.method === 'GET' && parsed.body !== undefined) throw new ApiCredentialServiceError(400, 'BODY_NOT_ALLOWED', 'Esta operação não aceita corpo.');
+  if (operation.method === 'POST' && parsed.body === undefined) throw new ApiCredentialServiceError(400, 'MISSING_BODY', 'Informe o corpo JSON.');
   const pathKeys = Object.keys(parsed.pathParams || {});
   const queryKeys = Object.keys(parsed.query || {});
   if (pathKeys.some(key => !(operation.pathParams || []).includes(key))
@@ -37,6 +40,9 @@ export function validatePlaygroundRequest(input) {
   else if (operation.operationId === 'quality.records.get') parsed.query = integrationSchemas.qualityRecordDetailQuery.parse(parsed.query);
   else if (operation.operationId === 'quality.natures.list') parsed.query = integrationSchemas.qualityNaturesQuery.parse(parsed.query);
   else if (operation.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, parsed.query, { projectAccessMode: 'ALL' });
+  else if (operation.operationId === 'efetivo.projects.create') validateProjectCreation(parsed.body);
+  else if (operation.operationId === 'efetivo.projects.commercialFact.post') validateCommercialFact(parsed.body);
+  else if (operation.operationId === 'efetivo.projects.document.post') validateCrmDocument(parsed.body);
   else if (getOperationalResource(operation.operationId)) parsed.query = makeOperationalReadQuerySchema(z).parse(parsed.query);
   if (!hasExplicitLimit) delete parsed.query.limit;
   return parsed;
@@ -54,9 +60,13 @@ function requestPath(operation, pathParams, query) {
   return `/api/integracoes/v1${path}${suffix ? `?${suffix}` : ''}`;
 }
 
-function curlForPath(path, download = false) {
+function curlForPath(path, download = false, method = 'GET', body) {
   const url = '$FILTRO_API_BASE_URL' + path;
   if (download) return `curl --fail -H "Authorization: Bearer $FILTRO_API_TOKEN" --output "arquivo-baixado.bin" "${url}"`;
+  if (method === 'POST') {
+    const quotedBody = JSON.stringify(body).replaceAll("'", "'\\''");
+    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json" --data-raw '${quotedBody}' "${url}"`;
+  }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }
 
@@ -103,6 +113,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   const started = process.hrtime.bigint();
   if (getOperationalResource(parsed.operationId)) prepareOperationalQuery(parsed.operationId, query, context);
   if (parsed.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, query, context);
+  if (operation.method === 'POST') validateProjectWriteAccess(parsed.pathParams.id, query, context, { create: parsed.operationId === 'efetivo.projects.create' });
   const requestId = options.requestId || randomUUID();
   const isDownload = operation.responseKind === 'DOWNLOAD_CHECK';
   const requestedRows = isDownload ? 0 : parsed.operationId.endsWith('.list') ? Number(query.limit) || PLAYGROUND_MAX_ITEMS : 1;
@@ -139,6 +150,15 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
         generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId
       };
       rows = 1;
+    } else if (parsed.operationId === 'efetivo.projects.create') {
+      body = await createCrmProject(prisma, parsed.body);
+      rows = 1;
+    } else if (parsed.operationId === 'efetivo.projects.commercialFact.post') {
+      body = await upsertCrmCommercialFact(prisma, parsed.pathParams.id, parsed.body);
+      rows = 1;
+    } else if (parsed.operationId === 'efetivo.projects.document.post') {
+      body = await createCrmDocument(prisma, parsed.pathParams.id, parsed.body);
+      rows = 1;
     } else {
       const result = await listOperationalResources(prisma, parsed.operationId, query, context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
@@ -159,9 +179,9 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   });
   const path = requestPath(operation, parsed.pathParams, query);
   return {
-    request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload) },
+    request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload, operation.method, parsed.body), body: operation.method === 'POST' ? parsed.body : null },
     response: {
-      status: 200,
+      status: operation.method === 'POST' && ['created', 'CREATED'].includes(body?.status || body?.outcome) ? 201 : 200,
       durationMs: Number((process.hrtime.bigint() - started) / 1_000_000n),
       requestId,
       truncated: rows >= PLAYGROUND_MAX_ITEMS,

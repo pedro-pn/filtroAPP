@@ -25,7 +25,7 @@ test('unified catalog renders one selectable row per available scope and operati
     assert.doesNotMatch(markup, /Consultar catálogo completo|Permissões de leitura/);
     const checkboxes = [...markup.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map(match => match[0]);
     assert.equal(checkboxes.length, scopes.length);
-    assert.equal(checkboxes.filter(input => !input.includes('disabled')).length, 34);
+    assert.equal(checkboxes.filter(input => !input.includes('disabled')).length, 37);
     assert.equal(checkboxes.filter(input => input.includes('checked')).length, 1);
     for (const scope of API_SCOPES) assert.match(markup, new RegExp(`scope-description-${scope.code}`));
     assert.match(markup, /Ver campos e endpoints/);

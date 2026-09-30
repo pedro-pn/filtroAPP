@@ -77,7 +77,7 @@ test('stored fields and explicit relation selects match Prisma; derived fields a
 
 test('every operational collection is grantable, routable, selectable in playground and absent from future candidates', () => {
   const router = createOperationalRouter();
-  assert.equal(router.stack.length, OPERATIONAL_RESOURCES.length + 4);
+  assert.equal(router.stack.length, OPERATIONAL_RESOURCES.length + 7);
   for (const resource of OPERATIONAL_RESOURCES) {
     assert.ok(API_SCOPES.some(scope => scope.code === resource.scope && scope.status === 'AVAILABLE'));
     assert.ok(API_OPERATIONS.some(operation => operation.operationId === resource.operationId && operation.path === resource.path));
