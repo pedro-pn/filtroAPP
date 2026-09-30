@@ -19,7 +19,7 @@ test('layout has tablet/mobile breakpoints and horizontal overflow containment',
 test('workflow and catalog expose keyboard and screen-reader semantics', async () => {
   const [pageSource, catalogSource] = await Promise.all([page(), catalog()]);
   assert.match(pageSource, /aria-label="Etapas do playground"/);
-  assert.match(pageSource, /aria-current="page"/);
+  assert.equal((pageSource.match(/aria-current=\{etapa === '[^']+' \? 'page' : undefined\}/g) || []).length, 3);
   assert.match(pageSource, /role="alert"/);
   assert.match(catalogSource, /aria-labelledby="scope-catalog-title"/);
   assert.match(catalogSource, /aria-live="polite"/);

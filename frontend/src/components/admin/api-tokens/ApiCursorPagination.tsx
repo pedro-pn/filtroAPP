@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Button } from '../../ui/Button';
+import { Button } from '../../ui/ds';
 
 export function ApiCursorPagination({ cursor, nextCursor, loading, onChange, label }: {
   cursor: string; nextCursor?: string | null; loading: boolean; onChange: (cursor: string) => void; label: string;

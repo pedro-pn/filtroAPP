@@ -1,0 +1,281 @@
+.api-token-page-v2 {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-4);
+  padding: 0;
+  color: var(--ink);
+}
+
+.api-token-page-v2 .fv-page-header__auxiliary {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.api-token-page-v2 .api-hero-actions {
+  align-items: center;
+  justify-content: flex-start;
+  flex-shrink: 1;
+  gap: var(--space-2);
+}
+
+.api-token-page-v2 .api-workflow-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+
+.api-token-page-v2 .api-workflow-tabs button {
+  display: flex;
+  min-width: 0;
+  min-height: var(--space-10);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+  text-align: center;
+}
+
+.api-token-page-v2 .api-workflow-tabs button:is(:hover, :focus-visible) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.api-token-page-v2 .api-workflow-tabs button.active {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-weight: var(--font-semibold);
+}
+
+.api-token-page-v2 .api-workflow-number {
+  display: grid;
+  width: var(--space-6);
+  height: var(--space-6);
+  flex: 0 0 var(--space-6);
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+}
+
+.api-token-page-v2 .api-workflow-tabs button.active .api-workflow-number {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+}
+
+.api-token-page-v2 .api-token-filters {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.api-token-page-v2 #api-token-results {
+  min-width: 0;
+}
+
+.api-token-page-v2 .api-credential-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: var(--space-3);
+}
+
+.api-token-page-v2 .api-credential-card {
+  min-width: 0;
+  color: var(--ink);
+}
+
+.api-token-page-v2 .api-credential-card .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.api-token-page-v2 .api-card-heading {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.api-token-page-v2 .api-card-identity {
+  min-width: 0;
+}
+
+.api-token-page-v2 .api-card-identity h3 {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  overflow-wrap: anywhere;
+}
+
+.api-token-page-v2 .api-card-identity code {
+  color: var(--muted);
+  font: var(--text-xs)/var(--leading-xs) var(--font-mono);
+}
+
+.api-token-page-v2 .api-card-purpose,
+.api-token-page-v2 .api-credential-summary p {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.api-token-page-v2 .api-card-facts,
+.api-token-page-v2 .api-summary-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.api-token-page-v2 :is(.api-card-facts, .api-summary-facts) > div {
+  min-width: 0;
+}
+
+.api-token-page-v2 :is(.api-card-facts, .api-summary-facts) dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.api-token-page-v2 :is(.api-card-facts, .api-summary-facts) dd {
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.api-token-page-v2 .api-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.api-token-page-v2 .api-card-footer .fv-button {
+  margin-inline-start: auto;
+}
+
+.api-token-page-v2 .api-recent-volume,
+.api-token-page-v2 .api-lineage,
+.api-token-page-v2 .api-summary-description {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  overflow-wrap: anywhere;
+}
+
+.api-token-page-v2 .api-lineage {
+  margin: 0;
+}
+
+.api-token-page-v2 .api-credential-detail {
+  gap: var(--space-4);
+  margin: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  scroll-margin-top: var(--space-6);
+}
+
+.api-token-page-v2 .api-detail-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.api-token-page-v2 .api-detail-heading h2 {
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  overflow-wrap: anywhere;
+}
+
+.api-token-page-v2 .api-detail-eyebrow {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xs);
+  text-transform: uppercase;
+}
+
+.api-token-page-v2 .api-credential-summary .fv-card__body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.api-token-page-v2 .api-summary-scopes h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.api-token-page-v2 .api-summary-scopes .api-chip-list {
+  margin: var(--space-2) 0 0;
+}
+
+.api-token-page-v2 :is(.api-credential-actions, .api-activity-grid > .page-card) {
+  margin: 0;
+  border-color: var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+@media (max-width: 640px) {
+  .api-token-page-v2 .api-workflow-tabs button {
+    flex-direction: column;
+    gap: var(--space-1);
+    min-height: 58px;
+    padding: var(--space-1);
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  .api-token-page-v2 .api-workflow-number {
+    width: var(--space-5);
+    height: var(--space-5);
+    flex-basis: var(--space-5);
+  }
+
+  .api-token-page-v2 .api-card-heading {
+    flex-direction: row;
+  }
+
+  .api-token-page-v2 .api-hero-actions,
+  .api-token-page-v2 .api-hero-actions > button {
+    width: auto;
+  }
+
+  .api-token-page-v2 .api-hero-actions {
+    flex-wrap: wrap;
+  }
+
+  .api-token-page-v2 .api-card-footer .fv-button {
+    width: auto;
+  }
+}

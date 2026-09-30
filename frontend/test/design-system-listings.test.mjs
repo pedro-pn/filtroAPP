@@ -248,7 +248,7 @@ test('listings harness is an isolated Vite entry without application routing', (
   assert.doesNotMatch(entry, /BrowserRouter|MemoryRouter|Routes|Route/);
 });
 
-test('Phase 5 listing primitives are enabled across the migrated RDO, Efetivo and Assinaturas surfaces', () => {
+test('Phase 5 listing primitives stay within migrated surfaces', () => {
   const listingNames = 'DataTable|SearchInput|FilterBar|MobileList|Pagination';
   const namedListingImport = new RegExp(
     `import\\s*\\{[^}]*\\b(?:${listingNames})\\b[^}]*\\}\\s*from\\s*['"][^'"]*components/ui/ds(?:/listings(?:/[^'"]+)?)?['"]`,
@@ -271,7 +271,8 @@ test('Phase 5 listing primitives are enabled across the migrated RDO, Efetivo an
     'src/pages/efetivo/components/CollaboratorsBoard.tsx',
     'src/pages/efetivo/components/MissionsBoard.tsx',
     'src/pages/efetivo/components/MissionTeamSelector.tsx',
-    'src/pages/assinaturas/components/DocumentLibrary.tsx'
+    'src/pages/assinaturas/components/DocumentLibrary.tsx',
+    'src/pages/admin/AdminTokensPage.tsx'
   ].map(path => new URL(`../${path}`, import.meta.url).pathname));
   const managerPagePath = new URL('../src/pages/gestor/GestorPage.tsx', import.meta.url).pathname;
   const managerPage = readFileSync(managerPagePath, 'utf8');
