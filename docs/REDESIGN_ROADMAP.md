@@ -1152,7 +1152,7 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
   redução, rotação e revogação com confirmação/motivo.
 - [x] **API3:** parâmetros por operação, consulta por código de projeto, console
   redigido/resultado, uso e histórico de eventos, paginação por cursor.
-- [ ] **API4:** validação exclusiva ADMIN, dados sintéticos, temas/responsividade,
+- [x] **API4:** validação exclusiva ADMIN, dados sintéticos, temas/responsividade,
   teclado e tours. Nenhum segredo em logs, cache, URL ou screenshots.
 
 API1 concluído em 30/09: shell administrativo com navegação para Contas/Tokens,
@@ -1167,7 +1167,15 @@ alinhados ao DS. Contratos de confirmação e segurança preservados.
 API3 concluído em 30/09: seletor de operação, campos definidos pelo catálogo,
 orientação para consulta por código de projeto, console de requisição e resposta,
 uso, eventos e navegação por cursor no DS. A prévia de autorização aceita apenas
-o formato mascarado esperado. API4 reúne a validação final do módulo.
+o formato mascarado esperado.
+
+API4 concluído em 30/09: acesso ADMIN e seletores do tour conferidos, fluxos
+visuais de criação, revisão, listagem, detalhes, ciclo de vida, segredo único e
+Playground verificados com dados sintéticos em temas claro/escuro e larguras de
+celular, tablet e desktop. Chromium, Firefox e WebKit cobriram os estados
+inválidos e diálogos; foco, Escape e ausência de rolagem horizontal foram
+confirmados. Campos inválidos, barra de ações e contraste das permissões no
+tema escuro foram ajustados. Nenhum segredo real foi usado na validação.
 
 Critério de saída: todo fluxo novo que entrou pelo merge está visualmente coberto e
 os contratos do piloto do RDO continuam verdes.

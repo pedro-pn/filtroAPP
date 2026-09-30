@@ -41,7 +41,7 @@ export function ApiCredentialActions({ credential, scopes, onChanged, onIssued }
     <Modal open={action === 'reduce'} onClose={() => { if (!busy) setAction(null); }} closeOnEscape={!busy} appearance="design-system" size="full" title={`Reduzir acesso — ${credential.name}`} panelClassName="api-policy-modal">
       {action === 'reduce' ? <ApiCredentialReductionForm key={credential.id + ':' + credential.version} credential={credential} scopes={scopes} onCancel={() => setAction(null)} onSubmit={async payload => { setBusy(true); try { await reduceApiCredential(credential.id, payload); await complete(); } finally { setBusy(false); } }} /> : null}
     </Modal>
-    <Modal open={action === 'rotate'} onClose={() => { if (!busy) setAction(null); }} closeOnEscape={!busy} appearance="design-system" size="full" title="Rotacionar credencial" panelClassName="api-policy-modal">
+    <Modal open={action === 'rotate'} onClose={() => { if (!busy) setAction(null); }} closeOnEscape={!busy} appearance="design-system" size="full" title="Rotacionar credencial" panelClassName="api-policy-modal api-rotation-modal">
       <p>Configure a substituta. A credencial anterior não ganhará as permissões adicionadas.</p>
       {action === 'rotate' ? <ApiCredentialForm key={actionKey} scopes={scopes} title="Política da substituta" initialValues={rotationInput} disabled={busy} onCancel={() => setAction(null)} onBeforeReview={() => form.trigger(undefined, { shouldFocus: true })} onSubmit={async replacement => {
         const values = makeActionConfirmationSchema(z, 'rotate').parse(form.getValues(), { error: apiValidationError }) as Confirmation;

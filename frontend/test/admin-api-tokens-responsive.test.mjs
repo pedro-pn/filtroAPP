@@ -7,6 +7,7 @@ const catalog = () => readFile(new URL('../src/components/admin/api-tokens/ApiSc
 const styles = () => readFile(new URL('../src/styles/base.css', import.meta.url), 'utf8');
 const novelty = () => readFile(new URL('../src/pages/admin/apiTokenPlaygroundNovelty.ts', import.meta.url), 'utf8');
 const tour = () => readFile(new URL('../src/pages/admin/apiTokenPlaygroundTour.ts', import.meta.url), 'utf8');
+const alert = () => readFile(new URL('../src/components/ui/ds/Alert.tsx', import.meta.url), 'utf8');
 
 test('layout has tablet/mobile breakpoints and horizontal overflow containment', async () => {
   const css = await styles();
@@ -17,10 +18,11 @@ test('layout has tablet/mobile breakpoints and horizontal overflow containment',
 });
 
 test('workflow and catalog expose keyboard and screen-reader semantics', async () => {
-  const [pageSource, catalogSource] = await Promise.all([page(), catalog()]);
+  const [pageSource, catalogSource, alertSource] = await Promise.all([page(), catalog(), alert()]);
   assert.match(pageSource, /aria-label="Etapas do playground"/);
   assert.equal((pageSource.match(/aria-current=\{etapa === '[^']+' \? 'page' : undefined\}/g) || []).length, 3);
-  assert.match(pageSource, /role="alert"/);
+  assert.match(pageSource, /<Alert tone="danger">/);
+  assert.match(alertSource, /tone === 'danger' \|\| tone === 'warning' \? 'alert' : 'status'/);
   assert.match(catalogSource, /aria-labelledby="scope-catalog-title"/);
   assert.match(catalogSource, /aria-live="polite"/);
   assert.match(catalogSource, /type="checkbox"/);

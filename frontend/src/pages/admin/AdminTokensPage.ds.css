@@ -237,6 +237,18 @@
   margin: var(--space-2) 0 0;
 }
 
+.api-token-page-v2 .api-summary-scopes .api-chip-list .fv-badge {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--fv-tone-bg);
+  font-size: var(--text-xs);
+}
+
+.api-token-page-v2 .api-summary-scopes .api-chip-list .fv-badge__label {
+  padding: 0;
+  background: transparent;
+}
+
 .api-token-page-v2 :is(.api-credential-actions, .api-activity-grid > .page-card) {
   margin: 0;
   border-color: var(--line);
@@ -319,6 +331,33 @@
   background: transparent;
 }
 
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-control-shell[data-invalid='true'] {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-control-shell[data-invalid='true']:focus-within {
+  outline-color: var(--danger);
+}
+
+/* Match the legacy important layer so the DS shell owns the error fill. */
+@layer legacy {
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-control-shell :is(.fv-input, .fv-select) {
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  :is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-textarea {
+    border-color: var(--danger) !important;
+    background: var(--danger-bg) !important;
+  }
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group.field-invalid > label,
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group small.field-error {
+  color: var(--danger);
+}
+
 :is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group .fv-textarea {
   width: 100%;
   min-height: var(--space-16);
@@ -326,6 +365,15 @@
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-textarea {
+  border-color: var(--danger) !important;
+  background: var(--danger-bg) !important;
+}
+
+:is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-textarea:focus-visible {
+  outline-color: var(--danger);
 }
 
 :is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-group .field-error {
@@ -376,9 +424,12 @@
 
 :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-form-actions {
   margin: 0;
-  padding: var(--space-3) 0;
-  border-color: var(--line);
+  bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-e2);
 }
 
 :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-card {
@@ -479,6 +530,15 @@
 
 .fv-modal.api-policy-modal > .fv-modal__body {
   padding: var(--space-5);
+}
+
+.fv-modal.api-rotation-modal > .fv-modal__body {
+  padding-bottom: 0;
+}
+
+.fv-modal.api-rotation-modal .api-form-actions {
+  bottom: 0;
+  margin-bottom: 0;
 }
 
 .fv-modal.api-policy-modal .api-modal-body {
@@ -599,6 +659,10 @@
 
   .fv-modal.api-policy-modal > .fv-modal__body {
     padding: var(--space-4);
+  }
+
+  .fv-modal.api-rotation-modal > .fv-modal__body {
+    padding-bottom: 0;
   }
 
   .fv-modal.api-policy-modal .api-modal-footer {
