@@ -786,6 +786,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   const isCurrentStage = activeStage === workflow.stage;
   const stageSaving = saving || (!isCurrentStage && !correctionMode);
   const stagePatch = (payload: ProjectWorkflowPatch) => onPatch(correctionMode ? { ...payload, correctionStage: activeStage } : payload);
+  const correctEquipmentPlan = (payload: ProjectWorkflowPatch) => onPatch({ ...payload, correctionStage: 'MOBILIZATION_PLANNING' });
   const initialTeam = detail.project.operationalMission || null;
   const mainRef = useRef<HTMLDivElement>(null);
   const { sections, Provider: StageSectionProvider } = useStageSectionRegistry();
@@ -845,6 +846,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
       <ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowDefinitiveTeam workflow={workflow} saving={stageSaving} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} showTeamEditAction={activeStage === 'PREPARATION'} />
       <ProjectWorkflowClientReleasesPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
+      {activeStage === 'PREPARATION' && correctionMode ? <ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={correctEquipmentPlan} /> : null}
       <ProjectWorkflowEquipmentPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowMaterialsPreparation workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
       <ProjectWorkflowPreJobPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
