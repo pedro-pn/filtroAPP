@@ -3,7 +3,7 @@ import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 
-export const API_CATALOG_VERSION = '2026-09-10';
+export const API_CATALOG_VERSION = '2026-09-30';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -21,6 +21,7 @@ export const API_SCOPES = Object.freeze([
   { code: 'qualidade.evidencias.metadata.read', domain: 'Qualidade', label: 'Ler metadados de evidências', description: 'Inclui metadados allowlisted das evidências.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
   { code: 'qualidade.evidencias.download', domain: 'Qualidade', label: 'Baixar evidências', description: 'Permite download autenticado de evidências.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read', 'qualidade.evidencias.metadata.read'] },
   { code: 'qualidade.excluidos.read', domain: 'Qualidade', label: 'Ler excluídos', description: 'Inclui tombstones e registros excluídos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
+  { code: 'efetivo.projetos.status.read', domain: 'Planejamento de efetivo', label: 'Ler situação operacional de projetos', description: 'Resumo por projeto para o CRM, sem equipe, textos de pendências ou documentos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], exposedFields: ['projectId', 'projectCode', 'workflowStarted', 'stage', 'workflowVersion', 'plannedMobilizationDate', 'plannedExecutionStartDate', 'plannedExecutionEndDate', 'fieldCompletionDate', 'demobilizationDate', 'commercialReadiness', 'mobilizationReady', 'closureReady', 'openIssueCount', 'criticalIssueCount', 'progressPercent', 'progressMethod', 'closedAt', 'generatedAt', 'schemaVersion', 'requestId'], excludedFields: ['pessoas', 'observações livres', 'documentos', 'valores financeiros', 'fatos comerciais de origem'] },
   ...[...new Set(OPERATIONAL_RESOURCES.map(item => item.scope))].map(code => {
     const resources = OPERATIONAL_RESOURCES.filter(item => item.scope === code);
     const domain = API_DATA_DOMAINS.find(item => item.code === resources[0].domainCode);
@@ -61,6 +62,11 @@ export const API_OPERATIONS = Object.freeze([
     requiredScopes: ['qualidade.registros.read', 'qualidade.evidencias.metadata.read', 'qualidade.evidencias.download'],
     label: 'Verificar download de evidência de Qualidade',
     optionalScopes: [], pathParams: ['id'], queryParams: [], supportsPlayground: true, responseKind: 'DOWNLOAD_CHECK'
+  },
+  {
+    operationId: 'efetivo.projects.status.get', openApiOperationId: 'getIntegrationEfetivoProjectStatus', method: 'GET', path: '/efetivo/projetos/:id/status',
+    label: 'Consultar situação operacional do projeto para o CRM', requiredScopes: ['efetivo.projetos.status.read'],
+    optionalScopes: [], pathParams: ['id'], queryParams: [], supportsPlayground: true
   },
   ...OPERATIONAL_RESOURCES.map(resource => ({
     operationId: resource.operationId, openApiOperationId: resource.openApiOperationId,

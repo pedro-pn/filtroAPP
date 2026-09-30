@@ -5,6 +5,7 @@ import asyncHandler from '../../../lib/async-handler.js';
 import prisma from '../../../lib/prisma.js';
 import { OPERATIONAL_RESOURCES } from '../../../lib/api-credentials/operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-operational-resources.js';
+import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
 import { openOperationalDownload, validateOperationalDownload } from '../../../lib/api-credentials/operational-downloads.js';
 import {
   listOperationalResources,
@@ -20,6 +21,23 @@ export function createOperationalRouter({
   envConfig = env
 } = {}) {
   const router = Router();
+  router.get('/efetivo/projetos/:id/status', requireApiOperation('efetivo.projects.status.get'), asyncHandler(async (req, res) => {
+    const context = {
+      projectAccessMode: req.apiAuth.credential.projectAccessMode,
+      projectIds: req.apiAuth.projectIds
+    };
+    const id = validateEfetivoProjectStatusRequest(req.params, req.query, context);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient,
+      operationId: 'efetivo.projects.status.get',
+      requestedRows: 1,
+      execute: async () => ({ rows: 1, body: {
+        ...await getEfetivoProjectStatus(prismaClient, id, context),
+        generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId: req.requestId
+      } })
+    });
+    res.json(result.body);
+  }));
   // Registra somente caminhos declarados no contrato; não recebe modelo/campos do cliente.
   for (const resource of OPERATIONAL_RESOURCES) {
     router.get(

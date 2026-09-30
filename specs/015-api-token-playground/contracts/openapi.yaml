@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: 1.3.1
+  version: 1.4.0
   description: >-
     Contrato da gestão administrativa de credenciais e da primeira versão externa,
     somente leitura, de Qualidade e dos cadastros/coleções operacionais publicados. Tokens de integração e sessões humanas
@@ -333,6 +333,7 @@ paths:
                     - quality.records.get
                     - quality.natures.list
                     - quality.evidence.download
+                    - efetivo.projects.status.get
                     - operational.ReportAttachment.download
                     - operational.StockItemDocument.download
                     - operational.MaintenanceAttachment.download
@@ -544,6 +545,34 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/efetivo/projetos/{id}/status:
+    get:
+      tags: [IntegrationOperational]
+      operationId: getIntegrationEfetivoProjectStatus
+      summary: Situação operacional de um projeto para o CRM Prisma
+      description: Resumo calculado no momento da consulta. O id é retornado pelo webhook de entrada ou por GET /integracoes/v1/projetos. Não inclui pessoas, textos de pendências, documentos nem fatos comerciais originados no CRM.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [efetivo.projetos.status.read]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Estado operacional atual do projeto autorizado.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EfetivoProjectStatus' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1876,6 +1905,32 @@ components:
                   code: { const: RATE_LIMITED }
 
   schemas:
+    EfetivoProjectStatus:
+      type: object
+      additionalProperties: false
+      required: [projectId, projectCode, workflowStarted, stage, workflowVersion, plannedMobilizationDate, plannedExecutionStartDate, plannedExecutionEndDate, fieldCompletionDate, demobilizationDate, commercialReadiness, mobilizationReady, closureReady, openIssueCount, criticalIssueCount, progressPercent, progressMethod, closedAt, generatedAt, schemaVersion, requestId]
+      properties:
+        projectId: { type: string }
+        projectCode: { type: string }
+        workflowStarted: { type: boolean }
+        stage: { type: [string, 'null'], description: Etapa atual; nulo antes do início da gestão. }
+        workflowVersion: { type: [integer, 'null'], description: Versão do workflow; outras fontes, como RDO, podem atualizar o avanço sem alterá-la. }
+        plannedMobilizationDate: { type: [string, 'null'], format: date }
+        plannedExecutionStartDate: { type: [string, 'null'], format: date }
+        plannedExecutionEndDate: { type: [string, 'null'], format: date }
+        fieldCompletionDate: { type: [string, 'null'], format: date }
+        demobilizationDate: { type: [string, 'null'], format: date }
+        commercialReadiness: { type: [string, 'null'], enum: [RELEASED, NOT_RELEASED, null] }
+        mobilizationReady: { type: [boolean, 'null'] }
+        closureReady: { type: [boolean, 'null'] }
+        openIssueCount: { type: integer, minimum: 0 }
+        criticalIssueCount: { type: integer, minimum: 0 }
+        progressPercent: { type: [number, 'null'], minimum: 0, maximum: 100 }
+        progressMethod: { type: [string, 'null'], enum: [RDO, MANUAL, null] }
+        closedAt: { type: [string, 'null'], format: date-time }
+        generatedAt: { type: string, format: date-time, description: Instante da consulta; não é a data de alteração de todas as fontes. }
+        schemaVersion: { type: string, const: '1.0' }
+        requestId: { type: string }
     Error:
       type: object
       additionalProperties: false

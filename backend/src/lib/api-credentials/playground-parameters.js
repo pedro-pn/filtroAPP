@@ -28,6 +28,8 @@ export function describePlaygroundParameters(operation) {
     ? { label: 'ID do registro de Qualidade', help: 'Copie o campo id de um item retornado em Listar registros de Qualidade. Não é o número do registro nem o ID do token.' }
     : operation.operationId === 'quality.evidence.download'
       ? { label: 'ID da evidência', help: 'Copie id de uma evidência ATTACHMENT no array evidences de um registro de Qualidade.' }
+      : operation.operationId === 'efetivo.projects.status.get'
+        ? { label: 'ID do projeto', help: 'Copie id da resposta do webhook de projetos ou da operação Listar projetos. O projeto deve estar no recorte do token.' }
       : operation.path.startsWith('/estoque/')
         ? { label: 'ID do documento de estoque', help: 'Copie id de um item retornado em Documentos técnicos de estoque — metadados globais.' }
         : { label: operation.path.startsWith('/manutencao/') ? 'ID do anexo de manutenção' : 'ID do anexo do relatório', help: 'Copie id de um item retornado na listagem de metadados de anexos do mesmo módulo.' };

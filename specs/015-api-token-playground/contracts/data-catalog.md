@@ -6,9 +6,11 @@ Este catálogo cobre os **153 modelos Prisma de negócio** existentes em `backen
 
 Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quando estiver `DISPONÍVEL` e possuir contrato versionado, projeção por allowlist, autorização, limites, auditoria e testes de concessão/negação.
 
+**Atualização 2026-09-30 — CRM Prisma:** `efetivo.projetos.status.read` publica apenas o resumo operacional de um projeto autorizado em `GET /efetivo/projetos/{id}/status`. O endpoint não libera leitura dos modelos internos `ProjectWorkflow`, `ProjectWorkflowIssue` ou seus textos livres. A criação de projetos usa outro webhook e não é uma operação do playground, que atualmente testa somente consultas GET.
+
 ### Estados
 
-- **DISPONÍVEL**: endpoint homologado e escopo concedível. Na primeira entrega, somente Qualidade.
+- **DISPONÍVEL**: endpoint homologado e escopo concedível. A versão atual inclui Qualidade, coleções operacionais selecionadas e o resumo de status do projeto para o CRM.
 - **PLANEJADO**: candidato legítimo a leitura, ainda sem endpoint externo homologado.
 - **SENSÍVEL**: candidato condicionado a finalidade específica, minimização e aprovação de privacidade/negócio.
 - **RESERVADO**: dado operacional ou administrativo interno; não entra na API geral e exige uma especificação própria para mudar de estado.
