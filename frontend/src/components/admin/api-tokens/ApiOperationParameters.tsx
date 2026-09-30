@@ -4,6 +4,7 @@ import type {
 } from '../../../../../shared/schemas/playground-parameters.js';
 import type { ApiOperationOption } from './apiOperations';
 import type { UseFormRegister } from 'react-hook-form';
+import { Alert, Card, Input, Select } from '../../ui/ds';
 
 export type ApiPlaygroundParameters = PlaygroundParameterValues;
 
@@ -50,12 +51,12 @@ export function ApiOperationParameters({
           {field.required ? ' *' : ''}
         </label>
         {field.type === 'boolean' ? (
-          <select
+          <Select
             {...register?.(field.name)}
             id={id}
             value={String(value[field.name] ?? '')}
             onChange={(event) => update(field.name, event.target.value)}
-            aria-invalid={Boolean(error)}
+            invalid={Boolean(error)}
             aria-describedby={`${id}-help ${id}-error`}
           >
             <option value="">Padrão da consulta</option>
@@ -63,9 +64,9 @@ export function ApiOperationParameters({
               Sim
             </option>
             <option value="false">Não</option>
-          </select>
+          </Select>
         ) : (
-          <input
+          <Input
             {...register?.(field.name)}
             id={id}
             type={
@@ -87,7 +88,7 @@ export function ApiOperationParameters({
             }
             maxLength={field.maxLength}
             aria-required={field.required}
-            aria-invalid={Boolean(error)}
+            invalid={Boolean(error)}
             aria-describedby={`${id}-help ${id}-error`}
           />
         )}
@@ -113,7 +114,7 @@ export function ApiOperationParameters({
         ? '?includeDeleted=true'
         : null;
   return (
-    <section className="page-card api-playground-section">
+    <Card className="api-playground-section api-operation-parameters">
       <h3>2. Informe os parâmetros</h3>
       {!operation ? (
         <p>Escolha uma permissão e uma operação para ver os parâmetros.</p>
@@ -138,18 +139,21 @@ export function ApiOperationParameters({
               a URI resultante.
             </p>
           ) : null}
+          {operation.queryParams.includes('projectCode') && operation.queryParams.includes('projectId') ? (
+            <Alert tone="info" className="api-project-code-hint">Para localizar uma obra pelo número visível no app, informe o código do projeto. Use o ID interno somente quando já o tiver; preencha apenas um dos dois campos.</Alert>
+          ) : null}
           {operation.responseKind === 'DOWNLOAD_CHECK' ? (
-            <p className="api-safe-note">
+            <Alert tone="info">
               O teste verifica permissão e disponibilidade do arquivo, sem
               transferir seu conteúdo. O cURL permite testar o download real no
               ambiente do consumidor.
-            </p>
+            </Alert>
           ) : null}
           <div className="api-form-grid">
             {fields.filter((field) => !field.advanced).map(renderField)}
           </div>
           {fields.some((field) => field.advanced) ? (
-            <details>
+            <details className="api-parameter-advanced">
               <summary>Paginação e filtros avançados</summary>
               <div className="api-form-grid">
                 {fields.filter((field) => field.advanced).map(renderField)}
@@ -169,6 +173,6 @@ export function ApiOperationParameters({
       <p className="api-safe-note">
         Destino, método, headers e corpo não são campos editáveis.
       </p>
-    </section>
+    </Card>
   );
 }

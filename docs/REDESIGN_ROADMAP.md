@@ -1150,7 +1150,7 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 - [x] **API1:** shell/etapas, listagem/filtros/status e detalhe da credencial.
 - [x] **API2:** política/escopos/projetos, limites/validade, revisão, segredo único,
   redução, rotação e revogação com confirmação/motivo.
-- [ ] **API3:** parâmetros por operação, consulta por código de projeto, console
+- [x] **API3:** parâmetros por operação, consulta por código de projeto, console
   redigido/resultado, uso e histórico de eventos, paginação por cursor.
 - [ ] **API4:** validação exclusiva ADMIN, dados sintéticos, temas/responsividade,
   teclado e tours. Nenhum segredo em logs, cache, URL ou screenshots.
@@ -1162,8 +1162,12 @@ migrados em API2; Playground e validação geral seguem em API3–API4.
 
 API2 concluído em 30/09: campos de política e limites, catálogo de escopos,
 revisão, segredo de exibição única e diálogos de redução, rotação e revogação
-alinhados ao DS. Contratos de confirmação e segurança preservados; API3 cobre
-Playground, uso e histórico.
+alinhados ao DS. Contratos de confirmação e segurança preservados.
+
+API3 concluído em 30/09: seletor de operação, campos definidos pelo catálogo,
+orientação para consulta por código de projeto, console de requisição e resposta,
+uso, eventos e navegação por cursor no DS. A prévia de autorização aceita apenas
+o formato mascarado esperado. API4 reúne a validação final do módulo.
 
 Critério de saída: todo fluxo novo que entrou pelo merge está visualmente coberto e
 os contratos do piloto do RDO continuam verdes.

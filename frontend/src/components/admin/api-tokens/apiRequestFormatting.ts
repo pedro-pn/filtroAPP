@@ -7,7 +7,11 @@ export function formatSafeCurl(path: string, download = false) {
 }
 
 export function redactedRequestPreview(result: ApiPlaygroundResult | null, pending?: ApiPlaygroundInput) {
-  if (result?.request) return { ...result.request, authorization: result.request.authorization, curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result)) };
+  if (result?.request) return {
+    ...result.request,
+    authorization: /^Bearer ••••[A-Za-z0-9_-]{4}$/.test(result.request.authorization) ? result.request.authorization : 'Bearer ••••',
+    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result))
+  };
   return pending ? { method: 'GET', path: '(gerado pelo catálogo)', authorization: 'Bearer ••••', curl: formatSafeCurl('(caminho gerado pelo catálogo)') } : null;
 }
 

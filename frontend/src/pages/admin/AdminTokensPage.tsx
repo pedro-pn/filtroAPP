@@ -24,7 +24,7 @@ import { ApiTokenRevealModal } from '../../components/admin/api-tokens/ApiTokenR
 import { ApiOperationSelector } from '../../components/admin/api-tokens/ApiOperationSelector';
 import { ApiOperationParameters, type ApiPlaygroundParameters } from '../../components/admin/api-tokens/ApiOperationParameters';
 import { ApiRequestConsole } from '../../components/admin/api-tokens/ApiRequestConsole';
-import { Alert, Badge, Button, EmptyState, Field, FilterBar, Input, SearchInput, Select } from '../../components/ui/ds';
+import { Alert, Badge, Button, Card, EmptyState, Field, FilterBar, Input, SearchInput, Select } from '../../components/ui/ds';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../layout/PageHeader';
 import { AdminModuleAppShell } from './AdminModuleAppShell';
@@ -184,21 +184,28 @@ export function AdminTokensPage() {
           <button data-api-workflow="configure" type="button" aria-current={etapa === 'configurar' ? 'page' : undefined} className={etapa === 'configurar' ? 'active' : ''} onClick={() => setEtapa('configurar')}><span className="api-workflow-number">2</span><span>Novo token</span></button>
           <button data-api-workflow="playground" type="button" aria-current={etapa === 'playground' ? 'page' : undefined} className={etapa === 'playground' ? 'active' : ''} onClick={() => setEtapa('playground')}><span className="api-workflow-number">3</span><span>Testar API</span></button>
         </nav>
-        {error ? <div className="inline-error" role="alert">{error}</div> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
         {etapa === 'configurar' ? (
           scopesQuery.isLoading ? <Skeleton lines={6} />
-            : scopesQuery.isError ? <div className="inline-error">Não foi possível carregar o catálogo de permissões.</div>
+            : scopesQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void scopesQuery.refetch() }}>Não foi possível carregar o catálogo de permissões.</Alert>
               : <ApiCredentialForm scopes={scopesQuery.data?.items || []} onSubmit={issueCredential} />
         ) : etapa === 'playground' ? <section className="api-playground">
-          <section className="page-card api-playground-section"><h3>Credencial usada na simulação</h3><div className="field-group"><label htmlFor="playground-credential">Credencial</label><select id="playground-credential" value={selectedCredentialId} onChange={event => { replaceSafeParams({ credential: event.target.value }); setPlaygroundResult(null); }}><option value="">Selecione</option>{selectedCredentialId && !credentialOptions.some(item => item.id === selectedCredentialId) ? <option value={selectedCredentialId}>Credencial indisponível</option> : null}{credentialOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.displayToken}</option>)}</select></div>{selectedQuery.isError ? <p className="inline-error" role="alert">Não foi possível carregar a credencial selecionada. Selecione outra ou <button type="button" onClick={() => void selectedQuery.refetch()}>tente novamente</button>.</p> : null}<p>Para encontrar outros tokens, use os filtros e a paginação em Meus tokens e abra o token no Playground.</p><p>A restrição de IP não é simulada no painel; valide-a a partir da rede real do consumidor.</p></section>
-          {scopesQuery.isError ? <div className="inline-error">Não foi possível carregar as operações disponíveis.</div> : null}
+          <Card className="api-playground-section api-playground-credential" header={<h3>Credencial usada na simulação</h3>}>
+            <Field id="playground-credential" label="Credencial" optionalText="">
+              <Select value={selectedCredentialId} onChange={event => { replaceSafeParams({ credential: event.target.value }); setPlaygroundResult(null); }}><option value="">Selecione</option>{selectedCredentialId && !credentialOptions.some(item => item.id === selectedCredentialId) ? <option value={selectedCredentialId}>Credencial indisponível</option> : null}{credentialOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.displayToken}</option>)}</Select>
+            </Field>
+            {selectedQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void selectedQuery.refetch() }}>Não foi possível carregar a credencial selecionada. Selecione outra ou tente novamente.</Alert> : null}
+            <p>Para encontrar outros tokens, use os filtros e a paginação em Meus tokens e abra o token no Playground.</p>
+            <p>A restrição de IP não é simulada no painel; valide-a a partir da rede real do consumidor.</p>
+          </Card>
+          {scopesQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void scopesQuery.refetch() }}>Não foi possível carregar as operações disponíveis.</Alert> : null}
           <ApiOperationSelector operations={operations} scopes={scopesQuery.data?.items || []} scopeCode={testScope} credential={selectedCredential} value={operation}
             onScopeChange={value => replaceSafeParams({ etapa: 'playground', testScope: value, operation: value ? operationsForScope(operations, value)[0]?.operationId || '' : '' })}
             onChange={value => replaceSafeParams({ etapa: 'playground', operation: value })} />
           <ApiOperationParameters operation={selectedOperation} value={parameterForm.watch()} register={parameterForm.register} maxPageSize={maxTestItems} scopes={grantedScopes}
             errors={Object.fromEntries(Object.entries(parameterForm.formState.errors).map(([name, error]) => [name, String(error?.message || '')]))}
             onChange={value => { for (const [name, item] of Object.entries(value)) parameterForm.setValue(name, item, { shouldValidate: parameterForm.formState.isSubmitted }); testSequence.current += 1; setTesting(false); setPlaygroundResult(null); }} />
-          <div className="api-playground-run"><Button disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
+          <div className="api-playground-run"><Button variant="primary" loading={testing} disabled={!canTest} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
           <ApiRequestConsole result={playgroundResult} loading={testing} />
         </section> : <>
           <FilterBar className="api-token-filters" label="Filtros dos tokens" resultsId="api-token-results"

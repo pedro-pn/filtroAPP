@@ -84,4 +84,5 @@ test('download console builds binary curl without reusing the supplied curl comm
   assert.match(preview.curl, /\$FILTRO_API_TOKEN/);
   assert.match(preview.curl, /\$FILTRO_API_BASE_URL\/api\/integracoes\/v1/);
   assert.doesNotMatch(preview.curl, /Accept: application\/json|untrusted/);
+  assert.equal(redactedRequestPreview({ request: { method: 'GET', path: '/api/integracoes/v1/projetos', authorization: 'Bearer segredo-completo', curl: 'untrusted' }, response: { status: 200, body: {} } }).authorization, 'Bearer ••••');
 });
