@@ -3,8 +3,8 @@
  * previsão de horas normais e extras. As horas vêm das propostas selecionadas,
  * com cadastro manual como fallback e conferência de divergências no cronograma.
  *
- * A edição é "substituição total": o front envia o conjunto completo de serviços e de horas; o backend
- * reescreve as linhas do projeto numa transação (mesmo modelo de UX do cronograma — salvar tudo).
+ * Cada conjunto enviado é substituído por inteiro; conjuntos omitidos são preservados.
+ * Isso permite editar apenas as horas sem assumir a autoria manual do escopo importado.
  */
 
 import prisma from '../prisma.js';
@@ -71,7 +71,8 @@ export function buildPlannedScope(services, hours) {
 
 // Lê o escopo previsto de um projeto (serviços + horas normais + hora extra), pronto para o front.
 export async function getPlannedScope(projectId) {
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  const project = await prisma.project.findUnique({ where: { id: projectId },
+    select: { id: true, commercialScopeImport: true } });
   if (!project) throw new Error('Projeto não encontrado.');
 
   const [services, hoursByProject] = await Promise.all([
@@ -83,14 +84,16 @@ export async function getPlannedScope(projectId) {
     loadPlannedHours([projectId])
   ]);
   const hours = hoursByProject.get(projectId);
-  return buildPlannedScope(services, hours);
+  return { ...buildPlannedScope(services, hours), commercialScopeImport: project.commercialScopeImport };
 }
 
-// Substitui todo o escopo previsto do projeto pelos conjuntos informados (já validados pela rota).
-export async function setPlannedScope(projectId, { services = [], normalHours, overtime, hoursFingerprint } = {}) {
-  assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
+// Substitui os conjuntos enviados para o projeto (já validados pela rota).
+export async function setPlannedScope(projectId, { services, normalHours, overtime, hoursFingerprint,
+  commercialScopeFingerprint } = {}) {
+  const editingServices = services !== undefined;
+  if (editingServices) assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
   const currentCorrections = latestRealizedCorrections(await prisma.projectRealizedCorrection.findMany({ where: { projectId } }));
-  for (const correction of currentCorrections.values()) {
+  for (const correction of editingServices ? currentCorrections.values() : []) {
     if (correction.quantityM == null) continue;
     const tubeRows = services.filter(service => normalizeRdoServiceType(service.serviceType) === correction.serviceType)
       .flatMap(service => service.systems ?? []).filter(row => row.systemType === 'TUBULACAO');
@@ -99,7 +102,7 @@ export async function setPlannedScope(projectId, { services = [], normalHours, o
     }
   }
   const modes = new Map();
-  for (const service of services) for (const row of service.systems ?? []) {
+  for (const service of services ?? []) for (const row of service.systems ?? []) {
     if (row.systemType === 'SISTEMA' && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_QUIMICA'
       || !row.equipment?.trim() || !row.systemName?.trim() || !Number.isSafeInteger(row.quantity)
       || row.quantity <= 0 || row.quantity > 999999999999)) {
@@ -122,6 +125,13 @@ export async function setPlannedScope(projectId, { services = [], normalHours, o
   const roleNameById = new Map(roles.map(r => [r.id, r.name]));
 
   await prisma.$transaction(async (tx) => {
+    if (editingServices && commercialScopeFingerprint !== undefined) {
+      const currentProject = await tx.project.findUnique({ where: { id: projectId },
+        select: { commercialScopeImport: true } });
+      if ((currentProject?.commercialScopeImport?.fingerprint ?? null) !== commercialScopeFingerprint) {
+        throw Object.assign(new Error('O escopo comercial mudou. Atualize o cronograma antes de salvar.'), { status: 409 });
+      }
+    }
     const hours = (await loadPlannedHours([projectId], tx)).get(projectId);
     if (!hours) throw new Error('Projeto não encontrado.');
     if (hoursFingerprint && hours.hoursPlan.fingerprint !== hoursFingerprint) throw plannedHoursConflict();
@@ -130,12 +140,12 @@ export async function setPlannedScope(projectId, { services = [], normalHours, o
       throw plannedHoursConflict('As horas são fornecidas pelo comercial. Atualize o cronograma antes de salvar.');
     }
     const resolvedSystems = new Map();
-    // Apaga os serviços (cascata derruba os sistemas) e as horas, depois recria tudo.
-    await tx.projectPlannedService.deleteMany({ where: { projectId } });
+    // Reescreve somente os conjuntos enviados; horas isoladas preservam o escopo comercial.
+    if (editingServices) await tx.projectPlannedService.deleteMany({ where: { projectId } });
     if (normalHours !== undefined) await tx.projectPlannedNormalHours.deleteMany({ where: { projectId } });
     if (overtime !== undefined) await tx.projectPlannedOvertime.deleteMany({ where: { projectId } });
 
-    for (const [index, s] of services.entries()) {
+    for (const [index, s] of (services ?? []).entries()) {
       const systems = [];
       for (const [sysIndex, sys] of (s.systems ?? []).entries()) {
         const identity = JSON.stringify([sys.projectSystemId || '', sys.equipment || '', sys.systemName || '']);
@@ -161,6 +171,8 @@ export async function setPlannedScope(projectId, { services = [], normalHours, o
         }
       });
     }
+    if (editingServices) await tx.project.update({ where: { id: projectId },
+      data: { commercialScopeImport: { status: 'MANUAL_OVERRIDE' } } });
 
     if (normalHours?.length) {
       await tx.projectPlannedNormalHours.createMany({

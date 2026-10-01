@@ -978,7 +978,13 @@ async function listCommercialDashboardUncached({
     const source = appProposal ? {
       codBd: null, codProp, nRev: appProposal.revisionNumber,
       salePrice: appProposal.salePrice, plannedCost: appProposal.plannedTotalCost,
-      expectedMargin: appProposal.expectedMargin, components: {},
+      expectedMargin: appProposal.expectedMargin,
+      components: appProposal.snapshot?.estimateSummary?.costs
+        ? Object.fromEntries(Object.entries(appProposal.snapshot.estimateSummary.costs)
+          .filter(([key]) => !['direct', 'total', 'taxesAtEstimatePrice',
+            'commissionAtEstimatePrice', 'representativeCommissionAtEstimatePrice',
+            'commercialExpenseAtEstimatePrice'].includes(key))
+          .map(([key, value]) => [`commercial_${key}`, value])) : {},
       plannedDays: null, workedDays: null
     } : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
     const additionalSources = (appProposal ? [] : selectedAdditionalsByProject.get(project.id) ?? [])

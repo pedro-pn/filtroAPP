@@ -80,8 +80,13 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   const appMutation = useMutation({
     mutationFn: ({ externalId, replaceLegacy }: { externalId: string; replaceLegacy: boolean }) =>
       selectCommercialAppRevision(projectId, externalId, replaceLegacy),
-    onSuccess: () => {
-      showToast('Revisão do ComercialAPP selecionada para o orçamento.');
+    onSuccess: result => {
+      const outcome = result.scopeImport?.status;
+      showToast(outcome === 'PARTIAL' || outcome === 'NEEDS_REVIEW'
+        ? 'Revisão selecionada. Confira as pendências do escopo no cronograma.'
+        : outcome === 'MANUAL_PRESERVED'
+          ? 'Revisão selecionada. O escopo editado manualmente foi preservado.'
+          : 'Revisão do ComercialAPP aplicada ao orçamento e ao escopo previsto.');
       refreshAcompanhamentoQueries();
     },
     onError: () => showToast('Não foi possível selecionar a revisão do ComercialAPP.')
@@ -117,7 +122,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
             </option>)}
           </select>
           <button type="button" className="mini-btn"
-            disabled={appMutation.isPending || !chosenApp || chosenApp === currentApp?.externalId}
+            disabled={appMutation.isPending || !chosenApp}
             onClick={() => {
               if (!chosenApp) return;
               const replaceLegacy = Boolean(appData?.budgetSource &&
@@ -127,7 +132,8 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
               )) return;
               appMutation.mutate({ externalId: chosenApp, replaceLegacy });
             }}>
-            {appMutation.isPending ? 'Aplicando…' : 'Aplicar'}
+            {appMutation.isPending ? 'Aplicando…'
+              : chosenApp === currentApp?.externalId ? 'Sincronizar escopo' : 'Aplicar'}
           </button>
         </span>
       </div> : null}

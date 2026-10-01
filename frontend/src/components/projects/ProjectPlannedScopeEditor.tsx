@@ -242,6 +242,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   const [normalHours, setNormalHours] = useState<HoursRow[]>([]);
   const [overtime, setOvertime] = useState<HoursRow[]>([]);
   const [baseline, setBaseline] = useState('');
+  const [servicesBaseline, setServicesBaseline] = useState('');
   const [loadedFingerprint, setLoadedFingerprint] = useState<string>();
   const dirtyRef = useRef(false);
   const forceLoadRef = useRef(false);
@@ -257,6 +258,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     setNormalHours(next.normalHours);
     setOvertime(next.overtime);
     setBaseline(normalize(next.services, next.normalHours, next.overtime));
+    setServicesBaseline(normalize(next.services, [], []));
     setLoadedFingerprint(data.hoursPlan?.fingerprint);
     // Dados carregados já têm pesos definidos: trata como fixos (edição livre, sem "brigar").
     touchedWeights.current = new Set(next.services.map(s => s.key));
@@ -338,6 +340,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     }
     const payload: PlannedScopeInput = {
       hoursFingerprint: loadedFingerprint,
+      commercialScopeFingerprint: data.commercialScopeImport?.fingerprint ?? null,
       services: services.map(s => ({
         scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
@@ -371,6 +374,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       delete payload.normalHours;
       delete payload.overtime;
     }
+    if (normalize(services, [], []) === servicesBaseline) delete payload.services;
     mutation.mutate(payload);
   }
 
@@ -515,8 +519,16 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     <div className="acp-scope">
       <div className="sec" style={{ marginTop: 4 }}>Serviços previstos (vendido)</div>
       <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
-        Preenchimento manual — para cada serviço, adicione os sistemas vendidos e seus quantitativos.
+        {data.commercialScopeImport?.pendingExternalId
+          ? 'A revisão comercial selecionada precisa de conferência. O escopo da revisão anterior foi mantido.'
+          : data.commercialScopeImport?.externalId
+          ? 'Escopo importado da revisão comercial. Confira os quantitativos antes de acompanhar o avanço.'
+          : 'Para cada serviço, adicione os sistemas vendidos e seus quantitativos.'}
       </p>
+      {data.commercialScopeImport?.issues?.length ? <div role="alert" className="acp-alert warn">
+        <strong>Itens do levantamento que precisam de conferência:</strong>
+        <ul>{data.commercialScopeImport.issues.map(item => <li key={item}>{item}</li>)}</ul>
+      </div> : null}
 
       {services.length === 0 ? (
         <div className="placeholder-copy">Nenhum serviço previsto.</div>

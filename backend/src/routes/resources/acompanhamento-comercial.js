@@ -746,10 +746,11 @@ const plannedHoursSchema = z.object({
 });
 
 const plannedScopeSchema = z.object({
-  services: z.array(plannedServiceSchema).max(50).default([]),
+  services: z.array(plannedServiceSchema).max(50).optional(),
   normalHours: z.array(plannedHoursSchema).max(50).optional(),
   overtime: z.array(plannedHoursSchema).max(50).optional(),
-  hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional()
+  hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  commercialScopeFingerprint: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional()
 });
 
 router.get(
