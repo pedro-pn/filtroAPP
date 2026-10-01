@@ -163,8 +163,10 @@ Todas as fases devem preservar os seguintes contratos:
 | Administração — Gestão de Contas | Lista, filtros, criação/edição, papéis e permissões, vínculo com colaborador, ativação, exclusão e link de senha | **Migração integral pendente em F5.2**; X1/X2 cobriram apenas componentes e fluxos pontuais |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
-| Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado concluído em F5 |
-| Administração e EPI | Visibilidade de categorias Omie, cargo operacional e cargo temporário de EPI | Ajustes localizados concluídos em F5 |
+| Qualidade | Registros, filtros, evidências, exportação, Naturezas, reordenação e formulários | **Migração integral pendente em F5.3**; F5 cobriu apenas o destino Interno/SGQ |
+| EPI | Fichas por colaborador, catálogo, entregas/devoluções, arquivo, assinatura e PDF | **Migração integral pendente em F5.4**; F5 cobriu apenas campos de cargo |
+| Privacidade | Solicitações LGPD, verificação de identidade, respostas e páginas públicas | **Migração visual pendente em F5.5** |
+| Administração — ajustes pontuais | Visibilidade de categorias Omie | Ajuste localizado concluído em F5 |
 | Onboarding | Tutoriais e campanhas de Efetivo, Assinaturas, QR, standby e controles operacionais | Auditoria visual e mobile pendente |
 
 ## Auditoria de fechamento do RDO — 04/09/2026
@@ -1202,9 +1204,6 @@ inválidos e diálogos; foco, Escape e ausência de rolagem horizontal foram
 confirmados. Campos inválidos, barra de ações e contraste das permissões no
 tema escuro foram ajustados. Nenhum segredo real foi usado na validação.
 
-Critério de saída: todo fluxo novo que entrou pelo merge está visualmente coberto e
-os contratos do piloto do RDO continuam verdes.
-
 #### F5.2 — Administração: Gestão de Contas
 
 Pendente. `AdminAccountsPage` ainda usa `Shell`, `TopBar`, cards e botões legados;
@@ -1219,6 +1218,50 @@ ajustes visuais em X1/X2. Esta etapa deve anteceder o fechamento de F6.
   de senha, ativação e exclusão, preservando validações e contratos da API.
 - [ ] Validar perfis ADMIN e sem acesso, estados de carregamento/vazio/erro,
   teclado, tema claro/escuro e persistência em ambiente isolado.
+
+#### F5.3 — Qualidade
+
+Pendente. `QualidadePage`, Registros, Naturezas e os dois formulários ainda usam
+shell, navegação e controles legados. O ajuste Interno/SGQ de F5 não concluiu
+a migração do módulo.
+
+- [ ] Migrar para `AppShell`, com Registros/Naturezas na navegação responsiva,
+  mantendo os links diretos com `?tab=` e o tutorial.
+- [ ] Migrar busca, filtros, tabela responsiva, estados, ações, exportação e
+  visualização de evidências dos Registros.
+- [ ] Migrar cadastro, edição, inativação, exclusão e reordenação das Naturezas,
+  inclusive os diálogos e a interação por toque/teclado.
+- [ ] Migrar o formulário de Registro, inclusive projeto ou Interno/SGQ,
+  anexos/links, validação e envio.
+- [ ] Validar gestor e visualizador, temas, larguras, API e persistência sem
+  alterar regras de recorrência ou permissões.
+
+#### F5.4 — EPI
+
+Pendente. `EpiPage` ainda usa `Shell`, `TopBar` e controles legados; o ajuste de
+cargo em F5 foi localizado.
+
+- [ ] Migrar shell, navegação Colaboradores/Catálogo, fichas, filtros e ações
+  para o DS em desktop, tablet e celular.
+- [ ] Migrar formulários de perfil, entrega/devolução, catálogo, arquivo,
+  confirmações, solicitação de assinatura e download de PDF.
+- [ ] Harmonizar a página pública de assinatura de EPI; validar técnico,
+  colaborador e acesso negado, sem alterar o contrato da assinatura.
+
+#### F5.5 — Privacidade
+
+Pendente. `PrivacyRequestsPage` ainda usa shell e controles legados.
+
+- [ ] Migrar listagem, filtros, estados e ações de solicitações LGPD para o DS,
+  preservando verificação de identidade, respostas e evidências de atendimento.
+- [ ] Harmonizar as páginas públicas de política e de exercício de direitos,
+  sem alterar seu texto legal ou o fluxo de protocolo.
+- [ ] Validar permissão administrativa, responsividade, teclado, temas e API
+  em ambiente isolado.
+
+Critério de saída de F5: Gestão de Contas, Qualidade, EPI e Privacidade
+integralmente migrados e validados; os fluxos novos recebidos da main e os
+contratos do piloto do RDO continuam verdes.
 
 ### F6 — Consolidação e retirada do legado
 
@@ -1285,7 +1328,9 @@ Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência rest
 
 1. **F5.2 pendente**: migrar integralmente Gestão de Contas, incluindo shell,
    listagem, formulário e diálogos, e validar permissões e persistência.
-2. **F6 em andamento**: continuar a regressão visual e a acessibilidade dos
+2. **F5.3–F5.5 pendentes**: migrar Qualidade, EPI e Privacidade, que ainda usam
+   shell ou controles legados; conferir cada fluxo e seus perfis.
+3. **F6 em andamento**: continuar a regressão visual e a acessibilidade dos
    fluxos autenticados, validar WebKit com contas isoladas e retirar legado sem
    consumidores. A reconciliação da suíte, o Hub visual e as páginas públicas
    do RDO em WebKit já foram concluídos nesta etapa.
