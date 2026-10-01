@@ -25,11 +25,12 @@ async function functionsFrom(path, names, context = {}) {
 const plain = value => JSON.parse(JSON.stringify(value));
 
 test('scope groups restore legacy services, rename/move independently, duplicate within the scope and persist only on save', async () => {
-  let state = [], seq = 0;
+  let state = [], baselineServices = '', seq = 0;
   const writes = [], messages = [];
   const scopeGroups = () => [...new Set(state.map(service => service.scopeKey))].map(key => ({ key, name: state.find(service => service.scopeKey === key).scopeName }));
   const context = {
-    get services() { return state; }, get scopeGroups() { return scopeGroups(); }, normalHours: [], overtime: [],
+    get services() { return state; }, get servicesBaseline() { return baselineServices; },
+    get scopeGroups() { return scopeGroups(); }, normalHours: [], overtime: [],
     canManage: true, data: {}, staleHours: false, resolutionMutation: { isPending: false },
     loadedFingerprint: 'reviewed-hours', commercialHours: false,
     setServices: update => { state = update(state); }, nextKey: () => `key-${++seq}`,
@@ -42,6 +43,7 @@ test('scope groups restore legacy services, rename/move independently, duplicate
   ], context);
   const scope = { services: [{ serviceType: 'LIMPEZA_QUIMICA', weight: 100, systems: [] }], normalHours: [], overtime: [] };
   state = actions.fromScope(scope).services;
+  baselineServices = actions.normalize(state, [], []);
   assert.equal(state[0].scopeName, '');
   const firstKey = state[0].scopeKey;
   actions.changeScopeName(firstKey, 'Principal');
@@ -80,12 +82,13 @@ async function saveHoursHarness(overrides = {}) {
   const context = {
     canManage: true, data: {}, staleHours: false, resolutionMutation: { isPending: false },
     loadedFingerprint: 'reviewed-hours', commercialHours: false, services: [], scopeGroups: [],
+    servicesBaseline: '{"services":[],"normalHours":[],"overtime":[]}',
     normalHours: [{ jobRoleId: '', roleName: 'Operador', hours: '77,5' }],
     overtime: [{ jobRoleId: '', hours: '0' }, { jobRoleId: '', hours: '' }],
     showToast: () => {}, mutation: { mutate: payload => writes.push(plain(payload)) },
     ...overrides
   };
-  const actions = await functionsFrom('../src/components/projects/ProjectPlannedScopeEditor.tsx', ['toNum', 'save'], context);
+  const actions = await functionsFrom('../src/components/projects/ProjectPlannedScopeEditor.tsx', ['toNum', 'normalize', 'save'], context);
   return { save: actions.save, writes };
 }
 
@@ -93,13 +96,13 @@ test('scope save includes the reviewed version and manual rows, but never copies
   const manual = await saveHoursHarness();
   manual.save();
   assert.deepEqual(manual.writes, [{
-    hoursFingerprint: 'reviewed-hours', services: [],
+    hoursFingerprint: 'reviewed-hours', commercialScopeFingerprint: null,
     normalHours: [{ jobRoleId: null, roleName: 'Operador', hours: 77.5 }],
     overtime: [{ jobRoleId: null, hours: 0 }]
   }]);
   const commercial = await saveHoursHarness({ commercialHours: true });
   commercial.save();
-  assert.deepEqual(commercial.writes, [{ hoursFingerprint: 'reviewed-hours', services: [] }]);
+  assert.deepEqual(commercial.writes, [{ hoursFingerprint: 'reviewed-hours', commercialScopeFingerprint: null }]);
 });
 
 test('scope save does not write without permission, loaded data or a current review, or while resolving hours', async () => {
