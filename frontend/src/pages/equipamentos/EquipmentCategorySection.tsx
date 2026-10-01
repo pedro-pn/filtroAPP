@@ -1,6 +1,7 @@
 import { useRef, type ChangeEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
+import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Badge, Button } from '../../components/ui/ds';
 import { useListingMobileViewport } from '../../components/ui/ds/listings/useListingMedia';
@@ -25,7 +26,6 @@ interface EquipmentRowProps extends Omit<EquipmentCategorySectionProps, 'items' 
 }
 
 function EquipmentRow({ category, item, isManager, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: EquipmentRowProps) {
-  const techInput = useRef<HTMLInputElement>(null);
   const certInput = useRef<HTMLInputElement>(null);
   const { canTech, canCert, currentDoc, isUploading, uploadDoc } = useEquipmentDocumentUpload(item, category, isManager);
   const status = calibrationStatus(item);
@@ -82,10 +82,17 @@ function EquipmentRow({ category, item, isManager, onEdit, onRemove, onOpenTechn
             </>
           ) : null}
           {canTech ? (
-            <>
-              <input ref={techInput} type="file" accept="application/pdf,.pdf" hidden aria-label={`Selecionar documento técnico de ${item.code}`} onChange={event => handleFile('tech', event)} />
-              <Button size="sm" multiline variant="ghost" disabled={isUploading} onClick={() => techInput.current?.click()}>Enviar PDF técnico</Button>
-            </>
+            <div className="equip-category-table__tech-upload">
+              <PdfDropzone
+                appearance="design-system"
+                id={`equip-technical-pdf-${item.id}`}
+                label={`Enviar PDF técnico de ${item.code}`}
+                onFile={file => void uploadDoc('tech', file || undefined)}
+                disabled={isUploading}
+                emptyText="Enviar PDF técnico"
+                emptyHint="Clique ou arraste o PDF"
+              />
+            </div>
           ) : null}
           {!item.calibrationCertificate && !currentDoc && !canCert && !canTech ? <span className="equip-category-table__muted">Nenhum documento</span> : null}
         </div>
@@ -111,7 +118,7 @@ function EquipmentRow({ category, item, isManager, onEdit, onRemove, onOpenTechn
 }
 
 export function EquipmentCategorySection({ category, items, total, isManager, onAdd, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: EquipmentCategorySectionProps) {
-  const compact = useListingMobileViewport('lg');
+  const compact = useListingMobileViewport('xl');
 
   return (
     <section className="page-card equip-category-section" data-equip-category-section data-equip-category-id={category.id}>

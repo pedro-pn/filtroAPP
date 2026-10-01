@@ -104,6 +104,25 @@
   overflow-wrap: anywhere;
 }
 
+.equip-page-v2 .equip-category-table__tech-upload { width: 100%; min-width: 0; }
+.equip-page-v2 .equip-category-table__tech-upload .pdf-upload--ds > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.equip-page-v2 .equip-category-table__tech-upload .pdf-dropzone {
+  width: 100%;
+  min-height: var(--space-16);
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+.equip-page-v2 .equip-category-table__tech-upload .pdf-dropzone-icon { flex: 0 0 auto; }
+.equip-page-v2 .equip-category-table__tech-upload .pdf-dropzone-text strong { font-size: var(--text-xs); }
+
 .equip-page-v2 .equip-category-table .fv-badge { max-width: 100%; }
 
 .fv-ds .equip-entity-modal .fv-modal__body {

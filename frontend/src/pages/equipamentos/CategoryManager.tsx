@@ -4,6 +4,7 @@ import type { EquipmentCategory } from '../../api/equipamentos';
 import { useToast } from '../../components/ui/ToastContext';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button, EmptyState } from '../../components/ui/ds';
+import { useListingMobileViewport } from '../../components/ui/ds/listings/useListingMedia';
 import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
 import { type ProjectSortDirection } from '../../utils/projectSort';
 import {
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdit, onRemove }: Props) {
+  const compact = useListingMobileViewport('xl');
   const { updateCategory } = useEquipamentoMutations();
   const showToast = useToast();
   const [locked, setLocked] = useState(true);
@@ -101,7 +103,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
     startCategoryDrag(categoryId);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', categoryId);
-    setReorderDragImage(event, '.equip-card', 'app-reorder-drag-ghost');
+    setReorderDragImage(event, '.equip-category-reorder-item', 'app-reorder-drag-ghost');
   }
 
   function handleDragOver(event: DragEvent<HTMLElement>, categoryId: string) {
@@ -138,7 +140,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
       event.preventDefault();
       return;
     }
-    const row = event.currentTarget.closest('.equip-card');
+    const row = event.currentTarget.closest('.equip-category-reorder-item');
     if (!(row instanceof HTMLElement)) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -156,7 +158,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
     event.preventDefault();
     movePointerDragGhost(state, event.clientX, event.clientY);
 
-    const targetId = reorderIdFromPoint(event.clientX, event.clientY, '.equip-card');
+    const targetId = reorderIdFromPoint(event.clientX, event.clientY, '.equip-category-reorder-item');
     if (!targetId) return;
     setOverCategoryId(targetId);
     const next = reorderRowsById(orderedRef.current, fromId, targetId, category => category.id);
@@ -175,6 +177,49 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
     if (persist) persistCategoryOrder(orderedRef.current);
     else applyOrdered(categories);
     clearDragState();
+  }
+
+  function dragHandle(category: EquipmentCategory) {
+    if (locked) return null;
+    return (
+      <button
+        className="equip-drag-handle"
+        type="button"
+        draggable
+        aria-label={`Arrastar ${category.name} para reordenar`}
+        aria-grabbed={draggedCategoryId === category.id}
+        title="Arraste para reordenar"
+        onDragStart={event => handleDragStart(event, category.id)}
+        onDragEnd={handleDragEnd}
+        onPointerDown={event => handlePointerDown(event, category.id)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={event => finishPointerDrag(event, true)}
+        onPointerCancel={event => finishPointerDrag(event, false)}
+      >
+        ⠿
+      </button>
+    );
+  }
+
+  function categoryActions(category: EquipmentCategory) {
+    if (!locked) return null;
+    return (
+      <div className="equip-category-manager__actions">
+        <Button variant="secondary" size="sm" type="button" onClick={() => onEdit(category)}>Editar</Button>
+        {!rdoLinkedCategoryIds.has(category.id) && (
+          <RemoveIconButton type="button" label={`Remover categoria ${category.name}`} onClick={() => onRemove(category)} />
+        )}
+      </div>
+    );
+  }
+
+  function reorderClasses(category: EquipmentCategory) {
+    return [
+      'equip-category-reorder-item',
+      !locked ? 'draggable' : '',
+      draggedCategoryId === category.id ? 'drag-placeholder' : '',
+      overCategoryId === category.id && draggedCategoryId !== category.id ? 'drag-over' : ''
+    ].filter(Boolean).join(' ');
   }
 
   return (
@@ -202,59 +247,51 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
 
       {ordered.length === 0 ? <EmptyState title="Nenhuma categoria cadastrada" description="Crie uma categoria para organizar os equipamentos." variant="create" action={{ label: 'Nova categoria', onClick: onAdd }} /> : null}
 
-      <div className={`equip-grid ${locked ? '' : 'reordering'}`}>
-        {ordered.map(category => (
-          <article
-            className={[
-              'report-card equip-card',
-              !locked ? 'draggable' : '',
-              draggedCategoryId === category.id ? 'drag-placeholder' : '',
-              overCategoryId === category.id && draggedCategoryId !== category.id ? 'drag-over' : ''
-            ].filter(Boolean).join(' ')}
-            key={category.id}
-            data-reorder-id={category.id}
-            onDragOver={event => handleDragOver(event, category.id)}
-            onDragLeave={() => setOverCategoryId(current => current === category.id ? null : current)}
-            onDrop={event => handleDrop(event, category.id)}
-          >
-            <div className="equip-card-head">
-              <span className="equip-card-titlewrap">
-                {!locked && (
-                  <button
-                    className="equip-drag-handle"
-                    type="button"
-                    draggable
-                    aria-label={`Arrastar ${category.name} para reordenar`}
-                    aria-grabbed={draggedCategoryId === category.id}
-                    title="Arraste para reordenar"
-                    onDragStart={event => handleDragStart(event, category.id)}
-                    onDragEnd={handleDragEnd}
-                    onPointerDown={event => handlePointerDown(event, category.id)}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={event => finishPointerDrag(event, true)}
-                    onPointerCancel={event => finishPointerDrag(event, false)}
-                  >
-                    ⠿
-                  </button>
-                )}
-                <strong>{category.name}</strong>
-              </span>
-              {rdoLinkedCategoryIds.has(category.id) && (
-                <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span>
-              )}
-            </div>
-            <div className="rel-meta">{category.fieldSchema.length} campo(s){category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}{category.showInMaintenance !== false ? ' · manutenção' : ' · fora da manutenção'}</div>
-            {locked && (
-              <div className="report-card-actions">
-                <Button variant="secondary" size="sm" type="button" onClick={() => onEdit(category)}>Editar</Button>
-                {!rdoLinkedCategoryIds.has(category.id) && (
-                  <RemoveIconButton type="button" label={`Remover categoria ${category.name}`} onClick={() => onRemove(category)} />
-                )}
+      {ordered.length > 0 && (compact ? (
+        <div className={`equip-category-manager__list ${locked ? '' : 'reordering'}`}>
+          {ordered.map(category => (
+            <article
+              className={`equip-category-manager__item ${reorderClasses(category)}`}
+              key={category.id}
+              data-reorder-id={category.id}
+              onDragOver={event => handleDragOver(event, category.id)}
+              onDragLeave={() => setOverCategoryId(current => current === category.id ? null : current)}
+              onDrop={event => handleDrop(event, category.id)}
+            >
+              <div className="equip-category-manager__item-main">
+                <span className="equip-card-titlewrap">{dragHandle(category)}<strong>{category.name}</strong></span>
+                {rdoLinkedCategoryIds.has(category.id) && <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span>}
               </div>
-            )}
-          </article>
-        ))}
-      </div>
+              <div className="rel-meta">{category.fieldSchema.length} {category.fieldSchema.length === 1 ? 'campo' : 'campos'}{category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}{category.showInMaintenance !== false ? ' · manutenção' : ' · fora da manutenção'}</div>
+              {categoryActions(category)}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="equip-category-manager__table-wrap">
+          <table className={`equip-category-manager__table ${locked ? '' : 'reordering'}`}>
+            <thead><tr><th scope="col">Categoria</th><th scope="col">Campos técnicos</th><th scope="col">Recursos</th><th scope="col">Relatório</th><th scope="col">Ações</th></tr></thead>
+            <tbody>
+              {ordered.map(category => (
+                <tr
+                  className={reorderClasses(category)}
+                  key={category.id}
+                  data-reorder-id={category.id}
+                  onDragOver={event => handleDragOver(event, category.id)}
+                  onDragLeave={() => setOverCategoryId(current => current === category.id ? null : current)}
+                  onDrop={event => handleDrop(event, category.id)}
+                >
+                  <th scope="row"><span className="equip-card-titlewrap">{dragHandle(category)}<strong>{category.name}</strong></span></th>
+                  <td>{category.fieldSchema.length}</td>
+                  <td className="equip-category-manager__resources">{category.supportsCalibration ? 'Calibração · ' : ''}{category.syncToRomaneio ? 'Romaneio · ' : ''}{category.showInMaintenance !== false ? 'Manutenção' : 'Fora da manutenção'}</td>
+                  <td>{rdoLinkedCategoryIds.has(category.id) ? <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span> : <span className="rel-meta">—</span>}</td>
+                  <td>{categoryActions(category)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </section>
   );
 }
