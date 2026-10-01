@@ -160,6 +160,7 @@ Todas as fases devem preservar os seguintes contratos:
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
 | Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1–M5 concluídos tecnicamente; fluxo visual, permissões e rascunho isolado conferidos |
 | Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
+| Administração — Gestão de Contas | Lista, filtros, criação/edição, papéis e permissões, vínculo com colaborador, ativação, exclusão e link de senha | **Migração integral pendente em F5.2**; X1/X2 cobriram apenas componentes e fluxos pontuais |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
 | Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado concluído em F5 |
@@ -1204,6 +1205,21 @@ tema escuro foram ajustados. Nenhum segredo real foi usado na validação.
 Critério de saída: todo fluxo novo que entrou pelo merge está visualmente coberto e
 os contratos do piloto do RDO continuam verdes.
 
+#### F5.2 — Administração: Gestão de Contas
+
+Pendente. `AdminAccountsPage` ainda usa `Shell`, `TopBar`, cards e botões legados;
+somente o card de link de senha e as opções compactas de permissão receberam
+ajustes visuais em X1/X2. Esta etapa deve anteceder o fechamento de F6.
+
+- [ ] Migrar a rota para `AdminModuleAppShell`, com navegação Contas/Tokens,
+  breadcrumb, perfil e tema consistentes.
+- [ ] Migrar listagem, busca e filtros para controles DS, com apresentação
+  responsiva e ações alinhadas no desktop, tablet e celular.
+- [ ] Migrar criação/edição, papéis, permissões, vínculo com colaborador, link
+  de senha, ativação e exclusão, preservando validações e contratos da API.
+- [ ] Validar perfis ADMIN e sem acesso, estados de carregamento/vazio/erro,
+  teclado, tema claro/escuro e persistência em ambiente isolado.
+
 ### F6 — Consolidação e retirada do legado
 
 Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–X3.
@@ -1267,7 +1283,9 @@ precisam de uma conta isolada válida para completar a auditoria autenticada.
 
 Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
 
-1. **F6 em andamento**: continuar a regressão visual e a acessibilidade dos
+1. **F5.2 pendente**: migrar integralmente Gestão de Contas, incluindo shell,
+   listagem, formulário e diálogos, e validar permissões e persistência.
+2. **F6 em andamento**: continuar a regressão visual e a acessibilidade dos
    fluxos autenticados, validar WebKit com contas isoladas e retirar legado sem
    consumidores. A reconciliação da suíte, o Hub visual e as páginas públicas
    do RDO em WebKit já foram concluídos nesta etapa.
