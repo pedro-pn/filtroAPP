@@ -4247,6 +4247,10 @@ a {
 .acp-proposal-preview { width: 100%; margin: 8px 0; border-collapse: collapse; }
 .acp-proposal-preview th, .acp-proposal-preview td { text-align: left; padding: 6px; border-bottom: 1px solid var(--br); }
 .acp-proposal-preview td { white-space: nowrap; }
+@media (max-width: 600px) {
+  .acp-proposal-preview { font-size: 11px; }
+  .acp-proposal-preview th, .acp-proposal-preview td { padding: 6px 3px; }
+}
 
 .acp-det-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .acp-det-rank li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
