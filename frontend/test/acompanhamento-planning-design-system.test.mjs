@@ -81,6 +81,7 @@ test('revisões comerciais mantêm ações e seletores acessíveis no Gestor', a
     revisions: [{ codBd: 7, nRev: 2, salePrice: 10000 }, { codBd: 8, nRev: 3, salePrice: 11000 }],
     additionalProposals: [{ proposalCode: '11', currentCodBd: 9,
       revisions: [{ codBd: 9, nRev: 1, salePrice: 500 }] }] });
+  client.setQueryData(['commercialapp-revisions', 'p'], { items: [], budgetSource: 'ACCESS' });
   const html = render(ProjectRevisionPicker, { projectId: 'p' });
   assert.match(html, /Revisão que vale/);
   assert.match(html, /Revisão da proposta adicional 11/);

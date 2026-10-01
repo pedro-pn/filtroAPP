@@ -384,7 +384,7 @@ test('a escala dos botões de ação do RDO DS é compartilhada e escopada', () 
   );
   assert.match(
     stats,
-    /<Button variant="danger" size="md" onClick=\{onRemove\}>/
+    /<RemoveIconButton label=\{`Remover destinatário \$\{recipient\.name \|\| recipient\.email\}`\} onClick=\{onRemove\} \/>/
   );
   assert.match(
     stats,

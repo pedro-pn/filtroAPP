@@ -266,7 +266,7 @@
   gap: var(--space-2);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 768px) {
   :where(.fv-ds, [data-fv-ds])
     .rdo-manager-listing
     .fv-mobile-list__actions

@@ -10,6 +10,7 @@ import {
   setProjectRevision
 } from '../../api/acompanhamentoComercial';
 import { Button, Select } from '../ui/ds';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { useToast } from '../ui/ToastContext';
 
@@ -39,6 +40,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   });
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedApp, setSelectedApp] = useState('');
+  const [pendingAppRevision, setPendingAppRevision] = useState<{ externalId: string; label: string } | null>(null);
   const [selectedAdditionals, setSelectedAdditionals] = useState<Record<string, number | null>>({});
 
   function refreshAcompanhamentoQueries() {
@@ -130,9 +132,14 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
               if (!chosenApp) return;
               const replaceLegacy = Boolean(appData?.budgetSource &&
                 appData.budgetSource !== 'COMERCIAL_APP');
-              if (replaceLegacy && !window.confirm(
-                'O orçamento atual vem do Access. Deseja selecionar esta revisão do ComercialAPP para o projeto?'
-              )) return;
+              if (replaceLegacy) {
+                const revision = appRevisions.find(item => item.externalId === chosenApp);
+                setPendingAppRevision({
+                  externalId: chosenApp,
+                  label: revision ? `${revision.proposalCode} · Rev ${revision.revisionNumber}` : chosenApp
+                });
+                return;
+              }
               appMutation.mutate({ externalId: chosenApp, replaceLegacy });
             }}>
             {appMutation.isPending ? 'Aplicando…' : 'Aplicar'}
@@ -216,6 +223,22 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
           </div>
         );
       })}
+      <ConfirmDialog
+        open={Boolean(pendingAppRevision)}
+        appearance="design-system"
+        title="Substituir revisão do orçamento?"
+        description="O orçamento atual vem do Access. Selecione esta revisão do ComercialAPP para o projeto."
+        highlight={pendingAppRevision?.label}
+        confirmLabel="Selecionar revisão"
+        danger={false}
+        confirmDisabled={appMutation.isPending}
+        onConfirm={() => {
+          if (!pendingAppRevision) return;
+          appMutation.mutate({ externalId: pendingAppRevision.externalId, replaceLegacy: true });
+          setPendingAppRevision(null);
+        }}
+        onCancel={() => setPendingAppRevision(null)}
+      />
     </div>
   );
 }

@@ -1208,13 +1208,39 @@ os contratos do piloto do RDO continuam verdes.
 
 Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–X3.
 
-- remover CSS e componentes legados sem consumidores;
-- reduzir duplicação entre `Button`, campos, busca, modal e componentes DS;
-- dividir páginas críticas quando a migração permitir, sem ampliar arquivos acima
-  dos budgets arquiteturais;
-- executar auditoria de acessibilidade, responsividade e contraste;
-- registrar screenshots de referência e testes de regressão visual dos fluxos
-  principais.
+- [x] Reconciliar as asserções antigas com os controles atuais e recuperar a
+  suíte frontend completa.
+- [x] Substituir confirmações nativas remanescentes nas superfícies DS e ajustar
+  o breakpoint divergente do histórico de relatórios.
+- [x] Registrar referências visuais do Hub autenticado com dados sintéticos em
+  Chromium, Firefox e WebKit, e ampliar a validação pública do RDO ao WebKit.
+- [ ] Remover regras CSS e componentes legados comprovadamente sem consumidores;
+  reduzir duplicação entre `Button`, campos, busca, modal e componentes DS.
+- [ ] Dividir páginas críticas quando a migração permitir, sem ampliar arquivos
+  acima dos budgets arquiteturais.
+- [ ] Concluir auditoria de acessibilidade, responsividade e contraste nos fluxos
+  autenticados principais, incluindo WebKit e estados de permissão.
+
+Primeira rodada F6 em 01/10/2026: a suíte frontend voltou a passar integralmente
+(665/665). Os testes antigos foram ajustados para a lixeira padronizada, os
+controles atuais do Efetivo e o diálogo de revisão do orçamento. O teste de
+revisão comercial passou a carregar as duas fontes de dados exigidas pela tela.
+As confirmações de troca de orçamento Access/ComercialAPP e de POST real no
+Playground agora usam `ConfirmDialog` com a mesma condição de segurança.
+O breakpoint do histórico de relatórios usa a escala oficial de 768 px e o
+aviso de dependências do efeito em Cenários foi corrigido.
+
+O Hub tem capturas reproduzíveis em 360, 768 e 1280 px, claro/escuro, nos três
+navegadores, com conta e resposta de autenticação sintéticas. As páginas
+públicas de validação e assinatura do RDO têm referências adicionais em WebKit
+para 390, 768, 1024 e 1280 px, claro/escuro. Nenhuma dessas capturas apresentou
+rolagem horizontal; os cards do Hub também responderam a foco e Enter nos três
+navegadores. A busca por arquivos CSS sem importadores em `frontend/src`
+não encontrou candidatos seguros para remoção; `Button`, `SearchBar` e
+`Skeleton` legados ainda têm consumidores. Os testes autenticados antigos de
+WebKit pararam no login porque as credenciais de demonstração do projeto foram
+recusadas pelo banco local; a cobertura autenticada repetível seguirá com
+contas isoladas ou respostas sintéticas.
 
 ## Matriz mínima de validação por entrega
 
@@ -1231,8 +1257,10 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
 
-1. **F6**: regressão visual final, acessibilidade, retirada de legado, reconciliação
-   de asserções antigas e WebKit. X2, F5, API1–API4 e X1 estão concluídos.
+1. **F6 em andamento**: continuar a regressão visual e a acessibilidade dos
+   fluxos autenticados, validar WebKit com contas isoladas e retirar legado sem
+   consumidores. A reconciliação da suíte, o Hub visual e as páginas públicas
+   do RDO em WebKit já foram concluídos nesta etapa.
 
 Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
 lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)

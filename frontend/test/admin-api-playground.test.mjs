@@ -28,3 +28,11 @@ test('console redacts authorization, limits output and copies curl with environm
   assert.match(formatting, /\$FILTRO_API_TOKEN/);
   assert.doesNotMatch(formatting, /localStorage|sessionStorage/);
 });
+
+test('POST real exige confirmação antes de executar o teste', async () => {
+  const page = await source('src/pages/admin/AdminTokensPage.tsx');
+  assert.match(page, /selectedOperation\?\.method === 'POST'[\s\S]*?setPendingPostParameters\(values\);[\s\S]*?return;/);
+  assert.match(page, /<ConfirmDialog[\s\S]*?open=\{Boolean\(pendingPostParameters\)\}[\s\S]*?title="Enviar operação POST\?"/);
+  assert.match(page, /if \(values\) void executePlayground\(values\)/);
+  assert.doesNotMatch(page, /window\.confirm/);
+});

@@ -24,6 +24,7 @@ import { ApiTokenRevealModal } from '../../components/admin/api-tokens/ApiTokenR
 import { ApiOperationSelector } from '../../components/admin/api-tokens/ApiOperationSelector';
 import { ApiOperationParameters, type ApiPlaygroundParameters } from '../../components/admin/api-tokens/ApiOperationParameters';
 import { ApiRequestConsole } from '../../components/admin/api-tokens/ApiRequestConsole';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, Button, Card, EmptyState, Field, FilterBar, Input, SearchInput, Select } from '../../components/ui/ds';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../layout/PageHeader';
@@ -56,6 +57,7 @@ export function AdminTokensPage() {
   const testSequence = useRef(0);
   const [playgroundResult, setPlaygroundResult] = useState<ApiPlaygroundResult | null>(null);
   const [testing, setTesting] = useState(false);
+  const [pendingPostParameters, setPendingPostParameters] = useState<ApiPlaygroundParameters | null>(null);
   const [showNovelty, setShowNovelty] = useState(false);
   const noveltyWindowActive = isApiTokenPlaygroundNoveltyActive();
   const scopesQuery = useQuery({ queryKey: ['admin-api-scopes'], queryFn: listApiScopes, staleTime: 300000 });
@@ -115,6 +117,7 @@ export function AdminTokensPage() {
     testSequence.current += 1;
     setPlaygroundResult(null);
     setTesting(false);
+    setPendingPostParameters(null);
     setError('');
   }, [selectedOperation, selectedCredential?.id, selectedCredential?.version, maxTestItems, testScope, scopeSignature, resetParameters]);
 
@@ -146,9 +149,8 @@ export function AdminTokensPage() {
     replaceSafeParams({ etapa: value, operation: value === 'playground' ? operation : undefined });
   }
 
-  async function runPlayground(values: ApiPlaygroundParameters) {
+  async function executePlayground(values: ApiPlaygroundParameters) {
     if (!selectedCredential || !selectedOperation || !canTest) return;
-    if (selectedOperation.method === 'POST' && !window.confirm('Esta operação grava dados reais. Deseja enviar o POST agora?')) return;
     setTesting(true);
     setError('');
     setPlaygroundResult(null);
@@ -170,6 +172,14 @@ export function AdminTokensPage() {
     } finally {
       if (sequence === testSequence.current) setTesting(false);
     }
+  }
+
+  function runPlayground(values: ApiPlaygroundParameters) {
+    if (selectedOperation?.method === 'POST') {
+      setPendingPostParameters(values);
+      return;
+    }
+    void executePlayground(values);
   }
 
   return (
@@ -235,6 +245,20 @@ export function AdminTokensPage() {
         </>}
       </main>
       <ApiTokenRevealModal issued={issued} operations={operations} onClose={() => setIssued(null)} />
+      <ConfirmDialog
+        open={Boolean(pendingPostParameters)}
+        appearance="design-system"
+        title="Enviar operação POST?"
+        description="Esta operação grava dados reais. Confirme o envio antes de continuar."
+        confirmLabel="Enviar POST"
+        confirmDisabled={testing || !canTest}
+        onConfirm={() => {
+          const values = pendingPostParameters;
+          setPendingPostParameters(null);
+          if (values) void executePlayground(values);
+        }}
+        onCancel={() => setPendingPostParameters(null)}
+      />
     </AdminModuleAppShell>
   );
 }

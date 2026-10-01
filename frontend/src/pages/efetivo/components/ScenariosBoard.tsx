@@ -75,7 +75,7 @@ export function ScenariosBoard({
   useEffect(() => {
     setSimulationDate(selected?.simulationPositionDate?.slice(0, 10) || date);
     setReturnDate(selected?.simulationReturnDate?.slice(0, 10) || defaultReturnDate(selected?.simulationPositionDate?.slice(0, 10) || date));
-  }, [date, selected?.id]);
+  }, [date, selected?.id, selected?.simulationPositionDate, selected?.simulationReturnDate]);
   const comparison = useQuery({
     queryKey: [
       'efetivo-scenario-comparison',

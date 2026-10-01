@@ -302,6 +302,7 @@ test('gate B.5 mantém default legacy e habilita o DS apenas nas superfícies mi
     [
       join(frontendRoot, 'src/components/reports/ReportDetailActions.tsx'),
       join(frontendRoot, 'src/pages/ReportDetailPage.tsx'),
+      join(frontendRoot, 'src/pages/collaborator/OperationalReportFormPage.tsx'),
       join(frontendRoot, 'src/pages/gestor/GestorPage.tsx')
     ].sort()
   );

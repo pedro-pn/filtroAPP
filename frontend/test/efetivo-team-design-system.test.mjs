@@ -46,7 +46,7 @@ test('gestão de equipe mantém ciclos herdados/individuais e respeita somente c
         assert.ok(html.includes('Em aberto'));
         assert.ok(html.includes('Encerrado'));
         assert.ok(html.includes('Sobreposição confirmada'));
-        for(const label of ['Personalizar ciclos','Adicionar à equipe','Novo ciclo individual','Remover da equipe','Remover ciclo']) assert.equal(html.includes(label),mode==='manager',label);
+        for(const label of ['Personalizar ciclos','Novo ciclo individual','Remover Ana da equipe','Remover ciclo']) assert.equal(html.includes(label),mode==='manager',label);
         assert.equal(html.includes('Somente consulta'),mode==='viewer');
         if(mode==='viewer') assert.doesNotMatch(html,/<input|<select/);
         assert.doesNotMatch(html,/class="(?:primary-button|secondary-button|danger-button|mini-btn)/);
@@ -71,7 +71,8 @@ test('seleção e gestão compartilham campos, tema, ações compactas e o contr
   assert.match(selector,/existingConfirmedOverlapIds\.filter/);
   assert.match(read('components/MissionsBoard.tsx'), /<MissionAllocationModal[^>]*canManage=\{canManage\}/);
   assert.match(allocation,/enabled: open && canManage/);
-  assert.match(allocation,/open=\{canManageTeam && Boolean\(pendingOverlap\)\}/);
+  assert.match(allocation,/canManageTeam && teamPickerOpen \? <MissionTeamSelector/);
+  assert.match(selector,/open=\{overlapConfirmationIds\.length > 0 \|\| inactiveConfirmationIds\.length > 0\}/);
   assert.match(allocation,/demobilizationDate: draft\.demobilizationDate \|\| null/);
   const fields=read('components/MissionPeriodFields.tsx');
   assert.match(fields,/min=\{value\.mobilizationDate \|\| min\}/);

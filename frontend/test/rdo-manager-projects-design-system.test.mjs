@@ -354,8 +354,10 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
   );
   assert.match(
     revisionPicker,
-    /<Button[\s\S]*?variant="secondary"[\s\S]*?size="sm"[\s\S]*?removeAdditionalMutation\.isPending[\s\S]*?Remover/
+    /<RemoveIconButton[\s\S]*?label="Remover revisão adicional"[\s\S]*?removeAdditionalMutation\.isPending/
   );
+  assert.match(revisionPicker, /<ConfirmDialog[\s\S]*?title="Substituir revisão do orçamento\?"/);
+  assert.doesNotMatch(revisionPicker, /window\.confirm/);
   assert.doesNotMatch(pendingReview, /mini-btn/);
   assert.match(
     pendingReview,

@@ -50,7 +50,7 @@ test('Missões usa os estados DS e preserva ações por permissão e seleção',
             assert.ok(html.includes('fv-metric-card'));
             assert.ok(html.includes('aria-label="Ver detalhes de PRJ-001"'));
             assert.equal(html.includes('>Editar<'), mode !== 'viewer');
-            assert.equal(html.includes('>Remover<'), mode !== 'viewer');
+            assert.equal(html.includes('aria-label="Remover missão PRJ-001"'), mode !== 'viewer');
             assert.ok(html.includes('>Equipe<'));
             assert.ok(html.includes('data-efetivo-pending-card'));
             assert.equal(html.includes('Carregando execução observada'), mode !== 'scenario');
