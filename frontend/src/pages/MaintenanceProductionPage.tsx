@@ -431,6 +431,7 @@ export function MaintenanceProductionPage() {
                   </>
                 ) : (
                   <Button
+                    variant="primary"
                     data-operational-new-report
                     onClick={() => navigate('/manutencao-producao/relatorio/novo?tipo=producao')}
                   >

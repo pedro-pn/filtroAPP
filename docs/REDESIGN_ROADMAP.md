@@ -1242,6 +1242,16 @@ WebKit pararam no login porque as credenciais de demonstração do projeto foram
 recusadas pelo banco local; a cobertura autenticada repetível seguirá com
 contas isoladas ou respostas sintéticas.
 
+Segunda rodada F6 em 01/10/2026: a listagem de Manutenção e produção ganhou
+cenários autenticados sintéticos para permissões isoladas de manutenção e
+produção em 360, 768 e 1280 px, com referências visuais em Chromium, Firefox
+e WebKit. A validação percorre a navegação própria de cada largura, verifica
+ausência de rolagem horizontal, abre os formulários por teclado e confirma que
+uma conta sem a permissão exigida recebe uma saída clara. O botão de criar o
+relatório 5004 passou a usar a mesma ênfase do 5002. As respostas sintéticas
+evitam dependência das credenciais locais; persistência e dados reais ainda
+precisam de uma conta isolada válida para completar a auditoria autenticada.
+
 ## Matriz mínima de validação por entrega
 
 - larguras: 360, 390, 768 e 1280 px;
