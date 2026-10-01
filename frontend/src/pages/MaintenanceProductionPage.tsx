@@ -235,7 +235,7 @@ export function MaintenanceProductionPage() {
       sectionLabel={tabLabels[tab]}
       subNavigation={subNavigation}
     >
-      <main className="fv-ds operational-module-page operational-module-page-v2">
+      <main className={`fv-ds operational-module-page operational-module-page-v2${scheduleActive ? ' operational-module-page-v2--schedule' : ''}`}>
         <PageHeader
           title={tabLabels[tab]}
           description={tab === 'historico-manutencao'

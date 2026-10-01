@@ -21,6 +21,7 @@ import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button, Input, Select, Textarea } from '../../components/ui/ds';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
+import { QualityEvidenceThumbnail } from './QualityEvidenceThumbnail';
 
 interface Props {
   open: boolean;
@@ -484,19 +485,13 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
               <div className="quality-evidence-file-list">
                 {existingAttachments.map(evidence => (
                   <div className="quality-evidence-file-row" key={evidence.id}>
-                    {evidence.publicUrl ? (
-                      <a className="equip-link" href={evidence.publicUrl} target="_blank" rel="noreferrer">
-                        {evidence.fileName || 'Anexo'}
-                      </a>
-                    ) : (
-                      <span>{evidence.fileName || 'Anexo'}</span>
-                    )}
+                    <QualityEvidenceThumbnail url={evidence.publicUrl} fileName={evidence.fileName} mimeType={evidence.mimeType} />
                     <RemoveIconButton label={`Remover anexo ${evidence.fileName || 'de evidência'}`} disabled={saving} onClick={() => removeExistingEvidence(evidence.id)} />
                   </div>
                 ))}
                 {newEvidenceFiles.map(draft => (
                   <div className="quality-evidence-file-row" key={draft.id}>
-                    <span>{draft.file.name}</span>
+                    <QualityEvidenceThumbnail file={draft.file} />
                     <RemoveIconButton label={`Remover anexo ${draft.file.name}`} disabled={saving} onClick={() => removeNewEvidenceFile(draft.id)} />
                   </div>
                 ))}

@@ -1268,13 +1268,19 @@ passaram em Chromium/WebKit. A persistência em banco isolado fica para a F6.
 
 #### F5.5 — Privacidade
 
-Pendente. `PrivacyRequestsPage` ainda usa shell e controles legados.
+Concluída em 01/10/2026. A administração de solicitações usa o shell e os
+controles do DS, com pedidos recolhíveis e diálogos para evidências de
+identidade e de atendimento. Política e exercício de direitos seguem o mesmo
+visual, sem alteração do texto legal ou do protocolo. Os testes isolados em
+Chromium/WebKit cobrem permissão, teclado, filtros, temas, três tamanhos de tela
+e os contratos de envio, verificação e conclusão da API. A persistência em
+banco isolado permanece na F6.
 
-- [ ] Migrar listagem, filtros, estados e ações de solicitações LGPD para o DS,
+- [x] Migrar listagem, filtros, estados e ações de solicitações LGPD para o DS,
   preservando verificação de identidade, respostas e evidências de atendimento.
-- [ ] Harmonizar as páginas públicas de política e de exercício de direitos,
+- [x] Harmonizar as páginas públicas de política e de exercício de direitos,
   sem alterar seu texto legal ou o fluxo de protocolo.
-- [ ] Validar permissão administrativa, responsividade, teclado, temas e API
+- [x] Validar permissão administrativa, responsividade, teclado, temas e API
   em ambiente isolado.
 
 Critério de saída de F5: Gestão de Contas, Qualidade, EPI e Privacidade

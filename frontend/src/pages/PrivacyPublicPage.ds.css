@@ -1,0 +1,157 @@
+.privacy-public-shell {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-height: 100dvh;
+  padding: clamp(var(--space-4), 4vw, var(--space-10));
+  background:
+    radial-gradient(circle at 50% 0, var(--brand-softer), transparent 42rem),
+    var(--canvas);
+  color: var(--ink);
+}
+
+.privacy-public-header,
+.privacy-public-hero,
+.privacy-public-content,
+.privacy-public-form-card {
+  width: min(100%, 58rem);
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.privacy-public-header {
+  display: flex;
+  justify-content: center;
+  margin-block-end: var(--space-2);
+}
+
+.privacy-public-logo {
+  width: min(13.5rem, 58vw);
+  height: auto;
+}
+
+.privacy-public-hero {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.privacy-public-hero > .fv-card__body {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.privacy-public-back,
+.privacy-public-section a,
+.privacy-public-meta a {
+  color: var(--brand-text);
+  font-weight: var(--font-medium);
+  text-underline-offset: var(--space-1);
+}
+
+.privacy-public-back {
+  font-size: var(--text-sm);
+}
+
+.privacy-public-hero .section-title {
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.privacy-public-hero h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(var(--text-2xl), 3vw, 34px);
+  line-height: 1.15;
+}
+
+.privacy-public-hero p {
+  max-width: 50rem;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.privacy-public-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-block-start: var(--space-2);
+}
+
+.privacy-public-meta > span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.privacy-public-content {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-end: var(--space-6);
+}
+
+.privacy-public-section,
+.privacy-public-form-card {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.privacy-public-section h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+}
+
+.privacy-public-section p,
+.privacy-public-section li {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.privacy-public-section p {
+  margin: 0;
+}
+
+.privacy-public-section ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.privacy-public-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.privacy-public-form__wide {
+  grid-column: 1 / -1;
+}
+
+.privacy-public-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+@media (max-width: 639.98px) {
+  .privacy-public-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .privacy-public-form__actions .fv-button {
+    width: 100%;
+  }
+}

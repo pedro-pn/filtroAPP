@@ -8,6 +8,19 @@
   color: var(--ink);
 }
 
+.operational-module-page-v2--schedule {
+  --wh: var(--surface);
+  --bg: var(--surface-2);
+  --tx: var(--ink);
+  --mu: var(--muted);
+  --br: var(--line);
+  --g: var(--brand-text);
+  --rd: var(--danger);
+  --error-bg: var(--danger-bg);
+  --warning-border: var(--warning-line);
+  --warning-text: var(--warning);
+}
+
 .operational-module-page-v2 .operational-module-tabs {
   width: 100%;
   min-width: 0;

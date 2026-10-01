@@ -28,9 +28,8 @@ test('módulos operacionais usam toda a largura disponível', async () => {
 
   assert.match(css, /\.app-shell:has\(\.stock-page\)\s*\{\s*max-width:\s*none;/);
   assert.match(equipamentos, /<OperationalModuleAppShell/);
-  for (const page of [equipamentos, qualidade]) {
-    assert.match(page, /<main className="[^"]*\bequip-page\b[^"]*">/);
-  }
+  assert.match(equipamentos, /<main className="[^"]*\bequip-page\b[^"]*">/);
+  assert.match(qualidade, /<main className="[^"]*\bquality-page-v2\b[^"]*">/);
   assert.match(estoque, /<main className="[^"]*\bstock-page\b[^"]*">/);
   assert.match(assinaturas, /<AssinaturasAppShell/);
   assert.match(acompanhamento, /<AcompanhamentoAppShell/);

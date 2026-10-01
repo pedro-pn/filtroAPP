@@ -1,5 +1,25 @@
 import { expect, test, type Page } from '@playwright/test';
 
+function singlePagePdf() {
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 120] /Resources << >> /Contents 4 0 R >>',
+    '<< /Length 4 >>\nstream\nq\nQ\nendstream'
+  ];
+  let content = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(content));
+    content += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(content);
+  content += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+  content += offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  content += `trailer\n<< /Root 1 0 R /Size ${offsets.length} >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return Buffer.from(content);
+}
+
 const account = {
   id: 'admin-1', username: 'admin', name: 'Administrador', email: 'admin@example.com',
   role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['qualidade:manager', 'epi:technician'],
@@ -149,7 +169,8 @@ test('Qualidade: validação, Interno/SGQ e links no envio do registro', async (
   await dialog.locator('#quality-evidence-files').setInputFiles({
     name: 'evidencia.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF')
   });
-  await expect(dialog.getByText('evidencia.pdf')).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Abrir evidencia.pdf' })).toBeVisible();
+  await expect(dialog.getByText('evidencia.pdf')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(dialog).toHaveCount(0);
   expect(submitted).toMatchObject({
@@ -359,7 +380,8 @@ test('Qualidade: evidências e exportação permanecem disponíveis no celular',
     ...qualityRecord,
     evidences: [
       { id: 'link-1', kind: 'LINK', url: 'https://example.com/foto', label: 'Foto' },
-      { id: 'file-1', kind: 'ATTACHMENT', publicUrl: '/api/qualidade-anexos/file-1', fileName: 'checklist.pdf' }
+      { id: 'file-1', kind: 'ATTACHMENT', publicUrl: '/api/qualidade-anexos/file-1', fileName: 'checklist.pdf', mimeType: 'application/pdf' },
+      { id: 'file-2', kind: 'ATTACHMENT', publicUrl: '/api/qualidade-anexos/file-2', fileName: 'foto.png', mimeType: 'image/png' }
     ]
   };
   await page.route('**/api/qualidade/registros**', route => {
@@ -374,14 +396,30 @@ test('Qualidade: evidências e exportação permanecem disponíveis no celular',
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     body: 'planilha'
   }));
+  await page.route('**/api/qualidade-anexos/file-1', route => route.fulfill({
+    status: 200, contentType: 'application/pdf', body: singlePagePdf()
+  }));
+  await page.route('**/api/qualidade-anexos/file-2', route => route.fulfill({
+    status: 200, contentType: 'image/png',
+    body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64')
+  }));
 
   await page.goto('/qualidade');
   await page.getByRole('button', { name: /Evidências/ }).click();
-  await expect(page.getByRole('link', { name: 'Foto' })).toHaveAttribute('href', 'https://example.com/foto');
-  await expect(page.getByRole('link', { name: 'checklist.pdf' })).toHaveAttribute('href', '/api/qualidade-anexos/file-1');
+  await expect(page.getByRole('link', { name: 'Foto', exact: true })).toHaveAttribute('href', 'https://example.com/foto');
+  await expect(page.getByRole('link', { name: 'Abrir checklist.pdf' })).toHaveAttribute('href', '/api/qualidade-anexos/file-1');
+  await expect(page.getByRole('link', { name: 'Abrir foto.png' }).locator('img')).toBeVisible();
+  await expect(page.locator('.quality-evidence-list canvas.is-ready')).toBeVisible();
+  await expect(page.getByText('checklist.pdf')).toHaveCount(0);
+  await expect(page.getByText('foto.png')).toHaveCount(0);
+  await expect(page).toHaveScreenshot('quality-evidence-mobile.png', { fullPage: true });
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar' }).click();
   expect((await downloadPromise).suggestedFilename()).toMatch(/^registros-qualidade-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  await page.getByRole('button', { name: 'Editar' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('link', { name: 'Abrir checklist.pdf' })).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Abrir foto.png' }).locator('img')).toBeVisible();
 });
 
 test('Assinatura pública de EPI: consentimento, confirmação e ficha assinada', async ({ page }) => {

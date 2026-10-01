@@ -1,6 +1,9 @@
 import { Link } from 'react-router';
 
+import { BrandLogo } from '../components/brand/BrandLogo';
+import { Card } from '../components/ui/ds';
 import { PRIVACY_CONTACT, PRIVACY_POLICY_EFFECTIVE_DATE, PRIVACY_POLICY_VERSION } from '../constants/privacy';
+import './PrivacyPublicPage.ds.css';
 
 const sections = [
   {
@@ -64,51 +67,49 @@ const sections = [
 
 export function PrivacyPage() {
   return (
-    <main className="privacy-policy-page">
-      <section className="privacy-policy-hero">
-        <Link className="auth-link privacy-policy-back" to="/login">Voltar ao login</Link>
+    <main className="fv-ds privacy-public-shell" data-fv-ds>
+      <header className="privacy-public-header"><BrandLogo className="privacy-public-logo" /></header>
+      <Card className="privacy-public-hero" padding="lg">
+        <Link className="privacy-public-back" to="/login">Voltar ao login</Link>
         <div className="section-title">Política de privacidade</div>
         <h1>FiltroAPP</h1>
         <p>
           Esta política descreve como a Filtrovali Serviços de Filtragem de Óleos Industriais e
           Limpeza de Tubulações Ltda. trata dados pessoais no uso do sistema FiltroAPP.
         </p>
-        <div className="privacy-policy-meta">
+        <div className="privacy-public-meta">
           <span>Versão: {PRIVACY_POLICY_VERSION}</span>
           <span>Vigência: {PRIVACY_POLICY_EFFECTIVE_DATE}</span>
           <span>Canal: <a href={`mailto:${PRIVACY_CONTACT}`}>{PRIVACY_CONTACT}</a></span>
           <span><Link to="/privacidade/direitos">Exercer direitos LGPD</Link></span>
         </div>
-      </section>
+      </Card>
 
-      <section className="privacy-policy-content">
+      <div className="privacy-public-content">
         {sections.map(section => (
-          <article className="privacy-policy-section" key={section.title}>
-            <h2>{section.title}</h2>
+          <Card className="privacy-public-section" key={section.title} padding="lg" title={<h2>{section.title}</h2>}>
             <ul>
               {section.items.map(item => <li key={item}>{item}</li>)}
             </ul>
-          </article>
+          </Card>
         ))}
 
-        <article className="privacy-policy-section">
-          <h2>Assinatura eletrônica e evidências legais</h2>
+        <Card className="privacy-public-section" padding="lg" title={<h2>Assinatura eletrônica e evidências legais</h2>}>
           <p>
             A imagem da assinatura manuscrita digitalizada é tratada como dado pessoal comum e usada para
             comprovar a manifestação de vontade no documento assinado. O sistema também registra IP,
             User-Agent, data/hora e identificadores técnicos para validação, auditoria e defesa de direitos.
           </p>
-        </article>
+        </Card>
 
-        <article className="privacy-policy-section">
-          <h2>Contato</h2>
+        <Card className="privacy-public-section" padding="lg" title={<h2>Contato</h2>}>
           <p>
             Para dúvidas ou exercício de direitos previstos na LGPD, entre em contato pelo e-mail{' '}
             <a href={`mailto:${PRIVACY_CONTACT}`}>{PRIVACY_CONTACT}</a> ou registre uma solicitação em{' '}
             <Link to="/privacidade/direitos">/privacidade/direitos</Link>.
           </p>
-        </article>
-      </section>
+        </Card>
+      </div>
     </main>
   );
 }

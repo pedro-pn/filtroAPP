@@ -9,7 +9,7 @@ import { hubModulesForUser } from './hubModules';
 
 interface OperationalModuleAppShellProps {
   children: ReactNode;
-  moduleId: 'equipamentos' | 'maintenance-production' | 'estoque' | 'romaneio' | 'qualidade' | 'epi';
+  moduleId: 'equipamentos' | 'maintenance-production' | 'estoque' | 'romaneio' | 'qualidade' | 'epi' | 'privacy';
   title: string;
   sectionLabel: string;
   subNavigation: readonly NavigationSubItem[];
@@ -35,7 +35,8 @@ export function OperationalModuleAppShell({
   const initials = user?.name
     ? user.name.split(' ').filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('')
     : 'U';
-  const moduleHomePath = moduleId === 'maintenance-production' ? '/manutencao-producao' : `/${moduleId}`;
+  const moduleHomePath = moduleId === 'maintenance-production' ? '/manutencao-producao'
+    : moduleId === 'privacy' ? '/privacidade/solicitacoes' : `/${moduleId}`;
 
   return (
     <AppShell

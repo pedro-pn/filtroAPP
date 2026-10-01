@@ -26,6 +26,7 @@ import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
 import { Badge, Button, Card, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
+import { QualityEvidenceThumbnail } from './QualityEvidenceThumbnail';
 import { QualityRecordFormModal } from './QualityRecordFormModal';
 
 interface Props {
@@ -81,20 +82,20 @@ function attachmentHref(value?: string | null) {
 function evidenceLinks(record: QualityRecord) {
   const items = Array.isArray(record.evidences) ? record.evidences : [];
   const legacyHref = httpHref(record.evidence);
-  if (!items.length && legacyHref) return [{ href: legacyHref, label: 'Evidência' }];
+  if (!items.length && legacyHref) return [{ href: legacyHref, label: 'Evidência', kind: 'link' as const }];
   return items
     .map(item => {
       if (item.kind === 'LINK') {
         const href = httpHref(item.url);
-        if (href) return { href, label: item.label || 'Link' };
+        if (href) return { href, label: item.label || 'Link', kind: 'link' as const };
       }
       if (item.kind === 'ATTACHMENT') {
         const href = attachmentHref(item.publicUrl);
-        if (href) return { href, label: item.fileName || 'Anexo' };
+        if (href) return { href, label: item.fileName || 'Anexo', mimeType: item.mimeType, kind: 'attachment' as const };
       }
       return null;
     })
-    .filter((item): item is { href: string; label: string } => Boolean(item));
+    .filter(item => item !== null);
 }
 
 function fileNameForExport() {
@@ -250,7 +251,9 @@ export function QualityRecordsTab({ isManager }: Props) {
         <span>Evidências</span><strong>{evidences.length}</strong><small>{expanded ? 'Recolher' : 'Ver'}</small>
       </button>
       {expanded ? <ul className="quality-evidence-list">{evidences.map((evidence, index) => <li key={`${evidence.href}-${index}`}>
-        <a className="equip-link quality-evidence-link" href={evidence.href} target="_blank" rel="noreferrer">{evidence.label}</a>
+        {evidence.kind === 'attachment'
+          ? <QualityEvidenceThumbnail url={evidence.href} fileName={evidence.label} mimeType={evidence.mimeType} />
+          : <a className="equip-link quality-evidence-link" href={evidence.href} target="_blank" rel="noreferrer">{evidence.label}</a>}
       </li>)}</ul> : null}
     </div>;
   }

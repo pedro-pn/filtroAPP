@@ -1,20 +1,20 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router';
 
 import {
   listDataSubjectRequests,
   respondDataSubjectRequest,
   updateDataSubjectRequestStatus,
-  verifyDataSubjectRequestIdentity
+  verifyDataSubjectRequestIdentity,
+  type DataSubjectRequestAdminSummary
 } from '../../api/privacy';
 
-import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
-import { SearchBar } from '../../components/ui/SearchBar';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { Modal } from '../../components/ui/Modal';
+import { Alert, Badge, Button, Card, EmptyState, Field, SearchInput, Select, Skeleton, Textarea, type SemanticTone } from '../../components/ui/ds';
+import { PageHeader } from '../../layout/PageHeader';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
+import './PrivacyRequestsPage.ds.css';
 
 const requestTypeLabel: Record<string, string> = {
   CONFIRMATION: 'Confirmação',
@@ -38,12 +38,12 @@ const requestStatusLabel: Record<string, string> = {
   CANCELLED: 'Cancelada'
 };
 
-const requestStatusClass: Record<string, string> = {
-  OPEN: 'privacy-status-open',
-  IN_REVIEW: 'privacy-status-review',
-  COMPLETED: 'privacy-status-resolved',
-  REJECTED: 'privacy-status-rejected',
-  CANCELLED: 'privacy-status-cancelled'
+const requestStatusTone: Record<string, SemanticTone> = {
+  OPEN: 'warning',
+  IN_REVIEW: 'info',
+  COMPLETED: 'success',
+  REJECTED: 'danger',
+  CANCELLED: 'neutral'
 };
 const requestStatusOptions = [
   { value: 'OPEN', label: 'Abertas' },
@@ -53,6 +53,7 @@ const requestStatusOptions = [
 ] as const;
 type RequestStatusFilter = typeof requestStatusOptions[number]['value'];
 type ResponseKind = 'ACKNOWLEDGEMENT' | 'VERIFICATION_REQUEST' | 'SUBSTANTIVE';
+type EvidenceDialog = { kind: 'identity' | 'completion'; request: DataSubjectRequestAdminSummary };
 const highRiskRequestTypes = new Set([
   'CONFIRMATION',
   'ACCESS',
@@ -93,9 +94,6 @@ function parseRequestStatusFilter(value: string | null): RequestStatusFilter {
 }
 
 export function PrivacyRequestsPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useUrlParamState<RequestStatusFilter>({
@@ -109,6 +107,9 @@ export function PrivacyRequestsPage() {
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [resolvedDrafts, setResolvedDrafts] = useState<Record<string, boolean>>({});
   const [responseKindDrafts, setResponseKindDrafts] = useState<Record<string, ResponseKind>>({});
+  const [evidenceDialog, setEvidenceDialog] = useState<EvidenceDialog | null>(null);
+  const [evidenceDraft, setEvidenceDraft] = useState('');
+  const [evidenceError, setEvidenceError] = useState('');
   const requestsQuery = useQuery({
     queryKey: ['privacy-requests', statusFilter, page],
     queryFn: () => listDataSubjectRequests({ status: statusFilter, page, pageSize: 25 })
@@ -133,19 +134,23 @@ export function PrivacyRequestsPage() {
     mutationFn: ({ id, evidence }: { id: string; evidence: string }) =>
       verifyDataSubjectRequestIdentity(id, { evidence }),
     onSuccess: async request => {
+      setEvidenceDialog(null);
       setNotice(`Identidade verificada para ${request.protocol}.`);
       setError('');
       await queryClient.invalidateQueries({ queryKey: ['privacy-requests'] });
     },
     onError: err => {
       setNotice('');
-      setError(err instanceof Error ? err.message : 'Não foi possível registrar a verificação.');
+      const message = err instanceof Error ? err.message : 'Não foi possível registrar a verificação.';
+      setError(message);
+      setEvidenceError(message);
     }
   });
   const statusMutation = useMutation({
     mutationFn: ({ id, resolved, offlineResponseEvidence }: { id: string; resolved: boolean; offlineResponseEvidence?: string }) =>
       updateDataSubjectRequestStatus(id, { resolved, offlineResponseEvidence }),
     onSuccess: async request => {
+      setEvidenceDialog(null);
       setNotice(request.status === 'COMPLETED' ? 'Solicitação marcada como resolvida.' : 'Solicitação marcada como não resolvida.');
       setError('');
       setResolvedDrafts(current => ({ ...current, [request.id]: request.status === 'COMPLETED' }));
@@ -153,7 +158,9 @@ export function PrivacyRequestsPage() {
     },
     onError: err => {
       setNotice('');
-      setError(err instanceof Error ? err.message : 'Não foi possível atualizar o status.');
+      const message = err instanceof Error ? err.message : 'Não foi possível atualizar o status.';
+      setError(message);
+      setEvidenceError(message);
     }
   });
 
@@ -170,12 +177,7 @@ export function PrivacyRequestsPage() {
     [requestsQuery.data?.requests, search]
   );
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
-  function handleSendResponse(request: NonNullable<typeof requestsQuery.data>['requests'][number]) {
+  function handleSendResponse(request: DataSubjectRequestAdminSummary) {
     const message = (responseDrafts[request.id] || '').trim();
     const resolved = resolvedDrafts[request.id] ?? request.status === 'COMPLETED';
     const responseKind = responseKindDrafts[request.id] || 'SUBSTANTIVE';
@@ -192,19 +194,14 @@ export function PrivacyRequestsPage() {
     respondMutation.mutate({ id: request.id, message, resolved, responseKind });
   }
 
-  function handleVerifyIdentity(request: NonNullable<typeof requestsQuery.data>['requests'][number]) {
-    const evidence = window.prompt('Informe a evidência da verificação de identidade do titular.');
-    if (evidence === null) return;
-    const trimmed = evidence.trim();
-    if (trimmed.length < 10) {
-      setNotice('');
-      setError('Informe uma evidência de verificação com pelo menos 10 caracteres.');
-      return;
-    }
-    identityMutation.mutate({ id: request.id, evidence: trimmed });
+  function openEvidenceDialog(kind: EvidenceDialog['kind'], request: DataSubjectRequestAdminSummary) {
+    setEvidenceDialog({ kind, request });
+    setEvidenceDraft('');
+    setEvidenceError('');
+    setError('');
   }
 
-  function handleToggleResolved(request: NonNullable<typeof requestsQuery.data>['requests'][number]) {
+  function handleToggleResolved(request: DataSubjectRequestAdminSummary) {
     const resolved = request.status !== 'COMPLETED';
     if (!resolved) {
       statusMutation.mutate({ id: request.id, resolved: false });
@@ -215,67 +212,56 @@ export function PrivacyRequestsPage() {
       setError('Verifique a identidade do titular antes de marcar esta solicitação como resolvida.');
       return;
     }
-    let offlineResponseEvidence = '';
     if (!request.responseNotes || request.responseEmailStatus !== 'SENT') {
-      const evidence = window.prompt('Informe a evidência de atendimento fora do sistema antes de marcar como resolvida.');
-      if (evidence === null) return;
-      offlineResponseEvidence = evidence.trim();
-      if (offlineResponseEvidence.length < 10) {
-        setNotice('');
-        setError('Informe uma evidência de atendimento com pelo menos 10 caracteres.');
-        return;
-      }
+      openEvidenceDialog('completion', request);
+      return;
     }
-    statusMutation.mutate({ id: request.id, resolved: true, offlineResponseEvidence });
+    statusMutation.mutate({ id: request.id, resolved: true });
+  }
+
+  function submitEvidence() {
+    if (!evidenceDialog) return;
+    const evidence = evidenceDraft.trim();
+    if (evidence.length < 10) {
+      setEvidenceError(evidenceDialog.kind === 'identity'
+        ? 'Informe uma evidência de verificação com pelo menos 10 caracteres.'
+        : 'Informe uma evidência de atendimento com pelo menos 10 caracteres.');
+      return;
+    }
+    setEvidenceError('');
+    if (evidenceDialog.kind === 'identity') {
+      identityMutation.mutate({ id: evidenceDialog.request.id, evidence });
+    } else {
+      statusMutation.mutate({ id: evidenceDialog.request.id, resolved: true, offlineResponseEvidence: evidence });
+    }
   }
 
   return (
-    <Shell>
-      <TopBar
-        title="Privacidade"
-        subtitle={user?.name}
-        showLogo
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
+    <OperationalModuleAppShell moduleId="privacy" title="Privacidade" sectionLabel="Solicitações LGPD" subNavigation={[]}>
+      <main className="privacy-requests-page fv-ds">
+        <PageHeader
+          title="Solicitações LGPD"
+          description="Pedidos registrados em /privacidade/direitos e solicitações autenticadas da conta."
+          actions={<Button variant="secondary" size="sm" onClick={() => void requestsQuery.refetch()} loading={requestsQuery.isFetching}>Atualizar</Button>}
+        />
 
-      <main className="page-scroll">
-        <section className="nps-tab-content">
-          <div className="nps-tab-heading">
-            <div>
-              <div className="section-title">Solicitações LGPD</div>
-              <div className="admin-card-subtitle">Pedidos registrados em /privacidade/direitos e solicitações autenticadas da conta.</div>
-            </div>
-            <button className="mini-btn alt" type="button" onClick={() => void requestsQuery.refetch()}>
-              Atualizar
-            </button>
-          </div>
+        {notice ? <Alert tone="success" onDismiss={() => setNotice('')}>{notice}</Alert> : null}
+        {error ? <Alert tone="danger" onDismiss={() => setError('')}>{error}</Alert> : null}
 
-          {notice ? <div className="privacy-request-success">{notice}</div> : null}
-          {error ? <div className="inline-error">{error}</div> : null}
+        <div className="privacy-requests-summary" aria-label="Resumo das solicitações">
+          <Card variant="flat" padding="sm"><span>Abertas</span><strong>{requestsQuery.data?.counts.open ?? 0}</strong></Card>
+          <Card variant="flat" padding="sm"><span>Em análise</span><strong>{requestsQuery.data?.counts.inReview ?? 0}</strong></Card>
+          <Card variant="flat" padding="sm"><span>Pendentes</span><strong>{requestsQuery.data?.counts.pending ?? 0}</strong></Card>
+        </div>
 
-          <div className="admin-card-meta">
-            <span className="privacy-status-tag privacy-status-open">Abertas: {requestsQuery.data?.counts.open ?? 0}</span>
-            <span className="privacy-status-tag privacy-status-review">Em análise: {requestsQuery.data?.counts.inReview ?? 0}</span>
-            <span className="privacy-status-tag privacy-status-review">Pendentes: {requestsQuery.data?.counts.pending ?? 0}</span>
-          </div>
-
-          <div className="filter-tabs" role="tablist" aria-label="Status das solicitações LGPD">
+        <Card className="privacy-requests-controls" padding="md">
+          <div className="privacy-requests-filters" role="group" aria-label="Status das solicitações LGPD">
             {requestStatusOptions.map(option => (
               <button
                 className={`filter-tab ${statusFilter === option.value ? 'active' : ''}`}
                 key={option.value}
                 type="button"
-                role="tab"
-                aria-selected={statusFilter === option.value}
+                aria-pressed={statusFilter === option.value}
                 onClick={() => {
                   setStatusFilter(option.value);
                   setPage(1);
@@ -285,93 +271,98 @@ export function PrivacyRequestsPage() {
               </button>
             ))}
           </div>
-
-          <div className="admin-search-row">
-            <SearchBar
-              ariaLabel="Buscar em solicitações LGPD"
+          <SearchInput
+              aria-label="Buscar em solicitações LGPD"
               placeholder="Buscar em solicitações LGPD"
               value={search}
               onChange={setSearch}
-            />
-          </div>
+              resultCount={{ shown: requests.length, total: requestsQuery.data?.pagination.total ?? requests.length }}
+          />
+        </Card>
 
           {requestsQuery.isLoading ? (
-            <div className="page-card placeholder-copy">Carregando solicitações LGPD...</div>
+            <Skeleton variant="card" label="Carregando solicitações LGPD" />
           ) : null}
 
           {requestsQuery.isError ? (
-            <div className="page-card inline-error">Não foi possível carregar as solicitações LGPD.</div>
+            <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void requestsQuery.refetch() }}>Não foi possível carregar as solicitações LGPD.</Alert>
           ) : null}
 
           {!requestsQuery.isLoading && !requestsQuery.isError && requests.length ? (
-            <div className="admin-stack">
+            <div className="privacy-request-list">
               {requests.map(request => (
-                <article className="card admin-card" key={request.id}>
-                  <div className="admin-card-title">{request.protocol}</div>
-                  <div className="admin-card-meta">
-                    <span>{requestTypeLabel[request.type] || request.type}</span>
-                    <span className={`privacy-status-tag ${requestStatusClass[request.status] || 'privacy-status-open'}`}>
-                      {requestStatusLabel[request.status] || request.status}
-                    </span>
-                    <span>Recebida: {formatDate(request.createdAt)}</span>
-                    <span>Origem: {request.source}</span>
-                    <span className={`privacy-status-tag ${request.identityVerifiedAt ? 'privacy-status-resolved' : 'privacy-status-open'}`}>
-                      {request.identityVerifiedAt ? 'Identidade verificada' : 'Identidade pendente'}
-                    </span>
-                  </div>
-                  <div className="det-section" style={{ marginTop: 12 }}>
-                    <div className="det-row">
-                      <span className="det-label">Titular</span>
-                      <span className="det-val">{request.name}</span>
+                <Card className="privacy-request-card" key={request.id} padding="md">
+                  <details>
+                    <summary>
+                      <span className="privacy-request-card__identity">
+                        <strong>{request.protocol}</strong>
+                        <span>{request.name} · {requestTypeLabel[request.type] || request.type}</span>
+                      </span>
+                      <span className="privacy-request-card__summary-meta">
+                        <Badge tone={requestStatusTone[request.status] || 'neutral'}>{requestStatusLabel[request.status] || request.status}</Badge>
+                        <Badge tone={request.identityVerifiedAt ? 'success' : 'warning'}>{request.identityVerifiedAt ? 'Identidade verificada' : 'Identidade pendente'}</Badge>
+                        <span>{formatDate(request.createdAt)}</span>
+                      </span>
+                      <span className="privacy-request-card__expand" aria-hidden="true">Detalhes</span>
+                    </summary>
+                    <div className="privacy-request-card__body">
+                      <div className="privacy-request-details">
+                        <div><span>Recebida</span><strong>{formatDate(request.createdAt)}</strong></div>
+                        <div><span>Origem</span><strong>{request.source}</strong></div>
+                      </div>
+                  <div className="privacy-request-data">
+                    <div className="privacy-request-data__item">
+                      <span className="privacy-request-data__label">Titular</span>
+                      <span className="privacy-request-data__value">{request.name}</span>
                     </div>
-                    <div className="det-row">
-                      <span className="det-label">E-mail</span>
-                      <span className="det-val">{request.email}</span>
+                    <div className="privacy-request-data__item">
+                      <span className="privacy-request-data__label">E-mail</span>
+                      <span className="privacy-request-data__value">{request.email}</span>
                     </div>
-                    <div className="det-row">
-                      <span className="det-label">Identificador</span>
-                      <span className="det-val">{request.identifier || '-'}</span>
+                    <div className="privacy-request-data__item">
+                      <span className="privacy-request-data__label">Identificador</span>
+                      <span className="privacy-request-data__value">{request.identifier || '-'}</span>
                     </div>
-                    <div className="det-row">
-                      <span className="det-label">Detalhes</span>
-                      <span className="det-val">{request.details}</span>
+                    <div className="privacy-request-data__item">
+                      <span className="privacy-request-data__label">Detalhes</span>
+                      <span className="privacy-request-data__value">{request.details}</span>
                     </div>
                     {request.requesterUser ? (
-                      <div className="det-row">
-                        <span className="det-label">Conta vinculada</span>
-                        <span className="det-val">{request.requesterUser.name} ({request.requesterUser.username})</span>
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Conta vinculada</span>
+                        <span className="privacy-request-data__value">{request.requesterUser.name} ({request.requesterUser.username})</span>
                       </div>
                     ) : null}
-                    <div className="det-row">
-                      <span className="det-label">Verificação</span>
-                      <span className="det-val">
+                    <div className="privacy-request-data__item">
+                      <span className="privacy-request-data__label">Verificação</span>
+                      <span className="privacy-request-data__value">
                         {request.identityVerifiedAt
                           ? `Verificada em ${formatDate(request.identityVerifiedAt)}`
                           : highRiskRequestTypes.has(request.type) ? 'Obrigatória antes de resposta final/conclusão' : 'Não obrigatória para resposta inicial'}
                       </span>
                     </div>
                     {request.identityVerificationEvidence ? (
-                      <div className="det-row">
-                        <span className="det-label">Evidência de identidade</span>
-                        <span className="det-val">{request.identityVerificationEvidence}</span>
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Evidência de identidade</span>
+                        <span className="privacy-request-data__value">{request.identityVerificationEvidence}</span>
                       </div>
                     ) : null}
                     {request.identityVerifiedByUser ? (
-                      <div className="det-row">
-                        <span className="det-label">Verificada por</span>
-                        <span className="det-val">{request.identityVerifiedByUser.name} ({request.identityVerifiedByUser.username})</span>
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Verificada por</span>
+                        <span className="privacy-request-data__value">{request.identityVerifiedByUser.name} ({request.identityVerifiedByUser.username})</span>
                       </div>
                     ) : null}
                     {request.responseNotes ? (
-                      <div className="det-row">
-                        <span className="det-label">Observações</span>
-                        <span className="det-val">{request.responseNotes}</span>
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Observações</span>
+                        <span className="privacy-request-data__value">{request.responseNotes}</span>
                       </div>
                     ) : null}
                     {request.responseEmailStatus ? (
-                      <div className="det-row">
-                        <span className="det-label">E-mail de resposta</span>
-                        <span className="det-val">
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">E-mail de resposta</span>
+                        <span className="privacy-request-data__value">
                           {request.responseEmailStatus}
                           {request.responseEmailSentAt ? ` em ${formatDate(request.responseEmailSentAt)}` : ''}
                           {request.responseEmailError ? ` - ${request.responseEmailError}` : ''}
@@ -379,21 +370,21 @@ export function PrivacyRequestsPage() {
                       </div>
                     ) : null}
                     {request.completionNotes ? (
-                      <div className="det-row">
-                        <span className="det-label">Evidência de conclusão</span>
-                        <span className="det-val">{request.completionNotes}</span>
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Evidência de conclusão</span>
+                        <span className="privacy-request-data__value">{request.completionNotes}</span>
                       </div>
                     ) : null}
                     {request.completedByUser ? (
-                      <div className="det-row">
-                        <span className="det-label">Concluída por</span>
-                        <span className="det-val">{request.completedByUser.name} ({request.completedByUser.username})</span>
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Concluída por</span>
+                        <span className="privacy-request-data__value">{request.completedByUser.name} ({request.completedByUser.username})</span>
                       </div>
                     ) : null}
                     {request.responseAttempts?.length ? (
-                      <div className="det-row">
-                        <span className="det-label">Tentativas de envio</span>
-                        <span className="det-val">
+                      <div className="privacy-request-data__item">
+                        <span className="privacy-request-data__label">Tentativas de envio</span>
+                        <span className="privacy-request-data__value">
                           {request.responseAttempts.map(attempt =>
                             `${attempt.status} (${responseKindLabel[attempt.responseKind as ResponseKind] || attempt.responseKind}) em ${formatDate(attempt.sentAt || attempt.createdAt)}${attempt.providerMessageId ? ` - ID ${attempt.providerMessageId}` : ''}${attempt.error ? ` - ${attempt.error}` : ''}`
                           ).join(' | ')}
@@ -401,30 +392,27 @@ export function PrivacyRequestsPage() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="field-group field-group-wide" style={{ marginTop: 12 }}>
-                    <label htmlFor={`privacy-response-kind-${request.id}`}>Tipo da resposta</label>
-                    <select
-                      id={`privacy-response-kind-${request.id}`}
+                  <div className="privacy-request-response">
+                  <Field id={`privacy-response-kind-${request.id}`} label="Tipo da resposta" optionalText={null}>
+                    <Select
                       value={responseKindDrafts[request.id] || 'SUBSTANTIVE'}
                       onChange={event => setResponseKindDrafts(current => ({ ...current, [request.id]: event.target.value as ResponseKind }))}
                     >
                       {Object.entries(responseKindLabel).map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
                       ))}
-                    </select>
-                  </div>
-                  <div className="field-group field-group-wide" style={{ marginTop: 12 }}>
-                    <label htmlFor={`privacy-response-${request.id}`}>Resposta ao titular</label>
-                    <textarea
-                      id={`privacy-response-${request.id}`}
+                    </Select>
+                  </Field>
+                  <Field id={`privacy-response-${request.id}`} label="Resposta ao titular" optionalText={null}>
+                    <Textarea
                       value={responseDrafts[request.id] ?? ''}
                       onChange={event => setResponseDrafts(current => ({ ...current, [request.id]: event.target.value }))}
                       rows={4}
                       maxLength={4000}
                       placeholder={`A resposta será enviada para ${request.email}`}
                     />
-                  </div>
-                  <label className="privacy-notice-check">
+                  </Field>
+                  <label className="privacy-request-resolved">
                     <input
                       type="checkbox"
                       checked={resolvedDrafts[request.id] ?? request.status === 'COMPLETED'}
@@ -432,68 +420,99 @@ export function PrivacyRequestsPage() {
                     />
                     <span>Marcar como resolvida ao enviar a resposta</span>
                   </label>
-                  <div className="collaborator-signature-actions" style={{ marginTop: 12 }}>
-                    <button
-                      className="mini-btn alt"
-                      type="button"
+                  <div className="privacy-request-actions">
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled={identityMutation.isPending}
-                      onClick={() => handleVerifyIdentity(request)}
+                      onClick={() => openEvidenceDialog('identity', request)}
                     >
                       {request.identityVerifiedAt ? 'Atualizar verificação' : 'Registrar verificação'}
-                    </button>
-                    <button
-                      className="mini-btn"
-                      type="button"
-                      disabled={respondMutation.isPending}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={respondMutation.isPending}
                       onClick={() => handleSendResponse(request)}
                     >
                       {respondMutation.isPending ? 'Enviando...' : 'Enviar resposta'}
-                    </button>
-                    <button
-                      className="mini-btn alt"
-                      type="button"
-                      disabled={statusMutation.isPending}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={statusMutation.isPending}
                       onClick={() => handleToggleResolved(request)}
                     >
                       {request.status === 'COMPLETED' ? 'Marcar como não resolvida' : 'Marcar como resolvida'}
-                    </button>
+                    </Button>
                   </div>
-                </article>
+                  </div>
+                    </div>
+                  </details>
+                </Card>
               ))}
             </div>
           ) : null}
 
           {!requestsQuery.isLoading && !requestsQuery.isError && !requests.length ? (
-            <p className="placeholder-copy">
-              {search.trim() ? 'Nenhuma solicitação encontrada.' : 'Nenhuma solicitação LGPD registrada.'}
-            </p>
+            <EmptyState variant={search.trim() ? 'search' : 'default'} title={search.trim() ? 'Nenhuma solicitação encontrada.' : 'Nenhuma solicitação LGPD registrada.'} />
           ) : null}
 
           {!requestsQuery.isLoading && !requestsQuery.isError && requestsQuery.data ? (
-            <div className="collaborator-signature-actions" style={{ marginTop: 12 }}>
-              <button
-                className="mini-btn alt"
-                type="button"
+            <nav className="privacy-request-pagination" aria-label="Paginação das solicitações">
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={page <= 1}
                 onClick={() => setPage(current => Math.max(1, current - 1))}
               >
                 Anterior
-              </button>
-              <span className="placeholder-copy">
+              </Button>
+              <span>
                 Página {requestsQuery.data.pagination.page} de {requestsQuery.data.pagination.totalPages} ({requestsQuery.data.pagination.total} registros)
               </span>
-              <button
-                className="mini-btn alt"
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={page >= requestsQuery.data.pagination.totalPages}
                 onClick={() => setPage(current => current + 1)}
               >
                 Próxima
-              </button>
-            </div>
+              </Button>
+            </nav>
           ) : null}
-        </section>
+        <Modal
+          open={Boolean(evidenceDialog)}
+          onClose={() => setEvidenceDialog(null)}
+          appearance="design-system"
+          title={evidenceDialog?.kind === 'identity' ? 'Registrar verificação de identidade' : 'Evidência de atendimento'}
+          size="sm"
+          panelClassName="privacy-evidence-dialog"
+        >
+          <div className="privacy-evidence-dialog__body">
+            <p>{evidenceDialog?.kind === 'identity'
+              ? 'Descreva como a identidade do titular foi verificada.'
+              : 'Registre a evidência do atendimento feito fora do sistema.'}</p>
+            <Field
+              id="privacy-evidence"
+              label="Evidência"
+              required
+              errorText={evidenceError || undefined}
+            >
+              <Textarea
+                rows={4}
+                maxLength={4000}
+                value={evidenceDraft}
+                onChange={event => { setEvidenceDraft(event.target.value); setEvidenceError(''); }}
+              />
+            </Field>
+            <div className="privacy-evidence-dialog__actions">
+              <Button variant="secondary" onClick={() => setEvidenceDialog(null)}>Cancelar</Button>
+              <Button variant="primary" onClick={submitEvidence} loading={identityMutation.isPending || statusMutation.isPending}>Salvar evidência</Button>
+            </div>
+          </div>
+        </Modal>
       </main>
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

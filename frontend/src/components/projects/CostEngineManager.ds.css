@@ -7,15 +7,45 @@
 .acp-cost-ds__tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
 }
 
 .acp-cost-ds__tabs .fv-button {
   min-width: 0;
   width: 100%;
+  min-height: var(--space-9);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
   white-space: normal;
   text-align: center;
+}
+
+.acp-cost-ds__tabs .fv-button[aria-selected='true'] {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
+  box-shadow: var(--shadow-e1);
+}
+
+.acp-cost-ds__tabs .fv-button[aria-selected='false']:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.acp-cost-ds__tabs .fv-button[aria-selected='true']:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
 }
 
 .acp-cost-ds__tabs .fv-button__label {
@@ -38,9 +68,9 @@
   color: var(--ink);
   font-size: var(--text-xs);
 }
-.acp-cost-ds__tabs .fv-button--primary .acp-cost-ds__tab-count {
-  background: rgba(255, 255, 255, .18);
-  color: inherit;
+.acp-cost-ds__tabs .fv-button[aria-selected='true'] .acp-cost-ds__tab-count {
+  background: var(--brand-softer);
+  color: var(--brand-text);
 }
 
 .acp-cost-ds__panel { min-width: 0; }

@@ -156,6 +156,82 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+.quality-page-v2 .quality-evidence-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.quality-page-v2 .quality-evidence-list li {
+  display: flex;
+  align-items: center;
+}
+
+.quality-evidence-thumb {
+  display: inline-flex;
+  width: 104px;
+  height: 80px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--brand-text);
+  text-decoration: none;
+}
+
+.quality-evidence-thumb:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-e1);
+}
+
+.quality-evidence-thumb:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.quality-evidence-thumb__frame {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.quality-evidence-thumb__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.quality-evidence-thumb__frame canvas {
+  display: none;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.quality-evidence-thumb__frame canvas.is-ready {
+  display: block;
+}
+
+.quality-evidence-thumb__type {
+  position: absolute;
+  inset-inline-end: var(--space-1);
+  inset-block-end: var(--space-1);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--brand-text);
+  font-size: 10px;
+  font-weight: var(--font-bold);
+  line-height: 1.3;
+}
+
 .quality-nature-form-v2 {
   display: grid;
   gap: var(--space-5);
@@ -238,6 +314,28 @@
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
+}
+
+.quality-modal-v2 .quality-evidence-file-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: var(--space-2);
+}
+
+.quality-modal-v2 .quality-evidence-file-row {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.quality-modal-v2 .quality-evidence-file-row > button {
+  justify-self: end;
+  width: auto;
 }
 
 .quality-modal-v2 .equip-form-actions {
