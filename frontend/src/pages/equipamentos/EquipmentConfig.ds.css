@@ -142,6 +142,33 @@
   color: var(--ink);
 }
 
+.equip-page-v2 .equip-notif-config .equip-notif-fields { border-color: var(--line); }
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add, .equip-notif-list) .equip-toggle { color: var(--ink); }
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add) .field-group > label { color: var(--muted); }
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add) :is(input:not([type='checkbox']), select) {
+  min-height: var(--space-10);
+  border-color: var(--control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add) :is(input, select):focus-visible {
+  border-color: var(--brand);
+  background-color: var(--surface);
+}
+.equip-page-v2 .equip-notif-inline > .fv-button { flex: 0 0 auto; }
+.equip-page-v2 .equip-notif-config .equip-form-actions { border-color: var(--line); }
+.equip-page-v2 .equip-notif-item {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.equip-page-v2 .equip-notif-item.off { opacity: 1; }
+.equip-page-v2 .equip-notif-item.off .equip-notif-email { color: var(--muted); }
+.equip-page-v2 .equip-notif-tag { background: var(--brand-soft); color: var(--brand-text); }
+.equip-page-v2 .equip-notif-item .fv-remove-icon-button { margin-inline-start: auto; }
+
 .equip-page-v2 .equip-maintenance-config .operational-profile-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: var(--space-3);

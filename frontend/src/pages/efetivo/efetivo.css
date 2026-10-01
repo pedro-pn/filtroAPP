@@ -1450,7 +1450,7 @@
 .efetivo-period-cell { align-items: center; border-bottom: 1px solid var(--br); display: flex; height: 39px; justify-content: center; min-width: 0; padding: 0 2px; }
 .efetivo-period-cell i { border-radius: 4px; display: block; height: 25px; opacity: .88; width: 100%; }
 .efetivo-period-cell:hover i { opacity: 1; outline: 2px solid var(--tx); outline-offset: 1px; }
-.help-tip-portal.efetivo-period-cell-tip { max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px; }
+.help-tip-portal.efetivo-period-cell-tip { background: var(--surface); border-color: var(--line); color: var(--ink); max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px; }
 .efetivo-period-tooltip { display: flex; flex-direction: column; gap: 3px; }
 .efetivo-period-tooltip strong { color: var(--tx); font-size: 12px; }
 .efetivo-period-tooltip span { color: var(--mu); font-size: 11px; text-transform: capitalize; }
@@ -1867,7 +1867,7 @@
 /* Seção oculta com as missões canceladas: os dados continuam salvos, só somem da coluna e das etapas que
    exigem programação oficial (mobilização, execução, encerramento) até serem reativadas aqui. */
 .project-workflow-cancelled-toggle { color: var(--mu); grid-column: 1 / -1; justify-self: start; }
-.project-workflow-cancelled-toggle:hover { color: var(--pw-accent); }
+.project-workflow-cancelled-toggle:hover { color: var(--brand-text); }
 .project-workflow-cancelled-missions header h3 { margin: 0 0 4px; }
 .project-workflow-cancelled-missions header p { color: var(--mu); margin: 0; }
 .project-workflow-cancelled-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
@@ -1980,6 +1980,31 @@
   --pw-shadow-lg: 0 24px 60px -18px rgba(29, 32, 30, .35), 0 8px 20px -10px rgba(29, 32, 30, .18);
 }
 
+.dark :is(.project-workflow-modal, .efetivo-team-dialog, .project-workflow-stage-tip-balloon, .project-workflow-category-help-balloon) {
+  --pw-surface: var(--surface);
+  --pw-surface-2: var(--surface-2);
+  --pw-surface-3: color-mix(in srgb, var(--surface-2) 85%, var(--ink));
+  --pw-border: var(--line-strong);
+  --pw-border-soft: var(--line);
+  --pw-ink: var(--ink);
+  --pw-ink-2: var(--ink);
+  --pw-muted: var(--muted);
+  --pw-faint: var(--gray-400);
+  --pw-accent: var(--brand-text);
+  --pw-accent-hover: var(--green-300);
+  --pw-accent-soft: var(--brand-soft);
+  --pw-accent-line: var(--success-line);
+  --pw-ok: var(--success);
+  --pw-ok-bg: var(--success-bg);
+  --pw-warn: var(--warning);
+  --pw-warn-bg: var(--warning-bg);
+  --pw-crit: var(--danger);
+  --pw-crit-bg: var(--danger-bg);
+  --pw-crit-dot: var(--danger);
+  --pw-info: var(--info);
+  --pw-info-bg: var(--info-bg);
+}
+
 /* Caixa do diálogo: ocupa bastante espaço, mas sempre com margem até a borda da tela */
 .modal-card.efetivo-modal.project-workflow-modal {
   border-color: var(--pw-border);
@@ -2062,7 +2087,7 @@
 }
 
 /* Balão de pendências de cada etapa */
-.help-tip-portal.project-workflow-stage-tip-balloon { border-radius: 12px; max-width: min(380px, calc(100vw - 16px)); overflow-x: hidden; overflow-y: auto; padding: 0; width: max-content; }
+.help-tip-portal.project-workflow-stage-tip-balloon { background: var(--pw-surface); border-color: var(--pw-border); border-radius: 12px; color: var(--pw-ink); max-width: min(380px, calc(100vw - 16px)); overflow-x: hidden; overflow-y: auto; padding: 0; width: max-content; }
 .project-workflow-stage-tip { color: var(--pw-ink); min-width: min(310px, calc(100vw - 18px)); }
 .project-workflow-stage-tip > header { align-items: center; background: var(--pw-surface-2); border-bottom: 1px solid var(--pw-border-soft); display: flex; gap: 16px; justify-content: space-between; padding: 10px 12px; position: sticky; top: 0; z-index: 1; }
 .project-workflow-stage-tip > header strong { font-size: 12.5px; }
@@ -2168,7 +2193,7 @@
 .project-workflow-category-help:hover,
 .project-workflow-category-help:focus-visible { color: var(--pw-muted); outline: none; }
 .project-workflow-category-help .project-workflow-icon { height: 14px; width: 14px; }
-.help-tip-portal.project-workflow-category-help-balloon { max-width: min(320px, calc(100vw - 16px)); }
+.help-tip-portal.project-workflow-category-help-balloon { background: var(--pw-surface); border-color: var(--pw-border); color: var(--pw-ink); max-width: min(320px, calc(100vw - 16px)); }
 .project-workflow-category-status { align-items: center; background: var(--pw-surface-3); border-radius: 999px; color: var(--pw-muted); display: inline-flex; flex: 0 0 auto; font-size: 12px; font-weight: 600; gap: 5px; line-height: 1; max-width: 240px; padding: 5px 9px; white-space: nowrap; }
 .project-workflow-category-status .project-workflow-icon { height: 12px; stroke-width: 2.5; width: 12px; }
 .project-workflow-category.is-ok .project-workflow-category-status { background: var(--pw-ok-bg); color: var(--pw-ok); }
