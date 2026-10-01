@@ -147,7 +147,7 @@
 .stock-page-v2 .stock-entity-card > .admin-toolbar { margin: 0; align-items: flex-start; }
 .stock-page-v2 .stock-entity-card .sec { color: var(--ink); }
 .stock-page-v2 .stock-entity-card > .admin-form-actions { margin-top: auto; justify-content: flex-start; flex-wrap: wrap; }
-.stock-page-v2 .stock-entity-card .danger-button { min-height: var(--space-9); border-radius: var(--radius-md); }
+.stock-page-v2 .stock-entity-card .fv-remove-icon-button { margin-inline-start: auto; }
 .stock-page-v2 .stock-entity-card .upload-list-item,
 .fv-ds .stock-dialog .upload-list-item { border-color: var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .stock-page-v2 .stock-entity-card .upload-list-name,

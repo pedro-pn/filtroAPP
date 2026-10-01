@@ -13,6 +13,7 @@ import {
   updateStockCategory
 } from '../../api/estoque';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { Badge, Select } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
@@ -185,7 +186,7 @@ export function StockCategoriesTab({ isManager }: Props) {
                 <button className="mini-btn alt" type="button" onClick={() => confirmActive(category, !category.isActive)}>
                   {category.isActive ? 'Inativar' : 'Reativar'}
                 </button>
-                <button className="danger-button" type="button" onClick={() => confirmRemove(category)}>Excluir</button>
+                <RemoveIconButton label={`Remover categoria ${category.name}`} disabled={removeMutation.isPending} onClick={() => confirmRemove(category)} />
               </div>
             ) : null}
           </article>
@@ -204,6 +205,7 @@ export function StockCategoriesTab({ isManager }: Props) {
 
       <ConfirmDialog
         open={Boolean(confirm)}
+        appearance="design-system"
         title={confirm?.title || ''}
         description={confirm?.description}
         highlight={confirm?.highlight}
