@@ -167,11 +167,15 @@ export function AdminAccountsPage() {
 
   const availableRoleOptions = assignableRoleOptionsForAccountType(form.accountType);
   const isSaving = userMutations.createUser.isPending || userMutations.updateUser.isPending;
+  const editingUserId = editingUser?.id;
 
   useEffect(() => {
-    if (!showForm) return;
-    document.getElementById('admin-account-form')?.scrollIntoView({ block: 'start' });
-  }, [editingUser?.id, showForm]);
+    if (!showForm || !editingUserId || visibleUsers.some(user => user.id === editingUserId)) return;
+    setForm(emptyForm);
+    setEditingUser(null);
+    setShowForm(false);
+    setError('');
+  }, [editingUserId, showForm, visibleUsers]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -564,8 +568,13 @@ export function AdminAccountsPage() {
       : `${deletionImpact.assinaturas.toDelete} documento(s) não concluído(s) serão colocados em quarentena e excluídos; ${deletionImpact.assinaturas.toPreserve} documento(s) concluído(s) serão preservados sem proprietário.`;
 
   function accountActions(user: InternalUserSummary) {
+    const isEditing = showForm && editingUser?.id === user.id;
     return <>
-      <Button variant="secondary" size="sm" onClick={() => openEditForm(user)}>Editar</Button>
+      <Button variant="secondary" size="sm" aria-expanded={isEditing} aria-controls={isEditing ? 'admin-account-form' : undefined}
+        aria-label={isEditing ? `Fechar edição de ${user.name}` : undefined}
+        onClick={() => isEditing ? resetForm() : openEditForm(user)}>
+        {isEditing ? 'Fechar' : 'Editar'}
+      </Button>
       <Button variant={user.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => void toggleActive(user)} disabled={userMutations.updateUser.isPending}>
         {user.isActive ? 'Desativar' : 'Ativar'}
       </Button>
@@ -598,7 +607,7 @@ export function AdminAccountsPage() {
         <PageHeader
           title="Gestão de contas"
           description="Gerencie usuários internos, administradores e clientes."
-          actions={!showForm ? <Button variant="primary" onClick={() => openCreateForm()}>Nova conta</Button> : undefined}
+          actions={<Button variant="primary" onClick={() => openCreateForm()} disabled={showForm}>Nova conta</Button>}
         />
 
         <Card className="admin-account-filters-v2" padding="md">
@@ -636,7 +645,7 @@ export function AdminAccountsPage() {
           onCopy={copyManualPasswordSetup}
         /> : null}
 
-        {showForm ? renderAccountForm() : null}
+        {showForm && !editingUser ? renderAccountForm() : null}
 
         {usersQuery.isLoading ? (
           <Skeleton variant="card" label="Carregando contas…" />
@@ -659,6 +668,7 @@ export function AdminAccountsPage() {
               density="compact"
               actionsLabel="Ações"
               rowActions={accountActions}
+              renderRowDetails={user => showForm && editingUser?.id === user.id ? renderAccountForm() : null}
               mobile={{
                 ariaLabel: 'Contas cadastradas',
                 renderItem: user => ({
@@ -669,7 +679,8 @@ export function AdminAccountsPage() {
                     { label: 'Tipo', value: accountTypeLabel(user.accountType) },
                     ...(user.email ? [{ label: 'E-mail', value: user.email }] : [])
                   ],
-                  details: accountAccess(user),
+                  value: accountAccess(user),
+                  details: showForm && editingUser?.id === user.id ? renderAccountForm() : null,
                   actions: accountActions(user)
                 })
               }}

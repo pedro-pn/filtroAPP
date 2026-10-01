@@ -1210,7 +1210,8 @@ Migração visual concluída em 01/10/2026. `AdminAccountsPage` usa o shell de
 Administração e os controles do design system. A lista de contas agora usa
 tabela no desktop/tablet e cartões compactos no celular; o formulário,
 os filtros e as ações foram conferidos em 360, 390, 768 e 1280 px, nos temas
-claro e escuro. A operação de criar, editar, ativar/desativar e excluir foi
+claro e escuro. A edição abre sob a conta selecionada sem rolagem automática.
+A operação de criar, editar, ativar/desativar e excluir foi
 validada com API sintética que preserva os contratos e atualiza a lista após
 cada resposta. A persistência com banco isolado continua pendente na F6 porque
 as credenciais de demonstração locais não deram acesso autenticado.

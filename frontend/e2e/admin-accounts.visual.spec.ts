@@ -113,10 +113,44 @@ for (const viewport of viewports) {
     await page.locator('.admin-account-form__header').getByRole('button', { name: 'Cancelar' }).click();
 
     const internalRow = page.locator('.admin-account-table [data-row-id="internal-1"]');
-    await internalRow.getByRole('button', { name: 'Editar' }).click();
+    const editButton = internalRow.getByRole('button', { name: 'Editar' });
+    await editButton.scrollIntoViewIfNeeded();
+    const scrollBeforeEdit = await page.evaluate(() => ({
+      page: window.scrollY,
+      content: document.querySelector('.fv-app-shell__content')?.scrollTop ?? 0,
+      table: document.querySelector('.fv-data-table__desktop')?.scrollTop ?? 0
+    }));
+    await editButton.click();
     await expect(page.getByRole('heading', { name: 'Editar conta · Marina Operações' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => ({
+      page: window.scrollY,
+      content: document.querySelector('.fv-app-shell__content')?.scrollTop ?? 0,
+      table: document.querySelector('.fv-data-table__desktop')?.scrollTop ?? 0
+    }))).toEqual(scrollBeforeEdit);
+    await expect(page.locator('.admin-accounts-page-v2 > #admin-account-form')).toHaveCount(0);
+    if (viewport.width >= 768) {
+      const inlineDetails = page.locator('.admin-account-table [data-details-for-row="internal-1"]');
+      await expect(inlineDetails.locator('#admin-account-form')).toBeVisible();
+      await expect.poll(() => page.evaluate(() => {
+        const row = document.querySelector('[data-row-id="internal-1"]');
+        const details = document.querySelector('[data-details-for-row="internal-1"]');
+        return Math.round((details?.getBoundingClientRect().top ?? 0) - (row?.getBoundingClientRect().bottom ?? 0));
+      })).toBeGreaterThanOrEqual(-1);
+    } else {
+      await expect(internalRow.locator('#admin-account-form')).toBeVisible();
+    }
     await expect(page.getByRole('textbox', { name: 'Nome' })).toHaveValue('Marina Operações');
+    await expectNoHorizontalOverflow(page);
+    await expect(page).toHaveScreenshot(`${viewport.name}-${viewport.theme}-edit.png`);
     await page.locator('.admin-account-form__header').getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page.locator('.admin-account-table #admin-account-form')).toHaveCount(0);
+
+    const clientRow = page.locator('.admin-account-table [data-row-id="client-1"]');
+    await clientRow.getByRole('button', { name: 'Editar' }).click();
+    await expect(page.getByRole('heading', { name: 'Editar conta · Cliente Ventura' })).toBeVisible();
+    await expect(page.locator('.admin-account-table #admin-account-form')).toHaveCount(1);
+    await clientRow.getByRole('button', { name: 'Fechar edição de Cliente Ventura' }).click();
+    await expect(page.locator('.admin-account-table #admin-account-form')).toHaveCount(0);
 
     await internalRow.getByRole('button', { name: 'Remover conta de Marina Operações' }).click();
     await expect(page.getByText(/2 documento\(s\) concluído\(s\) serão preservados/)).toBeVisible();
@@ -218,6 +252,11 @@ test('filtros e estado vazio mantêm o acesso à criação de contas', async ({ 
   await page.goto('/admin/accounts');
   await page.getByRole('combobox', { name: 'Tipo' }).selectOption('CLIENT');
   await expect(page.locator('.admin-account-table [data-row-id]')).toHaveCount(1);
+  await page.locator('.admin-account-table [data-row-id="client-1"]').getByRole('button', { name: 'Editar' }).click();
+  await expect(page.getByRole('heading', { name: 'Editar conta · Cliente Ventura' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Tipo' }).selectOption('ADMIN');
+  await expect(page.locator('.admin-account-table #admin-account-form')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Nova conta' })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Buscar' }).fill('sem resultados');
   await expect(page.getByText('Nenhuma conta encontrada.')).toBeVisible();
   await page.getByRole('button', { name: 'Limpar filtros' }).click();
