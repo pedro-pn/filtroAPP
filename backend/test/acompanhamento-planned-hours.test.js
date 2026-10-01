@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readCommercialHours, resolvePlannedHours, plannedHoursAlerts } from '../src/lib/acompanhamento/planned-hours.js';
+import { readCommercialHours, readCommercialAppHours, resolvePlannedHours, loadPlannedHours, plannedHoursAlerts } from '../src/lib/acompanhamento/planned-hours.js';
 
 const raw = (normal = 100, overtime = 20) => ({
   hh_total: normal + overtime, hh_util_diurno: normal, hh_util_noturno: 0,
@@ -95,4 +95,44 @@ test('resolution fingerprint ignores unrelated import changes and manual row ide
   const reordered = resolvePlannedHours({ ...input, normalHours: [...input.normalHours].reverse().map(row => ({ ...row, id: 'new' })),
     sources: [...input.sources].reverse().map(source => ({ ...source, rawRow: { ...source.rawRow, nome_cliente: 'Updated' } })) });
   assert.equal(first.hoursPlan.fingerprint, reordered.hoursPlan.fingerprint);
+});
+
+test('selected ComercialAPP hours use the same manual divergence and revision rules', () => {
+  const appSource = (revisionNumber, normal, overtime) => ({
+    source: 'COMERCIAL_APP', externalId: `proposal-${revisionNumber}`, proposalCode: '8700', revisionNumber,
+    estimateSummary: { hours: { normal, overtime, total: normal + overtime } }
+  });
+  assert.equal(readCommercialAppHours(appSource(0, 100, 20).estimateSummary).status, 'AVAILABLE');
+  const first = resolvePlannedHours({ sources: [appSource(0, 100, 20)] });
+  assert.equal(first.hoursPlan.source, 'COMMERCIAL');
+  assert.deepEqual(first.hoursPlan.commercial, { normal: 100, overtime: 20, total: 120 });
+  assert.equal(first.hoursPlan.proposals[0].source, 'COMERCIAL_APP');
+  const pending = resolvePlannedHours({ ...manual(200, 20), sources: [appSource(0, 100, 20)] });
+  assert.equal(pending.hoursPlan.pending, true);
+  assert.equal(pending.hoursPlan.source, 'MANUAL');
+  const resolution = { basis: pending.basis, choice: 'COMMERCIAL', resolvedAt: '2026-09-30' };
+  assert.equal(resolvePlannedHours({ ...manual(200, 20), sources: [appSource(0, 100, 20)], resolution }).hoursPlan.source, 'COMMERCIAL');
+  assert.equal(resolvePlannedHours({ ...manual(200, 20), sources: [appSource(1, 150, 30)], resolution }).hoursPlan.pending, true);
+  assert.equal(resolvePlannedHours({ ...manual(200, 20), sources: [
+    { source: 'COMERCIAL_APP', externalId: 'old', proposalCode: '8700', revisionNumber: 0 }
+  ] }).hoursPlan.source, 'MANUAL');
+});
+
+test('planned hours load only the selected ComercialAPP revision, even when Access additions exist', async () => {
+  const database = {
+    project: { findMany: async () => [{
+      id: 'project-1', plannedHoursResolution: null, plannedNormalHours: [], plannedOvertime: [],
+      budgets: [{ source: 'COMERCIAL_APP', commercialAppProposalId: 'selected-revision', sourceProposalCodBd: null }],
+      additionalProposals: [{ sourceProposalCodBd: 99 }]
+    }] },
+    commercialProposal: { findMany: async () => { throw new Error('Access não deve ser consultado'); } },
+    commercialAppProposal: { findMany: async query => {
+      assert.deepEqual(query.where.externalId.in, ['selected-revision']);
+      return [{ externalId: 'selected-revision', proposalCode: '8700', revisionNumber: 2,
+        snapshot: { estimateSummary: { hours: { normal: 130, overtime: 15, total: 145 } } } }];
+    } }
+  };
+  const result = (await loadPlannedHours(['project-1'], database)).get('project-1');
+  assert.deepEqual(result.hoursPlan.commercial, { normal: 130, overtime: 15, total: 145 });
+  assert.equal(result.hoursPlan.proposals[0].nRev, 2);
 });

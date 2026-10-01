@@ -962,6 +962,7 @@ model Project {
   manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão (fallback quando não há escopo)
   trackingDivisions          Json                               @default("[]") // recortes do acompanhamento por escopo/equipamento do cliente
   plannedHoursResolution     Json? // decisão manual vinculada aos valores/revisões comerciais e às horas manuais conferidas
+  commercialScopeImport      Json? // revisão comercial importada ou substituição manual explícita
   createdAt                  DateTime                           @default(now())
   updatedAt                  DateTime                           @updatedAt
   deletedAt                  DateTime?
@@ -3545,10 +3546,8 @@ model ProjectAdditionalProposal {
   @@index([selectedByUserId])
 }
 
-// Serviço vendido (escopo) previsto. Hoje é preenchido manualmente no cronograma — idealmente viria
-// do banco comercial, que ainda não carrega esses campos. Cada serviço agrupa um ou mais "sistemas"
-// (tubulações em m, óleo em L), cada um com seu quantitativo — alinhado ao que o RDO registra como
-// realizado, para entrar no cálculo de avanço.
+// Serviço vendido previsto no cronograma. Pode ser importado do levantamento do ComercialAPP
+// ou editado manualmente. Cada serviço agrupa sistemas com a mesma unidade medida no RDO.
 model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String

@@ -188,7 +188,9 @@ export async function getCommercialAppRevisions(projectId: string): Promise<{
 
 export async function selectCommercialAppRevision(projectId: string, externalId: string,
   replaceLegacy = false) {
-  const { data } = await apiClient.post<{ budgetStatus: string }>(
+  const { data } = await apiClient.post<{ budgetStatus: string; scopeImport?: {
+    status: string; issues: string[];
+  } }>(
     `/acompanhamento/comercial/projetos/${projectId}/comercialapp/selecionar`,
     { externalId, replaceLegacy });
   return data;
@@ -513,6 +515,9 @@ export interface PlannedScope {
   normalHours: PlannedOvertime[];
   overtime: PlannedOvertime[];
   hoursPlan?: PlannedHoursPlan;
+  commercialScopeImport?: { externalId?: string; pendingExternalId?: string;
+    fingerprint?: string; issues?: string[];
+    status?: 'MANUAL_OVERRIDE' } | null;
 }
 
 export interface PlannedHoursPlan {
@@ -526,10 +531,14 @@ export interface PlannedHoursPlan {
   decision: 'COMMERCIAL' | 'MANUAL' | null;
   resolvedAt: string | null;
   fingerprint: string;
-  proposals: Array<{ codBd: number; codProp?: number; nRev?: number; status: string }>;
+  proposals: Array<{ codBd?: number; codProp?: number; proposalCode?: string;
+    source?: 'COMERCIAL_APP'; nRev?: number; status: string }>;
 }
 
-export type PlannedScopeInput = Pick<PlannedScope, 'services'> & Partial<Pick<PlannedScope, 'normalHours' | 'overtime'>> & { hoursFingerprint?: string };
+export type PlannedScopeInput = Partial<Pick<PlannedScope, 'services' | 'normalHours' | 'overtime'>> & {
+  hoursFingerprint?: string;
+  commercialScopeFingerprint?: string | null;
+};
 
 export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
   const { data } = await apiClient.get<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`);
