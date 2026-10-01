@@ -19,6 +19,7 @@ import type {
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button } from '../../components/ui/ds';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
 
 interface Props {
@@ -320,22 +321,8 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
   const availableNatures = natures.filter(nature => nature.isActive || nature.id === record?.natureId);
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="quality-record-form-title" panelClassName="modal-card equip-modal stock-modal quality-modal">
-      <button
-        className="equip-modal-close-float icon-button"
-        type="button"
-        aria-label="Fechar registro"
-        title="Fechar"
-        onClick={onClose}
-        disabled={saving}
-      >
-        ×
-      </button>
+    <Modal open={open} onClose={onClose} appearance="design-system" title={record ? 'Editar registro' : 'Novo registro'} size="lg" closeLabel="Fechar registro" panelClassName="quality-modal-v2" preventInitialFocusScroll>
       <form className="equip-form quality-form" onSubmit={handleSubmit(submit)} noValidate>
-        <header className="equip-form-head has-float-close">
-          <h3 id="quality-record-form-title">{record ? 'Editar registro' : 'Novo registro'}</h3>
-          <span className="equip-form-sub">Qualidade</span>
-        </header>
 
         {record ? (
           <div className="quality-readonly-strip">
@@ -461,7 +448,7 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
           <div className="field-group field-group-wide quality-evidence-block">
             <div className="quality-evidence-head">
               <label>Evidências</label>
-              <button className="mini-btn alt quality-evidence-add-link" type="button" disabled={saving} onClick={addEvidenceLink}>Adicionar link</button>
+              <Button variant="secondary" size="sm" className="quality-evidence-add-link" disabled={saving} onClick={addEvidenceLink}>Adicionar link</Button>
             </div>
             <div className="quality-evidence-links-editor">
               {evidenceLinks.map((link, index) => (
@@ -524,8 +511,8 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
         </div>
 
         <div className="admin-form-actions equip-form-actions">
-          <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="mini-btn" type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</button>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" type="submit" loading={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button>
         </div>
       </form>
     </Modal>

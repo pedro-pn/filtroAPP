@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 
 import type { QualityNature, QualityNaturePayload } from '../../api/qualidade';
 import { Modal } from '../../components/ui/Modal';
+import { Button, Field, Input } from '../../components/ui/ds';
 
 interface Props {
   open: boolean;
@@ -30,39 +31,20 @@ export function QualityNatureFormModal({ open, nature, saving, onClose, onSubmit
   }
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="quality-nature-form-title" panelClassName="modal-card equip-modal stock-modal">
-      <form className="equip-form" onSubmit={handleSubmit} noValidate>
-        <header className="equip-form-head equip-form-head-with-close">
-          <h3 id="quality-nature-form-title">{nature ? 'Editar Natureza' : 'Nova Natureza'}</h3>
-          <button
-            className="equip-modal-close icon-button"
-            type="button"
-            aria-label="Fechar Natureza"
-            title="Fechar"
-            onClick={onClose}
-            disabled={saving}
-          >
-            ×
-          </button>
-        </header>
-
-        <div className={nameError ? 'field-group field-invalid' : 'field-group'}>
-          <label htmlFor="quality-nature-name">Nome *</label>
-          <input
-            id="quality-nature-name"
+    <Modal open={open} onClose={onClose} appearance="design-system" size="sm" title={nature ? 'Editar Natureza' : 'Nova Natureza'} closeLabel="Fechar Natureza">
+      <form className="quality-nature-form-v2" onSubmit={handleSubmit} noValidate>
+        <Field id="quality-nature-name" label="Nome" required errorText={nameError || undefined}>
+          <Input
             type="text"
             value={name}
-            aria-invalid={Boolean(nameError) || undefined}
-            aria-describedby={nameError ? 'quality-nature-name-error' : undefined}
             disabled={saving}
             onChange={event => setName(event.target.value)}
           />
-          {nameError ? <small id="quality-nature-name-error" className="field-error">{nameError}</small> : null}
-        </div>
+        </Field>
 
-        <div className="admin-form-actions equip-form-actions">
-          <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="mini-btn" type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</button>
+        <div className="quality-nature-form-v2__actions">
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" type="submit" loading={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button>
         </div>
       </form>
     </Modal>

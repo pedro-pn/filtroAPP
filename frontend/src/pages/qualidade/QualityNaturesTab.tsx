@@ -12,8 +12,10 @@ import {
   updateQualityNature
 } from '../../api/qualidade';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
+import { Badge, Button, Card } from '../../components/ui/ds';
 import {
   createPointerDragGhost,
   movePointerDragGhost,
@@ -301,7 +303,7 @@ export function QualityNaturesTab({ isManager }: Props) {
   }
 
   return (
-    <section className="page-card quality-tab" data-quality-natures>
+    <Card className="quality-tab quality-natures-v2" padding="md" data-quality-natures>
       <div className="admin-toolbar">
         <div>
           <div className="sec">Naturezas</div>
@@ -327,7 +329,7 @@ export function QualityNaturesTab({ isManager }: Props) {
             />
             {newNameError ? <small id="quality-new-nature-error" className="field-error">{newNameError}</small> : null}
           </div>
-          <button className="mini-btn" type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? 'Adicionando…' : 'Adicionar'}</button>
+          <Button variant="primary" size="sm" type="submit" loading={createMutation.isPending}>{createMutation.isPending ? 'Adicionando…' : 'Adicionar'}</Button>
         </form>
       ) : null}
 
@@ -398,15 +400,15 @@ export function QualityNaturesTab({ isManager }: Props) {
                 <p className="rel-meta">{nature.recordCount} registro(s) vinculado(s)</p>
               </div>
             </div>
-            <span className={`badge ${nature.isActive ? 'badge-ok' : 'danger'}`}>{nature.isActive ? 'Ativa' : 'Inativa'}</span>
+            <Badge tone={nature.isActive ? 'success' : 'neutral'}>{nature.isActive ? 'Ativa' : 'Inativa'}</Badge>
             <p className="rel-meta quality-nature-use">{nature.inUse ? 'Exclusão bloqueada por vínculo com registros.' : 'Sem registros vinculados.'}</p>
             {isManager ? (
               <div className="admin-form-actions quality-nature-actions">
-                <button className="mini-btn alt" type="button" onClick={() => setFormNature(nature)}>Editar</button>
-                <button className="mini-btn alt" type="button" onClick={() => confirmActive(nature, !nature.isActive)}>
+                <Button variant="secondary" size="sm" onClick={() => setFormNature(nature)}>Editar</Button>
+                <Button variant="secondary" size="sm" onClick={() => confirmActive(nature, !nature.isActive)}>
                   {nature.isActive ? 'Inativar' : 'Reativar'}
-                </button>
-                <button className="danger-button" type="button" onClick={() => confirmRemove(nature)}>Excluir</button>
+                </Button>
+                <RemoveIconButton label={`Remover natureza ${nature.name}`} onClick={() => confirmRemove(nature)} />
               </div>
             ) : null}
           </article>
@@ -436,6 +438,6 @@ export function QualityNaturesTab({ isManager }: Props) {
         }}
         onCancel={() => setConfirm(null)}
       />
-    </section>
+    </Card>
   );
 }

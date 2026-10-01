@@ -19,11 +19,12 @@ import {
   type QualityStatus,
   updateQualityRecord
 } from '../../api/qualidade';
-import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
+import { Badge, Button, Card, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
 import { QualityRecordFormModal } from './QualityRecordFormModal';
 
@@ -96,13 +97,6 @@ function evidenceLinks(record: QualityRecord) {
     .filter((item): item is { href: string; label: string } => Boolean(item));
 }
 
-function impactBadgeClass(impact: QualityImpact | null) {
-  if (impact === 'ALTO') return 'badge badge-rej';
-  if (impact === 'MEDIO') return 'badge badge-pen';
-  if (!impact) return 'badge';
-  return 'badge badge-ok';
-}
-
 function fileNameForExport() {
   return `registros-qualidade-${new Date().toISOString().slice(0, 10)}.xlsx`;
 }
@@ -127,6 +121,7 @@ export function QualityRecordsTab({ isManager }: Props) {
   const [impact, setImpact] = useState<QualityImpact | ''>('');
   const [projectId, setProjectId] = useState('');
   const [natureId, setNatureId] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches);
   const [formRecord, setFormRecord] = useState<QualityRecord | null | undefined>(undefined);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Set<string>>(() => new Set());
@@ -204,6 +199,7 @@ export function QualityRecordsTab({ isManager }: Props) {
   const natures: QualityNature[] = naturesQuery.data || [];
   const records = recordsQuery.data?.items || [];
   const saving = createMutation.isPending || updateMutation.isPending;
+  const activeFilterCount = [type, status, impact, projectId, natureId].filter(Boolean).length;
 
   function handleSubmit(payload: QualityRecordPayload | QualityRecordUpdatePayload) {
     if (formRecord) updateMutation.mutate({ id: formRecord.id, payload: payload as QualityRecordUpdatePayload });
@@ -238,41 +234,72 @@ export function QualityRecordsTab({ isManager }: Props) {
     setNatureId('');
   }
 
+  function recordActions(record: QualityRecord) {
+    return isManager ? <>
+      <Button size="sm" variant="secondary" onClick={() => setFormRecord(record)}>Editar</Button>
+      <RemoveIconButton label={`Remover registro ${record.number}`} onClick={() => confirmRemove(record)} />
+    </> : null;
+  }
+
+  function recordEvidence(record: QualityRecord) {
+    const evidences = evidenceLinks(record);
+    if (!evidences.length) return null;
+    const expanded = expandedEvidenceIds.has(record.id);
+    return <div className="quality-evidence-collapse">
+      <button className="quality-evidence-collapse-toggle" type="button" aria-expanded={expanded} onClick={() => toggleEvidenceList(record.id)}>
+        <span>Evidências</span><strong>{evidences.length}</strong><small>{expanded ? 'Recolher' : 'Ver'}</small>
+      </button>
+      {expanded ? <ul className="quality-evidence-list">{evidences.map((evidence, index) => <li key={`${evidence.href}-${index}`}>
+        <a className="equip-link quality-evidence-link" href={evidence.href} target="_blank" rel="noreferrer">{evidence.label}</a>
+      </li>)}</ul> : null}
+    </div>;
+  }
+
+  const columns: DataTableColumn<QualityRecord>[] = [
+    { key: 'number', header: 'Registro', rowHeader: true, render: record => <div className="quality-record-identity"><strong>{record.number}</strong>{record.origin ? <span>{record.origin}</span> : null}{recordEvidence(record)}</div> },
+    { key: 'type', header: 'Tipo', render: record => typeLabels.get(record.type) || record.type },
+    { key: 'destination', header: 'Projeto e natureza', render: record => <div className="quality-record-detail"><strong>{projectLabel(record)}</strong><span>{natureName(record)}</span></div> },
+    { key: 'status', header: 'Impacto e status', render: record => <div className="quality-record-status"><Badge tone={record.impact === 'ALTO' ? 'danger' : record.impact === 'MEDIO' ? 'warning' : record.impact ? 'success' : 'neutral'}>{impactLabels.get(record.impact || '') || record.impact || 'Sem impacto'}</Badge><Badge>{statusLabels.get(record.status || '') || record.status || 'Sem status'}</Badge></div> },
+    { key: 'event', header: 'Evento', render: record => <div className="quality-record-detail"><strong>{formatDate(record.eventDate)}</strong><span>{record.occurrences12m} ocorrência(s) · {record.recurrent ? 'Recorrente' : 'Sem recorrência'}</span></div> }
+  ];
+
   return (
-    <section className="page-card quality-tab" data-quality-records>
+    <Card className="quality-tab quality-records-v2" padding="md" data-quality-records>
       <div className="admin-toolbar quality-toolbar">
         <div>
           <div className="sec">Registros</div>
           <p className="rel-meta">{recordsQuery.data?.total ?? 0} registro(s) encontrado(s)</p>
         </div>
         <div className="admin-form-actions quality-action-bar">
-          <Button variant="secondary" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
+          <Button variant="secondary" size="sm" onClick={() => exportMutation.mutate()} loading={exportMutation.isPending}>
             {exportMutation.isPending ? 'Exportando…' : 'Exportar'}
           </Button>
-          {isManager ? <Button variant="mini" onClick={() => setFormRecord(null)}>Registrar</Button> : null}
+          {isManager ? <Button variant="primary" size="sm" onClick={() => setFormRecord(null)}>Registrar</Button> : null}
         </div>
       </div>
 
+      <SearchBar
+        value={q}
+        onChange={setQ}
+        placeholder="Buscar por Nº, origem, descrição ou RNC"
+        ariaLabel="Buscar registros de qualidade"
+        count={{ shown: records.length, total: recordsQuery.data?.total || records.length }}
+      />
+      <details className="quality-filter-details" open={filtersOpen} onToggle={event => setFiltersOpen(event.currentTarget.open)}>
+        <summary>Filtros {activeFilterCount ? <Badge tone="brand">{activeFilterCount}</Badge> : null}</summary>
       <div className="quality-filters">
-        <SearchBar
-          value={q}
-          onChange={setQ}
-          placeholder="Buscar por Nº, origem, descrição ou RNC"
-          ariaLabel="Buscar registros de qualidade"
-          count={{ shown: records.length, total: recordsQuery.data?.total || records.length }}
-        />
-        <select aria-label="Filtrar tipo" value={type} onChange={event => setType(event.target.value as QualityRecordType | '')}>
+        <Select aria-label="Filtrar tipo" value={type} onChange={event => setType(event.target.value as QualityRecordType | '')}>
           <option value="">Todos os tipos</option>
           {schemas.typeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <select aria-label="Filtrar status" value={status} onChange={event => setStatus(event.target.value as QualityStatus | '')}>
+        </Select>
+        <Select aria-label="Filtrar status" value={status} onChange={event => setStatus(event.target.value as QualityStatus | '')}>
           <option value="">Todos os status</option>
           {schemas.statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <select aria-label="Filtrar impacto" value={impact} onChange={event => setImpact(event.target.value as QualityImpact | '')}>
+        </Select>
+        <Select aria-label="Filtrar impacto" value={impact} onChange={event => setImpact(event.target.value as QualityImpact | '')}>
           <option value="">Todos os impactos</option>
           {schemas.impactOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        </Select>
         <SearchCombobox
           label="Filtrar projeto"
           hideLabel
@@ -300,90 +327,35 @@ export function QualityRecordsTab({ isManager }: Props) {
             ...natures.map(nature => ({ value: nature.id, label: `${nature.name}${nature.isActive ? '' : ' (inativa)'}` }))
           ]}
         />
-        <button className="mini-btn alt" type="button" onClick={resetFilters}>Limpar</button>
+        <Button variant="secondary" size="sm" onClick={resetFilters}>Limpar</Button>
       </div>
+      </details>
 
       {recordsQuery.isLoading ? <p className="placeholder-copy">Carregando registros...</p> : null}
       {recordsQuery.isError ? <p className="equip-form-error">Não foi possível carregar os registros.</p> : null}
-      {!recordsQuery.isLoading && !records.length ? <p className="placeholder-copy">Nenhum registro encontrado.</p> : null}
-
-      {records.length ? (
-        <div className="acp-table-wrap quality-table-wrap">
-          <table className="acp-table quality-records-table">
-            <thead>
-              <tr>
-                <th>Nº</th>
-                <th>Tipo</th>
-                <th>Projeto</th>
-                <th>Natureza</th>
-                <th>Impacto</th>
-                <th>Status</th>
-                <th>Evento</th>
-                <th>Ocorrências</th>
-                <th>Recorrente?</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map(record => {
-                const evidences = evidenceLinks(record);
-                const evidenceExpanded = expandedEvidenceIds.has(record.id);
-                return (
-                  <tr key={record.id}>
-                    <td data-label="Nº">
-                      <strong>{record.number}</strong>
-                      {record.origin ? <span className="stock-table-muted">{record.origin}</span> : null}
-                      {evidences.length ? (
-                        <div className="quality-evidence-collapse">
-                          <button
-                            className="quality-evidence-collapse-toggle"
-                            type="button"
-                            aria-expanded={evidenceExpanded}
-                            onClick={() => toggleEvidenceList(record.id)}
-                          >
-                            <span>Evidências</span>
-                            <strong>{evidences.length}</strong>
-                            <small>{evidenceExpanded ? 'Recolher' : 'Ver'}</small>
-                          </button>
-                          {evidenceExpanded ? (
-                            <ul className="quality-evidence-list">
-                              {evidences.map((evidence, index) => (
-                                <li key={`${evidence.href}-${index}`}>
-                                  <a className="equip-link quality-evidence-link" href={evidence.href} target="_blank" rel="noreferrer">
-                                    {evidence.label}
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td data-label="Tipo">{typeLabels.get(record.type) || record.type}</td>
-                    <td data-label="Projeto">{projectLabel(record)}</td>
-                    <td data-label="Natureza">{natureName(record)}</td>
-                    <td data-label="Impacto"><span className={impactBadgeClass(record.impact)}>{impactLabels.get(record.impact || '') || record.impact || '-'}</span></td>
-                    <td data-label="Status"><span className="badge">{statusLabels.get(record.status || '') || record.status || '-'}</span></td>
-                    <td data-label="Evento">{formatDate(record.eventDate)}</td>
-                    <td data-label="Ocorrências">{record.occurrences12m}</td>
-                    <td data-label="Recorrente?">{record.recurrent ? 'SIM' : 'não'}</td>
-                    <td data-label="Ações">
-                      {isManager ? (
-                        <div className="admin-form-actions quality-row-actions">
-                          <button className="mini-btn alt" type="button" onClick={() => setFormRecord(record)}>Editar</button>
-                          <button className="danger-button stock-table-action" type="button" onClick={() => confirmRemove(record)}>Excluir</button>
-                        </div>
-                      ) : (
-                        <span className="placeholder-copy">Somente leitura</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      {!recordsQuery.isLoading && !recordsQuery.isError ? <DataTable
+        className="quality-records-table-v2"
+        rows={records}
+        columns={columns}
+        getRowId={record => record.id}
+        ariaLabel="Registros de qualidade"
+        density="compact"
+        mobileBreakpoint="lg"
+        rowActions={isManager ? recordActions : undefined}
+        mobile={{ ariaLabel: 'Registros de qualidade', renderItem: record => ({
+          title: `Nº ${record.number}`,
+          subtitle: typeLabels.get(record.type) || record.type,
+          status: <Badge tone={record.impact === 'ALTO' ? 'danger' : record.impact === 'MEDIO' ? 'warning' : record.impact ? 'success' : 'neutral'}>{impactLabels.get(record.impact || '') || 'Sem impacto'}</Badge>,
+          metadata: [
+            { label: 'Projeto', value: projectLabel(record) },
+            { label: 'Natureza', value: natureName(record) },
+            { label: 'Evento', value: formatDate(record.eventDate) },
+            { label: 'Ocorrências', value: `${record.occurrences12m}${record.recurrent ? ' · Recorrente' : ''}` }
+          ],
+          value: recordEvidence(record),
+          actions: recordActions(record)
+        }) }}
+      /> : null}
 
       {formRecord !== undefined ? (
         <QualityRecordFormModal
@@ -409,6 +381,6 @@ export function QualityRecordsTab({ isManager }: Props) {
         }}
         onCancel={() => setConfirm(null)}
       />
-    </section>
+    </Card>
   );
 }

@@ -163,8 +163,8 @@ Todas as fases devem preservar os seguintes contratos:
 | Administração — Gestão de Contas | Lista, filtros, criação/edição, papéis e permissões, vínculo com colaborador, ativação, exclusão e link de senha | **Migração visual F5.2 concluída**; persistência com banco isolado segue na validação F6 |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
-| Qualidade | Registros, filtros, evidências, exportação, Naturezas, reordenação e formulários | **Migração integral pendente em F5.3**; F5 cobriu apenas o destino Interno/SGQ |
-| EPI | Fichas por colaborador, catálogo, entregas/devoluções, arquivo, assinatura e PDF | **Migração integral pendente em F5.4**; F5 cobriu apenas campos de cargo |
+| Qualidade | Registros, filtros, evidências, exportação, Naturezas, reordenação e formulários | **F5.3 em andamento**; shell, navegação, listagem e diálogos principais migrados, revisão interna e validação integral pendentes |
+| EPI | Fichas por colaborador, catálogo, entregas/devoluções, arquivo, assinatura e PDF | **F5.4 em andamento**; shell, navegação, superfícies principais e assinatura pública harmonizados, validação integral pendente |
 | Privacidade | Solicitações LGPD, verificação de identidade, respostas e páginas públicas | **Migração visual pendente em F5.5** |
 | Administração — ajustes pontuais | Visibilidade de categorias Omie | Ajuste localizado concluído em F5 |
 | Onboarding | Tutoriais e campanhas de Efetivo, Assinaturas, QR, standby e controles operacionais | Auditoria visual e mobile pendente |
@@ -1228,11 +1228,15 @@ as credenciais de demonstração locais não deram acesso autenticado.
 
 #### F5.3 — Qualidade
 
-Pendente. `QualidadePage`, Registros, Naturezas e os dois formulários ainda usam
-shell, navegação e controles legados. O ajuste Interno/SGQ de F5 não concluiu
-a migração do módulo.
+Em andamento. O primeiro lote migrou `QualidadePage` para `AppShell` com abas
+Registros/Naturezas na navegação responsiva e preservou `?tab=` e tutorial.
+Registros ganhou tabela DS no desktop, cartões no celular e filtros recolhidos
+no celular; ações, status e diálogos principais usam controles DS. Naturezas
+ganhou ações e diálogo de edição DS. A composição interna do formulário de
+Registro e a reordenação de Naturezas ainda precisam da revisão final. Fluxos
+de navegação e leitura foram validados com API sintética em Chromium/WebKit.
 
-- [ ] Migrar para `AppShell`, com Registros/Naturezas na navegação responsiva,
+- [x] Migrar para `AppShell`, com Registros/Naturezas na navegação responsiva,
   mantendo os links diretos com `?tab=` e o tutorial.
 - [ ] Migrar busca, filtros, tabela responsiva, estados, ações, exportação e
   visualização de evidências dos Registros.
@@ -1245,8 +1249,13 @@ a migração do módulo.
 
 #### F5.4 — EPI
 
-Pendente. `EpiPage` ainda usa `Shell`, `TopBar` e controles legados; o ajuste de
-cargo em F5 foi localizado.
+Em andamento. `EpiPage` passou ao `AppShell` com Colaboradores/Catálogo na
+navegação responsiva. Fichas e catálogo receberam superfícies DS, botões
+padronizados e estados de carregamento, erro e vazio. A página pública de
+assinatura ganhou a apresentação DS usada no RDO. A revisão final dos campos,
+da lista de fichas, das confirmações e dos fluxos com permissões distintas
+permanece neste lote; navegação e leitura passaram com API sintética em
+Chromium/WebKit.
 
 - [ ] Migrar shell, navegação Colaboradores/Catálogo, fichas, filtros e ações
   para o DS em desktop, tablet e celular.
