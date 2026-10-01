@@ -26,6 +26,7 @@ import { AppIcon } from '../../components/icons/AppIcon';
 import type { ManualReportOperationalFieldsValue } from '../../components/reports/ManualReportOperationalFields';
 import { buildManualReportOperationalData, emptyManualReportOperationalFields, validateManualReportOperationalFields } from '../../components/reports/manualReportOperationalData';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { PasswordSetupLinkCard } from '../../components/accounts/PasswordSetupLinkCard';
 import { ImageDropzone } from '../../components/ui/ImageDropzone';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
@@ -3458,23 +3459,12 @@ export function GestorPage() {
               <>
                 {showUserForm && !userEditingId ? renderInternalUserForm('create') : null}
 
-          {manualPasswordSetup ? (
-            <Card>
-              <div className="section-title">Link para criar a senha</div>
-              <p className="placeholder-copy">
-                Usuário: <strong>{manualPasswordSetup.username}</strong>. O link é de uso único e expira em 7 dias.
-              </p>
-              <div className="field-group">
-                <label htmlFor="gestor-password-setup-link">Link para compartilhar</label>
-                <Input id="gestor-password-setup-link" value={manualPasswordSetup.url} readOnly onFocus={event => event.currentTarget.select()} />
-              </div>
-              <div className="admin-actions">
-                <Button variant="primary" type="button" onClick={() => void copyManualPasswordSetup()}>
-                  Copiar link
-                </Button>
-              </div>
-            </Card>
-          ) : null}
+          {manualPasswordSetup ? <PasswordSetupLinkCard
+            inputId="gestor-password-setup-link"
+            username={manualPasswordSetup.username}
+            url={manualPasswordSetup.url}
+            onCopy={copyManualPasswordSetup}
+          /> : null}
                 <DataTable
                   className="rdo-users__table"
                   rows={internalUsers}

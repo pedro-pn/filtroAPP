@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { PasswordSetupLinkCard } from '../../components/accounts/PasswordSetupLinkCard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
@@ -632,23 +633,12 @@ export function AdminAccountsPage() {
 
         {message ? <div className="inline-success">{message}</div> : null}
         {error ? <div className="inline-error">{error}</div> : null}
-        {manualPasswordSetup ? (
-          <section className="page-card">
-            <div className="section-title">Link para criar a senha</div>
-            <p className="placeholder-copy">
-              Usuário: <strong>{manualPasswordSetup.username}</strong>. O link é de uso único e expira em 7 dias.
-            </p>
-            <div className="field-group">
-              <label htmlFor="manual-password-setup-link">Link para compartilhar</label>
-              <input id="manual-password-setup-link" value={manualPasswordSetup.url} readOnly onFocus={event => event.currentTarget.select()} />
-            </div>
-            <div className="admin-actions">
-              <button className="mini-btn" type="button" onClick={() => void copyManualPasswordSetup()}>
-                Copiar link
-              </button>
-            </div>
-          </section>
-        ) : null}
+        {manualPasswordSetup ? <PasswordSetupLinkCard
+          inputId="manual-password-setup-link"
+          username={manualPasswordSetup.username}
+          url={manualPasswordSetup.url}
+          onCopy={copyManualPasswordSetup}
+        /> : null}
 
         {showForm && !editingUser ? renderAccountForm() : null}
 

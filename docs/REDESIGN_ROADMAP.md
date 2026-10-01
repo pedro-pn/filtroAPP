@@ -105,8 +105,8 @@ fechamento transversal continua em F6, pois o host local não tem suas bibliotec
   perfis. Estoque, Romaneio, Qualidade e EPI continuam com as pendências já
   inventariadas.
 - A main acrescentou Manutenção/Produção, configuração/histórico em Equipamentos,
-  API/Tokens no Admin e ativação de contas por link. São superfícies pendentes
-  de migração, não entregas automáticas do redesign.
+  API/Tokens no Admin e ativação de contas por link. Esses fluxos já receberam
+  os lotes M1–M5, EQ1–EQ3, API1–API4 e X1 nesta branch.
 - O fechamento anterior do RDO permanece válido para seu baseline. As novas
   bordas de permissão de emissão, rascunhos e criação de contas entram em X1/X2;
   os novos relatórios operacionais entram em M1–M5, separadamente.
@@ -160,8 +160,8 @@ Todas as fases devem preservar os seguintes contratos:
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
 | Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1–M5 concluídos tecnicamente; fluxo visual, permissões e rascunho isolado conferidos |
 | Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
-| Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 pendentes, acesso exclusivo ADMIN |
-| Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 pendente, preservando fluxos da main |
+| Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
+| Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
 | Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado pendente |
 | Administração e EPI | Visibilidade de categorias Omie, cargo operacional e cargo temporário de EPI | Ajustes localizados pendentes |
 | Onboarding | Tutoriais e campanhas de Efetivo, Assinaturas, QR, standby e controles operacionais | Auditoria visual e mobile pendente |
@@ -1136,7 +1136,7 @@ Baseline RDO concluído em 04/09: histórico de cargos, upload manual, planejame
 detalhes, bordas públicas e decomposição arquitetural não voltam à fila como se
 estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 
-- [ ] **X1:** criação/cópia de link em contas e página pública de criar/redefinir
+- [x] **X1:** criação/cópia de link em contas e página pública de criar/redefinir
   senha, inclusive expiração, uso único, reenvio e retorno ao login.
 - [ ] **X2:** permissões de emissão, Hub/tours, rascunhos, fallback não autorizado,
   anexos com restauração, confirmações com conteúdo filho, busca e loading;
@@ -1144,6 +1144,14 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 - [x] **X3:** liberação individual e revogação de relatórios de serviço, assinatura
   física com PDF e estados correspondentes em Gestor, Detalhe e Cliente.
 - [ ] Ajustes de Qualidade/EPI/Admin previamente inventariados, independentes do RDO.
+
+X1 concluído em 01/10/2026: Contas e Gestão do RDO compartilham o card DS de
+link manual, com aviso de uso único/validade, campo selecionável e ação de cópia.
+As páginas públicas de criação, redefinição e recuperação de senha usam campos,
+botões e alertas do DS, com logo adaptado ao tema. Foram conferidos link válido,
+expirado, reenvio, erro de confirmação e sucesso com API simulada; claro/escuro
+em 390 e 1280 px, sem rolagem horizontal. Autenticação, validade do token,
+redirecionamento e chamadas da API não foram alterados.
 
 #### F5.1 — Administração: API/Tokens
 
@@ -1207,8 +1215,8 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
 
-1. **API1–API4 + X1/X2 + F5**: API/Tokens, ativação de contas e ajustes localizados
-   de Qualidade, EPI e Administração.
+1. **X2 + F5**: bordas de permissões e componentes compartilhados, seguidas dos
+   ajustes localizados de Qualidade, EPI e Administração. API1–API4 e X1 estão concluídos.
 2. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
 
 Erros funcionais de integração têm precedência sobre essa fila. O histórico dos

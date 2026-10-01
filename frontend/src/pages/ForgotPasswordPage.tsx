@@ -1,10 +1,10 @@
-import { FormEvent, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 
 import { forgotPassword } from '../api/auth';
-
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
+import { BrandLogo } from '../components/brand/BrandLogo';
+import { Alert, Button, Field, Input } from '../components/ui/ds';
+import './AuthPasswordPage.css';
 
 export function ForgotPasswordPage() {
   const [identifier, setIdentifier] = useState('');
@@ -27,36 +27,26 @@ export function ForgotPasswordPage() {
     }
   }
 
-  return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="auth-logo-wrap">
-          <img className="auth-logo" src={loginLogoUrl} alt="Filtrovali" />
-        </div>
-        <div className="section-title">Recuperar senha</div>
-        {message ? (
-          <div className="auth-form">
-            <div className="inline-success">{message}</div>
-            <Link className="secondary-button auth-back-button" to="/login">
-              Voltar
-            </Link>
-          </div>
-        ) : (
-          <>
-            <p className="placeholder-copy">Informe usuário, e-mail interno ou CNPJ do cliente.</p>
-            <form className="auth-form" onSubmit={handleSubmit}>
-              <div className="field-group">
-                <label htmlFor="identifier">Identificador</label>
-                <input id="identifier" value={identifier} onChange={event => setIdentifier(event.target.value)} />
-              </div>
-              {error ? <div className="inline-error">{error}</div> : null}
-              <button className="primary-button" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Enviando...' : 'Enviar link'}
-              </button>
-            </form>
-          </>
-        )}
-      </section>
-    </main>
-  );
+  return <main className="fv-ds auth-access-page">
+    <section className="auth-access-card" aria-labelledby="auth-access-title">
+      <header className="auth-access-header">
+        <BrandLogo className="auth-access-logo" />
+        <h1 id="auth-access-title">Recuperar senha</h1>
+        <p>Informe seu usuário, e-mail interno ou CNPJ do cliente.</p>
+      </header>
+      {message ? <div className="auth-access-content">
+        <Alert tone="success">{message}</Alert>
+        <Link className="fv-button fv-button--secondary fv-button--md auth-access-back" to="/login">Voltar ao login</Link>
+      </div> : <form className="auth-access-form" onSubmit={handleSubmit}>
+        <Field id="password-identifier" label="Identificador" optionalText={null}>
+          <Input value={identifier} onChange={event => setIdentifier(event.target.value)} autoComplete="username" />
+        </Field>
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        <Button variant="primary" type="submit" loading={isSubmitting}>
+          {isSubmitting ? 'Enviando...' : 'Enviar link'}
+        </Button>
+        <Link className="fv-button fv-button--secondary fv-button--md auth-access-back" to="/login">Voltar ao login</Link>
+      </form>}
+    </section>
+  </main>;
 }

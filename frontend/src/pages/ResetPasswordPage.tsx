@@ -1,10 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { getResetPasswordStatus, resendPasswordSetup, resetPassword } from '../api/auth';
-
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
+import { BrandLogo } from '../components/brand/BrandLogo';
+import { Alert, Button, Field, Input, Spinner } from '../components/ui/ds';
+import './AuthPasswordPage.css';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -42,10 +42,8 @@ export function ResetPasswordPage() {
         }
       }
     }
-    loadStatus();
-    return () => {
-      mounted = false;
-    };
+    void loadStatus();
+    return () => { mounted = false; };
   }, [token]);
 
   useEffect(() => {
@@ -89,75 +87,50 @@ export function ResetPasswordPage() {
     }
   }
 
-  return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="auth-logo-wrap">
-          <img className="auth-logo" src={loginLogoUrl} alt="Filtrovali" />
-        </div>
-        <div className="section-title">{isAccountSetup ? 'Criar senha' : 'Redefinir senha'}</div>
-        {status === 'loading' ? <p className="placeholder-copy">Validando link...</p> : null}
-        {status === 'invalid' ? (
-          <div className="auth-form">
-            <div className="inline-error">Link inválido, expirado ou já utilizado.</div>
-            {isAccountSetup && canRequestNewLink && !resendMessage ? (
-              <button className="primary-button" type="button" disabled={isResending} onClick={() => void handleRequestNewLink()}>
-                {isResending ? 'Enviando...' : 'Enviar um novo link ao meu e-mail'}
-              </button>
-            ) : null}
-            {resendMessage ? <div className="inline-success">{resendMessage}</div> : null}
-            {error ? <div className="inline-error">{error}</div> : null}
-            <Link className="secondary-button auth-back-button" to="/login">
-              Voltar ao login
-            </Link>
-          </div>
-        ) : null}
-        {status === 'valid' && message ? (
-          <div className="auth-form">
-            <div className="inline-success">{message}</div>
-            <p className="placeholder-copy">Redirecionando para o login...</p>
-            <Link className="secondary-button auth-back-button" to="/login">
-              Ir para o login agora
-            </Link>
-          </div>
-        ) : null}
-        {status === 'valid' && !message ? (
-          <form className="auth-form" onSubmit={handleSubmit}>
-            {username ? (
-              <div className="field-group">
-                <label>Seu usuário</label>
-                <div className="admin-role-fixed">{username}</div>
-              </div>
-            ) : null}
-            <div className="field-group">
-              <label htmlFor="new-password">Nova senha</label>
-              <input
-                id="new-password"
-                type="password"
-                value={password}
-                onChange={event => setPassword(event.target.value)}
-                minLength={6}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="confirm-password">Confirmar nova senha</label>
-              <input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={event => setConfirmPassword(event.target.value)}
-                minLength={6}
-                required
-              />
-            </div>
-            {error ? <div className="inline-error">{error}</div> : null}
-            <button className="primary-button" type="submit" disabled={isSaving}>
-              {isSaving ? 'Salvando...' : isAccountSetup ? 'Criar senha' : 'Salvar nova senha'}
-            </button>
-          </form>
-        ) : null}
-      </section>
-    </main>
-  );
+  return <main className="fv-ds auth-access-page">
+    <section className="auth-access-card" aria-labelledby="auth-access-title">
+      <header className="auth-access-header">
+        <BrandLogo className="auth-access-logo" />
+        <h1 id="auth-access-title">{isAccountSetup ? 'Criar senha' : 'Redefinir senha'}</h1>
+        <p>{isAccountSetup ? 'Defina a senha para acessar sua conta.' : 'Escolha uma nova senha para acessar sua conta.'}</p>
+      </header>
+
+      {status === 'loading' ? <div className="auth-access-loading" role="status">
+        <Spinner decorative /> Validando link...
+      </div> : null}
+
+      {status === 'invalid' ? <div className="auth-access-content">
+        <Alert tone="danger" title="Link indisponível">O link é inválido, expirou ou já foi utilizado.</Alert>
+        {isAccountSetup && canRequestNewLink && !resendMessage ? <Button
+          variant="primary" type="button" loading={isResending} onClick={() => void handleRequestNewLink()}
+        >{isResending ? 'Enviando...' : 'Enviar um novo link ao meu e-mail'}</Button> : null}
+        {resendMessage ? <Alert tone="success">{resendMessage}</Alert> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        <Link className="fv-button fv-button--secondary fv-button--md auth-access-back" to="/login">Voltar ao login</Link>
+      </div> : null}
+
+      {status === 'valid' && message ? <div className="auth-access-content">
+        <Alert tone="success" title={message}>Redirecionando para o login...</Alert>
+        <Link className="fv-button fv-button--secondary fv-button--md auth-access-back" to="/login">Ir para o login agora</Link>
+      </div> : null}
+
+      {status === 'valid' && !message ? <form className="auth-access-form" onSubmit={handleSubmit}>
+        {username ? <div className="auth-access-username">
+          <span>Seu usuário</span><strong>{username}</strong>
+        </div> : null}
+        <Field id="new-password" label="Nova senha" helperText="Use pelo menos 6 caracteres." optionalText={null} required>
+          <Input type="password" value={password} onChange={event => setPassword(event.target.value)}
+            minLength={6} autoComplete="new-password" required />
+        </Field>
+        <Field id="confirm-password" label="Confirmar nova senha" optionalText={null} required>
+          <Input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)}
+            minLength={6} autoComplete="new-password" required />
+        </Field>
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        <Button variant="primary" type="submit" loading={isSaving}>
+          {isSaving ? 'Salvando...' : isAccountSetup ? 'Criar senha' : 'Salvar nova senha'}
+        </Button>
+      </form> : null}
+    </section>
+  </main>;
 }
