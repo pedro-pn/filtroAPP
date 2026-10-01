@@ -72,7 +72,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
   }).reverse();
 
   return <Card padding="sm" className="acp-scope-daily" data-acp-scope-daily>
-    <details className="acp-scope-daily__details">
+    <details className="acp-scope-daily__details" open>
       <summary className="acp-detail-summary acp-scope-daily__summary">
         Avanço diário do escopo <span>· {filterLabel || 'Escopo total'}</span>
       </summary>

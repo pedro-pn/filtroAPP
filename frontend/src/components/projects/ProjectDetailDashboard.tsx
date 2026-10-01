@@ -37,6 +37,7 @@ import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
+import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
 import { AppIcon } from '../icons/AppIcon';
@@ -320,6 +321,10 @@ export function ProjectDetailDashboard({
   const hasAdditionalProposalContribution = (data.budgetBreakdown?.additionals ?? []).some(item => (
     hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
   ));
+  const weeklyTargetOwner: WeeklyTargetOwner | null = groupId
+    ? { area: 'acompanhamento', groupId }
+    : projectId ? { area: 'acompanhamento', projectId } : null;
+  const weeklyProgressHistory = activeDivisionKey ? undefined : data.progressHistory ?? [];
 
   return (
     <>
@@ -454,6 +459,8 @@ export function ProjectDetailDashboard({
         teamCount={collaborators.length}
         teamIsPlanned={showingPlannedCollaborators}
         deviationCount={deviationCount}
+        weeklyTargetOwner={weeklyTargetOwner}
+        weeklyProgressHistory={weeklyProgressHistory}
         filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
           <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
             <Field id="acp-progress-scope" label="Escopo" optionalText="">
@@ -472,11 +479,11 @@ export function ProjectDetailDashboard({
         ) : null}
       />
 
-      {(projectId || groupId) ? <Card padding="sm" className="acp-detail-weekly-targets">
+      {weeklyTargetOwner ? <Card padding="sm" className="acp-detail-weekly-targets">
         <MissionWeeklyProgressPanel
           key={groupId || projectId}
-          owner={groupId ? { area: 'acompanhamento', groupId } : { area: 'acompanhamento', projectId: projectId! }}
-          progressHistory={activeDivisionKey ? undefined : data.progressHistory ?? []}
+          owner={weeklyTargetOwner}
+          progressHistory={weeklyProgressHistory}
           canManage={canManageProjectNotes}
         />
       </Card> : null}

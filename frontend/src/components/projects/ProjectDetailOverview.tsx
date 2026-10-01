@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import type { ProjectDetail, ProjectProgress, ProgressHistoryPoint, ProgressService, RequiredWeeklyProgress } from '../../api/acompanhamentoComercial';
+import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { Card } from '../ui/ds';
 import { AppIcon } from '../icons/AppIcon';
 import { Activity, ArrowUpRight, CalendarClock, ClipboardList, Gauge, HardHat, Truck, UsersRound, Wallet, TriangleAlert } from 'lucide-react';
 import { ProgressHistoryChart } from './ProjectDetailHistory';
+import { MissionWeeklyProgressSummaryCard } from './MissionWeeklyProgressSummaryCard';
 import { brl, fmtDate, fmtPct, physicalUnit, SERVICE_LABELS, UNIT_LABELS, weeklyPhysicalProgress } from './projectDetailModel';
 import './ProjectDetailOverview.css';
 
@@ -50,9 +52,11 @@ type OverviewProps = {
   teamCount: number;
   teamIsPlanned?: boolean;
   deviationCount: number | null;
+  weeklyTargetOwner?: WeeklyTargetOwner | null;
+  weeklyProgressHistory?: ProgressHistoryPoint[];
 };
 
-export function ProjectDetailOverview({ data, progressPct, progressHistory, chartKey, target, fallbackProgress, fallbackServices, filterLabel, filters, teamCount, teamIsPlanned = false, deviationCount }: OverviewProps) {
+export function ProjectDetailOverview({ data, progressPct, progressHistory, chartKey, target, fallbackProgress, fallbackServices, filterLabel, filters, teamCount, teamIsPlanned = false, deviationCount, weeklyTargetOwner, weeklyProgressHistory }: OverviewProps) {
   const totalRealizado = data.consumo.gasto + (data.maoDeObra.custo ?? 0);
   const previsto = data.consumo.previsto;
   const costPct = previsto != null && previsto > 0 ? Math.round(totalRealizado / previsto * 100) : null;
@@ -93,7 +97,7 @@ export function ProjectDetailOverview({ data, progressPct, progressHistory, char
       <div>
         <p className="acp-overview-kicker">Visão geral</p>
         <h2>O projeto em um olhar</h2>
-        <p>O avanço e a meta semanal acompanham o recorte selecionado. Os demais indicadores mostram o projeto inteiro.</p>
+        <p>O avanço e o ritmo necessário acompanham o recorte selecionado. A meta desta semana e os demais indicadores mostram o projeto inteiro.</p>
       </div>
       {filters}
     </div>
@@ -104,6 +108,7 @@ export function ProjectDetailOverview({ data, progressPct, progressHistory, char
         <span>Ritmo necessário</span><strong>{weeklyPhysicalProgress(target)}</strong>
         <small>{filterLabel || 'Escopo total'}</small>
       </Card>
+      {weeklyTargetOwner ? <MissionWeeklyProgressSummaryCard owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory} /> : null}
       <Card padding="sm" className="acp-overview-kpi">
         <div className="acp-overview-kpi-icon"><AppIcon icon={ClipboardList} /></div>
         <span>Último RDO</span><strong>{fmtDate(data.header.lastRdoDate)}</strong>

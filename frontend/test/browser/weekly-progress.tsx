@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { apiClient } from '../../src/api/client';
 import { MissionWeeklyProgressPanel } from '../../src/components/projects/MissionWeeklyProgressPanel';
+import { MissionWeeklyProgressSummaryCard } from '../../src/components/projects/MissionWeeklyProgressSummaryCard';
+import { Card } from '../../src/components/ui/ds';
+import { AppIcon } from '../../src/components/icons/AppIcon';
+import { CalendarClock, ClipboardList, Gauge, UsersRound } from 'lucide-react';
+import '../../src/components/projects/ProjectDetailOverview.css';
 import { corporateToday, weekStartKey, type WeeklyProgressTarget } from '../../../shared/modules/mission-weekly-progress.js';
 import '../../src/styles/variables.css';
 import '../../src/styles/base.css';
@@ -42,6 +47,13 @@ function Fixture() {
     <button onClick={() => setCanManage(!canManage)}>Alternar permissão</button>
     <button onClick={() => { conflictNext = true; }}>Simular conflito na próxima gravação</button>
     <p>Área atual: {area}</p>
+    <div className="fv-ds acp-overview"><div className="acp-overview-kpis">
+      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={Gauge} /></div><span>Ritmo necessário</span><strong>12 m/semana</strong><small>Escopo total</small></Card>
+      <MissionWeeklyProgressSummaryCard key={area} owner={area === 'efetivo' ? { area, missionId: 'm1' } : { area, projectId: 'p1' }} progressHistory={area === 'efetivo' ? undefined : history} />
+      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={ClipboardList} /></div><span>Último RDO</span><strong>28/09/2026</strong><small>Último lançamento</small></Card>
+      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={UsersRound} /></div><span>Equipe</span><strong>5</strong><small>colaboradores</small></Card>
+      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={CalendarClock} /></div><span>Previsão pelo ritmo</span><strong>14/10/2026</strong><small>Avanço acumulado</small></Card>
+    </div></div>
     <MissionWeeklyProgressPanel key={area} owner={area === 'efetivo' ? { area, missionId: 'm1' } : { area, projectId: 'p1' }} progressHistory={area === 'efetivo' ? undefined : history} canManage={canManage} />
   </main>;
 }

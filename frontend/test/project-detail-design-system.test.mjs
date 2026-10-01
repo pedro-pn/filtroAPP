@@ -69,7 +69,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
         { date: '2026-09-03', progressPct: 35, services: [{ serviceType: 'LIMPEZA_QUIMICA', progressPct: 35, quantities: [{ unit: 'M', realizedQty: 350 }] }] }
       ] });
       assert.match(html, /Avanço diário do escopo/);
-      assert.match(html, /<details class="acp-scope-daily__details">/);
+      assert.match(html, /<details class="acp-scope-daily__details" open=""/);
       assert.match(html, /Últimos lançamentos primeiro/);
       assert.match(html, /· Tubulação/);
       assert.ok(html.indexOf('03\/09\/2026') < html.indexOf('01\/09\/2026'));
