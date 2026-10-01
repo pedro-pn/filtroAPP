@@ -139,7 +139,7 @@ export function NotificationsConfig() {
                   <option key={account.id} value={account.id}>{account.name} — {account.email}</option>
                 ))}
               </select>
-              <Button variant="secondary" size="sm" type="button" disabled={!accountId || addRecipient.isPending} onClick={handleAddAccount}>Adicionar</Button>
+              <Button variant="secondary" size="md" type="button" disabled={!accountId || addRecipient.isPending} onClick={handleAddAccount}>Adicionar</Button>
             </div>
           </div>
 
@@ -147,7 +147,7 @@ export function NotificationsConfig() {
             <label htmlFor="notif-email">Adicionar e-mail avulso</label>
             <div className="equip-notif-inline">
               <input id="notif-email" type="email" value={email} placeholder="email@empresa.com" onChange={e => setEmail(e.target.value)} />
-              <Button variant="secondary" size="sm" type="submit" disabled={!email.trim() || addRecipient.isPending}>Adicionar</Button>
+              <Button variant="secondary" size="md" type="submit" disabled={!email.trim() || addRecipient.isPending}>Adicionar</Button>
             </div>
           </form>
         </div>
