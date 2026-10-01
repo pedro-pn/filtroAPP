@@ -4234,6 +4234,8 @@ a {
   margin: 10px 0;
   font-size: 13px;
 }
+.acp-proposal-adjustment > summary { cursor: pointer; font-weight: 600; }
+.acp-proposal-adjustment[open] > summary { margin-bottom: 12px; }
 .acp-planned-cost-values {
   display: flex;
   flex-wrap: wrap;

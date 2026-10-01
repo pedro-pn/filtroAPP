@@ -423,7 +423,6 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
 
   return (
     <div className="det-section">
-      {percentageField}
       {plannedScope?.hoursPlan?.pending ? <div role="alert" className="acp-alert warn" style={{ marginBottom: 12 }}>
         ⚠ Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
       </div> : null}
@@ -435,6 +434,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
           ) : null}
         </span>
       </div>
+      {percentageField}
       <div className="det-row"><span className="det-label">Dias / equipe</span>
         <span className="det-val">{plannedDays ?? '—'} corridos · {plannedWorkedDays ?? '—'} trab. · {currentRevision.numOperators ?? '—'} op / {currentRevision.numSupervisors ?? '—'} enc · {currentRevision.numPerDay ?? '—'} d / {currentRevision.numPerNight ?? '—'} n</span>
       </div>

@@ -17,7 +17,8 @@ export function ProjectProposalPercentageField({ projectId, value, canManage, on
 }) {
   const percentage = parseProposalPercentage(value);
   return (
-    <div className="acp-planned-cost">
+    <details className="acp-planned-cost acp-proposal-adjustment">
+      <summary>Ajustar percentual da proposta</summary>
       <div className="field-group">
         <label htmlFor={`acp-proposal-percentage-${projectId}`}>Percentual da proposta considerado (%)</label>
         <input id={`acp-proposal-percentage-${projectId}`} type="number" min="0" max="100" step="0.01"
@@ -35,6 +36,6 @@ export function ProjectProposalPercentageField({ projectId, value, canManage, on
         </div>
       ) : null}
       {canManage ? <button type="button" className="mini-btn alt" onClick={() => onChange('100')}>Restaurar 100%</button> : null}
-    </div>
+    </details>
   );
 }

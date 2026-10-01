@@ -17,7 +17,7 @@ test('percentual aceita decimais brasileiros, zero e 100; recusa valor vazio, fo
   assert.equal(consideredProposalValue(null, 50), null);
 });
 
-test('campo do cronograma mostra a prévia integral e considerada e permite restaurar o percentual para gestores', async () => {
+test('ajuste do cronograma começa colapsado, mostra a prévia e permite restaurar o percentual para gestores', async () => {
   const server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
     server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
   try {
@@ -27,6 +27,7 @@ test('campo do cronograma mostra a prévia integral e considerada e permite rest
       { label: 'Dias corridos', value: 24, unit: 'dias' }, { label: 'Horas normais', value: 100, unit: 'h' }
     ] };
     const markup = renderToStaticMarkup(createElement(ProjectProposalPercentageField, props));
+    assert.match(markup, /^<details class="acp-planned-cost acp-proposal-adjustment"><summary>Ajustar percentual da proposta<\/summary>/);
     assert.match(markup, /Percentual da proposta considerado/);
     assert.match(markup, /Considerado \(50%\)/);
     assert.match(markup, /100\.000,00/);
