@@ -21,6 +21,7 @@ const ALLOCATION_REASON_LABELS: Record<string, string> = {
   MOBILIZATION_RDO_AMBIGUOUS: 'Mobilização com vários candidatos',
   EFFECTIVE_PROJECT_TAG_TRAVEL: 'Viagem confirmada pelo Efetivo e pela etiqueta',
   EFFECTIVE_ALLOCATION_TRAVEL: 'Viagem confirmada pelo Efetivo',
+  EFFECTIVE_ALLOCATION_NO_ACTIVITY: 'Dia sem atividade/viagem',
   EFFECTIVE_ALLOCATION_AMBIGUOUS: 'Mais de uma alocação no Efetivo',
   EFFECTIVE_TAG_CONFLICT: 'Etiqueta diverge do Efetivo',
   EFFECTIVE_PERIOD_MISMATCH: 'Dia fora do período individual do Efetivo',

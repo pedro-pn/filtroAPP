@@ -192,6 +192,7 @@ function combineCollaborators(details) {
         currentDay.horasNormais += toNumber(day.horasNormais) ?? 0;
         currentDay.horasExtras += toNumber(day.horasExtras) ?? 0;
         currentDay.emViagem = currentDay.emViagem || Boolean(day.emViagem);
+        if (day.semAtividade) currentDay.semAtividade = true;
         for (const rdo of day.rdos ?? []) {
           const rdoKey = `${rdo?.projetoId || ''}:${rdo?.numero ?? 'sem-numero'}`;
           currentDay.rdos.set(rdoKey, rdo);

@@ -327,6 +327,7 @@ export function buildProjectAppropriationDays(rate = null, projectId = null) {
       horasNormais,
       horasExtras,
       emViagem: Boolean(day.travelContext),
+      ...(day.noActivityContext ? { semAtividade: true } : {}),
       rdos
     }];
   }).sort((left, right) => left.data.localeCompare(right.data));
