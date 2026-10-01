@@ -22,7 +22,7 @@ function stockBatch(overrides = {}) {
     id: 'batch-1',
     itemId: 'item-1',
     lotNumber: 'L-A',
-    expiryDate: new Date('2026-09-30T00:00:00.000Z'),
+    expiryDate: new Date('2099-09-30T00:00:00.000Z'),
     createdAt: new Date('2026-07-01T12:00:00.000Z'),
     ...overrides
   };

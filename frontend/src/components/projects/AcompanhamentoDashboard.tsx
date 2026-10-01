@@ -11,7 +11,7 @@ import { AcompanhamentoDashboardView } from './AcompanhamentoDashboardView';
 import type { DashboardFilterValues } from './AcompanhamentoDashboardFilters';
 import { isGroupRow } from './acompanhamentoDashboardModel';
 
-export function AcompanhamentoDashboard({ canManage = false, canViewFinancials = false }: { canManage?: boolean; canViewFinancials?: boolean }) {
+export function AcompanhamentoDashboard({ canManage = false, canManageProposal = false, canViewFinancials = false }: { canManage?: boolean; canManageProposal?: boolean; canViewFinancials?: boolean }) {
   const [values, setValues] = useState<DashboardFilterValues>({ search: '', modality: 'todas', status: 'todos', category: '', metricKey: 'custo' });
   const [selectedManaged, setManaged] = useState<DashboardRow | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -56,7 +56,7 @@ export function AcompanhamentoDashboard({ canManage = false, canViewFinancials =
           <Button variant="secondary" onClick={closeSchedule}>Cancelar</Button>
           {canManage ? <Button variant="primary" disabled={!managedDirty} onClick={() => scheduleRef.current?.save()}>Salvar</Button> : null}
         </div>}>
-        {managed ? <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} onDirtyChange={setManagedDirty} /> : null}
+        {managed ? <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} canManageProposal={canManageProposal} onDirtyChange={setManagedDirty} /> : null}
       </Modal>
     </>
   );

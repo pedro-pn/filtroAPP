@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { getProjectDetail, saveTrackingDivisions, type TrackingDivision, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
+import { getProjectDetail, getPlannedScope, saveTrackingDivisions, type TrackingDivision, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
 import { percentageForProjectValue, percentageOfProjectTotal, type TrackingDivisionPlannedField } from '../../utils/trackingDivisionPercentage';
 import { Modal } from '../ui/Modal';
 import { Alert, Button, EmptyState, Field, Input, Switch } from '../ui/ds';
@@ -50,11 +50,12 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
     queryKey: ['project-detail', projectId],
     queryFn: () => getProjectDetail(projectId)
   });
+  const { data: scope } = useQuery({ queryKey: ['planned-scope', projectId], queryFn: () => getPlannedScope(projectId) });
   const totals: Record<TrackingDivisionPlannedField, number | null> = {
-    plannedCost: projectTotal?.consumo.previsto ?? null,
-    plannedRevenue: projectTotal?.faturamento.previsto == null ? null : Number(projectTotal.faturamento.previsto),
-    plannedHours: projectTotal?.workedHours.plannedTotalHours ?? null,
-    plannedDays: projectTotal?.diasCorridos.planned ?? null
+    plannedCost: projectTotal?.consumo.previstoIntegral ?? projectTotal?.consumo.previsto ?? null,
+    plannedRevenue: projectTotal?.faturamento.previstoIntegral == null ? null : Number(projectTotal.faturamento.previstoIntegral),
+    plannedHours: scope ? [...scope.normalHours, ...scope.overtime].reduce((sum, row) => sum + Number(row.hours), 0) : null,
+    plannedDays: projectTotal?.fullPlannedDays ?? projectTotal?.diasCorridos.planned ?? null
   };
   const save = useMutation({
     mutationFn: (rows: TrackingDivision[]) => saveTrackingDivisions(projectId, rows),
@@ -184,6 +185,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
     </div>}>
     <form id="acp-tracking-divisions-form" className="acp-tracking-divisions-form" onSubmit={submit}>
       <p className="acp-tracking-divisions-intro">Ative as abas desejadas por escopo e equipamento do cliente. Os sistemas de cada equipamento ficam agrupados. Em cada meta, use o botão % para calcular pelo total do projeto. Dias calculados são arredondados para o inteiro mais próximo. Sem data final, o período vai até hoje.</p>
+      <p className="acp-tracking-divisions-intro">Cadastre os valores integrais das metas. O percentual da proposta definido no cronograma será aplicado aos indicadores de cada divisão.</p>
       {data.candidates.length ? data.candidates.map(scope => <section className="acp-tracking-division-scope" key={scope.key}>
           <div className="acp-tracking-division-scope-head">
             <h3>{scope.label}</h3>

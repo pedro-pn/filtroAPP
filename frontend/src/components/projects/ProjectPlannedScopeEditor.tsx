@@ -18,7 +18,7 @@ import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { ProjectSystemInput } from './ProjectSystemInput';
 import { PlannedHoursReview } from './PlannedHoursReview';
 import { useToast } from '../ui/ToastContext';
-import { Alert, Button, Input, Select, Skeleton } from '../ui/ds';
+import { Alert, Badge, Button, Input, Select, Skeleton } from '../ui/ds';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
 const SERVICE_TYPES: Array<{ value: string; label: string }> = [
@@ -244,6 +244,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   const [normalHours, setNormalHours] = useState<HoursRow[]>([]);
   const [overtime, setOvertime] = useState<HoursRow[]>([]);
   const [baseline, setBaseline] = useState('');
+  const [servicesBaseline, setServicesBaseline] = useState('');
   const [loadedFingerprint, setLoadedFingerprint] = useState<string>();
   const dirtyRef = useRef(false);
   const forceLoadRef = useRef(false);
@@ -259,6 +260,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     setNormalHours(next.normalHours);
     setOvertime(next.overtime);
     setBaseline(normalize(next.services, next.normalHours, next.overtime));
+    setServicesBaseline(normalize(next.services, [], []));
     setLoadedFingerprint(data.hoursPlan?.fingerprint);
     // Dados carregados já têm pesos definidos: trata como fixos (edição livre, sem "brigar").
     touchedWeights.current = new Set(next.services.map(s => s.key));
@@ -340,6 +342,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     }
     const payload: PlannedScopeInput = {
       hoursFingerprint: loadedFingerprint,
+      commercialScopeFingerprint: data.commercialScopeImport?.fingerprint ?? null,
       services: services.map(s => ({
         scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
@@ -373,6 +376,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       delete payload.normalHours;
       delete payload.overtime;
     }
+    if (normalize(services, [], []) === servicesBaseline) delete payload.services;
     mutation.mutate(payload);
   }
 
@@ -516,12 +520,25 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   return (
     <div className="acp-scope">
       <details className="acp-schedule-ds__scope-details" data-acp-schedule-scope-details>
-        <summary className="acp-schedule-ds__scope-summary">Detalhes do escopo previsto</summary>
+        <summary className="acp-schedule-ds__scope-summary">
+          <span>Detalhes do escopo previsto</span>
+          {data.commercialScopeImport?.issues?.length ? <Badge tone="warning" multiline>{data.commercialScopeImport.issues.length} {data.commercialScopeImport.issues.length === 1 ? 'item para conferir' : 'itens para conferir'}</Badge>
+            : data.commercialScopeImport?.pendingExternalId ? <Badge tone="warning">Conferir importação</Badge> : null}
+        </summary>
         <div className="acp-schedule-ds__scope-content">
       <h3 className="acp-schedule-ds__section-title">Serviços previstos (vendido)</h3>
       <p className="acp-schedule-ds__muted">
-        Preenchimento manual — para cada serviço, adicione os sistemas vendidos e seus quantitativos.
+        {data.commercialScopeImport?.pendingExternalId
+          ? 'A revisão comercial selecionada precisa de conferência. O escopo da revisão anterior foi mantido.'
+          : data.commercialScopeImport?.externalId
+          ? 'Escopo importado da revisão comercial. Confira os quantitativos antes de acompanhar o avanço.'
+          : 'Para cada serviço, adicione os sistemas vendidos e seus quantitativos.'}
       </p>
+      {(data.hoursPlan?.proposalPercentage ?? 100) !== 100 ? <p className="acp-schedule-ds__muted">Valores integrais para cadastro e conferência. Os indicadores consideram {(data.hoursPlan?.proposalPercentage ?? 100).toLocaleString('pt-BR')}% das horas e dos quantitativos previstos, conforme o cronograma.</p> : null}
+      {data.commercialScopeImport?.issues?.length ? <Alert tone="warning">
+        <strong>Itens do levantamento que precisam de conferência:</strong>
+        <ul>{data.commercialScopeImport.issues.map(item => <li key={item}>{item}</li>)}</ul>
+      </Alert> : null}
 
       {services.length === 0 ? (
         <p className="acp-schedule-ds__muted">Nenhum serviço previsto.</p>

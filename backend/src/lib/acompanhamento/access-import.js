@@ -15,6 +15,7 @@ import { commercialDashboardCache } from '../resource-list-cache.js';
 import { computeProgressForProjects } from './avanco.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
+import { applyProposalPercentage, scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 import { buildPresumedProfitTaxEstimate } from './presumed-profit-taxes.js';
 import { progressContributionWeight } from './progress-groups.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
@@ -510,6 +511,7 @@ export async function listProjectRevisions(projectId) {
       mobilizationDate: true,
       demobilizationDate: true,
       manualProgressPct: true,
+      proposalPercentage: true,
       offshore: true,
       laborSleepModeByCollaborator: true,
       laborCollaboratorIds: true,
@@ -529,6 +531,7 @@ export async function listProjectRevisions(projectId) {
       mobilizationDate: project.mobilizationDate ?? null,
       demobilizationDate: project.demobilizationDate ?? null,
       manualProgressPct: project.manualProgressPct ?? null,
+      proposalPercentage: Number(project.proposalPercentage ?? 100),
       offshore: project.offshore ?? false,
       laborSleepModeByCollaborator,
       laborCollaboratorIds: labor.laborCollaboratorIds,
@@ -583,6 +586,7 @@ export async function listProjectRevisions(projectId) {
     mobilizationDate: project.mobilizationDate ?? null,
     demobilizationDate: project.demobilizationDate ?? null,
     manualProgressPct: project.manualProgressPct ?? null,
+    proposalPercentage: Number(project.proposalPercentage ?? 100),
     offshore: project.offshore ?? false,
     laborSleepModeByCollaborator,
     laborCollaboratorIds: labor.laborCollaboratorIds,
@@ -644,6 +648,7 @@ export async function setProjectSchedule(projectId, {
   mobilizationDate,
   demobilizationDate,
   manualProgressPct,
+  proposalPercentage,
   offshore,
   laborSleepModeByCollaborator,
   laborCollaboratorIds
@@ -691,6 +696,7 @@ export async function setProjectSchedule(projectId, {
       projectData.demobilizationDate = demobilizationDate ? new Date(demobilizationDate) : null;
     }
     if (manualProgressPct !== undefined) projectData.manualProgressPct = nextManualProgressPct;
+    if (proposalPercentage !== undefined) projectData.proposalPercentage = validateProposalPercentage(proposalPercentage);
     if (offshore !== undefined) projectData.offshore = Boolean(offshore);
     if (laborSleepModeByCollaborator !== undefined) {
       projectData.laborSleepModeByCollaborator = normalizeSleepModeMap(laborSleepModeByCollaborator);
@@ -709,7 +715,7 @@ export async function setProjectSchedule(projectId, {
       }
     }
     if (Object.keys(projectData).length > 0) {
-      await tx.project.update({ where: { id: projectId }, data: projectData });
+      await tx.project.update({ where: { id: projectId, deletedAt: null }, data: projectData });
     }
     if (demobilizationDate !== undefined) {
       await syncProjectDemobilizationToMissions(tx, projectId, demobilizationDate);
@@ -887,6 +893,7 @@ async function listCommercialDashboardUncached({
         contractCode: true,
         commercialProposalCode: true,
         startDate: true,
+        proposalPercentage: true,
         isActive: true,
         acompanhamentoArchivedAt: true,
         acompanhamentoReviewedAt: true,
@@ -978,7 +985,13 @@ async function listCommercialDashboardUncached({
     const source = appProposal ? {
       codBd: null, codProp, nRev: appProposal.revisionNumber,
       salePrice: appProposal.salePrice, plannedCost: appProposal.plannedTotalCost,
-      expectedMargin: appProposal.expectedMargin, components: {},
+      expectedMargin: appProposal.expectedMargin,
+      components: appProposal.snapshot?.estimateSummary?.costs
+        ? Object.fromEntries(Object.entries(appProposal.snapshot.estimateSummary.costs)
+          .filter(([key]) => !['direct', 'total', 'taxesAtEstimatePrice',
+            'commissionAtEstimatePrice', 'representativeCommissionAtEstimatePrice',
+            'commercialExpenseAtEstimatePrice'].includes(key))
+          .map(([key, value]) => [`commercial_${key}`, value])) : {},
       plannedDays: null, workedDays: null
     } : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
     const additionalSources = (appProposal ? [] : selectedAdditionalsByProject.get(project.id) ?? [])
@@ -994,7 +1007,7 @@ async function listCommercialDashboardUncached({
     const originalPlannedDays = budget?.plannedDays ?? source?.plannedDays ?? null;
     const plannedDays = sumNullable([{ plannedDays: originalPlannedDays }, ...additionalSources], item => item.plannedDays, { decimals: 0 });
     const workedDays = sumNullable([{ workedDays: source?.workedDays ?? null }, ...additionalSources], item => item.workedDays, { decimals: 0 });
-    const salePrice = budgetBreakdown.salePrice;
+    const salePrice = scaleProposalValue(budgetBreakdown.salePrice, project.proposalPercentage);
     const invoiced = invoicedByProject.get(project.id) ?? null;
     rows.push({
       projectId: project.id,
@@ -1010,8 +1023,9 @@ async function listCommercialDashboardUncached({
       acompanhamentoReportArchivedAt: project.acompanhamentoReportArchivedAt ?? null,
       startDate: project.startDate ?? null,
       approvedAt: budget?.approvedAt ?? null,
-      mobilizationLeadDays: budget?.mobilizationLeadDays ?? source?.mobilizationLeadDays ?? null,
+      mobilizationLeadDays: scaleProposalValue(budget?.mobilizationLeadDays ?? source?.mobilizationLeadDays ?? null, project.proposalPercentage),
       salePrice,
+      fullSalePrice: budgetBreakdown.salePrice,
       originalSalePrice: budgetBreakdown.originalSalePrice,
       additionalSalePrice: budgetBreakdown.additionalSalePrice,
       invoicedRevenue: invoiced?.total ?? null,
@@ -1023,14 +1037,14 @@ async function listCommercialDashboardUncached({
         invoicedAmount: invoiced?.total ?? null,
         invoiceIss: invoiced?.iss ?? null
       }),
-      plannedTotalCost: budgetBreakdown.plannedTotalCost,
+      ...applyProposalPercentage(budgetBreakdown.plannedTotalCost, project.proposalPercentage),
       originalPlannedTotalCost: budgetBreakdown.originalPlannedTotalCost,
       additionalPlannedTotalCost: budgetBreakdown.additionalPlannedTotalCost,
-      expectedProfit: budgetBreakdown.expectedProfit,
+      expectedProfit: scaleProposalValue(budgetBreakdown.expectedProfit, project.proposalPercentage),
       originalExpectedProfit: budgetBreakdown.originalExpectedProfit,
       additionalExpectedProfit: budgetBreakdown.additionalExpectedProfit,
       expectedMargin: budgetBreakdown.expectedMargin,
-      taxes: budgetBreakdown.taxes,
+      taxes: scaleProposalValue(budgetBreakdown.taxes, project.proposalPercentage),
       originalTaxes: budgetBreakdown.originalTaxes,
       additionalTaxes: budgetBreakdown.additionalTaxes,
       budgetBreakdown: {
@@ -1040,14 +1054,16 @@ async function listCommercialDashboardUncached({
         additionalTotals: budgetBreakdown.additionalTotals,
         totals: budgetBreakdown.totals
       },
-      plannedDays,
-      workedDays,
+      plannedDays: scaleProposalValue(plannedDays, project.proposalPercentage),
+      workedDays: scaleProposalValue(workedDays, project.proposalPercentage),
+      fullPlannedDays: plannedDays,
+      fullWorkedDays: workedDays,
       numOperators: source?.numOperators ?? null,
       numSupervisors: source?.numSupervisors ?? null,
       numPerDay: source?.numPerDay ?? null,
       numPerNight: source?.numPerNight ?? null,
       serviceModality: source?.serviceModality ?? null,
-      components,
+      components: Object.fromEntries(Object.entries(components).map(([key, value]) => [key, scaleProposalValue(value, project.proposalPercentage)])),
       rdoCount: rdoByProject.get(project.id) ?? 0,
       realizedOmieCost: realizedByProject.get(project.id) ?? null,
       realizedCost: realizedByProject.get(project.id) ?? null,

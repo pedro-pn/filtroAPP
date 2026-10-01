@@ -50,7 +50,8 @@ test('acompanhamento: navegação, recortes, valores e estados DS sem mudar cont
       assert.deepEqual(filter({ search: 'prop1' }), [rows[0]]);
       assert.deepEqual(filter({ status: 'arquivados', modality: 'POP_SEDE' }), [rows[1]]);
       assert.equal(filter({ search: 'ausente' }).length, 0);
-      assert.equal(model.METRICS.length, 20);
+      assert.equal(model.METRICS.length, 30);
+      assert.equal(model.METRICS.find(m => m.key === 'commercialLabor').get({ ...rows[0], components: { commercial_labor: 42 } }), 42);
       assert.equal(model.METRICS.find(m => m.key === 'realizadoPago').get(rows[0]), 120);
       assert.equal(model.METRICS.find(m => m.key === 'realizadoTotal').get(rows[0]), 300);
       assert.equal(model.toNum('não numérico'), null);

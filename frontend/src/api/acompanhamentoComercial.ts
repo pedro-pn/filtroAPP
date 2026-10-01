@@ -52,6 +52,7 @@ export interface BudgetBreakdown {
 }
 
 export interface ProjectRevisions {
+  proposalPercentage?: number;
   proposalCode: string | null;
   currentCodBd: number | null;
   resolved?: boolean;
@@ -80,6 +81,7 @@ export interface LaborCollaborator {
 }
 
 export interface ProjectSchedulePayload {
+  proposalPercentage?: number;
   approvedAt?: string | null;
   startDate?: string | null;
   mobilizationDate?: string | null;
@@ -188,7 +190,9 @@ export async function getCommercialAppRevisions(projectId: string): Promise<{
 
 export async function selectCommercialAppRevision(projectId: string, externalId: string,
   replaceLegacy = false) {
-  const { data } = await apiClient.post<{ budgetStatus: string }>(
+  const { data } = await apiClient.post<{ budgetStatus: string; scopeImport?: {
+    status: string; issues: string[];
+  } }>(
     `/acompanhamento/comercial/projetos/${projectId}/comercialapp/selecionar`,
     { externalId, replaceLegacy });
   return data;
@@ -227,6 +231,9 @@ export interface MissionGroupMemberSummary {
   category?: ProjectCardCategory;
   progressPct?: number | null;
   visible?: boolean;
+  plannedCost?: number | null;
+  fullPlannedCost?: number | null;
+  proposalPercentage?: number | null;
 }
 
 export interface MissionGroupResponse {
@@ -269,6 +276,9 @@ export interface DashboardRow {
   invoicedRevenue?: string | number | null;
   invoicedIss?: string | number | null;
   invoiceCount?: number | null;
+  fullPlannedTotalCost?: number | null;
+  fullSalePrice?: number | null;
+  proposalPercentage?: number | null;
   plannedTotalCost?: string | number | null;
   originalPlannedTotalCost?: string | number | null;
   additionalPlannedTotalCost?: string | number | null;
@@ -520,9 +530,13 @@ export interface PlannedScope {
   normalHours: PlannedOvertime[];
   overtime: PlannedOvertime[];
   hoursPlan?: PlannedHoursPlan;
+  commercialScopeImport?: { externalId?: string; pendingExternalId?: string;
+    fingerprint?: string; issues?: string[];
+    status?: 'MANUAL_OVERRIDE' } | null;
 }
 
 export interface PlannedHoursPlan {
+  proposalPercentage?: number;
   source: 'COMMERCIAL' | 'MANUAL' | 'NONE';
   pending: boolean;
   thresholdPct: number;
@@ -533,10 +547,14 @@ export interface PlannedHoursPlan {
   decision: 'COMMERCIAL' | 'MANUAL' | null;
   resolvedAt: string | null;
   fingerprint: string;
-  proposals: Array<{ codBd: number; codProp?: number; nRev?: number; status: string }>;
+  proposals: Array<{ codBd?: number; codProp?: number; proposalCode?: string;
+    source?: 'COMERCIAL_APP'; nRev?: number; status: string }>;
 }
 
-export type PlannedScopeInput = Pick<PlannedScope, 'services'> & Partial<Pick<PlannedScope, 'normalHours' | 'overtime'>> & { hoursFingerprint?: string };
+export type PlannedScopeInput = Partial<Pick<PlannedScope, 'services' | 'normalHours' | 'overtime'>> & {
+  hoursFingerprint?: string;
+  commercialScopeFingerprint?: string | null;
+};
 
 export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
   const { data } = await apiClient.get<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`);
@@ -747,6 +765,8 @@ export interface ProjectCard {
   progressMethod?: ProgressMethod | null;
   progressWeight?: number | null;
   plannedCost: number | null;
+  fullPlannedCost?: number | null;
+  proposalPercentage?: number | null;
   originalPlannedCost?: number | null;
   additionalPlannedCost?: number | null;
   originalSalePrice?: number | null;
@@ -863,17 +883,19 @@ export interface ProjectDetailCollaborator {
   horas: number;
   /** Soma bruta das jornadas de todas as missões, inclusive quando elas se sobrepõem. */
   horasLancadas: number;
-  /** Horas analíticas do Ponto Mais apropriadas ao projeto; podem repetir em execução compartilhada. */
+  /** Horas de custo do ponto e do Efetivo apropriadas ao projeto; podem repetir em execução compartilhada. */
   horasApropriadas: number | null;
   /** Parte das horas apropriadas registrada em dias marcados como viagem/deslocamento. */
   horasDeslocamento: number;
-  /** Trilha diária das horas do ponto que formam a apropriação deste projeto. */
+  /** Trilha diária das horas de custo que formam a apropriação deste projeto. */
   diasApropriados: Array<{
     data: string;
     horas: number;
     horasNormais: number;
     horasExtras: number;
     emViagem: boolean;
+    /** Alocação do Efetivo sem relatório de atividade; não presume viagem. */
+    semAtividade?: boolean;
     rdos: Array<{
       numero: number | null;
       projetoId: string | null;
@@ -941,6 +963,9 @@ export async function getMissionGroupInvoices(groupId: string) {
 }
 
 export interface ProjectDetail {
+  proposalPercentage?: number | null;
+  fullPlannedDays?: number | null;
+  fullWorkedDays?: number | null;
   canViewProjectFinancials?: boolean;
   group?: {
     id: string;
@@ -977,11 +1002,14 @@ export interface ProjectDetail {
     estoque: number;
     manual: number;
     previsto: number | null;
+    previstoIntegral?: number | null;
+    percentualPrevisto?: number | null;
     previstoOriginal?: number | null;
     previstoAdicional?: number | null;
     pct: number | null;
   };
   faturamento: {
+    previstoIntegral?: string | number | null;
     previsto: string | number | null;
     previstoOriginal?: string | number | null;
     previstoAdicional?: string | number | null;

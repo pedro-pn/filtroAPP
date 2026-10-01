@@ -26,6 +26,8 @@ import { missionCoveredDemand, missionFinalAllocations, missionRolePeakCount } f
 import { MissionAllocationModal } from './MissionAllocationModal';
 import { MissionFormModal } from './MissionFormModal';
 import { MissionExecutionPanel } from './MissionExecutionPanel';
+import { MissionWeeklyProgressPanel } from '../../../components/projects/MissionWeeklyProgressPanel';
+import { Modal } from '../../../components/ui/Modal';
 import '../EfetivoMissions.ds.css';
 
 const statusLabel = { CONFIRMED: 'Confirmada', CANCELLED: 'Cancelada' } as const;
@@ -53,6 +55,7 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [allocating, setAllocating] = useState<PlanningMission | null>(null);
   const [deleting, setDeleting] = useState<PlanningMission | null>(null);
+  const [weeklyTargetMission, setWeeklyTargetMission] = useState<PlanningMission | null>(null);
   const missions = useQuery({ queryKey: ['efetivo-planning-missions', planId || 'official', status || 'all'], queryFn: () => listPlanningMissions({ planId, status }) });
   const pending = useQuery({ queryKey: ['efetivo-planning-missions-pending', planId || 'official'], queryFn: () => listPendingMissionProjects({ planId }) });
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
@@ -180,6 +183,7 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
                     <footer>
                       <span>Líder: <strong>{mission.headquartersResponsibleName}</strong></span>
                       <div className="efetivo-action-row efetivo-mission-card-actions">
+                        {!planId ? <Button variant="secondary" size="sm" onClick={() => setWeeklyTargetMission(mission)}>Meta semanal</Button> : null}
                         <Button variant="secondary" size="sm" onClick={() => setAllocating(mission)}>Equipe</Button>
                         {canManage ? <><Button variant="secondary" size="sm" onClick={() => setFormTarget({ mission, project: null })}>Editar</Button><RemoveIconButton label={`Remover missão ${mission.project.code}`} onClick={() => setDeleting(mission)} /></> : null}
                       </div>
@@ -191,6 +195,11 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
           ) : <Card padding="sm"><EmptyState variant={search || status ? 'search' : 'default'} title="Nenhuma missão neste recorte" description={search || status ? 'Ajuste a busca ou a situação para ampliar a consulta.' : 'As missões aparecem a partir dos projetos cadastrados.'} /></Card>}
       {canManage ? <MissionFormModal open={Boolean(formTarget)} mission={formTarget?.mission || null} project={formTarget?.project || null} planId={planId} roles={roles.data || []} rolesLoading={roles.isLoading} coordinators={coordinators.data || []} coordinatorsLoading={coordinators.isLoading} saving={save.isPending} onClose={() => setFormTarget(null)} onSubmit={payload => save.mutate(payload)} /> : null}
       <MissionAllocationModal mission={allocating} open={Boolean(allocating)} canManage={canManage} onClose={() => setAllocating(null)} onPlanningMutated={onPlanningMutated} />
+      <Modal open={Boolean(weeklyTargetMission)} onClose={() => setWeeklyTargetMission(null)} appearance="design-system"
+        title={`Meta semanal · ${weeklyTargetMission?.project.code ?? ''}`} size="lg"
+        panelClassName="efetivo-weekly-target-dialog" fullscreenOnMobile={false}>
+        {weeklyTargetMission ? <MissionWeeklyProgressPanel key={weeklyTargetMission.id} owner={{ area: 'efetivo', missionId: weeklyTargetMission.id }} canManage={canManage} /> : null}
+      </Modal>
       <ConfirmDialog appearance="design-system" open={Boolean(deleting)} title="Remover programação?" description="A exclusão é lógica e a trilha permanece na auditoria; o projeto volta a aparecer como missão pendente." highlight={deleting ? `${deleting.project.code} · ${deleting.project.name}` : undefined} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} confirmDisabled={remove.isPending} onConfirm={() => { if (deleting) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
     </div>
   );

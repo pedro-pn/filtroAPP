@@ -182,23 +182,33 @@ function inlineImageXml(relId, cx, cy, name) {
   return `<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="6010" name="${n}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="${n}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
 }
 
-// Embute as fotos na célula {{fotos}} (2 por linha, centralizadas). Sem fotos, remove a
-// Tabela 3 (FOTOS) inteira do documento.
+// Clona a linha {{fotos}} para cada par, mantendo as fotos inteiras ao paginar.
+// Sem fotos, remove a Tabela 3 (FOTOS) inteira do documento.
 function embedOrRemovePhotos(zip, doc, assets) {
   const table = findFirstByText(doc, 'w:tbl', '{{fotos}}');
   if (!table) return;
   if (!assets || assets.length === 0) { removeNode(table); return; }
   const targetParagraph = findFirstByText(table, 'w:p', '{{fotos}}');
   const cell = targetParagraph?.parentNode;
+  const photoRow = cell?.parentNode;
   const relsEntry = zip.getEntry('word/_rels/document.xml.rels');
-  if (!cell || !relsEntry) { removeNode(table); return; }
+  if (!cell || photoRow?.nodeName !== 'w:tr' || !relsEntry) { removeNode(table); return; }
 
   const relsDoc = new DOMParser().parseFromString(zip.readAsText(relsEntry), 'text/xml');
-  while (cell.firstChild) cell.removeChild(cell.firstChild);
-  const maxWidthEmu = 2857500; // ~7,5 cm: cabem 2 lado a lado na largura da tabela
+  const maxWidthEmu = 2857500; // ~7,94 cm: cabem 2 lado a lado na largura da tabela
+  const maxHeightEmu = 3600000; // 10 cm: cada par cabe na área útil de uma página
+  const rows = [];
 
   for (let i = 0; i < assets.length; i += 2) {
     const group = assets.slice(i, i + 2);
+    const row = photoRow.cloneNode(true);
+    // Só o título FOTOS é cabeçalho. O cantSplit do modelo mantém cada par inteiro.
+    Array.from(row.getElementsByTagName('w:tblHeader')).forEach(removeNode);
+    Array.from(row.getElementsByTagName('w:trHeight')).forEach(removeNode);
+    const photoCell = findFirstByText(row, 'w:p', '{{fotos}}').parentNode;
+    Array.from(photoCell.childNodes).forEach(child => {
+      if (child.nodeName !== 'w:tcPr') removeNode(child);
+    });
     const paragraph = doc.createElement('w:p');
     const pPr = doc.createElement('w:pPr');
     const jc = doc.createElement('w:jc'); jc.setAttribute('w:val', 'center');
@@ -206,8 +216,10 @@ function embedOrRemovePhotos(zip, doc, assets) {
     group.forEach((asset, idx) => {
       const relId = addImageRel(zip, relsDoc, asset);
       const w = asset.width || 100; const h = asset.height || 100;
-      const heightEmu = Math.max(1, Math.round(maxWidthEmu * (h / w)));
-      const drawing = new DOMParser().parseFromString(inlineImageXml(relId, maxWidthEmu, heightEmu, asset.label), 'text/xml');
+      const scale = Math.min(maxWidthEmu / w, maxHeightEmu / h);
+      const widthEmu = Math.max(1, Math.round(w * scale));
+      const heightEmu = Math.max(1, Math.round(h * scale));
+      const drawing = new DOMParser().parseFromString(inlineImageXml(relId, widthEmu, heightEmu, asset.label), 'text/xml');
       paragraph.appendChild(drawing.documentElement);
       if (idx < group.length - 1) {
         const spacer = doc.createElement('w:r');
@@ -215,8 +227,11 @@ function embedOrRemovePhotos(zip, doc, assets) {
         spacer.appendChild(t); paragraph.appendChild(spacer);
       }
     });
-    cell.appendChild(paragraph);
+    photoCell.appendChild(paragraph);
+    rows.push(row);
   }
+  cloneBefore(photoRow, rows);
+  removeNode(photoRow);
   zip.updateFile('word/_rels/document.xml.rels', Buffer.from(new XMLSerializer().serializeToString(relsDoc), 'utf8'));
 }
 

@@ -961,8 +961,10 @@ model Project {
   demobilizationDate         DateTime? // data de desmobilização (manual); fecha a janela de alocação
   startDate                  DateTime? // início real da execução (manual, gestor/coordenador)
   manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão (fallback quando não há escopo)
+  proposalPercentage         Decimal                            @default(100) @db.Decimal(5, 2) // percentual da proposta considerado nos valores previstos do acompanhamento
   trackingDivisions          Json                               @default("[]") // recortes do acompanhamento por escopo/equipamento do cliente
   plannedHoursResolution     Json? // decisão manual vinculada aos valores/revisões comerciais e às horas manuais conferidas
+  commercialScopeImport      Json? // revisão comercial importada ou substituição manual explícita
   createdAt                  DateTime                           @default(now())
   updatedAt                  DateTime                           @updatedAt
   deletedAt                  DateTime?
@@ -988,6 +990,7 @@ model Project {
   realizedCorrections        ProjectRealizedCorrection[]
   manualCosts                ProjectManualCost[]
   managementNotes            ProjectManagementNote[]
+  weeklyProgressTargets      MissionWeeklyProgressTarget[]
   additionalProposals        ProjectAdditionalProposal[]
   acompanhamentoGroupMembers AcompanhamentoMissionGroupMember[]
   primaryLaborMissionGroups  AcompanhamentoMissionGroup[]       @relation("AcompanhamentoMissionGroupPrimaryLaborProject")
@@ -1743,12 +1746,32 @@ model AcompanhamentoMissionGroup {
   createdBy             User?                              @relation("AcompanhamentoMissionGroupCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   dissolvedBy           User?                              @relation("AcompanhamentoMissionGroupDissolvedBy", fields: [dissolvedByUserId], references: [id], onDelete: SetNull)
   members               AcompanhamentoMissionGroupMember[]
+  weeklyProgressTargets MissionWeeklyProgressTarget[]
 
   @@index([status, createdAt])
   @@index([laborAllocationMode])
   @@index([primaryLaborProjectId])
   @@index([createdByUserId])
   @@index([dissolvedByUserId])
+}
+
+model MissionWeeklyProgressTarget {
+  id               String   @id @default(cuid())
+  projectId        String?
+  groupId          String?
+  weekStartDate    DateTime @db.Date
+  plannedPctPoints Decimal  @db.Decimal(5, 2)
+  revision         Int      @default(1)
+  createdByUserId  String?
+  createdByName    String
+  createdAt        DateTime @default(now())
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group            AcompanhamentoMissionGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy        User?    @relation("MissionWeeklyProgressTargetCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, weekStartDate, revision], map: "MissionWeeklyProgressTarget_project_week_revision_key")
+  @@unique([groupId, weekStartDate, revision], map: "MissionWeeklyProgressTarget_group_week_revision_key")
+  @@index([createdByUserId])
 }
 
 model AcompanhamentoMissionGroupMember {
@@ -2575,6 +2598,7 @@ model User {
   stockMovements                       StockMovement[]                     @relation("StockMovementCreator")
   projectManualCosts                   ProjectManualCost[]                 @relation("ProjectManualCostCreator")
   projectManagementNotes               ProjectManagementNote[]             @relation("ProjectManagementNoteCreator")
+  weeklyProgressTargets                MissionWeeklyProgressTarget[]       @relation("MissionWeeklyProgressTargetCreator")
   ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
   plannedProjectWorkflows              ProjectWorkflow[]                    @relation("ProjectWorkflowPlanner")
   closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
@@ -3546,10 +3570,8 @@ model ProjectAdditionalProposal {
   @@index([selectedByUserId])
 }
 
-// Serviço vendido (escopo) previsto. Hoje é preenchido manualmente no cronograma — idealmente viria
-// do banco comercial, que ainda não carrega esses campos. Cada serviço agrupa um ou mais "sistemas"
-// (tubulações em m, óleo em L), cada um com seu quantitativo — alinhado ao que o RDO registra como
-// realizado, para entrar no cálculo de avanço.
+// Serviço vendido previsto no cronograma. Pode ser importado do levantamento do ComercialAPP
+// ou editado manualmente. Cada serviço agrupa sistemas com a mesma unidade medida no RDO.
 model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String

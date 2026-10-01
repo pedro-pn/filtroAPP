@@ -72,7 +72,7 @@ export function AcompanhamentoPage() {
             : section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} canManageProjectNotes={isManager} progressHistoryNoveltyUser={user} />
             : section === 'sede' ? <SedeCostsBoard />
             : section === 'custo' && isManager ? <CostEngineManager canManageCosts={isManager} />
-            : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} canViewFinancials={canViewProjectFinancials(user)} />}
+            : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} canManageProposal={isManager} canViewFinancials={canViewProjectFinancials(user)} />}
         </section>
       </main>
       <AcompanhamentoTutorial userKey={userKey} ready={section === 'dashboard'} goToSection={setSection}

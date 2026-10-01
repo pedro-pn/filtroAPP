@@ -76,5 +76,5 @@ test('programação usa o contrato compacto de formulário DS', () => {
   const form = read('components/MissionFormModal.tsx');
   for (const contract of ['confirmedMissionOverlapCollaboratorIds','allocationPeriods','headquartersResponsibleUserId','returnDate: values.returnDate || null','<MissionTeamSelector']) assert.ok(form.includes(contract));
   const css = read('EfetivoMissions.ds.css');
-  assert.match(css, /efetivo-mission-card-actions\s*\{[^}]*flex-wrap: nowrap;[^}]*overflow: visible;/);
+  assert.match(css, /efetivo-mission-card-actions\s*\{[^}]*flex-wrap: wrap;[^}]*overflow: visible;/);
 });

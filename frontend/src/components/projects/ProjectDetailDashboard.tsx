@@ -36,6 +36,7 @@ import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
+import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
 import { AppIcon } from '../icons/AppIcon';
@@ -369,6 +370,8 @@ export function ProjectDetailDashboard({
               <span key={member.projectId}>
                 <strong>{member.code}</strong>
                 {member.name || member.clientName ? <em>{member.name || member.clientName}</em> : null}
+                {member.progressPct != null ? <small>{member.progressPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% de avanço</small> : null}
+                {member.proposalPercentage != null && member.proposalPercentage !== 100 ? <small>Proposta considerada: {member.proposalPercentage.toLocaleString('pt-BR')}%</small> : null}
                 {canManage ? (
                   <Button
                     type="button"
@@ -468,6 +471,15 @@ export function ProjectDetailDashboard({
           </div>
         ) : null}
       />
+
+      {(projectId || groupId) ? <Card padding="sm" className="acp-detail-weekly-targets">
+        <MissionWeeklyProgressPanel
+          key={groupId || projectId}
+          owner={groupId ? { area: 'acompanhamento', groupId } : { area: 'acompanhamento', projectId: projectId! }}
+          progressHistory={activeDivisionKey ? undefined : data.progressHistory ?? []}
+          canManage={canManageProjectNotes}
+        />
+      </Card> : null}
 
       <div className="acp-detail-section-head" id="acp-execution">
         <p>Planejamento e execução</p><h2>Prazos com contexto</h2>
@@ -892,7 +904,7 @@ export function ProjectDetailDashboard({
           {canManage ? <Button variant="primary" disabled={!scheduleDirty} onClick={() => scheduleRef.current?.save()}>Salvar</Button> : null}
         </div>}>
         {scheduleProject ? <ProjectScheduleEditor key={scheduleProject.projectId} ref={scheduleRef}
-          projectId={scheduleProject.projectId} canManage={canManage} onDirtyChange={setScheduleDirty} /> : null}
+          projectId={scheduleProject.projectId} canManage={canManage} canManageProposal={canManageManualCosts} onDirtyChange={setScheduleDirty} /> : null}
       </Modal>
       <ProjectProgressHistoryNovelty
         user={progressHistoryNoveltyUser}

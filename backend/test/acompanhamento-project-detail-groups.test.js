@@ -153,6 +153,26 @@ test('grupo mantém RDOs das duas missões e considera somente a maior jornada p
   ]);
 });
 
+test('grupo preserva dias de custo sem atividade sem adicioná-los à jornada dos relatórios', () => {
+  const member = group().members[0];
+  const result = groupProjectDetails(group(), [{ projectId: member.projectId, member, detail: detail({
+    colaboradores: [{
+      name: 'Ana', role: 'Operador', horas: 0, horasLancadas: 0, horasApropriadas: 8.8,
+      horasRelatoriosPorData: [], custo: 100,
+      diasApropriados: [{
+        data: '2026-09-20', horas: 8.8, horasNormais: 8.8, horasExtras: 0,
+        emViagem: false, semAtividade: true, rdos: []
+      }]
+    }]
+  }) }]);
+  const person = result.colaboradores[0];
+  assert.equal(person.horas, 0);
+  assert.equal(person.horasApropriadas, 8.8);
+  assert.equal(person.diasApropriados[0].semAtividade, true);
+  assert.equal(person.diasApropriados[0].emViagem, false);
+  assert.deepEqual(person.horasRelatoriosPorData, []);
+});
+
 test('grupo mantém sem valor o colaborador excluído manualmente da estimativa', () => {
   const input = group().members.map(member => ({
     projectId: member.projectId, member,

@@ -41,19 +41,25 @@ function reportSources(day: ReportDay) {
   ) : <span className="acp-collaborator-hours__muted">Origem não disponível. Atualize a página para consultar.</span>;
 }
 
-export function ProjectCollaboratorHoursDialog({
-  collaborator,
-  source = 'POINT',
-  isGroup = false,
-  onSourceChange,
-  onClose
-}: {
+interface HoursDialogProps {
   collaborator: ProjectDetailCollaborator | null;
   source?: 'POINT' | 'REPORT';
   isGroup?: boolean;
   onSourceChange?: (source: 'POINT' | 'REPORT') => void;
   onClose: () => void;
-}) {
+}
+
+export function ProjectCollaboratorHoursDialog({ collaborator, source = 'POINT', isGroup = false, onSourceChange, onClose }: HoursDialogProps) {
+  return <Modal
+    open={Boolean(collaborator)} onClose={onClose} appearance="design-system"
+    title={source === 'REPORT' ? 'Jornada dos relatórios' : 'Horas apropriadas'} size="lg"
+    panelClassName="acp-collaborator-hours-dialog"
+    footer={<Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>}>
+    <ProjectCollaboratorHoursContent collaborator={collaborator} source={source} isGroup={isGroup} onSourceChange={onSourceChange} />
+  </Modal>;
+}
+
+export function ProjectCollaboratorHoursContent({ collaborator, source = 'POINT', isGroup = false, onSourceChange }: Omit<HoursDialogProps, 'onClose'>) {
   const days = collaborator?.diasApropriados ?? [];
   const reportDays = collaborator?.horasRelatoriosPorData ?? [];
   const fromReports = source === 'REPORT';
@@ -61,15 +67,6 @@ export function ProjectCollaboratorHoursDialog({
   const reportDaysWithoutPoint = reportDays.filter(reportDay => !days.some(day => day.data === reportDay.data));
 
   return (
-    <Modal
-      open={Boolean(collaborator)}
-      onClose={onClose}
-      appearance="design-system"
-      title={fromReports ? 'Jornada dos relatórios' : 'Horas apropriadas'}
-      size="lg"
-      panelClassName="acp-collaborator-hours-dialog"
-      footer={<Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>}
-    >
       <div className="acp-collaborator-hours">
         <p className="acp-collaborator-hours__context">{collaborator?.name} · {collaborator?.role}</p>
 
@@ -93,6 +90,11 @@ export function ProjectCollaboratorHoursDialog({
           <span>{dayCount} dia{dayCount === 1 ? '' : 's'} considerado{dayCount === 1 ? '' : 's'}</span>
           <strong>{fmtHours(fromReports ? collaborator?.horas : collaborator?.horasApropriadas)}</strong>
         </div>
+        {!fromReports && days.some(day => day.semAtividade) ? (
+          <Alert tone="info">
+            Dias alocados pelo Efetivo sem relatório de atividade entram nas horas de custo, com 8h48 quando não há horas no ponto. Eles não contam como dias ou horas trabalhados e não confirmam viagem.
+          </Alert>
+        ) : null}
 
         {fromReports ? (
           <>
@@ -137,12 +139,12 @@ export function ProjectCollaboratorHoursDialog({
               { key: 'normal', header: 'Normais', render: day => fmtHours(day.horasNormais), align: 'right' },
               { key: 'overtime', header: 'Extras', render: day => fmtHours(day.horasExtras), align: 'right' },
               { key: 'total', header: 'Total', render: day => <strong>{fmtHours(day.horas)}</strong>, align: 'right' },
-              { key: 'context', header: 'Contexto', render: day => day.emViagem ? <Badge tone="warning">Em viagem</Badge> : 'Obra' }
+              { key: 'context', header: 'Contexto', render: day => day.semAtividade ? <Badge tone="neutral">Dia sem atividade/viagem</Badge> : day.emViagem ? <Badge tone="warning">Em viagem</Badge> : 'Obra' }
             ]}
             mobile={{ renderItem: day => ({
               title: fmtDate(day.data),
               value: fmtHours(day.horas),
-              status: day.emViagem ? <Badge tone="warning">Em viagem</Badge> : 'Obra',
+              status: day.semAtividade ? <Badge tone="neutral">Dia sem atividade/viagem</Badge> : day.emViagem ? <Badge tone="warning">Em viagem</Badge> : 'Obra',
               metadata: [
                 { label: 'RDO', value: pointSources(day) },
                 { label: 'Normais', value: fmtHours(day.horasNormais) },
@@ -152,6 +154,5 @@ export function ProjectCollaboratorHoursDialog({
           />
         )}
       </div>
-    </Modal>
   );
 }

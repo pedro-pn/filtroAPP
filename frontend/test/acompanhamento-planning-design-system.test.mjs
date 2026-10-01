@@ -60,7 +60,9 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   assert.match(html, /<details class="acp-progress-ds__service acp-progress-ds__service--collapsible"[^>]*data-acp-progress-service="true">/);
   assert.match(html, /<summary class="acp-progress-ds__service-head acp-progress-ds__service-summary"><strong>Limpeza química<\/strong>/);
   assert.match(html, /Linha 1/);
-  assert.doesNotMatch(html, /Venda|Custo|Margem|Realizado por categoria|R\$/);
+  assert.match(html, /<details class="acp-schedule-ds__proposal-details"><summary>Ajustar percentual da proposta<\/summary>/);
+  assert.doesNotMatch(html, /Composição da proposta integral/);
+  assert.doesNotMatch(html, /Realizado por categoria|class="acp-cost-status"/);
   assert.match(html, /acp-schedule-ds__hours-fields/);
   assert.equal((html.match(/class="acp-schedule-ds__hours-block"/g) ?? []).length, 2);
   assert.doesNotMatch(html, /class="det-section"|class="mini-btn/);

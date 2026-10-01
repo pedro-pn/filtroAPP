@@ -10,6 +10,7 @@
  */
 
 import { listCommercialDashboard } from './access-import.js';
+import { scaleProposalValue } from './proposal-percentage.js';
 import { computeAlerts } from './alerts.js';
 import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
@@ -74,7 +75,7 @@ function diffCalendarDays(from, to) {
 function addCalendarDays(startDate, days) {
   const d = new Date(startDate);
   if (Number.isNaN(d.getTime())) return null;
-  d.setDate(d.getDate() + Math.round(days));
+  d.setTime(d.getTime() + days * 86400000);
   return d.toISOString();
 }
 
@@ -327,6 +328,7 @@ export function buildProjectAppropriationDays(rate = null, projectId = null) {
       horasNormais,
       horasExtras,
       emViagem: Boolean(day.travelContext),
+      ...(day.noActivityContext ? { semAtividade: true } : {}),
       rdos
     }];
   }).sort((left, right) => left.data.localeCompare(right.data));
@@ -405,6 +407,11 @@ export async function getProjectDetail(projectId, {
   });
   const row = rows.find(r => r.projectId === projectId);
   if (!row) throw new Error('Projeto não encontrado no acompanhamento comercial.');
+  const integralDivision = division;
+  if (division) {
+    division = { ...division, ...Object.fromEntries(['plannedCost', 'plannedRevenue', 'plannedHours', 'plannedDays']
+      .map(field => [field, scaleProposalValue(division[field], row.proposalPercentage)])) };
+  }
   const categoryWhere = await buildOmieCostCategoryWhere({
     includeAdminOnly: includeAdminOnlyCategories
   });
@@ -665,6 +672,7 @@ export async function getProjectDetail(projectId, {
   const workedHours = buildWorkedHoursProgress({
     normalWorkedMinutes: normalWorkedMinutesTotal,
     overtimeWorkedMinutes: overtimeWorkedMinutesTotal,
+    hasExplicitPlan: division ? division.plannedHours != null : Boolean(hours && hours.hoursPlan.source !== 'NONE'),
     plannedNormalHours: plannedNormalHoursTotal,
     plannedOvertimeHours: plannedOvertimeHoursTotal
   });
@@ -727,6 +735,9 @@ export async function getProjectDetail(projectId, {
     alerts,
     diasCorridos,
     diasTrabalhados,
+    proposalPercentage: division ? null : row.proposalPercentage ?? 100,
+    fullPlannedDays: division ? null : toNum(row.fullPlannedDays ?? row.plannedDays),
+    fullWorkedDays: division ? null : toNum(row.fullWorkedDays ?? row.workedDays),
     consumo: {
       gasto,
       omie: omieGasto,
@@ -735,12 +746,15 @@ export async function getProjectDetail(projectId, {
       estoque: stockCost.total,
       manual: manualCost.total,
       previsto: previstoCusto,
+      previstoIntegral: division ? integralDivision.plannedCost : toNum(row.fullPlannedTotalCost ?? row.plannedTotalCost),
+      percentualPrevisto: division ? null : row.proposalPercentage ?? 100,
       previstoOriginal: division ? null : toNum(row.originalPlannedTotalCost),
       previstoAdicional: division ? null : toNum(row.additionalPlannedTotalCost),
       pct: previstoCusto && previstoCusto > 0 ? Math.round((gasto / previstoCusto) * 100) : null
     },
     faturamento: {
       previsto: division ? division.plannedRevenue : row.salePrice ?? null,
+      previstoIntegral: division ? integralDivision.plannedRevenue : row.fullSalePrice ?? row.salePrice ?? null,
       previstoOriginal: division ? null : row.originalSalePrice ?? null,
       previstoAdicional: division ? null : row.additionalSalePrice ?? null,
       realizado: divisionInvoices ? divisionInvoices.reduce((sum, invoice) => sum + invoice.amount, 0) : row.invoicedRevenue ?? null,
@@ -763,7 +777,7 @@ export async function getProjectDetail(projectId, {
     overtimeMinutes: overtimeMinutesTotal,
     colaboradores,
     equipamentos,
-    division: division ?? null,
+    division: integralDivision ?? null,
     footer: {
       mobilizationDate: division ? null : project?.mobilizationDate ?? null,
       startDate: activeStartDate ?? null,

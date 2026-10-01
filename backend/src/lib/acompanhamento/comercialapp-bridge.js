@@ -2,8 +2,37 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
+import { syncCommercialAppScope } from './commercialapp-scope.js';
 
 const decimal = z.number().finite().min(0).max(999999999999.99);
+const nonnegative = z.number().finite().min(0);
+const estimateSummarySchema = z.object({
+  schemaVersion: z.literal(1),
+  hours: z.object({ normal: nonnegative, overtime: nonnegative, total: nonnegative }),
+  workload: z.object({
+    personDays: nonnegative,
+    peakHeadcount: nonnegative,
+    phases: z.array(z.object({
+      name: z.string(), durationDays: nonnegative, workingDays: nonnegative,
+      headcount: nonnegative, normalHours: nonnegative, overtimeHours: nonnegative,
+      totalHours: nonnegative
+    })).max(200)
+  }),
+  costs: z.object({
+    labor: nonnegative, indirect: nonnegative, materials: nonnegative, inputs: nonnegative,
+    filters: nonnegative, effluent: nonnegative, mobilization: nonnegative,
+    demobilization: nonnegative, referralBonus: nonnegative,
+    direct: nonnegative, overhead: nonnegative,
+    total: nonnegative, taxesAtEstimatePrice: nonnegative,
+    commissionAtEstimatePrice: nonnegative,
+    representativeCommissionAtEstimatePrice: nonnegative,
+    commercialExpenseAtEstimatePrice: nonnegative
+  })
+}).superRefine((summary, context) => {
+  if (Math.abs(summary.hours.normal + summary.hours.overtime - summary.hours.total) > 0.02) {
+    context.addIssue({ code: 'custom', path: ['hours'], message: 'Total de horas diverge das horas normais e extras.' });
+  }
+});
 export const commercialAppPayloadSchema = z.object({
   contractVersion: z.literal(1),
   eventId: z.string().uuid(),
@@ -22,7 +51,14 @@ export const commercialAppPayloadSchema = z.object({
   plannedTotalCost: decimal.nullable(),
   expectedMargin: z.number().finite().nullable(),
   costBreakdown: z.unknown(),
+  estimateSummary: estimateSummarySchema.nullable().optional(),
   proposalSnapshot: z.unknown()
+}).superRefine((data, context) => {
+  if (data.estimateSummary && (data.plannedTotalCost === null ||
+    Math.abs(data.estimateSummary.costs.total - data.plannedTotalCost) > 0.02)) {
+    context.addIssue({ code: 'custom', path: ['estimateSummary', 'costs', 'total'],
+      message: 'O custo total calculado difere do custo previsto da proposta.' });
+  }
 });
 
 function sorted(value) {
@@ -32,6 +68,29 @@ function sorted(value) {
   return value;
 }
 function hash(value) { return createHash('sha256').update(JSON.stringify(sorted(value))).digest('hex'); }
+
+function withoutEstimateSummary(value) {
+  const { estimateSummary: _estimateSummary, eventId: _eventId, approvedAt: _approvedAt, ...base } = value;
+  return base;
+}
+
+export function canUpgradeLegacyProposal(existing, data, { sameEvent = false } = {}) {
+  if (!existing?.snapshot || sameEvent &&
+    (existing.snapshot.eventId !== data.eventId || existing.snapshot.approvedAt !== data.approvedAt)) return false;
+  const old = withoutEstimateSummary(existing.snapshot);
+  const next = withoutEstimateSummary(data);
+  const legacyScope = old.proposalSnapshot?.scope ?? old.proposalSnapshot?.technicalServices ?? [];
+  const updatedScope = old.proposalSnapshot?.scopeItems ?? legacyScope;
+  const scopeHash = value => hash(value ?? null);
+  const scopeUpgrade = scopeHash(old.scope) === scopeHash(legacyScope)
+    && scopeHash(data.scope) === scopeHash(updatedScope)
+    && scopeHash(old.scope) !== scopeHash(data.scope);
+  const summaryUpgrade = existing.snapshot.estimateSummary == null && Boolean(data.estimateSummary);
+  if (!scopeUpgrade && !summaryUpgrade) return false;
+  if (scopeUpgrade) old.scope = updatedScope;
+  return hash(old) === hash(next) &&
+    (!existing.snapshot.estimateSummary || hash(existing.snapshot.estimateSummary) === hash(data.estimateSummary));
+}
 
 export class CommercialAppBridgeError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -64,20 +123,43 @@ export async function receiveCommercialAppProposal(raw) {
     result = await prisma.$transaction(async tx => {
       const delivered = await tx.commercialAppDelivery.findUnique({ where: { eventId: data.eventId } });
       if (delivered) {
-        if (delivered.externalId !== data.proposalId || delivered.snapshotHash !== deliveryHash) {
+        const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
+        if (delivered.externalId !== data.proposalId || !existing) {
           throw new CommercialAppBridgeError(409, 'ID de evento reutilizado com outro conteúdo.');
         }
-        const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
-        return { duplicate: true, budgetStatus: existing?.selectionStatus === 'SELECTED' ? 'SELECTED' : 'STAGED',
-          projectId: existing?.projectId };
+        let current = existing;
+        if (delivered.snapshotHash !== deliveryHash) {
+          if (!canUpgradeLegacyProposal(existing, data, { sameEvent: true })) {
+            throw new CommercialAppBridgeError(409, 'ID de evento reutilizado com outro conteúdo.');
+          }
+          await tx.commercialAppProposal.update({ where: { id: existing.id },
+            data: { snapshot: data, snapshotHash } });
+          await tx.commercialAppDelivery.update({ where: { eventId: data.eventId },
+            data: { snapshotHash: deliveryHash } });
+          current = { ...existing, snapshot: data };
+        }
+        const budget = await tx.projectBudget.findUnique({
+          where: { projectId_version: { projectId: existing.projectId, version: 1 } }
+        });
+        const selected = budget?.source === 'COMERCIAL_APP'
+          && budget.commercialAppProposalId === existing.externalId;
+        const scopeImport = selected ? await syncCommercialAppScope(tx, existing.projectId, current) : null;
+        return { duplicate: true, budgetStatus: selected ? 'SELECTED' : 'STAGED',
+          projectId: existing?.projectId, scopeImport };
       }
       const project = await tx.project.findFirst({
         where: { id: data.projectId, deletedAt: null, isActive: true }
       });
       if (!project) throw new CommercialAppBridgeError(422, 'Projeto informado pelo CRM não existe no FiltroAPP.');
       const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
+      let current = existing;
       if (existing && (existing.snapshotHash !== snapshotHash || existing.projectId !== data.projectId)) {
-        throw new CommercialAppBridgeError(409, 'Proposta e revisão já recebidas com conteúdo ou projeto diferente.');
+        if (!canUpgradeLegacyProposal(existing, data) || existing.projectId !== data.projectId) {
+          throw new CommercialAppBridgeError(409, 'Proposta e revisão já recebidas com conteúdo ou projeto diferente.');
+        }
+        await tx.commercialAppProposal.update({ where: { id: existing.id },
+          data: { snapshot: data, snapshotHash } });
+        current = { ...existing, snapshot: data };
       }
       const proposal = existing || await tx.commercialAppProposal.create({ data: {
         externalId: data.proposalId, proposalCode: data.proposalCode,
@@ -89,10 +171,12 @@ export async function receiveCommercialAppProposal(raw) {
         expectedMargin: data.expectedMargin, snapshot: data,
         snapshotHash
       } });
+      current ??= proposal;
       const budget = await tx.projectBudget.findUnique({
         where: { projectId_version: { projectId: data.projectId, version: 1 } }
       });
-      let selected = proposal.selectionStatus === 'SELECTED';
+      let selected = budget?.source === 'COMERCIAL_APP'
+        && budget.commercialAppProposalId === proposal.externalId;
       if (!budget && (!project.commercialProposalCode || project.commercialProposalCode === data.proposalCode)) {
         await tx.projectBudget.create({ data: {
           projectId: data.projectId, version: 1, ...budgetFields(proposal)
@@ -103,11 +187,12 @@ export async function receiveCommercialAppProposal(raw) {
           data: { selectionStatus: 'SELECTED', selectedAt: new Date() } });
         selected = true;
       }
+      const scopeImport = selected ? await syncCommercialAppScope(tx, data.projectId, current) : null;
       await tx.commercialAppDelivery.create({ data: {
         eventId: data.eventId, externalId: data.proposalId, snapshotHash: deliveryHash
       } });
       return { duplicate: false, budgetStatus: selected ? 'SELECTED' : 'STAGED',
-        projectId: data.projectId, proposalId: proposal.id };
+        projectId: data.projectId, proposalId: proposal.id, scopeImport };
     });
   } catch (error) {
     if (error.code === 'P2002') throw new CommercialAppBridgeError(409, 'Entrega concorrente ou revisão já existente.');
@@ -137,7 +222,10 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
     if (budget && budget.source !== 'COMERCIAL_APP' && !replaceLegacy) {
       throw new CommercialAppBridgeError(409, 'O orçamento atual vem do Access. Confirme a troca de origem para selecionar o ComercialAPP.');
     }
-    if (budget?.commercialAppProposalId === externalId) return { budgetStatus: 'SELECTED', duplicate: true };
+    if (budget?.source === 'COMERCIAL_APP' && budget.commercialAppProposalId === externalId) {
+      return { budgetStatus: 'SELECTED', duplicate: true,
+        scopeImport: await syncCommercialAppScope(tx, projectId, proposal) };
+    }
     await tx.commercialAppProposal.updateMany({ where: { projectId, selectionStatus: 'SELECTED' },
       data: { selectionStatus: 'STAGED' } });
     await tx.projectBudget.upsert({
@@ -150,7 +238,8 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
       data: { commercialProposalCode: proposal.proposalCode } });
     await tx.commercialAppProposal.update({ where: { id: proposal.id },
       data: { selectionStatus: 'SELECTED', selectedAt: new Date() } });
-    return { budgetStatus: 'SELECTED', duplicate: false };
+    const scopeImport = await syncCommercialAppScope(tx, projectId, proposal);
+    return { budgetStatus: 'SELECTED', duplicate: false, scopeImport };
   });
   clearProjectDerivedCaches();
   return result;

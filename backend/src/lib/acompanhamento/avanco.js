@@ -16,6 +16,7 @@
  */
 
 import prisma from '../prisma.js';
+import { consideredPlannedServices } from './proposal-percentage.js';
 import { loadHistoricalRealizedServices } from '../reports/historical-services-store.js';
 import { buildSystemProgress } from './system-progress.js';
 import { systemNameKey } from './project-systems.js';
@@ -541,10 +542,11 @@ export async function computeProgressForProjects(projectIds) {
       orderBy: [{ order: 'asc' }],
       include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
     }),
-    prisma.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, manualProgressPct: true } })
+    prisma.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, manualProgressPct: true, proposalPercentage: true } })
   ]);
 
   const manualById = new Map(projects.map(p => [p.id, p.manualProgressPct != null ? Number(p.manualProgressPct) : null]));
+  const percentageById = new Map(projects.map(project => [project.id, project.proposalPercentage]));
   const byProject = new Map();
   for (const svc of plannedServices) {
     if (!byProject.has(svc.projectId)) byProject.set(svc.projectId, []);
@@ -556,7 +558,7 @@ export async function computeProgressForProjects(projectIds) {
   for (const projectId of projectIds) {
     const services = byProject.get(projectId);
     const scope = services
-      ? buildProgress(services, realized.get(projectId) ?? new Map())
+      ? buildProgress(consideredPlannedServices(services, percentageById.get(projectId)), realized.get(projectId) ?? new Map())
       : { hasScope: false, progressPct: null, services: [] };
     const manual = manualById.get(projectId) ?? null;
     const useManual = scope.progressPct == null && manual != null;
@@ -639,7 +641,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
     }),
     prisma.project.findMany({
       where: { id: { in: projectIds } },
-      select: { id: true, startDate: true, manualProgressPct: true, updatedAt: true }
+      select: { id: true, startDate: true, manualProgressPct: true, updatedAt: true, proposalPercentage: true }
     }),
     loadReportServicesByProject(projectIds),
     prisma.projectManualProgressHistory.findMany({
@@ -666,7 +668,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
   for (const projectId of projectIds) {
     const project = projectById.get(projectId);
     result.set(projectId, buildProgressHistory(
-      plannedByProject.get(projectId) ?? [],
+      consideredPlannedServices(plannedByProject.get(projectId) ?? [], project?.proposalPercentage),
       servicesByProject.get(projectId) ?? [],
       {
         startDate: project?.startDate ?? null,
@@ -701,6 +703,7 @@ export async function computeProgressDetailsForProjects(projectIds) {
         id: true,
         startDate: true,
         manualProgressPct: true,
+        proposalPercentage: true,
         updatedAt: true,
         clientSegment: true,
         mobilizationDate: true,
@@ -733,7 +736,7 @@ export async function computeProgressDetailsForProjects(projectIds) {
   for (const projectId of ids) {
     const project = projectById.get(projectId);
     if (!project) continue;
-    const planned = plannedByProject.get(projectId) ?? [];
+    const planned = consideredPlannedServices(plannedByProject.get(projectId) ?? [], project.proposalPercentage);
     const serviceReports = servicesByProject.get(projectId) ?? [];
     const timeline = buildProgressTimeline(planned, serviceReports);
     const scope = planned.length > 0
@@ -797,14 +800,14 @@ export async function computeDivisionProgressDetails(projectId, division) {
     prisma.project.findUnique({ where: { id: projectId }, select: {
       id: true, startDate: true, clientSegment: true, mobilizationDate: true,
       workdayHours: true, weekendWorkdayHours: true, offshore: true,
-      laborSleepModeByCollaborator: true
+      laborSleepModeByCollaborator: true, proposalPercentage: true
     } }),
     prisma.projectPlannedService.findMany({ where: { projectId }, orderBy: { order: 'asc' },
       include: { systems: { orderBy: { order: 'asc' }, include: { projectSystem: true } } } }),
     loadReportServicesByProject([projectId])
   ]);
   if (!project) throw new Error('Projeto não encontrado.');
-  const plannedServices = selectDivisionPlannedServices(allPlanned, division.key);
+  const plannedServices = consideredPlannedServices(selectDivisionPlannedServices(allPlanned, division.key), project.proposalPercentage);
   const reports = (servicesByProject.get(projectId) ?? []).filter(service => dateInDivision(service.reportDate, division));
   const timeline = buildProgressTimeline(plannedServices, reports);
   const scopeProgress = buildProgress(plannedServices, timeline.realizedByType);
@@ -827,10 +830,10 @@ export async function computeProgressSlicesForProject(projectId) {
   if (!splitPlannedServices(plannedServices)) return null;
 
   const [project, servicesByProject] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId }, select: { startDate: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { startDate: true, proposalPercentage: true } }),
     loadReportServicesByProject([projectId])
   ]);
-  return buildProgressSlices(plannedServices, servicesByProject.get(projectId) ?? [], { startDate: project?.startDate ?? null });
+  return buildProgressSlices(consideredPlannedServices(plannedServices, project?.proposalPercentage), servicesByProject.get(projectId) ?? [], { startDate: project?.startDate ?? null });
 }
 
 // Avanço detalhado de um projeto (endpoint do modal do cronograma).

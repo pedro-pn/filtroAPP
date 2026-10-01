@@ -118,6 +118,9 @@ export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDeta
       <span className={`acp-story-status ${spentPct == null ? 'is-neutral' : spentPct > 100 ? 'is-warning' : 'is-success'}`}>{spentPct == null ? 'Sem orçamento' : spentPct > 100 ? 'Acima do previsto' : 'Dentro do previsto'}</span>
     </div>
     <div className="acp-story-amount"><strong>{brl(actual)}</strong><span>de {brl(planned)} previstos{spentPct != null ? ` · ${pct(spentPct)}` : ''}</span></div>
+    {!data.division && data.consumo.previstoIntegral != null && data.consumo.previstoIntegral !== planned ? (
+      <p className="acp-story-caption">Previsto integral: {brl(data.consumo.previstoIntegral)} · Considerado{data.proposalPercentage != null ? ` (${data.proposalPercentage.toLocaleString('pt-BR')}%)` : ''}: {brl(planned)}</p>
+    ) : null}
     <div className={`acp-story-meter acp-story-meter--large${spentPct != null && spentPct > 100 ? ' is-over' : ''}`} aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, spentPct ?? 0))}%` }} /></div>
     <p className="acp-story-caption">{remaining == null ? 'Custo previsto não informado.' : remaining >= 0 ? `${brl(remaining)} ainda disponíveis no previsto` : `${brl(Math.abs(remaining))} acima do previsto`}</p>
     <div className="acp-story-divider" />

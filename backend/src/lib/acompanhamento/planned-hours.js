@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
+import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 
 export const PLANNED_HOURS_DIVERGENCE_PCT = 10;
 const NORMAL_FIELDS = ['hh_util_diurno', 'hh_util_noturno'];
@@ -30,13 +31,31 @@ export function readCommercialHours(rawRow = {}) {
   return { status: 'AVAILABLE', values, normal, overtime, total };
 }
 
+export function readCommercialAppHours(summary) {
+  const values = summary?.hours;
+  if (!values) return { status: 'MISSING', values: null };
+  const normal = number(values.normal);
+  const overtime = number(values.overtime);
+  const total = number(values.total);
+  if ([normal, overtime, total].some(value => value === null)) {
+    return { status: 'INCOMPLETE', values };
+  }
+  if (Math.abs(round(normal + overtime) - total) > 0.02) {
+    return { status: 'INCONSISTENT', values };
+  }
+  return { status: 'AVAILABLE', values, normal, overtime, total };
+}
+
 const sumHours = rows => round(rows.reduce((sum, row) => sum + (number(row.hours) ?? 0), 0));
 const canonicalRows = rows => rows.map(row => [row.jobRoleId ?? null, row.roleName ?? null, number(row.hours)])
   .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 
-export function resolvePlannedHours({ normalHours = [], overtime = [], sources = [], resolution = null } = {}) {
-  const parsed = sources.map(source => ({ ...source, parsed: readCommercialHours(source.rawRow) }))
-    .sort((a, b) => a.codBd - b.codBd);
+export function resolvePlannedHours({ normalHours = [], overtime = [], sources = [], resolution = null, proposalPercentage = 100 } = {}) {
+  const percentage = validateProposalPercentage(Number(proposalPercentage ?? 100));
+  const parsed = sources.map(source => ({ ...source, parsed: source.source === 'COMERCIAL_APP'
+    ? readCommercialAppHours(source.estimateSummary) : readCommercialHours(source.rawRow) }))
+    .sort((a, b) => a.codBd != null && b.codBd != null
+      ? a.codBd - b.codBd : String(a.externalId ?? a.codBd).localeCompare(String(b.externalId ?? b.codBd)));
   const manual = { normal: sumHours(normalHours), overtime: sumHours(overtime) };
   manual.total = round(manual.normal + manual.overtime);
   const hasManual = normalHours.length > 0 || overtime.length > 0;
@@ -46,7 +65,9 @@ export function resolvePlannedHours({ normalHours = [], overtime = [], sources =
     total: round(sum.total + source.parsed.total)
   }), { normal: 0, overtime: 0, total: 0 }) : null;
   const basis = hash({ policy: 1, threshold: PLANNED_HOURS_DIVERGENCE_PCT,
-    sources: parsed.map(source => [source.codBd, source.codProp, source.nRev, source.parsed.values]),
+    sources: parsed.map(source => source.source === 'COMERCIAL_APP'
+      ? ['COMERCIAL_APP', source.externalId, source.proposalCode, source.revisionNumber, source.parsed.values]
+      : [source.codBd, source.codProp, source.nRev, source.parsed.values]),
     normal: canonicalRows(normalHours), overtime: canonicalRows(overtime) });
   const decision = resolution?.basis === basis ? resolution.choice : null;
   const differences = commercial ? ['normal', 'overtime', 'total'].map(kind => ({
@@ -57,50 +78,78 @@ export function resolvePlannedHours({ normalHours = [], overtime = [], sources =
   const pending = hasManual && differences.some(item => item.significant) && !decision;
   const source = commercial && !pending && decision !== 'MANUAL' ? 'COMMERCIAL' : hasManual ? 'MANUAL' : 'NONE';
   const issues = parsed.flatMap(item => {
-    const label = `Proposta ${item.codProp ?? item.codBd}, rev. ${item.nRev ?? 0}`;
+    const label = item.source === 'COMERCIAL_APP'
+      ? `Proposta ${item.proposalCode}, rev. ${item.revisionNumber}`
+      : `Proposta ${item.codProp ?? item.codBd}, rev. ${item.nRev ?? 0}`;
     if (item.parsed.status === 'INCONSISTENT') return [`${label}: o total de horas difere da soma dos componentes.`];
     if (item.parsed.status === 'INCOMPLETE') return [`${label}: falta o detalhamento de horas normais e extras.`];
     if (item.parsed.status === 'MISSING' && parsed.some(s => s.parsed.status !== 'MISSING')) return [`${label}: sem horas previstas. O conjunto de propostas está incompleto.`];
     return [];
   });
+  const fullNormalHours = source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.normal, collaboratorCount: 1 }] : normalHours;
+  const fullOvertime = source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.overtime, collaboratorCount: 1 }] : overtime;
+  const consideredRows = rows => percentage === 100 ? rows : rows.map(row => ({ ...row, hours: scaleProposalValue(row.hours, percentage) }));
   return {
-    normalHours: source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.normal, collaboratorCount: 1 }] : normalHours,
-    overtime: source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.overtime, collaboratorCount: 1 }] : overtime,
+    fullNormalHours,
+    fullOvertime,
+    normalHours: consideredRows(fullNormalHours),
+    overtime: consideredRows(fullOvertime),
     hoursPlan: {
+      proposalPercentage: percentage,
       source, pending, thresholdPct: PLANNED_HOURS_DIVERGENCE_PCT, manual: hasManual ? manual : null, commercial,
       differences: hasManual ? differences : [], issues, decision,
       resolvedAt: decision ? resolution.resolvedAt : null,
       fingerprint: hash({ basis, resolution }),
-      proposals: parsed.map(item => ({ codBd: item.codBd, codProp: item.codProp, nRev: item.nRev, status: item.parsed.status }))
+      proposals: parsed.map(item => item.source === 'COMERCIAL_APP'
+        ? { source: 'COMERCIAL_APP', proposalCode: item.proposalCode, nRev: item.revisionNumber,
+          status: item.parsed.status }
+        : { codBd: item.codBd, codProp: item.codProp, nRev: item.nRev, status: item.parsed.status })
     },
     basis
   };
 }
 
-// Two bounded queries for all requested projects; used by the schedule, cards and
-// detail so a newly imported proposal changes every view without copying over manual rows.
+// Aggregate selected proposal queries for all requested projects; used by the schedule,
+// cards and detail without copying over manual rows.
 export async function loadPlannedHours(projectIds, client = prisma) {
   if (!projectIds.length) return new Map();
   const projects = await client.project.findMany({
     where: { id: { in: projectIds }, deletedAt: null },
     select: {
-      id: true, plannedHoursResolution: true,
+      id: true, plannedHoursResolution: true, proposalPercentage: true,
       plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
-      budgets: { where: { version: 1 }, select: { sourceProposalCodBd: true } },
+      budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
       additionalProposals: { select: { sourceProposalCodBd: true } }
     }
   });
-  const selections = project => [...new Set([...project.budgets, ...project.additionalProposals].map(row => row.sourceProposalCodBd).filter(Number.isInteger))];
-  const codBds = [...new Set(projects.flatMap(selections))];
+  const accessSelections = project => project.budgets[0]?.source === 'COMERCIAL_APP' ? []
+    : [...new Set([...project.budgets, ...project.additionalProposals].map(row => row.sourceProposalCodBd).filter(Number.isInteger))];
+  const codBds = [...new Set(projects.flatMap(accessSelections))];
+  const appIds = [...new Set(projects.map(project => project.budgets[0])
+    .filter(budget => budget?.source === 'COMERCIAL_APP')
+    .map(budget => budget.commercialAppProposalId).filter(Boolean))];
   const proposals = codBds.length ? await client.commercialProposal.findMany({
     where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
   }) : [];
+  const appProposals = appIds.length ? await client.commercialAppProposal.findMany({
+    where: { externalId: { in: appIds } },
+    select: { externalId: true, proposalCode: true, revisionNumber: true, snapshot: true }
+  }) : [];
   const byCodBd = new Map(proposals.map(row => [row.codBd, row]));
+  const byAppId = new Map(appProposals.map(row => [row.externalId, row]));
   const hoursRow = row => ({ ...row, roleName: row.roleName ?? row.jobRole?.name ?? null });
   return new Map(projects.map(project => [project.id, resolvePlannedHours({
     normalHours: project.plannedNormalHours.map(hoursRow), overtime: project.plannedOvertime.map(hoursRow),
-    sources: selections(project).map(codBd => byCodBd.get(codBd) ?? { codBd }), resolution: project.plannedHoursResolution
+    sources: project.budgets[0]?.source === 'COMERCIAL_APP'
+      ? [byAppId.get(project.budgets[0].commercialAppProposalId) ?? {
+        externalId: project.budgets[0].commercialAppProposalId, proposalCode: project.budgets[0].commercialAppProposalId,
+        revisionNumber: 0
+      }].map(proposal => ({ source: 'COMERCIAL_APP', ...proposal,
+        estimateSummary: proposal.snapshot?.estimateSummary }))
+      : accessSelections(project).map(codBd => byCodBd.get(codBd) ?? { codBd }),
+    resolution: project.plannedHoursResolution,
+    proposalPercentage: project.proposalPercentage
   })]));
 }
 

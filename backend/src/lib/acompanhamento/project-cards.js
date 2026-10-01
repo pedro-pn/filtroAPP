@@ -41,7 +41,7 @@ function dateKey(date) {
 function addCalendarDays(startDate, days) {
   const d = new Date(startDate);
   if (Number.isNaN(d.getTime())) return null;
-  d.setDate(d.getDate() + days);
+  d.setTime(d.getTime() + days * 86400000);
   return d.toISOString();
 }
 
@@ -61,7 +61,8 @@ export function buildWorkedHoursProgress({
   normalWorkedMinutes = 0,
   overtimeWorkedMinutes = 0,
   plannedNormalHours = 0,
-  plannedOvertimeHours = 0
+  plannedOvertimeHours = 0,
+  hasExplicitPlan = false
 } = {}) {
   const normalWorkedHours = toHours(normalWorkedMinutes);
   const overtimeWorkedHours = toHours(overtimeWorkedMinutes);
@@ -69,7 +70,8 @@ export function buildWorkedHoursProgress({
   const plannedNormal = Math.max(0, toNum(plannedNormalHours) ?? 0);
   const plannedOvertime = Math.max(0, toNum(plannedOvertimeHours) ?? 0);
   const plannedTotalHours = plannedNormal + plannedOvertime;
-  const hasPlan = plannedTotalHours > 0;
+  const hasPositivePlan = plannedTotalHours > 0;
+  const hasPlan = hasPositivePlan || hasExplicitPlan;
 
   return {
     normalWorkedHours,
@@ -78,9 +80,9 @@ export function buildWorkedHoursProgress({
     plannedNormalHours: plannedNormal,
     plannedOvertimeHours: plannedOvertime,
     plannedTotalHours: hasPlan ? plannedTotalHours : null,
-    normalPct: hasPlan ? Math.round((normalWorkedHours / plannedTotalHours) * 100) : null,
-    overtimePct: hasPlan ? Math.round((overtimeWorkedHours / plannedTotalHours) * 100) : null,
-    totalPct: hasPlan ? Math.round((totalWorkedHours / plannedTotalHours) * 100) : null
+    normalPct: hasPositivePlan ? Math.round((normalWorkedHours / plannedTotalHours) * 100) : null,
+    overtimePct: hasPositivePlan ? Math.round((overtimeWorkedHours / plannedTotalHours) * 100) : null,
+    totalPct: hasPositivePlan ? Math.round((totalWorkedHours / plannedTotalHours) * 100) : null
   };
 }
 
@@ -264,6 +266,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
     const workedHours = buildWorkedHoursProgress({
       normalWorkedMinutes: a.normalWorkedMinutes,
       overtimeWorkedMinutes: a.overtimeWorkedMinutes,
+      hasExplicitPlan: Boolean(hours && hours.hoursPlan.source !== 'NONE'),
       plannedNormalHours: hours?.normalHours.reduce((sum, item) => sum + Number(item.hours), 0) ?? 0,
       plannedOvertimeHours: hours?.overtime.reduce((sum, item) => sum + Number(item.hours), 0) ?? 0
     });
@@ -298,6 +301,8 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       progressMethod: row.progressMethod ?? null,
       progressWeight: row.progressWeight ?? null,
       plannedCost,
+      fullPlannedCost: toNum(row.fullPlannedTotalCost ?? row.plannedTotalCost),
+      proposalPercentage: row.proposalPercentage ?? 100,
       originalPlannedCost: toNum(row.originalPlannedTotalCost),
       additionalPlannedCost: toNum(row.additionalPlannedTotalCost),
       originalSalePrice: toNum(row.originalSalePrice),

@@ -92,6 +92,9 @@ function memberSummary(member, detail) {
     clientName: detail?.header?.clientName ?? project.clientName ?? '',
     clientCnpj: detail?.header?.clientCnpj ?? project.clientCnpj ?? '',
     progressPct: detail?.avancoPct ?? null,
+    plannedCost: detail?.consumo?.previsto ?? null,
+    fullPlannedCost: detail?.consumo?.previstoIntegral ?? detail?.consumo?.previsto ?? null,
+    proposalPercentage: detail?.consumo?.percentualPrevisto ?? 100,
     order: member.order ?? 0,
     visible: Boolean(detail)
   };
@@ -131,15 +134,15 @@ function combineWorkedHours(details) {
   const plannedNormalHours = sumValues(details, item => item.detail.workedHours?.plannedNormalHours, { nullWhenEmpty: false });
   const plannedOvertimeHours = sumValues(details, item => item.detail.workedHours?.plannedOvertimeHours, { nullWhenEmpty: false });
   const totalWorkedHours = round1(normalWorkedHours + overtimeWorkedHours);
-  const plannedTotalHours = round1(plannedNormalHours + plannedOvertimeHours);
+  const plannedTotalHours = round2(plannedNormalHours + plannedOvertimeHours);
 
   return {
     normalWorkedHours: round1(normalWorkedHours),
     overtimeWorkedHours: round1(overtimeWorkedHours),
     totalWorkedHours,
-    plannedNormalHours: round1(plannedNormalHours),
-    plannedOvertimeHours: round1(plannedOvertimeHours),
-    plannedTotalHours: plannedTotalHours > 0 ? plannedTotalHours : null,
+    plannedNormalHours: round2(plannedNormalHours),
+    plannedOvertimeHours: round2(plannedOvertimeHours),
+    plannedTotalHours: details.some(item => item.detail.workedHours?.plannedTotalHours != null) ? plannedTotalHours : null,
     normalPct: plannedTotalHours > 0 ? Math.round((normalWorkedHours / plannedTotalHours) * 100) : null,
     overtimePct: plannedTotalHours > 0 ? Math.round((overtimeWorkedHours / plannedTotalHours) * 100) : null,
     totalPct: plannedTotalHours > 0 ? Math.round((totalWorkedHours / plannedTotalHours) * 100) : null,
@@ -233,6 +236,7 @@ function combineCollaborators(details) {
         currentDay.horasNormais += toNumber(day.horasNormais) ?? 0;
         currentDay.horasExtras += toNumber(day.horasExtras) ?? 0;
         currentDay.emViagem = currentDay.emViagem || Boolean(day.emViagem);
+        if (day.semAtividade) currentDay.semAtividade = true;
         for (const rdo of day.rdos ?? []) {
           const rdoKey = `${rdo?.projetoId || ''}:${rdo?.numero ?? 'sem-numero'}`;
           currentDay.rdos.set(rdoKey, rdo);
@@ -434,6 +438,7 @@ export function groupProjectDetails(group, memberDetails = []) {
     progressPct: detail.avancoPct,
     progressWeight: progressContributionWeightSafe(progress),
     plannedCost: detail.consumo?.previsto,
+    fullPlannedCost: detail.consumo?.previstoIntegral,
     salePrice: detail.faturamento?.previsto
   })));
   const progress = groupedScopeProgress?.progressPct !== null && groupedScopeProgress?.progressPct !== undefined
@@ -476,6 +481,9 @@ export function groupProjectDetails(group, memberDetails = []) {
       planned: plannedWorkedDays,
       pct: ratioPct(workedDays, plannedWorkedDays)
     },
+    proposalPercentage: null,
+    fullPlannedDays: sumValues(details, item => item.detail.fullPlannedDays ?? item.detail.diasCorridos?.planned),
+    fullWorkedDays: sumValues(details, item => item.detail.fullWorkedDays ?? item.detail.diasTrabalhados?.planned),
     consumo: {
       gasto,
       omie: sumValues(details, item => item.detail.consumo?.omie, { nullWhenEmpty: false }),
@@ -484,12 +492,15 @@ export function groupProjectDetails(group, memberDetails = []) {
       estoque: sumValues(details, item => item.detail.consumo?.estoque, { nullWhenEmpty: false }),
       manual: sumValues(details, item => item.detail.consumo?.manual, { nullWhenEmpty: false }),
       previsto,
+      previstoIntegral: sumValues(details, item => item.detail.consumo?.previstoIntegral ?? item.detail.consumo?.previsto),
+      percentualPrevisto: null,
       previstoOriginal: sumValues(details, item => item.detail.consumo?.previstoOriginal),
       previstoAdicional: sumValues(details, item => item.detail.consumo?.previstoAdicional),
       pct: ratioPct(gasto, previsto)
     },
     faturamento: {
       previsto: sumValues(details, item => item.detail.faturamento?.previsto),
+      previstoIntegral: sumValues(details, item => item.detail.faturamento?.previstoIntegral ?? item.detail.faturamento?.previsto),
       previstoOriginal: sumValues(details, item => item.detail.faturamento?.previstoOriginal),
       previstoAdicional: sumValues(details, item => item.detail.faturamento?.previstoAdicional),
       realizado: sumValues(details, item => item.detail.faturamento?.realizado),
@@ -526,6 +537,7 @@ export function groupProjectDetails(group, memberDetails = []) {
       progressHistory: detail.progressHistory,
       progressWeight: progressContributionWeightSafe(progress),
       plannedCost: detail.consumo?.previsto,
+      fullPlannedCost: detail.consumo?.previstoIntegral,
       salePrice: detail.faturamento?.previsto
     }))),
     dailyProgressHistory: combineDailyProgressHistory(details),

@@ -19,7 +19,7 @@ import { importCommercialAccess, listCommercialDashboard, listCommercialPendenci
 import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acompanhamento/manual-costs.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
 import { resolvePlannedHoursDecision } from '../../lib/acompanhamento/planned-hours.js';
-import { computeProjectProgress, computeDivisionProgressDetails } from '../../lib/acompanhamento/avanco.js';
+import { computeProjectProgress, computeDivisionProgressDetails, computeProgressHistoryForProjects } from '../../lib/acompanhamento/avanco.js';
 import { listRealizedCorrections, saveRealizedCorrection } from '../../lib/acompanhamento/realized-corrections-store.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
@@ -31,6 +31,7 @@ import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
+import { listWeeklyProgressTargets, saveWeeklyProgressTarget } from '../../lib/acompanhamento/weekly-progress-targets.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { getMissionGroupDetail } from '../../lib/acompanhamento/project-detail-groups.js';
 import { createMissionGroup, dissolveMissionGroup, listMissionGroups, loadActiveMissionGroups, MissionGroupError, updateMissionGroup } from '../../lib/acompanhamento/mission-groups.js';
@@ -51,6 +52,23 @@ import {
 } from '../../lib/acompanhamento/comercialapp-bridge.js';
 
 const router = Router();
+
+for (const [path, ownerKey, param] of [
+  ['/projetos/:projectId/metas-semanais', 'projectId', 'projectId'],
+  ['/grupos-missoes/:groupId/metas-semanais', 'groupId', 'groupId']
+]) {
+  router.get(path, requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+    const targets = await listWeeklyProgressTargets({ [ownerKey]: req.params[param] });
+    const progressHistory = ownerKey === 'projectId' && req.query.history === 'true'
+      ? (await computeProgressHistoryForProjects([req.params[param]])).get(req.params[param]) ?? [] : undefined;
+    res.json({ targets, ...(progressHistory ? { progressHistory } : {}) });
+  }));
+  router.put(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+    res.json(await saveWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {
+      userId: req.auth.user.id, userName: req.auth.user.name
+    }));
+  }));
+}
 
 function requireComercialAppToken(req, res, next) {
   const expected = env.comercialAppServiceToken;
@@ -666,6 +684,8 @@ const scheduleSchema = z.object({
   mobilizationDate: z.string().datetime().nullable().optional(),
   demobilizationDate: z.string().datetime().nullable().optional(),
   manualProgressPct: z.number().min(0).max(100).nullable().optional(),
+  proposalPercentage: z.number().min(0).max(100)
+    .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, 'Use no máximo duas casas decimais.').optional(),
   offshore: z.boolean().optional(),
   laborSleepModeByCollaborator: z.record(z.enum(['HOME', 'AWAY'])).optional(),
   laborCollaboratorIds: z.array(z.string()).optional()
@@ -687,6 +707,8 @@ router.patch(
   '/projetos/:projectId/cronograma',
   requireAuth,
   requireAcompanhamentoAccess,
+  (req, res, next) => Object.hasOwn(req.body ?? {}, 'proposalPercentage')
+    ? requireAcompanhamentoManager(req, res, next) : next(),
   asyncHandler(async (req, res) => {
     const data = scheduleSchema.parse(req.body);
     try {
@@ -694,7 +716,7 @@ router.patch(
       clearProjectDerivedCaches();
       res.json({ ok: true });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(error.code === 'P2025' ? 404 : 400).json({ error: error.code === 'P2025' ? 'Projeto não encontrado.' : error.message });
     }
   })
 );
@@ -763,10 +785,11 @@ const plannedHoursSchema = z.object({
 });
 
 const plannedScopeSchema = z.object({
-  services: z.array(plannedServiceSchema).max(50).default([]),
+  services: z.array(plannedServiceSchema).max(50).optional(),
   normalHours: z.array(plannedHoursSchema).max(50).optional(),
   overtime: z.array(plannedHoursSchema).max(50).optional(),
-  hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional()
+  hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  commercialScopeFingerprint: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional()
 });
 
 router.get(
