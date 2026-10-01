@@ -989,6 +989,7 @@ model Project {
   realizedCorrections        ProjectRealizedCorrection[]
   manualCosts                ProjectManualCost[]
   managementNotes            ProjectManagementNote[]
+  weeklyProgressTargets      MissionWeeklyProgressTarget[]
   additionalProposals        ProjectAdditionalProposal[]
   acompanhamentoGroupMembers AcompanhamentoMissionGroupMember[]
   primaryLaborMissionGroups  AcompanhamentoMissionGroup[]       @relation("AcompanhamentoMissionGroupPrimaryLaborProject")
@@ -1744,12 +1745,32 @@ model AcompanhamentoMissionGroup {
   createdBy             User?                              @relation("AcompanhamentoMissionGroupCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   dissolvedBy           User?                              @relation("AcompanhamentoMissionGroupDissolvedBy", fields: [dissolvedByUserId], references: [id], onDelete: SetNull)
   members               AcompanhamentoMissionGroupMember[]
+  weeklyProgressTargets MissionWeeklyProgressTarget[]
 
   @@index([status, createdAt])
   @@index([laborAllocationMode])
   @@index([primaryLaborProjectId])
   @@index([createdByUserId])
   @@index([dissolvedByUserId])
+}
+
+model MissionWeeklyProgressTarget {
+  id               String   @id @default(cuid())
+  projectId        String?
+  groupId          String?
+  weekStartDate    DateTime @db.Date
+  plannedPctPoints Decimal  @db.Decimal(5, 2)
+  revision         Int      @default(1)
+  createdByUserId  String?
+  createdByName    String
+  createdAt        DateTime @default(now())
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group            AcompanhamentoMissionGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy        User?    @relation("MissionWeeklyProgressTargetCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, weekStartDate, revision], map: "MissionWeeklyProgressTarget_project_week_revision_key")
+  @@unique([groupId, weekStartDate, revision], map: "MissionWeeklyProgressTarget_group_week_revision_key")
+  @@index([createdByUserId])
 }
 
 model AcompanhamentoMissionGroupMember {
@@ -2576,6 +2597,7 @@ model User {
   stockMovements                       StockMovement[]                     @relation("StockMovementCreator")
   projectManualCosts                   ProjectManualCost[]                 @relation("ProjectManualCostCreator")
   projectManagementNotes               ProjectManagementNote[]             @relation("ProjectManagementNoteCreator")
+  weeklyProgressTargets                MissionWeeklyProgressTarget[]       @relation("MissionWeeklyProgressTargetCreator")
   ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
   plannedProjectWorkflows              ProjectWorkflow[]                    @relation("ProjectWorkflowPlanner")
   closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")

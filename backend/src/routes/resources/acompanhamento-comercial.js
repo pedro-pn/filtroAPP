@@ -19,7 +19,7 @@ import { importCommercialAccess, listCommercialDashboard, listCommercialPendenci
 import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acompanhamento/manual-costs.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
 import { resolvePlannedHoursDecision } from '../../lib/acompanhamento/planned-hours.js';
-import { computeProjectProgress, computeDivisionProgressDetails } from '../../lib/acompanhamento/avanco.js';
+import { computeProjectProgress, computeDivisionProgressDetails, computeProgressHistoryForProjects } from '../../lib/acompanhamento/avanco.js';
 import { listRealizedCorrections, saveRealizedCorrection } from '../../lib/acompanhamento/realized-corrections-store.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
@@ -30,6 +30,7 @@ import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
+import { listWeeklyProgressTargets, saveWeeklyProgressTarget } from '../../lib/acompanhamento/weekly-progress-targets.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { getMissionGroupDetail } from '../../lib/acompanhamento/project-detail-groups.js';
 import { createMissionGroup, dissolveMissionGroup, listMissionGroups, loadActiveMissionGroups, MissionGroupError, updateMissionGroup } from '../../lib/acompanhamento/mission-groups.js';
@@ -50,6 +51,23 @@ import {
 } from '../../lib/acompanhamento/comercialapp-bridge.js';
 
 const router = Router();
+
+for (const [path, ownerKey, param] of [
+  ['/projetos/:projectId/metas-semanais', 'projectId', 'projectId'],
+  ['/grupos-missoes/:groupId/metas-semanais', 'groupId', 'groupId']
+]) {
+  router.get(path, requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+    const targets = await listWeeklyProgressTargets({ [ownerKey]: req.params[param] });
+    const progressHistory = ownerKey === 'projectId' && req.query.history === 'true'
+      ? (await computeProgressHistoryForProjects([req.params[param]])).get(req.params[param]) ?? [] : undefined;
+    res.json({ targets, ...(progressHistory ? { progressHistory } : {}) });
+  }));
+  router.put(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+    res.json(await saveWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {
+      userId: req.auth.user.id, userName: req.auth.user.name
+    }));
+  }));
+}
 
 function requireComercialAppToken(req, res, next) {
   const expected = env.comercialAppServiceToken;

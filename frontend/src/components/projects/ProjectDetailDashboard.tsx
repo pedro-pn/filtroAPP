@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
+import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
@@ -1366,6 +1367,12 @@ export function ProjectDetailDashboard({
           <div className="page-card acp-det-block">
             <div className="acp-det-sub"><HelpTip help="Escopo vendido informado manualmente (aba Cronograma): serviços, sistemas e quantitativos, com o peso de cada serviço no avanço.">Escopo cadastrado</HelpTip></div>
             <PlannedScopeView scope={effectiveScope} />
+            {projectId || groupId ? <MissionWeeklyProgressPanel
+              key={groupId || projectId}
+              owner={groupId ? { area: 'acompanhamento', groupId } : { area: 'acompanhamento', projectId: projectId! }}
+              progressHistory={activeDivisionKey ? undefined : data.progressHistory ?? []}
+              canManage={canManageProjectNotes}
+            /> : null}
             {(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
               <div className="acp-mission-reports-action">
                 <ProjectReportsDialog

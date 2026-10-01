@@ -1,0 +1,23 @@
+.mission-weekly-progress { border: 1px solid var(--br); border-radius: 10px; display: grid; gap: 12px; margin-top: 14px; min-width: 0; padding: 14px; }
+.mission-weekly-progress-head { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.mission-weekly-progress-hint { color: var(--mu); font-size: 12px; line-height: 1.5; margin: 0; }
+.mission-weekly-progress-current { background: var(--bg); border-radius: 8px; display: grid; gap: 8px; padding: 12px; }
+.mission-weekly-progress-current > span:first-child { color: var(--mu); font-size: 12px; }
+.mission-weekly-progress-current dl { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.mission-weekly-progress-current dt { color: var(--mu); font-size: 12px; }
+.mission-weekly-progress-current dd { font-size: 16px; font-weight: 700; margin: 3px 0 0; }
+.mission-weekly-progress-form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.mission-weekly-progress-actions { align-items: end; display: flex; flex-wrap: wrap; gap: 8px; }
+.mission-weekly-progress-table { max-height: 420px; min-width: 0; overflow-y: auto; }
+.mission-weekly-progress-table table { border-collapse: collapse; font-size: 12px; table-layout: fixed; width: 100%; }
+.mission-weekly-progress-table th, .mission-weekly-progress-table td { border-bottom: 1px solid var(--br); overflow-wrap: anywhere; padding: 10px 4px; text-align: left; vertical-align: top; }
+.mission-weekly-progress-table thead th { background: var(--bg); position: sticky; top: 0; z-index: 1; }
+.mission-weekly-progress-table small { color: var(--mu); display: block; font-size: 11px; font-weight: 400; margin-top: 4px; }
+.mission-weekly-progress-table summary { cursor: pointer; margin-top: 6px; }
+.mission-weekly-progress-table ul { display: grid; gap: 8px; margin: 8px 0; padding-left: 16px; }
+.mission-weekly-progress-table button { font-size: inherit; max-width: 100%; min-width: 0; overflow-wrap: anywhere; padding: 4px; white-space: normal; }
+.mission-weekly-status { border: 1px solid currentColor; border-radius: 5px; display: inline-block; font-size: 11px; justify-self: start; max-width: 100%; padding: 3px 6px; }
+.mission-weekly-status.status-on_target { color: var(--gn, #16804a); }
+.mission-weekly-status.status-above { color: var(--ac, #1c70ba); }
+.mission-weekly-status.status-below { color: var(--rd, #c43838); }
+.mission-weekly-status.status-no_target, .mission-weekly-status.status-no_data, .mission-weekly-status.status-planned { color: var(--mu); }
