@@ -162,8 +162,8 @@ Todas as fases devem preservar os seguintes contratos:
 | Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
-| Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado pendente |
-| Administração e EPI | Visibilidade de categorias Omie, cargo operacional e cargo temporário de EPI | Ajustes localizados pendentes |
+| Qualidade | Registros internos/SGQ no formulário de registros | Ajuste localizado concluído em F5 |
+| Administração e EPI | Visibilidade de categorias Omie, cargo operacional e cargo temporário de EPI | Ajustes localizados concluídos em F5 |
 | Onboarding | Tutoriais e campanhas de Efetivo, Assinaturas, QR, standby e controles operacionais | Auditoria visual e mobile pendente |
 
 ## Auditoria de fechamento do RDO — 04/09/2026
@@ -1138,12 +1138,12 @@ estivessem por fazer. Os deltas de 11/09 e 25/09 acrescentaram:
 
 - [x] **X1:** criação/cópia de link em contas e página pública de criar/redefinir
   senha, inclusive expiração, uso único, reenvio e retorno ao login.
-- [ ] **X2:** permissões de emissão, Hub/tours, rascunhos, fallback não autorizado,
+- [x] **X2:** permissões de emissão, Hub/tours, rascunhos, fallback não autorizado,
   anexos com restauração, confirmações com conteúdo filho, busca e loading;
   regressão dos consumidores DS/legados sem retomar Efetivo.
 - [x] **X3:** liberação individual e revogação de relatórios de serviço, assinatura
   física com PDF e estados correspondentes em Gestor, Detalhe e Cliente.
-- [ ] Ajustes de Qualidade/EPI/Admin previamente inventariados, independentes do RDO.
+- [x] Ajustes de Qualidade/EPI/Admin previamente inventariados, independentes do RDO.
 
 X1 concluído em 01/10/2026: Contas e Gestão do RDO compartilham o card DS de
 link manual, com aviso de uso único/validade, campo selecionável e ação de cópia.
@@ -1152,6 +1152,22 @@ botões e alertas do DS, com logo adaptado ao tema. Foram conferidos link válid
 expirado, reenvio, erro de confirmação e sucesso com API simulada; claro/escuro
 em 390 e 1280 px, sem rolagem horizontal. Autenticação, validade do token,
 redirecionamento e chamadas da API não foram alterados.
+
+X2 e os ajustes localizados de F5 concluídos em 01/10/2026: a seleção do editor
+agora respeita o tipo solicitado; um link para relatório sem permissão mostra
+"Emissão não autorizada" em vez de abrir outro editor. As permissões independentes
+de RDO, manutenção e produção ganharam cartões compactos no formulário de contas.
+O formulário de Qualidade explicita se o registro irá para Interno/SGQ ou para
+uma obra, e o perfil de EPI distingue o cargo específico do cargo sincronizado.
+A visibilidade das categorias Omie já usava controles DS, tabela responsiva e
+restrição a administradores; foi conferida sem alteração de contrato.
+
+Passaram 53 testes focais de permissões, rascunhos, Hub, confirmações, anexos,
+busca, Qualidade e Omie, além do fluxo de busca concorrente em navegador. O
+build e o lint passaram (um aviso preexistente em `ScenariosBoard`). Em 360,
+390, 768 e 1280 px, os novos controles não criaram rolagem horizontal. A suíte
+geral terminou com 653/664 testes passando; as 11 falhas restantes são
+asserções de outras superfícies migradas anteriormente e entram na limpeza de F6.
 
 #### F5.1 — Administração: API/Tokens
 
@@ -1215,9 +1231,8 @@ Prioridade: P2, após F2–F5, incluindo EQ1–EQ3, M1–M5, API1–API4 e X1–
 
 Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
 
-1. **X2 + F5**: bordas de permissões e componentes compartilhados, seguidas dos
-   ajustes localizados de Qualidade, EPI e Administração. API1–API4 e X1 estão concluídos.
-2. **F6**: regressão visual final, acessibilidade, retirada de legado e WebKit.
+1. **F6**: regressão visual final, acessibilidade, retirada de legado, reconciliação
+   de asserções antigas e WebKit. X2, F5, API1–API4 e X1 estão concluídos.
 
 Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
 lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)

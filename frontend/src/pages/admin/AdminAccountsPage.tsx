@@ -57,10 +57,11 @@ const emptyForm: AccountFormState = {
 const reportPermissionOptions: Array<{
   value: ReportEmissionPermission;
   label: string;
+  description: string;
 }> = [
-  { value: 'SITE_RDO', label: 'Emitir RDO de obra' },
-  { value: 'MAINTENANCE', label: 'Acessar manutenção e emitir relatórios' },
-  { value: 'PRODUCTION', label: 'Acessar produção e emitir relatórios' }
+  { value: 'SITE_RDO', label: 'RDO de obra', description: 'Criar relatórios de serviço em obras.' },
+  { value: 'MAINTENANCE', label: 'Manutenção', description: 'Acessar o módulo e emitir relatórios de manutenção.' },
+  { value: 'PRODUCTION', label: 'Produção', description: 'Acessar o módulo e emitir relatórios de produção.' }
 ];
 
 const INTERNAL_RDO_ROLES: ModuleRole[] = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
@@ -472,11 +473,11 @@ export function AdminAccountsPage() {
             </div>
           ) : null}
           {!isEditingClient && form.accountType !== 'CLIENT' ? (
-            <div className="field-group field-group-wide">
+            <div className="field-group field-group-wide admin-report-permissions">
               <label>Emissão de relatórios</label>
-              <div className="admin-role-grid">
+              <div className="admin-role-grid admin-report-permissions__grid">
                 {reportPermissionOptions.map(option => (
-                  <label className="admin-role-option" key={option.value}>
+                  <label className="admin-role-option admin-report-permissions__option" key={option.value}>
                     <input
                       type="checkbox"
                       checked={impliedReportPermission(form, option.value) || form.reportEmissionPermissions.includes(option.value)}
@@ -484,13 +485,14 @@ export function AdminAccountsPage() {
                       onChange={() => toggleReportPermission(option.value)}
                     />
                     <span>
-                      {option.label}
-                      {impliedReportPermission(form, option.value) ? ' (incluída no papel RDO)' : ''}
+                      <strong>{option.label}</strong>
+                      <small>{option.description}</small>
+                      {impliedReportPermission(form, option.value) ? <small className="admin-report-permissions__inherited">Incluída pelo papel RDO</small> : null}
                     </span>
                   </label>
                 ))}
               </div>
-              <div className="form-hint">Sem seleção, a conta não poderá criar relatórios.</div>
+              <div className="form-hint">As permissões são independentes. Sem nenhuma delas, a conta não poderá criar relatórios.</div>
             </div>
           ) : null}
           <div className="admin-form-actions">

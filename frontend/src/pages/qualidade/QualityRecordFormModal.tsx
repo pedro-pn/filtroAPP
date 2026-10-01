@@ -228,6 +228,8 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
   const recordType = watch('type');
   const isDeviation = recordType === 'DESVIO';
   const disposition = watch('disposition');
+  const selectedProjectId = watch('projectId');
+  const selectedProject = projects.find(project => project.id === selectedProjectId);
 
   useEffect(() => {
     if (!open) return;
@@ -365,14 +367,20 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
             {errors.eventDate ? <small className="field-error">{errors.eventDate.message}</small> : null}
           </div>
 
-          <div className={fieldClass(errors, 'projectId')}>
+          <div className={fieldClass(errors, 'projectId', 'quality-destination-field')}>
             <label htmlFor="quality-project">Obra/Projeto</label>
-            <select id="quality-project" disabled={saving} aria-invalid={Boolean(errors.projectId) || undefined} {...register('projectId')}>
+            <select id="quality-project" disabled={saving} aria-invalid={Boolean(errors.projectId) || undefined} aria-describedby="quality-destination-hint" {...register('projectId')}>
               <option value="">Interno/SGQ</option>
               {projects.map(project => (
                 <option key={project.id} value={project.id}>{project.code} - {project.name}</option>
               ))}
             </select>
+            <div className="quality-destination-preview" id="quality-destination-hint" aria-live="polite">
+              <span className="quality-destination-preview__tag">{selectedProjectId ? 'Obra' : 'Interno / SGQ'}</span>
+              <span>{selectedProjectId
+                ? selectedProject ? `Registro vinculado a ${selectedProject.code} - ${selectedProject.name}.` : 'Registro vinculado à obra selecionada.'
+                : 'Registro interno de qualidade, sem vínculo com uma obra.'}</span>
+            </div>
             {errors.projectId ? <small className="field-error">{errors.projectId.message}</small> : null}
           </div>
 

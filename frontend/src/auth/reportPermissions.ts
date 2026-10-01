@@ -40,6 +40,17 @@ export function resolveSiteReportSelection(
   return permissions.includes('SITE_RDO') ? 'obra' : null;
 }
 
+export function resolveAuthorizedReportSelection(
+  permissions: ReportEmissionPermission[],
+  requested: string | null
+): ReportSelection | null {
+  if (!requested) return resolveSiteReportSelection(permissions);
+  const selection = normalizeReportSelection(requested);
+  return selection && canAccessReportSelection(permissions, selection)
+    ? selection
+    : null;
+}
+
 export function canAccessOperationalModule(
   permissions: ReportEmissionPermission[]
 ) {

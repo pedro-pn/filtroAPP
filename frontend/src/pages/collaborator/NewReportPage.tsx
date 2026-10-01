@@ -58,7 +58,7 @@ import { hubModulesForUser } from '../hubModules';
 import { formatMinutes } from './newReportFormatting';
 import './NewReportPage.css';
 import { calculateReportOvertimeSummary } from '../../utils/reportOvertime';
-import { canAccessReportSelection, normalizeReportSelection, resolveSiteReportSelection } from '../../auth/reportPermissions';
+import { resolveAuthorizedReportSelection } from '../../auth/reportPermissions';
 import { OperationalReportFormPage } from './OperationalReportFormPage';
 
 const TEXT = {
@@ -123,17 +123,11 @@ export function NewReportPage() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const permissions = user?.reportEmissionPermissions || [];
-  const requested = searchParams.get('tipo');
-  const requestedSelection = normalizeReportSelection(requested);
-  const operationalSelection = requestedSelection && requestedSelection !== 'obra'
-    && canAccessReportSelection(permissions, requestedSelection)
-      ? requestedSelection
-      : null;
-  const selection = resolveSiteReportSelection(permissions);
+  const selection = resolveAuthorizedReportSelection(permissions, searchParams.get('tipo'));
 
   if (!user) return null;
-  if (operationalSelection) {
-    return <OperationalReportFormPage mode={operationalSelection} />;
+  if (selection && selection !== 'obra') {
+    return <OperationalReportFormPage mode={selection} />;
   }
   if (selection === 'obra') return <SiteRdoFormPage />;
 

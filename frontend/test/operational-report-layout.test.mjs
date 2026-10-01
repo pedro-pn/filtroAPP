@@ -68,7 +68,7 @@ test('RDO e relatórios operacionais compartilham cálculos e usam controles DS'
     assert.match(page, /calculateReportOvertimeSummary/);
     for (const field of ['reportDate', 'arrivalTime', 'departureTime', 'lunchBreak', 'collaboratorIds']) assert.ok(page.includes(field), field);
   }
-  assert.match(rdo, /<OperationalReportFormPage mode=\{operationalSelection\}/);
+  assert.match(rdo, /<OperationalReportFormPage mode=\{selection\}/);
   assert.match(operational, /<OperationalModuleAppShell/);
   for (const component of ['Card', 'Field', 'Input', 'Select', 'Button']) assert.match(operational, new RegExp(`<${component}\\b`));
 });
@@ -198,7 +198,7 @@ test('categoria controla sua presença em todas as áreas de manutenção', asyn
   assert.match(modal, /category\?\.showInMaintenance \?\? true/);
   assert.match(modal, /Exibir no módulo de manutenção/);
   assert.match(modal, /showInMaintenance,/);
-  assert.match(manager, /fora da manutenção/);
+  assert.match(manager, /category\.showInMaintenance && 'Manutenção'/);
   assert.match(
     config,
     /categories\.filter\(\(category\) => category\.showInMaintenance !== false\)/
@@ -323,7 +323,7 @@ test('envio operacional é direto e a revisão abre o editor completo sem resumo
   assert.match(modulePage, /'manutencao-avulsa'/);
   assert.match(modulePage, /<option value="PENDING">Pendente<\/option>/);
   assert.match(reportPermissions, /params\.set\('revisao', '1'\)/);
-  assert.match(newReportPage, /const operationalSelection/);
+  assert.match(newReportPage, /resolveAuthorizedReportSelection/);
   assert.doesNotMatch(modulePage, /<Modal|<ConfirmDialog|openReport\(/);
 });
 
@@ -529,7 +529,7 @@ test('manutenção e produção possuem módulo próprio com abas e histórico r
   assert.match(history, /operational-maintenance-history-cards/);
   assert.match(styles, /@media \(max-width: 720px\)[\s\S]*?operational-maintenance-history-table[\s\S]*?display:\s*none/s);
   assert.doesNotMatch(newReport, /<ReportTypeChooser/);
-  assert.match(newReport, /resolveSiteReportSelection/);
+  assert.match(newReport, /resolveAuthorizedReportSelection/);
 });
 
 test('relatório de manutenção aceita nenhum cartão e valida os cartões adicionados', async () => {

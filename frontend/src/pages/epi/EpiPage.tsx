@@ -522,7 +522,7 @@ export function EpiPage() {
                       {editingProfileId === collaborator.id ? (
                         <div className="epi-profile-grid">
                           <div className="field-group epi-profile-role">
-                            <label htmlFor={`epi-profile-role-${collaborator.id}`}>Cargo no EPI</label>
+                            <label htmlFor={`epi-profile-role-${collaborator.id}`}>Cargo usado no EPI</label>
                             <select
                               id={`epi-profile-role-${collaborator.id}`}
                               value={profileForm.roleOverrideJobRoleId}
@@ -537,7 +537,7 @@ export function EpiPage() {
                                 <option key={role.id} value={role.id}>{role.name}{role.isActive ? '' : ' (inativo)'}</option>
                               ))}
                             </select>
-                            <small>Selecione um cargo cadastrado ou use o cargo atual do RDO.</small>
+                            <small>O cargo escolhido vale para o EPI. O cargo atual no APP permanece {collaborator.currentJobRole.name}.</small>
                           </div>
                           <div className="field-group epi-profile-cpf">
                             <label htmlFor={`epi-profile-cpf-${collaborator.id}`}>CPF</label>
@@ -573,9 +573,9 @@ export function EpiPage() {
                       ) : (
                         <div className="epi-profile-summary">
                           <div>
-                            <span>Cargo no EPI</span>
+                            <span>Cargo no EPI <em className="epi-profile-role-status">{collaborator.roleOverrideJobRole ? 'Específico' : 'Sincronizado'}</em></span>
                             <strong>{effectiveEpiRole(collaborator)}</strong>
-                            <small>{collaborator.roleOverrideJobRole ? `Cargo atual no APP: ${collaborator.currentJobRole.name}` : 'Sincronizado com o cargo atual do APP'}</small>
+                            <small>{collaborator.roleOverrideJobRole ? `Cargo temporário para EPI · no APP: ${collaborator.currentJobRole.name}` : 'Usa o cargo atual do APP'}</small>
                           </div>
                           <div>
                             <span>CPF</span>

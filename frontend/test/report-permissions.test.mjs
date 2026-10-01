@@ -33,6 +33,15 @@ test('o fluxo tradicional resolve somente RDO de obra', async () => {
   );
 });
 
+test('um tipo solicitado sem permissão não abre outro editor como fallback', async () => {
+  const permissions = await load('/src/auth/reportPermissions.ts');
+  assert.equal(permissions.resolveAuthorizedReportSelection(['SITE_RDO'], null), 'obra');
+  assert.equal(permissions.resolveAuthorizedReportSelection(['SITE_RDO'], 'manutencao'), null);
+  assert.equal(permissions.resolveAuthorizedReportSelection(['MAINTENANCE'], 'obra'), null);
+  assert.equal(permissions.resolveAuthorizedReportSelection(['SITE_RDO'], 'invalido'), null);
+  assert.equal(permissions.resolveAuthorizedReportSelection(['MAINTENANCE'], 'manutencao-avulsa'), 'manutencao-avulsa');
+});
+
 test('abas do módulo seguem estritamente as permissões de manutenção e produção', async () => {
   const permissions = await load('/src/auth/reportPermissions.ts');
   assert.deepEqual(

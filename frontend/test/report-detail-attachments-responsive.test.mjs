@@ -54,11 +54,12 @@ test('imagens existentes no editor separam miniatura e link no mobile', () => {
   );
 });
 
-test('remoção de fotos reutiliza IconButton com contraste suave e sem comprimir a lixeira', () => {
+test('remoção usa a lixeira padrão e restauração mantém ação distinta', () => {
   const upload = source('src/components/ui/UploadField.tsx');
   const css = source('src/components/ui/UploadField.css');
   assert.match(upload, /import '\.\/UploadField.css'/);
-  assert.match(upload, /<IconButton[\s\S]*?icon=\{removed \? RotateCcw : DS_ICONS.trash\}[\s\S]*?variant="secondary"[\s\S]*?onClick=\{\(\) => onRemove\(index\)\}/);
+  assert.match(upload, /<RemoveIconButton label=\{`Remover \$\{file\.fileName\}`\} onClick=\{\(\) => onRemove\(index\)\} \/>/);
+  assert.match(upload, /<IconButton[\s\S]*?icon=\{RotateCcw\}[\s\S]*?variant="secondary"[\s\S]*?onClick=\{\(\) => onRemove\(index\)\}/);
   assert.match(css, /\.upload-field--ds \.upload-remove-button.fv-icon-button/);
   assert.match(css, /flex: 0 0 var\(--fv-button-height\)/);
   assert.match(css, /min-width: var\(--fv-button-height\)/);
