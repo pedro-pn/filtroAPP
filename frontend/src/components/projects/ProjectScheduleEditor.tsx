@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router';
 import {
   getProjectRevisions,
   getPlannedScope,
+  getProjectDetail,
   setProjectSchedule,
   type CommercialRevision,
   type LaborCollaborator,
@@ -19,6 +20,8 @@ import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlan
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import { ProjectProposalPercentageField } from './ProjectProposalPercentageField';
+import { consideredProposalValue, parseProposalPercentage } from '../../utils/proposalPercentage';
 
 export interface ScheduleEditorHandle { save: () => void }
 
@@ -40,7 +43,7 @@ function pct(value?: string | number | null) {
   const n = toNum(value);
   return n === null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 }
-function sumRevisionValue(revisions: CommercialRevision[], getter: (revision: CommercialRevision) => string | number | null | undefined, decimals = 2) {
+function sumRevisionValue<T>(revisions: T[], getter: (revision: T) => string | number | null | undefined, decimals = 2) {
   let total = 0;
   let seen = false;
   for (const revision of revisions) {
@@ -68,7 +71,7 @@ function formatDatePt(value: string) {
 function addDays(dateInput: string, days: number) {
   const d = new Date(`${dateInput}T00:00:00`);
   if (Number.isNaN(d.getTime())) return '';
-  d.setDate(d.getDate() + days);
+  d.setTime(d.getTime() + days * 86400000);
   return d.toISOString().slice(0, 10);
 }
 function daysBetween(fromInput: string, to: Date) {
@@ -124,8 +127,9 @@ function collaboratorIdListKey(value: string[]) {
 export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   projectId: string;
   canManage?: boolean;
+  canManageProposal?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
-}>(function ProjectScheduleEditor({ projectId, canManage = true, onDirtyChange }, ref) {
+}>(function ProjectScheduleEditor({ projectId, canManage = true, canManageProposal = canManage, onDirtyChange }, ref) {
   const queryClient = useQueryClient();
   const location = useLocation();
   const showToast = useToast();
@@ -133,6 +137,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
 
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => getProjectRevisions(projectId) });
   const { data: plannedScope } = useQuery({ queryKey: ['planned-scope', projectId], queryFn: () => getPlannedScope(projectId), ...acompanhamentoRefreshQueryOptions });
+  const { data: projectDetail } = useQuery({ queryKey: ['project-detail', projectId, ''], queryFn: () => getProjectDetail(projectId) });
   const activeCollaboratorsQuery = useQuery({
     queryKey: ['ponto-collaborators-active'],
     queryFn: getActiveCollaborators,
@@ -143,6 +148,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const [mobEdit, setMobEdit] = useState<string | null>(null);
   const [demobEdit, setDemobEdit] = useState<string | null>(null);
   const [manualEdit, setManualEdit] = useState<string | null>(null);
+  const [proposalPercentageEdit, setProposalPercentageEdit] = useState<string | null>(null);
   const [offshoreEdit, setOffshoreEdit] = useState<boolean | null>(null);
   const [sleepModeEdit, setSleepModeEdit] = useState<Record<string, LaborSleepMode> | null>(null);
   const [manualLaborIdsEdit, setManualLaborIdsEdit] = useState<string[] | null>(null);
@@ -160,6 +166,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       setMobEdit(null);
       setDemobEdit(null);
       setManualEdit(null);
+      setProposalPercentageEdit(null);
       setOffshoreEdit(null);
       setSleepModeEdit(null);
       setManualLaborIdsEdit(null);
@@ -169,6 +176,8 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-cards'] });
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['planned-scope', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
       queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] });
       queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] });
       queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions-pending'] });
@@ -183,6 +192,9 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const demobValue = demobEdit ?? toDateInput(data?.demobilizationDate);
   const baseManual = data?.manualProgressPct == null ? '' : String(data.manualProgressPct);
   const manualValue = manualEdit ?? baseManual;
+  const baseProposalPercentage = String(data?.proposalPercentage ?? 100);
+  const proposalPercentageValue = proposalPercentageEdit ?? baseProposalPercentage;
+  const proposalPercentage = parseProposalPercentage(proposalPercentageValue);
   const baseOffshore = data?.offshore ?? false;
   const offshoreValue = offshoreEdit ?? baseOffshore;
   const baseSleepModeMap = normalizeSleepModeMap(data?.laborSleepModeByCollaborator);
@@ -194,6 +206,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     || mobValue !== toDateInput(data?.mobilizationDate)
     || demobValue !== toDateInput(data?.demobilizationDate)
     || manualValue !== baseManual
+    || proposalPercentageValue !== baseProposalPercentage
     || offshoreValue !== baseOffshore
     || sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)
     || collaboratorIdListKey(manualLaborIdsValue) !== collaboratorIdListKey(baseManualLaborIds);
@@ -223,18 +236,23 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   // Salvar único: grava o cronograma (se mudou) e o escopo (se mudou), via ref do editor de escopo.
   const runSave = useRef<() => void>(() => {});
   runSave.current = () => {
+    if (proposalPercentage == null) {
+      showToast('Informe um percentual da proposta de 0% a 100%, com no máximo duas casas decimais.');
+      return;
+    }
     if (scheduleDirty) {
       const manualNum = manualValue.trim() === '' ? null : Number(manualValue.replace(',', '.'));
-      scheduleMutation.mutate({
-        approvedAt: isoOrNull(approvalValue),
-        startDate: isoOrNull(startValue),
-        mobilizationDate: isoOrNull(mobValue),
-        demobilizationDate: isoOrNull(demobValue),
-        manualProgressPct: manualNum != null && Number.isFinite(manualNum) ? Math.min(100, Math.max(0, manualNum)) : null,
-        offshore: offshoreValue,
-        laborSleepModeByCollaborator: normalizeSleepModeMap(sleepModeValue),
-        laborCollaboratorIds: manualLaborIdsValue
-      });
+      const payload: ProjectSchedulePayload = {};
+      if (approvalValue !== toDateInput(data?.approvedAt)) payload.approvedAt = isoOrNull(approvalValue);
+      if (startValue !== toDateInput(data?.startDate)) payload.startDate = isoOrNull(startValue);
+      if (mobValue !== toDateInput(data?.mobilizationDate)) payload.mobilizationDate = isoOrNull(mobValue);
+      if (demobValue !== toDateInput(data?.demobilizationDate)) payload.demobilizationDate = isoOrNull(demobValue);
+      if (manualValue !== baseManual) payload.manualProgressPct = manualNum != null && Number.isFinite(manualNum) ? Math.min(100, Math.max(0, manualNum)) : null;
+      if (canManageProposal && proposalPercentageValue !== baseProposalPercentage) payload.proposalPercentage = proposalPercentage;
+      if (offshoreValue !== baseOffshore) payload.offshore = offshoreValue;
+      if (sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)) payload.laborSleepModeByCollaborator = normalizeSleepModeMap(sleepModeValue);
+      if (collaboratorIdListKey(manualLaborIdsValue) !== collaboratorIdListKey(baseManualLaborIds)) payload.laborCollaboratorIds = manualLaborIdsValue;
+      scheduleMutation.mutate(payload);
     }
     if (scopeDirty) scopeRef.current?.save();
   };
@@ -243,19 +261,31 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
 
   if (isLoading) return <div className="placeholder-copy">Carregando…</div>;
 
+  const percentageField = <ProjectProposalPercentageField projectId={projectId}
+    value={proposalPercentageValue} canManage={canManageProposal && !scheduleMutation.isPending}
+    onChange={setProposalPercentageEdit} rows={[
+      { label: 'Custo', value: projectDetail?.consumo.previstoIntegral ?? null, unit: 'BRL' },
+      { label: 'Receita', value: toNum(projectDetail?.faturamento.previstoIntegral), unit: 'BRL' },
+      { label: 'Dias corridos', value: projectDetail?.fullPlannedDays ?? null, unit: 'dias' },
+      { label: 'Dias trabalhados', value: projectDetail?.fullWorkedDays ?? null, unit: 'dias' },
+      { label: 'Horas normais', value: plannedScope ? sumRevisionValue(plannedScope.normalHours, row => row.hours) : null, unit: 'h' },
+      { label: 'Horas extras', value: plannedScope ? sumRevisionValue(plannedScope.overtime, row => row.hours) : null, unit: 'h' }
+    ]} />;
+
   const current = data?.currentCodBd ?? null;
   const revisions = data?.revisions ?? [];
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
 
   if (current == null || !currentRevision) {
     return <>
+      {percentageField}
       <p className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão. A previsão manual permanece disponível.</p>
       <ProjectPlannedScopeEditor ref={scopeRef} projectId={projectId} canManage={canManage}
         onDirtyChange={setScopeDirty} onSavingChange={setScopeSaving} />
     </>;
   }
 
-  const leadDays = data?.mobilizationLeadDays ?? null;
+  const leadDays = consideredProposalValue(data?.mobilizationLeadDays ?? null, proposalPercentage ?? 100);
   const deadline = approvalValue && leadDays != null ? addDays(approvalValue, leadDays) : '';
   const late = Boolean(startValue && deadline && startValue > deadline);
   const additionalRevisions = (data?.additionalProposals ?? [])
@@ -267,8 +297,8 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const plannedSalePrice = sumRevisionValue(commercialRevisions, revision => revision.salePrice);
   const plannedCost = sumRevisionValue(commercialRevisions, revision => revision.plannedCost);
   const expectedMargin = expectedMarginFrom(commercialRevisions);
-  const plannedDays = sumRevisionValue(commercialRevisions, revision => revision.plannedDays, 0);
-  const plannedWorkedDays = sumRevisionValue(commercialRevisions, revision => revision.workedDays, 0);
+  const plannedDays = consideredProposalValue(sumRevisionValue(commercialRevisions, revision => revision.plannedDays, 0), proposalPercentage ?? 100);
+  const plannedWorkedDays = consideredProposalValue(sumRevisionValue(commercialRevisions, revision => revision.workedDays, 0), proposalPercentage ?? 100);
   const consumed = startValue && plannedDays ? daysBetween(startValue, new Date()) : null;
   const consumedPct = consumed != null && plannedDays ? Math.round((consumed / plannedDays) * 100) : null;
   const activeCollaborators = activeCollaboratorsQuery.data ?? [];
@@ -393,10 +423,11 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
 
   return (
     <div className="det-section">
+      {percentageField}
       {plannedScope?.hoursPlan?.pending ? <div role="alert" className="acp-alert warn" style={{ marginBottom: 12 }}>
         ⚠ Há uma pendência nas horas previstas. <a href="#planned-hours-review">Conferir horas manuais e comerciais</a>
       </div> : null}
-      <div className="det-row"><span className="det-label">Previsto (comercial)</span>
+      <div className="det-row"><span className="det-label">Proposta integral (comercial)</span>
         <span className="det-val acp-budget-value">
           <span>Venda {brl(plannedSalePrice)} · Custo {brl(plannedCost)} · Margem {pct(expectedMargin)}</span>
           {additionalRevisions.length > 0 ? (

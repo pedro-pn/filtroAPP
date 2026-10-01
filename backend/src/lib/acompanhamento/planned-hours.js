@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
+import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 
 export const PLANNED_HOURS_DIVERGENCE_PCT = 10;
 const NORMAL_FIELDS = ['hh_util_diurno', 'hh_util_noturno'];
@@ -49,7 +50,8 @@ const sumHours = rows => round(rows.reduce((sum, row) => sum + (number(row.hours
 const canonicalRows = rows => rows.map(row => [row.jobRoleId ?? null, row.roleName ?? null, number(row.hours)])
   .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 
-export function resolvePlannedHours({ normalHours = [], overtime = [], sources = [], resolution = null } = {}) {
+export function resolvePlannedHours({ normalHours = [], overtime = [], sources = [], resolution = null, proposalPercentage = 100 } = {}) {
+  const percentage = validateProposalPercentage(Number(proposalPercentage ?? 100));
   const parsed = sources.map(source => ({ ...source, parsed: source.source === 'COMERCIAL_APP'
     ? readCommercialAppHours(source.estimateSummary) : readCommercialHours(source.rawRow) }))
     .sort((a, b) => a.codBd != null && b.codBd != null
@@ -84,10 +86,16 @@ export function resolvePlannedHours({ normalHours = [], overtime = [], sources =
     if (item.parsed.status === 'MISSING' && parsed.some(s => s.parsed.status !== 'MISSING')) return [`${label}: sem horas previstas. O conjunto de propostas está incompleto.`];
     return [];
   });
+  const fullNormalHours = source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.normal, collaboratorCount: 1 }] : normalHours;
+  const fullOvertime = source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.overtime, collaboratorCount: 1 }] : overtime;
+  const consideredRows = rows => percentage === 100 ? rows : rows.map(row => ({ ...row, hours: scaleProposalValue(row.hours, percentage) }));
   return {
-    normalHours: source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.normal, collaboratorCount: 1 }] : normalHours,
-    overtime: source === 'COMMERCIAL' ? [{ roleName: 'Comercial', hours: commercial.overtime, collaboratorCount: 1 }] : overtime,
+    fullNormalHours,
+    fullOvertime,
+    normalHours: consideredRows(fullNormalHours),
+    overtime: consideredRows(fullOvertime),
     hoursPlan: {
+      proposalPercentage: percentage,
       source, pending, thresholdPct: PLANNED_HOURS_DIVERGENCE_PCT, manual: hasManual ? manual : null, commercial,
       differences: hasManual ? differences : [], issues, decision,
       resolvedAt: decision ? resolution.resolvedAt : null,
@@ -108,7 +116,7 @@ export async function loadPlannedHours(projectIds, client = prisma) {
   const projects = await client.project.findMany({
     where: { id: { in: projectIds }, deletedAt: null },
     select: {
-      id: true, plannedHoursResolution: true,
+      id: true, plannedHoursResolution: true, proposalPercentage: true,
       plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
@@ -140,7 +148,8 @@ export async function loadPlannedHours(projectIds, client = prisma) {
       }].map(proposal => ({ source: 'COMERCIAL_APP', ...proposal,
         estimateSummary: proposal.snapshot?.estimateSummary }))
       : accessSelections(project).map(codBd => byCodBd.get(codBd) ?? { codBd }),
-    resolution: project.plannedHoursResolution
+    resolution: project.plannedHoursResolution,
+    proposalPercentage: project.proposalPercentage
   })]));
 }
 

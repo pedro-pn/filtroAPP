@@ -52,6 +52,7 @@ export interface BudgetBreakdown {
 }
 
 export interface ProjectRevisions {
+  proposalPercentage?: number;
   proposalCode: string | null;
   currentCodBd: number | null;
   resolved?: boolean;
@@ -80,6 +81,7 @@ export interface LaborCollaborator {
 }
 
 export interface ProjectSchedulePayload {
+  proposalPercentage?: number;
   approvedAt?: string | null;
   startDate?: string | null;
   mobilizationDate?: string | null;
@@ -229,6 +231,9 @@ export interface MissionGroupMemberSummary {
   category?: ProjectCardCategory;
   progressPct?: number | null;
   visible?: boolean;
+  plannedCost?: number | null;
+  fullPlannedCost?: number | null;
+  proposalPercentage?: number | null;
 }
 
 export interface MissionGroupResponse {
@@ -271,6 +276,9 @@ export interface DashboardRow {
   invoicedRevenue?: string | number | null;
   invoicedIss?: string | number | null;
   invoiceCount?: number | null;
+  fullPlannedTotalCost?: number | null;
+  fullSalePrice?: number | null;
+  proposalPercentage?: number | null;
   plannedTotalCost?: string | number | null;
   originalPlannedTotalCost?: string | number | null;
   additionalPlannedTotalCost?: string | number | null;
@@ -521,6 +529,7 @@ export interface PlannedScope {
 }
 
 export interface PlannedHoursPlan {
+  proposalPercentage?: number;
   source: 'COMMERCIAL' | 'MANUAL' | 'NONE';
   pending: boolean;
   thresholdPct: number;
@@ -739,6 +748,8 @@ export interface ProjectCard {
   progressMethod?: ProgressMethod | null;
   progressWeight?: number | null;
   plannedCost: number | null;
+  fullPlannedCost?: number | null;
+  proposalPercentage?: number | null;
   originalPlannedCost?: number | null;
   additionalPlannedCost?: number | null;
   originalSalePrice?: number | null;
@@ -935,6 +946,9 @@ export async function getMissionGroupInvoices(groupId: string) {
 }
 
 export interface ProjectDetail {
+  proposalPercentage?: number | null;
+  fullPlannedDays?: number | null;
+  fullWorkedDays?: number | null;
   canViewProjectFinancials?: boolean;
   group?: {
     id: string;
@@ -971,11 +985,14 @@ export interface ProjectDetail {
     estoque: number;
     manual: number;
     previsto: number | null;
+    previstoIntegral?: number | null;
+    percentualPrevisto?: number | null;
     previstoOriginal?: number | null;
     previstoAdicional?: number | null;
     pct: number | null;
   };
   faturamento: {
+    previstoIntegral?: string | number | null;
     previsto: string | number | null;
     previstoOriginal?: string | number | null;
     previstoAdicional?: string | number | null;

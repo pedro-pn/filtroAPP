@@ -40,11 +40,11 @@ function combineBudgetBreakdown(rows) {
     additionalCount: sumValues(rows, row => row.budgetBreakdown?.additionalCount, { nullWhenEmpty: false }),
     additionalTotals,
     totals: {
-      salePrice: sumValues(rows, row => row.salePrice),
-      plannedTotalCost: sumValues(rows, row => row.plannedTotalCost),
-      expectedProfit: sumValues(rows, row => row.expectedProfit),
-      expectedMargin: ratioPct(sumValues(rows, row => row.expectedProfit), sumValues(rows, row => row.salePrice), { decimals: 2 }),
-      taxes: sumValues(rows, row => row.taxes)
+      salePrice: sumValues(rows, row => row.fullSalePrice ?? row.salePrice),
+      plannedTotalCost: sumValues(rows, row => row.fullPlannedTotalCost ?? row.plannedTotalCost),
+      expectedProfit: sumValues(rows, row => row.budgetBreakdown?.totals?.expectedProfit ?? row.expectedProfit),
+      expectedMargin: ratioPct(sumValues(rows, row => row.budgetBreakdown?.totals?.expectedProfit ?? row.expectedProfit), sumValues(rows, row => row.fullSalePrice ?? row.salePrice), { decimals: 2 }),
+      taxes: sumValues(rows, row => row.budgetBreakdown?.totals?.taxes ?? row.taxes)
     }
   };
 }
@@ -97,12 +97,15 @@ function buildGroupRow(group, rowsByProjectId) {
     approvedAt: null,
     mobilizationLeadDays: null,
     salePrice,
+    fullSalePrice: sumValues(visibleRows, row => row.fullSalePrice ?? row.salePrice),
     originalSalePrice: sumValues(visibleRows, row => row.originalSalePrice),
     additionalSalePrice: sumValues(visibleRows, row => row.additionalSalePrice),
     invoicedRevenue: sumValues(visibleRows, row => row.invoicedRevenue),
     invoicedIss: sumValues(visibleRows, row => row.invoicedIss),
     invoiceCount: sumValues(visibleRows, row => row.invoiceCount, { nullWhenEmpty: false }),
     plannedTotalCost,
+    fullPlannedTotalCost: sumValues(visibleRows, row => row.fullPlannedTotalCost ?? row.plannedTotalCost),
+    proposalPercentage: null,
     originalPlannedTotalCost: sumValues(visibleRows, row => row.originalPlannedTotalCost),
     additionalPlannedTotalCost: sumValues(visibleRows, row => row.additionalPlannedTotalCost),
     expectedProfit,

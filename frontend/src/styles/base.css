@@ -4227,6 +4227,31 @@ a {
 .acp-cost-status span { color: var(--mu); font-size: 11px; }
 .acp-cost-status strong { font-size: 14px; overflow-wrap: anywhere; }
 
+.acp-planned-cost {
+  border: 1px solid var(--br);
+  border-radius: 6px;
+  padding: 10px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.acp-planned-cost-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin-bottom: 8px;
+}
+.acp-planned-cost-values > span { color: var(--mu); flex: 1 1 180px; }
+.acp-planned-cost-values strong { display: block; color: var(--tx); overflow-wrap: anywhere; }
+.acp-planned-cost .field-group { max-width: 240px; }
+.acp-planned-cost .table-scroll { max-width: 100%; overflow-x: auto; }
+.acp-proposal-preview { width: 100%; margin: 8px 0; border-collapse: collapse; }
+.acp-proposal-preview th, .acp-proposal-preview td { text-align: left; padding: 6px; border-bottom: 1px solid var(--br); }
+.acp-proposal-preview td { white-space: nowrap; }
+@media (max-width: 600px) {
+  .acp-proposal-preview { font-size: 11px; }
+  .acp-proposal-preview th, .acp-proposal-preview td { padding: 6px 3px; }
+}
+
 .acp-det-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .acp-det-rank li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .acp-det-rank-cat { color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
