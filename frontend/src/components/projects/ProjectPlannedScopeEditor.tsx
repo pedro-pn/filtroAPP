@@ -525,6 +525,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
           ? 'Escopo importado da revisão comercial. Confira os quantitativos antes de acompanhar o avanço.'
           : 'Para cada serviço, adicione os sistemas vendidos e seus quantitativos.'}
       </p>
+      {(data.hoursPlan?.proposalPercentage ?? 100) !== 100 ? <p className="placeholder-copy">Valores integrais para cadastro e conferência. Os indicadores consideram {(data.hoursPlan?.proposalPercentage ?? 100).toLocaleString('pt-BR')}% das horas e dos quantitativos previstos, conforme o cronograma.</p> : null}
       {data.commercialScopeImport?.issues?.length ? <div role="alert" className="acp-alert warn">
         <strong>Itens do levantamento que precisam de conferência:</strong>
         <ul>{data.commercialScopeImport.issues.map(item => <li key={item}>{item}</li>)}</ul>

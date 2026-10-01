@@ -649,6 +649,8 @@ const scheduleSchema = z.object({
   mobilizationDate: z.string().datetime().nullable().optional(),
   demobilizationDate: z.string().datetime().nullable().optional(),
   manualProgressPct: z.number().min(0).max(100).nullable().optional(),
+  proposalPercentage: z.number().min(0).max(100)
+    .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, 'Use no máximo duas casas decimais.').optional(),
   offshore: z.boolean().optional(),
   laborSleepModeByCollaborator: z.record(z.enum(['HOME', 'AWAY'])).optional(),
   laborCollaboratorIds: z.array(z.string()).optional()
@@ -670,6 +672,8 @@ router.patch(
   '/projetos/:projectId/cronograma',
   requireAuth,
   requireAcompanhamentoAccess,
+  (req, res, next) => Object.hasOwn(req.body ?? {}, 'proposalPercentage')
+    ? requireAcompanhamentoManager(req, res, next) : next(),
   asyncHandler(async (req, res) => {
     const data = scheduleSchema.parse(req.body);
     try {
@@ -677,7 +681,7 @@ router.patch(
       clearProjectDerivedCaches();
       res.json({ ok: true });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(error.code === 'P2025' ? 404 : 400).json({ error: error.code === 'P2025' ? 'Projeto não encontrado.' : error.message });
     }
   })
 );

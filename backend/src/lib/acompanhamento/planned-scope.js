@@ -28,9 +28,11 @@ function text(value) {
   return str || null;
 }
 
-export function buildPlannedScope(services, hours) {
+export function buildPlannedScope(services, hours, { integral = false } = {}) {
   if (!hours) throw new Error('Projeto não encontrado.');
-  const { normalHours, overtime, hoursPlan } = hours;
+  const normalHours = integral ? hours.fullNormalHours ?? hours.normalHours : hours.normalHours;
+  const overtime = integral ? hours.fullOvertime ?? hours.overtime : hours.overtime;
+  const { hoursPlan } = hours;
 
   return {
     hoursPlan,
@@ -84,7 +86,7 @@ export async function getPlannedScope(projectId) {
     loadPlannedHours([projectId])
   ]);
   const hours = hoursByProject.get(projectId);
-  return { ...buildPlannedScope(services, hours), commercialScopeImport: project.commercialScopeImport };
+  return { ...buildPlannedScope(services, hours, { integral: true }), commercialScopeImport: project.commercialScopeImport };
 }
 
 // Substitui os conjuntos enviados para o projeto (já validados pela rota).

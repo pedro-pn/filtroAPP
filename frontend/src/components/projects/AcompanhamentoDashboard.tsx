@@ -113,7 +113,7 @@ function BudgetValue({
   );
 }
 
-export function AcompanhamentoDashboard({ canManage = false, canViewFinancials = false }: { canManage?: boolean; canViewFinancials?: boolean }) {
+export function AcompanhamentoDashboard({ canManage = false, canManageProposal = false, canViewFinancials = false }: { canManage?: boolean; canManageProposal?: boolean; canViewFinancials?: boolean }) {
   const [search, setSearch] = useState('');
   const [modality, setModality] = useState<'todas' | 'INLOCO' | 'POP_SEDE'>('todas');
   const [status, setStatus] = useState<'todos' | 'andamento' | 'arquivados'>('todos');
@@ -349,7 +349,7 @@ export function AcompanhamentoDashboard({ canManage = false, canViewFinancials =
               <button className="mini-btn alt" type="button" onClick={closeSchedule} aria-label="Fechar">✕</button>
             </div>
             <div className="acp-manage-body">
-              <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} onDirtyChange={setManagedDirty} />
+              <ProjectScheduleEditor key={managed.projectId} ref={scheduleRef} projectId={managed.projectId} canManage={canManage} canManageProposal={canManageProposal} onDirtyChange={setManagedDirty} />
             </div>
             <div className="acp-manage-foot">
               <button type="button" className="mini-btn alt" onClick={closeSchedule}>Cancelar</button>

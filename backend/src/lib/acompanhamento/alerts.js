@@ -53,8 +53,8 @@ export function computeAlerts({
   // Custo realizado vs previsto (ambos sem salário do lado do realizado).
   const cost = num(plannedCost);
   const spent = num(gasto);
-  if (cost && cost > 0 && spent != null) {
-    const pct = (spent / cost) * 100;
+  if (cost != null && cost >= 0 && spent != null) {
+    const pct = cost > 0 ? (spent / cost) * 100 : spent > 0 ? Infinity : 0;
     if (pct > 100) alerts.push({ code: 'CUSTO', level: 'danger', label: 'Custo acima do previsto' });
     else if (pct >= WARN_PCT) alerts.push({ code: 'CUSTO', level: 'warn', label: 'Custo em risco' });
   }

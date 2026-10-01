@@ -907,6 +907,7 @@ export function ProjectDetailDashboard({
                 <strong>{member.code}</strong>
                 {member.name || member.clientName ? <em>{member.name || member.clientName}</em> : null}
                 {member.progressPct != null ? <small>{member.progressPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</small> : null}
+                {member.proposalPercentage != null && member.proposalPercentage !== 100 ? <small>Proposta considerada: {member.proposalPercentage.toLocaleString('pt-BR')}%</small> : null}
                 {canManage ? (
                   <button
                     type="button"
@@ -1016,11 +1017,20 @@ export function ProjectDetailDashboard({
                 <>
                   <MetricBar
                     label="Consumo de gastos"
-                    help={data.division ? 'Custos realizados no período da divisão sobre o custo previsto informado para ela. O custo de mão de obra mensal é distribuído pelas horas apropriadas nos dias do período.' : 'Total realizado (compras do Omie sem salários, consumo de químicos/filtros do estoque, custos manuais e mão de obra do ponto) sobre o custo previsto no comercial.'}
+                    help={data.division ? 'Custos realizados no período da divisão sobre o custo previsto informado para ela. O custo de mão de obra mensal é distribuído pelas horas apropriadas nos dias do período.' : 'Total realizado (compras do Omie sem salários, consumo de químicos/filtros do estoque, custos manuais e mão de obra do ponto) sobre o percentual do custo previsto escolhido no acompanhamento.'}
                     value={totalPct}
                     tone="cost"
                     caption={`${brl(totalRealizado)} / ${brl(previsto)}${totalPct != null ? ` · ${totalPct}%` : ''}`}
                   />
+                  {!data.division ? (
+                    <div className="acp-planned-cost">
+                      <div className="acp-planned-cost-values">
+                        <span>Custo previsto integral<strong>{brl(data.consumo.previstoIntegral ?? previsto)}</strong></span>
+                        <span>Custo previsto considerado{!isGroup ? ` (${(data.proposalPercentage ?? 100).toLocaleString('pt-BR')}%)` : ''}<strong>{brl(previsto)}</strong></span>
+                      </div>
+                      {canManageManualCosts ? <p className="placeholder-copy">Ajuste o percentual da proposta no cronograma de cada missão.</p> : null}
+                    </div>
+                  ) : null}
                   <div className="acp-cost-status">
                     <div>
                       <span>Pago no Omie</span>
@@ -1743,6 +1753,7 @@ export function ProjectDetailDashboard({
                 ref={scheduleRef}
                 projectId={scheduleProject.projectId}
                 canManage={canManage}
+                canManageProposal={canManageManualCosts}
                 onDirtyChange={setScheduleDirty}
               />
             ) : null}

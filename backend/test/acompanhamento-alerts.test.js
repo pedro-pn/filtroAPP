@@ -29,6 +29,12 @@ test('custo acima do previsto (danger)', () => {
   assert.equal(custo?.level, 'danger');
 });
 
+test('percentual zerado sinaliza custo realizado acima do previsto e não confunde orçamento ausente', () => {
+  assert.ok(computeAlerts({ gasto: 1, plannedCost: 0 }).some(alert => alert.code === 'CUSTO' && alert.level === 'danger'));
+  assert.deepEqual(computeAlerts({ gasto: 0, plannedCost: 0 }), []);
+  assert.deepEqual(computeAlerts({ gasto: 1, plannedCost: null }), []);
+});
+
 test('parado há N dias (danger) quando último RDO é antigo', () => {
   const alerts = computeAlerts({
     startDate: '2026-06-01T00:00:00Z', lastRdoDate: '2026-06-20T00:00:00Z', now
