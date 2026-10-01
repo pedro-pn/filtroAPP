@@ -1228,40 +1228,42 @@ as credenciais de demonstração locais não deram acesso autenticado.
 
 #### F5.3 — Qualidade
 
-Em andamento. O primeiro lote migrou `QualidadePage` para `AppShell` com abas
-Registros/Naturezas na navegação responsiva e preservou `?tab=` e tutorial.
-Registros ganhou tabela DS no desktop, cartões no celular e filtros recolhidos
-no celular; ações, status e diálogos principais usam controles DS. Naturezas
-ganhou ações e diálogo de edição DS. A composição interna do formulário de
-Registro e a reordenação de Naturezas ainda precisam da revisão final. Fluxos
-de navegação e leitura foram validados com API sintética em Chromium/WebKit.
+Em andamento. `QualidadePage` usa `AppShell` com Registros/Naturezas na
+navegação responsiva e preserva `?tab=` e tutorial. Registros tem tabela DS no
+desktop, cartões no celular e filtros recolhidos no celular. O formulário usa
+controles DS, inclusive seleções, anexos e links; o envio Interno/SGQ com link
+e PDF passou com API sintética. Naturezas tem ações e diálogo DS e permite
+reordenar por arraste ou pelas setas do teclado. Gestor e visualizador, temas,
+larguras, navegação, evidências e exportação passaram em Chromium/WebKit com
+API sintética. Faltam validar a reordenação por toque e a persistência em banco
+isolado.
 
 - [x] Migrar para `AppShell`, com Registros/Naturezas na navegação responsiva,
   mantendo os links diretos com `?tab=` e o tutorial.
-- [ ] Migrar busca, filtros, tabela responsiva, estados, ações, exportação e
+- [x] Migrar busca, filtros, tabela responsiva, estados, ações, exportação e
   visualização de evidências dos Registros.
 - [ ] Migrar cadastro, edição, inativação, exclusão e reordenação das Naturezas,
   inclusive os diálogos e a interação por toque/teclado.
-- [ ] Migrar o formulário de Registro, inclusive projeto ou Interno/SGQ,
+- [x] Migrar o formulário de Registro, inclusive projeto ou Interno/SGQ,
   anexos/links, validação e envio.
 - [ ] Validar gestor e visualizador, temas, larguras, API e persistência sem
   alterar regras de recorrência ou permissões.
 
 #### F5.4 — EPI
 
-Em andamento. `EpiPage` passou ao `AppShell` com Colaboradores/Catálogo na
-navegação responsiva. Fichas e catálogo receberam superfícies DS, botões
-padronizados e estados de carregamento, erro e vazio. A página pública de
-assinatura ganhou a apresentação DS usada no RDO. A revisão final dos campos,
-da lista de fichas, das confirmações e dos fluxos com permissões distintas
-permanece neste lote; navegação e leitura passaram com API sintética em
-Chromium/WebKit.
+Migração visual concluída. `EpiPage` usa `AppShell` com Colaboradores/Catálogo na navegação
+responsiva. Fichas, catálogo, campos, estado de assinatura, abas
+Ativos/Arquivados e confirmação de arquivo/restauração usam controles DS.
+A página pública e seu diálogo de assinatura usam a apresentação DS do RDO.
+Técnico, colaborador e acesso negado foram validados com API sintética; perfil,
+entrega, devolução, catálogo, assinatura pública, arquivo/restauração e PDF
+passaram em Chromium/WebKit. A persistência em banco isolado fica para a F6.
 
-- [ ] Migrar shell, navegação Colaboradores/Catálogo, fichas, filtros e ações
+- [x] Migrar shell, navegação Colaboradores/Catálogo, fichas, filtros e ações
   para o DS em desktop, tablet e celular.
-- [ ] Migrar formulários de perfil, entrega/devolução, catálogo, arquivo,
+- [x] Migrar formulários de perfil, entrega/devolução, catálogo, arquivo,
   confirmações, solicitação de assinatura e download de PDF.
-- [ ] Harmonizar a página pública de assinatura de EPI; validar técnico,
+- [x] Harmonizar a página pública de assinatura de EPI; validar técnico,
   colaborador e acesso negado, sem alterar o contrato da assinatura.
 
 #### F5.5 — Privacidade

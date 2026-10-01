@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type PointerEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -15,7 +15,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
-import { Badge, Button, Card } from '../../components/ui/ds';
+import { Badge, Button, Card, Input } from '../../components/ui/ds';
 import {
   createPointerDragGhost,
   movePointerDragGhost,
@@ -225,6 +225,17 @@ export function QualityNaturesTab({ isManager }: Props) {
     clearDragState();
   }
 
+  function handleNatureKeyDown(event: KeyboardEvent<HTMLButtonElement>, natureId: string) {
+    if (reorderDisabled || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+    event.preventDefault();
+    const rows = orderedNaturesRef.current;
+    const index = rows.findIndex(nature => nature.id === natureId);
+    const target = rows[index + (event.key === 'ArrowUp' ? -1 : 1)];
+    if (!target) return;
+    dragStartOrderIds.current = rows.map(nature => nature.id);
+    persistNatureOrder(reorderNatureRows(rows, natureId, target.id));
+  }
+
   function handleNaturePointerDown(event: PointerEvent<HTMLButtonElement>, natureId: string) {
     if (event.pointerType === 'mouse') return;
     if (reorderDisabled) {
@@ -315,7 +326,7 @@ export function QualityNaturesTab({ isManager }: Props) {
         <form className="quality-nature-inline-add" onSubmit={handleCreateSubmit} noValidate>
           <div className={newNameError ? 'field-group field-invalid' : 'field-group'}>
             <label htmlFor="quality-new-nature">Nova Natureza *</label>
-            <input
+            <Input
               id="quality-new-nature"
               type="text"
               value={newName}
@@ -376,13 +387,15 @@ export function QualityNaturesTab({ isManager }: Props) {
                 <button
                   className="quality-nature-drag-handle"
                   type="button"
-                  aria-label={`Arrastar ${nature.name} para reordenar`}
+                  aria-label={`Reordenar ${nature.name}: arraste ou use as setas`}
                   aria-grabbed={draggedNatureId === nature.id}
-                  title={search.trim() ? 'Limpe a busca para reordenar' : 'Arraste para reordenar'}
+                  aria-keyshortcuts="ArrowUp ArrowDown"
+                  title={search.trim() ? 'Limpe a busca para reordenar' : 'Arraste ou use as setas para reordenar'}
                   draggable={!reorderDisabled}
                   disabled={reorderDisabled}
                   onDragStart={event => handleNatureDragStart(event, nature.id)}
                   onDragEnd={handleNatureDragEnd}
+                  onKeyDown={event => handleNatureKeyDown(event, nature.id)}
                   onPointerDown={event => handleNaturePointerDown(event, nature.id)}
                   onPointerMove={handleNaturePointerMove}
                   onPointerUp={event => finishNaturePointerDrag(event, true)}
@@ -427,6 +440,7 @@ export function QualityNaturesTab({ isManager }: Props) {
 
       <ConfirmDialog
         open={Boolean(confirm)}
+        appearance="design-system"
         title={confirm?.title || ''}
         description={confirm?.description}
         highlight={confirm?.highlight}

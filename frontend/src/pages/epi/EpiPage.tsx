@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
-import { Alert, Button, EmptyState, Skeleton } from '../../components/ui/ds';
+import { Alert, Badge, Button, EmptyState, Input, Select, Skeleton } from '../../components/ui/ds';
 import { PageHeader } from '../../layout/PageHeader';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 
@@ -131,7 +131,7 @@ function hasSignatureEvidence(record: { signedAt?: string | null; signatureImage
 export function EpiPage() {
   const { user } = useAuth();
   const showToast = useToast();
-  const { confirm, confirmDialog } = useConfirmDialog();
+  const { confirm, confirmDialog } = useConfirmDialog('design-system');
   const queryClient = useQueryClient();
   const isTechnician = user?.accountType === 'ADMIN' || user?.moduleRoles?.includes('epi:technician');
   const [tab, setTab] = useUrlParamState<Tab>({
@@ -502,7 +502,7 @@ export function EpiPage() {
                         <div className="epi-profile-grid">
                           <div className="field-group epi-profile-role">
                             <label htmlFor={`epi-profile-role-${collaborator.id}`}>Cargo usado no EPI</label>
-                            <select
+                            <Select
                               id={`epi-profile-role-${collaborator.id}`}
                               value={profileForm.roleOverrideJobRoleId}
                               onChange={event => setProfileForm(current => ({ ...current, roleOverrideJobRoleId: event.target.value }))}
@@ -515,12 +515,12 @@ export function EpiPage() {
                               {(jobRolesQuery.data || []).map(role => (
                                 <option key={role.id} value={role.id}>{role.name}{role.isActive ? '' : ' (inativo)'}</option>
                               ))}
-                            </select>
+                            </Select>
                             <small>O cargo escolhido vale para o EPI. O cargo atual no APP permanece {collaborator.currentJobRole.name}.</small>
                           </div>
                           <div className="field-group epi-profile-cpf">
                             <label htmlFor={`epi-profile-cpf-${collaborator.id}`}>CPF</label>
-                            <input
+                            <Input
                               id={`epi-profile-cpf-${collaborator.id}`}
                               inputMode="numeric"
                               maxLength={14}
@@ -532,11 +532,11 @@ export function EpiPage() {
                           </div>
                           <div className="field-group epi-profile-registration">
                             <label htmlFor={`epi-profile-registration-${collaborator.id}`}>Matrícula</label>
-                            <input id={`epi-profile-registration-${collaborator.id}`} value={profileForm.registrationNumber} onChange={event => setProfileForm(current => ({ ...current, registrationNumber: event.target.value }))} disabled={!isTechnician} />
+                            <Input id={`epi-profile-registration-${collaborator.id}`} value={profileForm.registrationNumber} onChange={event => setProfileForm(current => ({ ...current, registrationNumber: event.target.value }))} disabled={!isTechnician} />
                           </div>
                           <div className="field-group epi-profile-admission">
                             <label htmlFor={`epi-profile-admission-${collaborator.id}`}>Data de admissão</label>
-                            <input id={`epi-profile-admission-${collaborator.id}`} type="date" value={profileForm.admissionDate} onChange={event => setProfileForm(current => ({ ...current, admissionDate: event.target.value }))} disabled={!isTechnician} />
+                            <Input id={`epi-profile-admission-${collaborator.id}`} type="date" value={profileForm.admissionDate} onChange={event => setProfileForm(current => ({ ...current, admissionDate: event.target.value }))} disabled={!isTechnician} />
                           </div>
                           {isTechnician ? (
                             <>
@@ -579,43 +579,43 @@ export function EpiPage() {
                       {isTechnician ? (
                         <form className="epi-record-form" onSubmit={submitRecord}>
                           <div className="field-group">
-                            <label>EPI cadastrado</label>
-                            <select value={recordForm.catalogItemId || ''} onChange={event => selectCatalog(event.target.value)}>
+                            <label htmlFor={`epi-record-catalog-${collaborator.id}`}>EPI cadastrado</label>
+                            <Select id={`epi-record-catalog-${collaborator.id}`} value={recordForm.catalogItemId || ''} onChange={event => selectCatalog(event.target.value)}>
                               <option value="">Novo EPI</option>
                               {(catalogQuery.data || []).map(item => (
                                 <option key={item.id} value={item.id}>{item.name} · {caLabel(item.ca)}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                           <div className="field-group">
-                            <label>Nome do EPI</label>
-                            <input value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null }))} required />
+                            <label htmlFor={`epi-record-name-${collaborator.id}`}>Nome do EPI</label>
+                            <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null }))} required />
                           </div>
                           <div className="field-group">
-                            <label>C.A</label>
-                            <input value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null }))} />
+                            <label htmlFor={`epi-record-ca-${collaborator.id}`}>C.A</label>
+                            <Input id={`epi-record-ca-${collaborator.id}`} value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null }))} />
                           </div>
                           <div className="field-group">
-                            <label>Quantidade</label>
-                            <input type="number" min="1" value={recordForm.quantity} onChange={event => setRecordForm(current => ({ ...current, quantity: Number(event.target.value) }))} required />
+                            <label htmlFor={`epi-record-quantity-${collaborator.id}`}>Quantidade</label>
+                            <Input id={`epi-record-quantity-${collaborator.id}`} type="number" min="1" value={recordForm.quantity} onChange={event => setRecordForm(current => ({ ...current, quantity: Number(event.target.value) }))} required />
                           </div>
                           <div className="field-group">
-                            <label>Fornecimento</label>
-                            <input type="date" value={recordForm.lendDate} onChange={event => setRecordForm(current => ({ ...current, lendDate: event.target.value }))} required />
+                            <label htmlFor={`epi-record-lend-${collaborator.id}`}>Fornecimento</label>
+                            <Input id={`epi-record-lend-${collaborator.id}`} type="date" value={recordForm.lendDate} onChange={event => setRecordForm(current => ({ ...current, lendDate: event.target.value }))} required />
                           </div>
                           <div className="field-group">
-                            <label>Devolução</label>
-                            <input type="date" value={recordForm.devolutionDate || ''} onChange={event => setRecordForm(current => ({ ...current, devolutionDate: event.target.value }))} />
+                            <label htmlFor={`epi-record-return-${collaborator.id}`}>Devolução</label>
+                            <Input id={`epi-record-return-${collaborator.id}`} type="date" value={recordForm.devolutionDate || ''} onChange={event => setRecordForm(current => ({ ...current, devolutionDate: event.target.value }))} />
                           </div>
                           <Button variant="primary" type="submit" loading={createRecordMutation.isPending}>Adicionar EPI</Button>
                         </form>
                       ) : null}
 
-                      <div className="filter-tabs epi-record-tabs" role="tablist" aria-label="Fichas de EPI do colaborador">
-                        <button className={`filter-tab ${recordTab === 'active' ? 'active' : ''}`} type="button" onClick={() => setRecordTab('active')}>
+                      <div className="filter-tabs epi-record-tabs" role="group" aria-label="Fichas de EPI do colaborador">
+                        <button className={`filter-tab ${recordTab === 'active' ? 'active' : ''}`} type="button" aria-pressed={recordTab === 'active'} onClick={() => setRecordTab('active')}>
                           Ativos ({activeRecords.length})
                         </button>
-                        <button className={`filter-tab ${recordTab === 'archived' ? 'active' : ''}`} type="button" onClick={() => setRecordTab('archived')}>
+                        <button className={`filter-tab ${recordTab === 'archived' ? 'active' : ''}`} type="button" aria-pressed={recordTab === 'archived'} onClick={() => setRecordTab('archived')}>
                           Arquivados ({archivedRecords.length})
                         </button>
                       </div>
@@ -675,7 +675,7 @@ export function EpiPage() {
                               <strong>{record.epiName}</strong>
                               <small>{caLabel(record.ca)} · Qtd. {record.quantity} · Forn. {formatDate(record.lendDate)} · Dev. {formatDate(record.devolutionDate)}{record.archivedAt ? ` · Arq. ${formatDate(record.archivedAt)}` : ''}</small>
                             </div>
-                            <span className={`epi-status ${record.signedAt ? 'signed' : ''}`}>{signedLabel(record)}</span>
+                            <Badge tone={record.signedAt ? 'success' : record.signatureRequest?.status === 'PENDING' ? 'warning' : 'neutral'}>{signedLabel(record)}</Badge>
                             {isTechnician ? (
                               <div className="epi-row-buttons">
                                 {recordTab === 'active' && !record.devolutionDate ? (
@@ -710,11 +710,11 @@ export function EpiPage() {
               <form className="epi-catalog-form" onSubmit={event => { event.preventDefault(); saveCatalogMutation.mutate(); }}>
                 <div className="field-group">
                   <label htmlFor="epi-catalog-name">Nome do EPI</label>
-                  <input id="epi-catalog-name" value={catalogForm.name} onChange={event => setCatalogForm(current => ({ ...current, name: event.target.value }))} required />
+                  <Input id="epi-catalog-name" value={catalogForm.name} onChange={event => setCatalogForm(current => ({ ...current, name: event.target.value }))} required />
                 </div>
                 <div className="field-group">
                   <label htmlFor="epi-catalog-ca">C.A</label>
-                  <input id="epi-catalog-ca" value={catalogForm.ca} onChange={event => setCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                  <Input id="epi-catalog-ca" value={catalogForm.ca} onChange={event => setCatalogForm(current => ({ ...current, ca: event.target.value }))} />
                 </div>
                 <Button variant="primary" type="submit" loading={saveCatalogMutation.isPending}>Adicionar</Button>
               </form>
@@ -741,8 +741,8 @@ export function EpiPage() {
                   </div>
                   {editingCatalogId === item.id ? (
                     <div className="epi-catalog-edit-form">
-                      <input aria-label={`Nome de ${item.name}`} value={editCatalogForm.name} onChange={event => setEditCatalogForm(current => ({ ...current, name: event.target.value }))} />
-                      <input aria-label={`C.A de ${item.name}`} value={editCatalogForm.ca} onChange={event => setEditCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                      <Input aria-label={`Nome de ${item.name}`} value={editCatalogForm.name} onChange={event => setEditCatalogForm(current => ({ ...current, name: event.target.value }))} />
+                      <Input aria-label={`C.A de ${item.name}`} value={editCatalogForm.ca} onChange={event => setEditCatalogForm(current => ({ ...current, ca: event.target.value }))} />
                       <Button variant="primary" size="sm" loading={updateCatalogMutation.isPending} onClick={() => updateCatalogMutation.mutate({ id: item.id, payload: editCatalogForm })}>Salvar</Button>
                       <Button variant="secondary" size="sm" onClick={() => setEditingCatalogId(null)}>Cancelar</Button>
                     </div>

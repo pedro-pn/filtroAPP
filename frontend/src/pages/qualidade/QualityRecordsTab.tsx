@@ -371,6 +371,7 @@ export function QualityRecordsTab({ isManager }: Props) {
 
       <ConfirmDialog
         open={Boolean(confirm)}
+        appearance="design-system"
         title={confirm?.title || ''}
         description={confirm?.description}
         highlight={confirm?.highlight}

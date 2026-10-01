@@ -131,6 +131,7 @@ export function EpiPublicSignaturePage() {
       </Card>
       <SignatureDialog
         open={signatureOpen}
+        appearance="design-system"
         title="Assinar EPIs"
         initialSignerName={payload?.collaborator?.name || ''}
         cacheIdentity={payload?.collaborator?.id || token}

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { ConfirmDialog } from './ConfirmDialog';
+import type { ModalAppearance } from './Modal';
 
 export interface ConfirmRequest {
   title: string;
@@ -15,7 +16,7 @@ export interface ConfirmRequest {
 // `if (!(await confirm({ ... }))) return;`. Evita ter que espalhar um par de estados por
 // ação destrutiva em telas que já têm várias. O componente que usa o hook precisa render
 // `confirmDialog` uma vez no seu JSX.
-export function useConfirmDialog() {
+export function useConfirmDialog(appearance: ModalAppearance = 'legacy') {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
   const resolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
@@ -44,6 +45,7 @@ export function useConfirmDialog() {
       confirmLabel={request?.confirmLabel}
       cancelLabel={request?.cancelLabel}
       danger={request?.danger ?? true}
+      appearance={appearance}
       onConfirm={() => settle(true)}
       onCancel={() => settle(false)}
     />

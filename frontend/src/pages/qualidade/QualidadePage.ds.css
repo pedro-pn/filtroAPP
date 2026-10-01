@@ -43,8 +43,7 @@
 }
 
 .quality-page-v2 .app-search-input,
-.quality-page-v2 .quality-filters .app-combobox-control input,
-.quality-page-v2 .quality-nature-inline-add input {
+.quality-page-v2 .quality-filters .app-combobox-control input {
   border-color: var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -81,9 +80,8 @@
   max-width: none;
 }
 
-.quality-page-v2 .quality-nature-inline-add input {
-  min-height: var(--space-8);
-  font-size: var(--text-sm);
+.quality-page-v2 .quality-nature-inline-add .fv-control-shell {
+  min-height: var(--space-10);
 }
 
 .quality-page-v2 .quality-nature-row {
@@ -136,6 +134,28 @@
   margin-block-start: var(--space-2);
 }
 
+.quality-page-v2 .quality-evidence-collapse-toggle {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.quality-page-v2 .quality-evidence-collapse-toggle strong {
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--brand-text);
+}
+
+.quality-page-v2 .quality-evidence-collapse-toggle small {
+  color: var(--muted);
+}
+
+.quality-page-v2 .quality-evidence-collapse-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .quality-nature-form-v2 {
   display: grid;
   gap: var(--space-5);
@@ -157,18 +177,54 @@
   gap: var(--space-4);
 }
 
-.quality-modal-v2 .quality-form-grid :is(input, select, textarea) {
+.quality-modal-v2 .quality-form-grid :is(.fv-control-shell, .fv-textarea) {
   width: 100%;
   min-width: 0;
   color: var(--ink);
-  border-color: var(--line);
-  border-radius: var(--radius-md);
-  background-color: var(--surface);
 }
 
-.quality-modal-v2 .quality-form-grid :is(input, select, textarea):focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 1px;
+.quality-modal-v2 .quality-form-grid .fv-control-shell :is(.fv-input, .fv-select),
+.quality-page-v2 .quality-nature-inline-add .fv-control-shell .fv-input {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+}
+
+.quality-modal-v2 .quality-form-grid .fv-control-shell :is(.fv-input, .fv-select):focus,
+.quality-page-v2 .quality-nature-inline-add .fv-control-shell .fv-input:focus {
+  border: 0;
+  background: transparent;
+  outline: 0;
+}
+
+.quality-modal-v2 .quality-form-grid .fv-select {
+  padding-inline-end: var(--space-6);
+}
+
+.quality-modal-v2 .quality-form-grid .fv-textarea {
+  padding: var(--space-3) var(--space-4);
+  border-color: var(--control-border);
+  background: var(--surface);
+}
+
+.quality-modal-v2 .quality-form-grid .fv-textarea:focus-visible {
+  border-color: var(--line-strong);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.quality-modal-v2 .quality-evidence-link-row .fv-control-shell {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quality-page-v2 .quality-nature-drag-handle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .quality-modal-v2 .quality-destination-preview,
@@ -176,6 +232,12 @@
 .quality-modal-v2 .quality-evidence-block {
   border-color: var(--line);
   background: var(--surface-subtle);
+}
+
+.quality-modal-v2 .quality-evidence-block {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 .quality-modal-v2 .equip-form-actions {

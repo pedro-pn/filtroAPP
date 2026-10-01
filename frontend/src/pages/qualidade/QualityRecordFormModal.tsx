@@ -19,7 +19,7 @@ import type {
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
-import { Button } from '../../components/ui/ds';
+import { Button, Input, Select, Textarea } from '../../components/ui/ds';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
 
 interface Props {
@@ -335,33 +335,33 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
         <div className="quality-form-grid">
           <div className={fieldClass(errors, 'type')}>
             <label htmlFor="quality-record-type">Tipo *</label>
-            <select id="quality-record-type" disabled={Boolean(record) || saving} aria-invalid={Boolean(errors.type) || undefined} {...register('type')}>
+            <Select id="quality-record-type" disabled={Boolean(record) || saving} invalid={Boolean(errors.type)} {...register('type')}>
               {schemas.typeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
             {record ? <small className="rel-meta">Tipo imutável após a criação.</small> : null}
             {errors.type ? <small className="field-error">{errors.type.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'registeredAt')}>
             <label htmlFor="quality-registered-at">Data do Registro *</label>
-            <input id="quality-registered-at" type="date" disabled={saving} aria-invalid={Boolean(errors.registeredAt) || undefined} {...register('registeredAt')} />
+            <Input id="quality-registered-at" type="date" disabled={saving} invalid={Boolean(errors.registeredAt)} {...register('registeredAt')} />
             {errors.registeredAt ? <small className="field-error">{errors.registeredAt.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'eventDate')}>
             <label htmlFor="quality-event-date">Data do Evento *</label>
-            <input id="quality-event-date" type="date" disabled={saving} aria-invalid={Boolean(errors.eventDate) || undefined} {...register('eventDate')} />
+            <Input id="quality-event-date" type="date" disabled={saving} invalid={Boolean(errors.eventDate)} {...register('eventDate')} />
             {errors.eventDate ? <small className="field-error">{errors.eventDate.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'projectId', 'quality-destination-field')}>
             <label htmlFor="quality-project">Obra/Projeto</label>
-            <select id="quality-project" disabled={saving} aria-invalid={Boolean(errors.projectId) || undefined} aria-describedby="quality-destination-hint" {...register('projectId')}>
+            <Select id="quality-project" disabled={saving} invalid={Boolean(errors.projectId)} aria-describedby="quality-destination-hint" {...register('projectId')}>
               <option value="">Interno/SGQ</option>
               {projects.map(project => (
                 <option key={project.id} value={project.id}>{project.code} - {project.name}</option>
               ))}
-            </select>
+            </Select>
             <div className="quality-destination-preview" id="quality-destination-hint" aria-live="polite">
               <span className="quality-destination-preview__tag">{selectedProjectId ? 'Obra' : 'Interno / SGQ'}</span>
               <span>{selectedProjectId
@@ -373,76 +373,76 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
 
           <div className={fieldClass(errors, 'origin')}>
             <label htmlFor="quality-origin">Origem{isDeviation ? ' *' : ''}</label>
-            <input id="quality-origin" type="text" disabled={saving} aria-invalid={Boolean(errors.origin) || undefined} {...register('origin')} />
+            <Input id="quality-origin" type="text" disabled={saving} invalid={Boolean(errors.origin)} {...register('origin')} />
             {errors.origin ? <small className="field-error">{errors.origin.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'natureId')}>
             <label htmlFor="quality-nature">Natureza{isDeviation ? ' *' : ''}</label>
-            <select id="quality-nature" disabled={saving} aria-invalid={Boolean(errors.natureId) || undefined} {...register('natureId')}>
+            <Select id="quality-nature" disabled={saving} invalid={Boolean(errors.natureId)} {...register('natureId')}>
               <option value="">Selecione</option>
               {availableNatures.map(nature => (
                 <option key={nature.id} value={nature.id}>
                   {nature.name}{nature.isActive ? '' : ' (inativa)'}
                 </option>
               ))}
-            </select>
+            </Select>
             {errors.natureId ? <small className="field-error">{errors.natureId.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'impact')}>
             <label htmlFor="quality-impact">Impacto{isDeviation ? ' *' : ''}</label>
-            <select id="quality-impact" disabled={saving} aria-invalid={Boolean(errors.impact) || undefined} {...register('impact')}>
+            <Select id="quality-impact" disabled={saving} invalid={Boolean(errors.impact)} {...register('impact')}>
               <option value="">Não informado</option>
               {schemas.impactOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
             {errors.impact ? <small className="field-error">{errors.impact.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'status')}>
             <label htmlFor="quality-status">Status{isDeviation ? ' *' : ''}</label>
-            <select id="quality-status" disabled={saving} aria-invalid={Boolean(errors.status) || undefined} {...register('status')}>
+            <Select id="quality-status" disabled={saving} invalid={Boolean(errors.status)} {...register('status')}>
               <option value="">Não informado</option>
               {schemas.statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
             {errors.status ? <small className="field-error">{errors.status.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'disposition')}>
             <label htmlFor="quality-disposition">Disposição{isDeviation ? ' *' : ''}</label>
-            <select id="quality-disposition" disabled={saving} aria-invalid={Boolean(errors.disposition) || undefined} {...register('disposition')}>
+            <Select id="quality-disposition" disabled={saving} invalid={Boolean(errors.disposition)} {...register('disposition')}>
               <option value="">Não informada</option>
               {schemas.dispositionOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
             {errors.disposition ? <small className="field-error">{errors.disposition.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'actionDeadline')}>
             <label htmlFor="quality-action-deadline">Prazo da ação</label>
-            <input id="quality-action-deadline" type="date" disabled={saving} aria-invalid={Boolean(errors.actionDeadline) || undefined} {...register('actionDeadline')} />
+            <Input id="quality-action-deadline" type="date" disabled={saving} invalid={Boolean(errors.actionDeadline)} {...register('actionDeadline')} />
             {errors.actionDeadline ? <small className="field-error">{errors.actionDeadline.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'description', 'field-group-wide')}>
             <label htmlFor="quality-description">Descrição do evento{isDeviation ? ' *' : ''}</label>
-            <textarea id="quality-description" rows={4} disabled={saving} aria-invalid={Boolean(errors.description) || undefined} {...register('description')} />
+            <Textarea id="quality-description" rows={4} disabled={saving} invalid={Boolean(errors.description)} {...register('description')} />
             {errors.description ? <small className="field-error">{errors.description.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'definedAction', 'field-group-wide')}>
             <label htmlFor="quality-defined-action">Ação definida{isDeviation && disposition === 'TRATAR' ? ' *' : ''}</label>
-            <textarea id="quality-defined-action" rows={3} disabled={saving} aria-invalid={Boolean(errors.definedAction) || undefined} {...register('definedAction')} />
+            <Textarea id="quality-defined-action" rows={3} disabled={saving} invalid={Boolean(errors.definedAction)} {...register('definedAction')} />
             {errors.definedAction ? <small className="field-error">{errors.definedAction.message}</small> : null}
           </div>
 
           <div className="field-group">
             <label htmlFor="quality-action-owner">Responsável pela ação</label>
-            <input id="quality-action-owner" type="text" disabled={saving} {...register('actionOwner')} />
+            <Input id="quality-action-owner" type="text" disabled={saving} {...register('actionOwner')} />
           </div>
 
           <div className="field-group">
             <label htmlFor="quality-rnc">RNC vinculada</label>
-            <input id="quality-rnc" type="text" disabled={saving} {...register('linkedRnc')} />
+            <Input id="quality-rnc" type="text" disabled={saving} {...register('linkedRnc')} />
           </div>
 
           <div className="field-group field-group-wide quality-evidence-block">
@@ -453,7 +453,7 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
             <div className="quality-evidence-links-editor">
               {evidenceLinks.map((link, index) => (
                 <div className="quality-evidence-link-row" key={link.id || `link-${index}`}>
-                  <input
+                  <Input
                     type="url"
                     placeholder="https://..."
                     value={link.url}
@@ -467,6 +467,7 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
             </div>
 
             <PdfDropzone
+              appearance="design-system"
               id="quality-evidence-files"
               label="Anexos da evidência (imagens/PDFs)"
               file={null}
@@ -506,7 +507,7 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
 
           <div className="field-group field-group-wide">
             <label htmlFor="quality-result">Verificação do resultado</label>
-            <textarea id="quality-result" rows={3} disabled={saving} {...register('resultVerification')} />
+            <Textarea id="quality-result" rows={3} disabled={saving} {...register('resultVerification')} />
           </div>
         </div>
 
