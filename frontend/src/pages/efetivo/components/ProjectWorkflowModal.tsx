@@ -902,7 +902,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
 
   let stageContent: ReactNode;
   if (isLegacySkippedStage) {
-    stageContent = <><section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="check" /><strong>Não se aplica ao fluxo resumido legado.</strong><p>Esta etapa foi dispensada quando a gestão começou diretamente em {WORKFLOW_STAGE_LABELS[workflow.legacySummaryEntryStage!]}.</p></section>{activeStage === 'EXECUTION' ? <ProjectWorkflowCategory title="Histórico da execução" description="Consulta aos RDOs, relatórios, escopo e avanço físico da missão." area="Execução" status="Consulta"><ProjectExecutionDashboard projectId={workflow.projectId} readOnly /></ProjectWorkflowCategory> : null}</>;
+    stageContent = <><section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="check" /><strong>Não se aplica ao fluxo resumido legado.</strong><p>Esta etapa foi dispensada quando a gestão começou diretamente em {WORKFLOW_STAGE_LABELS[workflow.legacySummaryEntryStage!]}.</p></section>{activeStage === 'EXECUTION' ? <ProjectWorkflowCategory title="Histórico da execução" description="Consulta aos RDOs, relatórios, escopo e avanço físico da missão." area="Execução" status="Consulta"><ProjectExecutionDashboard projectId={workflow.projectId} missionId={initialTeam?.id} readOnly /></ProjectWorkflowCategory> : null}</>;
   } else if (isFutureStage) {
     stageContent = <section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="lock" /><strong>Esta etapa ainda não foi iniciada.</strong><p>Conclua a etapa atual para liberar os controles de {WORKFLOW_STAGE_LABELS[activeStage].toLocaleLowerCase('pt-BR')}.</p></section>;
   } else if (activeStage === 'HANDOVER') {
@@ -919,7 +919,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     // Sem "Pronto para mobilizar": a Mobilização mostra as mesmas frentes da Preparação até o projeto avançar.
     stageContent = renderPreparation();
   } else if (activeStage === 'EXECUTION') {
-    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Escopo, avanço físico, RDOs, assinaturas e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} readOnly={!isCurrentStage} /></ProjectWorkflowCategory></>;
+    stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Escopo, avanço físico, RDOs, assinaturas e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} missionId={initialTeam?.id} canManageTargets={canManageMission} readOnly={!isCurrentStage} /></ProjectWorkflowCategory></>;
   } else if (activeStage === 'DEMOBILIZATION') {
     stageContent = <><ProjectWorkflowCategory
       title="Datas da desmobilização"

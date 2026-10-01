@@ -23,6 +23,7 @@ import {
 } from '../../../api/projectWorkflow';
 import { downloadReportPdf } from '../../../api/reports';
 import { Button } from '../../../components/ui/Button';
+import { MissionWeeklyProgressPanel } from '../../../components/projects/MissionWeeklyProgressPanel';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
@@ -280,7 +281,7 @@ function Deviations({ projectId, data }: { projectId: string; data: Awaited<Retu
   );
 }
 
-export function ProjectExecutionDashboard({ projectId, readOnly = false }: { projectId: string; readOnly?: boolean }) {
+export function ProjectExecutionDashboard({ projectId, missionId, canManageTargets = false, readOnly = false }: { projectId: string; missionId?: string; canManageTargets?: boolean; readOnly?: boolean }) {
   const query = useQuery({ queryKey: ['project-execution', projectId], queryFn: () => getProjectExecutionDashboard(projectId) });
   const queryClient = useQueryClient();
   useEffect(() => {
@@ -302,6 +303,7 @@ export function ProjectExecutionDashboard({ projectId, readOnly = false }: { pro
       <header><div><h4>Dashboard de execução</h4><p>Escopo, avanço físico, RDOs, assinaturas e desvios da obra.</p></div><ExecutionReportsDialog key={projectId} reports={dashboard.reports} /></header>
       <ExecutionOverview data={dashboard} />
       <ExecutionScopeProgress data={dashboard} />
+      {missionId ? <MissionWeeklyProgressPanel key={missionId} owner={{ area: 'efetivo', missionId }} canManage={canManageTargets && !readOnly} /> : null}
       <WeeklyExecutionReview projectId={projectId} data={dashboard} readOnly={readOnly} />
       <Deviations projectId={projectId} data={dashboard} />
     </section>
