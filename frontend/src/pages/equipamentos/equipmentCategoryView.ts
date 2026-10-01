@@ -1,9 +1,39 @@
-import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
+import type { CompanyEquipment, EquipmentCategory, RdoEquipmentSlot } from '../../api/equipamentos';
 import type { ProjectSortDirection } from '../../utils/projectSort';
 
 export type EquipmentTab = 'dashboard' | 'categories' | 'config' | 'maintenance' | 'notifications';
 
 const EQUIPMENT_TAB_VALUES = new Set<EquipmentTab>(['dashboard', 'categories', 'config', 'maintenance', 'notifications']);
+
+const REPORT_TYPE_BY_SERVICE: Record<string, string> = {
+  limpeza: 'RLQ',
+  pressao: 'RTP',
+  filtragem: 'RCPU',
+  flushing: 'RCPU'
+};
+const REPORT_TYPE_ORDER = ['RLQ', 'RTP', 'RCPU'];
+
+export function sortEquipmentCategoriesAlphabetically<T extends Pick<EquipmentCategory, 'id' | 'name'>>(categories: readonly T[]) {
+  return [...categories].sort((a, b) =>
+    a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }) || a.id.localeCompare(b.id)
+  );
+}
+
+export function reportTypesByEquipmentCategory(slots: ReadonlyArray<Pick<RdoEquipmentSlot, 'serviceType' | 'categoryIds'>>) {
+  const typesByCategory = new Map<string, Set<string>>();
+  for (const slot of slots) {
+    const reportType = REPORT_TYPE_BY_SERVICE[slot.serviceType];
+    if (!reportType) continue;
+    for (const categoryId of slot.categoryIds) {
+      if (!typesByCategory.has(categoryId)) typesByCategory.set(categoryId, new Set());
+      typesByCategory.get(categoryId)?.add(reportType);
+    }
+  }
+  return new Map([...typesByCategory].map(([categoryId, types]) => [
+    categoryId,
+    [...types].sort((a, b) => REPORT_TYPE_ORDER.indexOf(a) - REPORT_TYPE_ORDER.indexOf(b))
+  ]));
+}
 
 export function parseEquipmentTabParam(value: string | null) {
   if (!value) return 'dashboard';

@@ -1,291 +1,95 @@
-import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
+import { useMemo } from 'react';
 
 import type { EquipmentCategory } from '../../api/equipamentos';
-import { useToast } from '../../components/ui/ToastContext';
+import { ReportTypeBadge } from '../../components/reports/ReportTypeBadge';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
-import { Button, EmptyState } from '../../components/ui/ds';
+import { Badge, Button, EmptyState } from '../../components/ui/ds';
 import { useListingMobileViewport } from '../../components/ui/ds/listings/useListingMedia';
-import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
-import { type ProjectSortDirection } from '../../utils/projectSort';
-import {
-  createPointerDragGhost,
-  movePointerDragGhost,
-  reorderIdFromPoint,
-  reorderRowsById,
-  sameStringOrder,
-  setReorderDragImage,
-  type PointerDragState
-} from '../../utils/reorderDrag';
+import { sortEquipmentCategoriesAlphabetically } from './equipmentCategoryView';
 
 interface Props {
   categories: EquipmentCategory[];
-  rdoLinkedCategoryIds: Set<string>;
+  linkedCategoryIds: Set<string>;
+  reportTypesByCategoryId: Map<string, string[]>;
   onAdd: () => void;
   onEdit: (category: EquipmentCategory) => void;
   onRemove: (category: EquipmentCategory) => void;
 }
 
-export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdit, onRemove }: Props) {
+function categorySettings(category: EquipmentCategory) {
+  return [
+    category.supportsCalibration && 'Calibração',
+    category.supportsTechnicalDoc && 'Documentação técnica',
+    category.technicalDocEnabled && 'Dados técnicos',
+    category.checklistEnabled && 'Checklist',
+    category.showInMaintenance && 'Manutenção',
+    category.syncToRomaneio && 'Romaneio'
+  ].filter((setting): setting is string => Boolean(setting));
+}
+
+export function CategoryManager({ categories, linkedCategoryIds, reportTypesByCategoryId, onAdd, onEdit, onRemove }: Props) {
   const compact = useListingMobileViewport('xl');
-  const { updateCategory } = useEquipamentoMutations();
-  const showToast = useToast();
-  const [locked, setLocked] = useState(true);
-  const [ordered, setOrdered] = useState<EquipmentCategory[]>(categories);
-  const [sortDir, setSortDir] = useState<ProjectSortDirection>('asc');
-  const dragCategoryId = useRef<string | null>(null);
-  const dropHandled = useRef(false);
-  const dragStartOrderIds = useRef<string[]>([]);
-  const orderedRef = useRef<EquipmentCategory[]>(categories);
-  const touchDrag = useRef<PointerDragState | null>(null);
-  const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
-  const [overCategoryId, setOverCategoryId] = useState<string | null>(null);
+  const ordered = useMemo(() => sortEquipmentCategoriesAlphabetically(categories), [categories]);
 
-  // Mantém a ordem local em sincronia quando a lista do servidor muda.
-  useEffect(() => {
-    if (dragCategoryId.current) return;
-    orderedRef.current = categories;
-    setOrdered(categories);
-  }, [categories]);
-
-  function persistOrder(next: EquipmentCategory[]) {
-    const changed = next
-      .map((category, index) => ({ category, index }))
-      .filter(({ category, index }) => category.order !== index);
-    if (!changed.length) return;
-    Promise.all(changed.map(({ category, index }) => updateCategory.mutateAsync({ id: category.id, payload: { order: index } })))
-      .then(() => showToast('Ordem atualizada.', 'success'))
-      .catch(error => showToast(error instanceof Error ? error.message : 'Não foi possível reordenar.', 'error'));
+  function settings(category: EquipmentCategory) {
+    const active = categorySettings(category);
+    return active.length ? (
+      <div className="equip-category-manager__settings">
+        {active.map(setting => <span className="equip-category-manager__setting" key={setting}>{setting}</span>)}
+      </div>
+    ) : <span className="rel-meta">—</span>;
   }
 
-  // Ordena as categorias alfabeticamente (e persiste a nova ordem das abas).
-  function sortAlphabetically() {
-    const direction = sortDir;
-    const next = [...ordered].sort((a, b) =>
-      a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }) * (direction === 'asc' ? 1 : -1)
-    );
-    setOrdered(next);
-    persistOrder(next);
-    setSortDir(direction === 'asc' ? 'desc' : 'asc');
-  }
-
-  function applyOrdered(next: EquipmentCategory[]) {
-    orderedRef.current = next;
-    setOrdered(next);
-  }
-
-  function clearDragState() {
-    dragCategoryId.current = null;
-    setDraggedCategoryId(null);
-    setOverCategoryId(null);
-  }
-
-  function startCategoryDrag(categoryId: string) {
-    dropHandled.current = false;
-    orderedRef.current = ordered;
-    dragStartOrderIds.current = ordered.map(category => category.id);
-    dragCategoryId.current = categoryId;
-    setDraggedCategoryId(categoryId);
-    setOverCategoryId(categoryId);
-  }
-
-  function persistCategoryOrder(next: EquipmentCategory[]) {
-    applyOrdered(next);
-    const nextIds = next.map(category => category.id);
-    if (sameStringOrder(nextIds, dragStartOrderIds.current)) return;
-    persistOrder(next);
-  }
-
-  function handleDragStart(event: DragEvent<HTMLButtonElement>, categoryId: string) {
-    if (locked) {
-      event.preventDefault();
-      return;
+  function reports(category: EquipmentCategory) {
+    const reportTypes = reportTypesByCategoryId.get(category.id) || [];
+    if (reportTypes.length) {
+      return <div className="equip-category-manager__reports">{reportTypes.map(reportType => <ReportTypeBadge key={reportType} reportType={reportType} />)}</div>;
     }
-    startCategoryDrag(categoryId);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', categoryId);
-    setReorderDragImage(event, '.equip-category-reorder-item', 'app-reorder-drag-ghost');
+    return linkedCategoryIds.has(category.id) ? <Badge tone="neutral">Vinculado</Badge> : <span className="rel-meta">—</span>;
   }
 
-  function handleDragOver(event: DragEvent<HTMLElement>, categoryId: string) {
-    const fromId = dragCategoryId.current;
-    if (!fromId || locked) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    setOverCategoryId(categoryId);
-    const next = reorderRowsById(orderedRef.current, fromId, categoryId, category => category.id);
-    if (next !== orderedRef.current) applyOrdered(next);
-  }
-
-  function handleDrop(event: DragEvent<HTMLElement>, categoryId: string) {
-    event.preventDefault();
-    const fromId = dragCategoryId.current;
-    dropHandled.current = true;
-    clearDragState();
-    if (!fromId || locked) return;
-    const next = fromId === categoryId
-      ? orderedRef.current
-      : reorderRowsById(orderedRef.current, fromId, categoryId, category => category.id);
-    persistCategoryOrder(next);
-  }
-
-  function handleDragEnd() {
-    if (!dropHandled.current) applyOrdered(categories);
-    dropHandled.current = false;
-    clearDragState();
-  }
-
-  function handlePointerDown(event: PointerEvent<HTMLButtonElement>, categoryId: string) {
-    if (event.pointerType === 'mouse') return;
-    if (locked) {
-      event.preventDefault();
-      return;
-    }
-    const row = event.currentTarget.closest('.equip-category-reorder-item');
-    if (!(row instanceof HTMLElement)) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    startCategoryDrag(categoryId);
-    document.body.classList.add('app-reorder-touching');
-    const state = createPointerDragGhost(row, event.clientX, event.clientY, 'app-reorder-touch-ghost');
-    state.pointerId = event.pointerId;
-    touchDrag.current = state;
-  }
-
-  function handlePointerMove(event: PointerEvent<HTMLButtonElement>) {
-    const state = touchDrag.current;
-    const fromId = dragCategoryId.current;
-    if (!state || state.pointerId !== event.pointerId || !fromId || locked) return;
-    event.preventDefault();
-    movePointerDragGhost(state, event.clientX, event.clientY);
-
-    const targetId = reorderIdFromPoint(event.clientX, event.clientY, '.equip-category-reorder-item');
-    if (!targetId) return;
-    setOverCategoryId(targetId);
-    const next = reorderRowsById(orderedRef.current, fromId, targetId, category => category.id);
-    if (next !== orderedRef.current) applyOrdered(next);
-  }
-
-  function finishPointerDrag(event: PointerEvent<HTMLButtonElement>, persist: boolean) {
-    const state = touchDrag.current;
-    if (!state || state.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    state.ghost.remove();
-    touchDrag.current = null;
-    document.body.classList.remove('app-reorder-touching');
-    if (persist) persistCategoryOrder(orderedRef.current);
-    else applyOrdered(categories);
-    clearDragState();
-  }
-
-  function dragHandle(category: EquipmentCategory) {
-    if (locked) return null;
-    return (
-      <button
-        className="equip-drag-handle"
-        type="button"
-        draggable
-        aria-label={`Arrastar ${category.name} para reordenar`}
-        aria-grabbed={draggedCategoryId === category.id}
-        title="Arraste para reordenar"
-        onDragStart={event => handleDragStart(event, category.id)}
-        onDragEnd={handleDragEnd}
-        onPointerDown={event => handlePointerDown(event, category.id)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={event => finishPointerDrag(event, true)}
-        onPointerCancel={event => finishPointerDrag(event, false)}
-      >
-        ⠿
-      </button>
-    );
-  }
-
-  function categoryActions(category: EquipmentCategory) {
-    if (!locked) return null;
+  function actions(category: EquipmentCategory) {
     return (
       <div className="equip-category-manager__actions">
         <Button variant="secondary" size="sm" type="button" onClick={() => onEdit(category)}>Editar</Button>
-        {!rdoLinkedCategoryIds.has(category.id) && (
+        {!linkedCategoryIds.has(category.id) && (
           <RemoveIconButton type="button" label={`Remover categoria ${category.name}`} onClick={() => onRemove(category)} />
         )}
       </div>
     );
   }
 
-  function reorderClasses(category: EquipmentCategory) {
-    return [
-      'equip-category-reorder-item',
-      !locked ? 'draggable' : '',
-      draggedCategoryId === category.id ? 'drag-placeholder' : '',
-      overCategoryId === category.id && draggedCategoryId !== category.id ? 'drag-over' : ''
-    ].filter(Boolean).join(' ');
-  }
-
   return (
     <section className="page-card equip-category-manager">
       <div className="admin-toolbar">
         <div className="sec">Categorias</div>
-        <div className="equip-cat-tools">
-          <Button variant="secondary" size="sm" type="button" aria-label="Alternar ordem alfabética" onClick={sortAlphabetically}>
-            {sortDir === 'asc' ? 'A→Z' : 'Z→A'}
-          </Button>
-          <button
-            className={`icon-toggle ${locked ? '' : 'active'}`}
-            type="button"
-            aria-pressed={!locked}
-            title={locked ? 'Destravar para reordenar' : 'Travar ordenação'}
-            onClick={() => setLocked(v => !v)}
-          >
-            {locked ? 'Reordenar' : 'Concluir'}
-          </button>
-          <Button variant="primary" size="sm" type="button" onClick={onAdd}>Nova categoria</Button>
-        </div>
+        <Button variant="primary" size="sm" type="button" onClick={onAdd}>Nova categoria</Button>
       </div>
-
-      {!locked && <p className="rel-meta equip-reorder-hint">Arraste as categorias para ajustar a ordem. Clique em “Concluir” para travar.</p>}
 
       {ordered.length === 0 ? <EmptyState title="Nenhuma categoria cadastrada" description="Crie uma categoria para organizar os equipamentos." variant="create" action={{ label: 'Nova categoria', onClick: onAdd }} /> : null}
 
       {ordered.length > 0 && (compact ? (
-        <div className={`equip-category-manager__list ${locked ? '' : 'reordering'}`}>
+        <div className="equip-category-manager__list">
           {ordered.map(category => (
-            <article
-              className={`equip-category-manager__item ${reorderClasses(category)}`}
-              key={category.id}
-              data-reorder-id={category.id}
-              onDragOver={event => handleDragOver(event, category.id)}
-              onDragLeave={() => setOverCategoryId(current => current === category.id ? null : current)}
-              onDrop={event => handleDrop(event, category.id)}
-            >
-              <div className="equip-category-manager__item-main">
-                <span className="equip-card-titlewrap">{dragHandle(category)}<strong>{category.name}</strong></span>
-                {rdoLinkedCategoryIds.has(category.id) && <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span>}
-              </div>
-              <div className="rel-meta">{category.fieldSchema.length} {category.fieldSchema.length === 1 ? 'campo' : 'campos'}{category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}{category.showInMaintenance !== false ? ' · manutenção' : ' · fora da manutenção'}</div>
-              {categoryActions(category)}
+            <article className="equip-category-manager__item" key={category.id}>
+              <strong className="equip-category-manager__item-name">{category.name}</strong>
+              <div className="equip-category-manager__item-detail"><span>Configurações</span>{settings(category)}</div>
+              <div className="equip-category-manager__item-detail"><span>Relatórios</span>{reports(category)}</div>
+              {actions(category)}
             </article>
           ))}
         </div>
       ) : (
         <div className="equip-category-manager__table-wrap">
-          <table className={`equip-category-manager__table ${locked ? '' : 'reordering'}`}>
-            <thead><tr><th scope="col">Categoria</th><th scope="col">Campos técnicos</th><th scope="col">Recursos</th><th scope="col">Relatório</th><th scope="col">Ações</th></tr></thead>
+          <table className="equip-category-manager__table">
+            <thead><tr><th scope="col">Categoria</th><th scope="col">Configurações</th><th scope="col">Relatórios</th><th scope="col">Ações</th></tr></thead>
             <tbody>
               {ordered.map(category => (
-                <tr
-                  className={reorderClasses(category)}
-                  key={category.id}
-                  data-reorder-id={category.id}
-                  onDragOver={event => handleDragOver(event, category.id)}
-                  onDragLeave={() => setOverCategoryId(current => current === category.id ? null : current)}
-                  onDrop={event => handleDrop(event, category.id)}
-                >
-                  <th scope="row"><span className="equip-card-titlewrap">{dragHandle(category)}<strong>{category.name}</strong></span></th>
-                  <td>{category.fieldSchema.length}</td>
-                  <td className="equip-category-manager__resources">{category.supportsCalibration ? 'Calibração · ' : ''}{category.syncToRomaneio ? 'Romaneio · ' : ''}{category.showInMaintenance !== false ? 'Manutenção' : 'Fora da manutenção'}</td>
-                  <td>{rdoLinkedCategoryIds.has(category.id) ? <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span> : <span className="rel-meta">—</span>}</td>
-                  <td>{categoryActions(category)}</td>
+                <tr key={category.id}>
+                  <th scope="row">{category.name}</th>
+                  <td>{settings(category)}</td>
+                  <td>{reports(category)}</td>
+                  <td>{actions(category)}</td>
                 </tr>
               ))}
             </tbody>

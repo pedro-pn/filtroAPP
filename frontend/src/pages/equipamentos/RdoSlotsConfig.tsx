@@ -69,13 +69,13 @@ export function RdoSlotsConfig({ categories }: Props) {
   return (
     <section className="page-card equip-rdo-slots-config">
       <div className="admin-toolbar">
-        <div className="sec">Vínculo com relatórios (RDO)</div>
+        <div className="sec">Vínculo com relatórios</div>
       </div>
       <p className="rel-meta equip-slots-hint">
         Defina qual categoria de equipamento alimenta cada ponto do formulário de relatório.
         Use “+ Adicionar categoria” para associar mais de uma — os equipamentos de todas elas
         aparecem numa lista só no preenchimento. Assim é possível editar/renomear as categorias
-        sem perder o vínculo com o RDO.
+        sem perder o vínculo. As etiquetas acima indicam RLQ, RTP ou RCPU conforme o serviço.
       </p>
 
       {slotsQuery.isLoading && <p className="rel-meta">Carregando…</p>}

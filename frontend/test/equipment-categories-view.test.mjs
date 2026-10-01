@@ -54,3 +54,29 @@ test('nomes longos usam prefixos dos códigos e preservam fallback legível', as
   assert.equal(equipmentCategoryShortLabel(category, []), 'ULQ');
   assert.equal(equipmentCategoryShortLabel({ id: 'filtros', name: 'Filtros' }, [withCode('FIL-01')]), 'Filtros');
 });
+
+test('categorias permanecem em ordem alfabética, independente da ordem gravada', async () => {
+  const { sortEquipmentCategoriesAlphabetically } = await loadView();
+  const categories = [
+    { id: 'z', name: 'Válvulas', order: 0 },
+    { id: 'a', name: 'Águas', order: 2 },
+    { id: 'b', name: 'Bombas', order: 1 }
+  ];
+
+  assert.deepEqual(sortEquipmentCategoriesAlphabetically(categories).map(category => category.name), ['Águas', 'Bombas', 'Válvulas']);
+  assert.equal(categories[0].name, 'Válvulas');
+});
+
+test('etiquetas mostram cada relatório vinculado, sem duplicar RCPU', async () => {
+  const { reportTypesByEquipmentCategory } = await loadView();
+  const slots = [
+    { serviceType: 'flushing', categoryIds: ['filtro'] },
+    { serviceType: 'filtragem', categoryIds: ['filtro'] },
+    { serviceType: 'limpeza', categoryIds: ['filtro', 'unidade'] },
+    { serviceType: 'pressao', categoryIds: ['unidade'] }
+  ];
+
+  const tags = reportTypesByEquipmentCategory(slots);
+  assert.deepEqual(tags.get('filtro'), ['RLQ', 'RCPU']);
+  assert.deepEqual(tags.get('unidade'), ['RLQ', 'RTP']);
+});

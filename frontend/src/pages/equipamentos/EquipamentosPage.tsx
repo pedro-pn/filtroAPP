@@ -24,7 +24,7 @@ import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { MaintenanceConfigPanel } from './MaintenanceConfigPanel';
 import { MaintenanceHistoryModal } from './MaintenanceHistoryModal';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
-import { equipmentCategoryShortLabel, equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, type EquipmentTab } from './equipmentCategoryView';
+import { equipmentCategoryShortLabel, equipmentTabFromParam, filterAndSortEquipment, parseEquipmentTabParam, reportTypesByEquipmentCategory, sortEquipmentCategoriesAlphabetically, type EquipmentTab } from './equipmentCategoryView';
 import './EquipamentosPage.ds.css';
 import './EquipmentConfig.ds.css';
 import './EquipmentEntity.ds.css';
@@ -83,11 +83,12 @@ export function EquipamentosPage() {
   const unitsCatalogQuery = useUnitsCatalog();
   const mutations = useEquipamentoMutations();
 
-  const categories = useMemo(() => [...(categoriesQuery.data || [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)), [categoriesQuery.data]);
+  const categories = useMemo(() => sortEquipmentCategoriesAlphabetically(categoriesQuery.data || []), [categoriesQuery.data]);
   const equipment = useMemo(() => equipmentQuery.data || [], [equipmentQuery.data]);
   const categoryShortLabels = useMemo(() => new Map(categories.map(category => [category.id, equipmentCategoryShortLabel(category, equipment)])), [categories, equipment]);
   // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
-  const rdoLinkedCategoryIds = useMemo(() => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)), [rdoSlotsQuery.data]);
+  const linkedCategoryIds = useMemo(() => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)), [rdoSlotsQuery.data]);
+  const reportTypesByCategoryId = useMemo(() => reportTypesByEquipmentCategory(rdoSlotsQuery.data || []), [rdoSlotsQuery.data]);
 
   const [activeTabUrl, setActiveTabUrl] = useUrlParamState<string>({
     param: 'tab',
@@ -252,7 +253,7 @@ export function EquipamentosPage() {
         score
       };
     });
-    return candidates.filter(candidate => candidate.items.length > 0 || categories.length === 1).sort((a, b) => b.score - a.score || a.category.order - b.category.order || a.category.name.localeCompare(b.category.name))[0] || null;
+    return candidates.filter(candidate => candidate.items.length > 0 || categories.length === 1).sort((a, b) => b.score - a.score || a.category.name.localeCompare(b.category.name, 'pt-BR', { sensitivity: 'base' }))[0] || null;
   }, [categories, equipment]);
   const tutorialReady = !categoriesQuery.isLoading && !equipmentQuery.isLoading;
   const tutorialUserKey = equipmentTutorialUserKey(user, isManager);
@@ -644,7 +645,7 @@ export function EquipamentosPage() {
 
             {activeTab.kind === 'config' && isManager && (
               <div className="equip-config-page">
-                <CategoryManager categories={categories} rdoLinkedCategoryIds={rdoLinkedCategoryIds} onAdd={() => setCategoryForm({ open: true, category: null })} onEdit={category => setCategoryForm({ open: true, category })} onRemove={handleRemoveCategory} />
+                <CategoryManager categories={categories} linkedCategoryIds={linkedCategoryIds} reportTypesByCategoryId={reportTypesByCategoryId} onAdd={() => setCategoryForm({ open: true, category: null })} onEdit={category => setCategoryForm({ open: true, category })} onRemove={handleRemoveCategory} />
                 <RdoSlotsConfig categories={categories} />
               </div>
             )}
