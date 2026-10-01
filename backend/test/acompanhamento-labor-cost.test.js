@@ -1372,7 +1372,7 @@ test('RDO do dia prevalece; Efetivo resolve viagem e etiqueta isolada não gera 
   assert.deepEqual(comOverride.allocations.map(item => item.projectId), ['C']);
 });
 
-test('Efetivo sem marcação do ponto não aloca nem gera pendência; EM VIAGEM ambígua gera', () => {
+test('Efetivo com alocações ambíguas exige decisão mesmo sem etiqueta do ponto', () => {
   const decisao = buildDailyProjectWeights({
     tags: [],
     rdoProjects: new Map(),
@@ -1380,9 +1380,10 @@ test('Efetivo sem marcação do ponto não aloca nem gera pendência; EM VIAGEM 
     effectiveProjectIds: ['A', 'B']
   });
 
-  assert.equal(decisao.reason, 'NO_PROJECT_EVIDENCE');
+  assert.equal(decisao.reason, 'EFFECTIVE_ALLOCATION_AMBIGUOUS');
   assert.deepEqual(decisao.allocations, []);
-  assert.equal(allocationDecisionRequiresAction(decisao), false);
+  assert.deepEqual(decisao.candidateProjectIds, ['A', 'B']);
+  assert.equal(allocationDecisionRequiresAction(decisao), true);
 
   const viagemAmbigua = buildDailyProjectWeights({
     tags: ['EM VIAGEM'],

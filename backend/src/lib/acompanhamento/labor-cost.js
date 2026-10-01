@@ -6,12 +6,13 @@
  *
  * FOLHA (custo mensal do colaborador, por mês):
  *  - dias trabalhados = horas normais do ponto ÷ 8,8 (HORAS_POR_DIA).
- *  - há apropriação quando o dia com ponto tem relatório nominal; sem relatório no dia, a marcação
- *    da missão/EM VIAGEM precisa ser confirmada pela janela individual do Efetivo oficial. Projetos
- *    legados usam janela global somente para quem aparece nominalmente em RDO do próprio projeto.
+ *  - há apropriação quando o dia com ponto tem relatório nominal; sem relatório no dia, a janela
+ *    individual do Efetivo oficial também gera custo, inclusive sem ponto (8,8h por dia). Esses
+ *    dias não geram jornada trabalhada nem presumem viagem. Projetos legados usam janela global
+ *    somente para quem aparece nominalmente em RDO do próprio projeto e tem marcação compatível.
  *  - em dias úteis apropriados, o total considerado (normal + HE) tem piso de 8,8h (8h48);
  *    marcações maiores e fins de semana preservam o total real do ponto.
- *  - diasCliente (periculosidade) = dias COM projeto (RDO ou viagem confirmada). Em projeto não-offshore, a configuração
+ *  - diasCliente (periculosidade) = dias COM projeto (RDO, viagem ou alocação oficial). Em projeto não-offshore, a configuração
  *    manual por colaborador define se o dia entra como diasFora (dorme fora) ou diasCasa (dorme em
  *    casa/gratificação). Dia com ponto sem nenhuma evidência de projeto não alimenta verbas variáveis.
  *  - Dia de semana sem ponto e sem alocação = folga: 8,8h zerados (só no denominador do HH).
@@ -1043,10 +1044,9 @@ export function buildDailyProjectWeights({
   }
 
   /*
-   * Sem relatório no próprio dia, o Efetivo oficial é a fonte principal, mas não substitui a
-   * marcação do ponto. A janela individual autoriza uma missão somente quando o próprio ponto
-   * identifica a missão ou registra EM VIAGEM. Sem qualquer uma dessas evidências, o dia continua
-   * fora dos projetos e também não vira pendência.
+   * Sem relatório no próprio dia, a alocação individual do Efetivo oficial gera custo mesmo sem
+   * marcação do ponto. Etiquetas continuam resolvendo viagem e conflitos; na ausência delas,
+   * uma única alocação confirma o projeto, sem presumir atividade ou deslocamento.
    */
   if (rdoByProject.size === 0) {
     if (taggedEffectiveProjectIds.length === 1) {
@@ -1077,6 +1077,19 @@ export function buildDailyProjectWeights({
         reason: effectiveIds.length > 1
           ? 'EFFECTIVE_ALLOCATION_AMBIGUOUS'
           : 'EFFECTIVE_TAG_CONFLICT'
+      };
+    }
+    if (effectiveIds.length === 1) {
+      return {
+        allocations: [{ projectId: effectiveIds[0], weight: 1, rdo: null }],
+        reason: 'EFFECTIVE_ALLOCATION_NO_ACTIVITY'
+      };
+    }
+    if (effectiveIds.length > 1) {
+      return {
+        allocations: [],
+        candidateProjectIds: effectiveIds,
+        reason: 'EFFECTIVE_ALLOCATION_AMBIGUOUS'
       };
     }
 
@@ -1260,7 +1273,8 @@ export function classifyProjectHours(
     const dayHe70Hours = Math.max(0, Number(row.he70Horas) || 0);
     const dayHe100Hours = Math.max(0, Number(row.he100Horas) || 0);
     const dayTotalHours = dayNormalHours + dayHe70Hours + dayHe100Hours;
-    const decision = dayTotalHours > 0
+    const effectiveDayWithoutReport = effectiveProjectIds.length > 0 && rdoProjects.size === 0;
+    const decision = dayTotalHours > 0 || effectiveDayWithoutReport
       ? buildDailyProjectWeights({
         tags: row.tags,
         rdoProjects,
@@ -1287,23 +1301,26 @@ export function classifyProjectHours(
     // RDO do dia, o relatório é a fonte do contexto e a etiqueta do ponto não vira deslocamento.
     const travelContext = rdoProjects.size === 0
       && Boolean(decision.travelContext || (row.tags || []).some(isPontoTravelTag));
-    const dayCostNormalHours = costNormalHoursForDay(
-      row.date,
-      dayNormalHours,
-      dayHe70Hours,
-      dayHe100Hours,
-      decision.allocations.length > 0
-    );
+    const noActivityContext = effectiveDayWithoutReport && !travelContext && decision.allocations.length > 0;
+    const dayCostNormalHours = effectiveDayWithoutReport && dayTotalHours === 0 && decision.allocations.length > 0
+      ? HORAS_POR_DIA
+      : costNormalHoursForDay(
+        row.date,
+        dayNormalHours,
+        dayHe70Hours,
+        dayHe100Hours,
+        decision.allocations.length > 0
+      );
     costNormalHours += dayCostNormalHours;
     // Trilha da decisão de cada dia: base única do painel de auditoria e das pendências.
     dayTrail.push({
       date: row.date,
       normalHours: dayNormalHours,
       costNormalHours: dayCostNormalHours,
-      minimumNormalHoursApplied: dayCostNormalHours > dayNormalHours,
+      minimumNormalHoursApplied: dayTotalHours > 0 && dayCostNormalHours > dayNormalHours,
       he70Hours: dayHe70Hours,
       he100Hours: dayHe100Hours,
-      tags: uniqueStrings(row.tags),
+      tags: uniqueStrings([...(row.tags || []), ...(noActivityContext ? ['Dia sem atividade/viagem'] : [])]),
       tagProjectIds: [...new Set((row.tags || []).map(resolveTag).filter(Boolean))].sort(),
       rdoProjects: [...rdoProjects.values()].map(item => ({
         projectId: item.projectId,
@@ -1317,13 +1334,14 @@ export function classifyProjectHours(
       allocations: decision.allocations.map(item => ({ projectId: item.projectId, weight: item.weight })),
       candidateProjectIds: decision.candidateProjectIds ? [...decision.candidateProjectIds] : [],
       travelContext,
+      noActivityContext,
       planningMismatch,
       pending,
       reason: decision.reason
     });
     if (decision.allocations.length === 0) {
-      // Dia sem hora nenhuma é folga, não pendência — nunca vira item para o gestor resolver.
-      if (dayTotalHours > 0) {
+      // Alocações oficiais conflitantes também exigem decisão quando não há ponto.
+      if (dayTotalHours > 0 || pending) {
         unresolvedDays.push({
           date: row.date,
           reason: decision.reason,
@@ -1474,6 +1492,41 @@ function monthsOf(period) {
       workedDates: dates
     };
   });
+}
+
+// Completa apenas as datas dos ciclos oficiais dentro do período de custo. Os registros do ponto
+// e seus totais permanecem intactos; as linhas vazias existem somente para apropriação financeira.
+export function monthsWithEffectiveAllocationDays(period, effectiveAllocationIndex, rangeStart, rangeEnd) {
+  const months = new Map(monthsOf(period).map(month => [month.monthKey, {
+    ...month,
+    days: [...month.days]
+  }]));
+  const startKey = dateKeyUTC(rangeStart);
+  const endKey = dateKeyUTC(rangeEnd);
+  const dates = new Set([...months.values()].flatMap(month => month.days.map(day => day.date)));
+  for (const window of effectiveAllocationIndex.get(period.collaboratorId)?.windows || []) {
+    const start = maxDateKey(startKey, window.startKey);
+    const end = minDateKey(endKey, window.endKey);
+    for (let date = start; date <= end; date = addDaysKey(date, 1)) {
+      if (dates.has(date)) continue;
+      dates.add(date);
+      const monthKey = date.slice(0, 7);
+      if (!months.has(monthKey)) months.set(monthKey, { monthKey, days: [], workedDates: [] });
+      months.get(monthKey).days.push({
+        date,
+        normalHours: 0,
+        extrasHoras: 0,
+        genericOvertimeHoras: 0,
+        he70Horas: 0,
+        he100Horas: 0,
+        tags: [],
+        explicitOvertime: true
+      });
+    }
+  }
+  return [...months.values()]
+    .map(month => ({ ...month, days: month.days.sort((a, b) => a.date.localeCompare(b.date)) }))
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 }
 
 function yearsForPeriod(start, end) {
@@ -1874,7 +1927,10 @@ export async function computeCollaboratorRates(importId = null) {
     // A trilha também define se uma marcação positiva menor que 8h48 recebe o piso de projeto.
     // Ela fica fora do bloco de custo porque colaboradores sem perfil configurado ainda precisam
     // aparecer na auditoria e nas pendências.
-    const trailDays = monthsOf(period).flatMap(mrec => splitOvertimeDays(
+    const months = monthsWithEffectiveAllocationDays(
+      period, projectAllocationContext.effectiveAllocationIndex, fileStart, fileEnd
+    );
+    const trailDays = months.flatMap(mrec => splitOvertimeDays(
       mrec.days || [],
       Number(roleParams.paramsFor(
         collaboratorRoleAtDate(period.collaborator, `${mrec.monthKey}-01`)?.roleName || role,
@@ -1894,12 +1950,10 @@ export async function computeCollaboratorRates(importId = null) {
     );
     entry.allocationTrail = trail.dayTrail;
     entry.unresolvedDays = trail.unresolvedDays;
-    const hasMinimumPaidProjectDay = trail.dayTrail.some(day => day.minimumNormalHoursApplied);
+    const hasAllocatedCostDay = trail.dayTrail.some(day => day.allocations.length > 0 && day.costNormalHours > 0);
 
     const costRoleSegments = collaboratorRoleSegments(period.collaborator, dateKeyUTC(fileStart), dateKeyUTC(fileEnd));
-    if (costRoleSegments.some(segment => roleParams.hasProfile(segment.roleName)) && (totalWorkedDays > 0 || hasMinimumPaidProjectDay)) {
-      const months = monthsOf(period);
-
+    if (costRoleSegments.some(segment => roleParams.hasProfile(segment.roleName)) && (totalWorkedDays > 0 || hasAllocatedCostDay)) {
       const agg = { folha: 0, folhaBase: 0, fixo: 0, variavel: 0, totalHours: 0, folga: 0, normal: 0, he70: 0, he100: 0 };
       const idle = { sede: { cost: 0, costBase: 0, hours: 0 }, folga: { cost: 0, costBase: 0, hours: 0 } };
       const byProject = {};
@@ -2153,7 +2207,9 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   const rdo = rdoData.get(period.collaboratorId) || { byProject: new Map(), dayProjects: new Map() };
 
   const cap = Number(params.he70LimiteHoras) || 30;
-  const mrec = monthsOf(period).find(m => m.monthKey === monthKey);
+  const mrec = monthsWithEffectiveAllocationDays(
+    period, projectAllocationContext.effectiveAllocationIndex, pontoScope.periodStart, pontoScope.periodEnd
+  ).find(m => m.monthKey === monthKey);
   if (!mrec) throw new Error(`Sem dados de ${nameQuery} no mês ${monthKey}.`);
   const daysM = splitOvertimeDays(mrec.days || [], cap);
   const he70M = daysM.reduce((sum, day) => sum + (day.he70Horas || 0), 0);

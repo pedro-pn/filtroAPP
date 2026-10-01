@@ -855,17 +855,19 @@ export interface ProjectDetailCollaborator {
   horas: number;
   /** Soma bruta das jornadas de todas as missões, inclusive quando elas se sobrepõem. */
   horasLancadas: number;
-  /** Horas analíticas do Ponto Mais apropriadas ao projeto; podem repetir em execução compartilhada. */
+  /** Horas de custo do ponto e do Efetivo apropriadas ao projeto; podem repetir em execução compartilhada. */
   horasApropriadas: number | null;
   /** Parte das horas apropriadas registrada em dias marcados como viagem/deslocamento. */
   horasDeslocamento: number;
-  /** Trilha diária das horas do ponto que formam a apropriação deste projeto. */
+  /** Trilha diária das horas de custo que formam a apropriação deste projeto. */
   diasApropriados: Array<{
     data: string;
     horas: number;
     horasNormais: number;
     horasExtras: number;
     emViagem: boolean;
+    /** Alocação do Efetivo sem relatório de atividade; não presume viagem. */
+    semAtividade?: boolean;
     rdos: Array<{
       numero: number | null;
       projetoId: string | null;

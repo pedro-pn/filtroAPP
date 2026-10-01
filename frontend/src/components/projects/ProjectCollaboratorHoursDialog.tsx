@@ -57,7 +57,7 @@ export function ProjectCollaboratorHoursDialog({
         <div className="acp-manage-body">
           {onSourceChange && reportDays.length > 0 ? (
             <div className="acp-collaborator-hours-sources" aria-label="Fonte das horas">
-              <button type="button" className="mini-btn alt" aria-pressed={!fromReports} onClick={() => onSourceChange('POINT')}>Ponto apropriado</button>
+              <button type="button" className="mini-btn alt" aria-pressed={!fromReports} onClick={() => onSourceChange('POINT')}>Horas de custo</button>
               <button type="button" className="mini-btn alt" aria-pressed={fromReports} onClick={() => onSourceChange('REPORT')}>Todos os RDOs</button>
             </div>
           ) : null}
@@ -71,6 +71,13 @@ export function ProjectCollaboratorHoursDialog({
             <span>{dayCount} dia{dayCount === 1 ? '' : 's'} considerado{dayCount === 1 ? '' : 's'}</span>
             <strong>{fmtHours(fromReports ? collaborator?.horas : collaborator?.horasApropriadas)}</strong>
           </div>
+          {!fromReports && days.some(day => day.semAtividade) ? (
+            <p className="acp-det-collab-audit-copy">
+              Dias alocados pelo Efetivo sem relatório de atividade entram nas horas de custo,
+              com 8h48 quando não há horas no ponto. Eles não contam como dias ou horas trabalhados
+              e não confirmam viagem.
+            </p>
+          ) : null}
 
           {fromReports ? (
             <>
@@ -145,7 +152,9 @@ export function ProjectCollaboratorHoursDialog({
                       <td data-label="Extras" style={{ textAlign: 'right' }}>{fmtHours(day.horasExtras)}</td>
                       <td data-label="Total" style={{ textAlign: 'right' }}><strong>{fmtHours(day.horas)}</strong></td>
                       <td data-label="Contexto">
-                        {day.emViagem ? <span className="badge badge-pen">Em viagem</span> : 'Obra'}
+                        {day.semAtividade
+                          ? <span className="badge badge-pen">Dia sem atividade/viagem</span>
+                          : day.emViagem ? <span className="badge badge-pen">Em viagem</span> : 'Obra'}
                       </td>
                     </tr>
                   ))}
