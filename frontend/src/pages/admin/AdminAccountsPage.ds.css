@@ -1,0 +1,288 @@
+.admin-accounts-page-v2 {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-4);
+  padding-block-end: var(--space-6);
+  color: var(--ink);
+}
+
+.admin-account-filters-v2 > .fv-card__body {
+  min-width: 0;
+}
+
+.admin-account-filters-v2__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.admin-account-filters-v2__grid > * {
+  min-width: 0;
+}
+
+.admin-account-form {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+  scroll-margin-block-start: calc(var(--topbar-h) + var(--space-4));
+}
+
+.admin-account-form__header,
+.admin-account-results__heading,
+.admin-account-card-v2__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-account-form__header h2,
+.admin-account-results__heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.admin-account-form__header p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.admin-account-form__header > div {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.admin-account-form__header > .fv-button {
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+.admin-account-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.admin-account-form__grid > *,
+.admin-account-form__wide {
+  min-width: 0;
+}
+
+.admin-account-form__wide {
+  grid-column: 1 / -1;
+}
+
+.admin-account-permission-group {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.admin-account-permission-group h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.admin-accounts-page-v2 .admin-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.admin-accounts-page-v2 .admin-role-option {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--space-10);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.admin-accounts-page-v2 .admin-role-option:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.admin-accounts-page-v2 .admin-role-option:focus-within {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.admin-accounts-page-v2 .admin-role-option input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--brand);
+}
+
+.admin-accounts-page-v2 .admin-role-option:has(input:disabled) {
+  cursor: default;
+}
+
+.admin-accounts-page-v2 .admin-report-permissions__grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.admin-accounts-page-v2 .admin-report-permissions__option {
+  min-height: 0;
+}
+
+.admin-accounts-page-v2 .admin-report-permissions__option strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.admin-accounts-page-v2 .admin-report-permissions__option small,
+.admin-accounts-page-v2 .form-hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.admin-accounts-page-v2 .admin-report-permissions__option .admin-report-permissions__inherited {
+  color: var(--brand-text);
+}
+
+.admin-accounts-page-v2 .admin-role-fixed {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.admin-account-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.admin-account-results {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-account-results__heading {
+  align-items: center;
+}
+
+.admin-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-account-card-v2 {
+  min-width: 0;
+}
+
+.admin-account-card-v2 > .fv-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  height: 100%;
+}
+
+.admin-account-card-v2__identity {
+  min-width: 0;
+}
+
+.admin-account-card-v2__identity h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  overflow-wrap: anywhere;
+}
+
+.admin-account-card-v2__identity > span,
+.admin-account-card-v2__meta,
+.admin-account-card-v2__projects {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.admin-account-card-v2__meta {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-account-card-v2__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.admin-account-card-v2__projects strong {
+  color: var(--ink);
+}
+
+.admin-account-card-v2__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.admin-account-card-v2__actions .fv-remove-icon-button {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 767.98px) {
+  .admin-account-filters-v2__grid,
+  .admin-account-form__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-account-form {
+    padding: var(--space-4);
+    scroll-margin-block-start: calc(var(--topbar-h-mobile) + var(--space-4));
+  }
+
+  .admin-account-form__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .admin-account-form__actions .fv-button {
+    flex: 1 1 auto;
+  }
+
+  .admin-account-card-v2__actions {
+    flex-wrap: wrap;
+  }
+}

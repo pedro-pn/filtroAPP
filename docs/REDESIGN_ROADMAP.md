@@ -160,7 +160,7 @@ Todas as fases devem preservar os seguintes contratos:
 | RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
 | Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1–M5 concluídos tecnicamente; fluxo visual, permissões e rascunho isolado conferidos |
 | Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
-| Administração — Gestão de Contas | Lista, filtros, criação/edição, papéis e permissões, vínculo com colaborador, ativação, exclusão e link de senha | **Migração integral pendente em F5.2**; X1/X2 cobriram apenas componentes e fluxos pontuais |
+| Administração — Gestão de Contas | Lista, filtros, criação/edição, papéis e permissões, vínculo com colaborador, ativação, exclusão e link de senha | **Migração visual F5.2 concluída**; persistência com banco isolado segue na validação F6 |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
 | Qualidade | Registros, filtros, evidências, exportação, Naturezas, reordenação e formulários | **Migração integral pendente em F5.3**; F5 cobriu apenas o destino Interno/SGQ |
@@ -1206,18 +1206,23 @@ tema escuro foram ajustados. Nenhum segredo real foi usado na validação.
 
 #### F5.2 — Administração: Gestão de Contas
 
-Pendente. `AdminAccountsPage` ainda usa `Shell`, `TopBar`, cards e botões legados;
-somente o card de link de senha e as opções compactas de permissão receberam
-ajustes visuais em X1/X2. Esta etapa deve anteceder o fechamento de F6.
+Migração visual concluída em 01/10/2026. `AdminAccountsPage` usa o shell de
+Administração e os controles do design system. A lista de contas, o formulário,
+os filtros e as ações foram conferidos em 360, 390, 768 e 1280 px, nos temas
+claro e escuro. A operação de criar, editar, ativar/desativar e excluir foi
+validada com API sintética que preserva os contratos e atualiza a lista após
+cada resposta. A persistência com banco isolado continua pendente na F6 porque
+as credenciais de demonstração locais não deram acesso autenticado.
 
-- [ ] Migrar a rota para `AdminModuleAppShell`, com navegação Contas/Tokens,
+- [x] Migrar a rota para `AdminModuleAppShell`, com navegação Contas/Tokens,
   breadcrumb, perfil e tema consistentes.
-- [ ] Migrar listagem, busca e filtros para controles DS, com apresentação
+- [x] Migrar listagem, busca e filtros para controles DS, com apresentação
   responsiva e ações alinhadas no desktop, tablet e celular.
-- [ ] Migrar criação/edição, papéis, permissões, vínculo com colaborador, link
+- [x] Migrar criação/edição, papéis, permissões, vínculo com colaborador, link
   de senha, ativação e exclusão, preservando validações e contratos da API.
-- [ ] Validar perfis ADMIN e sem acesso, estados de carregamento/vazio/erro,
-  teclado, tema claro/escuro e persistência em ambiente isolado.
+- [x] Validar perfis ADMIN e sem acesso, estados de carregamento/vazio/erro,
+  teclado, temas e contratos de API com respostas sintéticas isoladas.
+- [ ] Validar persistência contra banco isolado com uma conta ADMIN de teste.
 
 #### F5.3 — Qualidade
 
@@ -1326,12 +1331,11 @@ precisam de uma conta isolada válida para completar a auditoria autenticada.
 
 Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
 
-1. **F5.2 pendente**: migrar integralmente Gestão de Contas, incluindo shell,
-   listagem, formulário e diálogos, e validar permissões e persistência.
-2. **F5.3–F5.5 pendentes**: migrar Qualidade, EPI e Privacidade, que ainda usam
+1. **F5.3–F5.5 pendentes**: migrar Qualidade, EPI e Privacidade, que ainda usam
    shell ou controles legados; conferir cada fluxo e seus perfis.
-3. **F6 em andamento**: continuar a regressão visual e a acessibilidade dos
-   fluxos autenticados, validar WebKit com contas isoladas e retirar legado sem
+2. **F6 em andamento**: validar a persistência da Gestão de Contas com banco
+   isolado, continuar a regressão visual e a acessibilidade dos fluxos
+   autenticados, validar WebKit com contas isoladas e retirar legado sem
    consumidores. A reconciliação da suíte, o Hub visual e as páginas públicas
    do RDO em WebKit já foram concluídos nesta etapa.
 

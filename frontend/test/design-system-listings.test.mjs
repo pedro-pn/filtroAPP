@@ -272,6 +272,7 @@ test('Phase 5 listing primitives stay within migrated surfaces', () => {
     'src/pages/efetivo/components/MissionsBoard.tsx',
     'src/pages/efetivo/components/MissionTeamSelector.tsx',
     'src/pages/assinaturas/components/DocumentLibrary.tsx',
+    'src/pages/admin/AdminAccountsPage.tsx',
     'src/pages/admin/AdminTokensPage.tsx'
   ].map(path => new URL(`../${path}`, import.meta.url).pathname));
   const managerPagePath = new URL('../src/pages/gestor/GestorPage.tsx', import.meta.url).pathname;

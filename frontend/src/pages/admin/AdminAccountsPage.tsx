@@ -1,15 +1,12 @@
-import { FormEvent, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { PasswordSetupLinkCard } from '../../components/accounts/PasswordSetupLinkCard';
-import { SearchBar } from '../../components/ui/SearchBar';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, SearchInput, Select, Skeleton } from '../../components/ui/ds';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
 import { assignableRoleOptionsForAccountType, moduleIdForPublicRole, moduleRegistry, moduleRoleLabel, sameModuleRoles } from '../../modules/registry';
 import { rolesForAccountType } from './accountRoleRules';
 import type { UserDeletionImpact, UserPayload } from '../../api/users';
@@ -17,6 +14,8 @@ import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from
 import type { InternalUserSummary } from '../../types/domain';
 import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions, type AcompanhamentoExtraPermission } from '../../../../shared/modules/acompanhamento-permissions.js';
 import { REVIEW_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions, type RdoExtraPermission } from '../../../../shared/modules/rdo-permissions.js';
+import { AdminModuleAppShell } from './AdminModuleAppShell';
+import './AdminAccountsPage.ds.css';
 
 type AccountFilter = 'all' | AccountType;
 type ModuleFilter = 'all' | string;
@@ -127,9 +126,6 @@ function absolutePasswordSetupUrl(url: string) {
 }
 
 export function AdminAccountsPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
   const usersQuery = useUsers();
   const collaboratorsQuery = useCollaborators();
   const userMutations = useUserMutations();
@@ -159,6 +155,11 @@ export function AdminAccountsPage() {
 
   const availableRoleOptions = assignableRoleOptionsForAccountType(form.accountType);
   const isSaving = userMutations.createUser.isPending || userMutations.updateUser.isPending;
+
+  useEffect(() => {
+    if (!showForm) return;
+    document.getElementById('admin-account-form')?.scrollIntoView({ block: 'start' });
+  }, [editingUser?.id, showForm]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -294,29 +295,29 @@ export function AdminAccountsPage() {
     const isEditingClient = editingUser?.accountType === 'CLIENT' || editingUser?.role === 'CLIENT';
 
     return (
-      <form className="admin-inline-form" onSubmit={handleSubmit} autoComplete="off">
-        <div className="admin-toolbar full">
-          <div className="sec">{editingUser ? 'Editar conta' : 'Nova conta'}</div>
-          <button className="mini-btn alt" type="button" onClick={resetForm}>
+      <form id="admin-account-form" className="admin-account-form" onSubmit={handleSubmit} autoComplete="off">
+        <div className="admin-account-form__header">
+          <div>
+            <h2>{editingUser ? `Editar conta · ${editingUser.name}` : 'Nova conta'}</h2>
+            <p>Defina os dados de acesso e os módulos disponíveis para esta conta.</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={resetForm}>
             Cancelar
-          </button>
+          </Button>
         </div>
-        <div className="admin-inline-grid">
+        <div className="admin-account-form__grid">
           {!isEditingClient ? (
-            <div className="field-group">
-              <label htmlFor="account-type">Tipo</label>
-              <select id="account-type" value={form.accountType} onChange={event => updateAccountType(event.target.value as AccountType)}>
+            <Field id="account-type" label="Tipo" optionalText="">
+              <Select value={form.accountType} onChange={event => updateAccountType(event.target.value as AccountType)}>
                 <option value="INTERNAL">Interno</option>
                 <option value="ADMIN">Admin</option>
                 <option value="CLIENT">Cliente</option>
-              </select>
-            </div>
+              </Select>
+            </Field>
           ) : null}
           {!isEditingClient ? (
-            <div className="field-group">
-              <label htmlFor="account-username">Usuário</label>
-              <input
-                id="account-username"
+            <Field id="account-username" label="Usuário" required>
+              <Input
                 value={form.username}
                 onChange={event =>
                   setForm(current => ({
@@ -326,16 +327,13 @@ export function AdminAccountsPage() {
                 }
                 required
               />
-            </div>
+            </Field>
           ) : null}
-          <div className="field-group">
-            <label htmlFor="account-name">Nome</label>
-            <input id="account-name" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} required />
-          </div>
-          <div className="field-group">
-            <label htmlFor="account-email">E-mail</label>
-            <input
-              id="account-email"
+          <Field id="account-name" label="Nome" required>
+            <Input value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} required />
+          </Field>
+          <Field id="account-email" label="E-mail">
+            <Input
               type="email"
               value={form.email}
               onChange={event =>
@@ -345,12 +343,10 @@ export function AdminAccountsPage() {
                 }))
               }
             />
-          </div>
+          </Field>
           {!isEditingClient ? (
-            <div className="field-group">
-              <label htmlFor="account-active">Status</label>
-              <select
-                id="account-active"
+            <Field id="account-active" label="Status" optionalText="">
+              <Select
                 value={String(form.isActive)}
                 onChange={event =>
                   setForm(current => ({
@@ -361,14 +357,12 @@ export function AdminAccountsPage() {
               >
                 <option value="true">Ativo</option>
                 <option value="false">Inativo</option>
-              </select>
-            </div>
+              </Select>
+            </Field>
           ) : null}
           {!isEditingClient && form.accountType !== 'CLIENT' ? (
-            <div className="field-group">
-              <label htmlFor="account-collaborator">Colaborador</label>
-              <select
-                id="account-collaborator"
+            <Field id="account-collaborator" label="Colaborador">
+              <Select
                 value={form.collaboratorId}
                 onChange={event =>
                   setForm(current => ({
@@ -385,14 +379,12 @@ export function AdminAccountsPage() {
                       {item.name}
                     </option>
                   ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
           ) : null}
           {editingUser ? (
-            <div className="field-group">
-              <label htmlFor="account-password">Senha nova (opcional)</label>
-              <input
-                id="account-password"
+            <Field id="account-password" label="Senha nova">
+              <Input
                 type="password"
                 value={form.password}
                 autoComplete="new-password"
@@ -403,15 +395,15 @@ export function AdminAccountsPage() {
                   }))
                 }
               />
-            </div>
+            </Field>
           ) : (
-            <div className="field-group field-group-wide">
-              <div className="form-hint">A senha será criada pelo próprio usuário por um link único. Com e-mail, o link será enviado automaticamente.</div>
+            <div className="admin-account-form__wide">
+              <Alert tone="info">A senha será criada pelo próprio usuário por um link único. Com e-mail, o link será enviado automaticamente.</Alert>
             </div>
           )}
           {!isEditingClient ? (
-            <div className="field-group field-group-wide">
-              <label>Módulos da conta</label>
+            <section className="admin-account-permission-group admin-account-form__wide" aria-labelledby="account-modules-title">
+              <h3 id="account-modules-title">Módulos da conta</h3>
               {form.accountType === 'CLIENT' ? (
                 <div className="admin-role-fixed">RDO - Cliente atribuído automaticamente</div>
               ) : (
@@ -424,11 +416,11 @@ export function AdminAccountsPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </section>
           ) : null}
           {!isEditingClient && (form.accountType === 'ADMIN' || canReceiveAcompanhamentoExtraPermissions(form)) ? (
-            <div className="field-group field-group-wide">
-              <label>Permissões adicionais do Acompanhamento</label>
+            <section className="admin-account-permission-group admin-account-form__wide" aria-labelledby="account-tracking-title">
+              <h3 id="account-tracking-title">Permissões adicionais do Acompanhamento</h3>
               {form.accountType === 'ADMIN' ? (
                 <div className="form-hint">Administradores têm acesso automático aos impostos e faturamentos dos projetos.</div>
               ) : (
@@ -444,11 +436,11 @@ export function AdminAccountsPage() {
                   <span>Visualizar impostos pagos e faturamentos realizados no projeto</span>
                 </label>
               )}
-            </div>
+            </section>
           ) : null}
           {!isEditingClient && (form.accountType === 'ADMIN' || canReceiveRdoExtraPermissions(form)) ? (
-            <div className="field-group field-group-wide">
-              <label>Permissões adicionais do RDO</label>
+            <section className="admin-account-permission-group admin-account-form__wide" aria-labelledby="account-rdo-title">
+              <h3 id="account-rdo-title">Permissões adicionais do RDO</h3>
               {form.accountType === 'ADMIN' ? (
                 <div className="form-hint">Administradores já revisam, editam e aprovam relatórios de qualquer projeto.</div>
               ) : (
@@ -470,11 +462,11 @@ export function AdminAccountsPage() {
                   </div>
                 </>
               )}
-            </div>
+            </section>
           ) : null}
           {!isEditingClient && form.accountType !== 'CLIENT' ? (
-            <div className="field-group field-group-wide admin-report-permissions">
-              <label>Emissão de relatórios</label>
+            <section className="admin-account-permission-group admin-account-form__wide admin-report-permissions" aria-labelledby="account-report-title">
+              <h3 id="account-report-title">Emissão de relatórios</h3>
               <div className="admin-role-grid admin-report-permissions__grid">
                 {reportPermissionOptions.map(option => (
                   <label className="admin-role-option admin-report-permissions__option" key={option.value}>
@@ -493,12 +485,13 @@ export function AdminAccountsPage() {
                 ))}
               </div>
               <div className="form-hint">As permissões são independentes. Sem nenhuma delas, a conta não poderá criar relatórios.</div>
-            </div>
+            </section>
           ) : null}
-          <div className="admin-form-actions">
-            <button className="mini-btn" type="submit" disabled={isSaving}>
-              Salvar
-            </button>
+          <div className="admin-account-form__actions admin-account-form__wide">
+            <Button variant="secondary" onClick={resetForm}>Cancelar</Button>
+            <Button variant="primary" type="submit" loading={isSaving}>
+              {editingUser ? 'Salvar alterações' : 'Criar conta'}
+            </Button>
           </div>
         </div>
       </form>
@@ -558,83 +551,43 @@ export function AdminAccountsPage() {
       ? `${deletionImpact.assinaturas.finalizing} documento(s) estão em finalização. Aguarde a conclusão para excluir a conta.`
       : `${deletionImpact.assinaturas.toDelete} documento(s) não concluído(s) serão colocados em quarentena e excluídos; ${deletionImpact.assinaturas.toPreserve} documento(s) concluído(s) serão preservados sem proprietário.`;
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
-    <Shell>
-      <TopBar
-        title="Gestão de contas"
-        subtitle={user?.name || 'Filtrovali App'}
-        showLogo
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/admin/tokens')}>
-              Tokens de API
-            </button>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() =>
-                navigate('/conta', {
-                  state: accountPageStateFromPath(location)
-                })
-              }
-            >
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <main className="page-scroll admin-accounts-page">
-        <section className="admin-toolbar">
-          <div>
-            <div className="section-title">Contas</div>
-            <div className="admin-card-subtitle">Usuários internos, admins e clientes vinculados ao RDO.</div>
-          </div>
-          {!showForm ? (
-            <button className="mini-btn" type="button" onClick={() => openCreateForm()}>
-              Nova conta
-            </button>
-          ) : null}
-        </section>
+    <AdminModuleAppShell sectionLabel="Contas">
+      <main className="fv-ds admin-accounts-page-v2">
+        <PageHeader
+          title="Gestão de contas"
+          description="Gerencie usuários internos, administradores e clientes."
+          actions={!showForm ? <Button variant="primary" onClick={() => openCreateForm()}>Nova conta</Button> : undefined}
+        />
 
-        <section className="page-card admin-account-filters">
-          <div className="field-group">
-            <label htmlFor="account-search">Buscar</label>
-            <SearchBar id="account-search" value={search} onChange={setSearch} placeholder="Usuário, nome, e-mail ou módulo" />
+        <Card className="admin-account-filters-v2" padding="md">
+          <div className="admin-account-filters-v2__grid">
+            <Field id="account-search" label="Buscar" optionalText="">
+              <SearchInput id="account-search-control" value={search} onChange={setSearch} placeholder="Nome, usuário ou e-mail" />
+            </Field>
+            <Field id="account-type-filter" label="Tipo" optionalText="">
+              <Select value={accountFilter} onChange={event => setAccountFilter(event.target.value as AccountFilter)}>
+                <option value="all">Todos</option>
+                <option value="ADMIN">Admins</option>
+                <option value="INTERNAL">Internos</option>
+                <option value="CLIENT">Clientes</option>
+              </Select>
+            </Field>
+            <Field id="account-module-filter" label="Módulo" optionalText="">
+              <Select value={moduleFilter} onChange={event => setModuleFilter(event.target.value as ModuleFilter)}>
+                <option value="all">Todos</option>
+                {moduleRegistry
+                  .filter(module => module.roles.length)
+                  .map(module => (
+                    <option key={module.id} value={module.id}>{module.title}</option>
+                  ))}
+              </Select>
+            </Field>
           </div>
-          <div className="field-group">
-            <label htmlFor="account-type-filter">Tipo</label>
-            <select id="account-type-filter" value={accountFilter} onChange={event => setAccountFilter(event.target.value as AccountFilter)}>
-              <option value="all">Todos</option>
-              <option value="ADMIN">Admins</option>
-              <option value="INTERNAL">Internos</option>
-              <option value="CLIENT">Clientes</option>
-            </select>
-          </div>
-          <div className="field-group">
-            <label htmlFor="account-module-filter">Módulo</label>
-            <select id="account-module-filter" value={moduleFilter} onChange={event => setModuleFilter(event.target.value as ModuleFilter)}>
-              <option value="all">Todos</option>
-              {moduleRegistry
-                .filter(module => module.roles.length)
-                .map(module => (
-                  <option key={module.id} value={module.id}>
-                    {module.title}
-                  </option>
-                ))}
-            </select>
-          </div>
-        </section>
+        </Card>
 
-        {message ? <div className="inline-success">{message}</div> : null}
-        {error ? <div className="inline-error">{error}</div> : null}
+        {message ? <Alert tone="success">{message}</Alert> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
         {manualPasswordSetup ? <PasswordSetupLinkCard
           inputId="manual-password-setup-link"
           username={manualPasswordSetup.username}
@@ -642,63 +595,73 @@ export function AdminAccountsPage() {
           onCopy={copyManualPasswordSetup}
         /> : null}
 
-        {showForm && !editingUser ? renderAccountForm() : null}
+        {showForm ? renderAccountForm() : null}
 
         {usersQuery.isLoading ? (
-          <div className="page-card placeholder-copy">Carregando contas...</div>
+          <Skeleton variant="card" label="Carregando contas…" />
+        ) : usersQuery.isError ? (
+          <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void usersQuery.refetch() }}>
+            Não foi possível carregar as contas.
+          </Alert>
         ) : visibleUsers.length ? (
-          <div className="admin-stack">
-            {visibleUsers.map(user => (
-              <article className="card admin-card admin-account-card" key={user.id}>
-                <div className="admin-section-head">
-                  <div>
-                    <div className="admin-item-title">
-                      {user.name} · {user.username}
+          <section className="admin-account-results" aria-label="Contas encontradas">
+            <div className="admin-account-results__heading">
+              <h2>Contas</h2>
+              <Badge>{visibleUsers.length} de {(usersQuery.data || []).length}</Badge>
+            </div>
+            <div className="admin-account-grid">
+              {visibleUsers.map(user => (
+                <Card className="admin-account-card-v2" key={user.id} padding="md">
+                  <div className="admin-account-card-v2__header">
+                    <div className="admin-account-card-v2__identity">
+                      <h3>{user.name}</h3>
+                      <span>@{user.username}</span>
                     </div>
-                    <div className="admin-item-sub">
-                      {accountTypeLabel(user.accountType)}
-                      {user.email ? ` · ${user.email}` : ''}
-                      {user.collaborator?.name ? ` · ${user.collaborator.name}` : ''}
+                    <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>
+                  </div>
+                  <div className="admin-account-card-v2__meta">
+                    <span>{accountTypeLabel(user.accountType)}</span>
+                    {user.email ? <span>{user.email}</span> : null}
+                    {user.collaborator?.name ? <span>Colaborador: {user.collaborator.name}</span> : null}
+                  </div>
+                  <div className="admin-account-card-v2__roles" aria-label="Módulos da conta">
+                    {(user.moduleRoles || []).length ? (
+                      (user.moduleRoles || []).map(role => (
+                        <Badge key={role}>{moduleRoleLabel(role)}</Badge>
+                      ))
+                    ) : (
+                      <Badge>Sem módulos</Badge>
+                    )}
+                  </div>
+                  {user.accountType === 'CLIENT' ? (
+                    <div className="admin-account-card-v2__projects">
+                      <strong>Projetos RDO:</strong> {linkedProjectsLabel(user) || 'Sem vínculo ativo'}
                     </div>
+                  ) : null}
+                  <div className="admin-account-card-v2__actions">
+                    <Button variant="secondary" size="sm" onClick={() => openEditForm(user)}>Editar</Button>
+                    <Button variant={user.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => void toggleActive(user)} disabled={userMutations.updateUser.isPending}>
+                      {user.isActive ? 'Desativar' : 'Ativar'}
+                    </Button>
+                    <RemoveIconButton label={`Remover conta de ${user.name}`} onClick={() => void openDeleteDialog(user)} disabled={userMutations.deletionImpact.isPending || userMutations.removeUser.isPending} />
                   </div>
-                  <span className={`status-pill ${user.isActive ? 'status-approved' : 'status-returned'}`}>{user.isActive ? 'Ativo' : 'Inativo'}</span>
-                </div>
-                <div className="admin-account-role-list">
-                  {(user.moduleRoles || []).length ? (
-                    (user.moduleRoles || []).map(role => (
-                      <span className="admin-account-role-pill" key={role}>
-                        {moduleRoleLabel(role)}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="admin-account-role-pill">Sem módulos</span>
-                  )}
-                </div>
-                {user.accountType === 'CLIENT' ? (
-                  <div className="admin-account-projects">
-                    <strong>Projetos RDO:</strong> {linkedProjectsLabel(user) || 'Sem vínculo ativo'}
-                  </div>
-                ) : null}
-                <div className="admin-actions">
-                  <button className="mini-btn alt" type="button" onClick={() => openEditForm(user)}>
-                    Editar
-                  </button>
-                  <button className={`mini-btn ${user.isActive ? 'danger' : 'alt'}`} type="button" onClick={() => void toggleActive(user)} disabled={userMutations.updateUser.isPending}>
-                    {user.isActive ? 'Desativar' : 'Ativar'}
-                  </button>
-                  <button className="mini-btn danger" type="button" onClick={() => void openDeleteDialog(user)} disabled={userMutations.deletionImpact.isPending || userMutations.removeUser.isPending}>
-                    Excluir
-                  </button>
-                </div>
-                {editingUser?.id === user.id ? renderAccountForm() : null}
-              </article>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          </section>
         ) : (
-          <div className="page-card placeholder-copy">Nenhuma conta encontrada.</div>
+          <EmptyState
+            variant={usersQuery.data?.length ? 'search' : 'create'}
+            title={usersQuery.data?.length ? 'Nenhuma conta encontrada.' : 'Nenhuma conta cadastrada.'}
+            description={usersQuery.data?.length ? 'Ajuste a busca ou os filtros para ver outras contas.' : 'Crie a primeira conta para liberar o acesso aos módulos.'}
+            action={usersQuery.data?.length
+              ? { label: 'Limpar filtros', onClick: () => { setSearch(''); setAccountFilter('all'); setModuleFilter('all'); } }
+              : { label: 'Nova conta', onClick: () => openCreateForm() }}
+          />
         )}
       </main>
       <ConfirmDialog
+        appearance="design-system"
         open={Boolean(deletingUser)}
         title="Excluir conta permanentemente?"
         description={deletionDescription}
@@ -710,6 +673,6 @@ export function AdminAccountsPage() {
         onConfirm={() => void confirmDelete()}
         onCancel={closeDeleteDialog}
       />
-    </Shell>
+    </AdminModuleAppShell>
   );
 }
