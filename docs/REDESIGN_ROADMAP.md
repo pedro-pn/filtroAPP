@@ -1207,7 +1207,8 @@ tema escuro foram ajustados. Nenhum segredo real foi usado na validação.
 #### F5.2 — Administração: Gestão de Contas
 
 Migração visual concluída em 01/10/2026. `AdminAccountsPage` usa o shell de
-Administração e os controles do design system. A lista de contas, o formulário,
+Administração e os controles do design system. A lista de contas agora usa
+tabela no desktop/tablet e cartões compactos no celular; o formulário,
 os filtros e as ações foram conferidos em 360, 390, 768 e 1280 px, nos temas
 claro e escuro. A operação de criar, editar, ativar/desativar e excluir foi
 validada com API sintética que preserva os contratos e atualiza a lista após

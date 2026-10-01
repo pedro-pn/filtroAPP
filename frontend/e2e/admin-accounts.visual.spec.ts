@@ -81,7 +81,13 @@ for (const viewport of viewports) {
     await page.goto('/admin/accounts');
 
     await expect(page.getByRole('heading', { name: 'Gestão de contas' })).toBeVisible();
-    await expect(page.locator('.admin-account-card-v2')).toHaveCount(3);
+    await expect(page.locator('.admin-account-table [data-row-id]')).toHaveCount(3);
+    if (viewport.width >= 768) {
+      await expect(page.getByRole('table', { name: 'Contas cadastradas' })).toBeVisible();
+      await expect.poll(() => page.locator('.admin-account-table .fv-data-table__desktop').evaluate(table => table.scrollWidth - table.clientWidth)).toBeLessThanOrEqual(1);
+    } else {
+      await expect(page.getByRole('list', { name: 'Contas cadastradas' })).toBeVisible();
+    }
     if (viewport.name === 'tablet') {
       await page.getByRole('button', { name: 'Abrir menu' }).click();
       await expect(page.getByRole('link', { name: /Tokens de API/ })).toBeVisible();
@@ -106,13 +112,13 @@ for (const viewport of viewports) {
     await expect(page).toHaveScreenshot(`${viewport.name}-${viewport.theme}-form.png`, { fullPage: true });
     await page.locator('.admin-account-form__header').getByRole('button', { name: 'Cancelar' }).click();
 
-    const internalCard = page.locator('.admin-account-card-v2').filter({ hasText: 'Marina Operações' });
-    await internalCard.getByRole('button', { name: 'Editar' }).click();
+    const internalRow = page.locator('.admin-account-table [data-row-id="internal-1"]');
+    await internalRow.getByRole('button', { name: 'Editar' }).click();
     await expect(page.getByRole('heading', { name: 'Editar conta · Marina Operações' })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Nome' })).toHaveValue('Marina Operações');
     await page.locator('.admin-account-form__header').getByRole('button', { name: 'Cancelar' }).click();
 
-    await internalCard.getByRole('button', { name: 'Remover conta de Marina Operações' }).click();
+    await internalRow.getByRole('button', { name: 'Remover conta de Marina Operações' }).click();
     await expect(page.getByText(/2 documento\(s\) concluído\(s\) serão preservados/)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByText('Excluir conta permanentemente?')).toBeHidden();
@@ -173,7 +179,7 @@ test('cria, edita e remove uma conta com os contratos de API preservados', async
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await expect(page.getByRole('heading', { name: 'Link para criar a senha' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Link para compartilhar' })).toHaveValue(/\/definir-senha\?token=synthetic$/);
-  await expect(page.locator('.admin-account-card-v2')).toHaveCount(4);
+  await expect(page.locator('.admin-account-table [data-row-id]')).toHaveCount(4);
   expect(submitted[0]).toMatchObject({
     method: 'POST',
     payload: {
@@ -183,23 +189,26 @@ test('cria, edita e remove uma conta com os contratos de API preservados', async
     }
   });
 
-  const createdCard = page.locator('.admin-account-card-v2').filter({ hasText: 'Nova Conta' });
-  await createdCard.getByRole('button', { name: 'Editar' }).click();
+  const createdRow = page.locator('.admin-account-table [data-row-id="created-1"]');
+  await createdRow.getByRole('button', { name: 'Editar' }).click();
   await page.getByRole('textbox', { name: 'Nome' }).fill('Nova Conta Editada');
   await page.getByRole('button', { name: 'Salvar alterações' }).click();
-  await expect(page.locator('.admin-account-card-v2').filter({ hasText: 'Nova Conta Editada' })).toBeVisible();
+  await expect(createdRow).toContainText('Nova Conta Editada');
   expect(submitted[1]).toMatchObject({ method: 'PUT', payload: { name: 'Nova Conta Editada', username: 'nova-conta' } });
 
-  await page.locator('.admin-account-card-v2').filter({ hasText: 'Nova Conta Editada' })
-    .getByRole('button', { name: 'Desativar' }).click();
-  await expect(page.locator('.admin-account-card-v2').filter({ hasText: 'Nova Conta Editada' }).getByText('Inativo')).toBeVisible();
+  await createdRow.getByRole('button', { name: 'Desativar' }).click();
+  await expect(createdRow.getByText('Inativo')).toBeVisible();
   expect(submitted[2]).toMatchObject({ method: 'PUT', payload: { isActive: false } });
 
-  await page.locator('.admin-account-card-v2').filter({ hasText: 'Nova Conta Editada' })
-    .getByRole('button', { name: 'Remover conta de Nova Conta Editada' }).click();
-  await page.getByRole('textbox', { name: /Digite nova-conta para confirmar/ }).fill('nova-conta');
-  await page.getByRole('button', { name: 'Excluir conta' }).click();
-  await expect(page.locator('.admin-account-card-v2')).toHaveCount(3);
+  await createdRow.getByRole('button', { name: 'Remover conta de Nova Conta Editada' }).click();
+  await expect(page.getByText(/0 documento\(s\) não concluído\(s\) serão colocados/)).toBeVisible();
+  const confirmationInput = page.getByRole('textbox', { name: /Digite nova-conta para confirmar/ });
+  await confirmationInput.fill('nova-conta');
+  await expect(confirmationInput).toHaveValue('nova-conta');
+  const confirmButton = page.getByRole('button', { name: 'Excluir conta' });
+  await expect(confirmButton).toBeEnabled();
+  await confirmButton.click();
+  await expect(page.locator('.admin-account-table [data-row-id]')).toHaveCount(3);
   expect(submitted[3]).toEqual({ method: 'DELETE' });
   expect(unexpectedRequests).toEqual([]);
 });
@@ -208,11 +217,11 @@ test('filtros e estado vazio mantêm o acesso à criação de contas', async ({ 
   const unexpectedRequests = await useAccount(page, 'ADMIN', 'light');
   await page.goto('/admin/accounts');
   await page.getByRole('combobox', { name: 'Tipo' }).selectOption('CLIENT');
-  await expect(page.locator('.admin-account-card-v2')).toHaveCount(1);
+  await expect(page.locator('.admin-account-table [data-row-id]')).toHaveCount(1);
   await page.getByRole('searchbox', { name: 'Buscar' }).fill('sem resultados');
   await expect(page.getByText('Nenhuma conta encontrada.')).toBeVisible();
   await page.getByRole('button', { name: 'Limpar filtros' }).click();
-  await expect(page.locator('.admin-account-card-v2')).toHaveCount(3);
+  await expect(page.locator('.admin-account-table [data-row-id]')).toHaveCount(3);
   await page.getByRole('button', { name: 'Nova conta' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Nova conta' })).toBeVisible();

@@ -193,73 +193,87 @@
   align-items: center;
 }
 
-.admin-account-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
-  gap: var(--space-3);
+.admin-account-table {
   min-width: 0;
 }
 
-.admin-account-card-v2 {
-  min-width: 0;
+.admin-account-table .fv-data-table__table {
+  table-layout: fixed;
 }
 
-.admin-account-card-v2 > .fv-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-  height: 100%;
-}
+.admin-account-table .fv-data-table__table th:nth-child(1) { width: 26%; }
+.admin-account-table .fv-data-table__table th:nth-child(2) { width: 16%; }
+.admin-account-table .fv-data-table__table th:nth-child(3) { width: 32%; }
+.admin-account-table .fv-data-table__table th:nth-child(4) { width: 26%; }
 
-.admin-account-card-v2__identity {
-  min-width: 0;
-}
-
-.admin-account-card-v2__identity h3 {
-  margin: 0;
-  color: var(--ink);
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
+.admin-account-table .fv-data-table__table :where(td, th) {
   overflow-wrap: anywhere;
 }
 
-.admin-account-card-v2__identity > span,
-.admin-account-card-v2__meta,
-.admin-account-card-v2__projects {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  overflow-wrap: anywhere;
-}
-
-.admin-account-card-v2__meta {
+.admin-account-table__identity,
+.admin-account-table__profile,
+.admin-account-access {
   display: grid;
   gap: var(--space-1);
+  min-width: 0;
 }
 
-.admin-account-card-v2__roles {
+.admin-account-table__identity strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.admin-account-table__identity span,
+.admin-account-access > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.admin-account-table__profile .fv-badge {
+  justify-self: start;
+}
+
+.admin-account-access__roles {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
 
-.admin-account-card-v2__projects strong {
-  color: var(--ink);
+.admin-account-table .fv-data-table__actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.admin-account-card-v2__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-block-start: auto;
-  padding-block-start: var(--space-3);
-  border-block-start: 1px solid var(--line);
-}
-
-.admin-account-card-v2__actions .fv-remove-icon-button {
-  margin-inline-start: auto;
+.admin-account-table .fv-data-table__actions .fv-remove-icon-button {
   flex: 0 0 auto;
+}
+
+.admin-account-table .fv-mobile-list__actions {
+  justify-content: flex-start;
+  order: 2;
+}
+
+.admin-account-table .fv-mobile-list__actions .fv-remove-icon-button {
+  margin-inline-start: auto;
+}
+
+.admin-account-table .fv-mobile-list__details .admin-account-access {
+  gap: var(--space-2);
+}
+
+.admin-account-table .fv-mobile-list__item .fv-card__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-account-table .fv-mobile-list__details {
+  order: 1;
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .admin-account-table .fv-data-table__table th:nth-child(3) { width: 28%; }
+  .admin-account-table .fv-data-table__table th:nth-child(4) { width: 30%; }
 }
 
 @media (max-width: 767.98px) {
@@ -282,7 +296,4 @@
     flex: 1 1 auto;
   }
 
-  .admin-account-card-v2__actions {
-    flex-wrap: wrap;
-  }
 }

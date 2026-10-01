@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { PasswordSetupLinkCard } from '../../components/accounts/PasswordSetupLinkCard';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, SearchInput, Select, Skeleton } from '../../components/ui/ds';
+import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, Input, SearchInput, Select, Skeleton, type DataTableColumn } from '../../components/ui/ds';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { PageHeader } from '../../layout/PageHeader';
@@ -119,6 +119,18 @@ function linkedProjectsLabel(user: InternalUserSummary) {
     .map(project => [project.code, project.name].filter(Boolean).join(' - '))
     .filter(Boolean)
     .join(', ');
+}
+
+function accountAccess(user: InternalUserSummary) {
+  return <div className="admin-account-access">
+    <div className="admin-account-access__roles" aria-label="Módulos da conta">
+      {(user.moduleRoles || []).length
+        ? (user.moduleRoles || []).map(role => <Badge key={role}>{moduleRoleLabel(role)}</Badge>)
+        : <Badge>Sem módulos</Badge>}
+    </div>
+    {user.collaborator?.name ? <span>Colaborador: {user.collaborator.name}</span> : null}
+    {user.accountType === 'CLIENT' ? <span>Projetos RDO: {linkedProjectsLabel(user) || 'Sem vínculo ativo'}</span> : null}
+  </div>;
 }
 
 function absolutePasswordSetupUrl(url: string) {
@@ -551,6 +563,35 @@ export function AdminAccountsPage() {
       ? `${deletionImpact.assinaturas.finalizing} documento(s) estão em finalização. Aguarde a conclusão para excluir a conta.`
       : `${deletionImpact.assinaturas.toDelete} documento(s) não concluído(s) serão colocados em quarentena e excluídos; ${deletionImpact.assinaturas.toPreserve} documento(s) concluído(s) serão preservados sem proprietário.`;
 
+  function accountActions(user: InternalUserSummary) {
+    return <>
+      <Button variant="secondary" size="sm" onClick={() => openEditForm(user)}>Editar</Button>
+      <Button variant={user.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => void toggleActive(user)} disabled={userMutations.updateUser.isPending}>
+        {user.isActive ? 'Desativar' : 'Ativar'}
+      </Button>
+      <RemoveIconButton label={`Remover conta de ${user.name}`} onClick={() => void openDeleteDialog(user)} disabled={userMutations.deletionImpact.isPending || userMutations.removeUser.isPending} />
+    </>;
+  }
+
+  const accountColumns: DataTableColumn<InternalUserSummary>[] = [
+    {
+      key: 'account', header: 'Conta', rowHeader: true,
+      render: user => <div className="admin-account-table__identity">
+        <strong>{user.name}</strong>
+        <span>@{user.username}</span>
+        {user.email ? <span>{user.email}</span> : null}
+      </div>
+    },
+    {
+      key: 'profile', header: 'Perfil',
+      render: user => <div className="admin-account-table__profile">
+        <span>{accountTypeLabel(user.accountType)}</span>
+        <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>
+      </div>
+    },
+    { key: 'access', header: 'Acessos e vínculos', render: accountAccess }
+  ];
+
   return (
     <AdminModuleAppShell sectionLabel="Contas">
       <main className="fv-ds admin-accounts-page-v2">
@@ -609,45 +650,30 @@ export function AdminAccountsPage() {
               <h2>Contas</h2>
               <Badge>{visibleUsers.length} de {(usersQuery.data || []).length}</Badge>
             </div>
-            <div className="admin-account-grid">
-              {visibleUsers.map(user => (
-                <Card className="admin-account-card-v2" key={user.id} padding="md">
-                  <div className="admin-account-card-v2__header">
-                    <div className="admin-account-card-v2__identity">
-                      <h3>{user.name}</h3>
-                      <span>@{user.username}</span>
-                    </div>
-                    <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>
-                  </div>
-                  <div className="admin-account-card-v2__meta">
-                    <span>{accountTypeLabel(user.accountType)}</span>
-                    {user.email ? <span>{user.email}</span> : null}
-                    {user.collaborator?.name ? <span>Colaborador: {user.collaborator.name}</span> : null}
-                  </div>
-                  <div className="admin-account-card-v2__roles" aria-label="Módulos da conta">
-                    {(user.moduleRoles || []).length ? (
-                      (user.moduleRoles || []).map(role => (
-                        <Badge key={role}>{moduleRoleLabel(role)}</Badge>
-                      ))
-                    ) : (
-                      <Badge>Sem módulos</Badge>
-                    )}
-                  </div>
-                  {user.accountType === 'CLIENT' ? (
-                    <div className="admin-account-card-v2__projects">
-                      <strong>Projetos RDO:</strong> {linkedProjectsLabel(user) || 'Sem vínculo ativo'}
-                    </div>
-                  ) : null}
-                  <div className="admin-account-card-v2__actions">
-                    <Button variant="secondary" size="sm" onClick={() => openEditForm(user)}>Editar</Button>
-                    <Button variant={user.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => void toggleActive(user)} disabled={userMutations.updateUser.isPending}>
-                      {user.isActive ? 'Desativar' : 'Ativar'}
-                    </Button>
-                    <RemoveIconButton label={`Remover conta de ${user.name}`} onClick={() => void openDeleteDialog(user)} disabled={userMutations.deletionImpact.isPending || userMutations.removeUser.isPending} />
-                  </div>
-                </Card>
-              ))}
-            </div>
+            <DataTable
+              className="admin-account-table"
+              rows={visibleUsers}
+              columns={accountColumns}
+              getRowId={user => user.id}
+              ariaLabel="Contas cadastradas"
+              density="compact"
+              actionsLabel="Ações"
+              rowActions={accountActions}
+              mobile={{
+                ariaLabel: 'Contas cadastradas',
+                renderItem: user => ({
+                  title: user.name,
+                  subtitle: `@${user.username}`,
+                  status: <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>,
+                  metadata: [
+                    { label: 'Tipo', value: accountTypeLabel(user.accountType) },
+                    ...(user.email ? [{ label: 'E-mail', value: user.email }] : [])
+                  ],
+                  details: accountAccess(user),
+                  actions: accountActions(user)
+                })
+              }}
+            />
           </section>
         ) : (
           <EmptyState
