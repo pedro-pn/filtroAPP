@@ -23,7 +23,7 @@ export function resolveLegacySummaryTeamDates(
     : [form.demobilizationDate, form.endDate, today, executionStartDate]
       .find(date => date && date >= executionStartDate) || executionStartDate;
   const originalReturn = dateOnly(fullMission?.returnDate) || dateOnly(summary.returnDate);
-  const returnDate = originalReturn >= executionEndDate ? originalReturn : null;
+  const returnDate = originalReturn >= mobilizationDate ? originalReturn : null;
 
   return {
     mobilizationDate,

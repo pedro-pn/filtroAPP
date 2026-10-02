@@ -33,7 +33,7 @@ const schema = z.object({
     message: 'A desmobilização individual não pode ser anterior à mobilização.'
   }))
 }).refine(value => value.mobilizationDate <= value.executionStartDate && value.executionStartDate <= value.executionEndDate, { path: ['executionEndDate'], message: 'Use a ordem mobilização ≤ início ≤ fim.' })
-  .refine(value => !value.returnDate || value.executionEndDate <= value.returnDate, { path: ['returnDate'], message: 'A desmobilização não pode ser anterior ao fim da execução.' })
+  .refine(value => !value.returnDate || value.mobilizationDate <= value.returnDate, { path: ['returnDate'], message: 'A desmobilização não pode ser anterior à mobilização.' })
   .refine(value => value.scheduleStatus !== 'CONFIRMED' || value.collaboratorIds.length > 0, { path: ['collaboratorIds'], message: 'Selecione ao menos um colaborador para confirmar.' })
   .superRefine((value, context) => {
     const selectedIds = new Set(value.collaboratorIds);

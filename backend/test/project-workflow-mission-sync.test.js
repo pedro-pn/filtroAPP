@@ -93,12 +93,27 @@ test('desmobilização atualiza retorno sem alterar equipe ou ciclos', async () 
   assert.equal(state.audits.at(-1).action, 'MISSION_DEMOBILIZATION_UPDATE');
 });
 
-test('desmobilização rejeita retorno anterior ao fim da execução', async () => {
-  const { database } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT' }));
+test('desmobilização anterior ao fim previsto sincroniza retorno e preserva a previsão', async () => {
+  const mission = completeMission({ stage: 'FINAL_MEASUREMENT' });
+  const { database, state } = fakeDatabase(mission);
+  const result = await synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-19', { actorUserId: 'leader-1' });
+  assert.equal(result.returnDate.toISOString().slice(0, 10), '2026-09-19');
+  assert.equal(result.executionEndDate.toISOString().slice(0, 10), '2026-09-20');
+  assert.deepEqual(result.allocations, mission.allocations);
+  assert.equal(state.projectUpdates[0].data.demobilizationDate.toISOString().slice(0, 10), '2026-09-19');
+  assert.equal(state.mission.version, 3);
+  assert.equal(state.planBumps, 1);
+  assert.equal(state.audits.at(-1).afterData.returnDate, '2026-09-19');
+});
+
+test('desmobilização rejeita retorno anterior à mobilização sem alterar a missão', async () => {
+  const { database, state } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT' }));
   await assert.rejects(
-    synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-19'),
+    synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-09'),
     error => error.code === 'INVALID_MISSION_CHRONOLOGY'
   );
+  assert.equal(state.updates.length, 0);
+  assert.equal(state.projectUpdates.length, 0);
 });
 
 test('avanço do projeto sincroniza missão oficial completa e registra auditoria', async () => {
