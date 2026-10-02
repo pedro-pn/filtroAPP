@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { z } from 'zod';
 
 import {
@@ -14,6 +14,7 @@ import {
 } from '../../../api/projectDocuments';
 import { Button, Field, Input, Select, Textarea } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
+import { PdfDropzone } from '../../../components/ui/PdfDropzone';
 
 const requirementOptions: Array<{ key: ProjectDocumentRequirementStage | ''; label: string }> = [
   { key: '', label: 'Não bloquear o fluxo' },
@@ -74,7 +75,7 @@ export function ProjectDocumentForm({ document, allowedTypes, users, saving, onC
   onUpdate: (documentId: string, input: ProjectDocumentUpdateInput) => void;
 }) {
   const editing = Boolean(document);
-  const { register, handleSubmit, reset, setError, formState: { errors, isDirty } } = useForm<DocumentValues>({
+  const { control, register, handleSubmit, reset, setError, formState: { errors, isDirty } } = useForm<DocumentValues>({
     resolver: zodResolver(documentSchema) as Resolver<DocumentValues>,
     defaultValues: {
       type: document?.type || allowedTypes[0] || 'OTHER',
@@ -133,7 +134,7 @@ export function ProjectDocumentForm({ document, allowedTypes, users, saving, onC
         <Field id="project-document-acceptance" label="Aceite necessário"><Select disabled={saving} {...register('acceptanceMode')}>{acceptanceOptions.map(item => <option value={item.key} key={item.key}>{item.label}</option>)}</Select></Field>
         <Field id="project-document-description" label="Descrição" className="project-document-wide-field" errorText={errors.description?.message}><Textarea rows={3} disabled={saving} {...register('description')} /></Field>
         {!editing ? <>
-          <Field id="project-document-file" label="Arquivo inicial" helperText="PDF, DOCX, XLSX, PNG, JPEG, DWG ou DXF, até 20 MB." errorText={errors.file ? String(errors.file.message || '') : undefined}><Input type="file" accept={fileAccept} disabled={saving} {...register('file')} /></Field>
+          <Controller name="file" control={control} render={({ field }) => <PdfDropzone appearance="design-system" id="project-document-file-control" label="Arquivo inicial" accept={fileAccept} file={field.value?.[0]} onFile={file => field.onChange(file ? [file] : [])} disabled={saving} emptyText="Arraste o arquivo aqui" emptyHint="PDF, DOCX, XLSX, PNG, JPEG, DWG ou DXF, até 20 MB — ou clique para selecionar." error={errors.file ? String(errors.file.message || '') : undefined} />} />
           <Field id="project-document-version-label" label="Identificação da versão"><Input id="project-document-version-label-control" placeholder="Ex.: Rev. 01" disabled={saving} {...register('versionLabel')} /></Field>
         </> : null}
       </div>
@@ -142,7 +143,7 @@ export function ProjectDocumentForm({ document, allowedTypes, users, saving, onC
 }
 
 export function ProjectDocumentVersionForm({ document, saving, onClose, onSubmit }: { document: ProjectDocument; saving: boolean; onClose: () => void; onSubmit: (input: { expectedVersion: number; versionLabel?: string | null; fileName: string; dataUrl: string }) => void }) {
-  const { register, handleSubmit, setError, formState: { errors } } = useForm<VersionValues>({ resolver: zodResolver(versionSchema) as Resolver<VersionValues>, defaultValues: { versionLabel: '', file: undefined } });
+  const { control, register, handleSubmit, setError, formState: { errors } } = useForm<VersionValues>({ resolver: zodResolver(versionSchema) as Resolver<VersionValues>, defaultValues: { versionLabel: '', file: undefined } });
   return <Modal open onClose={onClose} closeOnEscape={!saving} appearance="design-system" title="Nova versão" size="md" fullscreenOnMobile={false} panelClassName="efetivo-dialog project-document-form-modal is-compact" footer={<><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="primary" type="submit" form="project-document-version-form" loading={saving}>Adicionar versão</Button></>}><form id="project-document-version-form" className="project-document-form" noValidate onSubmit={handleSubmit(async values => {
     const file = values.file[0] as File;
     if (file.size > 20 * 1024 * 1024) return setError('file', { message: 'O arquivo deve ter no máximo 20 MB.' });
@@ -150,7 +151,7 @@ export function ProjectDocumentVersionForm({ document, saving, onClose, onSubmit
   })}>
     <p className="efetivo-dialog-description">{document.title}</p>
     <div className="project-document-form-body">
-      <Field id="project-document-new-file" label="Arquivo" required errorText={errors.file ? String(errors.file.message || '') : undefined}><Input type="file" accept={fileAccept} disabled={saving} {...register('file')} /></Field>
+      <Controller name="file" control={control} render={({ field }) => <PdfDropzone appearance="design-system" id="project-document-new-file-control" label="Arquivo da nova versão (obrigatório)" accept={fileAccept} file={field.value?.[0]} onFile={file => field.onChange(file ? [file] : [])} disabled={saving} emptyText="Arraste o arquivo aqui" emptyHint="PDF, DOCX, XLSX, PNG, JPEG, DWG ou DXF, até 20 MB — ou clique para selecionar." error={errors.file ? String(errors.file.message || '') : undefined} />} />
       <Field id="project-document-new-version-label" label="Identificação da versão"><Input id="project-document-new-version-label-control" placeholder="Ex.: Rev. 02" disabled={saving} {...register('versionLabel')} /></Field>
     </div>
   </form></Modal>;

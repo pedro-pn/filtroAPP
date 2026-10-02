@@ -13,6 +13,8 @@
 .fv-modal-backdrop:has(> .efetivo-dialog) {
   align-items: center;
   padding: var(--space-4);
+  /* These dialogs can open above the existing project planning dialog (1000). */
+  z-index: 1100;
 }
 
 .efetivo-dialog-form,

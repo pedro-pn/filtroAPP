@@ -149,11 +149,31 @@ O contraste automático cobre texto visível sobre fundos planos: 4,5:1 para tex
 - Mobile: toques nos comandos de início/fim, cabeçalho por direção de rolagem, bloqueio do fundo do menu Mais e fechamento pelo handler de arraste. O gesto de fechamento foi exercitado com eventos sintéticos; não substitui o teste em aparelho físico.
 - A última suíte passou 14/14 testes nos dois motores. O verificador reconhece o pequeno X vermelho como ícone com nome acessível, aplicando o critério de contraste não textual.
 
-## Pontos de acabamento identificados
+## Pontos de acabamento — concluídos
 
 | ID | Tela e condição | Observação / próxima ação |
 | --- | --- | --- |
-| UX-E1 | Efetivo → Evolução → Planejamento, celular 390 px, ambos os temas | Os metadados do cabeçalho usam rolagem horizontal local; parte da data fica fora do recorte inicial. Reorganizar em linhas se a intenção for apresentar tudo simultaneamente. A página inteira não estoura. |
-| UX-E2 | Efetivo → Documentos → Adicionar versão (e arquivo inicial), todos os dispositivos | O input usa o seletor nativo de arquivo, enquanto Assinaturas e Equipamentos usam área tracejada. Padronizar a apresentação; o upload atual permanece funcional e rotulado. |
+| UX-E1 | Efetivo → Evolução → Planejamento, celular 390 px, ambos os temas | **Concluído:** metadados em duas colunas, sem rolagem horizontal local. Nomes longos também conferidos em 320 px nos dois motores. |
+| UX-E2 | Efetivo → Documentos → Adicionar versão (e arquivo inicial), todos os dispositivos | **Concluído:** área tracejada compartilhada, seleção/arraste/remoção e erros associados. Formatos e limite de 20 MB preservados; arquivo inicial e nova versão gravados pela UI e conferidos diretamente no banco isolado. |
+
+### Rodada de acabamento e avaliação de produção
+
+- Corrigida a sobreposição das barras em históricos com datas próximas dentro de um período longo. A escala temporal continua proporcional às datas e os percentuais não são recalculados no frontend. Regressão com seis pontos irregulares, redimensionamento e tooltip por foco nos três tamanhos e dois temas, em Chromium/WebKit.
+- Preenchimento sem percentual real agora é uma animação de 360 ms, que chega às cores completas em cerca de 300 ms e permanece preenchida. Não há espera artificial para montar a página. Progresso real e movimento reduzido foram conferidos separadamente.
+- Encontrado e corrigido um diálogo de documentos DS abaixo do diálogo de planejamento: os controles estavam visualmente presentes, mas a camada do planejamento interceptava o clique. O teste de gravação agora usa cliques reais nos controles de seleção/remoção/salvar.
+- Servidores Vite usam caches por processo. Login abriu em 5173 e 5174 nos dois motores, sem erro de JavaScript ou resposta HTTP com falha; não foi possível recuperar o erro original anterior ao reinício informado pelo usuário.
+- O proxy do `vite preview` encaminhava os bundles compilados de `/assets` para a API e retornava 404. Corrigido para servir os arquivos com hash do build localmente. Login e planejamento com build compilado passaram nos dois motores. Nginx já usa `try_files` para esses arquivos.
+
+Evidências adicionais: `output/playwright/redesign-polish-final/` (14/14),
+`output/playwright/redesign-long-names/` (2/2),
+`output/playwright/redesign-readiness-pages/` (60 recortes, 12/12 testes) e
+`output/validation/readiness-servers-smoke.json` (oito verificações de acesso/build).
+As cinco telas/estados repetidos foram: projeto do Acompanhamento, planejamento,
+documento inicial, nova versão e prévia de carregamento. Nenhum overflow global,
+controle sem nome, imagem quebrada, exceção ou contraste insuficiente nos fundos
+medidos foi encontrado nessa repetição.
+
+Consulte a [avaliação para produção](redesign-production-readiness-2026-10-02.md)
+para os gates e passos de publicação ainda necessários.
 
 Não foram identificadas outras inconsistências reproduzíveis nos recortes conferidos. Permanecem fora desta rodada a homologação em celulares/tablets físicos, leitor de tela, câmera/canvas de assinatura física e entrega SMTP externa. O SMTP de teste só captura mensagens localmente.

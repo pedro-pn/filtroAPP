@@ -9,7 +9,12 @@
 | 2. Persistência | Cinco testes reais de formulário + consulta direta ao PostgreSQL passaram | `e53bb442` |
 | 3. Revisão transversal | 18/18 testes; 168 recortes de telas autenticadas; Chromium e WebKit, 3 tamanhos, 2 temas; permissões, foco e onboarding | `b6258a6e` |
 | 4. Limpeza F6 | 20 arquivos órfãos retirados; 62 regras e 33 seletores de CSS; normalização unificada; 645/645 testes | `f58e96d6` |
-| Conferência final | 107 telas/estados × 12 combinações; correções repetidas em 348 + 36 recortes; última suíte 14/14 | lote final deste registro |
+| Conferência final | 107 telas/estados × 12 combinações; correções repetidas em 348 + 36 recortes; última suíte 14/14 | `1c00fc6a` |
+| Acabamentos e avaliação de publicação | UX-E1/E2, barras do gráfico, preenchimento rápido, cache por servidor e preview compilado; 60 recortes adicionais e gravação de documentos no banco isolado | rodada posterior registrada na avaliação abaixo |
+
+Situação atual: os acabamentos conhecidos foram concluídos. As evidências,
+homologações externas e passos de integração/deploy estão na
+[avaliação para produção](redesign-production-readiness-2026-10-02.md).
 
 ## Banco e arquivos isolados
 

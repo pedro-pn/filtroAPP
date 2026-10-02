@@ -72,7 +72,7 @@ export function BrandLoading({
         </svg>
         {isProgress ? <>
           <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className="fv-brand-logo fv-brand-loading__progress-gray" style={{ filter: `url(#${arrowsFilterId}) brightness(0) invert(.65)` }} />
-          <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className={`fv-brand-logo fv-brand-loading__progress-color${isDeterminate ? '' : ' fv-brand-loading__progress-color--loop'}`} style={{ filter: `url(#${arrowsFilterId})`, ...(isDeterminate ? { '--fv-brand-loading-fill': `${value}%` } : {}) } as CSSProperties} />
+          <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className={`fv-brand-logo fv-brand-loading__progress-color${isDeterminate ? '' : ' fv-brand-loading__progress-color--animated'}`} style={{ filter: `url(#${arrowsFilterId})`, ...(isDeterminate ? { '--fv-brand-loading-fill': `${value}%` } : {}) } as CSSProperties} />
         </> : <span className="fv-brand-loading__spin-ring">
           {spinningArrows.map(arrow => <img key={arrow.name} src={BRAND_LOGO_ASSETS.symbol.src} alt="" className="fv-brand-logo fv-brand-loading__spin-arrow" style={{ filter: `url(#${filterId}-spin-${arrow.name})`, transform: `translate(${arrow.offsetX}, ${arrow.offsetY})` }} />)}
         </span>}

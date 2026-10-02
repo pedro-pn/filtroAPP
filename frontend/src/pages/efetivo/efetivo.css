@@ -2978,10 +2978,17 @@
   .modal-card.efetivo-modal.project-workflow-modal { max-height: calc(100dvh - 24px); width: calc(100vw - 16px); }
   .project-workflow-modal .efetivo-modal-layout { height: calc(100dvh - 24px); }
   .project-workflow-modal .project-workflow-header { padding: 12px 10px 12px 14px; }
-  .project-workflow-meta > div { flex: 0 0 auto; }
+  .project-workflow-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    overflow: visible;
+  }
+  .project-workflow-meta > div { border: 0; padding: 0; }
+  .project-workflow-meta :is(dt, dd) { white-space: normal; overflow-wrap: anywhere; }
+  .project-workflow-meta dd { align-items: flex-start; }
   .project-workflow-fixed-top { padding: 8px 8px 4px; }
   .project-workflow-stage-legend { display: none; }
-  .project-workflow-meta { scrollbar-width: none; }
   .project-workflow-modal-body.has-stage-layout > .project-workflow-stage-panel { flex-direction: column; }
   .project-workflow-stage-rail { border-bottom: 1px solid var(--pw-border-soft); border-right: 0; flex: 0 0 auto; flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding: 8px 12px; width: auto; }
   .project-workflow-stage-rail-title,

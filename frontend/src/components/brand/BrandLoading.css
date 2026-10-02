@@ -34,12 +34,12 @@
   transition: --fv-brand-loading-fill 180ms linear;
 }
 
-.fv-brand-loading__progress-color--loop {
-  animation: fv-brand-arrows-fill 2.8s linear infinite;
+.fv-brand-loading__progress-color--animated {
+  animation: fv-brand-arrows-fill 360ms ease-out both;
 }
 
 @keyframes fv-brand-arrows-fill {
-  0%, 8% { --fv-brand-loading-fill: 0%; }
+  0% { --fv-brand-loading-fill: 0%; }
   85%, 100% { --fv-brand-loading-fill: 100%; }
 }
 

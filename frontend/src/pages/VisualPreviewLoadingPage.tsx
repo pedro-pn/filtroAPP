@@ -45,6 +45,14 @@ export function VisualPreviewLoadingPage() {
         </figure>
       </div>
     </section>
+    <section className="loading-preview-option" aria-labelledby="loading-preview-auto-title">
+      <h2 id="loading-preview-auto-title">Preenchimento rápido das telas</h2>
+      <div className="loading-preview-stage">
+        <BrandLoading key={replay} mode="progress" label="Preenchimento rápido do carregamento" />
+      </div>
+      <p>As setas ficam coloridas em cerca de 300 ms e permanecem completas durante a espera.</p>
+      <Button variant="secondary" size="sm" type="button" onClick={() => setReplay(value => value + 1)}>Reproduzir preenchimento rápido</Button>
+    </section>
     <section className="loading-preview-option" aria-labelledby="loading-preview-progress-title">
       <h2 id="loading-preview-progress-title">Setas colorindo conforme o progresso</h2>
       <div className="loading-preview-stage">

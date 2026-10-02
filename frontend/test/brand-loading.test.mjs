@@ -16,13 +16,13 @@ test('loading logo preserves accessible status, honest progress and compact shar
     assert.match(spin, /aria-label="Carregando projeto"/);
     assert.match(spin, /fv-brand-loading__spin-ring/);
     assert.doesNotMatch(spin, /aria-valuenow/);
-    const loop = render({ mode: 'progress' });
-    assert.match(loop, /progress-color--loop/);
-    assert.doesNotMatch(loop, /aria-valuenow/);
+    const animated = render({ mode: 'progress' });
+    assert.match(animated, /progress-color--animated/);
+    assert.doesNotMatch(animated, /aria-valuenow/);
     const progress = render({ mode: 'spin', progress: 140 });
     assert.match(progress, /role="progressbar"/);
     assert.match(progress, /aria-valuenow="100"/);
-    assert.doesNotMatch(progress, /progress-color--loop/);
+    assert.doesNotMatch(progress, /progress-color--animated/);
     assert.match(render({ progress: -3 }), /aria-valuenow="0"/);
     assert.doesNotMatch(render({ decorative: true }), /role="status"/);
     const compact = renderToStaticMarkup(createElement(Spinner, { decorative: true, size: 'sm' }));

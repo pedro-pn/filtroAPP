@@ -56,15 +56,17 @@ export function ProgressHistoryChart({ points, height = 144 }: { points?: Progre
 
   const width = chartWidth;
   const pad = { top: 10, right: 10, bottom: 22, left: 30 };
-  const plotWidth = width - pad.left - pad.right;
+  const plotWidth = Math.max(1, width - pad.left - pad.right);
   const plotHeight = height - pad.top - pad.bottom;
-  const barWidth = Math.max(4, Math.min(52, plotWidth / Math.max(history.length, 1) * 0.52));
+  const maxBarWidth = Math.min(52, plotWidth / history.length * 0.52);
+  const barInset = maxBarWidth / 2;
+  const timeWidth = Math.max(0, plotWidth - maxBarWidth);
   const minTime = history[0].time;
   const maxTime = history[history.length - 1].time;
   const xFor = (time: number, index: number) => (
     minTime === maxTime
-      ? pad.left + (history.length === 1 ? plotWidth / 2 : (plotWidth * index) / (history.length - 1))
-      : pad.left + ((time - minTime) / (maxTime - minTime)) * plotWidth
+      ? pad.left + (history.length === 1 ? plotWidth / 2 : barInset + (timeWidth * index) / (history.length - 1))
+      : pad.left + barInset + ((time - minTime) / (maxTime - minTime)) * timeWidth
   );
   const yFor = (value: number) => pad.top + (1 - clampPct(value) / 100) * plotHeight;
   const plotted = history.map((point, index) => ({
@@ -112,22 +114,28 @@ export function ProgressHistoryChart({ points, height = 144 }: { points?: Progre
           </g>
         ))}
         <path className="acp-detail-history-line" d={path} />
-        {plotted.map(point => (
-          <g
-            className="acp-detail-history-point"
-            key={`${point.date}-${point.progressPct}`}
-            tabIndex={0}
-            aria-label={pointLabel(point)}
-            onFocus={() => setActivePoint(point)}
-            onBlur={() => setActivePoint(null)}
-            onMouseEnter={() => setActivePoint(point)}
-            onMouseLeave={() => setActivePoint(null)}
-          >
-            <rect className="acp-detail-history-bar" x={point.x - barWidth / 2} y={point.y} width={barWidth} height={Math.max(0, yFor(0) - point.y)} rx="5" />
-            <circle className="acp-detail-history-dot-hit" cx={point.x} cy={point.y} r="8" />
-            <circle className="acp-detail-history-dot" cx={point.x} cy={point.y} r="3.4" />
-          </g>
-        ))}
+        {plotted.map((point, index) => {
+          // Grouped projects can have adjacent dates inside a much longer timeline.
+          const before = index > 0 ? point.x - plotted[index - 1].x : Infinity;
+          const after = index < plotted.length - 1 ? plotted[index + 1].x - point.x : Infinity;
+          const barWidth = Math.min(maxBarWidth, Math.min(before, after) * 0.72);
+          return (
+            <g
+              className="acp-detail-history-point"
+              key={`${point.date}-${point.progressPct}`}
+              tabIndex={0}
+              aria-label={pointLabel(point)}
+              onFocus={() => setActivePoint(point)}
+              onBlur={() => setActivePoint(null)}
+              onMouseEnter={() => setActivePoint(point)}
+              onMouseLeave={() => setActivePoint(null)}
+            >
+              <rect className="acp-detail-history-bar" x={point.x - barWidth / 2} y={point.y} width={barWidth} height={Math.max(0, yFor(0) - point.y)} rx="5" />
+              <circle className="acp-detail-history-dot-hit" cx={point.x} cy={point.y} r="8" />
+              <circle className="acp-detail-history-dot" cx={point.x} cy={point.y} r="3.4" />
+            </g>
+          );
+        })}
         <text className="acp-detail-history-x" x={pad.left} y={height - 4} textAnchor="start">
           {fmtShortDate(history[0].date)}
         </text>

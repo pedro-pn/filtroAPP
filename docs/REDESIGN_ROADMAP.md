@@ -2,8 +2,10 @@
 
 > **Fechamento de 02/10/2026:** carregamentos e as quatro etapas foram publicados.
 > A conferência final cobriu 107 telas/estados em Chromium e WebKit, celular,
-> tablet e desktop, nos dois temas. O resultado e dois acabamentos de UX estão
-> na [auditoria final por página](filtrovali-ds/redesign-final-audit-2026-10-02.md).
+> tablet e desktop, nos dois temas. Os dois acabamentos de UX foram concluídos,
+> assim como os ajustes do gráfico e do preenchimento da logo. Consulte a
+> [auditoria final por página](filtrovali-ds/redesign-final-audit-2026-10-02.md) e a
+> [avaliação para produção](filtrovali-ds/redesign-production-readiness-2026-10-02.md).
 >
 > **Auditoria de 01/10/2026:** os 12 módulos ativos têm as telas principais no
 > design system. F5.4 (EPI) e F5.5 (Privacidade) estão visualmente concluídas;
@@ -1529,13 +1531,50 @@ fixtures reais no PostgreSQL isolado e demonstrações explicitamente marcadas.
 As evidências de cada página, critérios e limites estão na
 [auditoria final](filtrovali-ds/redesign-final-audit-2026-10-02.md).
 
-Próximos acabamentos, sem bloqueio dos gates encerrados:
+Acabamentos concluídos na rodada seguinte de 02/10:
 
-- [ ] UX-E1: apresentar simultaneamente os metadados do cabeçalho do planejamento
-  do Efetivo no celular; hoje há rolagem horizontal local e a data fica fora do
-  recorte inicial.
-- [ ] UX-E2: padronizar o seletor de arquivo inicial/versão de documentos do Efetivo
-  com a apresentação de upload adotada em Assinaturas/Equipamentos.
+- [x] UX-E1: metadados do cabeçalho do planejamento em duas colunas no celular,
+  sem rolagem local. Conferido também com nomes longos em 320 px.
+- [x] UX-E2: arquivo inicial e nova versão usam a área tracejada compartilhada,
+  com seleção, arraste e remoção; formatos, limite de 20 MB e validações mantidos.
+  Gravação e recarga de duas versões passaram em PostgreSQL isolado nos dois motores.
+- [x] Diálogos DS do Efetivo ficam acima do planejamento ao abrir documentos;
+  os controles de upload/remover/salvar permanecem clicáveis.
+- [x] Gráfico de evolução: largura de cada barra respeita as datas vizinhas;
+  históricos agrupados com datas próximas não sobrepõem as barras. Escala temporal
+  e percentuais recebidos da API foram preservados.
+- [x] Preenchimento indeterminado da logo conclui as cores em cerca de 300 ms e
+  permanece completo durante a espera, sem tempo mínimo para abrir a página.
+  O modo com progresso real mantém o percentual recebido. Prévia em
+  `/visualizar/carregamento` com botão de reprodução rápida.
+- [x] Cache de dependências do Vite separado por processo: servidores 5173/5174
+  e testes SSR não compartilham a mesma pasta. Login conferido nos dois servidores.
+- [x] Preview compilado serve os bundles/fontes/imagens com hash localmente;
+  os demais arquivos de `/assets` continuam sendo buscados na API. Login e
+  planejamento compilados abriram em Chromium e WebKit sem erros.
+
+Verificação desta rodada: 645/645 testes frontend, mais 20 testes focados após
+o ajuste de camadas; arquitetura, lint, tipagem E2E e build aprovados. Backend:
+1.834 aprovados, zero falhas, oito integrações opcionais não habilitadas; migrations
+aplicadas em banco descartável. Os acabamentos passaram em 14 testes de navegador,
+mais dois casos de nomes longos; cinco telas/estados foram repetidos em 12
+combinações (60 recortes), sem falhas de contraste nos fundos medidos.
+
+### Publicação do redesign
+
+Não há outra migração visual conhecida aberta nesta revisão. A branch contém
+`origin/main` até `a9d9f6ee`, verificado novamente em 02/10. A entrega está pronta
+para homologação final; a publicação precisa dos passos abaixo:
+
+- [ ] Executar/aprovar a CI do commit de integração; não há execução da CI desta
+  branch registrada nesta conferência.
+- [ ] Homologar Assinaturas/gestos em aparelho físico e entrega SMTP externa.
+- [ ] Publicar frontend **e** backend da mesma versão, com backup e migrations.
+  O delta para a main inclui `20260928120000_project_acompanhamento_card_name`,
+  além de ajustes de API; publicar somente o frontend não entrega o conjunto.
+
+Critérios, evidências e limites estão na
+[avaliação para produção](filtrovali-ds/redesign-production-readiness-2026-10-02.md).
 
 Homologação em aparelhos físicos, leitor de tela, câmera/canvas de assinatura
 física e entrega SMTP externa continuam fora da validação local desta rodada.
