@@ -219,10 +219,11 @@ function DesignSystemBottomBar({
               <Link className={[item.active && 'is-active', item.locked && 'is-locked'].filter(Boolean).join(' ')} to={item.href}
                 onClick={event => {
                   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                  if (!item.active && !item.onSelect) return;
-                  event.preventDefault();
-                  if (item.active) scrollPageTo('start');
-                  else item.onSelect?.();
+                  if (item.onSelect) {
+                    event.preventDefault();
+                    item.onSelect();
+                  }
+                  if (item.active) window.requestAnimationFrame(() => scrollPageTo('start'));
                 }}
                 aria-current={item.active ? 'page' : undefined}
                 aria-label={item.locked
@@ -261,9 +262,11 @@ function DesignSystemBottomBar({
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                pendingActionRef.current = item.active
-                  ? () => window.requestAnimationFrame(() => scrollPageTo('start'))
-                  : item.onSelect ?? (() => { void navigate(item.href); });
+                pendingActionRef.current = () => {
+                  if (item.onSelect) item.onSelect();
+                  else void navigate(item.href);
+                  if (item.active) window.requestAnimationFrame(() => scrollPageTo('start'));
+                };
                 setMorePhase('closing');
               }}>
               <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />

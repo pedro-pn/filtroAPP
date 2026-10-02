@@ -13,7 +13,6 @@ import { isGroupRow } from './acompanhamentoDashboardModel';
 
 export function AcompanhamentoDashboard({ canManage = false, canManageProposal = false, canViewFinancials = false }: { canManage?: boolean; canManageProposal?: boolean; canViewFinancials?: boolean }) {
   const [values, setValues] = useState<DashboardFilterValues>({ search: '', modality: 'todas', status: 'todos', category: '', metricKey: 'custo' });
-  const [selectedManaged, setManaged] = useState<DashboardRow | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [managedDirty, setManagedDirty] = useState(false);
   const scheduleRef = useRef<ScheduleEditorHandle>(null);
@@ -28,10 +27,9 @@ export function AcompanhamentoDashboard({ canManage = false, canManageProposal =
     queryFn: () => getRealizedByCategory(),
     ...acompanhamentoRefreshQueryOptions
   });
-  const managed = selectedManaged ?? dashboard.data?.find((row): row is DashboardRow => !isGroupRow(row) && row.projectId === searchParams.get('schedule')) ?? null;
+  const managed = dashboard.data?.find((row): row is DashboardRow => !isGroupRow(row) && row.projectId === searchParams.get('schedule')) ?? null;
   const financialsVisible = canViewFinancials && Boolean(dashboard.data?.every(row => row.canViewProjectFinancials === true));
   function closeSchedule() {
-    setManaged(null);
     setManagedDirty(false);
     if (searchParams.has('schedule')) setSearchParams(current => {
       const next = new URLSearchParams(current);
@@ -48,7 +46,7 @@ export function AcompanhamentoDashboard({ canManage = false, canManageProposal =
         canViewFinancials={financialsVisible}
         categories={categories.data ?? []} categoriesLoading={categories.isLoading}
         categoriesError={categories.isError} onRetryCategories={() => { void categories.refetch(); }}
-        onOpen={row => { setManagedDirty(false); setManaged(row); setSearchParams(current => { const next = new URLSearchParams(current); next.set('schedule', row.projectId); return next; }, { replace: true }); }} />
+        onOpen={row => { setManagedDirty(false); setSearchParams(current => { const next = new URLSearchParams(current); next.set('schedule', row.projectId); return next; }, { replace: true }); }} />
       <Modal open={managed !== null} onClose={closeSchedule} appearance="design-system" size="lg"
         panelClassName="acp-schedule-modal"
         title={managed ? `Cronograma — ${managed.code}${managed.name ? ` — ${managed.name}` : ''}` : 'Cronograma'}

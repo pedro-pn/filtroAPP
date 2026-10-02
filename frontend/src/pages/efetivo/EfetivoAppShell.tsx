@@ -9,7 +9,7 @@ import {
   type NavigationSubItem
 } from '../../layout/navigationModel';
 import {
-  setPlanningSectionParams,
+  planningSectionHomeParams,
   type EfetivoPlanningSection
 } from '../../utils/planningNavigation';
 import { hubModulesForUser } from '../hubModules';
@@ -38,7 +38,7 @@ export function EfetivoAppShell({
   const subNavigation = useMemo<NavigationSubItem[]>(
     () =>
       sections.map(section => {
-        const params = setPlanningSectionParams(
+        const params = planningSectionHomeParams(
           new URLSearchParams(location.search),
           section.id
         );

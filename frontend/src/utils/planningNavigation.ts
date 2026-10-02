@@ -28,3 +28,10 @@ export function setPlanningSectionParams(current: URLSearchParams, section: Efet
   for (const key of [...next.keys()]) if (!allowed.has(key)) next.delete(key);
   return next;
 }
+
+export function planningSectionHomeParams(current: URLSearchParams, section: EfetivoPlanningSection) {
+  const next = setPlanningSectionParams(current, section);
+  for (const key of ['projeto', 'dia', 'ausencia', 'adminTab']) next.delete(key);
+  if (section === 'colaboradores') next.delete('colaborador');
+  return next;
+}
