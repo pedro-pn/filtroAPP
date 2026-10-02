@@ -965,7 +965,8 @@ export function NewRomaneioPage() {
         <PageHeader title={formTitle} description={romaneioType === 'INBOUND' ? 'Retorno de equipamentos e consumíveis.' : 'Saída de equipamentos e materiais.'} actions={
           <Button variant="secondary" size="sm" onClick={() => navigate('/romaneio')}>Voltar</Button>
         } />
-      <form className="romaneio-form-v2" onSubmit={submit}>
+      {isEditing && editQuery.isLoading ? <BrandLoading label="Carregando romaneio para edição" /> : null}
+      <form className="romaneio-form-v2" onSubmit={submit} aria-busy={isEditing && editQuery.isLoading} inert={isEditing && editQuery.isLoading || undefined}>
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div>

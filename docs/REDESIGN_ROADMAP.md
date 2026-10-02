@@ -1426,7 +1426,7 @@ Cada lote recebe commit e push antes de iniciar o seguinte.
 - [x] Etapa 1: zeradas oito ocorrências do gate atual (limites de `reports.js`
   e `ReportDetailPage`, seis campos com placeholder sinalizados pelo gate,
   incluindo as duas identificações de versão de documentos do Efetivo).
-- [ ] Etapa 2: gravação e leitura posterior em PostgreSQL isolado para Contas,
+- [x] Etapa 2: gravação e leitura posterior em PostgreSQL isolado para Contas,
   Qualidade, EPI, Privacidade e Romaneio.
 - [ ] Etapa 3: acessibilidade, permissões, temas, responsividade, WebKit e
   onboarding nos fluxos autenticados.
@@ -1445,3 +1445,15 @@ handler de domínio. Guardas de autenticação, restrição de projeto, seleçã
 de dados e limpeza de URLs temporárias foram preservadas. Os seis controles
 possuem IDs explícitos associados aos rótulos existentes. Testes de anexos,
 documentos e autorização do handler passaram; lint e build passaram.
+
+
+### Etapa 2 — persistência isolada validada
+
+Os cinco fluxos passaram por formulários reais, API sem mocks e consulta
+direta ao PostgreSQL. Contas e Romaneio também tiveram edição conferida;
+Qualidade e EPI tiveram recarga; Privacidade teve evidências e conclusão.
+O Romaneio produziu PDF real. A edição fica bloqueada enquanto os dados
+iniciais carregam. SMTP foi capturado localmente, sem envio externo.
+Comandos, isolamento e limites estão no
+[registro do fechamento](filtrovali-ds/redesign-closure-2026-10-02.md).
+Typecheck de E2E, lint e gate passaram; a suíte de persistência passou 5/5.
