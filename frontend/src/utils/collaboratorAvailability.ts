@@ -12,6 +12,7 @@ export interface AvailabilityEntry {
 }
 
 export type AvailabilityColumns = Record<AvailabilityStatus, AvailabilityEntry[]>;
+export type AvailabilityPeriod = { startDate: string; endDate: string };
 
 /** Colaborador que não pode ser alocado no período: afastamento (exceto férias) ou fora do vínculo. */
 export interface UnavailableEntry {
@@ -95,7 +96,8 @@ export function buildMissionAvailabilityColumns(
   absences: PlanningAbsence[],
   startDate: string,
   endDate: string,
-  ignoredMissionId?: string
+  ignoredMissionId?: string,
+  periodsByCollaboratorId?: ReadonlyMap<string, AvailabilityPeriod[]>
 ): { columns: AvailabilityColumns; otherUnavailable: number; unavailable: UnavailableEntry[] } {
   const columns: AvailabilityColumns = {
     AVAILABLE: [],
@@ -107,8 +109,9 @@ export function buildMissionAvailabilityColumns(
   const unavailable: UnavailableEntry[] = [];
 
   for (const collaborator of collaborators) {
+    const periods = periodsByCollaboratorId?.get(collaborator.id) || [{ startDate, endDate }];
     const overlappingAbsence = absences.find(absence => absence.collaboratorId === collaborator.id
-      && overlapsPeriod(absence.startDate, absence.endDate, startDate, endDate)) || null;
+      && periods.some(period => overlapsPeriod(absence.startDate, absence.endDate, period.startDate, period.endDate))) || null;
     if (overlappingAbsence) {
       if (overlappingAbsence.type === 'FERIAS') {
         columns.ON_VACATION.push({ collaborator, status: 'ON_VACATION', mission: null, absence: overlappingAbsence });
@@ -123,7 +126,7 @@ export function buildMissionAvailabilityColumns(
       && mission.scheduleStatus === 'CONFIRMED'
       && mission.stage !== 'FINISHED'
       && mission.allocations.some(allocation => allocation.collaboratorId === collaborator.id
-        && allocationOverlapsPeriod(allocation, mission, startDate, endDate)));
+        && periods.some(period => allocationOverlapsPeriod(allocation, mission, period.startDate, period.endDate))));
     const mobilizedMission = overlappingMissions.find(mission => mission.stage !== 'STANDBY') || null;
     const waitingMission = overlappingMissions.find(mission => mission.stage === 'STANDBY') || null;
     if (mobilizedMission) {
@@ -137,9 +140,9 @@ export function buildMissionAvailabilityColumns(
 
     const admissionDate = collaborator.admissionDate ? dateKey(collaborator.admissionDate) : null;
     const terminationDate = collaborator.terminationDate ? dateKey(collaborator.terminationDate) : null;
-    const employedThroughout = (!admissionDate || admissionDate <= startDate)
-      && (!terminationDate || terminationDate >= endDate)
-      && (collaborator.isActive || Boolean(terminationDate && terminationDate >= endDate));
+    const employedThroughout = periods.every(period => (!admissionDate || admissionDate <= period.startDate)
+      && (!terminationDate || terminationDate >= period.endDate)
+      && (collaborator.isActive || Boolean(terminationDate && terminationDate >= period.endDate)));
     if (employedThroughout) columns.AVAILABLE.push({ collaborator, status: 'AVAILABLE', mission: null, absence: null });
     else {
       otherUnavailable += 1;

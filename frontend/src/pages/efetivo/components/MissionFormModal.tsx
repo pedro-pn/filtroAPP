@@ -328,7 +328,7 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
           selectedIds={collaboratorIds}
           allocationPeriods={allocationPeriods}
           startDate={mobilizationDate}
-          endDate={executionEndDate}
+          endDate={initial.returnDate || executionEndDate}
           loading={rolesLoading}
           disabled={saving}
           allowIndividualPeriods={false}
