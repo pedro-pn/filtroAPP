@@ -49,6 +49,9 @@ export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction 
   reportsAction?: ReactNode;
 }) {
   const hours = data.workedHours;
+  const workedHoursPct = hours?.plannedTotalHours != null && hours.plannedTotalHours > 0
+    ? hours.totalPct ?? Math.round((hours.totalWorkedHours / hours.plannedTotalHours) * 100)
+    : null;
   const normalHours = Math.max(0, hours?.normalWorkedHours ?? 0);
   const overtimeHours = Math.max(0, hours?.overtimeWorkedHours ?? 0);
   const hoursScale = Math.max(hours?.plannedTotalHours ?? 0, normalHours + overtimeHours, 1);
@@ -57,7 +60,7 @@ export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction 
   const items = [
     { label: 'Dias corridos', value: `${data.diasCorridos.elapsed ?? '—'} / ${data.diasCorridos.planned ?? '—'}`, sub: `${pct(data.diasCorridos.pct)} do prazo`, percent: data.diasCorridos.pct, icon: CalendarClock, help: null },
     { label: 'Dias trabalhados', value: `${data.diasTrabalhados.worked} / ${data.diasTrabalhados.planned ?? '—'}`, sub: `${pct(data.diasTrabalhados.pct)} do planejado`, percent: data.diasTrabalhados.pct, icon: HardHat, help: null },
-    { label: 'Horas trabalhadas', value: fmtHours(hours?.totalWorkedHours ?? 0), sub: hours?.plannedTotalHours != null ? `de ${fmtHours(hours.plannedTotalHours)} previstas` : 'Sem previsão de horas', percent: null, icon: Clock3, help: 'Soma das horas-homem dos relatórios de execução, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno.' },
+    { label: 'Horas trabalhadas', value: `${fmtHours(hours?.totalWorkedHours ?? 0)}${workedHoursPct != null ? ` · ${pct(workedHoursPct)}` : ''}`, sub: hours?.plannedTotalHours != null ? `de ${fmtHours(hours.plannedTotalHours)} previstas` : 'Sem previsão de horas', percent: null, icon: Clock3, help: 'Soma das horas-homem dos relatórios de execução, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno. O percentual compara o total trabalhado com as horas previstas.' },
     { label: 'Standby', value: `${data.standby.count} ${data.standby.count === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} paradas`, percent: null, icon: Hourglass, help: null }
   ];
   return <Card padding="sm" className="acp-story-time" data-acp-time-snapshot>
