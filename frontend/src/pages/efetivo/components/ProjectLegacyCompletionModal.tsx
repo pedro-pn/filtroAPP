@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import type { ProjectOperationalMissionSummary, ProjectWorkflowSummary } from '../../../api/projectWorkflow';
-import { Button } from '../../../components/ui/Button';
+import { Button, Field, Input } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
 
 export function ProjectLegacyCompletionModal({ project, mission, open, saving, onClose, onConfirm }: {
@@ -24,13 +24,12 @@ export function ProjectLegacyCompletionModal({ project, mission, open, saving, o
   }
 
   return (
-    <Modal open={open} onClose={onClose} closeOnEscape={!saving} ariaLabelledBy="project-legacy-completion-title" ariaDescribedBy="project-legacy-completion-description" panelClassName="modal-card efetivo-detail-modal efetivo-modal">
-      <form className="efetivo-modal-layout" onSubmit={submit}>
-        <header className="efetivo-modal-header"><div><h3 id="project-legacy-completion-title">Encerrar projeto antigo</h3><p id="project-legacy-completion-description">{project.code} · {project.name}</p></div><button className="icon-button" type="button" aria-label="Fechar" disabled={saving} onClick={onClose}>×</button></header>
-        <div className="efetivo-modal-body">
-          <div className="field-group"><label htmlFor="project-legacy-completion-return-date">Data de desmobilização</label><input id="project-legacy-completion-return-date" type="date" min={mission.executionEndDate.slice(0, 10)} value={returnDate} disabled={saving} onChange={event => setReturnDate(event.target.value)} /><span className="field-hint">Opcional. Preencha somente se a desmobilização já aconteceu; a data será sincronizada com o cronograma do Planejamento.</span></div>
-        </div>
-        <footer className="efetivo-modal-footer"><Button variant="secondary" disabled={saving} onClick={onClose}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Encerrando…' : 'Encerrar projeto'}</Button></footer>
+    <Modal open={open} onClose={onClose} closeOnEscape={!saving} appearance="design-system" title="Encerrar projeto antigo" size="sm" fullscreenOnMobile={false} panelClassName="efetivo-dialog" footer={<><Button variant="secondary" disabled={saving} onClick={onClose}>Cancelar</Button><Button variant="primary" type="submit" form="project-legacy-completion-form" loading={saving}>Encerrar projeto</Button></>}>
+      <form id="project-legacy-completion-form" className="efetivo-dialog-form" onSubmit={submit}>
+        <p className="efetivo-dialog-description">{project.code} · {project.name}</p>
+        <Field id="project-legacy-completion-return-date" label="Data de desmobilização" helperText="Opcional. Preencha somente se a desmobilização já aconteceu; a data será sincronizada com o cronograma do Planejamento.">
+          <Input type="date" min={mission.executionEndDate.slice(0, 10)} value={returnDate} disabled={saving} onChange={event => setReturnDate(event.target.value)} />
+        </Field>
       </form>
     </Modal>
   );

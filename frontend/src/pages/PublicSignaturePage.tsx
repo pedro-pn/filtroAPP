@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { useParams } from 'react-router';
+import { useLocation, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   confirmPublicSignature,
   getPublicSignature,
   type PublicSignatureConfirmPayload,
+  type PublicSignaturePayload,
   type PublicSignatureReportPayload,
   publicSignaturePdfUrl,
   rejectPublicSignature
@@ -40,8 +41,17 @@ const statusTone: Record<string, SemanticTone> = {
   INVALID: 'danger'
 };
 
+const previewSignature: PublicSignaturePayload = {
+  status: 'ACTIVE',
+  expiresAt: '2030-12-31T00:00:00.000Z',
+  signer: { signatureId: 'visual-preview', name: 'Marina Costa', prefillName: true, email: 'marina@exemplo.com', status: 'PENDING' },
+  report: { id: 'visual-preview', reportType: 'RDO', sequenceNumber: 5824, reportDate: '2026-09-30', status: 'APPROVED', sourceDocumentHash: 'visual-preview', project: { code: '5917', name: 'Ilha Solteira', clientName: 'Cliente de demonstração' } }
+};
+
 export function PublicSignaturePage() {
   const { token = '' } = useParams();
+  const location = useLocation();
+  const preview = import.meta.env.DEV && new URLSearchParams(location.search).get('visualizar') === '1';
   const queryClient = useQueryClient();
   const showToast = useToast();
   const [signatureOpen, setSignatureOpen] = useState(false);
@@ -49,11 +59,12 @@ export function PublicSignaturePage() {
   const [selectedSignatureId, setSelectedSignatureId] = useState<string | undefined>();
   const [rejectionReason, setRejectionReason] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [previewSigned, setPreviewSigned] = useState(false);
 
   const signatureQuery = useQuery({
     queryKey: ['public-signature', token],
     queryFn: () => getPublicSignature(token),
-    enabled: !!token
+    enabled: !!token && !preview
   });
 
   const confirmMutation = useMutation({
@@ -78,8 +89,8 @@ export function PublicSignaturePage() {
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível reprovar.', 'error')
   });
 
-  const payload = signatureQuery.data;
-  const status = payload?.status || 'INVALID';
+  const payload = preview ? previewSignature : signatureQuery.data;
+  const status = previewSigned ? 'SIGNED' : payload?.status || 'INVALID';
   const report = payload?.report;
   const signer = payload?.signer;
   const reportItems: PublicSignatureReportPayload[] = payload?.batch?.reports?.length
@@ -95,7 +106,7 @@ export function PublicSignaturePage() {
       : [];
   const batchMode = reportItems.length > 1;
   const selectedItem = reportItems.find(item => item.signatureId === selectedSignatureId) || reportItems[0];
-  const canSign = reportItems.some(item => item.status === 'ACTIVE');
+  const canSign = !previewSigned && reportItems.some(item => item.status === 'ACTIVE');
 
   function handleRejectSubmit(event: FormEvent) {
     event.preventDefault();
@@ -104,6 +115,7 @@ export function PublicSignaturePage() {
       showToast('Informe o motivo da reprovação.', 'error');
       return;
     }
+    if (preview) { setRejectOpen(false); showToast('Reprovação simulada.', 'info'); return; }
     rejectMutation.mutate({ comment: reason, signatureId: selectedSignatureId });
   }
 
@@ -138,13 +150,14 @@ export function PublicSignaturePage() {
         <BrandLogo className="rdo-public-logo" />
       </header>
       <Card className="rdo-public-card public-signature-card" padding="lg" title="Assinatura eletrônica">
-        {signatureQuery.isLoading ? <Skeleton variant="text" lines={5} label="Carregando assinatura" /> : null}
-        {signatureQuery.isError ? (
+        {preview ? <Alert tone="info">Demonstração visual · nenhuma assinatura será enviada.</Alert> : null}
+        {!preview && signatureQuery.isLoading ? <Skeleton variant="text" lines={5} label="Carregando assinatura" /> : null}
+        {!preview && signatureQuery.isError ? (
           <Alert tone="danger" title="Não foi possível carregar a assinatura">
             {signatureQuery.error instanceof Error ? signatureQuery.error.message : 'Não foi possível carregar o link.'}
           </Alert>
         ) : null}
-        {!signatureQuery.isLoading && !signatureQuery.isError ? (
+        {(preview || (!signatureQuery.isLoading && !signatureQuery.isError)) ? (
           <>
             <StatusPill className="rdo-public-status" status={status} label={statusText[status] || status} tone={statusTone[status] || 'neutral'} />
             {report ? (
@@ -181,7 +194,7 @@ export function PublicSignaturePage() {
                         </div>
                       ) : null}
                       <div className="public-signature-actions">
-                        <a className="fv-button fv-button--secondary fv-button--sm" href={publicSignaturePdfUrl(token, item.signatureId)} target="_blank" rel="noopener noreferrer">
+                        <a className="fv-button fv-button--secondary fv-button--sm" href={preview ? '#' : publicSignaturePdfUrl(token, item.signatureId)} onClick={preview ? event => event.preventDefault() : undefined} aria-disabled={preview || undefined} target="_blank" rel="noopener noreferrer">
                           Abrir PDF
                         </a>
                         <Button size="sm" variant="primary" type="button" onClick={() => openSignatureDialog(item.signatureId)} disabled={!privacyAccepted || item.status !== 'ACTIVE'}>
@@ -224,12 +237,10 @@ export function PublicSignaturePage() {
         cacheIdentity={`${selectedItem?.signer.email || signer?.email || token}:${selectedItem?.signatureId || ''}`}
         isSubmitting={confirmMutation.isPending}
         onCancel={() => setSignatureOpen(false)}
-        onConfirm={payload => confirmMutation.mutate({
-          ...payload,
-          signatureId: selectedSignatureId,
-          privacyNoticeAccepted: true,
-          privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
-        })}
+        onConfirm={payload => {
+          if (preview) { setSignatureOpen(false); setPreviewSigned(true); showToast('Assinatura simulada.', 'success'); return; }
+          confirmMutation.mutate({ ...payload, signatureId: selectedSignatureId, privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION });
+        }}
       />
     </main>
   );

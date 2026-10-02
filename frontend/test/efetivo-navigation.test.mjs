@@ -87,7 +87,9 @@ test('colaborador e ausência selecionados pela URL são destacados na tela', ()
 test('detalhe do dia mostra pessoas, vagas em aberto e conflitos', () => {
   const detail = fs.readFileSync(new URL('../src/pages/efetivo/components/CalendarDayDetail.tsx', import.meta.url), 'utf8');
   const calendar = fs.readFileSync(new URL('../src/pages/efetivo/components/OperationalCalendar.tsx', import.meta.url), 'utf8');
-  assert.match(detail, /event\.people/);
+  const people = fs.readFileSync(new URL('../src/pages/efetivo/components/calendarDayEvents.ts', import.meta.url), 'utf8');
+  assert.match(detail, /calendarEventPeopleOnDay/);
+  assert.match(people, /event\.people/);
   assert.match(detail, /vagas em aberto/);
   assert.match(detail, /dayConflicts/);
   assert.match(calendar, /conflicts=\{conflicts\}/);

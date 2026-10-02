@@ -666,7 +666,7 @@ test('checklist de verificação do contato com o cliente: 17 perguntas em diál
   assert.match(intake, /function ClientContactChecklistRow/);
   assert.match(intake, /action: 'client_contact_check'/);
   assert.match(intake, /item\.answer !== null \? \(/);
-  assert.match(intake, /Observação \(opcional\)/);
+  assert.match(intake, /<Field id=\{`client-contact-check-note-\$\{item\.key\}`\} label="Observação"/);
   // não repete os itens já cobertos pelos itens críticos (cadastro no cliente, equipamento especial etc.)
   const checklistBlock = schema.slice(schema.indexOf('PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = ['), schema.indexOf('PROJECT_WORKFLOW_DOCUMENTATION_TYPES'));
   const keyMatches = [...checklistBlock.matchAll(/key: '([A-Z_0-9]+)'/g)].map(match => match[1]);

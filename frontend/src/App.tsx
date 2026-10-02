@@ -34,6 +34,8 @@ const SignatureValidationPage = lazy(() => import('./pages/SignatureValidationPa
 const SurveyPage = lazy(() => import('./pages/SurveyPage').then(module => ({ default: module.SurveyPage })));
 const AssinaturasPublicSignPage = lazy(() => import('./pages/assinaturas/AssinaturasPublicSignPage').then(module => ({ default: module.AssinaturasPublicSignPage })));
 const MaintenanceProductionPage = lazy(() => import('./pages/MaintenanceProductionPage').then(module => ({ default: module.MaintenanceProductionPage })));
+const VisualPreviewPage = import.meta.env.DEV ? lazy(() => import('./pages/VisualPreviewPage').then(module => ({ default: module.VisualPreviewPage }))) : null;
+const VisualPreviewDocumentPage = import.meta.env.DEV ? lazy(() => import('./pages/VisualPreviewDocumentPage').then(module => ({ default: module.VisualPreviewDocumentPage }))) : null;
 
 const RDO_REPORT_WRITE_ACCESS = moduleRouteAccess('rdo', 'reportWrite');
 const RDO_COLLABORATOR_ACCESS = moduleRouteAccess('rdo', 'collaborator');
@@ -82,6 +84,12 @@ export default function App() {
       <PageScrollRestorationTracker />
       <Suspense fallback={<div className="page-loading" role="status">Carregando...</div>}>
       <Routes>
+        {VisualPreviewPage && VisualPreviewDocumentPage ? <>
+          <Route path="/visualizar" element={<VisualPreviewPage />} />
+          <Route path="/visualizar/login" element={<LoginPage preview />} />
+          <Route path="/visualizar/operacoes" element={<OperationsPage preview />} />
+          <Route path="/visualizar/documentos" element={<VisualPreviewDocumentPage />} />
+        </> : null}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacidade" element={<PrivacyPage />} />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -61,6 +61,9 @@ export function QualityNaturesTab({ isManager }: Props) {
   const dragStartOrderIds = useRef<string[]>([]);
   const orderedNaturesRef = useRef<QualityNature[]>([]);
   const touchDrag = useRef<PointerDragState | null>(null);
+  const touchDragCleanup = useRef<(() => void) | null>(null);
+  const touchPoint = useRef<{ x: number; y: number } | null>(null);
+  const touchScrollFrame = useRef<number | null>(null);
   const [orderedNatures, setOrderedNatures] = useState<QualityNature[]>([]);
 
   const naturesQuery = useQuery({
@@ -130,6 +133,13 @@ export function QualityNaturesTab({ isManager }: Props) {
     orderedNaturesRef.current = rows;
     setOrderedNatures(rows);
   }, [naturesQuery.data]);
+
+  useEffect(() => () => {
+    touchDragCleanup.current?.();
+    if (touchScrollFrame.current !== null) window.cancelAnimationFrame(touchScrollFrame.current);
+    touchDrag.current?.ghost.remove();
+    document.body.classList.remove('app-reorder-touching');
+  }, []);
 
   const natures = useMemo(() => {
     const rows = orderedNatures;
@@ -236,8 +246,9 @@ export function QualityNaturesTab({ isManager }: Props) {
     persistNatureOrder(reorderNatureRows(rows, natureId, target.id));
   }
 
-  function handleNaturePointerDown(event: PointerEvent<HTMLButtonElement>, natureId: string) {
+  function handleNaturePointerDown(event: ReactPointerEvent<HTMLButtonElement>, natureId: string) {
     if (event.pointerType === 'mouse') return;
+    if (touchDrag.current) return;
     if (reorderDisabled) {
       event.preventDefault();
       return;
@@ -247,7 +258,6 @@ export function QualityNaturesTab({ isManager }: Props) {
     if (!(row instanceof HTMLElement)) return;
     const rect = row.getBoundingClientRect();
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
     startNatureDrag(natureId);
     document.body.classList.add('app-reorder-touching');
     const state = createPointerDragGhost(row, event.clientX, event.clientY, 'app-reorder-touch-ghost');
@@ -256,30 +266,62 @@ export function QualityNaturesTab({ isManager }: Props) {
     state.offsetY = event.clientY - rect.top;
     movePointerDragGhost(state, event.clientX, event.clientY);
     touchDrag.current = state;
+    touchPoint.current = { x: event.clientX, y: event.clientY };
+    const onMove = (moveEvent: globalThis.PointerEvent) => handleNaturePointerMove(moveEvent);
+    const onUp = (upEvent: globalThis.PointerEvent) => finishNaturePointerDrag(upEvent, true);
+    const onCancel = (cancelEvent: globalThis.PointerEvent) => finishNaturePointerDrag(cancelEvent, false);
+    document.addEventListener('pointermove', onMove, { passive: false });
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onCancel);
+    touchDragCleanup.current = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onCancel);
+    };
   }
 
-  function handleNaturePointerMove(event: PointerEvent<HTMLButtonElement>) {
+  function handleNaturePointerMove(event: globalThis.PointerEvent) {
     const state = touchDrag.current;
     const fromId = dragNatureId.current;
     if (!state || state.pointerId !== event.pointerId || !fromId || reorderDisabled) return;
 
     event.preventDefault();
+    touchPoint.current = { x: event.clientX, y: event.clientY };
     movePointerDragGhost(state, event.clientX, event.clientY);
-
-    const targetId = reorderIdFromPoint(event.clientX, event.clientY, '.quality-nature-row');
-    if (!targetId) return;
-    setDragOverNatureId(targetId);
-    const next = reorderNatureRows(orderedNaturesRef.current, fromId, targetId);
-    if (next !== orderedNaturesRef.current) applyOrderedNatures(next);
+    const targetId = reorderIdFromPoint(event.clientX, Math.max(0, Math.min(event.clientY, window.innerHeight - 100)), '.quality-nature-row');
+    if (targetId) {
+      setDragOverNatureId(targetId);
+      const next = reorderNatureRows(orderedNaturesRef.current, fromId, targetId);
+      if (next !== orderedNaturesRef.current) applyOrderedNatures(next);
+    }
+    if (touchScrollFrame.current === null) {
+      const scrollAtEdge = () => {
+        const point = touchPoint.current;
+        if (!touchDrag.current || !point) { touchScrollFrame.current = null; return; }
+        const direction = point.y < 90 ? -1 : point.y > window.innerHeight - 100 ? 1 : 0;
+        if (!direction) { touchScrollFrame.current = null; return; }
+        window.scrollBy(0, direction * 12);
+        const id = reorderIdFromPoint(point.x, Math.max(0, Math.min(point.y, window.innerHeight - 100)), '.quality-nature-row');
+        if (id && dragNatureId.current) {
+          setDragOverNatureId(id);
+          const reordered = reorderNatureRows(orderedNaturesRef.current, dragNatureId.current, id);
+          if (reordered !== orderedNaturesRef.current) applyOrderedNatures(reordered);
+        }
+        touchScrollFrame.current = window.requestAnimationFrame(scrollAtEdge);
+      };
+      touchScrollFrame.current = window.requestAnimationFrame(scrollAtEdge);
+    }
   }
 
-  function finishNaturePointerDrag(event: PointerEvent<HTMLButtonElement>, persist: boolean) {
+  function finishNaturePointerDrag(event: globalThis.PointerEvent, persist: boolean) {
     const state = touchDrag.current;
     if (!state || state.pointerId !== event.pointerId) return;
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    touchDragCleanup.current?.();
+    touchDragCleanup.current = null;
+    if (touchScrollFrame.current !== null) window.cancelAnimationFrame(touchScrollFrame.current);
+    touchScrollFrame.current = null;
+    touchPoint.current = null;
     state.ghost.remove();
     touchDrag.current = null;
     document.body.classList.remove('app-reorder-touching');
@@ -397,9 +439,6 @@ export function QualityNaturesTab({ isManager }: Props) {
                   onDragEnd={handleNatureDragEnd}
                   onKeyDown={event => handleNatureKeyDown(event, nature.id)}
                   onPointerDown={event => handleNaturePointerDown(event, nature.id)}
-                  onPointerMove={handleNaturePointerMove}
-                  onPointerUp={event => finishNaturePointerDrag(event, true)}
-                  onPointerCancel={event => finishNaturePointerDrag(event, false)}
                 >
                   ⠿
                 </button>

@@ -31,6 +31,52 @@ const nature = {
   inUse: true, recordCount: 1, createdAt: '2026-09-01', updatedAt: '2026-09-01'
 };
 
+test('Naturezas: arraste por toque grava a ordem e libera a rolagem', async ({ browser, browserName }) => {
+  test.skip(browserName !== 'chromium', 'O envio de eventos de toque usa CDP nesta regressão.');
+  const context = await browser.newContext({
+    baseURL: test.info().project.use.baseURL as string,
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true
+  });
+  const page = await context.newPage();
+  await useFixtures(page, 'light');
+  let rows = ['Documentação', 'Inspeção', 'Segurança'].map((name, position) => ({ ...nature, id: `nature-${position + 1}`, name, position }));
+  let savedIds: string[] = [];
+  await page.route('**/api/qualidade/naturezas**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/qualidade/naturezas/ordem' && route.request().method() === 'PATCH') {
+      savedIds = (route.request().postDataJSON() as { ids: string[] }).ids;
+      rows = savedIds.map((id, position) => ({ ...rows.find(row => row.id === id)!, position }));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
+    }
+    if (path === '/api/qualidade/naturezas') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
+    return route.fallback();
+  });
+
+  await page.goto('/qualidade?tab=naturezas');
+  const list = page.locator('.quality-nature-list');
+  await expect(list.locator('.quality-nature-row')).toHaveCount(3);
+  const handle = await list.locator('.quality-nature-drag-handle').first().boundingBox();
+  const target = await list.locator('.quality-nature-row').nth(1).boundingBox();
+  expect(handle).not.toBeNull();
+  expect(target).not.toBeNull();
+  const x = handle!.x + handle!.width / 2;
+  const y = handle!.y + handle!.height / 2;
+  const targetY = target!.y + target!.height / 2;
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+  for (let step = 1; step <= 8; step += 1) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + (targetY - y) * step / 8, id: 1 }] });
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(() => savedIds).toEqual(['nature-2', 'nature-1', 'nature-3']);
+  await expect(list.locator('.quality-nature-row .sec')).toHaveText(['Inspeção', 'Documentação', 'Segurança']);
+  await expect(page.locator('.app-reorder-touch-ghost')).toHaveCount(0);
+  await expect(page.locator('body')).not.toHaveClass(/app-reorder-touching/);
+  await context.close();
+});
+
 const qualityRecord = {
   id: 'record-1', number: 'Q-001', type: 'DESVIO', seq: 1, year: 2026,
   registeredAt: '2026-09-01', origin: 'Inspeção', projectId: 'project-1',

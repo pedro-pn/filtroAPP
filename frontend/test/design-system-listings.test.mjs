@@ -275,7 +275,9 @@ test('Phase 5 listing primitives stay within migrated surfaces', () => {
     'src/pages/admin/AdminAccountsPage.tsx',
     'src/pages/admin/AdminTokensPage.tsx',
     'src/pages/privacy/PrivacyRequestsPage.tsx',
-    'src/pages/qualidade/QualityRecordsTab.tsx'
+    'src/pages/qualidade/QualityRecordsTab.tsx',
+    'src/pages/estoque/StockItemsTab.tsx',
+    'src/pages/estoque/StockCategoriesTab.tsx'
   ].map(path => new URL(`../${path}`, import.meta.url).pathname));
   const managerPagePath = new URL('../src/pages/gestor/GestorPage.tsx', import.meta.url).pathname;
   const managerPage = readFileSync(managerPagePath, 'utf8');

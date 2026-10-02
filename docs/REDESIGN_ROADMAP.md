@@ -5,6 +5,10 @@
 > os quadros históricos abaixo não devem ser usados como fila atual. O estado
 > verificável e as próximas entregas estão em [Fechamento transversal atual](#fechamento-transversal-atual).
 
+> **Entrega transversal seguinte:** as frentes 1–3 do fechamento atual foram
+> implementadas. As páginas de demonstração locais estão em `/visualizar`
+> durante o desenvolvimento; os links usam dados fictícios e não gravam na API.
+
 > **Fechamento X3 em 28/09/2026:** liberação individual, revogação e assinatura
 > física foram validadas com gestor e cliente em banco isolado. Gestor, detalhe
 > e portal do cliente passaram no Chromium em 390 e 1280 px, nos temas claro e
@@ -1249,7 +1253,9 @@ isolado.
   visualização de evidências dos Registros.
 - [x] Migrar cadastro, edição, inativação, exclusão e reordenação das Naturezas,
   inclusive os diálogos e a interação por teclado.
-- [ ] Validar reordenação por toque em aparelho físico.
+- [x] Corrigir e validar reordenação com toque emulado no Chromium, incluindo
+  gravação da ordem, limpeza da prévia e rolagem durante o arraste.
+- [ ] Conferir o gesto em aparelho físico.
 - [x] Migrar o formulário de Registro, inclusive projeto ou Interno/SGQ,
   anexos/links, validação e envio.
 - [x] Validar gestor e visualizador, temas, larguras e API sintética sem alterar
@@ -1362,13 +1368,13 @@ F5.3 tem interface migrada, com validação por toque e persistência pendentes.
 
 ### Próximas frentes de implementação
 
-1. [ ] **Páginas independentes:** harmonizar Login, Pesquisa de satisfação,
+1. [x] **Páginas independentes:** harmonizar Login, Pesquisa de satisfação,
    Preferências de notificações, Confirmação de e-mail e Operações; disponibilizar
    links de demonstração locais para as páginas dependentes de token ou dados.
-2. [ ] **Efetivo, diálogos ativos:** harmonizar formulários de documentos,
+2. [x] **Efetivo, diálogos ativos:** harmonizar formulários de documentos,
    encerramento de projeto legado e checklist de contato, verificando temas,
    tamanhos de tela, foco e ações.
-3. [ ] **Qualidade, Naturezas:** conferir e corrigir a reordenação por toque;
+3. [x] **Qualidade, Naturezas:** conferir e corrigir a reordenação por toque;
    preservar setas de teclado, permissões e persistência.
 4. [ ] **F6, limpeza:** retirar CSS e componentes sem consumidores, reduzir
    duplicação de controles e dividir páginas que ultrapassam os limites.
@@ -1380,15 +1386,27 @@ F5.3 tem interface migrada, com validação por toque e persistência pendentes.
 - [ ] Concluir a auditoria de acessibilidade, contraste, responsividade e
   permissões nos fluxos autenticados, incluindo WebKit.
 - [ ] Conferir Assinaturas em celular físico; envio SMTP real não foi homologado.
-- [ ] Atualizar dois testes estáticos para as novas estruturas da tabela de
-  categorias do Estoque e do calendário do Efetivo. Em 01/10, o frontend passou
-  667 de 669 testes; lint e build passaram.
+- [x] Atualizar os testes estáticos para as tabelas do Estoque, o calendário
+  do Efetivo e os novos controles dos diálogos. A suíte frontend passou
+  integralmente (669/669); lint e build passaram.
 - [ ] Recuperar `architecture:check`: `ReportDetailPage.tsx` excede o limite
   em 34 linhas; dois campos em Acompanhamento e dois em Administração do Efetivo
   dependem apenas de placeholder como rótulo. `git diff --check` passou.
-- [ ] Conferir os fluxos de demonstração em navegador e atualizar este roteiro
-  com a evidência final. Uma resposta sintética não substitui a validação de
-  gravação com contas e banco isolados.
+- [x] Conferir as páginas de demonstração em Chromium a 390, 768 e 1280 px e
+  WebKit a 390 px, nos temas claro/escuro; conferir os seis diálogos do
+  Efetivo no Chromium a 390 e 1280 px. Não houve rolagem horizontal ou erro
+  de JavaScript nesses recortes. O arraste de Naturezas e as setas do
+  teclado passaram em testes de navegador com API sintética. Os links de
+  pesquisa, preferências, confirmação de e-mail e assinatura RDO estão em
+  `/visualizar`; o painel também inclui login, Operações e os diálogos do
+  Efetivo. Respostas sintéticas não substituem gravação em banco isolado.
+
+### Próximo lote recomendado
+
+Recuperar `architecture:check`; depois validar as persistências isoladas e
+os fluxos autenticados em WebKit. A limpeza de CSS e componentes legados fica
+para F6. O teste de toque em aparelho físico e a entrega SMTP real exigem
+ambiente externo ao navegador de desenvolvimento.
 
 O inventário mais antigo acima fica preservado como histórico. O
 [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md) também registra

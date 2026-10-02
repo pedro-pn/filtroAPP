@@ -24,9 +24,9 @@ test('catálogo mantém URL do projeto, estados e histórico de versões no diá
 test('formulários mostram erros, exigência, aceite e formatos permitidos', () => {
   assert.match(form, /zodResolver/);
   assert.match(form, /react-hook-form/);
-  assert.match(form, /field-invalid/);
-  assert.match(form, /aria-invalid/);
-  assert.match(form, /field-error/);
+  assert.match(form, /appearance="design-system"/);
+  assert.match(form, /<Field /);
+  assert.match(form, /errorText=/);
   assert.match(form, /Exigência no fluxo/);
   assert.match(form, /Aceite necessário/);
   assert.match(form, /Registrar decisão/);

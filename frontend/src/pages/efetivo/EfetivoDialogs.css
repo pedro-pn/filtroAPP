@@ -50,6 +50,20 @@
 .efetivo-dialog .fv-control-shell--sm :where(.fv-input, .fv-select) {
   font-size: var(--text-sm);
 }
+.efetivo-dialog.project-workflow-checklist-dialog { --fv-modal-width: 720px; }
+.efetivo-dialog.project-workflow-checklist-dialog .fv-modal__body { display: grid; gap: var(--space-3); }
+.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-dialog-list { max-height: min(58dvh, 540px); overflow-y: auto; }
+.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; min-height: 0; gap: var(--space-2); border-color: var(--line); background: var(--surface-2); color: var(--ink); }
+.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item > span { min-width: 0; align-self: center; }
+.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item .project-workflow-documentation-choice { grid-column: 2; margin: 0; justify-self: end; }
+.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item .project-workflow-checklist-note { grid-column: 1 / -1; display: grid; flex: none; min-width: 0; width: 100%; margin: 0; }
+.efetivo-dialog.project-document-form-modal { --fv-modal-width: 880px; }
+.efetivo-dialog.project-document-form-modal.is-compact { --fv-modal-width: 640px; }
+.efetivo-dialog.project-document-form-modal .project-document-form { display: grid; gap: var(--space-4); max-height: none; }
+.efetivo-dialog.project-document-form-modal .project-document-form-body { gap: var(--space-4); padding: 0; overflow: visible; }
+.efetivo-dialog.project-document-form-modal .project-document-form-body .fv-field { min-width: 0; }
+.efetivo-dialog.project-document-form-modal .project-document-form-body .fv-control-shell { min-width: 0; width: 100%; }
+.efetivo-dialog.project-document-form-modal .project-document-form-body input[type='file'] { min-width: 0; max-width: 100%; }
 
 /* Theme compatibility for the mission/scenario/productivity dialogs that
    still use the existing form layout. No dependence on the page ancestor. */
@@ -170,6 +184,11 @@
   .efetivo-dialog-fields {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+@media (max-width: 767.98px) {
+  .efetivo-dialog.project-document-form-modal .project-document-form-body { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item .project-workflow-documentation-choice { grid-column: 1; justify-self: start; }
 }
 
 /* Legacy projects enter the workflow through a short summary form. */
