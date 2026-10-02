@@ -808,6 +808,20 @@ function expandCollaborators(doc, report) {
 function expandProgressRows(doc, rows) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{progressday}}');
   if (!templateRow) return;
+  const table = findAncestorByName(templateRow, 'w:tbl');
+  const headerRows = Array.from(table.childNodes)
+    .filter(node => node.nodeName === 'w:tr').slice(0, 2);
+  // Repete o título e as legendas quando a tabela continua em outra página.
+  headerRows.forEach(row => {
+    let properties = Array.from(row.childNodes).find(node => node.nodeName === 'w:trPr');
+    if (!properties) {
+      properties = doc.createElement('w:trPr');
+      row.insertBefore(properties, row.firstChild);
+    }
+    if (!properties.getElementsByTagName('w:tblHeader').length) {
+      properties.appendChild(doc.createElement('w:tblHeader'));
+    }
+  });
   const clones = rows.map(values => {
     const clone = templateRow.cloneNode(true);
     replacePlaceholders(clone, values);
