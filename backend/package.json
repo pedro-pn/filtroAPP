@@ -36,7 +36,7 @@
     "import:legacy-maintenance": "node scripts/import-legacy-maintenance-history.js"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^1.0.8",
+    "@napi-rs/canvas": "^1.0.9",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@tesseract.js-data/por": "^1.0.0",
