@@ -147,13 +147,13 @@ export function EfetivoPage() {
               >
                 <Field id="efetivo-position-date" label="Data de posição" optionalText="">
                   <span className="fv-control-shell fv-control-shell--sm">
-                    <DateInput id="efetivo-position-date" className="fv-input" value={date} onCommit={setPositionDate} />
+                    <DateInput id="efetivo-position-date-control" className="fv-input" value={date} onCommit={setPositionDate} />
                   </span>
                 </Field>
                 {section === 'disponibilidade' ? (
                   <Field id="efetivo-final-date" label="Data final" optionalText="">
                     <span className="fv-control-shell fv-control-shell--sm">
-                      <DateInput id="efetivo-final-date" className="fv-input" value={endDate} min={date} max={addDateOnlyDays(date, 370)} onCommit={value => updateParam('final', value)} />
+                      <DateInput id="efetivo-final-date-control" className="fv-input" value={endDate} min={date} max={addDateOnlyDays(date, 370)} onCommit={value => updateParam('final', value)} />
                     </span>
                   </Field>
                 ) : null}

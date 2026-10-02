@@ -515,7 +515,7 @@ test('campos de data com salvamento automático só confirmam datas completas e 
   assert.match(dateInput, /isCommittableDate/);
   assert.match(dateInput, /validity\.badInput/);
   assert.match(dateInput, /onCommit/);
-  assert.match(efetivoPage, /<DateInput id="efetivo-position-date"/);
+  assert.match(efetivoPage, /<DateInput id="efetivo-position-date-control"/);
   assert.match(preparation, /Agendado\$\{workflow\.preJob\.scheduledDate/);
   assert.match(preparation, /<DateInput id="workflow-freight-departure-date"/);
   const settings = modal.slice(modal.indexOf('function WorkflowSettingsForm('), modal.indexOf('function DemobilizationDatesForm('));

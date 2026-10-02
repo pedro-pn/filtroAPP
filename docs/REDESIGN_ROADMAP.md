@@ -1,5 +1,8 @@
 # Roadmap do redesign do frontend
 
+> **Fechamento de 02/10/2026:** carregamentos, arquitetura e persistência isolada
+> foram publicados. A revisão transversal está na seção de encerramento abaixo.
+>
 > **Auditoria de 01/10/2026:** os 12 módulos ativos têm as telas principais no
 > design system. F5.4 (EPI) e F5.5 (Privacidade) estão visualmente concluídas;
 > os quadros históricos abaixo não devem ser usados como fila atual. O estado
@@ -1381,17 +1384,18 @@ F5.3 tem interface migrada, com validação por toque e persistência pendentes.
 
 ### Validações e gates pendentes
 
-- [ ] Validar persistência em banco isolado para Gestão de Contas, Qualidade,
+- [x] Validar persistência em banco isolado para Gestão de Contas, Qualidade,
   EPI e Privacidade; repetir gravação integrada do Romaneio após F4.
-- [ ] Concluir a auditoria de acessibilidade, contraste, responsividade e
-  permissões nos fluxos autenticados, incluindo WebKit.
+- [x] Concluir a auditoria de acessibilidade, contraste, responsividade e
+  permissões nos fluxos autenticados, incluindo WebKit. Matriz de 02/10:
+  18 testes passaram; 14 telas × 3 tamanhos × 2 temas × 2 navegadores.
 - [ ] Conferir Assinaturas em celular físico; envio SMTP real não foi homologado.
 - [x] Atualizar os testes estáticos para as tabelas do Estoque, o calendário
   do Efetivo e os novos controles dos diálogos. A suíte frontend passou
   integralmente (669/669); lint e build passaram.
-- [ ] Recuperar `architecture:check`: `ReportDetailPage.tsx` excede o limite
-  em 34 linhas; dois campos em Acompanhamento e dois em Administração do Efetivo
-  dependem apenas de placeholder como rótulo. `git diff --check` passou.
+- [x] Recuperar `architecture:check`: os limites de `reports.js` e
+  `ReportDetailPage` e os seis controles sinalizados foram corrigidos em
+  02/10/2026, sem ampliar budgets. O gate passou.
 - [x] Conferir as páginas de demonstração em Chromium a 390, 768 e 1280 px e
   WebKit a 390 px, nos temas claro/escuro; conferir os seis diálogos do
   Efetivo no Chromium a 390 e 1280 px. Não houve rolagem horizontal ou erro
@@ -1403,9 +1407,8 @@ F5.3 tem interface migrada, com validação por toque e persistência pendentes.
 
 ### Próximo lote recomendado
 
-Recuperar `architecture:check`; depois validar as persistências isoladas e
-os fluxos autenticados em WebKit. A limpeza de CSS e componentes legados fica
-para F6. O teste de toque em aparelho físico e a entrega SMTP real exigem
+Arquitetura e persistência isolada concluídas. O encerramento de 02/10 abaixo
+registra a revisão em WebKit, a limpeza F6 e a conferência final. O teste de toque em aparelho físico e a entrega SMTP real exigem
 ambiente externo ao navegador de desenvolvimento.
 
 O inventário mais antigo acima fica preservado como histórico. O
@@ -1428,7 +1431,7 @@ Cada lote recebe commit e push antes de iniciar o seguinte.
   incluindo as duas identificações de versão de documentos do Efetivo).
 - [x] Etapa 2: gravação e leitura posterior em PostgreSQL isolado para Contas,
   Qualidade, EPI, Privacidade e Romaneio.
-- [ ] Etapa 3: acessibilidade, permissões, temas, responsividade, WebKit e
+- [x] Etapa 3: acessibilidade, permissões, temas, responsividade, WebKit e
   onboarding nos fluxos autenticados.
 - [ ] Etapa 4: remover legado comprovadamente sem consumidores e duplicações.
 - [ ] Conferência final por página em celular, tablet e desktop, claro e escuro.
@@ -1457,3 +1460,23 @@ iniciais carregam. SMTP foi capturado localmente, sem envio externo.
 Comandos, isolamento e limites estão no
 [registro do fechamento](filtrovali-ds/redesign-closure-2026-10-02.md).
 Typecheck de E2E, lint e gate passaram; a suíte de persistência passou 5/5.
+
+
+### Etapa 3 — revisão transversal validada
+
+Os 18 testes passaram em Chromium e WebKit. A matriz cobriu 14 telas
+autenticadas a 390, 768 e 1280 px, em claro/escuro, com banco isolado.
+Foram conferidos rótulos, imagens, overflow, erros de JavaScript e contraste
+de texto sobre fundos planos. Guardas de leitura e contas sem acesso
+rejeitaram chamadas reais; diálogo manteve foco, Escape e retorno ao acionador;
+onboarding do Hub e aceite de privacidade do cliente passaram nos dois motores.
+
+Correções: vínculo dos rótulos de duas datas do Efetivo; contraste do texto
+secundário claro e dos links escuros; aliases de texto herdados em EPI/Estoque;
+contagem da navegação de equipamentos. A revisão usa as duas variantes
+aprovadas da logo. Gate, 40 testes focados, tipagem E2E, lint e build passaram.
+
+A medição automática de contraste não cobre gradientes, imagens ou elementos
+com opacidade herdada. A conferência página a página e dos demais estados
+é o último lote, após a limpeza. WebKit foi executado neste host; as notas
+anteriores sobre dependências ausentes ficam somente como histórico.

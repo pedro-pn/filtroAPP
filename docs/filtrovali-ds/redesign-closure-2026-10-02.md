@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | Carregamentos e ajustes aprovados anteriormente | Logo original nas duas animações, escolha estável por montagem, controles compactos, movimento reduzido e status acessível; 670 testes frontend, lint, build e abas do cliente passaram | `ec59c187` |
 | 1. Arquitetura | Oito ocorrências zeradas sem ampliar budgets; miniatura de anexos e handler do cliente extraídos; seis IDs associados a labels | `3cc1570a` |
-| 2. Persistência | Cinco testes reais de formulário + consulta direta ao PostgreSQL passaram | commit do lote de persistência |
-| 3. Revisão transversal | Em execução | — |
+| 2. Persistência | Cinco testes reais de formulário + consulta direta ao PostgreSQL passaram | `e53bb442` |
+| 3. Revisão transversal | 18/18 testes; 168 recortes de telas autenticadas; Chromium e WebKit, 3 tamanhos, 2 temas; permissões, foco e onboarding | commit deste lote |
 | 4. Limpeza F6 | Após a revisão transversal | — |
 | Conferência final | Após a limpeza | — |
 
@@ -61,3 +61,23 @@ arquivo local. Nenhuma credencial deve ser incluída no repositório.
 O runner mantém o banco e os artefatos para inspeção; encerre a API com Ctrl+C.
 Esta validação cobre as gravações listadas, sem homologar entrega SMTP externa
 ou assinatura em aparelho físico.
+
+## Revisão transversal
+
+Preparar dados e executar (API isolada já em execução):
+
+```sh
+node backend/scripts/validation/redesign-audit-fixtures.mjs
+cd frontend
+npx playwright test --config=playwright.redesign-closure.config.ts redesign-transversal.spec.ts
+```
+
+Foram criados relatórios pendentes/aprovados, equipamento, estoque, orçamento e
+escopo planejado, além de conta de colaborador e convite de EPI. Contas de
+leitura e sem acesso foram verificadas tanto na interface quanto na API real.
+O aceite do cliente foi conferido também por consulta ao banco.
+
+Cada rodada grava `audit.json` e capturas em
+`output/playwright/redesign-closure/`. O contraste é medido para texto visível
+sobre fundos planos; gradientes, imagens e opacidade são excluídos da medição.
+Não equivale a certificação WCAG nem a teste de leitor de tela/aparelho físico.

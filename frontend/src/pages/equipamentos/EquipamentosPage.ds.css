@@ -280,5 +280,6 @@
     color: var(--muted);
   }
   .equip-page-v2 .equip-nav-item.active { background: var(--surface); color: var(--brand-text); box-shadow: var(--shadow-e1); }
+  .equip-page-v2 .equip-nav-item.active .equip-nav-count { background: var(--brand-soft); color: var(--brand-text); }
   .equip-page-v2 .equip-nav-config { margin: 0; border: 0; padding-top: var(--space-2); }
 }
