@@ -459,7 +459,7 @@ export async function buildReportPdf(report, prisma) {
     y -= 22;
     tableRow([
       { text: 'Local', bold: true, color: COLORS.gray },
-      { text: report.project.location || '—' },
+      { text: report.specialConditions?.workLocation || report.project.location || '—' },
       { text: 'Proposta', bold: true, color: COLORS.gray },
       { text: report.project.contractCode || '—' }
     ], widths, y, 22, { fill: COLORS.white });

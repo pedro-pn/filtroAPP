@@ -111,6 +111,7 @@ export interface ProjectFormState {
   clientSigners: ClientSigner[];
   contractCode: string;
   location: string;
+  additionalWorkLocations: string[];
   operatorId: string;
   clientSegment: string;
   authorizedUserIds: string[];
@@ -192,6 +193,7 @@ export const emptyProjectForm: ProjectFormState = {
   clientSigners: [],
   contractCode: '',
   location: '',
+  additionalWorkLocations: [],
   operatorId: '',
   clientSegment: '',
   authorizedUserIds: [],
@@ -488,6 +490,7 @@ export function projectToForm(project: Project): ProjectFormState {
     })),
     contractCode: project.contractCode,
     location: project.location,
+    additionalWorkLocations: project.additionalWorkLocations || [],
     operatorId: project.operatorId || '',
     clientSegment: project.clientSegment || '',
     authorizedUserIds: (project.authorizedUsers || []).map(link => link.userId).filter(Boolean),

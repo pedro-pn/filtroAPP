@@ -102,6 +102,8 @@ export interface Project {
   clientSigners: ClientSigner[];
   contractCode: string;
   location: string;
+  additionalWorkLocations?: string[];
+  plannedServices?: Array<{ id: string; scopeName?: string | null }>;
   workdayHours: string;
   weekendWorkdayHours: string;
   includesSaturday: boolean;

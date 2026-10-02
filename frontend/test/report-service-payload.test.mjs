@@ -17,6 +17,15 @@ async function loadReportServicePayload() {
   }
 }
 
+test('escopo selecionado permanece associado ao serviço após salvar e retomar', async () => {
+  const { buildReportServicePayload } = await loadReportServicePayload();
+  const first = buildReportServicePayload({ id: 'svc-1', type: 'limpeza', data: { __scopeKey: '"UG 2"', __scopeName: 'UG 2' } });
+  const second = buildReportServicePayload({ id: 'svc-1', type: 'limpeza', data: first.extraData });
+  assert.equal(second.extraData.__scopeKey, '"UG 2"');
+  assert.equal(second.extraData.__scopeName, 'UG 2');
+  assert.equal(second.extraData.Escopo, undefined);
+});
+
 test('buildReportServicePayload persists uploads copied from previous service continuations', async () => {
   const { buildReportServicePayload } = await loadReportServicePayload();
 

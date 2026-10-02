@@ -1,3 +1,5 @@
+import { projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
+import { ReportServiceScopeField, ReportWorkLocationField } from '../../components/reports/ReportProjectFields';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
@@ -169,6 +171,7 @@ function SiteRdoFormPage() {
     serviceOnly,
     projectId,
     reportDate,
+    workLocation,
     arrivalTime,
     departureTime,
     lunchBreak,
@@ -257,6 +260,9 @@ function SiteRdoFormPage() {
   const previousServiceCollaboratorOptionIdsRef = useRef<string[]>([]);
 
   const selectedProject = useMemo(() => (bootstrapQuery.data?.projects || []).find((project) => project.id === projectId) || null, [projectId, bootstrapQuery.data?.projects]);
+  const scopeOptions = useMemo(() => projectScopeOptions(selectedProject), [selectedProject]);
+  const workLocations = useMemo(() => projectWorkLocations(selectedProject), [selectedProject]);
+  const effectiveWorkLocation = workLocations.length === 1 ? workLocations[0] : workLocations.includes(workLocation) ? workLocation : '';
   const selectedProjectHasLeader = Boolean(selectedProject?.operatorId || selectedProject?.operator);
   const showProjectWithoutLeaderWarning = canCreateReportWithoutLeader && Boolean(selectedProject) && !selectedProjectHasLeader;
   const serviceOptions = useMemo(() => {
@@ -268,11 +274,13 @@ function SiteRdoFormPage() {
   function handleProjectChange(nextProjectId: string) {
     const nextProject = projects.find((project) => project.id === nextProjectId) || null;
     if ((projectId || '') !== nextProjectId) {
+      setHeaderField('workLocation', '');
       setCollaborators([]);
       setNightCollaborators([]);
       setHeaderField('workforceJustification', '');
       previousServiceCollaboratorOptionIdsRef.current = [];
       for (const service of services) {
+        updateService(service.id, { __scopeKey: '', __scopeName: null });
         if (normalizeServiceType(service.type) === 'inibicao') continue;
         if (stringArray(service.data.serviceCollaboratorIds).length) {
           updateService(service.id, { serviceCollaboratorIds: [] });
@@ -555,6 +563,7 @@ function SiteRdoFormPage() {
     if (!reportDate) return failRequired('Data do relatório', 'header:reportDate', 0);
     if (isCheckingDuplicateReportDate) return failValidation(TEXT.duplicateReportDateChecking, 'header:reportDate', 0);
     if (duplicateReportForDate) return failValidation(TEXT.duplicateReportDate, 'header:reportDate', 0);
+    if (!effectiveServiceOnly && workLocations.length > 1 && !effectiveWorkLocation) return failRequired('Local da obra', 'header:workLocation', 0);
     if (effectiveServiceOnly) {
       if (!collaboratorIds.length) return failRequired('Colaboradores', 'header:collaborators', 0);
       return true;
@@ -600,6 +609,7 @@ function SiteRdoFormPage() {
       if (effectiveServiceOnly && !serviceOnlySupportedTypes.has(type)) {
         return failRequired('Tipo de serviço com relatório independente disponível', target('serviceType'), 1);
       }
+      if (!effectiveServiceOnly && scopeOptions.length > 1 && !scopeOptions.some(option => option.value === data.__scopeKey)) return failRequired('Escopo', target('__scopeKey'), 1);
       if (!hasText(data.equipmentId)) return failRequired(type === 'inibicao' ? 'Embarcação' : 'Equipamento(s)', target('equipmentId'), 1);
       if (!hasText(data.system)) return failRequired('Sistema', target('system'), 1);
       if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
@@ -703,6 +713,7 @@ function SiteRdoFormPage() {
       projectId,
       serviceOnly: effectiveServiceOnly,
       reportDate,
+      workLocation: effectiveWorkLocation,
       arrivalTime,
       departureTime,
       lunchBreak,
@@ -729,7 +740,7 @@ function SiteRdoFormPage() {
       generalUploads,
       services
     };
-  }, [projectId, effectiveServiceOnly, reportDate, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
+  }, [projectId, effectiveServiceOnly, reportDate, effectiveWorkLocation, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
 
   const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
@@ -887,6 +898,7 @@ function SiteRdoFormPage() {
           overtimeReason: overtimeSummary.totalOvertimeMinutes > 0 ? overtimeReason || null : null,
           dailyDescription: dailyDescription || null,
           specialConditions: {
+            workLocation: effectiveWorkLocation,
             standby,
             standbyDetails: {
               total: standbyDuration,
@@ -1067,6 +1079,8 @@ function SiteRdoFormPage() {
                 </Alert>
               ) : null}
             </div>
+            {!effectiveServiceOnly ? <ReportWorkLocationField locations={workLocations} value={effectiveWorkLocation}
+              invalid={invalidTarget === 'header:workLocation'} onChange={value => setHeaderField('workLocation', value)} /> : null}
           </div>
         </Card>
 
@@ -1244,6 +1258,9 @@ function SiteRdoFormPage() {
                   }
                 >
                   <div className="admin-form-grid">
+                    {!effectiveServiceOnly ? <ReportServiceScopeField options={scopeOptions} serviceId={service.id}
+                      value={typeof service.data.__scopeKey === 'string' ? service.data.__scopeKey : ''}
+                      invalid={invalidTarget === `${service.id}:__scopeKey`} onChange={update => updateService(service.id, update)} /> : null}
                     {normalizeServiceType(service.type) !== 'inibicao' ? (
                       <>
                         <section className="rdo-service-section" aria-label="Equipamento e sistema">

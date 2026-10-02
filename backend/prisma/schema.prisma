@@ -950,6 +950,7 @@ model Project {
   clientSigners              Json[]                             @default([])
   contractCode               String
   location                   String
+  additionalWorkLocations    String[]                           @default([])
   workdayHours               String                             @default("09:00")
   weekendWorkdayHours        String                             @default("08:00")
   includesSaturday           Boolean                            @default(false)
@@ -3580,7 +3581,7 @@ model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
   serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
-  scopeName   String?                       @db.VarChar(180) // agrupamento visual exclusivo do Acompanhamento
+  scopeName   String?                       @db.VarChar(180) // agrupamento do cronograma; seleção por serviço no RDO
   weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)
   note        String?
   order       Int                           @default(0)

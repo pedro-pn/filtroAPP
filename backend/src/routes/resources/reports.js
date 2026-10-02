@@ -104,6 +104,7 @@ import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middlewa
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
 import { createReportPdfAccessChecker, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
 import { createProjectSystemsRouter } from './project-systems.js';
+import { assertRdoProjectContext } from '../../lib/reports/project-context-validation.js';
 import { assertReportServicesProject } from '../../lib/reports/service-project-validation.js';
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
@@ -2514,7 +2515,7 @@ function pdfCacheMetadataForReport(report) {
   return {
     // Bump whenever DOCX/PDF layout rules change so previously rendered files
     // are not served indefinitely with stale pagination or conditional blocks.
-    version: report.reportType === ReportType.RDO ? 6 : 3,
+    version: report.reportType === ReportType.RDO ? 7 : 3,
     reportId: report.id,
     reportUpdatedAt: reportUpdatedAtToken(report),
     fingerprint: sha256Hex(JSON.stringify({
@@ -3455,6 +3456,7 @@ const serviceOnlyServiceSchema = serviceSchema.extend({
 });
 
 const reportSpecialConditionsSchema = z.object({
+  workLocation: z.string().trim().optional(),
   workforceJustification: z.string().trim().max(2000).optional().nullable()
 }).passthrough();
 
@@ -6493,10 +6495,11 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
+      include: { operator: { include: { jobRole: true } }, authorizedUsers: true, plannedServices: { select: { scopeName: true } } }
     });
     assertProjectReadyForReports(project);
     await assertReportServicesProject(tx, project, data.services);
+    assertRdoProjectContext(project, data);
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
       const error = new Error('Este projeto é visível somente para o gestor.');
       error.statusCode = 403;
@@ -6712,10 +6715,11 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
+      include: { operator: { include: { jobRole: true } }, authorizedUsers: true, plannedServices: { select: { scopeName: true } } }
     });
     assertProjectReadyForReports(project);
     await assertReportServicesProject(tx, project, data.services);
+    if (!manualUploadedReport) assertRdoProjectContext(project, data, existing);
     if (!manualUploadedReport) {
       await assertUniqueReportDate(tx, {
         projectId: data.projectId,
