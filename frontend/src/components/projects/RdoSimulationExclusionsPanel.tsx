@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -74,7 +75,7 @@ export function RdoSimulationExclusionsPanel() {
           </Select>
         </Field>
       </div>
-      {isPending ? <p className="acp-cost-ds__copy" role="status">Carregando colaboradores…</p> : null}
+      {isPending ? <p className="acp-cost-ds__copy" role="status"><BrandLoading label="Carregando colaboradores" inline size="sm" /></p> : null}
       {isError ? (
         <Alert tone="danger" action={<Button variant="secondary" size="sm" onClick={() => void refetch()}>Tentar novamente</Button>}>
           Não foi possível carregar as preferências de simulação.

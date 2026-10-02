@@ -1,3 +1,4 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -90,7 +91,7 @@ export function SurveyPage() {
   }
 
   return <PublicFlowShell title={title} description={status === 'ACTIVE' ? 'Sua opinião nos ajuda a melhorar cada projeto.' : undefined} wide preview={preview}>
-    {!preview && surveyQuery.isLoading ? <p>Carregando pesquisa…</p> : null}
+    {!preview && surveyQuery.isLoading ? <p><BrandLoading label="Carregando pesquisa" inline size="sm" /></p> : null}
     {!preview && surveyQuery.isError ? <Alert tone="danger">Não foi possível carregar a pesquisa.</Alert> : null}
     {status === 'RESPONDED' ? <><Alert tone="success">Obrigado. Sua resposta foi registrada.</Alert><Link className="fv-button fv-button--secondary fv-button--md public-flow-back" to={preview ? '/visualizar' : '/'}>Voltar</Link></> : null}
     {status === 'EXPIRED' ? <Alert tone="warning">Este link expirou.</Alert> : null}

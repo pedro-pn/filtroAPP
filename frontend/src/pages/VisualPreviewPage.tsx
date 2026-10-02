@@ -4,6 +4,7 @@ import { PublicFlowShell } from './PublicFlowShell';
 
 const previews = [
   { title: 'Login', description: 'Entrada da conta', href: '/visualizar/login' },
+  { title: 'Animações de carregamento', description: 'Setas girando ou colorindo conforme o progresso', href: '/visualizar/carregamento' },
   { title: 'Pesquisa de satisfação', description: 'Convite e formulário com perguntas fictícias', href: '/pesquisa/exemplo?visualizar=1' },
   { title: 'Preferências de notificações', description: 'Link recebido por e-mail', href: '/notificacoes/exemplo?visualizar=1' },
   { title: 'Confirmação de e-mail', description: 'Troca do endereço da conta', href: '/confirmar-email?visualizar=1' },

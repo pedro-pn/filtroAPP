@@ -16,13 +16,17 @@ interface RdoAppShellProps {
   title: string;
   sectionLabel?: string;
   subNavigation?: readonly NavigationSubItem[];
+  mobileSubNavigation?: readonly NavigationSubItem[];
+  showSingleSectionOnMobile?: boolean;
 }
 
 export function RdoAppShell({
   children,
   title,
   sectionLabel,
-  subNavigation
+  subNavigation,
+  mobileSubNavigation,
+  showSingleSectionOnMobile = false
 }: RdoAppShellProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -34,10 +38,19 @@ export function RdoAppShell({
         modules,
         pathname: location.pathname,
         subNavigation: subNavigation?.length
-          ? { parentId: 'rdo', items: [...subNavigation] }
+          ? { parentId: 'rdo', items: [...subNavigation], showSingleChildOnMobile: showSingleSectionOnMobile }
           : undefined
       }),
-    [location.pathname, modules, subNavigation]
+    [location.pathname, modules, showSingleSectionOnMobile, subNavigation]
+  );
+  const mobileNavigation = useMemo(() => mobileSubNavigation?.length
+    ? createNavigationModel({
+        modules,
+        pathname: location.pathname,
+        subNavigation: { parentId: 'rdo', items: [...mobileSubNavigation], showSingleChildOnMobile: showSingleSectionOnMobile }
+      })
+    : undefined,
+    [location.pathname, mobileSubNavigation, modules, showSingleSectionOnMobile]
   );
   const initials = user?.name
     ? user.name
@@ -56,6 +69,7 @@ export function RdoAppShell({
   return (
     <AppShell
       navigation={navigation}
+      mobileNavigation={mobileNavigation}
       title={title}
       breadcrumb={[
         { label: 'Filtrovali', href: '/modulos' },

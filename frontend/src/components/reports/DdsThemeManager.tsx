@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import {
   useEffect,
   useRef,
@@ -490,7 +491,7 @@ export function DdsThemeManager({
         </form>
       ) : null}
       {isLoading ? (
-        <div className="placeholder-copy">Carregando temas…</div>
+        <div className="placeholder-copy"><BrandLoading label="Carregando temas" /></div>
       ) : (
         <ul
           className="admin-stack"

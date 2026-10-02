@@ -109,6 +109,26 @@
   justify-content: center;
 }
 
+:where(.fv-ds, [data-fv-ds]) .rdo-collaborator-report-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-collaborator-report-section__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-collaborator-report-section__heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
 :where(.fv-ds, [data-fv-ds]) .rdo-role-tabs,
 :where(.fv-ds, [data-fv-ds]) :where(.rdo-client-project-tabs, .rdo-client-report-tabs) .filter-tabs {
   display: flex;
@@ -144,6 +164,20 @@
   background: var(--surface);
   color: var(--brand-text);
   box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-type-tab.is-locked {
+  border-color: var(--line);
+  background: var(--canvas-subtle);
+  color: var(--muted);
+  opacity: .68;
+  cursor: help;
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .rdo-client-report-tabs {
+    display: none;
+  }
 }
 
 :where(.fv-ds, [data-fv-ds]) .rdo-role-metrics,
@@ -447,6 +481,8 @@
 }
 
 :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--ink);
   font-size: var(--text-xl);
   font-weight: var(--font-semibold);
@@ -465,6 +501,21 @@
   min-width: 0;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
 }
 
 :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta strong {

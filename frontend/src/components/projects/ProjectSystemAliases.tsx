@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -75,7 +76,7 @@ export function ProjectSystemAliases({ projectId }: { projectId: string }) {
       <p role="alert">{error || 'Não foi possível carregar as correspondências.'}</p>
       <button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={() => void retryRefresh()}>Atualizar lista</button>
     </div> : null}
-    {loading ? <p>Carregando correspondências…</p> : pending.length === 0 ? (!unavailable && !busy && <p>Nenhuma correspondência de nome pendente no escopo salvo.</p>) : pending.map(([key, item]) => {
+    {loading ? <p><BrandLoading label="Carregando correspondências" inline size="sm" /></p> : pending.length === 0 ? (!unavailable && !busy && <p>Nenhuma correspondência de nome pendente no escopo salvo.</p>) : pending.map(([key, item]) => {
       const candidates = projectSystemAliasTargets(systems.data ?? [], item.serviceType);
       const target = candidates.find(system => system.id === selected[key]);
       return <div key={key} className="field-group" style={{ margin: '12px 0' }}>

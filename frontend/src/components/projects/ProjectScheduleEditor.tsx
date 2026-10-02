@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router';
@@ -333,7 +334,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         </Button>
       </div>
       {activeCollaboratorsQuery.isLoading && laborRows.length === 0 ? (
-        <p className="acp-schedule-ds__muted">Carregando colaboradores…</p>
+        <p className="acp-schedule-ds__muted"><BrandLoading label="Carregando colaboradores" inline size="sm" /></p>
       ) : laborRows.length === 0 ? (
         <p className="acp-schedule-ds__muted">Nenhum colaborador encontrado nos RDOs deste projeto.</p>
       ) : (

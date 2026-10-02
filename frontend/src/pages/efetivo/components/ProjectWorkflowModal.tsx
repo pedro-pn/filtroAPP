@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -1230,7 +1231,7 @@ export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loadin
           </p>
         </div> : null}
         <div className={`efetivo-modal-body project-workflow-modal-body${workflow ? ' has-stage-layout' : ''}`}>
-          {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy">Carregando gestão do projeto…</p> : !workflow ? (
+          {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy"><BrandLoading label="Carregando gestão do projeto" inline size="sm" /></p> : !workflow ? (
             <>
             {detail.project.operationalMission && detail.permissions.canInitialize ? (
               legacyChoice === null ? (

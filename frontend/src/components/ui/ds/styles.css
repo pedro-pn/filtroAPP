@@ -196,14 +196,11 @@
 
 /* Spinner */
 :where(.fv-ds, [data-fv-ds]) .fv-spinner {
-  display: inline-block;
+  display: inline-grid;
   width: var(--fv-spinner-size);
   height: var(--fv-spinner-size);
   flex: 0 0 auto;
-  border: var(--focus-ring-width) solid currentColor;
-  border-right-color: transparent;
-  border-radius: var(--radius-pill);
-  animation: fv-spinner-rotate var(--duration-slow) linear infinite;
+
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-spinner--sm {
@@ -218,10 +215,8 @@
   --fv-spinner-size: var(--space-6);
 }
 
-@keyframes fv-spinner-rotate {
-  to {
-    transform: rotate(1turn);
-  }
+:where(.fv-ds, [data-fv-ds]) .fv-spinner .fv-brand-loading__symbol {
+  width: var(--fv-spinner-size);
 }
 
 /* Field and native controls */
@@ -274,6 +269,7 @@
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-control-shell {
+  --fv-autofill-bg: var(--surface);
   display: flex;
   width: 100%;
   min-width: 0;
@@ -363,6 +359,20 @@
 /* Match the shell color even when legacy input[type] rules are loaded later. */
 :where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select) {
   color: inherit;
+}
+
+/* Browsers tint the nested autofilled input, leaving the shell's padding
+   untouched. Paint both with the same theme-aware color. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell:has(:is(.fv-input, .fv-select):autofill) {
+  --fv-autofill-bg: color-mix(in srgb, var(--surface) 90%, var(--brand) 10%);
+  background: var(--fv-autofill-bg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select):autofill {
+  background: var(--fv-autofill-bg);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1000px var(--fv-autofill-bg);
+  -webkit-text-fill-color: var(--ink);
 }
 
 /* Legacy native date/time rules use a fixed light text color. Keep the

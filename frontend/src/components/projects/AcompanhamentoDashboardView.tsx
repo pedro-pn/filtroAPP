@@ -55,8 +55,8 @@ export function AcompanhamentoDashboardView({ data, loading, error, updating, on
       <div id="acp-dashboard-results" className="acp-overview__results" aria-busy={loading || updating}>
         {loading ? (
           <div role="status" aria-label="Carregando acompanhamento" className="acp-overview__results">
-            <div className="acp-overview__metrics">{[0, 1, 2, 3].map(id => <Skeleton key={id} variant="card" height="7rem" decorative />)}</div>
-            <Skeleton variant="card" height="18rem" decorative />
+            <div className="acp-overview__metrics"><Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} /></div>
+
           </div>
         ) : data ? filtered.length === 0 ? (
           <EmptyState variant={hasFilters ? 'search' : 'default'} title={hasFilters ? 'Nenhum projeto encontrado' : 'Nenhum projeto com proposta comercial'}

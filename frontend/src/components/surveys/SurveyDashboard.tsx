@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
@@ -1173,11 +1174,11 @@ export function SurveyDashboard({
           <Card className="rdo-nps-dashboard__state" padding="md">
             <div role="status" aria-label="Carregando dados do NPS">
               <Skeleton variant="card" />
-              <Skeleton variant="table-rows" lines={4} />
+
             </div>
           </Card>
         ) : (
-          <p className="placeholder-copy">Carregando dados...</p>
+          <p className="placeholder-copy"><BrandLoading label="Carregando dados" inline size="sm" /></p>
         )
       ) : isDesignSystem && isError ? (
         <Alert tone="danger" title="Não foi possível carregar o dashboard NPS.">

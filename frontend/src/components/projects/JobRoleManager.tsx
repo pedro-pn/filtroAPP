@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import {
   useEffect,
   useRef,
@@ -588,7 +589,7 @@ export function JobRoleManager({
         </form>
       ) : null}
       {isLoading ? (
-        <div className="placeholder-copy">Carregando cargos…</div>
+        <div className="placeholder-copy"><BrandLoading label="Carregando cargos" /></div>
       ) : (
         <ul className="admin-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {roles.map(role => (

@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useId, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -77,7 +78,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
       {canManage ? <Button size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || save.isPending} onClick={() => editWeek(currentWeek)}>Definir meta</Button> : null}
     </header>
     <p className="mission-weekly-progress-hint">Segunda a domingo · Avanço da missão inteira, em pontos percentuais (p.p.). De 30% para 40% = 10 p.p.</p>
-    {targetsQuery.isPending ? <p role="status">Carregando metas semanais…</p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
+    {targetsQuery.isPending ? <p role="status"><BrandLoading label="Carregando metas semanais" inline size="sm" /></p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
       <div className="mission-weekly-progress-current">
         <span>Semana de {formatDateOnly(currentWeek)} · Em andamento</span>
         <dl>

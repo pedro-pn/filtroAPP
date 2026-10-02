@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -127,7 +128,7 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
       </section>
 
       <section className="page-card">
-        {absencesQuery.isLoading ? <p className="placeholder-copy">Carregando indisponibilidades…</p>
+        {absencesQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando indisponibilidades" inline size="sm" /></p>
           : absencesQuery.isError ? <p className="placeholder-copy">Não foi possível carregar os períodos.</p>
           : absences.length === 0 ? <p className="placeholder-copy">Nenhuma indisponibilidade cadastrada em {year}.</p>
           : (

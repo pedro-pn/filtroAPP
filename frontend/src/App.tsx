@@ -5,6 +5,7 @@ import { modulePathForUser, rememberModuleAccess, preferredEntryPath } from './a
 import { PrivateRoute } from './auth/PrivateRoute';
 import { RoleRoute } from './auth/RoleRoute';
 import { useAuth } from './auth/AuthContext';
+import { BrandLoading } from './components/brand/BrandLoading';
 import { usePageScrollRestoration } from './hooks/usePageScrollRestoration';
 import { moduleRouteElements } from './modules/moduleRoutes';
 import { moduleRouteAccess, moduleRoutePath } from './modules/registry';
@@ -36,6 +37,7 @@ const AssinaturasPublicSignPage = lazy(() => import('./pages/assinaturas/Assinat
 const MaintenanceProductionPage = lazy(() => import('./pages/MaintenanceProductionPage').then(module => ({ default: module.MaintenanceProductionPage })));
 const VisualPreviewPage = import.meta.env.DEV ? lazy(() => import('./pages/VisualPreviewPage').then(module => ({ default: module.VisualPreviewPage }))) : null;
 const VisualPreviewDocumentPage = import.meta.env.DEV ? lazy(() => import('./pages/VisualPreviewDocumentPage').then(module => ({ default: module.VisualPreviewDocumentPage }))) : null;
+const VisualPreviewLoadingPage = import.meta.env.DEV ? lazy(() => import('./pages/VisualPreviewLoadingPage').then(module => ({ default: module.VisualPreviewLoadingPage }))) : null;
 
 const RDO_REPORT_WRITE_ACCESS = moduleRouteAccess('rdo', 'reportWrite');
 const RDO_COLLABORATOR_ACCESS = moduleRouteAccess('rdo', 'collaborator');
@@ -82,10 +84,11 @@ export default function App() {
     <>
       <ModuleAccessTracker />
       <PageScrollRestorationTracker />
-      <Suspense fallback={<div className="page-loading" role="status">Carregando...</div>}>
+      <Suspense fallback={<BrandLoading fullscreen />}>
       <Routes>
-        {VisualPreviewPage && VisualPreviewDocumentPage ? <>
+        {VisualPreviewPage && VisualPreviewDocumentPage && VisualPreviewLoadingPage ? <>
           <Route path="/visualizar" element={<VisualPreviewPage />} />
+          <Route path="/visualizar/carregamento" element={<VisualPreviewLoadingPage />} />
           <Route path="/visualizar/login" element={<LoginPage preview />} />
           <Route path="/visualizar/operacoes" element={<OperationsPage preview />} />
           <Route path="/visualizar/documentos" element={<VisualPreviewDocumentPage />} />

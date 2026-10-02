@@ -1,5 +1,7 @@
 import type { HTMLAttributes } from 'react';
 
+import { BrandLoading } from '../../brand/BrandLoading';
+
 import type { ControlSize } from './types';
 import { joinClassNames } from './utils';
 import './styles.css';
@@ -24,6 +26,8 @@ export function Spinner({
       aria-hidden={decorative || undefined}
       aria-label={decorative ? undefined : label}
       role={decorative ? undefined : 'status'}
-    />
+    >
+      <BrandLoading inline size="sm" decorative />
+    </span>
   );
 }

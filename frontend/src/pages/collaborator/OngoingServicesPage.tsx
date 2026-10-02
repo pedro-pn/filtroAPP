@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
@@ -41,8 +42,7 @@ export function OngoingServicesPage() {
   }, [services]);
   const navigationSections = useMemo(() => [
     { id: 'home', label: 'Início', href: rdoPath('/home'), active: false },
-    { id: 'pending', label: 'Pendentes', href: `${rdoPath('/meus-relatorios')}?tab=pending`, active: false },
-    { id: 'approved', label: 'Aprovados', href: `${rdoPath('/meus-relatorios')}?tab=approved`, active: false },
+    { id: 'reports', label: 'Meus relatórios', href: rdoPath('/meus-relatorios'), active: false },
     { id: 'ongoing', label: 'Em andamento', href: rdoPath('/andamento'), active: true },
     { id: 'archived', label: 'Arquivados', href: rdoPath('/meus-relatorios/arquivados'), active: false }
   ], []);
@@ -79,7 +79,7 @@ export function OngoingServicesPage() {
           </div>
         </Card>
         {reportsQuery.isLoading ? (
-          <Card className="placeholder-copy" padding="lg">Carregando serviços em andamento...</Card>
+          <Card className="placeholder-copy" padding="lg"><BrandLoading label="Carregando serviços em andamento" /></Card>
         ) : null}
         {!reportsQuery.isLoading && !services.length ? (
           <Card className="placeholder-copy" padding="lg">

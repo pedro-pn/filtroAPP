@@ -32,9 +32,7 @@ export function OverviewBoard({ date, jobRoleId, onNavigate }: {
     return (
       <Card padding="sm" aria-label="Calculando capacidade operacional">
         <div className="efetivo-loading-grid">
-          {Array.from({ length: 5 }, (_, index) => (
-            <Skeleton variant="card" height={48} key={index} />
-          ))}
+          <Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} />
         </div>
       </Card>
     );

@@ -64,7 +64,7 @@ export function AuditTrail({ documentId }: { documentId: string }) {
     >
       <p className="assinaturas-audit__intro">Criação, convites e assinaturas registrados para este documento.</p>
       <div id="assinaturas-audit-events" aria-busy={audit.isFetching || undefined}>
-        {audit.isLoading ? <div className="assinaturas-audit__loading"><Skeleton variant="card" label="Carregando auditoria..." /><Skeleton variant="card" /><Skeleton variant="card" /></div>
+        {audit.isLoading ? <div className="assinaturas-audit__loading"><Skeleton variant="card" label="Carregando auditoria..." /></div>
           : audit.isError || !audit.data ? <EmptyState variant="error" title="Não foi possível carregar a auditoria." action={{ label: 'Tentar novamente', onClick: () => void audit.refetch() }} />
             : !audit.data.items.length ? <EmptyState title="Nenhum evento de auditoria nesta página." />
               : <AuditTimeline items={audit.data.items} />}

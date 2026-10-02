@@ -303,7 +303,7 @@ export function SedeCostsBoard() {
             </div> : <EmptyState title="Nenhum centro de custo encontrado" description="Escolha outro período para consultar os lançamentos." />}
           </section>
         </> : isLoading ? <div className="acp-sede-ds__metrics" role="status" aria-label="Carregando custos da Sede">
-          {[0, 1, 2, 3].map(index => <Skeleton key={index} variant="card" height="7rem" decorative />)}
+          <Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} />
         </div> : null}
       </div>
     </div>

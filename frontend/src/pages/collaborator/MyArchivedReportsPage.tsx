@@ -50,8 +50,7 @@ export function MyArchivedReportsPage() {
   }, [reports]);
   const navigationSections = useMemo(() => [
     { id: 'home', label: 'Início', href: rdoPath('/home'), active: false },
-    { id: 'pending', label: 'Pendentes', href: `${rdoPath('/meus-relatorios')}?tab=pending`, active: false },
-    { id: 'approved', label: 'Aprovados', href: `${rdoPath('/meus-relatorios')}?tab=approved`, active: false },
+    { id: 'reports', label: 'Meus relatórios', href: rdoPath('/meus-relatorios'), active: false },
     { id: 'ongoing', label: 'Em andamento', href: rdoPath('/andamento'), active: false },
     { id: 'archived', label: 'Arquivados', href: rdoPath('/meus-relatorios/arquivados'), active: true }
   ], []);

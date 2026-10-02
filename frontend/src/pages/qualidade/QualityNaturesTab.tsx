@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -404,7 +405,7 @@ export function QualityNaturesTab({ isManager }: Props) {
         </div>
       </div>
 
-      {naturesQuery.isLoading ? <p className="placeholder-copy">Carregando Naturezas...</p> : null}
+      {naturesQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando Naturezas" inline size="sm" /></p> : null}
       {naturesQuery.isError ? <p className="equip-form-error">Não foi possível carregar as Naturezas.</p> : null}
       {!naturesQuery.isLoading && !natures.length ? <p className="placeholder-copy">Nenhuma Natureza encontrada.</p> : null}
 

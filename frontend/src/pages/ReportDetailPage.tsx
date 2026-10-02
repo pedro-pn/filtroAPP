@@ -1,3 +1,4 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -1682,7 +1683,7 @@ function ReportAuditHistory({ reportId }: { reportId: string }) {
 
   return (
     <Card className="rdo-report-detail-card report-audit-section" padding="md" title={TEXT.reportAudit}>
-      {auditQuery.isLoading ? <p className="placeholder-copy">Carregando auditoria...</p> : null}
+      {auditQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando auditoria" inline size="sm" /></p> : null}
       {auditQuery.isError ? (
         <p className="inline-error">
           {auditQuery.error instanceof Error ? auditQuery.error.message : 'Não foi possível carregar a auditoria.'}
@@ -2090,7 +2091,7 @@ export function ReportDetailPage() {
           )}
         />
 
-        {reportQuery.isLoading ? <Card className="placeholder-copy" padding="lg">{TEXT.loading}</Card> : null}
+        {reportQuery.isLoading ? <Card className="placeholder-copy" padding="lg"><BrandLoading label={TEXT.loading} /></Card> : null}
         {reportQuery.isError ? (
           <Card className="inline-error" padding="lg">
             {reportQuery.error instanceof Error ? reportQuery.error.message : TEXT.loadError}

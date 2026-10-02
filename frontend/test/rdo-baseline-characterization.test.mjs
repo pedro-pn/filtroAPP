@@ -231,16 +231,10 @@ test('App keeps RDO route groups, aliases, public signature routes and replace r
   );
 });
 
-test('collaborator report listing keeps tabs, filters, search, selection and incremental loading contracts', () => {
+test('collaborator report listing combines pending and approved reports with shared search and incremental loading', () => {
   const page = source('src/pages/collaborator/MyReportsPage.tsx');
 
-  assert.match(
-    page,
-    /const MY_REPORTS_TABS: MyReportsTab\[\] = \['pending', 'approved'\]/
-  );
-  assert.match(page, /useUrlParamState<MyReportsTab>/);
-  assert.match(page, /param: 'tab',[\s\S]*defaultValue: 'pending'/);
-  assert.match(page, /my-reports-search:[^`]+:\$\{tab\}/);
+  assert.match(page, /my-reports-search:\$\{userKey\}/);
   assert.match(source('src/hooks/useReports.ts'), /useDebouncedValue\(search, 200\)/);
   assert.match(
     page,
@@ -255,17 +249,14 @@ test('collaborator report listing keeps tabs, filters, search, selection and inc
   assert.match(page, /useState<string\[\]>\(\[\]\)/);
   assert.match(
     page,
-    /storageKey=\{`collaborator-report-groups:[^`]+:\$\{tab\}`\}/
+    /storageKey=\{`collaborator-report-groups:\$\{userKey\}:\$\{id\}`\}/
   );
   assert.match(page, /<ReportPdfBatchActions/);
   assert.match(page, /<ReportSelectionCheckbox/);
-  assert.match(
-    page,
-    /useInfiniteScrollSentinel\(\{[\s\S]*onLoadMore: reportsQuery\.loadMore/
-  );
-  assert.match(page, /onClick=\{reportsQuery\.loadMore\}/);
-  assert.match(page, /reportsQuery\.isLoading \? <ReportListSkeleton \/>/);
-  assert.match(page, /Nenhum relatório pendente encontrado/);
+  assert.match(page, /onLoadMore: pendingReportsQuery\.loadMore/);
+  assert.match(page, /onLoadMore: approvedReportsQuery\.loadMore/);
+  assert.match(page, /const sections = \[\s*\{ id: 'pending'[\s\S]*\{ id: 'approved'/);
+  assert.match(page, /<StatusPill status="pending" label="Pendente" tone="warning" \/>/);
   assert.match(page, /Nenhum relatório aprovado encontrado/);
 });
 
@@ -385,7 +376,7 @@ test('coordinator, manager and client tabs keep their current query filters and 
     client,
     /client-search:\$\{user\?\.id \|\| user\?\.username \|\| 'anonymous'\}/
   );
-  assert.match(client, /aria-label="Projetos do cliente"/);
+  assert.match(client, /subNavigation=\{navigationSections\} mobileSubNavigation=\{mobileReportSections\}/);
   assert.match(client, /aria-label="Tipos de relatório"/);
   assert.match(
     client,
@@ -401,7 +392,7 @@ test('incremental report loading keeps lazy ensure, skeleton, error and retry st
   assert.match(groupedList, /new IntersectionObserver/);
   assert.match(groupedList, /rootMargin = '400px'/);
   assert.match(groupedList, /<LazyTypeEnsure/);
-  assert.match(groupedList, /report-type-skeleton/);
+  assert.match(groupedList, /<Skeleton variant="text" lines=\{2\} decorative/);
   assert.match(
     baseCss,
     /\.skeleton\s*\{[^}]*var\(--surface-2\)[^}]*var\(--skeleton-highlight\)[^}]*var\(--surface-2\)/

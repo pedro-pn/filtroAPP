@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import {
   Fragment,
   useEffect,
@@ -1354,7 +1355,7 @@ function ProjectDailyDetail({
               <Skeleton variant="table-rows" />
             </div>
           ) : (
-            <div className="stats-empty">Carregando RDOs detalhados...</div>
+            <div className="stats-empty"><BrandLoading label="Carregando RDOs detalhados" /></div>
           )}
         </div>
       );
@@ -2219,13 +2220,12 @@ export function StatsDashboard({
               aria-label="Carregando estatísticas..."
             >
               <Skeleton variant="card" />
-              <Skeleton variant="table-rows" />
+
             </div>
           </Card>
         ) : (
           <div className="page-card placeholder-copy">
-            Carregando estatísticas...
-          </div>
+            <BrandLoading label="Carregando estatísticas" /></div>
         ))}
       {statsQuery.isError &&
         (isDesignSystem ? (
@@ -2416,7 +2416,7 @@ export function StatsDashboard({
                     <Skeleton variant="table-rows" />
                   </div>
                 ) : (
-                  <div className="stats-empty">Carregando projetos...</div>
+                  <div className="stats-empty"><BrandLoading label="Carregando projetos" /></div>
                 ))}
               {byProjectStatsQuery.isError &&
                 (isDesignSystem ? (
@@ -2870,13 +2870,7 @@ function DesignSystemStatsOverviewLoading() {
       aria-busy="true"
     >
       <span className="fv-sr-only">Carregando visão geral...</span>
-      <div className="rdo-stats-overview__count-grid" aria-hidden="true">
-        {Array.from({ length: 3 }, (_, index) => (
-          <Skeleton key={index} variant="card" decorative />
-        ))}
-      </div>
-      <Skeleton variant="card" decorative />
-      <Skeleton variant="table-rows" lines={5} decorative />
+      <BrandLoading decorative />
     </div>
   );
 }
@@ -3360,7 +3354,7 @@ function MonthlyAllocationDashboard({
                   role="status"
                   aria-live="polite"
                 >
-                  <span>Carregando alocações...</span>
+                  <span><BrandLoading label="Carregando alocações" inline size="sm" /></span>
                   <Skeleton variant="table-rows" lines={4} decorative />
                 </div>
               ) : null}
@@ -3475,7 +3469,7 @@ function MonthlyAllocationDashboard({
                 role="status"
                 aria-live="polite"
               >
-                <span>Carregando destinatários...</span>
+                <span><BrandLoading label="Carregando destinatários" inline size="sm" /></span>
                 <Skeleton variant="table-rows" lines={3} decorative />
               </div>
             ) : null}
@@ -3542,7 +3536,7 @@ function MonthlyAllocationDashboard({
 
         {activeTab === 'summary' && (
           <>
-            {allocationQuery.isLoading && <div className="stats-empty">Carregando alocações...</div>}
+            {allocationQuery.isLoading && <div className="stats-empty"><BrandLoading label="Carregando alocações" /></div>}
             {allocationQuery.isError && <div className="stats-empty">Erro ao carregar alocações do mês.</div>}
             {data && (
               <>
@@ -3595,7 +3589,7 @@ function MonthlyAllocationDashboard({
         </form>
 
         {message && <div className="stats-alloc-message">{message}</div>}
-        {recipientsQuery.isLoading && <div className="stats-empty">Carregando destinatários...</div>}
+        {recipientsQuery.isLoading && <div className="stats-empty"><BrandLoading label="Carregando destinatários" /></div>}
         {recipientsQuery.isError && <div className="stats-empty">Erro ao carregar destinatários.</div>}
         {recipients.length > 0 ? (
           <div className="stats-alloc-recipient-list">
@@ -3703,8 +3697,7 @@ export function StatsOverview({
       <DesignSystemStatsOverviewLoading />
     ) : (
       <div className="page-card placeholder-copy">
-        Carregando visão geral...
-      </div>
+        <BrandLoading label="Carregando visão geral" /></div>
     );
   }
   if (isError) {

@@ -427,18 +427,7 @@ export function GroupedReportList({
                               });
                             }}
                           />
-                          {designSystem ? (
-                            <Skeleton
-                              variant="text"
-                              lines={2}
-                              decorative
-                            />
-                          ) : (
-                            <div className="report-type-skeleton" aria-hidden="true">
-                              <div className="skeleton skeleton-row" />
-                              <div className="skeleton skeleton-row" />
-                            </div>
-                          )}
+                          <Skeleton variant="text" lines={2} decorative />
                         </>
                       ) : null}
                       {typeErrored ? (

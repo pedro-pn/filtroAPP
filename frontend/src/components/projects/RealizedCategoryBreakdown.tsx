@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useQuery } from '@tanstack/react-query';
 
 import { getRealizedByCategory } from '../../api/acompanhamentoComercial';
@@ -28,7 +29,7 @@ export function RealizedCategoryBreakdown({ projectId, limit = 12, appearance = 
 
   if (isLoading) return appearance === 'design-system'
     ? <Skeleton variant="card" height="10rem" label="Carregando categorias" />
-    : <div className="placeholder-copy">Carregando categorias…</div>;
+    : <div className="placeholder-copy"><BrandLoading label="Carregando categorias" /></div>;
 
   const rows = (data ?? [])
     .map(r => ({ categoria: r.categoria, value: toNum(r.total), count: r.count }))

@@ -269,8 +269,8 @@ export function ProjectDetailDashboard({
           </Alert>
         ) : isLoading ? (
           <div className="acp-detail-loading" role="status" aria-label="Carregando detalhe do projeto">
-            <Skeleton height={100} />
-            <div className="acp-detail-loading-grid">{[0, 1, 2, 3].map(key => <Skeleton key={key} height={180} />)}</div>
+
+            <div className="acp-detail-loading-grid"><Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} /></div>
           </div>
         ) : <EmptyState title="Projeto indisponível" description="Volte à lista para selecionar outro projeto." />}
       </div>

@@ -283,7 +283,7 @@ export function ProjectCardsBoard({
       </Alert> : null}
       <div aria-busy={isFetching}>
         {isLoading ? <div className="acp-projects__grid" role="status" aria-label="Carregando projetos">
-          {[0, 1, 2].map(id => <Skeleton key={id} variant="card" height="24rem" decorative />)}
+          <Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} />
         </div> : data ? cards.length === 0 ? <EmptyState variant={search.trim() ? 'search' : 'default'}
           title={search.trim() ? 'Nenhum projeto encontrado para a busca nesta situação.'
             : data.length === 0 ? 'Nenhum projeto com proposta comercial importada.'

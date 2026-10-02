@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -334,7 +335,7 @@ export function QualityRecordsTab({ isManager }: Props) {
       </div>
       </details>
 
-      {recordsQuery.isLoading ? <p className="placeholder-copy">Carregando registros...</p> : null}
+      {recordsQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando registros" inline size="sm" /></p> : null}
       {recordsQuery.isError ? <p className="equip-form-error">Não foi possível carregar os registros.</p> : null}
       {!recordsQuery.isLoading && !recordsQuery.isError ? <DataTable
         className="quality-records-table-v2"

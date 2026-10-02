@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
@@ -164,8 +165,7 @@ export function ScenariosBoard({
       </section>
       {scenarios.isLoading ? (
         <section className="page-card placeholder-copy">
-          Carregando cenários…
-        </section>
+          <BrandLoading label="Carregando cenários" /></section>
       ) : (
         <div className="efetivo-scenario-grid">
           {(scenarios.data || []).map((scenario) => (

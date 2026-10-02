@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { type ChangeEvent } from 'react';
 
 interface SearchBarProps {
@@ -29,7 +30,7 @@ export function SearchBar({ value, onChange, placeholder, ariaLabel, id, count, 
           <button type="button" className="app-search-clear" aria-label="Limpar busca" onClick={() => onChange('')}>×</button>
         ) : null}
       </div>
-      {loading ? <span className="app-search-count" role="status">Buscando…</span> : count && value.trim() ? (
+      {loading ? <span className="app-search-count" role="status"><BrandLoading label="Buscando" inline size="sm" /></span> : count && value.trim() ? (
         <span className="app-search-count">{count.shown} de {count.total}</span>
       ) : null}
     </div>

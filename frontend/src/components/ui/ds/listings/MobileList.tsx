@@ -72,12 +72,7 @@ export function MobileList<T>({
       >
         <span className="fv-sr-only">Carregando registros…</span>
         <div className="fv-mobile-list__loading" aria-hidden="true">
-          {Array.from(
-            { length: Math.max(1, Math.floor(loadingItems)) },
-            (_, index) => (
-              <Skeleton key={index} variant="card" decorative />
-            )
-          )}
+          <Skeleton variant="card" lines={loadingItems} decorative />
         </div>
       </div>
     );

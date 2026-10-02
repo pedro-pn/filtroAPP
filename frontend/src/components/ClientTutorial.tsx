@@ -80,11 +80,13 @@ function buildSteps() {
       },
     },
     {
-      element: '.filter-tabs[aria-label="Projetos do cliente"]',
+      element: window.matchMedia('(max-width: 1023px)').matches
+        ? '.fv-topbar__menu'
+        : '.fv-sidebar__navigation a[href*="?projeto="]',
       popover: {
         title: 'Seus projetos',
         description:
-          'Cada aba representa um projeto vinculado à sua conta. Clique para alternar entre eles e ver os relatórios de cada obra.',
+          'Os projetos vinculados à sua conta ficam no menu lateral. No celular, abra o menu para escolher outra obra.',
         side: 'bottom',
         align: 'start',
       },
@@ -100,26 +102,28 @@ function buildSteps() {
       },
     },
     {
-      element: '.filter-tabs[aria-label="Tipos de relatório"]',
+      element: window.matchMedia('(max-width: 767px)').matches
+        ? '.fv-bottom-bar'
+        : '.filter-tabs[aria-label="Tipos de relatório"]',
       popover: {
         title: 'Tipos de relatório',
         description:
-          'Um projeto pode ter RDOs (Relatório Diário de Obra) e relatórios técnicos de serviço. Use estas abas para navegar entre eles.',
+          'A barra inferior mostra os tipos existentes neste projeto. Use Mais para ver os demais; tipos em cinza aguardam liberação.',
         side: 'bottom',
         align: 'start',
       },
     },
-    {
-      element: '.client-report-card',
-      popover: {
-        title: 'Card de relatório',
-        description:
-          'Cada card representa um relatório. O status aparece no canto direito: Pendente, Aprovado, Assinado ou Reprovado. Clique no card para ver todos os detalhes.',
-        side: 'top',
-        align: 'start',
-      },
-    },
   ];
+
+  if (document.querySelector('.client-report-card')) steps.push({
+    element: '.client-report-card',
+    popover: {
+      title: 'Card de relatório',
+      description: 'Cada card mostra um relatório liberado. Clique para consultar os detalhes.',
+      side: 'top',
+      align: 'start',
+    },
+  });
 
   // Passo de download — sempre presente quando há card
   if (document.querySelector('.client-report-card .fv-button--secondary')) {
@@ -224,7 +228,7 @@ function buildSteps() {
     });
   }
 
-  return steps;
+  return steps.filter(step => !step.element || (typeof step.element === 'string' && document.querySelector(step.element)));
 }
 
 interface ClientTutorialProps {

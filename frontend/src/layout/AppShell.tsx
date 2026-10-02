@@ -22,6 +22,7 @@ function storedSidebarCollapsed() {
 export interface AppShellProps {
   children: ReactNode;
   navigation: NavigationModel;
+  mobileNavigation?: NavigationModel;
   title: string;
   breadcrumb?: readonly TopBarBreadcrumb[];
   search?: ReactNode;
@@ -37,6 +38,7 @@ export interface AppShellProps {
 export function AppShell({
   children,
   navigation,
+  mobileNavigation,
   title,
   breadcrumb,
   search,
@@ -53,7 +55,7 @@ export function AppShell({
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
   const mobileHeaderHidden = useMobileHeaderReveal();
   const effectiveSidebarCollapsed = sidebarCollapsed && !sidebarHoverExpanded;
-  const hasMobileSections = Boolean(mobileSectionNavigation(navigation));
+  const hasMobileSections = Boolean(mobileSectionNavigation(mobileNavigation || navigation));
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleSidebar = useCallback(() => {
     setSidebarHoverExpanded(false);
@@ -114,7 +116,7 @@ export function AppShell({
 
       <BottomBar
         appearance="design-system"
-        navigation={navigation}
+        navigation={mobileNavigation || navigation}
       />
 
       <PageScrollControls />

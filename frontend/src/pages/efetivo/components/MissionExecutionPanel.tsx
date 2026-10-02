@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useQuery } from '@tanstack/react-query';
 
 import { getMissionExecutionComparison } from '../../../api/efetivoPlanning';
@@ -16,7 +17,7 @@ export function MissionExecutionPanel({ missionId }: { missionId: string }) {
     staleTime: 30_000
   });
 
-  if (comparison.isLoading) return <div className="efetivo-execution-panel placeholder-copy">Carregando execução observada…</div>;
+  if (comparison.isLoading) return <div className="efetivo-execution-panel placeholder-copy"><BrandLoading label="Carregando execução observada" /></div>;
   if (comparison.isError || !comparison.data) {
     return <div className="efetivo-execution-panel placeholder-copy">Não foi possível carregar o comparativo da execução.</div>;
   }

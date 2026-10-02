@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -100,7 +101,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
     return (
       <div className="det-row">
         <span className="det-label">Proposta</span>
-        <span className="det-val">Carregando…</span>
+        <span className="det-val"><BrandLoading label="Carregando" inline size="sm" /></span>
       </div>
     );
   }

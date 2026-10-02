@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useEffect, useRef, useState } from 'react';
 import {
   GlobalWorkerOptions,
@@ -157,7 +158,7 @@ export function PdfCanvasViewer({ blob }: { blob: Blob }) {
         </div>
       </div>
       <div ref={containerRef} className="acp-pdf-canvas-stage">
-        {loading ? <div className="acp-pdf-viewer-loading">Carregando PDF...</div> : null}
+        {loading ? <div className="acp-pdf-viewer-loading"><BrandLoading label="Carregando PDF" /></div> : null}
         {error ? <div className="acp-pdf-viewer-error">{error}</div> : null}
         {rendering && !error ? <div className="acp-pdf-rendering">Renderizando página...</div> : null}
         <canvas ref={canvasRef} className="acp-pdf-canvas" aria-label={`Página ${pageNumber} do PDF`} />

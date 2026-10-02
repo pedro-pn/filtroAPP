@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 
@@ -163,7 +164,7 @@ export function ProjectRealizedCorrections({ projectId, canManage = false, appea
     </summary>
     <div className="acp-realized-content">
       <p className="acp-realized-intro">A metragem validada substitui somente os metros deste dia no avanço. O RDO original permanece disponível.</p>
-      {isLoading ? <p className="placeholder-copy">Carregando metragens…</p> : error ? <p role="alert" className="acp-alert danger">Não foi possível carregar as correções.</p> : null}
+      {isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando metragens" inline size="sm" /></p> : error ? <p role="alert" className="acp-alert danger">Não foi possível carregar as correções.</p> : null}
       {data?.rows.length ? <>
         {correctedRows.length > 0 && data.rows.length > correctedRows.length ? <div className="acp-realized-toolbar">
           <span>{showAll ? `${data.rows.length} ${data.rows.length === 1 ? 'lançamento' : 'lançamentos'}` : `${correctedRows.length} ${correctedRows.length === 1 ? 'lançamento ajustado' : 'lançamentos ajustados'}`}</span>

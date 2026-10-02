@@ -75,6 +75,7 @@ export const NAVIGATION_CHROME_ICONS = {
 const SECTION_NAVIGATION_ICONS: Record<string, Record<string, LucideIcon>> = {
   rdo: {
     home: LayoutDashboard,
+    reports: FileText,
     pending: Clock3,
     approved: CircleCheck,
     ongoing: Activity,

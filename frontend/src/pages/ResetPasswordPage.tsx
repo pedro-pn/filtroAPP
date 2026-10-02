@@ -1,9 +1,10 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { getResetPasswordStatus, resendPasswordSetup, resetPassword } from '../api/auth';
 import { BrandLogo } from '../components/brand/BrandLogo';
-import { Alert, Button, Field, Input, Spinner } from '../components/ui/ds';
+import { Alert, Button, Field, Input } from '../components/ui/ds';
 import './AuthPasswordPage.css';
 
 export function ResetPasswordPage() {
@@ -96,7 +97,7 @@ export function ResetPasswordPage() {
       </header>
 
       {status === 'loading' ? <div className="auth-access-loading" role="status">
-        <Spinner decorative /> Validando link...
+        <BrandLoading label="Validando link" />
       </div> : null}
 
       {status === 'invalid' ? <div className="auth-access-content">

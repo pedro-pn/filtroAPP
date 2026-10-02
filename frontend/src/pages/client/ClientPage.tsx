@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { BrandLoading } from '../../components/brand/BrandLoading';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
+import { useQuery } from '@tanstack/react-query';
 
-import { downloadReportPdf, downloadReportsBatch, type ReleasedServiceReportNotification } from '../../api/reports';
+import { downloadReportPdf, downloadReportsBatch, listClientReportTypeTabs, type ReleasedServiceReportNotification } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
 
 import { useAuth } from '../../auth/AuthContext';
 import { navigationStateFromLocation } from '../../auth/moduleNavigation';
-import { rdoReportDetailPath } from '../../auth/rolePath';
+import { rdoPath, rdoReportDetailPath } from '../../auth/rolePath';
 import { AppIcon } from '../../components/icons/AppIcon';
 import { ClientTutorial } from '../../components/ClientTutorial';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
@@ -235,8 +237,10 @@ function canSelectClientReport(report: ReportSummary) {
 export function ClientPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedProjectId = searchParams.get('projeto') || '';
   const { user } = useAuth();
-  const archivedProjectsQuery = useProjects(false);
+  const projectsQuery = useProjects();
   const reportMutations = useReportMutations();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [commentsById, setCommentsById] = useState<Record<string, string>>({});
@@ -266,6 +270,11 @@ export function ClientPage() {
   }, true, {
     refetchInterval: CLIENT_REPORT_REFRESH_MS
   });
+  const clientTabsQuery = useQuery({
+    queryKey: ['reports', 'client-tabs', user?.id || 'anonymous'],
+    queryFn: listClientReportTypeTabs,
+    refetchInterval: CLIENT_REPORT_REFRESH_MS
+  });
 
   const reports = reportsQuery.items;
   const reportPagination = reportsQuery.pagination;
@@ -274,12 +283,18 @@ export function ClientPage() {
     isLoading: reportsQuery.isLoadingMore,
     onLoadMore: reportsQuery.loadMore
   });
-  const surveyProjects = useMemo(
-    () => (archivedProjectsQuery.data || []).filter(project => latestSurvey(project)),
-    [archivedProjectsQuery.data]
-  );
   const clientProjects = useMemo(() => {
     const byProject = new Map<string, ClientProjectGroup>();
+    (projectsQuery.data || []).forEach(project => {
+      byProject.set(project.id, {
+        id: project.id,
+        title: projectDisplayTitle(project),
+        clientName: project.clientName,
+        cnpj: project.clientCnpj,
+        reports: [],
+        surveyProject: !project.isActive && latestSurvey(project) ? project : undefined
+      });
+    });
     reports.forEach(report => {
       const current = byProject.get(report.projectId);
       if (current) {
@@ -294,29 +309,12 @@ export function ClientPage() {
         reports: [report]
       });
     });
-    surveyProjects.forEach(project => {
-      const current = byProject.get(project.id);
-      if (current) {
-        current.surveyProject = project;
-        current.clientName = current.clientName || project.clientName;
-        current.cnpj = current.cnpj || project.clientCnpj;
-        return;
-      }
-      byProject.set(project.id, {
-        id: project.id,
-        title: projectDisplayTitle(project),
-        clientName: project.clientName,
-        cnpj: project.clientCnpj,
-        reports: [],
-        surveyProject: project
-      });
-    });
     return Array.from(byProject.values()).sort((a, b) => (
       clientSortDirection === 'asc'
         ? a.title.localeCompare(b.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
         : b.title.localeCompare(a.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
     ));
-  }, [clientSortDirection, surveyProjects, reports]);
+  }, [clientSortDirection, projectsQuery.data, reports]);
 
   useEffect(() => {
     setClientTogglesLoaded(false);
@@ -347,6 +345,10 @@ export function ClientPage() {
   }, [clientToggleStorageKey]);
 
   useEffect(() => {
+    if (requestedProjectId) setActiveProjectId(requestedProjectId);
+  }, [requestedProjectId]);
+
+  useEffect(() => {
     if (!clientToggleStorageKey || !clientTogglesLoaded) return;
     try {
       localStorage.setItem(clientToggleStorageKey, JSON.stringify({ activeProjectId, activeTypeByProject, closedTypeByProject, clientSortDirection }));
@@ -356,7 +358,7 @@ export function ClientPage() {
   }, [activeProjectId, activeTypeByProject, clientSortDirection, clientToggleStorageKey, clientTogglesLoaded, closedTypeByProject]);
 
   useEffect(() => {
-    if (!clientTogglesLoaded || reportsQuery.isLoading || archivedProjectsQuery.isLoading) return;
+    if (!clientTogglesLoaded || reportsQuery.isLoading || projectsQuery.isLoading) return;
     if (!clientProjects.length) {
       if (activeProjectId) setActiveProjectId('');
       return;
@@ -364,7 +366,7 @@ export function ClientPage() {
     if (!activeProjectId || !clientProjects.some(project => project.id === activeProjectId)) {
       setActiveProjectId(clientProjects[0].id);
     }
-  }, [activeProjectId, archivedProjectsQuery.isLoading, clientProjects, clientTogglesLoaded, reportsQuery.isLoading]);
+  }, [activeProjectId, projectsQuery.isLoading, clientProjects, clientTogglesLoaded, reportsQuery.isLoading]);
 
   const activeProject = clientProjects.find(project => project.id === activeProjectId) || clientProjects[0] || null;
   const activeTypes = useMemo(
@@ -376,7 +378,45 @@ export function ClientPage() {
     },
     [activeProject, reportsQuery]
   );
-  const activeReportType = activeProject ? activeTypeByProject[activeProject.id] || activeTypes[0] || 'RDO' : 'RDO';
+  const displayTypes = useMemo(() => {
+    const types = new Map<string, boolean>();
+    (clientTabsQuery.data || [])
+      .filter(tab => tab.projectId === activeProject?.id)
+      .forEach(tab => types.set(tab.reportType, tab.available));
+    activeTypes.forEach(type => types.set(type, true));
+    return [...types].map(([reportType, available]) => ({ reportType, available }))
+      .sort((a, b) => compareReportTypes(a.reportType, b.reportType));
+  }, [activeProject?.id, activeTypes, clientTabsQuery.data]);
+  const selectedType = activeProject ? activeTypeByProject[activeProject.id] : '';
+  const activeReportType = selectedType && displayTypes.some(type => type.reportType === selectedType && type.available)
+    ? selectedType : displayTypes.find(type => type.available)?.reportType || 'RDO';
+  const selectClientProject = useCallback((projectId: string) => {
+    setActiveProjectId(projectId);
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.set('projeto', projectId);
+      return next;
+    }, { replace: true, preventScrollReset: true });
+  }, [setSearchParams]);
+  const navigationSections = useMemo(() => clientProjects.map(project => ({
+    id: `project-${project.id}`,
+    label: project.title,
+    mobileLabel: project.title.split(' - ')[0] || project.title,
+    href: `${rdoPath('/cliente')}?projeto=${encodeURIComponent(project.id)}`,
+    active: project.id === activeProject?.id,
+    badge: (project.surveyProject?.surveys || []).some(isPendingSurvey) ? '!' : undefined,
+    onSelect: () => selectClientProject(project.id)
+  })), [activeProject?.id, clientProjects, selectClientProject]);
+  const mobileReportSections = activeProject ? displayTypes.map(({ reportType, available }) => ({
+    id: `report-${reportType.toLowerCase()}`,
+    label: reportType,
+    href: `${rdoPath('/cliente')}?projeto=${encodeURIComponent(activeProject.id)}`,
+    active: available && reportType === activeReportType,
+    locked: !available,
+    onSelect: () => available
+      ? selectClientReportType(activeProject.id, reportType)
+      : showToast('Relatório bloqueado devido a assinaturas pendentes.', 'info')
+  })) : [];
   const activeTypeKey = activeProject ? `${activeProject.id}-${activeReportType}` : '';
   const loadedTypeReports = activeProject
     ? sortReportsInGroup(
@@ -435,10 +475,10 @@ export function ClientPage() {
       total: reportPagination?.total ?? reports.length,
       approved: reports.filter(report => report.status === 'APPROVED').length,
       signed: reports.filter(report => report.status === 'SIGNED').length,
-      projectCount: new Set([...reports.map(report => report.project.id), ...surveyProjects.map(project => project.id)]).size
+      projectCount: clientProjects.length
     };
-  }, [reportPagination?.total, reports, surveyProjects]);
-  const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
+  }, [clientProjects.length, reportPagination?.total, reports]);
+  const tutorialReady = !reportsQuery.isLoading && !projectsQuery.isLoading && clientTogglesLoaded;
   const tutorialUserKey = clientTutorialUserKey(user);
   const tutorialLegacyUserKeys = useMemo(() => clientTutorialLegacyKeys(user), [user]);
 
@@ -979,7 +1019,7 @@ export function ClientPage() {
   }
 
   return (
-    <RdoAppShell title={TEXT.clientPortal} sectionLabel="Relatórios disponíveis">
+    <RdoAppShell title={TEXT.clientPortal} sectionLabel="Relatórios disponíveis" subNavigation={navigationSections} mobileSubNavigation={mobileReportSections} showSingleSectionOnMobile>
       {user && tutorialUserKey && (
         <ClientTutorial
           userKey={tutorialUserKey}
@@ -1021,8 +1061,8 @@ export function ClientPage() {
           <MetricCard label="Assinados" value={reportSummary.signed} tone="info" icon={<AppIcon icon={DS_ICONS.users} size="md" />} />
         </section>
 
-        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <ReportListSkeleton /> : null}
-        {!reportsQuery.isLoading && !archivedProjectsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
+        {reportsQuery.isLoading || projectsQuery.isLoading ? <ReportListSkeleton /> : null}
+        {!reportsQuery.isLoading && !projectsQuery.isLoading && !clientProjects.length ? (
           <Card className="placeholder-copy" padding="lg">{TEXT.noReports}</Card>
         ) : null}
 
@@ -1039,33 +1079,6 @@ export function ClientPage() {
 
         {activeProject ? (
           <>
-            <Card className="rdo-client-project-tabs" padding="sm">
-              <div className="filter-tabs" role="tablist" aria-label="Projetos do cliente" onKeyDown={handleHorizontalTabListKeyDown}>
-                {clientProjects.map(project => {
-                  const hasPendingSurvey = (project.surveyProject?.surveys || []).some(isPendingSurvey);
-                  return (
-                    <button
-                      className={`filter-tab client-project-tab ${project.id === activeProject.id ? 'active' : ''}`}
-                      type="button"
-                      key={project.id}
-                      role="tab"
-                      aria-selected={project.id === activeProject.id}
-                      aria-label={hasPendingSurvey ? `${project.title}, pesquisa pendente` : project.title}
-                      onClick={() => setActiveProjectId(project.id)}
-                    >
-                      <span className="client-project-tab-title">{project.title}</span>
-                      {hasPendingSurvey ? (
-                        <>
-                          <span className="client-project-pending-dot" aria-hidden="true" />
-                          <span className="visually-hidden">Pesquisa pendente</span>
-                        </>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
-
             <Card className="rdo-client-project-summary" title="Projeto atual" padding="md">
               <div className="det-section">
                 <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{activeProject.title}</span></div>
@@ -1100,21 +1113,24 @@ export function ClientPage() {
               ) : null}
             </Card>
 
-            {activeProject.reports.length ? (
-              <Card className="rdo-client-report-tabs" padding="sm">
+            {displayTypes.length ? <Card className="rdo-client-report-tabs" padding="sm">
                 <div className="filter-tabs" role="tablist" aria-label="Tipos de relatório" onKeyDown={handleHorizontalTabListKeyDown}>
-                  {activeTypes.map(reportType => {
+                  {displayTypes.map(({ reportType, available }) => {
+                    const locked = !available;
                     const releasedCount = releasedReportCounts[releasedReportTabKey(activeProject.id, reportType)] || 0;
                     return (
                       <button
-                        className={`filter-tab client-report-type-tab ${reportType === activeReportType ? 'active' : ''}`}
+                        className={`filter-tab client-report-type-tab${locked ? ' is-locked' : reportType === activeReportType ? ' active' : ''}`}
                         type="button"
                         key={reportType}
                         role="tab"
-                        aria-selected={reportType === activeReportType}
-                        aria-label={releasedCount ? `${reportType}, ${releasedCount} relatório liberado` : reportType}
+                        aria-selected={!locked && reportType === activeReportType}
+                        aria-label={locked ? `${reportType}, bloqueado devido a assinaturas pendentes` : releasedCount ? `${reportType}, ${releasedCount} relatório liberado` : reportType}
+                        title={locked ? 'Bloqueado devido a assinaturas pendentes' : undefined}
                         data-client-report-tab={`${activeProject.id}-${reportType}`}
-                        onClick={() => selectClientReportType(activeProject.id, reportType)}
+                        onClick={() => locked
+                          ? showToast('Relatório bloqueado devido a assinaturas pendentes.', 'info')
+                          : selectClientReportType(activeProject.id, reportType)}
                       >
                         <span>{reportType}</span>
                         {releasedCount ? <span className="client-report-tab-badge">{releasedCount}</span> : null}
@@ -1122,7 +1138,21 @@ export function ClientPage() {
                     );
                   })}
                 </div>
-              </Card>
+              </Card> : clientTabsQuery.isError ? (
+                <Card className="placeholder-copy" padding="lg">
+                  Não foi possível carregar os tipos de relatório.{' '}
+                  <Button variant="secondary" size="sm" onClick={() => void clientTabsQuery.refetch()}>Tentar novamente</Button>
+                </Card>
+              ) : !clientTabsQuery.isLoading && !reportsQuery.isLoading && !clientSearch.trim() ? (
+                <Card className="placeholder-copy" padding="lg">Nenhum relatório disponível neste projeto.</Card>
+            ) : null}
+
+            {clientSearch.trim() && !activeProject.reports.length && !reportsQuery.isLoading ? (
+              <Card className="placeholder-copy" padding="lg">Nenhum relatório encontrado neste projeto para a busca.</Card>
+            ) : null}
+
+            {!clientSearch.trim() && displayTypes.length > 0 && !activeTypes.length && !reportsQuery.isLoading ? (
+              <Card className="placeholder-copy" padding="lg">Os relatórios deste projeto aguardam liberação após as assinaturas pendentes.</Card>
             ) : null}
 
             {activeProject.reports.length ? (
@@ -1155,7 +1185,7 @@ export function ClientPage() {
                   <>
                     {renderClientTypeActions(visibleReports)}
                     {activeTypeNeedsOrderedPage ? (
-                      <div className="placeholder-copy">Carregando relatórios...</div>
+                      <div className="placeholder-copy"><BrandLoading label="Carregando relatórios" /></div>
                     ) : null}
                     {activeTypeErrored ? (
                       <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>

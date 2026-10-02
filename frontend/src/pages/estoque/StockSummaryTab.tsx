@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -134,7 +135,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
         </Select>
       </div>
 
-      {summaryQuery.isLoading ? <p className="placeholder-copy">Carregando resumo...</p> : null}
+      {summaryQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando resumo" inline size="sm" /></p> : null}
       {summaryQuery.isError ? <p className="equip-form-error">Não foi possível carregar o resumo.</p> : null}
       {!summaryQuery.isLoading && !filteredRows.length ? <p className="placeholder-copy">{rows.length ? 'Nenhum item corresponde aos filtros.' : 'Nenhum item cadastrado.'}</p> : null}
 

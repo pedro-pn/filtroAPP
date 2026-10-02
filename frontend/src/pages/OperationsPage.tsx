@@ -1,3 +1,4 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
@@ -196,7 +197,7 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
       <main className="fv-ds ops-page ops-page-v2" data-fv-ds>
         <PageHeader title="Saúde da operação" description="Acompanhe integrações, rotinas e arquivos essenciais do sistema." actions={<Button variant="secondary" size="sm" type="button" onClick={() => { if (!preview) void refetch(); }} disabled={isFetching || preview}>Atualizar</Button>} />
         {preview ? <div className="ops-preview-note">Demonstração visual · dados fictícios · <a href="/visualizar">ver todos os links</a></div> : null}
-        {!preview && isLoading && <div className="ops-panel">Carregando…</div>}
+        {!preview && isLoading && <div className="ops-panel"><BrandLoading label="Carregando" /></div>}
         {!preview && error && <div className="ops-panel ops-error">Não foi possível carregar o status operacional.</div>}
         {status && (
           <>

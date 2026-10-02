@@ -39,7 +39,7 @@ test('buscas do RDO persistem por usuário e aba somente na sessão', () => {
 
   assert.ok(
     collaborator.includes(
-      "`my-reports-search:${user?.id || user?.username || 'anonymous'}:${tab}`"
+      '`my-reports-search:${userKey}`'
     )
   );
   assert.ok(
@@ -95,7 +95,7 @@ test('chaves dos grupos permanecem isoladas por papel, usuário e aba', () => {
   const contracts = [
     [
       'src/pages/collaborator/MyReportsPage.tsx',
-      "`collaborator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`"
+      '`collaborator-report-groups:${userKey}:${id}`'
     ],
     [
       'src/pages/collaborator/MyArchivedReportsPage.tsx',

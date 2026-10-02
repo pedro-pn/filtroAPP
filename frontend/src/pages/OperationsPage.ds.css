@@ -9,6 +9,7 @@
 .ops-page-v2 .ops-grid { gap: var(--space-4); }
 .ops-page-v2 .ops-panel { padding: var(--space-4); }
 .ops-page-v2 .ops-panel--wide { margin-bottom: 0; }
+.ops-page-v2 > .ops-panel--wide { margin-bottom: var(--space-4); }
 .ops-page-v2 .ops-pill, .ops-page-v2 .ops-count { background: var(--surface-2); color: var(--muted); }
 .ops-page-v2 .ops-pill.is-ok { background: var(--success-bg); color: var(--success); }
 .ops-page-v2 .ops-pill.is-bad { background: var(--danger-bg); color: var(--danger); }

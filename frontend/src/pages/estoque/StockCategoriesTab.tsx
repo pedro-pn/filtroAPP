@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -173,7 +174,7 @@ export function StockCategoriesTab({ isManager }: Props) {
         </div>
       </div>
 
-      {categoriesQuery.isLoading ? <p className="placeholder-copy">Carregando categorias...</p> : null}
+      {categoriesQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando categorias" inline size="sm" /></p> : null}
       {categoriesQuery.isError ? <p className="equip-form-error">Não foi possível carregar as categorias.</p> : null}
       {!categoriesQuery.isLoading && !categories.length ? <p className="placeholder-copy">Nenhuma categoria encontrada.</p> : null}
 

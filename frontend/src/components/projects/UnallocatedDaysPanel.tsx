@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -139,7 +140,7 @@ export function UnallocatedDaysPanel({ projects, enabled }: { projects: ProjectO
         ) : null}
       </div>
 
-      {isLoading ? <p className="acp-cost-ds__copy">Carregando…</p> : null}
+      {isLoading ? <p className="acp-cost-ds__copy"><BrandLoading label="Carregando" inline size="sm" /></p> : null}
       {!isLoading && blocks.length === 0 ? (
         <p className="acp-cost-ds__copy">Nenhum dia pendente de alocação no período.</p>
       ) : null}

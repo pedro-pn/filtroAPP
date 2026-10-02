@@ -23,6 +23,7 @@
 .public-flow-preview a { color: inherit; font-weight: var(--font-semibold); }
 .public-flow-header { display: grid; justify-items: center; gap: var(--space-2); text-align: center; }
 .public-flow-logo { width: min(200px, 70%); height: auto; margin-bottom: var(--space-2); }
+.dark .public-flow-logo[data-brand-variant='login'] { filter: brightness(2) saturate(.9); }
 .public-flow-header h1 { margin: 0; color: var(--ink); font-size: clamp(var(--text-xl), 4vw, var(--text-2xl)); }
 .public-flow-header p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-base); }
 .public-flow-content, .public-flow-form { display: grid; min-width: 0; gap: var(--space-4); }

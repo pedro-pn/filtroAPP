@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { BrandLoading } from '../../components/brand/BrandLoading';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { downloadReportPdf } from '../../api/reports';
@@ -485,7 +486,7 @@ export function CoordinatorPage() {
                   </div>
                 ) : null}
                 {needsOrderedPage ? (
-                  <div className="placeholder-copy">Carregando relatórios...</div>
+                  <div className="placeholder-copy"><BrandLoading label="Carregando relatórios" /></div>
                 ) : null}
                 {typeErrored ? (
                   <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
@@ -585,7 +586,7 @@ export function CoordinatorPage() {
     const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
 
     if (archivedProjectsQuery.isLoading || reportsQuery.isLoadingInitial) {
-      return <div className="page-card placeholder-copy">Carregando projetos arquivados...</div>;
+      return <div className="page-card placeholder-copy"><BrandLoading label="Carregando projetos arquivados" /></div>;
     }
 
     const projectCards = sortProjects(archivedProjects, projectSortDir)
@@ -763,7 +764,7 @@ export function CoordinatorPage() {
       });
 
     if (surveysQuery.isLoading) {
-      return <div className="page-card placeholder-copy">Carregando pesquisas...</div>;
+      return <div className="page-card placeholder-copy"><BrandLoading label="Carregando pesquisas" /></div>;
     }
 
     return (

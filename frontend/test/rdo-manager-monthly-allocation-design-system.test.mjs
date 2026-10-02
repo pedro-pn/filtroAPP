@@ -64,7 +64,7 @@ test('B.6 preserves monthly allocation state, queries, data order and visible to
     monthly,
     /<AllocationTable collaborators=\{data\.collaborators\}/
   );
-  assert.match(monthly, /Carregando alocações\.\.\./);
+  assert.match(monthly, /BrandLoading label="Carregando alocações"/);
   assert.match(monthly, /Erro ao carregar alocações do mês\./);
   assert.match(stats, /Nenhuma alocação encontrada para o mês selecionado\./);
 

@@ -30,6 +30,16 @@ export interface ReportGroupTotal {
   total: number;
 }
 
+export interface ClientReportTypeTab {
+  projectId: string;
+  reportType: ReportType | string;
+  available: boolean;
+}
+
+export async function listClientReportTypeTabs() {
+  return (await apiClient.get<ClientReportTypeTab[]>(rdoApiPath('/reports/client-tabs'))).data;
+}
+
 export interface OfficialMissionContext {
   missionId: string;
   missionVersion: number;

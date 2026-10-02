@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -273,7 +274,7 @@ export function AllocationAuditPanel() {
           {byProject ? 'Selecione uma missão para auditar.' : 'Selecione um colaborador para auditar.'}
         </p>
       ) : null}
-      {ready && (isLoading || isFetching) ? <p className="acp-cost-ds__copy">Carregando…</p> : null}
+      {ready && (isLoading || isFetching) ? <p className="acp-cost-ds__copy"><BrandLoading label="Carregando" inline size="sm" /></p> : null}
       {ready && !isLoading && !rows.length ? (
         <p className="acp-cost-ds__copy">Nenhum dia de ponto no período selecionado.</p>
       ) : null}

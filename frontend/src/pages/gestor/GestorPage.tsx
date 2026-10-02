@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
+import { BrandLoading } from '../../components/brand/BrandLoading';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
@@ -1882,7 +1883,7 @@ export function GestorPage() {
                       <Skeleton variant="card" decorative />
                     </div>
                   ) : (
-                    <div className="placeholder-copy">Carregando relatórios...</div>
+                    <div className="placeholder-copy"><BrandLoading label="Carregando relatórios" /></div>
                   )
                 ) : null}
                 {typeErrored ? designSystem ? <EmptyState variant="error" title="Não foi possível carregar os relatórios desta seção." /> : <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div> : null}
@@ -2096,7 +2097,7 @@ export function GestorPage() {
         <div className="rdo-manager-listing__loading" role="status" aria-live="polite">
           <span className="fv-sr-only">Carregando relatórios…</span>
           <Skeleton variant="card" decorative />
-          <Skeleton variant="card" decorative />
+
         </div>
       );
     }
@@ -2258,7 +2259,7 @@ export function GestorPage() {
         <div className="rdo-manager-projects__loading" role="status" aria-live="polite">
           <span className="fv-sr-only">Carregando projetos…</span>
           <Skeleton variant="card" decorative />
-          <Skeleton variant="card" decorative />
+
         </div>
       );
     }
@@ -2665,7 +2666,7 @@ export function GestorPage() {
         <div className="rdo-archived-projects__loading" role="status" aria-live="polite">
           <span className="fv-sr-only">Carregando projetos arquivados…</span>
           <Skeleton variant="card" decorative />
-          <Skeleton variant="card" decorative />
+
         </div>
       );
     }
@@ -3232,7 +3233,7 @@ export function GestorPage() {
         <div className="rdo-admin-loading" role="status" aria-live="polite">
           <span className="fv-sr-only">Carregando usuários…</span>
           <Skeleton variant="card" decorative />
-          <Skeleton variant="card" decorative />
+
         </div>
       );
     }

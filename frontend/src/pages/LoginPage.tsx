@@ -44,7 +44,7 @@ export function LoginPage({ preview = false }: { preview?: boolean }) {
     }
   }
 
-  return <PublicFlowShell title="Bem-vindo ao FiltroAPP" description="Acesse seus projetos, relatórios e serviços em um só lugar." preview={preview}>
+  return <PublicFlowShell title="Acessar conta" titleHidden description="Sistema Integrado de Operação" logoVariant="login" preview={preview}>
     <form className="public-flow-form" onSubmit={handleSubmit}>
       <Field id="login-username" label="Usuário" required optionalText={null}>
         <Input value={username} autoComplete="username" onChange={event => setUsername(event.target.value)} onBlur={() => {

@@ -615,6 +615,12 @@
   color: var(--brand-text);
 }
 
+.fv-bottom-bar a.is-locked,
+.fv-bottom-bar a.is-locked:hover {
+  background: var(--canvas-subtle);
+  color: var(--disabled-ink);
+}
+
 .fv-bottom-bar__icon {
   position: relative;
   display: inline-flex;
@@ -734,6 +740,13 @@
   background: var(--brand-softer);
   color: var(--brand-text);
   font-weight: var(--font-semibold);
+}
+
+.fv-bottom-bar__sheet-list a.is-locked,
+.fv-bottom-bar__sheet-list a.is-locked:hover {
+  border-color: var(--disabled-line);
+  background: var(--canvas-subtle);
+  color: var(--disabled-ink);
 }
 
 .fv-bottom-bar__sheet-list a > span:nth-child(2) {

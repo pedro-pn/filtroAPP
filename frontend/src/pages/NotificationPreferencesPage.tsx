@@ -1,3 +1,4 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 
@@ -59,7 +60,7 @@ export function NotificationPreferencesPage() {
   }
 
   return <PublicFlowShell title="Notificações por e-mail" description="Escolha quais comunicados você quer receber." preview={preview}>
-    {status === 'loading' ? <p>Validando link…</p> : null}
+    {status === 'loading' ? <BrandLoading label="Validando link" /> : null}
     {status === 'invalid' ? <Alert tone="danger">Link inválido, expirado ou já utilizado.</Alert> : null}
     {status === 'valid' ? <form className="public-flow-form" onSubmit={handleSubmit}>
       <div className="public-flow-context"><strong>{userName || email}</strong>{userName && email ? <small>{email}</small> : null}</div>

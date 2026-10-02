@@ -118,7 +118,7 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
           As missões vêm dos projetos cadastrados. Abra cada card destacado em amarelo e complete líder, datas, equipe e confirmação.
         </Alert>
       ) : null}
-      {loading ? <Card padding="sm" aria-label="Carregando missões" aria-busy="true"><div className="efetivo-missions-loading">{Array.from({ length: 3 }, (_, index) => <Skeleton variant="card" height={160} key={index} />)}</div></Card>
+      {loading ? <Card padding="sm" aria-label="Carregando missões" aria-busy="true"><div className="efetivo-missions-loading"><Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} /></div></Card>
         : failed ? <Alert tone="danger" title="Não foi possível carregar as missões" action={{ label: 'Tentar novamente', onClick: () => { void Promise.all([missions.refetch(), pending.refetch()]); } }}>Verifique a conexão e tente atualizar a listagem.</Alert>
           : totalShown ? (
             <div className="efetivo-missions-grid">

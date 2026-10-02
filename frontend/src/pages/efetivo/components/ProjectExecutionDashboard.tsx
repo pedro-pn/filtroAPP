@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
@@ -166,7 +167,7 @@ function ExecutionReportsDialog({ reports }: { reports: ProjectExecutionReportSu
       </div>
     </Modal>
     <Modal open={Boolean(preview)} onClose={() => setPreview(null)} appearance="design-system" title="Visualizar PDF" size="full" panelClassName="project-execution-pdf-modal">
-      {preview ? <div className="project-execution-dialog"><div className="project-execution-pdf-toolbar"><p>{reportName(preview.report)} · {fmtDate(preview.report.reportDate)}</p><Button variant="secondary" size="sm" onClick={() => downloadBlob(preview.blob, `${reportName(preview.report)}.pdf`)}>Baixar PDF</Button></div><Suspense fallback={<p className="placeholder-copy">Preparando visualizador…</p>}><PdfCanvasViewer blob={preview.blob} /></Suspense></div> : null}
+      {preview ? <div className="project-execution-dialog"><div className="project-execution-pdf-toolbar"><p>{reportName(preview.report)} · {fmtDate(preview.report.reportDate)}</p><Button variant="secondary" size="sm" onClick={() => downloadBlob(preview.blob, `${reportName(preview.report)}.pdf`)}>Baixar PDF</Button></div><Suspense fallback={<BrandLoading label="Preparando visualizador" />}><PdfCanvasViewer blob={preview.blob} /></Suspense></div> : null}
     </Modal>
   </>;
 }
@@ -294,7 +295,7 @@ export function ProjectExecutionDashboard({ projectId, missionId, canManageTarge
     }, 60_000);
     return () => window.clearInterval(timer);
   }, [projectId, queryClient]);
-  if (query.isLoading) return <section className="project-execution-dashboard placeholder-copy">Carregando painel de execução…</section>;
+  if (query.isLoading) return <section className="project-execution-dashboard placeholder-copy"><BrandLoading label="Carregando painel de execução" /></section>;
   if (query.isError || !query.data) return <section className="project-execution-dashboard placeholder-copy"><p>Não foi possível carregar o painel de execução.</p><Button variant="secondary" onClick={() => void query.refetch()}>Tentar novamente</Button></section>;
   const dashboard = readOnly ? { ...query.data, permissions: { ...query.data.permissions, canEdit: false } } : query.data;
   return (

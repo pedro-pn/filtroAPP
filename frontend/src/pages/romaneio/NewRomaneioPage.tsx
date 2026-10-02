@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -1140,7 +1141,7 @@ export function NewRomaneioPage() {
           </label>
         </section>}
 
-        {romaneioType === 'OUTBOUND' && catalogQuery.isLoading && <section className="page-card romaneio-panel">Carregando catálogo...</section>}
+        {romaneioType === 'OUTBOUND' && catalogQuery.isLoading && <section className="page-card romaneio-panel"><BrandLoading label="Carregando catálogo" /></section>}
         {romaneioType === 'OUTBOUND' && !catalogQuery.isLoading && !groupedCatalog.length && (
           <section className="page-card romaneio-panel">Nenhum item encontrado.</section>
         )}
@@ -1307,7 +1308,7 @@ export function NewRomaneioPage() {
           </label>
         </div>
         {catalogQuery.isLoading ? (
-          <div className="placeholder-copy">Carregando catálogo...</div>
+          <div className="placeholder-copy"><BrandLoading label="Carregando catálogo" /></div>
         ) : !extraVisibleCategories.length ? (
           <div className="placeholder-copy">Nenhum item encontrado.</div>
         ) : (

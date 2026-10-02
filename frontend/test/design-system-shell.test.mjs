@@ -120,6 +120,16 @@ test('mobile bottom navigation uses only sections of the active module and keeps
   assert.equal(mobileSectionNavigation(four).hasMore, false);
   assert.equal(mobileSectionNavigation(four).quickItems.length, 4);
   assert.equal(mobileSectionNavigation(four).quickItems[3].active, true);
+  const one = createNavigationModel({
+    modules,
+    pathname: '/rdo/cliente',
+    subNavigation: {
+      parentId: 'rdo',
+      items: [{ id: 'report-rdo', label: 'RDO', href: '/rdo/cliente', active: true }],
+      showSingleChildOnMobile: true
+    }
+  });
+  assert.equal(mobileSectionNavigation(one).quickItems[0].label, 'RDO');
   assert.equal(mobileSectionNavigation(createNavigationModel({ modules, pathname: '/modulos' })), null);
 });
 

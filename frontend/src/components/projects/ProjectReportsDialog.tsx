@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { lazy, Suspense, useMemo, useState } from 'react';
 
 import { downloadReportPdf } from '../../api/reports';
@@ -229,7 +230,7 @@ export function ProjectReportsDialog({
                 <Button size="sm" variant="secondary" type="button" onClick={closePdfPreview}>Fechar</Button>
               </div>
             </header>
-            <Suspense fallback={<div className="acp-pdf-viewer-loading">Preparando visualizador...</div>}>
+            <Suspense fallback={<BrandLoading label="Preparando visualizador" />}>
               <PdfCanvasViewer blob={pdfPreview.blob} />
             </Suspense>
           </div>

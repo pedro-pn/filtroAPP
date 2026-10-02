@@ -1,3 +1,4 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
@@ -44,7 +45,7 @@ export function ConfirmEmailChangePage() {
   }
 
   return <PublicFlowShell title="Confirmar e-mail" description="Confirme a alteração do endereço da sua conta." preview={preview}>
-    {status === 'loading' ? <p>Validando link…</p> : null}
+    {status === 'loading' ? <BrandLoading label="Validando link" /> : null}
     {status === 'invalid' ? <Alert tone="danger">Link inválido, expirado ou já utilizado.</Alert> : null}
     {status === 'valid' ? <div className="public-flow-form">
       <div className="public-flow-context"><span>Novo endereço</span><strong>{email || 'E-mail informado'}</strong></div>

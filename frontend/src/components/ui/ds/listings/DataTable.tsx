@@ -351,18 +351,11 @@ export function DataTable<T>({
             </thead>
             <tbody>
               {loading ? (
-                Array.from(
-                  { length: Math.max(1, Math.floor(loadingRows)) },
-                  (_, rowIndex) => (
-                    <tr key={rowIndex} aria-hidden="true">
-                      {Array.from({ length: columnCount }, (_, cellIndex) => (
-                        <td key={cellIndex}>
-                          <Skeleton variant="text" lines={1} decorative />
-                        </td>
-                      ))}
-                    </tr>
-                  )
-                )
+                <tr>
+                  <td className="fv-data-table__state" colSpan={columnCount}>
+                    <Skeleton variant="table-rows" lines={loadingRows} label="Carregando registros" />
+                  </td>
+                </tr>
               ) : error ? (
                 <tr>
                   <td className="fv-data-table__state" colSpan={columnCount}>

@@ -65,7 +65,7 @@ export function DocumentLibrary({ data, loading, error, archived, query, status,
       ) : null}
       <div id="signature-document-results" aria-busy={loading || undefined}>
         {loading ? (
-          <div className="signature-document-list"><Skeleton variant="card" label="Carregando documentos..." /><Skeleton variant="card" /><Skeleton variant="card" /></div>
+          <div className="signature-document-list"><Skeleton variant="card" label="Carregando documentos..." /></div>
         ) : error ? (
           <EmptyState variant="error" title="Não foi possível carregar os documentos." action={{ label: 'Tentar novamente', onClick: onRetry }} />
         ) : items.length ? (

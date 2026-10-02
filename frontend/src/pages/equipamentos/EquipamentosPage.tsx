@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
@@ -579,7 +580,7 @@ export function EquipamentosPage() {
           <div className="equip-main">
             {(categoriesQuery.isLoading || equipmentQuery.isLoading) && (
               <section className="page-card">
-                <p>Carregando…</p>
+                <p><BrandLoading label="Carregando" inline size="sm" /></p>
               </section>
             )}
 

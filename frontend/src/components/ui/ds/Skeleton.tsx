@@ -1,5 +1,7 @@
 import type { CSSProperties, HTMLAttributes } from 'react';
 
+import { BrandLoading } from '../../brand/BrandLoading';
+
 import { joinClassNames } from './utils';
 import './styles.css';
 
@@ -20,15 +22,6 @@ export interface SkeletonProps extends Omit<
 
 function toDimension(value: string | number | undefined) {
   return typeof value === 'number' ? `${value}px` : value;
-}
-
-function SkeletonLine({ index }: { index: number }) {
-  return (
-    <span
-      className="fv-skeleton__shape fv-skeleton__line"
-      data-line={index + 1}
-    />
-  );
 }
 
 export function Skeleton({
@@ -64,21 +57,8 @@ export function Skeleton({
       role={decorative ? undefined : 'status'}
     >
       {!decorative ? <span className="fv-sr-only">{label}</span> : null}
-      <div className="fv-skeleton__content" aria-hidden="true">
-        {variant === 'text' || variant === 'table-rows' ? (
-          Array.from({ length: count }, (_, index) => (
-            <SkeletonLine key={index} index={index} />
-          ))
-        ) : variant === 'card' ? (
-          <>
-            <span className="fv-skeleton__shape fv-skeleton__card-media" />
-            <SkeletonLine index={0} />
-            <SkeletonLine index={1} />
-            <SkeletonLine index={2} />
-          </>
-        ) : (
-          <span className="fv-skeleton__shape" />
-        )}
+      <div className="fv-skeleton__content" aria-hidden="true" style={{ minHeight: toDimension(height) || (variant === 'text' ? `${Math.min(count, 4)}rem` : '8rem') }}>
+        <BrandLoading size="md" decorative />
       </div>
     </div>
   );

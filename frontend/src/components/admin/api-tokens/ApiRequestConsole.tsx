@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../brand/BrandLoading';
 import { useEffect, useState } from 'react';
 
 import type { ApiPlaygroundResult } from '../../../api/apiCredentials';
@@ -31,7 +32,7 @@ export function ApiRequestConsole({ result, loading }: { result: ApiPlaygroundRe
           {result.response.requestId ? <p className="api-console-request-id">requestId: <code>{result.response.requestId}</code></p> : null}
           {result.response.truncated ? <Alert tone="warning">Resultado truncado para visualização segura.</Alert> : null}
           <pre tabIndex={0} aria-label="Corpo da resposta"><code>{JSON.stringify(result.response.body, null, 2)}</code></pre>
-        </> : <pre tabIndex={0} aria-label="Estado da resposta"><code>{loading ? 'Executando…' : 'Nenhuma resposta.'}</code></pre>}
+        </> : loading ? <BrandLoading label="Executando operação" /> : <pre tabIndex={0} aria-label="Estado da resposta"><code>Nenhuma resposta.</code></pre>}
       </Card>
     </section>
   );

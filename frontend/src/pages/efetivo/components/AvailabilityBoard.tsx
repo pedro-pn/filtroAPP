@@ -132,7 +132,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
 
   if (!validPeriod) return <Alert tone="warning">A data final deve ser igual ou posterior à data de posição e o período pode ter até 371 dias.</Alert>;
   if (query.isError) return <Alert tone="danger" title="Não foi possível carregar a disponibilidade" action={{ label: 'Tentar novamente', onClick: () => void query.refetch() }}>Verifique a conexão e tente atualizar a posição da equipe.</Alert>;
-  if (query.isLoading || !data) return <Card padding="sm" aria-label="Carregando disponibilidade do efetivo"><div className="efetivo-loading-grid">{Array.from({ length: 5 }, (_, index) => <Skeleton variant="card" height={48} key={index} />)}</div></Card>;
+  if (query.isLoading || !data) return <Card padding="sm" aria-label="Carregando disponibilidade do efetivo"><div className="efetivo-loading-grid"><Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} /></div></Card>;
 
   const { peakAllocated, daysWithShortage, peakShortage } = summarizeAvailabilityPeriod(data.days, data.roles);
   const openPositionRoles = data.roles.filter(role => role.peakDeficit > 0);

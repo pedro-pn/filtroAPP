@@ -28,6 +28,17 @@ html {
   font: inherit;
 }
 
+/* Native fields in forms such as RDO do not use the DS control shell. Override
+   the browser's rectangular autofill paint through the field's rounded edge. */
+:where(
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not(.fv-input),
+  select:not(.fv-select),
+  textarea:not(.fv-textarea)
+):autofill {
+  box-shadow: inset 0 0 0 1000px color-mix(in srgb, var(--surface) 90%, var(--brand) 10%);
+  -webkit-text-fill-color: var(--ink);
+}
+
 :where(.fv-ds, [data-fv-ds]) a {
   color: var(--link);
   text-decoration-thickness: var(--border-width);

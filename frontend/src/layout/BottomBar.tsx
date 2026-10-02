@@ -216,7 +216,7 @@ function DesignSystemBottomBar({
         <ul>
           {sections.quickItems.map(item => (
             <li key={item.id}>
-              <Link className={item.active ? 'is-active' : undefined} to={item.href}
+              <Link className={[item.active && 'is-active', item.locked && 'is-locked'].filter(Boolean).join(' ')} to={item.href}
                 onClick={event => {
                   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                   if (!item.active && !item.onSelect) return;
@@ -224,12 +224,16 @@ function DesignSystemBottomBar({
                   if (item.active) scrollPageTo('start');
                   else item.onSelect?.();
                 }}
-                aria-current={item.active ? 'page' : undefined} title={item.label}>
+                aria-current={item.active ? 'page' : undefined}
+                aria-label={item.locked
+                  ? `${item.label}, bloqueado devido a assinaturas pendentes`
+                  : item.mobileLabel || item.shortLabel ? item.label : undefined}
+                title={item.label}>
                 <span className="fv-bottom-bar__icon">
                   <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />
                   {item.badge !== undefined ? <span className="fv-bottom-bar__badge">{item.badge}</span> : null}
                 </span>
-                <span className="fv-bottom-bar__label">{item.shortLabel || item.label}</span>
+                <span className="fv-bottom-bar__label">{item.mobileLabel || item.shortLabel || item.label}</span>
               </Link>
             </li>
           ))}
@@ -252,7 +256,8 @@ function DesignSystemBottomBar({
         <ul className="fv-bottom-bar__sheet-list">
           {sections.allItems.map(item => <li key={item.id}>
             <Link to={item.href}
-              className={item.active ? 'is-active' : undefined} aria-current={item.active ? 'page' : undefined}
+              className={[item.active && 'is-active', item.locked && 'is-locked'].filter(Boolean).join(' ')} aria-current={item.active ? 'page' : undefined}
+              aria-label={item.locked ? `${item.label}, bloqueado devido a assinaturas pendentes` : undefined}
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();

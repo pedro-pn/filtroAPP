@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -197,7 +198,7 @@ export function StockItemsTab({ isManager }: Props) {
         </div>
       </div>
 
-      {itemsQuery.isLoading ? <p className="placeholder-copy">Carregando itens...</p> : null}
+      {itemsQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando itens" inline size="sm" /></p> : null}
       {itemsQuery.isError ? <p className="equip-form-error">Não foi possível carregar os itens.</p> : null}
       {!itemsQuery.isLoading && !items.length ? <p className="placeholder-copy">Nenhum item encontrado.</p> : null}
 

@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 
 import type { EquipmentCategory, RdoEquipmentSlot } from '../../api/equipamentos';
@@ -78,7 +79,7 @@ export function RdoSlotsConfig({ categories }: Props) {
         sem perder o vínculo. As etiquetas acima indicam RLQ, RTP ou RCPU conforme o serviço.
       </p>
 
-      {slotsQuery.isLoading && <p className="rel-meta">Carregando…</p>}
+      {slotsQuery.isLoading && <p className="rel-meta"><BrandLoading label="Carregando" inline size="sm" /></p>}
       {slotsQuery.isError ? <EmptyState variant="error" title="Não foi possível carregar os vínculos" action={{ label: 'Tentar novamente', onClick: () => void slotsQuery.refetch() }} /> : null}
       {!slotsQuery.isLoading && !slotsQuery.isError && grouped.length === 0 ? <EmptyState title="Nenhum vínculo de relatório disponível" description="Os pontos do formulário aparecerão aqui quando forem configurados." /> : null}
 

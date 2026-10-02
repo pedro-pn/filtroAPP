@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useEffect,
@@ -911,7 +912,7 @@ export function ProjectWorkflowBoard({
     return <div className="efetivo-board project-workflow-board" data-project-workflow-board>{toolbar}<section className="page-card placeholder-copy"><p>Não foi possível carregar a gestão de projetos.</p><Button variant="secondary" onClick={() => void list.refetch()}>Tentar novamente</Button></section></div>;
   }
   if (!visibleList) {
-    return <div className="efetivo-board project-workflow-board" data-project-workflow-board>{toolbar}<section className="page-card placeholder-copy">Carregando gestão de projetos…</section></div>;
+    return <div className="efetivo-board project-workflow-board" data-project-workflow-board>{toolbar}<section className="page-card placeholder-copy"><BrandLoading label="Carregando gestão de projetos" /></section></div>;
   }
 
   const managedCount = visibleList.items.filter(item => item.workflow).length;

@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -255,7 +256,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           onChange={event => void handleFiles(event.target.files)}
         />
         <span className="upload-dropzone-icon" aria-hidden="true">
-          {appearance === 'design-system' ? <AppIcon icon={DS_ICONS.upload} /> : '⤓'}
+          {isUploading ? <BrandLoading inline size="sm" label="Enviando fotos" /> : appearance === 'design-system' ? <AppIcon icon={DS_ICONS.upload} /> : '⤓'}
         </span>
         <span className="upload-dropzone-text">
           <strong>{isUploading ? 'Enviando…' : 'Arraste as fotos aqui'}</strong>

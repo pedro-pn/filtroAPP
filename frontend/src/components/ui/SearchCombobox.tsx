@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createSearchMatcher } from '../../utils/search';
@@ -160,7 +161,7 @@ export function SearchCombobox({
         transform: listPosition.above ? 'translateY(-100%)' : undefined
       } : undefined}
     >
-      {loading ? <span className="app-combobox-empty">Carregando…</span>
+      {loading ? <span className="app-combobox-empty"><BrandLoading label="Carregando" inline size="sm" /></span>
         : filtered.length === 0 ? <span className="app-combobox-empty">{emptyText}</span>
         : filtered.map((option, index) => (
           <button

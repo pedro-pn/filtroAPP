@@ -180,9 +180,9 @@ test('the DS overview composes responsive listings and explicit loading, error a
 
   assert.match(loading, /role="status"/);
   assert.match(loading, /aria-label="Carregando visão geral\.\.\."/);
-  assert.match(loading, /Array\.from\(\{ length: 3 \}/);
-  assert.match(loading, /<Skeleton\b/);
-  assert.match(loading, /variant="table-rows"/);
+  assert.match(loading, /<BrandLoading decorative/);
+  assert.doesNotMatch(loading, /<Skeleton\b/);
+  assert.match(loading, /<BrandLoading decorative/);
 
   assert.match(countCard, /<MetricCard\b/);
   assert.match(countCard, /description=\{description\}/);

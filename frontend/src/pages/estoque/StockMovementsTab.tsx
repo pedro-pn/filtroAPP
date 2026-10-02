@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -264,7 +265,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
         </div>
       </div>
 
-      {movementsQuery.isLoading ? <p className="placeholder-copy">Carregando movimentações...</p> : null}
+      {movementsQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando movimentações" inline size="sm" /></p> : null}
       {movementsQuery.isError ? <p className="equip-form-error">Não foi possível carregar as movimentações.</p> : null}
       {!movementsQuery.isLoading && !movements.length ? <p className="placeholder-copy">Nenhuma movimentação encontrada.</p> : null}
 

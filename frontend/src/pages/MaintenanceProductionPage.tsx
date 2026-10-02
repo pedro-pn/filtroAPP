@@ -1,3 +1,4 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
@@ -381,7 +382,7 @@ export function MaintenanceProductionPage() {
             </Card>
 
             {scheduleQuery.isLoading ? (
-              <section className="page-card">Carregando programação…</section>
+              <section className="page-card"><BrandLoading label="Carregando programação" /></section>
             ) : null}
             {scheduleQuery.isError ? (
               <div className="inline-error">

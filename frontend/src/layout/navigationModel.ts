@@ -13,11 +13,13 @@ export interface NavigationSubItem {
   id: string;
   label: string;
   shortLabel?: string;
+  mobileLabel?: string;
   href: string;
   badge?: NavigationBadge;
   active: boolean;
   children?: NavigationSubItem[];
   onSelect?: () => void;
+  locked?: boolean;
 }
 
 export interface NavigationItem {
@@ -32,6 +34,7 @@ export interface NavigationItem {
   disabled?: boolean;
   expanded?: boolean;
   children?: NavigationSubItem[];
+  showSingleChildOnMobile?: boolean;
 }
 
 export interface NavigationGroup {
@@ -50,6 +53,7 @@ export interface CreateNavigationModelOptions {
   subNavigation?: {
     parentId: string;
     items: NavigationSubItem[];
+    showSingleChildOnMobile?: boolean;
   };
 }
 
@@ -95,7 +99,10 @@ export function createNavigationModel({
             active: activeModuleId === module.id,
             disabled: module.disabled || !module.path,
             expanded: Boolean(children?.length),
-            children
+            children,
+            showSingleChildOnMobile: subNavigation?.parentId === module.id
+              ? subNavigation.showSingleChildOnMobile
+              : undefined
           };
         })
       }
@@ -116,7 +123,8 @@ export interface MobileSectionNavigation {
 }
 
 export function mobileSectionNavigation(model: NavigationModel): MobileSectionNavigation | null {
-  const module = navigationItems(model).find(item => item.active && !item.disabled && (item.children?.length ?? 0) > 1);
+  const module = navigationItems(model).find(item => item.active && !item.disabled
+    && ((item.children?.length ?? 0) > 1 || (item.showSingleChildOnMobile && item.children?.length === 1)));
   if (!module?.children) return null;
 
   const hasMore = module.children.length > 4;

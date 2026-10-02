@@ -1411,3 +1411,27 @@ ambiente externo ao navegador de desenvolvimento.
 O inventário mais antigo acima fica preservado como histórico. O
 [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md) também registra
 as decisões de conciliação anteriores.
+
+## Encerramento solicitado em 02/10/2026
+
+Ordem de execução e publicação: carregamentos → gate de arquitetura →
+persistência isolada → auditoria transversal → limpeza F6 → conferência final.
+Cada lote recebe commit e push antes de iniciar o seguinte.
+
+- [x] Carregamentos: as duas animações aprovadas usam o desenho original da
+  logo. Páginas, diálogos, listas, tabelas, buscas e controles compartilham a
+  implementação. A escolha aleatória permanece estável enquanto o componente
+  está montado; progresso numérico só é anunciado quando existe valor real.
+  Movimento reduzido desativa a animação. Prévia: `/visualizar/carregamento`.
+- [ ] Etapa 1: zerar oito ocorrências do gate atual (limites de `reports.js`
+  e `ReportDetailPage`, seis campos com placeholder sinalizados pelo gate,
+  incluindo as duas identificações de versão de documentos do Efetivo).
+- [ ] Etapa 2: gravação e leitura posterior em PostgreSQL isolado para Contas,
+  Qualidade, EPI, Privacidade e Romaneio.
+- [ ] Etapa 3: acessibilidade, permissões, temas, responsividade, WebKit e
+  onboarding nos fluxos autenticados.
+- [ ] Etapa 4: remover legado comprovadamente sem consumidores e duplicações.
+- [ ] Conferência final por página em celular, tablet e desktop, claro e escuro.
+
+A lista de cinco ocorrências da auditoria de 01/10 fica preservada como
+histórico; o inventário acima a substitui para o fechamento atual.

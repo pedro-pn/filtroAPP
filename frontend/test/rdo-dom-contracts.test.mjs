@@ -23,7 +23,9 @@ test('tutorial do cliente mantém seletores Driver.js com produtores no DOM do R
     '.client-welcome-card',
     '.stats-grid',
     'input[aria-label="Buscar relatórios"]',
-    '.filter-tabs[aria-label="Projetos do cliente"]',
+    '.fv-sidebar__navigation a[href*="?projeto="]',
+    '.fv-topbar__menu',
+    '.fv-bottom-bar',
     '.det-section',
     '.filter-tabs[aria-label="Tipos de relatório"]',
     '.client-report-card',
@@ -43,7 +45,8 @@ test('tutorial do cliente mantém seletores Driver.js com produtores no DOM do R
       'className="client-welcome-card"',
       'className="stats-grid"',
       'aria-label="Buscar relatórios"',
-      'aria-label="Projetos do cliente"',
+      'subNavigation={navigationSections}',
+      'mobileSubNavigation={mobileReportSections}',
       'aria-label="Tipos de relatório"',
       'className="client-report-card report-card-clickable"',
       'className="field-group client-report-comment"',
@@ -154,21 +157,14 @@ test('editor de RDO mantém âncoras de campos, etapas e validação focável', 
   );
 });
 
-test('abas do RDO preservam nomes acessíveis, estado e teclado após a migração visual', () => {
+test('navegação do cliente preserva estado e teclado e colaborador mostra as duas listas', () => {
   const contracts = [
     {
-      file: 'src/pages/collaborator/MyReportsPage.tsx',
-      label: 'aria-label="Status dos relatórios"',
-      selected: 'aria-selected={tab ===',
-      keyboard: 'handleHorizontalTabListKeyDown',
-      values: ["param: 'tab'", "defaultValue: 'pending'"]
-    },
-    {
       file: 'src/pages/client/ClientPage.tsx',
-      label: 'aria-label="Projetos do cliente"',
-      selected: 'aria-selected={project.id === activeProject.id}',
+      label: 'aria-label="Tipos de relatório"',
+      selected: 'aria-selected={!locked && reportType === activeReportType}',
       keyboard: 'handleHorizontalTabListKeyDown',
-      values: ['aria-label="Tipos de relatório"']
+      values: ['mobileSubNavigation={mobileReportSections}']
     }
   ];
 
@@ -187,6 +183,13 @@ test('abas do RDO preservam nomes acessíveis, estado e teclado após a migraç�
     assert.ok(page.includes('role="tablist"'), contract.file);
     assert.ok(page.includes('role="tab"'), contract.file);
   }
+
+  const collaborator = source('src/pages/collaborator/MyReportsPage.tsx');
+  assertIncludesAll(collaborator, [
+    "{ id: 'pending' as const",
+    "{ id: 'approved' as const",
+    '<StatusPill status="pending" label="Pendente" tone="warning" />'
+  ], 'MyReportsPage');
 
   const coordinator = source('src/pages/coordinator/CoordinatorPage.tsx');
   const sectionNavigation = source('src/pages/gestor/RdoSectionNavigation.tsx');

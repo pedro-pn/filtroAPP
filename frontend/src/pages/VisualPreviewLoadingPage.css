@@ -1,0 +1,75 @@
+.loading-preview-stage {
+  display: grid;
+  min-height: 17rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.loading-preview-option {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.loading-preview-option h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+.loading-preview-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.loading-preview-comparison figure {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.loading-preview-comparison .loading-preview-stage {
+  min-height: 13rem;
+}
+
+.loading-preview-comparison figcaption {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.loading-preview-original {
+  display: block;
+  width: clamp(7rem, 26vw, 11rem);
+  max-width: 100%;
+  height: clamp(7rem, 26vw, 11rem);
+  object-fit: contain;
+}
+
+.loading-preview-stage .fv-brand-loading__symbol {
+  width: clamp(7rem, 26vw, 11rem);
+}
+
+.loading-preview-controls {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.loading-preview-controls label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.loading-preview-controls input {
+  width: 100%;
+  accent-color: var(--brand);
+}
+
+.loading-preview-controls .fv-button {
+  justify-self: end;
+}

@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
@@ -465,7 +466,7 @@ export function RomaneioPage() {
               </div>
             </section>
 
-            {(search !== debouncedSearch || romaneiosQuery.isLoading) && <section className="page-card romaneio-panel">Carregando romaneios...</section>}
+            {(search !== debouncedSearch || romaneiosQuery.isLoading) && <section className="page-card romaneio-panel"><BrandLoading label="Carregando romaneios" /></section>}
             {search === debouncedSearch && !romaneiosQuery.isLoading && !groupedRomaneios.length && <section className="page-card romaneio-panel">Nenhum romaneio encontrado.</section>}
             {groupedRomaneios.map(([projectName, items]) => (
               <section className="page-card romaneio-panel" key={projectName}>
@@ -733,7 +734,7 @@ export function RomaneioPage() {
                   <div className="rel-meta">{catalogSearch.trim() ? 'Nenhum item encontrado.' : 'Nenhum item cadastrado.'}</div>
                 )}
                 {catalogQuery.isLoading && (
-                  <div className="rel-meta">Carregando equipamentos...</div>
+                  <div className="rel-meta"><BrandLoading label="Carregando equipamentos" /></div>
                 )}
                 </div>
               </section>
