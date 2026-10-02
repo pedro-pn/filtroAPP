@@ -73,6 +73,26 @@ test('seção de colaboradores preserva colaborador, ausência e ano ao voltar',
   assert.equal(next.has('missao'), false);
 });
 
+test('links do menu fecham detalhes do Efetivo e preservam filtros compatíveis', async () => {
+  const navigation = await load('/src/utils/planningNavigation.ts');
+  const current = new URLSearchParams('section=evolucao&projeto=p1&dia=2026-08-22&colaborador=c1&ausencia=a1&adminTab=atividade&date=2026-08-21&final=2026-09-21&funcao=r1&ano=2026&pagina=2&faseProjeto=EXECUTION');
+  for (const section of navigation.EFETIVO_SECTIONS) {
+    const next = navigation.planningSectionHomeParams(current, section);
+    assert.equal(next.get('section'), section === 'visao-geral' ? null : section);
+    for (const key of ['projeto', 'dia', 'ausencia', 'adminTab']) assert.equal(next.has(key), false);
+    assert.equal(next.get('date'), '2026-08-21');
+    assert.equal(next.get('final'), '2026-09-21');
+    assert.equal(next.get('colaborador'), section === 'produtividade' ? 'c1' : null);
+  }
+  const collaborators = navigation.planningSectionHomeParams(current, 'colaboradores');
+  assert.equal(collaborators.get('funcao'), 'r1');
+  assert.equal(collaborators.get('ano'), '2026');
+  const workflow = navigation.planningSectionHomeParams(current, 'evolucao');
+  assert.equal(workflow.get('pagina'), '2');
+  assert.equal(workflow.get('faseProjeto'), 'EXECUTION');
+  assert.equal(current.get('projeto'), 'p1', 'não altera o deep link de origem');
+});
+
 test('colaborador e ausência selecionados pela URL são destacados na tela', () => {
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/CollaboratorsBoard.tsx', import.meta.url), 'utf8');
   const absences = fs.readFileSync(new URL('../src/pages/efetivo/components/AbsencesBoard.tsx', import.meta.url), 'utf8');

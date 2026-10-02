@@ -6,7 +6,7 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { AppShell } from '../../layout/AppShell';
 import { createNavigationModel } from '../../layout/navigationModel';
 import { hubModulesForUser } from '../hubModules';
-import { ACOMPANHAMENTO_SECTIONS, sectionSearchParams, type AcompanhamentoSection } from './navigation';
+import { ACOMPANHAMENTO_SECTIONS, sectionHomeSearchParams, type AcompanhamentoSection } from './navigation';
 
 export function AcompanhamentoAppShell({ children, section, isManager, pendencyTotal, actions }: {
   children: ReactNode;
@@ -24,7 +24,7 @@ export function AcompanhamentoAppShell({ children, section, isManager, pendencyT
     subNavigation: {
       parentId: 'acompanhamento',
       items: ACOMPANHAMENTO_SECTIONS.filter(item => item.id !== 'custo' || isManager).map(item => {
-        const query = sectionSearchParams(new URLSearchParams(location.search), item.id).toString();
+        const query = sectionHomeSearchParams(new URLSearchParams(location.search), item.id).toString();
         return { id: item.id, label: item.label, href: `/acompanhamento${query ? `?${query}` : ''}`,
           active: item.id === section,
           badge: item.id === 'custo' && pendencyTotal > 0 ? (pendencyTotal > 99 ? '99+' : pendencyTotal) : undefined };

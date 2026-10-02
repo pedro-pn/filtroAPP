@@ -22,3 +22,9 @@ export function sectionSearchParams(current: URLSearchParams, section: Acompanha
   if (section !== 'custo') next.delete('cost');
   return next;
 }
+
+export function sectionHomeSearchParams(current: URLSearchParams, section: AcompanhamentoSection) {
+  const next = sectionSearchParams(current, section);
+  for (const key of ['project', 'group', 'schedule', 'reconcile', 'cost']) next.delete(key);
+  return next;
+}

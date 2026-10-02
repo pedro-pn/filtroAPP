@@ -14,7 +14,7 @@ test('acompanhamento: navegação, recortes, valores e estados DS sem mudar cont
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   client.setQueryData(['realized-categories', 'all'], [{ categoria: 'Hospedagem', categoriaCodigo: 'cat1', total: 900, count: 2 }]);
   try {
-    const { parseSection, sectionSearchParams } = await server.ssrLoadModule('/src/pages/acompanhamento/navigation.ts');
+    const { parseSection, sectionSearchParams, sectionHomeSearchParams } = await server.ssrLoadModule('/src/pages/acompanhamento/navigation.ts');
     const model = await server.ssrLoadModule('/src/components/projects/acompanhamentoDashboardModel.ts');
     const { AcompanhamentoDashboardView } = await server.ssrLoadModule('/src/components/projects/AcompanhamentoDashboardView.tsx');
     const { BarList } = await server.ssrLoadModule('/src/components/ui/ds/BarList.tsx');
@@ -42,6 +42,23 @@ test('acompanhamento: navegação, recortes, valores e estados DS sem mudar cont
         assert.equal(next.has('cost'), section === 'custo');
       }
       assert.equal(current.get('cost'), 'simulador', 'não muta o estado original');
+    });
+    await t.test('links do menu voltam ao início da área sem reabrir detalhes', () => {
+      const current = new URLSearchParams('section=projetos&project=p1&group=g1&cards=all&schedule=p1&reconcile=1&cost=simulador&periodo=month&de=2026-08&ate=2026-08&keep=yes');
+      for (const section of ['dashboard', 'projetos', 'sede', 'custo']) {
+        const next = sectionHomeSearchParams(current, section);
+        assert.equal(next.get('section'), section === 'dashboard' ? null : section);
+        for (const key of ['project', 'group', 'schedule', 'reconcile', 'cost']) {
+          assert.equal(next.has(key), false, `${section} não deve reabrir ${key}`);
+        }
+        assert.equal(next.get('keep'), 'yes');
+        assert.equal(next.get('periodo'), 'month');
+        assert.equal(next.get('de'), '2026-08');
+        assert.equal(next.get('ate'), '2026-08');
+        assert.equal(next.get('cards'), section === 'projetos' ? 'all' : null);
+      }
+      assert.equal(current.get('project'), 'p1', 'não altera o deep link de origem');
+      assert.equal(current.get('cost'), 'simulador');
     });
     await t.test('filtros continuam buscando membros, CNPJ, proposta, situação e modalidade', () => {
       const filter = patch => model.filterDashboardRows(rows, { ...values, ...patch });
