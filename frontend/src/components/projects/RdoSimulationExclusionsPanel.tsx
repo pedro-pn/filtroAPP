@@ -59,8 +59,9 @@ export function RdoSimulationExclusionsPanel() {
         As horas dos RDOs e os custos calculados pelo ponto são preservados. Você pode reincluir o colaborador a qualquer momento.
       </p>
       <div className="ponto-filter-row">
-        <Field className="ponto-filter-grow" label="Buscar colaborador" optionalText="">
+        <Field id="rdo-simulation-search" className="ponto-filter-grow" label="Buscar colaborador" optionalText="">
           <Input
+            id="rdo-simulation-search-control"
             type="search"
             placeholder="Nome, código ou cargo"
             value={search}

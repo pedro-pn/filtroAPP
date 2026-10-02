@@ -14,7 +14,7 @@ import {
   canClientSeeReportWithRules,
   releasedServiceReportsForSignedRdo
 } from '../../lib/reports/client-visibility.js';
-import { clientReportTypeTabs } from '../../lib/reports/client-tabs.js';
+import { createClientReportTabsHandler } from '../../lib/reports/client-tabs.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import { resolveReportCounter, resolveReportManometers, resolveReportUnits } from '../../lib/report-equipment-resolve.js';
@@ -5759,33 +5759,7 @@ router.use('/project-systems', createProjectSystemsRouter(prisma, collaboratorCa
 router.get('/planning-context', requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
 router.get('/collaborator-prefill', requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
 
-router.get('/client-tabs', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'CLIENT') return res.status(403).json({ error: 'Acesso restrito ao cliente.' });
-  const { where } = await buildReportListWhere(req.auth, {});
-  const reports = await prisma.report.findMany({
-    where,
-    select: {
-      id: true,
-      projectId: true,
-      reportType: true,
-      status: true,
-      reportDate: true,
-      sequenceNumber: true,
-      createdAt: true,
-      updatedAt: true,
-      deletedAt: true,
-      clientReleasedAt: true,
-      specialConditions: true,
-      clientReviews: {
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-        select: { action: true, createdAt: true }
-      },
-      project: { select: { clientCnpj: true, deletedAt: true } }
-    }
-  });
-  res.json(clientReportTypeTabs(reports, canClientSeeReport));
-}));
+router.get('/client-tabs', requireAuth, requireRdoAccess, asyncHandler(createClientReportTabsHandler({ prisma, buildReportListWhere, canClientSeeReport })));
 
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const pagination = parseReportListPagination(req.query);

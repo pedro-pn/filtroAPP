@@ -1423,7 +1423,7 @@ Cada lote recebe commit e push antes de iniciar o seguinte.
   implementação. A escolha aleatória permanece estável enquanto o componente
   está montado; progresso numérico só é anunciado quando existe valor real.
   Movimento reduzido desativa a animação. Prévia: `/visualizar/carregamento`.
-- [ ] Etapa 1: zerar oito ocorrências do gate atual (limites de `reports.js`
+- [x] Etapa 1: zeradas oito ocorrências do gate atual (limites de `reports.js`
   e `ReportDetailPage`, seis campos com placeholder sinalizados pelo gate,
   incluindo as duas identificações de versão de documentos do Efetivo).
 - [ ] Etapa 2: gravação e leitura posterior em PostgreSQL isolado para Contas,
@@ -1435,3 +1435,13 @@ Cada lote recebe commit e push antes de iniciar o seguinte.
 
 A lista de cinco ocorrências da auditoria de 01/10 fica preservada como
 histórico; o inventário acima a substitui para o fechamento atual.
+
+
+### Etapa 1 — gate recuperado
+
+`architecture:check` passou sem ampliar limites. `ReportDetailPage` agora
+importa a miniatura de anexos e `reports.js` delega as abas do cliente ao
+handler de domínio. Guardas de autenticação, restrição de projeto, seleção
+de dados e limpeza de URLs temporárias foram preservadas. Os seis controles
+possuem IDs explícitos associados aos rótulos existentes. Testes de anexos,
+documentos e autorização do handler passaram; lint e build passaram.

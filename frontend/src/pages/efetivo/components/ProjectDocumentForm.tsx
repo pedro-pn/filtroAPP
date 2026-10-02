@@ -134,7 +134,7 @@ export function ProjectDocumentForm({ document, allowedTypes, users, saving, onC
         <Field id="project-document-description" label="Descrição" className="project-document-wide-field" errorText={errors.description?.message}><Textarea rows={3} disabled={saving} {...register('description')} /></Field>
         {!editing ? <>
           <Field id="project-document-file" label="Arquivo inicial" helperText="PDF, DOCX, XLSX, PNG, JPEG, DWG ou DXF, até 20 MB." errorText={errors.file ? String(errors.file.message || '') : undefined}><Input type="file" accept={fileAccept} disabled={saving} {...register('file')} /></Field>
-          <Field id="project-document-version-label" label="Identificação da versão"><Input placeholder="Ex.: Rev. 01" disabled={saving} {...register('versionLabel')} /></Field>
+          <Field id="project-document-version-label" label="Identificação da versão"><Input id="project-document-version-label-control" placeholder="Ex.: Rev. 01" disabled={saving} {...register('versionLabel')} /></Field>
         </> : null}
       </div>
     </form>
@@ -151,7 +151,7 @@ export function ProjectDocumentVersionForm({ document, saving, onClose, onSubmit
     <p className="efetivo-dialog-description">{document.title}</p>
     <div className="project-document-form-body">
       <Field id="project-document-new-file" label="Arquivo" required errorText={errors.file ? String(errors.file.message || '') : undefined}><Input type="file" accept={fileAccept} disabled={saving} {...register('file')} /></Field>
-      <Field id="project-document-new-version-label" label="Identificação da versão"><Input placeholder="Ex.: Rev. 02" disabled={saving} {...register('versionLabel')} /></Field>
+      <Field id="project-document-new-version-label" label="Identificação da versão"><Input id="project-document-new-version-label-control" placeholder="Ex.: Rev. 02" disabled={saving} {...register('versionLabel')} /></Field>
     </div>
   </form></Modal>;
 }

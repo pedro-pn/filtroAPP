@@ -1,3 +1,4 @@
+import { GeneralUploadThumb } from '../components/reports/GeneralUploadThumb';
 import { BrandLoading } from '../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
@@ -60,7 +61,7 @@ import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFrom
 import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js';
 import type { AuthUser } from '../types/auth';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
-import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
+import { normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
 import { reportEditorOperationalMode } from './reportEditorOperationalMode';
 import { REPORT_DETAIL_TEXT as TEXT } from './reportDetailText';
 import { hubModulesForUser } from './hubModules';
@@ -361,50 +362,6 @@ function asUploadedFiles(value: unknown): UploadedFile[] {
       })
       .filter((item): item is UploadedFile => Boolean(item.url))
     : [];
-}
-
-function GeneralUploadThumb({ file }: { file: UploadedFile }) {
-  const [href, setHref] = useState('');
-  const displayName = file.fileName || file.label || 'Abrir foto';
-
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl = '';
-
-    loadUploadAssetUrl(file.url)
-      .then(nextHref => {
-        if (cancelled) {
-          if (nextHref.startsWith('blob:')) URL.revokeObjectURL(nextHref);
-          return;
-        }
-        objectUrl = nextHref.startsWith('blob:') ? nextHref : '';
-        setHref(nextHref);
-      })
-      .catch(() => {
-        if (!cancelled) setHref('');
-      });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [file.url]);
-
-  if (!href) return null;
-
-  return (
-    <a
-      className="report-upload-link"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`Abrir ${displayName}`}
-      title={displayName}
-    >
-      <img src={href} alt="" className="upload-thumb" />
-      <span className="report-upload-name">{displayName}</span>
-    </a>
-  );
 }
 
 function serviceEquipmentValue(service: NonNullable<ReportSummary['services']>[number]) {

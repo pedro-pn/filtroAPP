@@ -8,9 +8,10 @@ const source = (path) =>
 test('anexos do detalhe exibem nome como link separado da miniatura', () => {
   const page = source('src/pages/ReportDetailPage.tsx');
 
-  assert.match(page, /className="report-upload-link"/);
-  assert.match(page, /aria-label=\{`Abrir \$\{displayName\}`\}/);
-  assert.match(page, /className="report-upload-name">\{displayName\}<\/span>/);
+  const thumb = readFileSync(new URL('../src/components/reports/GeneralUploadThumb.tsx', import.meta.url), 'utf8');
+  assert.match(thumb, /className="report-upload-link"/);
+  assert.match(thumb, /aria-label=\{`Abrir \$\{displayName\}`\}/);
+  assert.match(thumb, /className="report-upload-name">\{displayName\}<\/span>/);
   assert.match(page, /className="upload-thumbs report-upload-list"/);
 });
 

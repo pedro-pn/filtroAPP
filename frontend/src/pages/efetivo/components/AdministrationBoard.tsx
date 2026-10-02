@@ -65,7 +65,7 @@ function JobRoleRow({ role, canManage, onSaved }: { role: PlanningJobRole; canMa
       <input id={`role-color-${role.id}-control`} className="efetivo-admin-color-input" type="color" value={color} disabled={!canManage || mutation.isPending} onChange={event => setColor(event.target.value)} />
     </Field>
     <Field id={`role-limit-${role.id}`} label="Folga após (dias)" optionalText="" errorText={limitInvalid ? 'Use um inteiro de 1 a 365.' : undefined}>
-      <Input size="sm" type="number" min="1" max="365" value={limit} disabled={!canManage || mutation.isPending} placeholder="Padrão da categoria" onChange={event => setLimit(event.target.value)} />
+      <Input id={`role-limit-${role.id}-control`} size="sm" type="number" min="1" max="365" value={limit} disabled={!canManage || mutation.isPending} placeholder="Padrão da categoria" onChange={event => setLimit(event.target.value)} />
     </Field>
     {canManage ? <Button variant="secondary" size="sm" loading={mutation.isPending} disabled={limitInvalid} onClick={() => mutation.mutate()}>Salvar</Button> : null}
   </article>;
@@ -87,7 +87,7 @@ function NotificationEmailRow({ setting, canManage, onSaved }: { setting: Notifi
   return <article className="efetivo-admin-role efetivo-admin-role--email">
     <div className="efetivo-admin-role__name"><strong>{setting.label}</strong><p>{setting.description}</p></div>
     <Field id={`notification-email-${setting.key}`} label="E-mail de aviso" optionalText="" errorText={invalid ? 'Informe um e-mail válido.' : undefined}>
-      <Input size="sm" type="email" value={email} disabled={!canManage || mutation.isPending} placeholder="nome@filtrovali.com.br" onChange={event => setEmail(event.target.value)} />
+      <Input id={`notification-email-${setting.key}-control`} size="sm" type="email" value={email} disabled={!canManage || mutation.isPending} placeholder="nome@filtrovali.com.br" onChange={event => setEmail(event.target.value)} />
     </Field>
     {canManage ? <Button variant="secondary" size="sm" loading={mutation.isPending} disabled={invalid || email.trim() === ''} onClick={() => mutation.mutate()}>Salvar</Button> : null}
   </article>;
@@ -127,7 +127,7 @@ export function AdministrationBoard({ canManage, tab, onTabChange }: {
         <div className="efetivo-section-heading"><div><h2>Meta de utilização planejada</h2><p>Indicador futuro; não altera a Improdutividade Real.</p></div></div>
         <div className="efetivo-admin-target__controls">
           <Field id="planned-target" label="Meta (%)" optionalText="" errorText={targetInvalid ? 'Use um valor de 0 a 100.' : undefined}>
-            <Input size="sm" type="number" min="0" max="100" value={target} disabled={!canManage || saveTarget.isPending || settings.isLoading} onChange={event => setTarget(event.target.value)} />
+            <Input id="planned-target-control" size="sm" type="number" min="0" max="100" value={target} disabled={!canManage || saveTarget.isPending || settings.isLoading} onChange={event => setTarget(event.target.value)} />
           </Field>
           {canManage ? <Button variant="primary" size="sm" loading={saveTarget.isPending} disabled={targetInvalid || settings.isLoading || settings.isError} onClick={() => saveTarget.mutate()}>Salvar meta</Button> : null}
         </div>

@@ -152,7 +152,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
                 : projectTotalError ? 'Total do projeto indisponível.' : 'Sem total do projeto para calcular %.';
           return <Field id={fieldId(field)} label={label} helperText={helperText} key={field}>
             <div className="acp-tracking-division-input-row">
-              <Input size="sm" type="number" min="0" max={percentage === undefined ? undefined : 100}
+              <Input id={`${fieldId(field)}-control`} size="sm" type="number" min="0" max={percentage === undefined ? undefined : 100}
                 step={percentage === undefined ? field === 'plannedDays' ? '1' : '0.01' : 'any'}
                 inputMode={field === 'plannedDays' && percentage === undefined ? 'numeric' : 'decimal'}
                 placeholder={percentage === undefined ? '—' : '%'} disabled={save.isPending} value={percentage === undefined ? item[field] : percentage}
