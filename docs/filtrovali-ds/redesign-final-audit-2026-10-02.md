@@ -173,6 +173,27 @@ documento inicial, nova versão e prévia de carregamento. Nenhum overflow globa
 controle sem nome, imagem quebrada, exceção ou contraste insuficiente nos fundos
 medidos foi encontrado nessa repetição.
 
+A [PR #337](https://github.com/pedro-pn/filtroAPP/pull/337) foi integrada à main
+em 02/10. Architecture, Frontend, Backend e Docker passaram na
+[CI da PR](https://github.com/pedro-pn/filtroAPP/actions/runs/36999447606), commit
+`2bbabc9d`, e na [CI da main](https://github.com/pedro-pn/filtroAPP/actions/runs/36999769971),
+commit `103d6a49`. Nenhuma falha exigiu correção.
+
+### Correção posterior — situações de Projetos no Acompanhamento
+
+O usuário identificou filtros ainda exibidos como botões avulsos, fora do padrão
+de Privacidade/Custo. Em andamento, Futuros, Arquivados e Conferidas receberam
+a faixa de seleção com fundo, borda, destaque da opção ativa e contadores do DS.
+As quatro opções ficam visíveis em duas colunas no celular e em uma linha a
+partir de 768 px. As ações de busca/unificação continuam em sua faixa própria.
+
+Conferência em Chromium/WebKit, 320/390/768/1280 px e ambos os temas: 16
+combinações aprovadas; cliques nas quatro situações sincronizam URL e seleção,
+sem overflow global/local ou exceções. Os 13 testes existentes de cards/filtros,
+lint, build e arquitetura passaram. Capturas e resultados ignorados pelo Git:
+`output/validation/project-status-tabs/`. A correção segue PR separada após a
+integração da PR #337.
+
 Consulte a [avaliação para produção](redesign-production-readiness-2026-10-02.md)
 para os checks da integração habitual e os passos de publicação.
 

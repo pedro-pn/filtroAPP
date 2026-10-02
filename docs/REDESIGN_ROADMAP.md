@@ -1,6 +1,6 @@
 # Roadmap do redesign do frontend
 
-> **Fechamento de 02/10/2026:** carregamentos e as quatro etapas foram publicados.
+> **Fechamento de 02/10/2026:** carregamentos e as quatro etapas foram integrados à main.
 > A conferência final cobriu 107 telas/estados em Chromium e WebKit, celular,
 > tablet e desktop, nos dois temas. Os dois acabamentos de UX foram concluídos,
 > assim como os ajustes do gráfico e do preenchimento da logo. Consulte a
@@ -1564,11 +1564,24 @@ combinações (60 recortes), sem falhas de contraste nos fundos medidos.
 
 ### Publicação do redesign
 
-Não há outra migração visual conhecida aberta nesta revisão. A branch contém
-`origin/main` até `a9d9f6ee`, verificado novamente em 02/10. A entrega está pronta
-para integração e publicação pelo procedimento habitual:
+**Correção posterior — filtros de Projetos:** as situações Em andamento, Futuros,
+Arquivados e Conferidas agora seguem a faixa de seleção aplicada em Privacidade
+e Custo, com contadores. Em celular, as quatro opções ficam em duas colunas;
+em tablet/desktop, em uma linha. Conferidos cliques e sincronização do filtro com
+a URL em Chromium/WebKit, 320/390/768/1280 px, claro/escuro (16 combinações), sem
+overflow ou exceções. Os 13 testes existentes de cards/filtros, lint, build e
+gate de arquitetura passaram. Evidências locais em
+`output/validation/project-status-tabs/`. A correção segue uma PR separada da
+entrega principal, que já foi integrada.
 
-- [ ] Integrar a branch e acompanhar os checks automáticos da CI já existente.
+O redesign foi integrado à main pela [PR #337](https://github.com/pedro-pn/filtroAPP/pull/337)
+em 02/10. A CI passou na PR (commit `2bbabc9d`) e na main (`103d6a49`).
+A publicação segue o procedimento habitual:
+
+- [x] Integrar a branch e acompanhar a CI: Architecture, Frontend, Backend e Docker
+  aprovados na [PR](https://github.com/pedro-pn/filtroAPP/actions/runs/36999447606)
+  e na [main](https://github.com/pedro-pn/filtroAPP/actions/runs/36999769971), sem
+  falhas que exigissem correção.
 - [x] Funcionamento de assinatura e envio de e-mails no ambiente atual confirmado
   pelo usuário. Não há nova exigência de homologação desses serviços para liberar
   o redesign; o último lote de correções não alterou a lógica backend deles.

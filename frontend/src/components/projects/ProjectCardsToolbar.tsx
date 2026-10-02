@@ -1,4 +1,4 @@
-import { Button, Field, SearchInput, Select } from '../ui/ds';
+import { Button, SearchInput } from '../ui/ds';
 import type { CardsView } from './projectCardViews';
 
 const PROJECT_CARD_VIEWS: { id: CardsView; label: string }[] = [
@@ -26,18 +26,11 @@ export function ProjectCardsToolbar({ view, counts, search, onSearch, onView, ca
   return <div className="acp-projects__toolbar">
     <div data-acp-cards-seg>
       <nav className="acp-projects__views" aria-label="Situação dos projetos">
-        {PROJECT_CARD_VIEWS.map(item => <Button key={item.id} size="sm" variant={view === item.id ? 'primary' : 'secondary'}
+        {PROJECT_CARD_VIEWS.map(item => <Button key={item.id} size="sm" variant="secondary"
           aria-pressed={view === item.id} disabled={busy} onClick={() => onView(item.id)} counter={loading ? '—' : counts[item.id]}>
           {item.label}
         </Button>)}
       </nav>
-      <div className="acp-projects__mobile-view">
-        <Field id="acp-cards-view" label="Situação dos projetos" optionalText="">
-          <Select size="sm" value={view} disabled={busy} onChange={event => onView(event.target.value as CardsView)}>
-            {PROJECT_CARD_VIEWS.map(item => <option key={item.id} value={item.id}>{item.label} ({loading ? '—' : counts[item.id]})</option>)}
-          </Select>
-        </Field>
-      </div>
     </div>
     <div className="acp-projects__search-actions">
       <SearchInput size="sm" label="Buscar projetos" placeholder="Código, missão, cliente ou CNPJ" value={search} onChange={onSearch} disabled={busy} />
