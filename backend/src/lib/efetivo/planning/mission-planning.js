@@ -63,8 +63,8 @@ export function validateMissionChronology(payload) {
     });
   }
   const demobilizationDate = payload.returnDate ? parseDateKey(payload.returnDate) : null;
-  if (demobilizationDate && demobilizationDate < values[2]) {
-    throw planningError('A desmobilização não pode ser anterior ao fim da execução.', {
+  if (demobilizationDate && demobilizationDate < values[0]) {
+    throw planningError('A desmobilização não pode ser anterior à mobilização.', {
       code: 'INVALID_MISSION_CHRONOLOGY'
     });
   }

@@ -28,7 +28,7 @@ export function ProjectLegacyCompletionModal({ project, mission, open, saving, o
       <form id="project-legacy-completion-form" className="efetivo-dialog-form" onSubmit={submit}>
         <p className="efetivo-dialog-description">{project.code} · {project.name}</p>
         <Field id="project-legacy-completion-return-date" label="Data de desmobilização" helperText="Opcional. Preencha somente se a desmobilização já aconteceu; a data será sincronizada com o cronograma do Planejamento.">
-          <Input type="date" min={mission.executionEndDate.slice(0, 10)} value={returnDate} disabled={saving} onChange={event => setReturnDate(event.target.value)} />
+          <Input type="date" min={mission.mobilizationDate.slice(0, 10)} value={returnDate} disabled={saving} onChange={event => setReturnDate(event.target.value)} />
         </Field>
       </form>
     </Modal>

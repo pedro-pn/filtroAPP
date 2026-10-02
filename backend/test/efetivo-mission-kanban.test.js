@@ -67,7 +67,7 @@ test('missão gerenciada muda de etapa somente pelo Kanban único do projeto', a
   );
 });
 
-test('concluir missão aceita desmobilização opcional e sincroniza o projeto', async () => {
+test('concluir missão aceita desmobilização anterior ao fim previsto e sincroniza o projeto', async () => {
   const plan = { id: 'plan-1', kind: 'OFFICIAL', status: 'ACTIVE' };
   const mission = {
     id: 'mission-1', planId: plan.id, version: 1, stage: 'EXECUTION', kanbanOrder: 0,
@@ -96,9 +96,10 @@ test('concluir missão aceita desmobilização opcional e sincroniza o projeto',
     efetivoAuditEvent: { create: async () => ({ id: 'audit-1' }) }
   };
   const moved = await moveMissionStage('mission-1', {
-    stage: 'FINISHED', order: 0, returnDate: '2026-08-12'
+    stage: 'FINISHED', order: 0, returnDate: '2026-08-08'
   }, { version: 1 }, { database });
-  assert.equal(projectUpdate.data.demobilizationDate.toISOString(), '2026-08-12T00:00:00.000Z');
-  assert.ok(missionUpdates.some(input => input.data.returnDate?.toISOString() === '2026-08-12T00:00:00.000Z'));
-  assert.equal(moved.returnDate.toISOString(), '2026-08-12T00:00:00.000Z');
+  assert.equal(projectUpdate.data.demobilizationDate.toISOString(), '2026-08-08T00:00:00.000Z');
+  assert.ok(missionUpdates.some(input => input.data.returnDate?.toISOString() === '2026-08-08T00:00:00.000Z'));
+  assert.equal(moved.returnDate.toISOString(), '2026-08-08T00:00:00.000Z');
+  assert.equal(moved.executionEndDate.toISOString(), '2026-08-10T00:00:00.000Z');
 });

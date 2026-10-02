@@ -41,6 +41,23 @@ test('datas existentes são normalizadas e delimitam a consulta e a edição da 
   });
 });
 
+test('desmobilização antecipada delimita a equipe e preserva o fim previsto', () => {
+  const mission = {
+    mobilizationDate: '2026-09-01',
+    executionStartDate: '2026-09-02',
+    executionEndDate: '2026-09-25',
+    returnDate: '2026-09-19'
+  };
+  for (const fullMission of [mission, null]) {
+    const dates = resolveLegacySummaryTeamDates(fullMission, mission, {
+      startDate: '', endDate: '', demobilizationDate: ''
+    }, '2026-09-24');
+    assert.equal(dates.executionEndDate, '2026-09-25');
+    assert.equal(dates.returnDate, '2026-09-19');
+    assert.equal(dates.teamEndDate, '2026-09-19');
+  }
+});
+
 test('fim ausente ou anterior ao início não bloqueia a edição da equipe', () => {
   const dates = resolveLegacySummaryTeamDates({
     mobilizationDate: '2026-09-20',

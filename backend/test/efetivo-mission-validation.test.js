@@ -9,10 +9,14 @@ test('cronologia aceita limites iguais e rejeita inversão', () => {
   assert.throws(() => validateMissionChronology({ mobilizationDate: '2026-01-02', executionStartDate: '2026-01-01', executionEndDate: '2026-01-03', returnDate: '2026-01-04' }), /mobilização/i);
 });
 
-test('desmobilização é opcional e só é validada quando informada', () => {
+test('desmobilização é opcional e aceita antecipação em relação ao fim previsto', () => {
   const dates = { mobilizationDate: '2026-01-01', executionStartDate: '2026-01-02', executionEndDate: '2026-01-10' };
   assert.doesNotThrow(() => validateMissionChronology({ ...dates, returnDate: null }));
-  assert.throws(() => validateMissionChronology({ ...dates, returnDate: '2026-01-09' }), /desmobilização/i);
+  assert.deepEqual(validateMissionChronology({ ...dates, returnDate: '2026-01-09' }), [
+    '2026-01-01', '2026-01-02', '2026-01-10', '2026-01-09'
+  ]);
+  assert.doesNotThrow(() => validateMissionChronology({ ...dates, returnDate: '2026-01-01' }));
+  assert.throws(() => validateMissionChronology({ ...dates, returnDate: '2025-12-31' }), /anterior à mobilização/i);
   assert.equal(missionInputSchema.parse({
     ...dates, projectId: 'p1', scheduleStatus: 'CANCELLED', headquartersResponsibleUserId: 'u1', collaboratorIds: []
   }).returnDate, undefined);

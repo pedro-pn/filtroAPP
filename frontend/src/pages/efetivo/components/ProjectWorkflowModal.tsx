@@ -387,9 +387,6 @@ function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }
   }).refine(value => !value.fieldCompletionDate || !value.returnDate || value.fieldCompletionDate <= value.returnDate, {
     path: ['returnDate'],
     message: 'A desmobilização não pode ser anterior à conclusão de campo.'
-  }).refine(value => !value.returnDate || !mission?.executionEndDate || value.returnDate >= mission.executionEndDate.slice(0, 10), {
-    path: ['returnDate'],
-    message: 'A desmobilização não pode ser anterior ao fim previsto da execução.'
   });
   type Values = z.infer<typeof schema>;
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Values>({
@@ -429,7 +426,7 @@ function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }
         </div>
         <div className={fieldClass(errors.returnDate)}>
           <label htmlFor="workflow-return-date">Desmobilização efetiva</label>
-          <input id="workflow-return-date" type="date" min={mission?.executionEndDate?.slice(0, 10)} disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.returnDate)} {...register('returnDate')} />
+          <input id="workflow-return-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.returnDate)} {...register('returnDate')} />
           <span className="field-hint">Atualiza o retorno da missão e o cronograma do projeto.</span>
           {errors.returnDate ? <span className="field-error">{errors.returnDate.message}</span> : null}
         </div>
