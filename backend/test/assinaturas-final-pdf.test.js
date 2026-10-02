@@ -166,6 +166,36 @@ test('builder recusa hash-base divergente e gera PDF com evidências', async () 
   assert.match(finalPdfSource, /LOGO_COLORIDO\.png/);
 });
 
+test('builder assina a página 100 e preserva o documento completo com evidências', async () => {
+  const pdf = await PDFDocument.create();
+  for (let index = 0; index < 100; index += 1) pdf.addPage([612, 792]);
+  const sourceBytes = Buffer.from(await pdf.save());
+  const snapshot = {
+    id: 'document-100-pages',
+    title: 'Contrato extenso',
+    originalFileName: 'contrato.pdf',
+    requesterNameSnapshot: 'Pedro Paulo',
+    validationCode: 'validation-code-100-pages',
+    sourceDocumentHash: createHash('sha256').update(sourceBytes).digest('hex'),
+    signers: [{
+      id: 'signer-1',
+      name: 'Maria Silva',
+      declaredSignerName: 'Maria Silva',
+      signatureImageDataUrl,
+      signedAt: new Date('2026-08-28T12:00:00.000Z')
+    }],
+    fields: [{
+      signerId: 'signer-1', pageNumber: 100, x: 0.1, y: 0.2, width: 0.3, height: 0.1
+    }]
+  };
+
+  const finalPdf = await PDFDocument.load(await buildFinalPdfBytes(snapshot, sourceBytes));
+
+  assert.equal(finalPdf.getPageCount(), 101);
+  assert.match(pageContent(finalPdf, finalPdf.getPage(99)), /\/Image-[^\s]+ Do/);
+  assert.ok(finalPdf.getPage(100).node.Annots()?.size() >= 1);
+});
+
 test('código de validação é aleatório, único e resolve somente documento concluído', async () => {
   const first = createStandaloneValidationCode();
   const second = createStandaloneValidationCode();

@@ -35,7 +35,7 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.pontomaisApiToken, '');
   assert.equal(env.assinaturasMaxPdfMb, 20);
   assert.equal(env.projectDocumentMaxMb, 20);
-  assert.equal(env.assinaturasMaxPages, 50);
+  assert.equal(env.assinaturasMaxPages, 100);
   assert.equal(env.assinaturasMaxSigners, 20);
   assert.equal(env.assinaturasTokenMaxDays, 90);
   assert.equal(env.assinaturasDeletedRetentionDays, 90);
@@ -51,6 +51,12 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.apiTokenCoarseIpRequestsPerMinute, 300);
   assert.equal(env.apiTokenLogRetentionDays, 365);
   assert.equal(env.apiTokenMaxOverlapMinutes, 60);
+});
+
+test('loadEnv permite configurar o limite de páginas das assinaturas', () => {
+  const env = loadEnv({ DATABASE_URL: databaseUrl, ASSINATURAS_MAX_PAGES: '250' });
+
+  assert.equal(env.assinaturasMaxPages, 250);
 });
 
 test('loadEnv selects and parses Microsoft OAuth2 application authentication', () => {

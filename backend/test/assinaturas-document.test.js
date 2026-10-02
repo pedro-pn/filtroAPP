@@ -58,6 +58,41 @@ test('pdfMetadata lê páginas e rotações e rejeita conteúdo ilegível', asyn
   await assert.rejects(() => pdfMetadata(Buffer.from('%PDF-invalido')), /PDF inválido/);
 });
 
+test('pdfMetadata aceita um documento de 100 páginas com todas as dimensões', async () => {
+  const pdf = await PDFDocument.create();
+  for (let index = 0; index < 100; index += 1) pdf.addPage([612, 792]);
+
+  const metadata = await pdfMetadata(Buffer.from(await pdf.save()));
+
+  assert.equal(metadata.pageCount, 100);
+  assert.equal(metadata.pageDimensions.length, 100);
+  assert.deepEqual(metadata.pageDimensions.at(-1), {
+    page: 100, widthPt: 612, heightPt: 792, rotation: 0
+  });
+});
+
+test('createDocument rejeita 101 páginas antes de gravar arquivo ou documento', async () => {
+  const pdf = await PDFDocument.create();
+  for (let index = 0; index < 101; index += 1) pdf.addPage([612, 792]);
+  const bytes = Buffer.from(await pdf.save());
+  let storageCalls = 0;
+  let databaseCalls = 0;
+
+  await assert.rejects(() => createDocument({
+    async $transaction() { databaseCalls += 1; }
+  }, {
+    ownerUserId: 'user-1',
+    requesterNameSnapshot: 'Maria Souza',
+    fileName: 'contrato.pdf',
+    pdfDataUrl: dataUrl(bytes)
+  }, {
+    async storeSourcePdf() { storageCalls += 1; }
+  }), error => error?.statusCode === 400 && /no máximo 100 páginas/.test(error.message));
+
+  assert.equal(storageCalls, 0);
+  assert.equal(databaseCalls, 0);
+});
+
 test('storage da assinatura fica sob Assinaturas e revalida o hash', async t => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'assinaturas-document-'));
   t.after(() => fs.rm(rootDir, { recursive: true, force: true }));
