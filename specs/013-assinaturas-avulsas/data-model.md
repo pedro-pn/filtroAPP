@@ -443,7 +443,7 @@ Gerada por `npx prisma migrate dev --name add_assinaturas_tables` (rodado pelo d
 | Variável | Default | Uso |
 |---|---|---|
 | `ASSINATURAS_MAX_PDF_MB` | `20` | Teto do upload (alinhado ao `MAX_PDF_BYTES` de Qualidade) |
-| `ASSINATURAS_MAX_PAGES` | `50` | Teto de páginas por documento |
+| `ASSINATURAS_MAX_PAGES` | `100` | Teto de páginas por documento |
 | `ASSINATURAS_MAX_SIGNERS` | `20` | Teto de assinantes por documento |
 | `ASSINATURAS_TOKEN_MAX_DAYS` | `90` | Teto da validade escolhida na publicação |
 | `ASSINATURAS_DELETED_RETENTION_DAYS` | `90` | Dias até purgar arquivos excluídos pelo dono (na exclusão de conta, o staging é imediato e a remoção física pode ser retomada) |

@@ -638,7 +638,7 @@ comportamento mobile). Nenhuma tarefa de correção da fonte é necessária.
   concluir) fica como evolução futura, fora do MVP.
 - **Um campo por assinante é suficiente para o MVP**, embora o modelo já suporte mais de um sem alteração
   estrutural.
-- **Limites operacionais**: até 20 MB e 50 páginas por documento, até 20 assinantes por documento, validade
+- **Limites operacionais**: até 20 MB e 100 páginas por documento, até 20 assinantes por documento, validade
   máxima de convite de 90 dias — todos configuráveis pelo operador.
 - **Fuso horário**: as datas são apresentadas no horário de Brasília (`America/Sao_Paulo`), fixado explicitamente, para que a hora exibida na tela seja idêntica à impressa no documento assinado, inclusive para quem acessar de outro fuso.
 - **Idioma**: toda a interface, incluindo as páginas públicas vistas por assinantes externos, em pt-BR.
