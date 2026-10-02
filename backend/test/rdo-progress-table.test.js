@@ -221,6 +221,16 @@ test('DOCX limits the progress table to ten days while keeping all historical pr
   const table = Array.from(doc.getElementsByTagName('w:tbl')).find(node => node.textContent?.includes('PROGRESSO'));
   const rows = Array.from(table.getElementsByTagName('w:tr'));
   assert.equal(rows.length, 12);
+  assert.equal(rows[0].textContent, 'PROGRESSO');
+  assert.equal(rows[1].textContent, 'DiaServiçoRealizadoAcumulado');
+  for (const row of rows.slice(0, 2)) {
+    assert.equal(row.getElementsByTagName('w:tblHeader').length, 1,
+      'the title and column legends must repeat on following pages');
+  }
+  for (const row of rows.slice(2)) {
+    assert.equal(row.getElementsByTagName('w:tblHeader').length, 0,
+      'progress data rows must not repeat as headers');
+  }
   assert.match(rows[2].textContent, /12\/09\/2026.*120 m.*12%/);
   assert.match(rows.at(-1).textContent, /03\/09\/2026.*30 m.*3%/);
   assert.doesNotMatch(table.textContent, /0[12]\/09\/2026/);
