@@ -205,6 +205,8 @@
   grid-template-columns: minmax(13rem, 1fr) repeat(2, minmax(10rem, 14rem));
   align-items: end;
   gap: var(--space-3);
+  border-color: var(--line);
+  background: var(--surface-2);
 }
 .equip-page-v2 .equip-dashboard-filters-title { grid-column: 1 / -1; color: var(--muted); }
 .equip-page-v2 .equip-dashboard-filters .fv-field { min-width: 0; }
@@ -231,6 +233,11 @@
 
 @media (max-width: 767.98px) {
   .equip-page-v2 .equip-dashboard-filters { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .equip-page-v2 .equip-table tbody tr { background: var(--surface); }
+  .equip-page-v2 .equip-table td:first-child { background: var(--surface-2); }
 }
 
 @media (max-width: 1023.98px) {

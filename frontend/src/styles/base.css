@@ -3646,8 +3646,8 @@ a {
   max-width: 100%;
   border-radius: 999px;
   padding: 6px 8px 6px 10px;
-  background: color-mix(in srgb, var(--g) 10%, white);
-  color: var(--g);
+  background: var(--brand-soft);
+  color: var(--brand-text);
   font-size: 12px;
   font-weight: 700;
 }
@@ -12399,11 +12399,11 @@ input.app-search-input {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
-  border: 1px solid var(--br);
+  border: 1px solid var(--line);
   border-radius: var(--rs);
   padding: 9px 34px 9px 12px;
-  background: #fafafa;
-  color: var(--tx);
+  background: var(--surface);
+  color: var(--ink);
   font-size: 13px;
 }
 input.app-search-input::placeholder {
@@ -12412,7 +12412,7 @@ input.app-search-input::placeholder {
 input.app-search-input:focus {
   outline: none;
   border-color: var(--g);
-  background: var(--wh);
+  background: var(--surface);
 }
 /* Esconde o X nativo (suprimido/instável) — usamos o nosso. */
 input.app-search-input::-webkit-search-cancel-button {
@@ -14363,7 +14363,7 @@ body.app-reorder-touching {
 }
 
 .signature-pdf-scroll {
-  background: #e6e8e7;
+  background: var(--surface-2);
   border-radius: var(--r);
   max-height: min(68vh, 900px);
   overflow: auto;
@@ -14396,7 +14396,7 @@ body.app-reorder-touching {
 
 .signature-preview-placeholder {
   align-items: center;
-  background: var(--wh);
+  background: var(--surface);
   color: var(--mu);
   display: flex;
   justify-content: center;

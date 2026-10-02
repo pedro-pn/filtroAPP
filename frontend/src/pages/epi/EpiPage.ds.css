@@ -29,7 +29,7 @@
 
 .epi-page-v2 .epi-card-count {
   background: var(--surface-subtle);
-  color: var(--brand);
+  color: var(--brand-text);
 }
 
 .epi-page-v2 .epi-card-body {

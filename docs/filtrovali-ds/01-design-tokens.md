@@ -22,7 +22,7 @@ significado e as regras de uso.
 | `--green-500` | `#30503a` | **cor de marca** (light)          |
 | `--green-400` | `#3d6449` | brand em superfícies escuras      |
 | `--green-300` | `#4f8a63` | brand (dark)                      |
-| `--green-200` | `#5fa074` | brand hover (dark)                |
+| `--green-200` | `#72b487` | texto da marca e foco (dark)                |
 | `--green-100` | `#e6efe9` | fundo suave de marca (light)      |
 | `--green-50`  | `#f2f7f4` | fundo suavíssimo de marca (light) |
 
@@ -287,14 +287,14 @@ específicos por tema para que o estado hover e o conteúdo do botão mantenham 
 | `--line`           | `#e5e7eb` | `rgba(255,255,255,.09)` |
 | `--line-strong`    | `#d1d5db` | `rgba(255,255,255,.16)` |
 | `--ink`            | `#1a1a1a` | `#eef2ef`               |
-| `--muted`          | `#6b7280` | `#9aa7a0`               |
+| `--muted`          | `#596273` | `#9aa7a0`               |
 | `--inverse`        | `#ffffff` | `#0f1512`               |
-| `--brand`          | `#30503a` | `#4f8a63`               |
-| `--brand-hover`    | `#243d2c` | `#5fa074`               |
+| `--brand`          | `#30503a` | `#30503a`               |
+| `--brand-hover`    | `#243d2c` | `#3d6449`               |
 | `--brand-soft`     | `#e6efe9` | `rgba(79,138,99,.12)`   |
 | `--brand-softer`   | `#f2f7f4` | `rgba(79,138,99,.10)`   |
-| `--on-brand`       | `#ffffff` | `#0f1512`               |
-| `--link`           | `#30503a` | `#5fa074`               |
+| `--on-brand`       | `#ffffff` | `#ffffff`               |
+| `--link`           | `#30503a` | `#72b487`               |
 | `--link-hover`     | `#243d2c` | `#eef2ef`               |
 | `--control-border` | `#6b7280` | `#9aa7a0`               |
 | `--success`        | `#1f7a3d` | `#57b979`               |
@@ -309,12 +309,19 @@ específicos por tema para que o estado hover e o conteúdo do botão mantenham 
 | `--info`           | `#11437e` | `#6ba3e0`               |
 | `--info-bg`        | `#e7effa` | `rgba(17,67,126,.22)`   |
 | `--info-line`      | `#b6cbe6` | `rgba(107,163,224,.30)` |
-| `--focus-ring`     | `#30503a` | `#5fa074`               |
+| `--focus-ring`     | `#30503a` | `#72b487`               |
 
 > **Contraste:** todas as combinações texto/fundo devem atingir no mínimo WCAG AA
 > (4.5:1 para texto normal, 3:1 para texto grande e componentes). O `--brand` dark é
 > adequado para marca e componentes, mas não para texto normal sobre `--surface`; links
-> devem usar `--link` (`#5fa074`, aproximadamente 5.34:1 nesse par).
+> devem usar `--link` (`#72b487`, aproximadamente 6.78:1 nesse par).
 
 Para a arquitetura de aplicação, persistência e resultados medidos na Fase 1, consulte
 [`07-foundation-phase-1.md`](./07-foundation-phase-1.md).
+
+### Revisão de contraste — 02/10/2026
+
+A execução usa `frontend/src/styles/variables.css`. O texto secundário claro
+usa `--gray-600` (`#596273`) e o texto/link/foco verde no escuro usa
+`--green-200` (`#72b487`). O fundo do botão principal permanece `--green-500`;
+`--brand-hover` escuro usa `--green-400`. A logo original não foi recolorida.

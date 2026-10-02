@@ -1,7 +1,7 @@
 /* ============================================================================
-   Filtrovali DS — Tokens CSS (fonte da verdade)
+   Filtrovali DS — Tokens CSS (handoff inicial)
    ----------------------------------------------------------------------------
-   Handoff Designer → Desenvolvedor. A implementação sincronizada vive em
+   Handoff Designer → Desenvolvedor. Os valores atuais de execução vivem em
    frontend/src/styles/variables.css. Não copiar isoladamente sobre o projeto:
    ela depende de foundation.css, tailwind.css e legacy.css.
 
@@ -25,7 +25,7 @@
   --green-500: #30503a; /* marca (light) */
   --green-400: #3d6449;
   --green-300: #4f8a63; /* marca (dark)  */
-  --green-200: #5fa074;
+  --green-200: #72b487;
   --green-100: #e6efe9;
   --green-50: #f2f7f4;
 

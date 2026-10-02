@@ -829,6 +829,7 @@ export function ClientPage() {
               >
                 <input
                   type="checkbox"
+                  aria-label={`Selecionar ${reportLabel(report)} de ${formatDate(report.reportDate)}`}
                   checked={selectedIds.includes(report.id)}
                   onChange={event => toggleSelection(report.id, event.target.checked)}
                 />

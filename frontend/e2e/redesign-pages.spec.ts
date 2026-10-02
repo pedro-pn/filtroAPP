@@ -10,14 +10,14 @@ for(const device of [{name:'mobile',width:390,height:844},{name:'tablet',width:7
     test.setTimeout(600_000);
     const results=[];
     for(const role of ['admin','collaborator','viewer','client','public']){
-      const context=await browser.newContext({viewport:device,locale:'pt-BR',timezoneId:'America/Sao_Paulo'});
+      const context=await browser.newContext({viewport:device,isMobile:device.name!=='desktop',hasTouch:device.name!=='desktop',locale:'pt-BR',timezoneId:'America/Sao_Paulo'});
       const page=await context.newPage();
       if(role==='public') await page.addInitScript(theme=>localStorage.setItem('filtrovali-theme',theme),theme);
       else await useValidationAccount(page,role,theme);
       let errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
       try{
         for(const view of views.filter(v=>(v.role||'admin')===role)){
-          errors=[];await page.goto(view.path);await expect(page.locator('main').first()).toBeVisible();await page.waitForTimeout(160);
+          errors=[];await page.goto(view.path);await expect(page.locator('main').first()).toBeVisible({timeout:20_000});await page.waitForTimeout(160);
           if(!view.loading) await expect(page.locator('.fv-brand-loading:visible')).toHaveCount(0,{timeout:30_000});
           if(view.open){await page.getByRole('button',{name:view.open,exact:view.openExact!==false}).first().click();}
           const state=await inspectPage(page);
@@ -28,7 +28,8 @@ for(const device of [{name:'mobile',width:390,height:844},{name:'tablet',width:7
           await writeFile(info.outputPath('audit.json'),JSON.stringify({browser:info.project.name,device:device.name,theme,results},null,2));
           expect.soft(state.overflow,view.label).toBeLessThanOrEqual(1);expect.soft(state.unnamed,view.label).toEqual([]);
           expect.soft(state.badImages,view.label).toEqual([]);expect.soft(errors,view.label).toEqual([]);expect.soft(state.theme,view.label).toBe(theme);
-          expect.soft(failureCopy,view.label).toEqual([]);
+          if (!view.expectedLoadError) expect.soft(failureCopy,view.label).toEqual([]);
+          if (process.env.REDESIGN_ASSERT_CONTRAST === '1') expect.soft(state.contrast,view.label).toEqual([]);
         }
       }finally{await context.close();}
     }

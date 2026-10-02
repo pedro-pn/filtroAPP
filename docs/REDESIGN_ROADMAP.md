@@ -1,7 +1,9 @@
 # Roadmap do redesign do frontend
 
-> **Fechamento de 02/10/2026:** carregamentos, arquitetura e persistência isolada
-> foram publicados. A revisão transversal está na seção de encerramento abaixo.
+> **Fechamento de 02/10/2026:** carregamentos e as quatro etapas foram publicados.
+> A conferência final cobriu 107 telas/estados em Chromium e WebKit, celular,
+> tablet e desktop, nos dois temas. O resultado e dois acabamentos de UX estão
+> na [auditoria final por página](filtrovali-ds/redesign-final-audit-2026-10-02.md).
 >
 > **Auditoria de 01/10/2026:** os 12 módulos ativos têm as telas principais no
 > design system. F5.4 (EPI) e F5.5 (Privacidade) estão visualmente concluídas;
@@ -1434,7 +1436,7 @@ Cada lote recebe commit e push antes de iniciar o seguinte.
 - [x] Etapa 3: acessibilidade, permissões, temas, responsividade, WebKit e
   onboarding nos fluxos autenticados.
 - [x] Etapa 4: remover legado comprovadamente sem consumidores e duplicações.
-- [ ] Conferência final por página em celular, tablet e desktop, claro e escuro.
+- [x] Conferência final por página em celular, tablet e desktop, claro e escuro.
 
 A lista de cinco ocorrências da auditoria de 01/10 fica preservada como
 histórico; o inventário acima a substitui para o fechamento atual.
@@ -1511,3 +1513,29 @@ subabas, formulários e estados públicos em Chromium/WebKit, celular/tablet/
 desktop, claro/escuro. Os PDFs e os registros autenticados vêm do banco isolado;
 Pesquisa, Preferências, Confirmação de e-mail e assinatura RDO usam as prévias
 fictícias autorizadas. Código inválido também é um estado explícito do teste.
+
+### Conferência final — resultado e acabamentos
+
+A matriz de 107 telas/estados gerou 1.284 recortes, sem overflow global,
+imagens quebradas ou exceções de JavaScript. As correções de nome acessível,
+tema de filtros/buscas/etiquetas/indicadores e visualização de PDF tiveram
+348 recortes adicionais; os últimos ajustes tiveram 36 recortes e 14/14
+testes aprovados. Cabeçalho por direção de rolagem, toques nos comandos de
+início/fim e bloqueio/fechamento do menu Mais passaram nos dois motores.
+O handler do gesto foi exercitado por eventos sintéticos, com emulação mobile.
+
+Gate, 645 testes frontend, lint, tipagem E2E e build passaram. A matriz usa
+fixtures reais no PostgreSQL isolado e demonstrações explicitamente marcadas.
+As evidências de cada página, critérios e limites estão na
+[auditoria final](filtrovali-ds/redesign-final-audit-2026-10-02.md).
+
+Próximos acabamentos, sem bloqueio dos gates encerrados:
+
+- [ ] UX-E1: apresentar simultaneamente os metadados do cabeçalho do planejamento
+  do Efetivo no celular; hoje há rolagem horizontal local e a data fica fora do
+  recorte inicial.
+- [ ] UX-E2: padronizar o seletor de arquivo inicial/versão de documentos do Efetivo
+  com a apresentação de upload adotada em Assinaturas/Equipamentos.
+
+Homologação em aparelhos físicos, leitor de tela, câmera/canvas de assinatura
+física e entrega SMTP externa continuam fora da validação local desta rodada.

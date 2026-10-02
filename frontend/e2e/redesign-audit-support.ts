@@ -43,8 +43,11 @@ export async function inspectPage(page: Page) {
       if(skip) continue;
       const a=lum(fg),b=lum(bg),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
       const size=parseFloat(css.fontSize),large=size>=24||(size>=18.66&&Number(css.fontWeight)>=700);
-      const key=`${css.color}:${bg.join(',')}:${large}`;
-      if(ratio<(large?3:4.5)-.05&&!seen.has(key)){seen.add(key);contrast.push({text:e.textContent!.trim().slice(0,90),ratio:Number(ratio.toFixed(2)),color:css.color,background:bg.slice(0,3).map(Math.round).join(','),className:typeof e.className==='string'?e.className:''});}
+      // A named icon-only control uses non-text contrast, even when its glyph is a text node.
+      const iconControl = e.closest('button[aria-label], [role=button][aria-label]') && /^[×✕✖]$/.test(e.textContent!.trim());
+      const minimum = large || iconControl ? 3 : 4.5;
+      const key=`${css.color}:${bg.join(',')}:${minimum}`;
+      if(ratio<minimum-.05&&!seen.has(key)){seen.add(key);contrast.push({text:e.textContent!.trim().slice(0,90),ratio:Number(ratio.toFixed(2)),color:css.color,background:bg.slice(0,3).map(Math.round).join(','),className:typeof e.className==='string'?e.className:''});}
     }
     return { overflow: document.documentElement.scrollWidth-document.documentElement.clientWidth, unnamed, badImages, contrast, theme: document.documentElement.dataset.theme, headings: [...document.querySelectorAll('h1')].map(e=>e.textContent), height: document.documentElement.scrollHeight };
   });

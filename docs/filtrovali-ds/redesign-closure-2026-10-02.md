@@ -8,8 +8,8 @@
 | 1. Arquitetura | Oito ocorrências zeradas sem ampliar budgets; miniatura de anexos e handler do cliente extraídos; seis IDs associados a labels | `3cc1570a` |
 | 2. Persistência | Cinco testes reais de formulário + consulta direta ao PostgreSQL passaram | `e53bb442` |
 | 3. Revisão transversal | 18/18 testes; 168 recortes de telas autenticadas; Chromium e WebKit, 3 tamanhos, 2 temas; permissões, foco e onboarding | `b6258a6e` |
-| 4. Limpeza F6 | 20 arquivos órfãos retirados; 62 regras e 33 seletores de CSS; normalização unificada; 645/645 testes | commit deste lote |
-| Conferência final | Após a limpeza | — |
+| 4. Limpeza F6 | 20 arquivos órfãos retirados; 62 regras e 33 seletores de CSS; normalização unificada; 645/645 testes | `f58e96d6` |
+| Conferência final | 107 telas/estados × 12 combinações; correções repetidas em 348 + 36 recortes; última suíte 14/14 | lote final deste registro |
 
 ## Banco e arquivos isolados
 
@@ -103,3 +103,17 @@ npx playwright test --config=playwright.redesign-closure.config.ts redesign-page
 O inventário está em `frontend/e2e/redesign-page-inventory.ts`. Cada recorte
 grava um JSON incremental e capturas por tela. `REDESIGN_AUDIT_LABELS` permite
 repetir um subconjunto por expressão regular, sem alterar o inventário.
+
+Resultado, tabela das 107 telas, correções e acabamentos:
+[auditoria final página a página](redesign-final-audit-2026-10-02.md).
+
+Para repetir com contraste como critério de aprovação e incluir interações mobile:
+
+```sh
+cd frontend
+REDESIGN_ASSERT_CONTRAST=1 npx playwright test --config=playwright.redesign-closure.config.ts redesign-pages.spec.ts redesign-mobile-interactions.spec.ts --workers=2
+```
+
+O servidor de validação usa cache próprio de Vite. A sequência final manteve
+separados os artefatos completos e as repetições; cada nova execução do Playwright
+limpa somente seu diretório de saída. Use `--output` se quiser preservar rodadas.

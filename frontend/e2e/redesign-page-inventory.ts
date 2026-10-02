@@ -1,6 +1,6 @@
 import { validationFixture as f } from './redesign-audit-support';
 
-export interface AuditView { label: string; path: string; role?: string; preview?: boolean; open?: string; openExact?: boolean; loading?: boolean }
+export interface AuditView { label: string; path: string; role?: string; preview?: boolean; open?: string; openExact?: boolean; loading?: boolean; expectedLoadError?: boolean }
 const sections = (module: string, key: string, values: string[]): AuditView[] => values.map(value => ({label:`${module} / ${value}`,path:`/${module}?${key}=${value}`}));
 export const pageInventory: AuditView[] = [
   ...['modulos','conta','operacoes','admin/accounts'].map(path=>({label:path,path:`/${path}`})),
@@ -44,10 +44,11 @@ export const pageInventory: AuditView[] = [
     ['/confirmar-email?visualizar=1','Confirmação de e-mail / demonstração'],
     ['/notificacoes/exemplo?visualizar=1','Preferências / demonstração'],['/pesquisa/exemplo?visualizar=1','Pesquisa / demonstração'],
     ['/assinar/exemplo?visualizar=1','Assinatura RDO / demonstração'],
-    ['/validar-assinatura/invalido','Validação RDO / código inválido'],['/validar-documento/invalido','Validação avulsa / código inválido'],
+    ['/validar-assinatura/invalido','Validação RDO / código inválido'],
     ['/visualizar','Galeria de demonstrações'],['/visualizar/carregamento','Animações de carregamento'],
     ['/visualizar/operacoes','Operações / demonstração'],['/visualizar/documentos','Documentos / demonstração']
   ].map(([path,label])=>({label,path,role:'public',preview:path.includes('visualizar'),loading:path==='/visualizar/carregamento'})),
+  {label:'Validação avulsa / código inválido',path:'/validar-documento/invalido',role:'public',expectedLoadError:true},
   ...(f.epiPublicToken?[{label:'EPI / assinatura pública',path:`/epi/assinar/${f.epiPublicToken}`,role:'public'}]:[]),
   ...(f.signaturePublicPath?[{label:'Assinatura avulsa / convite',path:f.signaturePublicPath,role:'public'}]:[]),
   ...['Adicionar documento','Editar documento','Adicionar versão','Registrar aceite','Encerrar projeto antigo','Checklist de contato'].map(open=>({label:`Efetivo / diálogo / ${open}`,path:'/visualizar/documentos',role:'public',preview:true,open}))

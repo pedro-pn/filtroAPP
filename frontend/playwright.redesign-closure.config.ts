@@ -8,7 +8,7 @@ export default defineConfig({
   use: { actionTimeout: 15_000, baseURL: `http://127.0.0.1:${port}`, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }, { name: 'webkit', use: { browserName: 'webkit' } }],
   webServer: {
-    command: `VITE_API_PROXY_TARGET=http://127.0.0.1:${process.env.REDESIGN_API_PORT || 4310} npm run dev -- --host 127.0.0.1 --port ${port} --strictPort`,
+    command: `VITE_CACHE_DIR=node_modules/.vite-redesign-${port} VITE_API_PROXY_TARGET=http://127.0.0.1:${process.env.REDESIGN_API_PORT || 4310} npm run dev -- --host 127.0.0.1 --port ${port} --strictPort`,
     url: `http://127.0.0.1:${port}`, reuseExistingServer: false, timeout: 120_000
   }
 });
