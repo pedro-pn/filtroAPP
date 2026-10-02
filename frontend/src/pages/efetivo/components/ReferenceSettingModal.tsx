@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { saveEfetivoReferenceSetting } from '../../../api/efetivo';
-import { Button } from '../../../components/ui/Button';
+import { Button, Field, Input } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastContext';
 
@@ -48,38 +48,26 @@ export function ReferenceSettingModal({ open, reference, onClose }: Props) {
   }, [open, reference, reset]);
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="efetivo-reference-title" panelClassName="modal-card efetivo-modal">
-      <form className="efetivo-modal-layout" noValidate onSubmit={handleSubmit(values => mutation.mutate(values))}>
-        <header className="efetivo-modal-header">
-          <div>
-            <h3 id="efetivo-reference-title">Editar referência mensal</h3>
-            <p>O novo valor passa a valer na próxima consulta do indicador.</p>
-          </div>
-          <button className="icon-button" type="button" aria-label="Fechar" onClick={onClose}>×</button>
-        </header>
-        <div className="efetivo-modal-body">
-          <div className={errors.referenciaMensalHH ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="efetivo-reference-value">HH produtivas por mês</label>
-            <input
-              id="efetivo-reference-value"
+    <Modal open={open} onClose={onClose} closeOnEscape={!mutation.isPending} showCloseButton={!mutation.isPending}
+      appearance="design-system" title="Editar referência mensal" size="sm" fullscreenOnMobile={false}
+      panelClassName="efetivo-dialog" ariaDescribedBy="efetivo-reference-description"
+      footer={<>
+        <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={mutation.isPending}>Cancelar</Button>
+        <Button variant="primary" size="sm" type="submit" form="efetivo-reference-form" loading={mutation.isPending}>Salvar referência</Button>
+      </>}
+    >
+      <form id="efetivo-reference-form" className="efetivo-dialog-form" noValidate onSubmit={handleSubmit(values => mutation.mutate(values))}>
+        <p id="efetivo-reference-description" className="efetivo-dialog-description">O novo valor passa a valer na próxima consulta do indicador.</p>
+        <Field id="efetivo-reference-value" label="HH produtivas por mês" required errorText={errors.referenciaMensalHH?.message}>
+          <Input size="sm"
               type="number"
               min="0.01"
               max="744"
               step="0.01"
-              aria-invalid={Boolean(errors.referenciaMensalHH)}
+              disabled={mutation.isPending}
               {...register('referenciaMensalHH')}
             />
-            {errors.referenciaMensalHH ? (
-              <span className="field-error" role="alert">{errors.referenciaMensalHH.message}</span>
-            ) : null}
-          </div>
-        </div>
-        <footer className="efetivo-modal-footer">
-          <Button variant="secondary" type="button" onClick={onClose} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Salvando…' : 'Salvar referência'}
-          </Button>
-        </footer>
+        </Field>
       </form>
     </Modal>
   );

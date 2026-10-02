@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { Button, Card, Field, Input, ProgressSteps, Select, Switch, Textarea } from '../ui/ds';
+import './ReportCollaboratorTags.css';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   formatReportMinutes,
@@ -14,15 +16,11 @@ export interface ReportCollaboratorOption {
 }
 
 function requiredMark(required: boolean) {
-  return required ? <span style={{ color: 'var(--rd)' }}> *</span> : null;
+  return required ? <span style={{ color: 'var(--danger)' }}> *</span> : null;
 }
 
 export function RequiredMark() {
   return requiredMark(true);
-}
-
-function fieldClass(invalid?: boolean) {
-  return invalid ? 'field-group field-invalid' : 'field-group';
 }
 
 export function ReportFormStepper({
@@ -37,34 +35,16 @@ export function ReportFormStepper({
   children?: ReactNode;
 }) {
   return (
-    <section className="page-card rdo-step-panel">
-      <div className="rdo-progress-track" aria-hidden="true">
-        <div
-          className="rdo-progress-fill"
-          style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-        />
-      </div>
-      <div
-        className="filter-tabs"
-        role="tablist"
-        aria-label="Etapas do relatório"
+    <Card className="operational-form-stepper" padding="md">
+      <ProgressSteps
+        labels={steps}
+        currentIndex={currentStep}
+        onSelect={onSelect}
+        ariaLabel="Etapas do relatório"
         onKeyDown={handleHorizontalTabListKeyDown}
-      >
-        {steps.map((label, index) => (
-          <button
-            className={`filter-tab ${currentStep === index ? 'active' : ''}`}
-            key={label}
-            type="button"
-            role="tab"
-            aria-selected={currentStep === index}
-            onClick={() => onSelect(index)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      />
       {children}
-    </section>
+    </Card>
   );
 }
 
@@ -90,22 +70,16 @@ export function ReportDateField({
   children?: ReactNode;
 }) {
   return (
-    <div className={fieldClass(invalid)} data-invalid-target={invalidTarget}>
-      <label htmlFor={id}>
-        {label}
-        {requiredMark(required)}
-      </label>
-      <input
-        id={id}
+    <Field id={id} label={label} required={required} optionalText="" errorText={error} data-invalid-target={invalidTarget}>
+      <Input
         type="date"
         value={value}
         aria-invalid={Boolean(invalid)}
         onChange={(event) => onChange(event.target.value)}
         required={required}
       />
-      {error ? <div className="field-error">{error}</div> : null}
       {children}
-    </div>
+    </Field>
   );
 }
 
@@ -141,59 +115,29 @@ export function ReportScheduleCard({
   lunchBreakLabel?: string;
 }) {
   return (
-    <section className="page-card">
-      <div className="section-title">Horários</div>
-      <div className="fg-r2">
-        <div
-          className={fieldClass(Boolean(arrivalError))}
-          data-invalid-target={arrivalInvalidTarget}
-        >
-          <label htmlFor={`${idPrefix}-arrival`}>
-            Chegada{requiredMark(true)}
-          </label>
-          <input
-            id={`${idPrefix}-arrival`}
+    <Card className="operational-form-card" title="Horários">
+      <div className="operational-form-time-grid">
+        <Field id={`${idPrefix}-arrival`} label="Chegada" required errorText={arrivalError} data-invalid-target={arrivalInvalidTarget}>
+          <Input
             type="time"
             value={arrivalTime}
             aria-invalid={Boolean(arrivalError)}
             onChange={(event) => onArrivalTimeChange(event.target.value)}
             required
           />
-          {arrivalError ? (
-            <div className="field-error">{arrivalError}</div>
-          ) : null}
-        </div>
-        <div
-          className={fieldClass(Boolean(departureError))}
-          data-invalid-target={departureInvalidTarget}
-        >
-          <label htmlFor={`${idPrefix}-departure`}>
-            Saída{requiredMark(true)}
-          </label>
-          <input
-            id={`${idPrefix}-departure`}
+        </Field>
+        <Field id={`${idPrefix}-departure`} label="Saída" required errorText={departureError} data-invalid-target={departureInvalidTarget}>
+          <Input
             type="time"
             value={departureTime}
             aria-invalid={Boolean(departureError)}
             onChange={(event) => onDepartureTimeChange(event.target.value)}
             required
           />
-          {departureError ? (
-            <div className="field-error">{departureError}</div>
-          ) : null}
-        </div>
+        </Field>
       </div>
-      <div
-        className={fieldClass(Boolean(lunchBreakError))}
-        style={{ marginTop: 10 }}
-        data-invalid-target={lunchBreakInvalidTarget}
-      >
-        <label htmlFor={`${idPrefix}-lunch`}>
-          {lunchBreakLabel}
-          {requiredMark(true)}
-        </label>
-        <input
-          id={`${idPrefix}-lunch`}
+      <Field id={`${idPrefix}-lunch`} label={lunchBreakLabel} required errorText={lunchBreakError} data-invalid-target={lunchBreakInvalidTarget}>
+        <Input
           type="time"
           step={1}
           value={lunchBreak}
@@ -201,11 +145,8 @@ export function ReportScheduleCard({
           onChange={(event) => onLunchBreakChange(event.target.value)}
           required
         />
-        {lunchBreakError ? (
-          <div className="field-error">{lunchBreakError}</div>
-        ) : null}
-      </div>
-    </section>
+      </Field>
+    </Card>
   );
 }
 
@@ -230,14 +171,16 @@ function CollaboratorTags({
       collaborator?.role ||
       'Cargo não informado';
     return (
-      <span className="colab-tag" key={`${keyPrefix}-${id}`}>
+      <span className="colab-tag report-collaborator-tag" key={`${keyPrefix}-${id}`}>
         <span className="colab-tag-copy">
           <span>{collaborator?.name || id}</span>
           <small className="colab-tag-role">{roleName}</small>
         </span>
         <button
+          className="colab-tag__remove"
           type="button"
           aria-label={`Remover ${collaborator?.name || id}`}
+          title="Remover"
           onClick={() => onChange(selectedIds.filter((item) => item !== id))}
         >
           ×
@@ -278,7 +221,7 @@ export function ReportCollaboratorPicker({
         />
       </div>
       <div className="cadd">
-        <select
+        <Select
           value=""
           aria-label="Adicionar colaborador"
           onChange={(event) => {
@@ -294,7 +237,7 @@ export function ReportCollaboratorPicker({
                 {item.name}
               </option>
             ))}
-        </select>
+        </Select>
       </div>
       {error ? <div className="field-error">{error}</div> : null}
     </>
@@ -323,12 +266,7 @@ export function ReportCollaboratorsCard({
   children?: ReactNode;
 }) {
   return (
-    <section className="page-card">
-      {showTitle ? (
-        <div className="section-title">
-          Equipe diurna{requiredMark(required)}
-        </div>
-      ) : null}
+    <Card className="operational-form-card" title={showTitle ? <>Equipe diurna{requiredMark(required)}</> : undefined}>
       {children}
       <ReportCollaboratorPicker
         collaborators={collaborators}
@@ -338,7 +276,7 @@ export function ReportCollaboratorsCard({
         error={error}
         invalidTarget={invalidTarget}
       />
-    </section>
+    </Card>
   );
 }
 
@@ -384,69 +322,32 @@ export function ReportNightShiftFields({
   const target = (name: string) => `${invalidTargetPrefix}:${name}`;
   return (
     <>
-      <div className="tog-row">
-        <span className="tog-lbl">Houve turno noturno?</span>
-        <label className="tog">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => onEnabledChange(event.target.checked)}
-          />
-          <span className="tog-sl" />
-        </label>
-      </div>
+      <Switch label="Houve turno noturno?" checked={enabled}
+        onChange={(event) => onEnabledChange(event.target.checked)} />
       {enabled ? (
-        <div className="collapse-section noturno-section">
-          <div className="fg-r2 night-time-grid">
-            <div
-              className={fieldClass(Boolean(arrivalError))}
-              data-invalid-target={target('noturnoStart')}
-            >
-              <label htmlFor={`${idPrefix}-night-start`}>
-                Início{requiredMark(true)}
-              </label>
-              <input
-                id={`${idPrefix}-night-start`}
+        <div className="operational-form-night-fields">
+          <div className="operational-form-time-grid">
+            <Field id={`${idPrefix}-night-start`} label="Início" required errorText={arrivalError} data-invalid-target={target('noturnoStart')}>
+              <Input
                 type="time"
                 value={arrivalTime}
                 aria-invalid={Boolean(arrivalError)}
                 onChange={(event) => onArrivalTimeChange(event.target.value)}
                 required
               />
-              {arrivalError ? (
-                <div className="field-error">{arrivalError}</div>
-              ) : null}
-            </div>
-            <div
-              className={fieldClass(Boolean(departureError))}
-              data-invalid-target={target('noturnoEnd')}
-            >
-              <label htmlFor={`${idPrefix}-night-end`}>
-                Término{requiredMark(true)}
-              </label>
-              <input
-                id={`${idPrefix}-night-end`}
+            </Field>
+            <Field id={`${idPrefix}-night-end`} label="Término" required errorText={departureError} data-invalid-target={target('noturnoEnd')}>
+              <Input
                 type="time"
                 value={departureTime}
                 aria-invalid={Boolean(departureError)}
                 onChange={(event) => onDepartureTimeChange(event.target.value)}
                 required
               />
-              {departureError ? (
-                <div className="field-error">{departureError}</div>
-              ) : null}
-            </div>
+            </Field>
           </div>
-          <div
-            className={fieldClass(Boolean(breakTimeError))}
-            style={{ marginTop: 6 }}
-            data-invalid-target={target('noturnoInterval')}
-          >
-            <label htmlFor={`${idPrefix}-night-break`}>
-              Intervalo noturno{requiredMark(true)}
-            </label>
-            <input
-              id={`${idPrefix}-night-break`}
+          <Field id={`${idPrefix}-night-break`} label="Intervalo noturno" required errorText={breakTimeError} data-invalid-target={target('noturnoInterval')}>
+            <Input
               type="time"
               step={1}
               value={breakTime}
@@ -454,11 +355,8 @@ export function ReportNightShiftFields({
               onChange={(event) => onBreakTimeChange(event.target.value)}
               required
             />
-            {breakTimeError ? (
-              <div className="field-error">{breakTimeError}</div>
-            ) : null}
-          </div>
-          <div className="section-title" style={{ marginTop: 14 }}>
+          </Field>
+          <div className="operational-form-section-title">
             Equipe noturna{requiredMark(true)}
           </div>
           <ReportCollaboratorPicker
@@ -506,16 +404,8 @@ export function ReportOvertimeCard({
   const hasOvertime = summary.totalOvertimeMinutes > 0;
 
   return (
-    <section className="page-card">
-      <div className="section-title">Horas extras</div>
-      <div
-        style={{
-          fontSize: 12,
-          color: hasOvertime ? 'var(--rd)' : 'var(--mu)',
-          lineHeight: 1.7,
-          marginBottom: 10
-        }}
-      >
+    <Card className="operational-form-card" title="Horas extras">
+      <div className={`operational-overtime-summary${hasOvertime ? ' is-overtime' : ''}`}>
         {hasOvertime ? (
           <strong>
             Hora extra identificada:{' '}
@@ -529,20 +419,17 @@ export function ReportOvertimeCard({
         ))}
       </div>
       {hasOvertime ? (
-        <div className={fieldClass(Boolean(error))}>
-          <label htmlFor="report-overtime-reason">Justificativa</label>
-          <textarea
-            id="report-overtime-reason"
+        <Field id="report-overtime-reason" label="Justificativa" optionalText="" errorText={error}>
+          <Textarea
             placeholder="Descreva o motivo das horas extras..."
             rows={3}
             value={reason}
             aria-invalid={Boolean(error)}
             onChange={(event) => onReasonChange(event.target.value)}
           />
-          {error ? <div className="field-error">{error}</div> : null}
-        </div>
+        </Field>
       ) : null}
-    </section>
+    </Card>
   );
 }
 
@@ -562,14 +449,9 @@ export function ReportActivitiesCard({
   required?: boolean;
 }) {
   return (
-    <section className="page-card">
-      <div className="section-title">Atividades do dia</div>
-      <div className={fieldClass(invalid)}>
-        <label htmlFor="report-daily-description">
-          {label}{requiredMark(required)}
-        </label>
-        <textarea
-          id="report-daily-description"
+    <Card className="operational-form-card" title="Atividades do dia">
+      <Field id="report-daily-description" label={label} required={required} optionalText="" errorText={error}>
+        <Textarea
           style={{ minHeight: 100 }}
           placeholder="Descreva as atividades realizadas..."
           rows={5}
@@ -578,18 +460,16 @@ export function ReportActivitiesCard({
           required={required}
           onChange={(event) => onChange(event.target.value)}
         />
-        {error ? <div className="field-error">{error}</div> : null}
-      </div>
-    </section>
+      </Field>
+    </Card>
   );
 }
 
 export function ReportSummaryCard({ children }: { children: ReactNode }) {
   return (
-    <section className="page-card resumo-card">
-      <div className="resumo-card-title">Resumo</div>
-      <div className="resumo-txt">{children}</div>
-    </section>
+    <Card className="operational-form-card operational-form-summary" title="Resumo">
+      <div className="operational-form-summary__content">{children}</div>
+    </Card>
   );
 }
 
@@ -613,24 +493,24 @@ export function ReportFormActions({
   submittingLabel?: string;
 }) {
   return (
-    <section className="page-card rdo-bottom-actions">
-      <button className="secondary-button" type="button" onClick={onBack}>
+    <div className="operational-form-actions">
+      <Button variant="secondary" type="button" onClick={onBack}>
         {currentStep === 0 ? 'Cancelar' : '← Voltar'}
-      </button>
+      </Button>
       {currentStep < totalSteps - 1 ? (
-        <button className="primary-button" type="button" onClick={onNext}>
+        <Button variant="primary" type="button" onClick={onNext}>
           Próximo →
-        </button>
+        </Button>
       ) : (
-        <button
-          className="primary-button"
+        <Button
+          variant="primary"
           type="button"
           disabled={submitting}
           onClick={onSubmit}
         >
           {submitting ? submittingLabel : submitLabel}
-        </button>
+        </Button>
       )}
-    </section>
+    </div>
   );
 }

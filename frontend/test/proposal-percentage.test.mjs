@@ -27,7 +27,9 @@ test('ajuste do cronograma começa colapsado, mostra a prévia e permite restaur
       { label: 'Dias corridos', value: 24, unit: 'dias' }, { label: 'Horas normais', value: 100, unit: 'h' }
     ] };
     const markup = renderToStaticMarkup(createElement(ProjectProposalPercentageField, props));
-    assert.match(markup, /^<details class="acp-planned-cost acp-proposal-adjustment"><summary>Ajustar percentual da proposta<\/summary>/);
+    assert.match(markup, /^<details class="acp-schedule-ds__proposal-details"><summary>Ajustar percentual da proposta<\/summary>/);
+    assert.match(markup, /class="fv-field"/);
+    assert.match(markup, /class="acp-schedule-ds__proposal-grid"/);
     assert.match(markup, /Percentual da proposta considerado/);
     assert.match(markup, /Considerado \(50%\)/);
     assert.match(markup, /100\.000,00/);

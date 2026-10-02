@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { ApiScopeDefinition } from '../../../api/apiCredentials';
+import { Badge, Input } from '../../ui/ds';
 import { toggleApiScope } from './apiScopeSelection';
 
 interface Props {
@@ -16,6 +17,13 @@ const statusLabel: Record<ApiScopeDefinition['availability'], string> = {
   RESERVED: 'Reservado',
   PROHIBITED: 'Não exposto'
 };
+const statusTone = {
+  AVAILABLE: 'success',
+  PLANNED: 'info',
+  SENSITIVE: 'warning',
+  RESERVED: 'neutral',
+  PROHIBITED: 'danger'
+} as const;
 
 export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
   const [catalogQuery, setCatalogQuery] = useState('');
@@ -66,16 +74,15 @@ export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
     >
       <div className="api-section-heading">
         <div>
-          <h3 id="scope-catalog-title">Selecione os dados permitidos</h3>
+          <h3 id="scope-catalog-title">Defina as permissões do token</h3>
           <p>
-            Abra um módulo e marque exatamente o que este token poderá
-            consultar.
+            Abra um módulo e marque o que este token poderá consultar ou atualizar.
           </p>
         </div>
-        <span className="api-selection-count">
+        <Badge tone="brand" className="api-selection-count">
           {selected.length}{' '}
           {selected.length === 1 ? 'selecionada' : 'selecionadas'}
-        </span>
+        </Badge>
       </div>
       <p className="api-safe-note">
         Permissões relacionadas são incluídas automaticamente. Ao desmarcar uma,
@@ -86,7 +93,7 @@ export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
       </p>
       <div className="field-group api-catalog-search">
         <label htmlFor="api-catalog-search">Buscar no catálogo</label>
-        <input
+        <Input
           id="api-catalog-search"
           type="search"
           value={catalogQuery}
@@ -137,6 +144,7 @@ export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
                     />
                     <span className="api-permission-copy">
                       <strong>{scope.label}</strong>
+                      {scope.code.endsWith('.write') ? <Badge tone="warning" className="api-write-scope">Escrita</Badge> : null}
                       <span id={`scope-description-${scope.code}`}>
                         {scope.description}
                       </span>
@@ -154,11 +162,9 @@ export function ApiScopeCatalog({ scopes, selected, onChange }: Props) {
                         </small>
                       ) : null}
                     </span>
-                    <span
-                      className={`api-badge status-${scope.availability.toLowerCase()}`}
-                    >
+                    <Badge tone={statusTone[scope.availability]} className="api-scope-status">
                       {statusLabel[scope.availability]}
-                    </span>
+                    </Badge>
                   </label>
                   <details className="api-scope-technical">
                     <summary>Ver campos e endpoints</summary>

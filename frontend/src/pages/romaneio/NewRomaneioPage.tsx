@@ -1,6 +1,7 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import {
   createRomaneio,
@@ -27,13 +28,15 @@ import {
 } from '../../api/romaneio';
 
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button } from '../../components/ui/ds';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
+import { PageHeader } from '../../layout/PageHeader';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity } from '../../utils/romaneioMeasure';
 import { mergeRomaneioReturnSelection, romaneioReturnKey } from '../../utils/romaneioReturnItems';
@@ -42,6 +45,7 @@ import { romaneioQrRequiresQuantity } from '../../utils/romaneioQr';
 import { RomaneioProjectAvailabilityNovelty } from './RomaneioProjectAvailabilityNovelty';
 import { RomaneioQrNovelty } from './RomaneioQrNovelty';
 import { RomaneioQrScannerModal } from './RomaneioQrScannerModal';
+import './RomaneioPage.ds.css';
 
 interface SelectedItem {
   key: string;
@@ -191,9 +195,8 @@ function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: st
 
 export function NewRomaneioPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const draftSaveTimerRef = useRef<number | null>(null);
@@ -273,7 +276,7 @@ export function NewRomaneioPage() {
     // the romaneio and permits the edit for authorized users.
     if (editProject && !projects.some(project => project.id === editProject.id)) projects.push(editProject);
     return projects;
-  }, [editQuery.data?.project, projectsQuery.data, romaneioType]);
+  }, [editQuery.data?.project, projectsQuery.data]);
 
   const selectedProject = useMemo(
     () => projectOptions.find(project => project.id === projectId) || null,
@@ -942,41 +945,34 @@ export function NewRomaneioPage() {
     }
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   const activeChecklistInfo = activeChecklistItem ? checklistInfoForItem(activeChecklistItem) : null;
   const selectedChecklistPayload = checklistsPayload();
   const existingChecklistSignatureImage = isEditing ? editQuery.data?.checklistSignatureImage || '' : '';
   const reviewChecklistSignatureImage = checklistSignatureImage || existingChecklistSignatureImage;
   const needsChecklistSignature = selectedChecklistPayload.length > 0 && checklistMapQuery.data?.hasSavedSignature === false;
+  const formTitle = isEditing ? `Editar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}` : `Novo romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`;
+  const formHref = `/romaneio/novo${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  const subNavigation = [
+    { id: 'form', label: isEditing ? 'Editar romaneio' : 'Criar romaneio', shortLabel: isEditing ? 'Editar' : 'Criar', href: formHref, active: true },
+    { id: 'romaneios', label: 'Romaneios', href: '/romaneio', active: false },
+    { id: 'equipamentos', label: 'Equipamentos', href: '/romaneio?tab=equipamentos', active: false },
+    ...(user?.moduleRoles?.includes('romaneio:manager') ? [{ id: 'notificacoes', label: 'E-mails', href: '/romaneio?tab=notificacoes', active: false }] : [])
+  ];
 
   return (
-    <Shell>
-      <TopBar
-        title={isEditing ? `Editar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}` : `Novo romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
-        subtitle={romaneioType === 'INBOUND' ? 'Retorno de equipamentos e consumíveis' : 'Formulário de equipamentos'}
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <form className="page-scroll" onSubmit={submit}>
+    <OperationalModuleAppShell moduleId="romaneio" title="Romaneio" sectionLabel={formTitle} subNavigation={subNavigation}>
+      <main className="fv-ds romaneio-page-v2 romaneio-form-page-v2">
+        <PageHeader title={formTitle} description={romaneioType === 'INBOUND' ? 'Retorno de equipamentos e consumíveis.' : 'Saída de equipamentos e materiais.'} actions={
+          <Button variant="secondary" size="sm" onClick={() => navigate('/romaneio')}>Voltar</Button>
+        } />
+      {isEditing && editQuery.isLoading ? <BrandLoading label="Carregando romaneio para edição" /> : null}
+      <form className="romaneio-form-v2" onSubmit={submit} aria-busy={isEditing && editQuery.isLoading} inert={isEditing && editQuery.isLoading || undefined}>
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div>
               <div className="sec">Cabeçalho</div>
               {!isEditing && draftId && <div className="rel-meta">Rascunho salvo na nuvem</div>}
             </div>
-            <button className="secondary-button" type="button" onClick={() => navigate('/romaneio')}>Voltar</button>
           </div>
           <div className="admin-form-grid manager-header-grid">
             <label className="field-group" data-romaneio-project-type>
@@ -986,33 +982,38 @@ export function NewRomaneioPage() {
                 <option value="INBOUND">Entrada</option>
               </select>
             </label>
-            <label className="field-group field-group-wide" data-romaneio-project-select>
-              <span>Projeto</span>
-              <select value={projectSelectValue} onChange={event => {
-                const value = event.target.value;
-                if (value === MANUAL_PROJECT_OPTION) {
-                  setProjectId('');
-                  setManualProjectMode(true);
+            <div className="field-group-wide" data-romaneio-project-select>
+              <SearchCombobox
+                id="romaneio-project-select"
+                label="Projeto"
+                value={projectSelectValue}
+                variant="select"
+                portal
+                placeholder="Pesquisar projeto"
+                options={[
+                  { value: '', label: 'Selecione' },
+                  ...projectOptions.map(project => ({ value: project.id, label: projectLabel(project) })),
+                  ...(romaneioType === 'INBOUND' ? [{ value: MANUAL_PROJECT_OPTION, label: 'Não encontrei a missão na lista' }] : [])
+                ]}
+                onChange={value => {
+                  if (value === MANUAL_PROJECT_OPTION) {
+                    setProjectId('');
+                    setManualProjectMode(true);
+                    if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
+                    return;
+                  }
+                  setProjectId(value);
+                  setManualProjectMode(false);
+                  setManualProjectCode('');
                   if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
-                  return;
-                }
-                setProjectId(value);
-                setManualProjectMode(false);
-                setManualProjectCode('');
-                if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
-              }}>
-                <option value="">Selecione</option>
-                {projectOptions.map(project => (
-                  <option key={project.id} value={project.id}>{projectLabel(project)}</option>
-                ))}
-                {romaneioType === 'INBOUND' ? <option value={MANUAL_PROJECT_OPTION}>Não encontrei a missão na lista</option> : null}
-              </select>
+                }}
+              />
               <small className="form-hint">
                 {romaneioType === 'OUTBOUND'
                   ? 'Obras ativas ficam disponíveis para saída, mesmo antes da mobilização.'
                   : 'Todas as obras acessíveis ficam disponíveis para entrada.'}
               </small>
-            </label>
+            </div>
             {manualProjectMode ? (
               <label className="field-group">
                 <span>Código da missão</span>
@@ -1114,7 +1115,7 @@ export function NewRomaneioPage() {
                         onChange={event => updateSelectedItemQuantity(item.key, event.target.value)}
                       />
                     )}
-                    <button className="mini-btn danger" type="button" onClick={() => removeSelectedItem(item.key)}>Remover</button>
+                    <RemoveIconButton label={`Remover item ${item.itemCode || item.itemName}`} onClick={() => removeSelectedItem(item.key)} />
                   </div>
                 </div>
               );
@@ -1141,7 +1142,7 @@ export function NewRomaneioPage() {
           </label>
         </section>}
 
-        {romaneioType === 'OUTBOUND' && catalogQuery.isLoading && <section className="page-card romaneio-panel">Carregando catálogo...</section>}
+        {romaneioType === 'OUTBOUND' && catalogQuery.isLoading && <section className="page-card romaneio-panel"><BrandLoading label="Carregando catálogo" /></section>}
         {romaneioType === 'OUTBOUND' && !catalogQuery.isLoading && !groupedCatalog.length && (
           <section className="page-card romaneio-panel">Nenhum item encontrado.</section>
         )}
@@ -1246,6 +1247,7 @@ export function NewRomaneioPage() {
           </button>
         </section>
       </form>
+      </main>
       <RomaneioQrNovelty
         user={user}
         enabled={romaneioType === 'OUTBOUND' && !catalogQuery.isLoading}
@@ -1260,12 +1262,13 @@ export function NewRomaneioPage() {
       <Modal
         open={Boolean(qrQuantityItem)}
         onClose={() => { setQrQuantityItem(null); setQrQuantity(''); }}
-        ariaLabelledBy="romaneio-qr-quantity-title"
+        appearance="design-system"
+        title="Informar quantidade"
+        size="sm"
         ariaDescribedBy="romaneio-qr-quantity-description"
-        panelClassName="modal-card romaneio-qr-quantity-modal"
+        panelClassName="romaneio-dialog romaneio-qr-quantity-modal"
       >
         <form onSubmit={confirmScannedItemQuantity}>
-          <div className="section-title" id="romaneio-qr-quantity-title">Informar quantidade</div>
           <p className="placeholder-copy" id="romaneio-qr-quantity-description">
             {[qrQuantityItem?.code, qrQuantityItem?.name].filter(Boolean).join(' - ')}
           </p>
@@ -1292,10 +1295,13 @@ export function NewRomaneioPage() {
       <Modal
         open={extraItemModalOpen}
         onClose={() => setExtraItemModalOpen(false)}
-        ariaLabelledBy="romaneio-extra-item-title"
-        panelClassName="modal-card romaneio-extra-modal"
+        appearance="design-system"
+        title="Adicionar item extra"
+        size="lg"
+        fullscreenOnMobile={false}
+        backdropClassName="romaneio-extra-backdrop"
+        panelClassName="romaneio-dialog romaneio-extra-dialog"
       >
-        <div className="section-title" id="romaneio-extra-item-title">Adicionar item extra</div>
         <div className="romaneio-extra-filters">
           <label className="field-group">
             <span>Pesquisar item</span>
@@ -1303,7 +1309,7 @@ export function NewRomaneioPage() {
           </label>
         </div>
         {catalogQuery.isLoading ? (
-          <div className="placeholder-copy">Carregando catálogo...</div>
+          <div className="placeholder-copy"><BrandLoading label="Carregando catálogo" /></div>
         ) : !extraVisibleCategories.length ? (
           <div className="placeholder-copy">Nenhum item encontrado.</div>
         ) : (
@@ -1321,14 +1327,17 @@ export function NewRomaneioPage() {
                 </button>
               ))}
             </div>
-            <label className="field-group romaneio-extra-mobile-category">
-              <span>Categoria</span>
-              <select value={selectedExtraCategory} onChange={event => setExtraCategoryFilter(event.target.value)}>
-                {extraVisibleCategories.map(({ category, count }) => (
-                  <option key={category} value={category}>{category} ({count})</option>
-                ))}
-              </select>
-            </label>
+            <div className="romaneio-extra-mobile-category">
+              <SearchCombobox
+                label="Categoria"
+                value={selectedExtraCategory}
+                onChange={setExtraCategoryFilter}
+                variant="select"
+                portal
+                placeholder="Pesquisar categoria"
+                options={extraVisibleCategories.map(({ category, count }) => ({ value: category, label: `${category} (${count})` }))}
+              />
+            </div>
             <div className="romaneio-extra-list">
               <div className="romaneio-extra-category">
                 <div className="romaneio-extra-category-title">
@@ -1379,11 +1388,12 @@ export function NewRomaneioPage() {
       <Modal
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
-        ariaLabelledBy="romaneio-review-title"
+        appearance="design-system"
+        title={`Revisar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
+        size="lg"
         ariaDescribedBy="romaneio-review-description"
-        panelClassName="modal-card romaneio-review-modal"
+        panelClassName="romaneio-dialog"
       >
-        <div className="section-title" id="romaneio-review-title">Revisar romaneio de {romaneioTypeLabel(romaneioType).toLowerCase()}</div>
         <p className="placeholder-copy" id="romaneio-review-description">
           Confira os itens adicionados antes de confirmar o envio.
         </p>
@@ -1446,6 +1456,7 @@ export function NewRomaneioPage() {
       )}
       <SignatureDialog
         open={checklistSignatureOpen}
+        appearance="design-system"
         title="Assinatura do responsável"
         initialSignerName={user?.name || ''}
         allowCachedSignerName={false}
@@ -1455,6 +1466,6 @@ export function NewRomaneioPage() {
           setChecklistSignatureOpen(false);
         }}
       />
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

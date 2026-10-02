@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -11,7 +12,9 @@ import {
 } from '../../api/estoque';
 import { listProjects } from '../../api/projects';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
+import { Badge, Select } from '../../components/ui/ds';
 
 const PAGE_SIZE = 50;
 const EXPORT_PAGE_SIZE = 200;
@@ -175,8 +178,8 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
   }
 
   return (
-    <section className="page-card">
-      <div className="admin-toolbar">
+    <section className="page-card stock-panel">
+      <div className="admin-toolbar stock-panel-header">
         <div className="sec">Movimentações</div>
         <div className="stock-movements-actions">
         {isManager ? <button className="mini-btn" type="button" onClick={onRegisterMovement}>Registrar movimentação</button> : null}
@@ -192,23 +195,24 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
       </div>
 
       <div className="stock-movement-filters">
-        <select
-          className="stock-filter-item"
-          aria-label="Filtrar item"
-          value={itemId}
-          onChange={event => resetPage(() => setItemId(event.target.value))}
-        >
-          <option value="">Todos os itens</option>
-          {(itemsQuery.data || []).map(item => (
-            <option key={item.id} value={item.id}>{item.code} — {item.name}</option>
-          ))}
-        </select>
-        <select aria-label="Filtrar tipo" value={type} onChange={event => resetPage(() => setType(event.target.value as StockMovementType | ''))}>
+        <div className="stock-filter-item">
+          <SearchCombobox
+            label="Filtrar item"
+            hideLabel
+            value={itemId}
+            onChange={value => resetPage(() => setItemId(value))}
+            variant="select"
+            portal
+            placeholder="Pesquisar item"
+            options={[{ value: '', label: 'Todos os itens' }, ...(itemsQuery.data || []).map(item => ({ value: item.id, label: `${item.code} — ${item.name}` }))]}
+          />
+        </div>
+        <Select aria-label="Filtrar tipo" value={type} onChange={event => resetPage(() => setType(event.target.value as StockMovementType | ''))}>
           <option value="">Entrada e saída</option>
           <option value="ENTRADA">Entrada</option>
           <option value="SAIDA">Saída</option>
-        </select>
-        <select aria-label="Filtrar motivo" value={reason} onChange={event => resetPage(() => setReason(event.target.value as StockMovementReason | ''))}>
+        </Select>
+        <Select aria-label="Filtrar motivo" value={reason} onChange={event => resetPage(() => setReason(event.target.value as StockMovementReason | ''))}>
           <option value="">Todos os motivos</option>
           <option value="COMPRA">Compra</option>
           <option value="USO_EM_PROJETO">Uso em projeto</option>
@@ -217,18 +221,19 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
           <option value="PERDA">Perda</option>
           <option value="DESCARTE_VALIDADE">Descarte por validade</option>
           <option value="ESTORNO">Estorno</option>
-        </select>
-        <select
-          className="stock-filter-project"
-          aria-label="Filtrar projeto"
-          value={projectId}
-          onChange={event => resetPage(() => setProjectId(event.target.value))}
-        >
-          <option value="">Todos os projetos</option>
-          {(projectsQuery.data || []).map(project => (
-            <option key={project.id} value={project.id}>{project.code} — {project.name}</option>
-          ))}
-        </select>
+        </Select>
+        <div className="stock-filter-project">
+          <SearchCombobox
+            label="Filtrar projeto"
+            hideLabel
+            value={projectId}
+            onChange={value => resetPage(() => setProjectId(value))}
+            variant="select"
+            portal
+            placeholder="Pesquisar projeto"
+            options={[{ value: '', label: 'Todos os projetos' }, ...(projectsQuery.data || []).map(project => ({ value: project.id, label: `${project.code} — ${project.name}` }))]}
+          />
+        </div>
         <div className="field-group stock-date-filter">
           <label htmlFor="stock-movements-from">Data inicial</label>
           <input
@@ -249,23 +254,23 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
         </div>
         <div className="field-group stock-date-filter stock-order-filter">
           <label htmlFor="stock-movements-date-order">Ordenar por data</label>
-          <select
+          <Select
             id="stock-movements-date-order"
             value={dateOrder}
             onChange={event => resetPage(() => setDateOrder(event.target.value as 'asc' | 'desc'))}
           >
             <option value="desc">Mais recentes primeiro</option>
             <option value="asc">Mais antigas primeiro</option>
-          </select>
+          </Select>
         </div>
       </div>
 
-      {movementsQuery.isLoading ? <p className="placeholder-copy">Carregando movimentações...</p> : null}
+      {movementsQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando movimentações" inline size="sm" /></p> : null}
       {movementsQuery.isError ? <p className="equip-form-error">Não foi possível carregar as movimentações.</p> : null}
       {!movementsQuery.isLoading && !movements.length ? <p className="placeholder-copy">Nenhuma movimentação encontrada.</p> : null}
 
       {movements.length ? (
-        <div className="equip-table-wrap stock-movements-table-wrap">
+        <div className="equip-table-wrap stock-movements-table-wrap stock-table-wrap">
           <table className="equip-table stock-movements-table">
             <thead>
               <tr>
@@ -285,7 +290,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
               {movements.map(movement => (
                 <tr key={movement.id}>
                   <td data-label="Data">{formatDate(movement.date)}</td>
-                  <td data-label="Tipo"><span className={`badge ${movement.type === 'SAIDA' ? 'danger' : ''}`}>{typeLabel(movement.type)}</span></td>
+                  <td data-label="Tipo"><Badge tone={movement.type === 'SAIDA' ? 'warning' : 'success'}>{typeLabel(movement.type)}</Badge></td>
                   <td data-label="Motivo">{reasonLabel(movement.reason)}</td>
                   <td data-label="Item">
                     <strong>{movement.item.code}</strong>
@@ -298,9 +303,9 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
                   <td data-label="Autor">{movement.createdBy?.name || '-'}</td>
                   <td data-label="Status">
                     <div className="stock-table-status">
-                      {movement.reversalOfId ? <span className="badge">Estorno</span> : null}
-                      {movement.reversedById ? <span className="badge">Estornada</span> : null}
-                      {!movement.reversalOfId && !movement.reversedById ? <span className="badge">Ativa</span> : null}
+                      {movement.reversalOfId ? <Badge tone="info">Estorno</Badge> : null}
+                      {movement.reversedById ? <Badge tone="neutral">Estornada</Badge> : null}
+                      {!movement.reversalOfId && !movement.reversedById ? <Badge tone="success">Ativa</Badge> : null}
                       {isManager && !movement.reversalOfId && !movement.reversedById ? (
                         <button
                           className="mini-btn alt stock-table-action"

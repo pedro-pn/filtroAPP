@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import type { NotificationConfig } from '../../api/equipamentos';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
+import { Button } from '../../components/ui/ds';
 import {
   useNotificationAccounts,
   useNotificationConfig,
@@ -117,7 +119,7 @@ export function NotificationsConfig() {
             </div>
 
             <div className="admin-form-actions equip-form-actions">
-              <button className="mini-btn" type="submit" disabled={updateConfig.isPending}>{updateConfig.isPending ? 'Salvando…' : 'Salvar configuração'}</button>
+              <Button variant="primary" size="sm" type="submit" loading={updateConfig.isPending}>{updateConfig.isPending ? 'Salvando…' : 'Salvar configuração'}</Button>
             </div>
           </form>
         )}
@@ -137,7 +139,7 @@ export function NotificationsConfig() {
                   <option key={account.id} value={account.id}>{account.name} — {account.email}</option>
                 ))}
               </select>
-              <button className="mini-btn alt" type="button" disabled={!accountId || addRecipient.isPending} onClick={handleAddAccount}>Adicionar</button>
+              <Button variant="secondary" size="md" type="button" disabled={!accountId || addRecipient.isPending} onClick={handleAddAccount}>Adicionar</Button>
             </div>
           </div>
 
@@ -145,7 +147,7 @@ export function NotificationsConfig() {
             <label htmlFor="notif-email">Adicionar e-mail avulso</label>
             <div className="equip-notif-inline">
               <input id="notif-email" type="email" value={email} placeholder="email@empresa.com" onChange={e => setEmail(e.target.value)} />
-              <button className="mini-btn alt" type="submit" disabled={!email.trim() || addRecipient.isPending}>Adicionar</button>
+              <Button variant="secondary" size="md" type="submit" disabled={!email.trim() || addRecipient.isPending}>Adicionar</Button>
             </div>
           </form>
         </div>
@@ -164,7 +166,7 @@ export function NotificationsConfig() {
                 />
                 <span>Ativo</span>
               </label>
-              <button className="mini-btn danger" type="button" onClick={() => removeRecipient.mutate(recipient.id)}>Remover</button>
+              <RemoveIconButton label={`Remover destinatário ${recipient.email}`} onClick={() => removeRecipient.mutate(recipient.id)} />
             </li>
           ))}
         </ul>

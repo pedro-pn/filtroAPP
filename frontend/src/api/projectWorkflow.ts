@@ -708,6 +708,7 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
   workflow: null | {
     projectId: string;
     stage: ProjectWorkflowStage;
+    stageTimeline?: ProjectWorkflowStageTimeline;
     leader: { id: string; name: string; email: string | null; isActive: boolean };
     planner: { id: string; name: string; email: string | null; isActive: boolean } | null;
     acceptedAt: string | null;

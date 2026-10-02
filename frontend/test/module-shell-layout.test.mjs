@@ -26,9 +26,17 @@ test('módulos operacionais usam toda a largura disponível', async () => {
     source('src/pages/assinaturas/AssinaturasPage.tsx')
   ]);
 
-  assert.match(css, /\.app-shell:has\(\.equip-page\),[\s\S]*?\.app-shell:has\(\.stock-page\)\s*\{\s*max-width:\s*none;/);
-  for (const page of [acompanhamento, equipamentos, qualidade, assinaturas]) {
-    assert.match(page, /<main className="[^"]*\bequip-page\b[^"]*">/);
-  }
+  assert.match(css, /\.app-shell:has\(\.stock-page\)\s*\{\s*max-width:\s*none;/);
+  assert.match(equipamentos, /<OperationalModuleAppShell/);
+  assert.match(equipamentos, /<main className="[^"]*\bequip-page\b[^"]*">/);
+  assert.match(qualidade, /<main className="[^"]*\bquality-page-v2\b[^"]*">/);
   assert.match(estoque, /<main className="[^"]*\bstock-page\b[^"]*">/);
+  assert.match(assinaturas, /<AssinaturasAppShell/);
+  assert.match(acompanhamento, /<AcompanhamentoAppShell/);
+  const acompanhamentoShell = await source('src/pages/acompanhamento/AcompanhamentoAppShell.tsx');
+  assert.match(acompanhamentoShell, /<AppShell[\s\S]*?contentWidth="fluid"/);
+  const signatureShell = await source('src/pages/assinaturas/AssinaturasAppShell.tsx');
+  assert.match(signatureShell, /<AppShell[\s\S]*?contentWidth="fluid"/);
+  const operationalShell = await source('src/pages/OperationalModuleAppShell.tsx');
+  assert.match(operationalShell, /<AppShell[\s\S]*?contentWidth="fluid"/);
 });

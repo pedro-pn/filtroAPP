@@ -1,0 +1,81 @@
+.driver-popover.efetivo-guide-popover {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 32px));
+  min-width: 0;
+  max-width: none;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e3);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.efetivo-guide-popover .driver-popover-title {
+  padding-right: var(--space-8);
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+.efetivo-guide-popover .driver-popover-description {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.efetivo-guide-popover .driver-popover-close-btn {
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+}
+
+.efetivo-guide-popover .driver-popover-close-btn:hover,
+.efetivo-guide-popover .driver-popover-close-btn:focus-visible {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.efetivo-guide-popover .driver-popover-progress-text { color: var(--muted); }
+
+.efetivo-guide-popover .driver-popover-footer-btn {
+  min-height: var(--space-8);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: var(--font-medium) var(--text-sm)/var(--leading-sm) var(--font-sans);
+}
+
+.efetivo-guide-popover .driver-popover-footer-btn:hover,
+.efetivo-guide-popover .driver-popover-footer-btn:focus-visible {
+  background: var(--surface-2);
+}
+
+.efetivo-guide-popover .driver-popover-next-btn,
+.efetivo-guide-popover .driver-popover-done-btn {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.efetivo-guide-popover .driver-popover-next-btn:hover,
+.efetivo-guide-popover .driver-popover-done-btn:hover,
+.efetivo-guide-popover .driver-popover-next-btn:focus-visible,
+.efetivo-guide-popover .driver-popover-done-btn:focus-visible {
+  border-color: var(--brand-hover);
+  background: var(--brand-hover);
+  color: var(--on-brand);
+}
+
+.efetivo-guide-popover :is(.driver-popover-close-btn, .driver-popover-footer-btn):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.efetivo-guide-popover .driver-popover-arrow-side-left { border-left-color: var(--surface); }
+.efetivo-guide-popover .driver-popover-arrow-side-right { border-right-color: var(--surface); }
+.efetivo-guide-popover .driver-popover-arrow-side-top { border-top-color: var(--surface); }
+.efetivo-guide-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--surface); }

@@ -80,6 +80,7 @@ test("rotas operacionais expõem criação, edição, revisão e download docume
     ["patch", "/:id/status"],
     ["post", "/maintenance"],
     ["get", "/maintenance/history"],
+    ["get", "/maintenance/history/categories"],
     ["get", "/maintenance/schedule"],
     ["put", "/maintenance/:id"],
     ["patch", "/maintenance/:id/status"],
@@ -240,6 +241,7 @@ test("histórico consolidado exige permissão de manutenção e consulta todas a
     const response = await invokeForJson(handler, {
       query: {
         q: "ufi",
+        categoryId: "cat-1",
         page: "2",
         pageSize: "10",
         sortBy: "tag",
@@ -263,6 +265,10 @@ test("histórico consolidado exige permissão de manutenção e consulta todas a
       totalPages: 1,
     });
     assert.equal(calls[0].where.status, "APPROVED");
+    assert.deepEqual(calls[0].where.equipment, {
+      is: { categoryId: "cat-1" },
+    });
+    assert.deepEqual(calls[1].where, calls[0].where);
     assert.equal("reportId" in calls[0].where, false);
     assert.equal(calls[0].skip, 10);
     assert.deepEqual(calls[0].orderBy[0], {
@@ -273,6 +279,47 @@ test("histórico consolidado exige permissão de manutenção e consulta todas a
     prisma.maintenanceRecord.findMany = originalFindMany;
     prisma.maintenanceRecord.count = originalCount;
     prisma.$transaction = originalTransaction;
+  }
+});
+
+test("categorias do histórico incluem apenas as que têm manutenção aprovada", async () => {
+  const handler = routeHandler("/maintenance/history/categories", "get");
+  const denied = await invokeForError(handler, {
+    auth: {
+      user: {
+        id: "production-user",
+        accountType: "INTERNAL",
+        reportEmissionPermissions: ["PRODUCTION"],
+      },
+    },
+  });
+  assert.equal(denied.statusCode, 403);
+
+  const originalFindMany = prisma.equipmentCategory.findMany;
+  let args;
+  prisma.equipmentCategory.findMany = async (query) => {
+    args = query;
+    return [{ id: "cat-1", name: "UFI" }];
+  };
+  try {
+    const response = await invokeForJson(handler, {
+      auth: {
+        user: {
+          id: "maintenance-user",
+          accountType: "INTERNAL",
+          reportEmissionPermissions: ["MAINTENANCE"],
+        },
+      },
+    });
+    assert.deepEqual(response.value, [{ id: "cat-1", name: "UFI" }]);
+    assert.deepEqual(args.where, {
+      equipment: {
+        some: { maintenanceRecords: { some: { status: "APPROVED" } } },
+      },
+    });
+    assert.deepEqual(args.orderBy, { name: "asc" });
+  } finally {
+    prisma.equipmentCategory.findMany = originalFindMany;
   }
 });
 

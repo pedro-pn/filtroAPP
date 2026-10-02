@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { makeApiCredentialSchemas, NEVER_EXPIRES_CONFIRMATION } from '../../../../../shared/schemas/api-credentials.js';
 import type { CreateApiCredentialInput } from '../../../../../shared/schemas/api-credentials.js';
 import type { ApiScopeDefinition } from '../../../api/apiCredentials';
-import { Button } from '../../ui/Button';
+import { Alert, Button, Input, Select, Textarea } from '../../ui/ds';
 import { ApiScopeCatalog } from './ApiScopeCatalog';
 import { localCredentialDate } from '../../../../../shared/schemas/api-credential-lifecycle.js';
 import { apiValidationError } from '../../../../../shared/schemas/api-validation-messages.js';
@@ -29,9 +29,10 @@ interface Props {
   title?: string;
   children?: ReactNode;
   onBeforeReview?: () => Promise<boolean>;
+  onCancel?: () => void;
 }
 
-export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialValues, title = 'Novo token', children, onBeforeReview }: Props) {
+export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialValues, title = 'Novo token', children, onBeforeReview, onCancel }: Props) {
   const now = useMemo(() => new Date(), []);
   const [expiryPreset, setExpiryPreset] = useState(initialValues ? initialValues.expiresAt ? 'custom' : 'never' : '30d');
   const [pending, setPending] = useState<CreateApiCredentialInput | null>(null);
@@ -110,22 +111,22 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
             <div className="api-form-grid api-identity-grid">
               <div className={`field-group ${field('name') ? 'field-invalid' : ''}`}>
                 <label htmlFor="api-token-name">Nome do token *</label>
-                <input id="api-token-name" placeholder="Ex.: Integração de dados" {...register('name')} aria-invalid={Boolean(field('name'))} aria-describedby={field('name') ? 'api-name-error' : undefined} />
+                <Input id="api-token-name" placeholder="Ex.: Integração de dados" {...register('name')} invalid={Boolean(field('name'))} aria-describedby={field('name') ? 'api-name-error' : undefined} />
                 {field('name') ? <span id="api-name-error" className="field-error">{field('name')}</span> : null}
               </div>
               <div className={`field-group ${field('recipientName') ? 'field-invalid' : ''}`}>
                 <label htmlFor="api-token-recipient">Destinatário *</label>
-                <input id="api-token-recipient" placeholder="Pessoa ou sistema que usará o token" {...register('recipientName')} aria-invalid={Boolean(field('recipientName'))} aria-describedby={field('recipientName') ? 'api-recipient-error' : undefined} />
+                <Input id="api-token-recipient" placeholder="Pessoa ou sistema que usará o token" {...register('recipientName')} invalid={Boolean(field('recipientName'))} aria-describedby={field('recipientName') ? 'api-recipient-error' : undefined} />
                 {field('recipientName') ? <span id="api-recipient-error" className="field-error">{field('recipientName')}</span> : null}
               </div>
               <div className={`field-group ${field('purpose') ? 'field-invalid' : ''}`}>
                 <label htmlFor="api-token-purpose">Finalidade *</label>
-                <input id="api-token-purpose" placeholder="Ex.: Consultar registros para análise mensal" {...register('purpose')} aria-invalid={Boolean(field('purpose'))} aria-describedby="api-purpose-help" />
+                <Input id="api-token-purpose" placeholder="Ex.: Consultar registros para análise mensal" {...register('purpose')} invalid={Boolean(field('purpose'))} aria-describedby="api-purpose-help" />
                 <small id="api-purpose-help" className={field('purpose') ? 'field-error' : ''}>{field('purpose') || 'Resuma o uso em uma frase (mínimo de 10 caracteres).'}</small>
               </div>
               <div className="field-group">
                 <label htmlFor="api-token-expiry-preset">Validade</label>
-                <select id="api-token-expiry-preset" value={expiryPreset} onChange={event => {
+                <Select id="api-token-expiry-preset" value={expiryPreset} onChange={event => {
                   const value = event.target.value;
                   if (value === 'custom' && !expiresAt) setValue('expiresAt', localDateTime(new Date(Date.now() + expiryDurations['30d'])));
                   setExpiryPreset(value);
@@ -133,14 +134,14 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
                   <option value="1h">1 hora</option><option value="24h">24 horas</option><option value="7d">7 dias</option>
                   <option value="30d">30 dias (recomendado)</option><option value="90d">90 dias</option>
                   <option value="custom">Data personalizada</option><option value="never">Sem expiração</option>
-                </select>
+                </Select>
                 {!neverExpires && expiryPreset !== 'custom' && expiresAt ? <small>Expira em {new Date(expiresAt).toLocaleString('pt-BR')}.</small> : null}
               </div>
-              {expiryPreset === 'custom' ? <div className={`field-group ${field('expiresAt') ? 'field-invalid' : ''}`}><label htmlFor="api-token-expiry">Data de expiração *</label><input id="api-token-expiry" type="datetime-local" step="any" {...register('expiresAt')} aria-invalid={Boolean(field('expiresAt'))} />{field('expiresAt') ? <span className="field-error">{field('expiresAt')}</span> : null}</div> : null}
+              {expiryPreset === 'custom' ? <div className={`field-group ${field('expiresAt') ? 'field-invalid' : ''}`}><label htmlFor="api-token-expiry">Data de expiração *</label><Input id="api-token-expiry" type="datetime-local" step="any" {...register('expiresAt')} invalid={Boolean(field('expiresAt'))} />{field('expiresAt') ? <span className="field-error">{field('expiresAt')}</span> : null}</div> : null}
               {neverExpires ? <div className={`field-group api-expiry-warning ${field('neverExpiresConfirmation') ? 'field-invalid' : ''}`}>
                 <p>Este acesso ficará ativo até ser revogado. Use apenas quando necessário.</p>
                 <label htmlFor="api-token-never">Digite {NEVER_EXPIRES_CONFIRMATION} para confirmar</label>
-                <input id="api-token-never" {...register('neverExpiresConfirmation')} aria-invalid={Boolean(field('neverExpiresConfirmation'))} />
+                <Input id="api-token-never" {...register('neverExpiresConfirmation')} invalid={Boolean(field('neverExpiresConfirmation'))} />
                 {field('neverExpiresConfirmation') ? <span className="field-error">{field('neverExpiresConfirmation')}</span> : null}
               </div> : null}
             </div>
@@ -148,7 +149,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
 
           <section className="page-card api-form-section">
             <ApiScopeCatalog scopes={scopes} selected={scopeCodes} onChange={value => setValue('scopeCodes', value, { shouldValidate: true })} />
-            {errors.scopeCodes ? <p className="field-error" role="alert">Selecione ao menos uma permissão de leitura.</p> : null}
+            {errors.scopeCodes ? <p className="field-error" role="alert">Selecione ao menos uma permissão.</p> : null}
           </section>
         </div>
 
@@ -156,20 +157,20 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
           <summary>Configurações avançadas<span>Projetos, IPs, agendamento e limites de uso</span></summary>
           <p className="api-safe-note">Padrão: todos os projetos, sem restrição de IP, até 60 requisições/minuto e 100 registros por página. Resposta em JSON.</p>
           <div className="api-form-grid">
-            <div className="field-group"><label htmlFor="api-token-project-mode">Projetos acessíveis</label><select id="api-token-project-mode" {...register('projectAccess.mode')}><option value="ALL">Todos os projetos</option><option value="SELECTED">Somente selecionados</option></select></div>
+            <div className="field-group"><label htmlFor="api-token-project-mode">Projetos acessíveis</label><Select id="api-token-project-mode" {...register('projectAccess.mode')}><option value="ALL">Todos os projetos</option><option value="SELECTED">Somente selecionados</option></Select></div>
             {projectMode === 'SELECTED' ? <div className={`field-group ${errors.projectAccess?.projectIds ? 'field-invalid' : ''}`}>
               <label htmlFor="api-token-projects">IDs dos projetos *</label>
-              <input id="api-token-projects" placeholder="Separe os IDs por vírgula" value={projectIdsText} aria-invalid={Boolean(errors.projectAccess?.projectIds)} onChange={event => setProjectIdsText(event.target.value)} />
+              <Input id="api-token-projects" placeholder="Separe os IDs por vírgula" value={projectIdsText} invalid={Boolean(errors.projectAccess?.projectIds)} onChange={event => setProjectIdsText(event.target.value)} />
               {errors.projectAccess?.projectIds ? <span className="field-error">{errors.projectAccess.projectIds.message || 'Revise os IDs dos projetos.'}</span> : null}
             </div> : null}
             <div className={`field-group ${field('startsAt') ? 'field-invalid' : ''}`}>
-              <label htmlFor="api-token-start">Início do acesso</label><input id="api-token-start" type="datetime-local" step="any" {...register('startsAt')} aria-invalid={Boolean(field('startsAt'))} />
+              <label htmlFor="api-token-start">Início do acesso</label><Input id="api-token-start" type="datetime-local" step="any" {...register('startsAt')} invalid={Boolean(field('startsAt'))} />
               <small>Altere apenas se quiser agendar a ativação.</small>
               {field('startsAt') ? <span className="field-error">{field('startsAt')}</span> : null}
             </div>
             <div className={`field-group full ${errors.allowedIpCidrs ? 'field-invalid' : ''}`}>
               <label htmlFor="api-token-cidrs">Restringir a IPs ou redes (opcional)</label>
-              <textarea id="api-token-cidrs" rows={2} placeholder="Ex.: 203.0.113.10/32 — um IP ou CIDR por linha" value={allowedIpCidrsText} aria-invalid={Boolean(errors.allowedIpCidrs)} onChange={event => { setAllowedIpCidrsText(event.target.value); setValue('allowedIpCidrs', event.target.value.split(/[\n,]/).map(item => item.trim()).filter(Boolean), { shouldValidate: true }); }} />
+              <Textarea id="api-token-cidrs" rows={2} placeholder="Ex.: 203.0.113.10/32 — um IP ou CIDR por linha" value={allowedIpCidrsText} invalid={Boolean(errors.allowedIpCidrs)} onChange={event => { setAllowedIpCidrsText(event.target.value); setValue('allowedIpCidrs', event.target.value.split(/[\n,]/).map(item => item.trim()).filter(Boolean), { shouldValidate: true }); }} />
               <small>Em branco, permite acesso a partir de qualquer IP.</small>
               {errors.allowedIpCidrs ? <span className="field-error">{errors.allowedIpCidrs.message || 'Revise os IPs e redes informados.'}</span> : null}
             </div>
@@ -182,7 +183,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
               ['maxPageSize', 'Registros por página', 'api-token-page', 500]
             ] as const).map(([key, label, id, max]) => <div className={`field-group ${errors.limits?.[key] ? 'field-invalid' : ''}`} key={key}>
               <label htmlFor={id}>{label}</label>
-              <input id={id} type="number" min={1} max={max} {...register(`limits.${key}`, { valueAsNumber: true })} aria-invalid={Boolean(errors.limits?.[key])} />
+              <Input id={id} type="number" min={1} max={max} {...register(`limits.${key}`, { valueAsNumber: true })} invalid={Boolean(errors.limits?.[key])} />
               {errors.limits?.[key] ? <span className="field-error">{errors.limits[key]?.message}</span> : null}
             </div>)}
           </div>
@@ -201,9 +202,10 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
           <div><dt>Início</dt><dd>{new Date(pending.startsAt).toLocaleString('pt-BR')}</dd></div>
           <div><dt>Limites</dt><dd>{pending.limits.requestsPerMinute} requisições/min · {pending.limits.requestsPerDay} requisições/dia · {pending.limits.rowsPerDay} registros/dia · {pending.limits.maxPageSize} por página</dd></div>
         </dl>
+        {pending.scopeCodes.some(code => code.endsWith('.write')) ? <Alert tone="warning">Este token poderá alterar dados nas áreas com permissão de escrita.</Alert> : null}
         <p className="api-safe-note">O token completo será mostrado uma única vez.</p>
-        <div className="api-review-actions"><Button variant="secondary" disabled={busy} onClick={() => { setPending(null); setSubmitError(''); }}>Voltar e ajustar</Button><Button disabled={busy} onClick={confirmIssue}>{issuing ? 'Gerando…' : 'Confirmar e gerar token'}</Button></div>
-      </section> : <div className="api-form-actions"><p className="api-safe-note">Somente leitura · Token exibido uma única vez</p><Button type="submit" disabled={busy}>Revisar e gerar token</Button></div>}
+        <div className="api-review-actions">{onCancel ? <Button variant="secondary" disabled={busy} onClick={onCancel}>Cancelar</Button> : null}<Button variant="secondary" disabled={busy} onClick={() => { setPending(null); setSubmitError(''); }}>Voltar e ajustar</Button><Button variant="primary" disabled={busy} loading={issuing} onClick={confirmIssue}>{issuing ? 'Gerando…' : 'Confirmar e gerar token'}</Button></div>
+      </section> : <div className="api-form-actions"><p className="api-safe-note">{scopeCodes.some(code => code.endsWith('.write')) ? 'Inclui escrita' : 'Somente leitura'} · Token exibido uma única vez</p>{onCancel ? <Button variant="secondary" disabled={busy} onClick={onCancel}>Cancelar</Button> : null}<Button variant="primary" type="submit" disabled={busy}>Revisar e gerar token</Button></div>}
       {advancedHasErrors ? <p className="field-error" role="alert">Revise os campos destacados nas configurações avançadas.</p> : null}
       {submitError ? <div className="inline-error" role="alert">{submitError}</div> : null}
     </form>

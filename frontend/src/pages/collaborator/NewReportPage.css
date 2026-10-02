@@ -1,0 +1,1229 @@
+/* Visual migration boundary for the RDO editor. Business behavior remains in TSX. */
+
+.fv-ds.rdo-form-page {
+  --g: var(--brand);
+  --gd: var(--brand-text);
+  --rd: var(--danger);
+  --mu: var(--muted);
+  --tx: var(--ink);
+  --br: var(--line);
+  --wh: var(--surface);
+  --rdo-form-max: 540px;
+
+  display: grid;
+  width: min(100%, var(--rdo-form-max));
+  min-width: 0;
+  margin-inline: auto;
+  gap: var(--space-5);
+  padding-block-end: var(--space-4);
+}
+
+.rdo-form-stage,
+.rdo-form-services,
+.rdo-form-grid,
+.rdo-form-card .fv-card__body,
+.rdo-service-card .fv-card__body,
+.rdo-form-card--conditions .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.rdo-form-stepper {
+  position: sticky;
+  inset-block-start: calc(var(--topbar-h-mobile) + var(--space-2));
+  z-index: calc(var(--z-sticky) - 1);
+  box-shadow: var(--shadow-e2);
+}
+
+.rdo-form-stepper .fv-card__body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rdo-draft-save-status {
+  display: flex;
+  min-height: var(--space-5);
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.rdo-form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rdo-form-card,
+.rdo-service-card {
+  min-width: 0;
+}
+
+.rdo-form-card .fv-card__heading,
+.rdo-service-card .fv-card__heading {
+  min-width: 0;
+}
+
+.rdo-form-card .fv-card__header,
+.rdo-service-card .fv-card__header {
+  padding-block-end: var(--space-3);
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+.rdo-field-grid,
+.rdo-form-page .admin-form-grid,
+.rdo-form-page .fg-r2 {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.rdo-form-page :where(.field-group) {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.rdo-form-page :where(.field-group > label, .upload-field-label) {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page .field-invalid > label {
+  color: var(--danger);
+}
+
+.rdo-form-page .field-invalid-panel {
+  border-color: var(--danger);
+  outline: var(--focus-ring-width) solid var(--danger);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fv-ds.rdo-form-page
+  :where(
+    input:not([type='checkbox']):not([type='radio']):not(.fv-input),
+    select:not(.fv-select),
+    textarea:not(.fv-textarea)
+  ) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  outline: 0;
+  background-color: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+.fv-ds.rdo-form-page
+  :where(
+    input:not([type='checkbox']):not([type='radio']):not(.fv-input),
+    select:not(.fv-select),
+    textarea:not(.fv-textarea)
+  ):focus-visible {
+  border-color: var(--line-strong);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fv-ds.rdo-form-page
+  .field-invalid
+  :where(.fv-control-shell, .fv-textarea, input, select, textarea) {
+  border-color: var(--danger);
+}
+
+.rdo-form-page :where(.section-title) {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+.rdo-form-page :where(.placeholder-copy, .colab-empty) {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.rdo-service-only-switch {
+  padding-block-end: var(--space-4);
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+.rdo-inline-alert,
+.rdo-workforce-alert {
+  margin-block-start: var(--space-1);
+}
+
+.rdo-inline-alert {
+  padding: var(--space-3);
+}
+
+.rdo-inline-alert .fv-alert__description {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.rdo-form-page .colab-list {
+  display: flex;
+  min-width: 0;
+  min-height: var(--space-10);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.rdo-person-badge {
+  min-height: var(--space-8);
+  padding-inline-start: var(--space-3);
+}
+
+.rdo-person-badge .fv-badge__label {
+  overflow: visible;
+  white-space: normal;
+}
+
+.rdo-person-badge .colab-tag-copy {
+  display: grid;
+  gap: 0;
+}
+
+.rdo-person-badge .colab-tag-role {
+  color: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-xs);
+  opacity: var(--disabled-opacity);
+}
+
+.rdo-theme-badge {
+  min-height: var(--space-8);
+}
+
+.rdo-form-page .cadd,
+.rdo-form-page .inline-add-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rdo-form-page .cadd > :first-child,
+.rdo-form-page .inline-add-row > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.rdo-form-page .cadd > .fv-button,
+.rdo-form-page .inline-add-row > .fv-button {
+  min-width: calc(var(--space-16) + var(--space-2));
+  flex: 0 0 auto;
+}
+
+.rdo-form-page .rdo-condition-switch {
+  padding: var(--space-2) 0;
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+.rdo-form-page .collapse-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.rdo-form-page .collapse-section .section-title {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+.rdo-form-page .rdo-mission-team-suggestion-list {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rdo-form-page .rdo-mission-team-suggestion-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.rdo-form-page .rdo-mission-team-suggestion-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.rdo-form-page .pre-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--info-line);
+  border-radius: var(--radius-sm);
+  background: var(--info-bg);
+  color: var(--info);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+}
+
+.rdo-form-page .admin-list,
+.rdo-form-page .admin-stack,
+.rdo-form-page .tube-stack,
+.rdo-form-page .unit-stack {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.rdo-form-page .ongoing-item-react {
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--warning-line);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+}
+
+.rdo-form-page .ongoing-item-react--future {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.rdo-form-page .ongoing-item-react--future :is(.admin-item-title, .admin-item-sub),
+.rdo-form-page .ongoing-future-note { color: var(--muted); }
+.rdo-form-page .ongoing-future-note { margin: var(--space-1) 0 0; font-size: var(--text-xs); font-weight: var(--font-semibold); }
+
+.rdo-form-page .continuity-card {
+  border-color: var(--warning-line);
+  background: var(--surface);
+}
+
+.rdo-form-page .continuity-card .fv-card__heading,
+.rdo-form-page .continuity-card .admin-item-title {
+  color: var(--warning);
+}
+
+.rdo-form-page .continuity-card .admin-item-row {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rdo-form-page .continuity-card .admin-card-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
+.rdo-form-page .admin-item-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rdo-form-page .admin-item-main {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.rdo-form-page .admin-item-title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page .admin-item-sub {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.rdo-form-page .admin-form-actions {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.rdo-add-service-action .fv-button {
+  border-style: dashed;
+  color: var(--brand-text);
+}
+
+.rdo-service-card {
+  background: var(--surface-2);
+  box-shadow: var(--shadow-e1);
+}
+
+.rdo-service-card .fv-card__header {
+  align-items: center;
+}
+
+.rdo-service-card .fv-card__body {
+  padding-block-start: var(--space-1);
+}
+
+.rdo-service-card .svc-card-title {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+}
+
+.rdo-service-card .admin-form-grid {
+  align-items: start;
+}
+
+.rdo-form-page .rdo-service-section {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.rdo-form-page .rdo-service-section__title {
+  margin: 0;
+  padding-block-end: var(--space-2);
+  border-block-end: var(--border-width) solid var(--line);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page .rdo-service-section__grid,
+.rdo-form-page .admin-form-grid.rdo-analysis-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+/* Legacy RDO grids clipped the DS focus ring at their bounds. The migrated
+   editor keeps those layout classes for compatibility, but lets focus paint
+   outside each row on every breakpoint. */
+.fv-ds.rdo-form-page .report-services-step,
+.fv-ds.rdo-form-page
+  .report-services-step
+  :where(.admin-stack, .admin-form-grid, .upload-field),
+.fv-ds.rdo-form-page
+  :where(.fg-r2, .inline-add-row, .tube-row-react, .unit-row-react) {
+  overflow: visible;
+}
+
+.rdo-service-card
+  :where(
+    .rdo-service-section,
+    .service-options-full,
+    .service-time-grid,
+    .collapse-section,
+    .upload-field,
+    .rdo-check-grid,
+    .rdo-tag-group,
+    .rdo-pill-list,
+    .tube-stack,
+    .unit-stack,
+    .admin-form-grid
+  ) {
+  grid-column: 1 / -1;
+}
+
+.rdo-form-page :where(.service-analysis-block, .service-measurements-block) {
+  grid-column: 1 / -1;
+}
+
+.rdo-form-page .service-analysis-panel {
+  padding: var(--space-4);
+}
+
+.rdo-form-page .rdo-analysis-grid > .upload-field,
+.rdo-form-page :where(.service-analysis-equipment, .service-analysis-question) {
+  grid-column: 1 / -1;
+}
+
+.rdo-form-page .rdo-reading-group {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.rdo-form-page .rdo-reading-group__title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page .rdo-reading-group .fg-r2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.rdo-form-page .rdo-reading-group--humidity {
+  grid-column: 1 / -1;
+}
+
+.rdo-form-page .service-notes-field {
+  grid-column: 1 / -1;
+}
+
+.rdo-form-page .service-notes-field textarea {
+  min-height: calc(var(--space-16) * 2 + var(--space-4));
+  resize: vertical;
+}
+
+.rdo-form-page .rdo-check-grid,
+.rdo-form-page .service-step-list {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.rdo-form-page .rdo-check-row {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-10) + var(--space-1));
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.rdo-form-page .rdo-check-row:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
+.rdo-form-page .rdo-check-row span {
+  color: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page :where(.rdo-tag-group, .rdo-pill-list) {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.rdo-form-page :where(.rdo-tag-option, .rdo-pill-option) {
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page :where(.rdo-tag-option.yes, .rdo-pill-option.sel) {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.rdo-form-page .rdo-tag-option.no {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.rdo-form-page :where(.unit-row-react, .num-unit) {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.rdo-form-page .tube-row-react {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) var(--space-8);
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.rdo-form-page .tube-field .num-unit {
+  grid-template-columns: minmax(0, 1fr) minmax(var(--space-12), auto);
+  gap: var(--space-1);
+}
+
+.rdo-form-page .tube-row-react .tube-remove {
+  width: var(--space-8);
+  padding-inline: 0;
+}
+
+.fv-ds.rdo-form-page
+  :where(
+    .secondary-button,
+    .tube-add,
+    .tube-remove,
+    .unit-row-remove,
+    .cadd-btn
+  ) {
+  display: inline-flex;
+  min-width: 0;
+  min-height: var(--space-10);
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+  cursor: pointer;
+}
+
+.fv-ds.rdo-form-page
+  :where(
+    .secondary-button,
+    .tube-add,
+    .tube-remove,
+    .unit-row-remove,
+    .cadd-btn
+  ):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.rdo-form-page .upload-field,
+.rdo-form-page .upload-list {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+/* O bloco de anexos vive dentro da seção do serviço; uma segunda superfície
+   criava um card claro no tema escuro e desperdiçava largura no mobile. */
+.rdo-form-page .upload-field {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.rdo-form-page .upload-field-label {
+  color: var(--ink);
+}
+
+.rdo-form-page .upload-field-count {
+  color: var(--muted);
+}
+
+.rdo-form-page .upload-dropzone {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-16) * 2);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width) dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  outline: 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.rdo-form-page .upload-dropzone:hover,
+.rdo-form-page .upload-dropzone.drag-over,
+.rdo-form-page .upload-dropzone:focus-visible {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+.rdo-form-page .upload-dropzone:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.rdo-form-page .upload-dropzone-icon {
+  display: grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.rdo-form-page .upload-dropzone-text {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.rdo-form-page .upload-dropzone-text strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.rdo-form-page .upload-dropzone-text small,
+.rdo-form-page .upload-previous-note {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.rdo-form-page .upload-previous-note {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.rdo-form-page .upload-final-note {
+  border-color: var(--success-line);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.rdo-form-page .upload-list-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.rdo-form-page .upload-list-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rdo-form-page a.upload-list-name {
+  color: var(--info);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+.rdo-form-page .upload-list-thumb {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+.rdo-form-page .upload-previous-badge {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.rdo-form-page .upload-remove-button {
+  color: var(--danger);
+}
+
+.rdo-form-page .rdo-overtime-summary {
+  margin: 0;
+}
+
+.rdo-form-page .rdo-activities-textarea {
+  min-height: calc(var(--space-16) * 2);
+}
+
+.rdo-form-page .resumo-txt {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  white-space: pre-line;
+}
+
+.rdo-form-actions {
+  position: fixed;
+  inset-inline: var(--space-4);
+  inset-block-end: calc(
+    var(--bottombar-h) + env(safe-area-inset-bottom) + var(--space-1)
+  );
+  z-index: var(--z-sticky);
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-service-picker-backdrop {
+  align-items: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-picker .stype-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-picker .stype-btn {
+  display: flex;
+  min-width: 0;
+  min-height: var(--space-16);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  text-align: start;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-picker .stype-btn:hover {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-picker .stype-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-picker .stype-icon {
+  display: grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-picker .stype-name {
+  min-width: 0;
+  color: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+@media (max-width: 767.98px) {
+  .fv-ds.rdo-form-page {
+    gap: var(--space-4);
+    padding-block-end: calc(var(--space-16) + var(--space-10));
+  }
+
+  .rdo-form-page .fv-page-header__actions {
+    width: 100%;
+  }
+
+  .rdo-form-page .fv-page-header__actions .fv-button {
+    width: 100%;
+  }
+
+  .rdo-form-stepper {
+    inset-block-start: calc(var(--topbar-h-mobile) + var(--space-1));
+    padding: var(--space-3);
+  }
+
+  /* Preserve the denser scale of the previous mobile RDO form without
+     reverting the new shell, stepper, cards or thematic organization. */
+  .rdo-form-stage,
+  .rdo-form-stage :where(.rdo-form-grid, .fv-card__body, .admin-form-grid) {
+    gap: var(--space-3);
+  }
+
+  .rdo-form-page .rdo-form-stage :where(.rdo-form-card, .rdo-service-card) {
+    padding: var(--space-3);
+  }
+
+  .rdo-form-stage :where(.rdo-form-card, .rdo-service-card) .fv-card__header {
+    gap: var(--space-2);
+    padding-block-end: var(--space-2);
+  }
+
+  .rdo-form-stage :where(.rdo-form-card, .rdo-service-card) .fv-card__heading {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  .rdo-form-stage :where(.field-group) {
+    gap: calc(var(--space-1) + var(--border-width) * 2);
+  }
+
+  .rdo-form-stage :where(.field-group > label, .upload-field-label) {
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  .fv-ds.rdo-form-page .rdo-form-stage .fv-control-shell {
+    height: calc(var(--space-10) - var(--space-1));
+    padding-inline: var(--space-3);
+  }
+
+  .fv-ds.rdo-form-page
+    .rdo-form-stage
+    :where(.fv-input, .fv-select, .fv-textarea) {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  .fv-ds.rdo-form-page
+    .rdo-form-stage
+    :where(
+      input:not([type='checkbox']):not([type='radio']):not(.fv-input),
+      select:not(.fv-select),
+      textarea:not(.fv-textarea)
+    ) {
+    min-height: calc(var(--space-10) - var(--space-1));
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  .rdo-form-stage .fv-textarea {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .rdo-form-stage
+    :where(.rdo-form-card, .rdo-service-card)
+    .fv-button {
+    --fv-button-height: calc(var(--space-10) - var(--space-1));
+    --fv-button-padding: var(--space-3);
+    --fv-button-font-size: var(--text-sm);
+
+    min-height: calc(var(--space-10) - var(--space-1));
+  }
+
+  .rdo-form-stage .rdo-service-card .fv-icon-button {
+    min-width: calc(var(--space-10) - var(--space-1));
+    min-height: calc(var(--space-10) - var(--space-1));
+  }
+
+  .rdo-form-stage .rdo-check-row,
+  .rdo-form-stage :where(.rdo-tag-option, .rdo-pill-option) {
+    min-height: calc(var(--space-10) - var(--space-1));
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .rdo-form-stage .rdo-inspection-type-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-1);
+  }
+
+  .rdo-form-stage .rdo-inspection-type-options .rdo-pill-option {
+    display: grid;
+    min-width: 0;
+    align-items: center;
+    justify-items: center;
+    padding-inline: var(--space-1);
+    text-align: center;
+  }
+
+  .rdo-form-stage .rdo-inspection-type-options .rdo-pill-option span {
+    overflow-wrap: normal;
+  }
+
+  .rdo-form-stage .rdo-tested-equipment-options {
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+
+  .rdo-form-stage .rdo-tested-equipment-options .rdo-tag-option {
+    flex: 1 1 auto;
+    padding-inline: var(--space-2);
+  }
+
+  .rdo-form-stage .rdo-tested-equipment-options .rdo-tag-option span {
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+
+  .rdo-form-page .rdo-form-stage .upload-dropzone {
+    min-height: calc(var(--space-16) + var(--space-1));
+    padding: var(--space-3);
+  }
+
+  .rdo-form-stage .upload-dropzone-icon {
+    width: var(--space-8);
+    height: var(--space-8);
+  }
+
+  .rdo-form-page .rdo-form-stage .upload-list-item {
+    display: grid;
+    grid-template-columns: var(--space-12) minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+  }
+
+  .rdo-form-stage .upload-list-preview {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .rdo-form-stage .upload-list-name {
+    grid-column: 2;
+    grid-row: 1;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .rdo-form-stage .upload-previous-badge {
+    max-width: 100%;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    white-space: normal;
+  }
+
+  .rdo-form-stage .upload-remove-button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .rdo-form-page .report-services-step,
+  .rdo-form-page .rdo-service-card {
+    padding: var(--space-3);
+  }
+
+  /* On phones the service card is already the visual container. Keeping a
+     second card around every theme consumed useful width and made the form
+     noisier than the legacy editor, so sections become simple dividers here. */
+  .rdo-form-page .rdo-service-section {
+    gap: var(--space-3);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .rdo-form-page .rdo-service-section__title {
+    padding-block-end: var(--space-1);
+  }
+
+  .rdo-form-page .service-analysis-panel {
+    padding: var(--space-3);
+  }
+
+  .rdo-form-page .tube-row-react {
+    grid-template-columns:
+      minmax(0, 6fr) minmax(0, 5fr)
+      calc(var(--space-8) - var(--space-2));
+    gap: var(--space-1);
+  }
+
+  .rdo-form-page .tube-field > label {
+    flex-wrap: nowrap;
+    gap: calc(var(--space-1) / 2);
+    white-space: nowrap;
+  }
+
+  .rdo-form-page .tube-row-react .tube-remove {
+    width: calc(var(--space-8) - var(--space-2));
+    min-height: calc(var(--space-10) - var(--space-1));
+  }
+
+  .fv-ds.rdo-form-page
+    .tube-row-react
+    :where(input:not([type='checkbox']):not([type='radio']), select) {
+    min-height: calc(var(--space-10) - var(--space-1));
+    padding-block: var(--space-1);
+    padding-inline: var(--space-2);
+  }
+
+  .rdo-form-page .admin-item-row {
+    align-items: flex-start;
+  }
+
+  .rdo-form-page .continuity-card {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .rdo-form-page .continuity-card .fv-card__header {
+    padding-block-end: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .fv-card__body {
+    gap: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .admin-list {
+    gap: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .ongoing-item-react {
+    padding: var(--space-2);
+  }
+
+  .rdo-form-page .continuity-card .admin-card-actions .fv-button {
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-service-picker-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-service-picker {
+    width: 100%;
+    max-height: 85dvh;
+    border-block-end: 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-service-picker .fv-modal__body {
+    padding-block-end: max(var(--space-5), env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 768px) {
+  .rdo-form-stepper {
+    inset-block-start: calc(var(--topbar-h) + var(--space-2));
+  }
+
+  .rdo-form-grid--header,
+  .rdo-form-grid--finalization {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rdo-form-card--identification,
+  .rdo-form-card--conditions,
+  .rdo-form-card--overtime,
+  .rdo-form-card--summary {
+    grid-column: 1 / -1;
+  }
+
+  .rdo-form-grid--header.is-service-only .rdo-form-card--team {
+    grid-column: 1 / -1;
+  }
+
+  .rdo-field-grid--identification,
+  .rdo-form-page .fg-r2,
+  .rdo-form-page .rdo-check-grid:not(.service-step-list) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rdo-form-page .admin-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rdo-form-page .rdo-service-section__grid,
+  .rdo-form-page .admin-form-grid.rdo-analysis-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rdo-form-actions {
+    position: sticky;
+    inset-inline: auto;
+    inset-block-end: var(--space-3);
+    width: fit-content;
+    min-width: calc(var(--space-16) * 5);
+    margin-inline-start: auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  .rdo-form-page .admin-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rdo-service-card .service-time-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .rdo-form-grid--header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

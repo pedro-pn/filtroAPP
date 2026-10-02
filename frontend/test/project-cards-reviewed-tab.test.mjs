@@ -23,9 +23,11 @@ test('subaba Conferidas pode ser restaurada pela URL', () => {
 
 test('Projetos exibe a subaba e seu contador', async () => {
   const source = await readSource('src/components/projects/ProjectCardsBoard.tsx');
+  const toolbar = await readSource('src/components/projects/ProjectCardsToolbar.tsx');
 
-  assert.match(source, /onClick=\{\(\) => setView\('conferidas'\)\}/);
-  assert.match(source, /Conferidas <span className="acp-seg-count">\{counts\.conferidas\}<\/span>/);
+  assert.match(source, /onView=\{setView\}/);
+  assert.match(toolbar, /id: 'conferidas', label: 'Conferidas'/);
+  assert.match(toolbar, /counts\[item\.id\]/);
   assert.match(source, /Nenhuma missão conferida\./);
 });
 

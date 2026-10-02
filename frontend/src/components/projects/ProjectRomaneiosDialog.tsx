@@ -1,9 +1,13 @@
 import { useId, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { getMissionGroupRomaneios, getProjectRomaneios } from '../../api/acompanhamentoComercial';
+import { getMissionGroupRomaneios, getProjectRomaneios, type ProjectRomaneio } from '../../api/acompanhamentoComercial';
 import { getEfetivoProjectRomaneios } from '../../api/projectWorkflow';
 import { Modal } from '../ui/Modal';
+import { Alert, Badge, Button, Card, DataTable, EmptyState, Skeleton } from '../ui/ds';
+import './ProjectRomaneiosDialog.ds.css';
+
+type RomaneioItem = ProjectRomaneio['items'][number];
 
 function formatDate(value: string) {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -15,6 +19,38 @@ function formatQuantity(value: string | number) {
   return Number.isFinite(number) ? number.toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : String(value);
 }
 
+export function RomaneioItemsCard({ romaneio }: { romaneio: ProjectRomaneio }) {
+  return <Card variant="flat"
+    title={`${romaneio.type === 'OUTBOUND' ? 'Saída' : 'Entrada'} · ${formatDate(romaneio.romaneioDate)}`}
+    actions={romaneio.vehiclePlate ? <Badge tone="neutral">Placa {romaneio.vehiclePlate}</Badge> : undefined}>
+    <p className="acp-romaneios-ds__mission">Missão {romaneio.project.code}{romaneio.project.name ? ` — ${romaneio.project.name}` : ''}</p>
+    <DataTable<RomaneioItem>
+      rows={romaneio.items}
+      getRowId={item => item.id}
+      ariaLabel={`Itens da missão ${romaneio.project.code}, ${romaneio.type === 'OUTBOUND' ? 'saída' : 'entrada'} em ${formatDate(romaneio.romaneioDate)}`}
+      density="compact"
+      mobileBreakpoint="md"
+      emptyState={<EmptyState title="Este romaneio não possui itens" />}
+      columns={[
+        { key: 'code', header: 'Código', render: item => item.itemCode || '—' },
+        { key: 'name', header: 'Item', rowHeader: true, render: item => <span className="acp-romaneios-ds__item-name">{item.itemName}{item.isCustom ? <small>Item personalizado</small> : null}{item.isExtra ? <small>Entrada extra</small> : null}</span> },
+        { key: 'category', header: 'Categoria', render: item => item.categoryName || '—' },
+        { key: 'quantity', header: 'Quantidade', align: 'right', render: item => `${formatQuantity(item.quantity)} ${item.unitLabel}` }
+      ]}
+      mobile={{ renderItem: item => ({
+        title: item.itemName,
+        value: `${formatQuantity(item.quantity)} ${item.unitLabel}`,
+        subtitle: item.itemCode || undefined,
+        metadata: [
+          { label: 'Categoria', value: item.categoryName || '—' },
+          ...(item.isCustom ? [{ label: 'Tipo', value: 'Item personalizado' }] : []),
+          ...(item.isExtra ? [{ label: 'Origem', value: 'Entrada extra' }] : [])
+        ]
+      }) }}
+    />
+  </Card>;
+}
+
 export function ProjectRomaneiosDialog({ projectId, groupId, missionLabel, source = 'acompanhamento', showOnlyWhenAvailable = false }: {
   projectId?: string;
   groupId?: string;
@@ -23,7 +59,6 @@ export function ProjectRomaneiosDialog({ projectId, groupId, missionLabel, sourc
   showOnlyWhenAvailable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const titleId = useId();
   const descriptionId = useId();
   const query = useQuery({
     queryKey: ['project-romaneios', source, groupId ? 'group' : 'project', groupId || projectId],
@@ -40,88 +75,36 @@ export function ProjectRomaneiosDialog({ projectId, groupId, missionLabel, sourc
 
   return (
     <>
-      <button type="button" className="mini-btn alt" onClick={() => { setOpen(true); if (showOnlyWhenAvailable) void query.refetch(); }} aria-haspopup="dialog">
+      <Button size="sm" variant="secondary" onClick={() => { setOpen(true); if (showOnlyWhenAvailable) void query.refetch(); }} aria-haspopup="dialog">
         {source === 'efetivo' ? `Ver romaneios${query.isSuccess ? ` (${romaneios.length})` : ''}` : 'Ver itens dos romaneios'}
-      </button>
+      </Button>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        ariaLabelledBy={titleId}
+        appearance="design-system"
+        title="Itens dos romaneios"
+        size="lg"
+        panelClassName="acp-romaneios-ds-modal"
         ariaDescribedBy={descriptionId}
-        panelClassName="modal-card acp-manage-card acp-romaneios-modal"
+        footer={<Button variant="secondary" onClick={() => setOpen(false)}>Fechar</Button>}
       >
-        <div className="acp-manage">
-          <header className="acp-manage-head">
-            <div>
-              <h2 className="sec" id={titleId}>Itens dos romaneios</h2>
-              <p className="acp-romaneios-context">{missionLabel}</p>
-            </div>
-            <button type="button" className="mini-btn alt" onClick={() => setOpen(false)} aria-label="Fechar itens dos romaneios">
-              Fechar
-            </button>
-          </header>
-          <div className="acp-manage-body">
-            <p className="acp-romaneios-context" id={descriptionId}>
-              Todos os itens registrados, separados por romaneio de saída ou entrada.
-            </p>
-            {query.isLoading ? (
-              <div className="placeholder-copy" role="status">Carregando romaneios…</div>
-            ) : query.isError ? (
-              <div className="acp-romaneios-feedback" role="alert">
-                <span>Não foi possível carregar os romaneios.</span>
-                <button type="button" className="mini-btn alt" disabled={query.isFetching} onClick={() => void query.refetch()}>
-                  {query.isFetching ? 'Tentando novamente…' : 'Tentar novamente'}
-                </button>
+        <div className="acp-romaneios-ds">
+          <p id={descriptionId} className="acp-romaneios-ds__context">
+            {missionLabel} · Itens separados por romaneio de saída ou entrada.
+          </p>
+          {query.isLoading ? <Skeleton variant="text" lines={6} label="Carregando romaneios" />
+            : query.isError ? <Alert tone="danger" title="Não foi possível carregar os romaneios"
+              action={<Button size="sm" variant="secondary" loading={query.isFetching}
+                onClick={() => void query.refetch()}>Tentar novamente</Button>} />
+            : romaneios.length === 0 ? <EmptyState title="Nenhum romaneio registrado"
+              description={groupId ? 'Não há romaneios para as missões deste grupo.' : 'Não há romaneios para este projeto.'} />
+            : <>
+              <div className="acp-romaneios-ds__summary" role="status">
+                <Badge tone="brand">{romaneios.length} romaneio{romaneios.length === 1 ? '' : 's'}</Badge>
+                <span>{itemCount} ite{itemCount === 1 ? 'm listado' : 'ns listados'}</span>
               </div>
-            ) : romaneios.length === 0 ? (
-              <div className="placeholder-copy" role="status">
-                {groupId ? 'Nenhum romaneio registrado para as missões deste grupo.' : 'Nenhum romaneio registrado para este projeto.'}
-              </div>
-            ) : (
-              <>
-                <p className="acp-romaneios-total">
-                  {romaneios.length} romaneio{romaneios.length === 1 ? '' : 's'} · {itemCount} ite{itemCount === 1 ? 'm listado' : 'ns listados'}
-                </p>
-                {romaneios.map(romaneio => (
-                  <section className="acp-romaneio" key={romaneio.id} aria-labelledby={`${titleId}-${romaneio.id}`}>
-                    <header className="acp-romaneio-head">
-                      <div>
-                        <h3 id={`${titleId}-${romaneio.id}`}>
-                          {romaneio.type === 'OUTBOUND' ? 'Saída' : 'Entrada'} · {formatDate(romaneio.romaneioDate)}
-                        </h3>
-                        <p>Missão {romaneio.project.code}{romaneio.project.name ? ` — ${romaneio.project.name}` : ''}</p>
-                      </div>
-                      {romaneio.vehiclePlate ? <span>Placa: {romaneio.vehiclePlate}</span> : null}
-                    </header>
-                    {romaneio.items.length === 0 ? (
-                      <p className="placeholder-copy acp-romaneio-empty">Este romaneio não possui itens.</p>
-                    ) : (
-                      <table className="acp-romaneio-table">
-                        <caption className="sr-only">Itens da missão {romaneio.project.code}, {romaneio.type === 'OUTBOUND' ? 'saída' : 'entrada'} em {formatDate(romaneio.romaneioDate)}</caption>
-                        <thead>
-                          <tr><th scope="col">Código</th><th scope="col">Item</th><th scope="col">Categoria</th><th scope="col">Quantidade</th></tr>
-                        </thead>
-                        <tbody>
-                          {romaneio.items.map(item => (
-                            <tr key={item.id}>
-                              <td data-label="Código">{item.itemCode || '—'}</td>
-                              <td data-label="Item">
-                                <span>{item.itemName}</span>
-                                {item.isCustom ? <small>Item personalizado</small> : null}
-                                {item.isExtra ? <small>Entrada extra</small> : null}
-                              </td>
-                              <td data-label="Categoria">{item.categoryName || '—'}</td>
-                              <td data-label="Quantidade">{formatQuantity(item.quantity)} {item.unitLabel}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </section>
-                ))}
-              </>
-            )}
-          </div>
+              {romaneios.map(romaneio => <RomaneioItemsCard key={romaneio.id} romaneio={romaneio} />)}
+            </>}
         </div>
       </Modal>
     </>

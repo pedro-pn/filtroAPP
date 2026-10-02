@@ -1,4 +1,5 @@
 import type { OfficialMissionContext } from '../../api/reports';
+import { Alert, Badge, Button, Textarea } from '../ui/ds';
 
 export function ReportWorkforceNotices({
   planningContext,
@@ -30,16 +31,29 @@ export function ReportWorkforceNotices({
     <>
       <div className="section-title">
         Equipe diurna
-        {prefilledFromLastReport ? <span className="pre-badge">último RDO</span> : null}
+        {prefilledFromLastReport ? <Badge tone="info">último RDO</Badge> : null}
       </div>
       {planningContext?.needsReplanning ? (
-        <div className="form-hint" role="status">
+        <Alert className="rdo-workforce-alert" tone="warning">
           A missão oficial está marcada para replanejamento{planningContext.replanningReason ? `: ${planningContext.replanningReason}` : '.'}
-        </div>
+        </Alert>
       ) : null}
       {suggestedCollaborators.length ? (
-        <div className="rdo-mission-team-suggestion" role="status">
-          <strong>Colaboradores sugeridos pelo efetivo</strong>
+        <Alert
+          className="rdo-workforce-alert"
+          tone="info"
+          title="Colaboradores sugeridos pelo efetivo"
+          action={
+            <div className="rdo-mission-team-suggestion-actions">
+              <Button variant="primary" size="sm" disabled={!canApplyMissionSuggestion} onClick={onApplyMissionSuggestion}>
+                Adicionar sugeridos
+              </Button>
+              <Button variant="secondary" size="sm" onClick={onDismissMissionSuggestion}>
+                Manter equipe atual
+              </Button>
+            </div>
+          }
+        >
           <ul className="rdo-mission-team-suggestion-list" aria-label="Colaboradores sugeridos">
             {suggestedCollaborators.map(collaborator => (
               <li key={collaborator.id}>
@@ -53,26 +67,19 @@ export function ReportWorkforceNotices({
               ? 'A equipe atual foi mantida. Estes colaboradores só serão adicionados se você aceitar.'
               : 'Consultando a equipe do último RDO. A sugestão não será aplicada automaticamente.'}
           </small>
-          <div className="rdo-mission-team-suggestion-actions">
-            <button className="mini-btn" type="button" disabled={!canApplyMissionSuggestion} onClick={onApplyMissionSuggestion}>
-              Adicionar sugeridos
-            </button>
-            <button className="mini-btn alt" type="button" onClick={onDismissMissionSuggestion}>
-              Manter equipe atual
-            </button>
-          </div>
-        </div>
+        </Alert>
       ) : null}
       {absenceConflictCount ? (
         <div className={`field-group ${invalid ? 'field-invalid' : ''}`} data-invalid-target="header:workforceJustification" style={{ marginTop: 12, marginBottom: 20 }}>
           <label htmlFor="rdo-workforce-justification">
             Justificativa de trabalho durante afastamento <span style={{ color: 'var(--rd)' }}>*</span>
           </label>
-          <div className="form-hint" role="alert">
+          <Alert className="rdo-workforce-alert" tone="warning">
             {absenceConflictCount} conflito(s) de afastamento detectado(s). O registro real será preservado com esta justificativa.
-          </div>
-          <textarea
+          </Alert>
+          <Textarea
             id="rdo-workforce-justification"
+            invalid={invalid}
             value={workforceJustification}
             onChange={event => onJustificationChange(event.target.value)}
             rows={3}

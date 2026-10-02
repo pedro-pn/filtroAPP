@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { deletePlanningHoliday, listPlanningHolidays, savePlanningHoliday, type Holiday } from '../../../api/efetivoPlanning';
-import { Button } from '../../../components/ui/Button';
+import { Button, Card, EmptyState, Field, Input, Skeleton } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastContext';
@@ -41,19 +42,21 @@ export function HolidayManager({ canManage }: { canManage: boolean }) {
   });
   const remove = useMutation({ mutationFn: (id: string) => deletePlanningHoliday(id), onSuccess: async () => { await refresh(); setDeleting(null); toast('Feriado removido.', 'success'); }, onError: (error: Error) => toast(error.message, 'error') });
 
-  return <section className="page-card">
-    <div className="efetivo-section-heading"><div><h2>Feriados globais</h2><p>Saem da capacidade útil e continuam visíveis no calendário.</p></div>{canManage ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}>Cadastrar feriado</Button> : null}</div>
-    {query.isLoading ? <p className="placeholder-copy">Carregando feriados…</p> : query.isError ? <p className="placeholder-copy">Não foi possível carregar os feriados.</p> : query.data?.length ? <div className="efetivo-compact-list">{query.data.map(item => <article key={item.id}><div><strong>{item.name}</strong><span>{displayDateOnly(item.holidayDate)}</span></div>{canManage ? <div className="efetivo-action-row"><Button variant="mini" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</Button><Button variant="danger" onClick={() => setDeleting(item)}>Remover</Button></div> : null}</article>)}</div> : <p className="placeholder-copy">Nenhum feriado global cadastrado.</p>}
-    <Modal open={formOpen} onClose={() => setFormOpen(false)} ariaLabelledBy="holiday-form-title" panelClassName="modal-card efetivo-modal">
-      <form className="efetivo-modal-layout" noValidate onSubmit={handleSubmit(values => save.mutate(values))}>
-        <header className="efetivo-modal-header"><div><h3 id="holiday-form-title">{editing ? 'Editar feriado' : 'Novo feriado'}</h3><p>A data será aplicada à capacidade de todas as funções.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={() => setFormOpen(false)}>×</button></header>
-        <div className="efetivo-modal-body efetivo-form-grid">
-          <div className={`field-group ${errors.holidayDate ? 'field-invalid' : ''}`}><label htmlFor="holiday-date">Data *</label><input id="holiday-date" type="date" disabled={save.isPending} aria-invalid={Boolean(errors.holidayDate)} {...register('holidayDate')} />{errors.holidayDate ? <span className="field-error" role="alert">{errors.holidayDate.message}</span> : null}</div>
-          <div className={`field-group ${errors.name ? 'field-invalid' : ''}`}><label htmlFor="holiday-name">Nome *</label><input id="holiday-name" disabled={save.isPending} aria-invalid={Boolean(errors.name)} {...register('name')} />{errors.name ? <span className="field-error" role="alert">{errors.name.message}</span> : null}</div>
+  return <Card className="efetivo-administration-section efetivo-holidays-ds">
+    <div className="efetivo-section-heading"><div><h2>Feriados globais</h2><p>Saem da capacidade útil e continuam visíveis no calendário.</p></div>{canManage ? <Button variant="primary" size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>Cadastrar feriado</Button> : null}</div>
+    {query.isLoading ? <Skeleton variant="card" /> : query.isError ? <EmptyState variant="error" title="Não foi possível carregar os feriados." action={{ label: 'Tentar novamente', onClick: () => void query.refetch() }} /> : query.data?.length ? <div className="efetivo-compact-list">{query.data.map(item => <article key={item.id}><div><strong>{item.name}</strong><span>{displayDateOnly(item.holidayDate)}</span></div>{canManage ? <div className="efetivo-action-row"><Button variant="secondary" size="sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</Button><RemoveIconButton label={`Remover feriado ${item.name}`} onClick={() => setDeleting(item)} /></div> : null}</article>)}</div> : <EmptyState title="Nenhum feriado global cadastrado." />}
+    <Modal open={formOpen} onClose={() => { if (!save.isPending) setFormOpen(false); }} closeOnEscape={!save.isPending} showCloseButton={!save.isPending}
+      appearance="design-system" title={editing ? 'Editar feriado' : 'Novo feriado'} size="md" fullscreenOnMobile={false}
+      panelClassName="efetivo-dialog" ariaDescribedBy="holiday-form-description"
+      footer={<><Button variant="secondary" size="sm" onClick={() => setFormOpen(false)} disabled={save.isPending}>Cancelar</Button><Button variant="primary" size="sm" type="submit" form="efetivo-holiday-form" loading={save.isPending}>Salvar feriado</Button></>}>
+      <form id="efetivo-holiday-form" className="efetivo-dialog-form" noValidate onSubmit={handleSubmit(values => save.mutate(values))}>
+        <p id="holiday-form-description" className="efetivo-dialog-description">A data será aplicada à capacidade de todas as funções.</p>
+        <div className="efetivo-dialog-fields">
+          <Field id="holiday-date" label="Data" required errorText={errors.holidayDate?.message}><Input size="sm" type="date" disabled={save.isPending} {...register('holidayDate')} /></Field>
+          <Field id="holiday-name" label="Nome" required errorText={errors.name?.message}><Input size="sm" disabled={save.isPending} {...register('name')} /></Field>
         </div>
-        <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={() => setFormOpen(false)} disabled={save.isPending}>Cancelar</Button><Button type="submit" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar feriado'}</Button></footer>
       </form>
     </Modal>
-    <ConfirmDialog open={Boolean(deleting)} title="Remover feriado?" description="A data voltará a compor a capacidade útil." highlight={deleting?.name} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} onConfirm={() => { if (deleting && !remove.isPending) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
-  </section>;
+    <ConfirmDialog appearance="design-system" open={Boolean(deleting)} title="Remover feriado?" description="A data voltará a compor a capacidade útil." highlight={deleting?.name} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} onConfirm={() => { if (deleting && !remove.isPending) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
+  </Card>;
 }

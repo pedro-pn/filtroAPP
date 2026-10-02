@@ -4,6 +4,7 @@ import type {
 } from '../../../../../shared/schemas/playground-parameters.js';
 import type { ApiOperationOption } from './apiOperations';
 import type { UseFormRegister } from 'react-hook-form';
+import { Alert, Card, Input, Select, Textarea } from '../../ui/ds';
 
 export type ApiPlaygroundParameters = PlaygroundParameterValues;
 
@@ -50,12 +51,12 @@ export function ApiOperationParameters({
           {field.required ? ' *' : ''}
         </label>
         {field.type === 'boolean' ? (
-          <select
+          <Select
             {...register?.(field.name)}
             id={id}
             value={String(value[field.name] ?? '')}
             onChange={(event) => update(field.name, event.target.value)}
-            aria-invalid={Boolean(error)}
+            invalid={Boolean(error)}
             aria-describedby={`${id}-help ${id}-error`}
           >
             <option value="">Padrão da consulta</option>
@@ -63,9 +64,9 @@ export function ApiOperationParameters({
               Sim
             </option>
             <option value="false">Não</option>
-          </select>
+          </Select>
         ) : (
-          <input
+          <Input
             {...register?.(field.name)}
             id={id}
             type={
@@ -87,7 +88,7 @@ export function ApiOperationParameters({
             }
             maxLength={field.maxLength}
             aria-required={field.required}
-            aria-invalid={Boolean(error)}
+            invalid={Boolean(error)}
             aria-describedby={`${id}-help ${id}-error`}
           />
         )}
@@ -113,7 +114,7 @@ export function ApiOperationParameters({
         ? '?includeDeleted=true'
         : null;
   return (
-    <section className="page-card api-playground-section">
+    <Card className="api-playground-section api-operation-parameters">
       <h3>2. Informe os parâmetros</h3>
       {!operation ? (
         <p>Escolha uma permissão e uma operação para ver os parâmetros.</p>
@@ -125,7 +126,7 @@ export function ApiOperationParameters({
               do token.
             </p>
           ) : operation.method === 'POST' ? (
-            <p>Esta operação envia dados ao FiltroAPP. Informe o ID do projeto quando solicitado e revise o corpo JSON antes de enviar.</p>
+            <Alert tone="warning">Esta operação grava dados reais no FiltroAPP. Informe o ID do projeto quando solicitado e revise o corpo JSON antes de enviar.</Alert>
           ) : (
             <p>
               Esta operação lista registros. Não exige um ID individual; use os
@@ -140,12 +141,15 @@ export function ApiOperationParameters({
               a URI resultante.
             </p>
           ) : null}
+          {operation.queryParams.includes('projectCode') && operation.queryParams.includes('projectId') ? (
+            <Alert tone="info" className="api-project-code-hint">Para localizar uma obra pelo número visível no app, informe o código do projeto. Use o ID interno somente quando já o tiver; preencha apenas um dos dois campos.</Alert>
+          ) : null}
           {operation.responseKind === 'DOWNLOAD_CHECK' ? (
-            <p className="api-safe-note">
+            <Alert tone="info">
               O teste verifica permissão e disponibilidade do arquivo, sem
               transferir seu conteúdo. O cURL permite testar o download real no
               ambiente do consumidor.
-            </p>
+            </Alert>
           ) : null}
           <div className="api-form-grid">
             {fields.filter((field) => !field.advanced).map(renderField)}
@@ -153,15 +157,15 @@ export function ApiOperationParameters({
           {operation.method === 'POST' ? (
             <div className={`field-group${errors.bodyJson ? ' field-invalid' : ''}`}>
               <label htmlFor="playground-body-json">Corpo JSON *</label>
-              <textarea id="playground-body-json" {...register?.('bodyJson')} value={String(value.bodyJson ?? '')}
+              <Textarea id="playground-body-json" className="api-body-json" {...register?.('bodyJson')} value={String(value.bodyJson ?? '')}
                 onChange={event => update('bodyJson', event.target.value)} rows={12} maxLength={10000}
-                aria-invalid={Boolean(errors.bodyJson)} aria-describedby="playground-body-json-help playground-body-json-error" />
+                invalid={Boolean(errors.bodyJson)} aria-describedby="playground-body-json-help playground-body-json-error" />
               <small id="playground-body-json-help">O POST grava dados reais. O método, destino e headers são definidos pela operação.</small>
               <span id="playground-body-json-error" className="field-error">{errors.bodyJson || ''}</span>
             </div>
           ) : null}
           {fields.some((field) => field.advanced) ? (
-            <details>
+            <details className="api-parameter-advanced">
               <summary>Paginação e filtros avançados</summary>
               <div className="api-form-grid">
                 {fields.filter((field) => field.advanced).map(renderField)}
@@ -181,6 +185,6 @@ export function ApiOperationParameters({
       <p className="api-safe-note">
         Destino, método e headers não são campos editáveis.{operation?.method !== 'POST' ? ' Consultas GET não aceitam corpo.' : ''}
       </p>
-    </section>
+    </Card>
   );
 }

@@ -1,0 +1,81 @@
+/* Global foundation for the new Design System.
+   Apply .fv-ds (or data-fv-ds) to migrated boundaries during the transition. */
+
+html {
+  background-color: var(--canvas);
+}
+
+:where(.fv-ds, [data-fv-ds]) {
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:where(.fv-ds, [data-fv-ds]),
+:where(.fv-ds, [data-fv-ds]) *,
+:where(.fv-ds, [data-fv-ds]) *::before,
+:where(.fv-ds, [data-fv-ds]) *::after {
+  box-sizing: border-box;
+}
+
+:where(.fv-ds, [data-fv-ds]) :where(button, input, select, textarea) {
+  color: inherit;
+  font: inherit;
+}
+
+/* Native fields in forms such as RDO do not use the DS control shell. Override
+   the browser's rectangular autofill paint through the field's rounded edge. */
+:where(
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not(.fv-input),
+  select:not(.fv-select),
+  textarea:not(.fv-textarea)
+):autofill {
+  box-shadow: inset 0 0 0 1000px color-mix(in srgb, var(--surface) 90%, var(--brand) 10%);
+  -webkit-text-fill-color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) a {
+  color: var(--link);
+  text-decoration-thickness: var(--border-width);
+  text-underline-offset: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) a:hover {
+  color: var(--link-hover);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    [tabindex]:not([tabindex='-1'])
+  ):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]) :where(input, select, textarea) {
+    font-size: var(--text-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.fv-ds, [data-fv-ds]),
+  :where(.fv-ds, [data-fv-ds]) *,
+  :where(.fv-ds, [data-fv-ds]) *::before,
+  :where(.fv-ds, [data-fv-ds]) *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

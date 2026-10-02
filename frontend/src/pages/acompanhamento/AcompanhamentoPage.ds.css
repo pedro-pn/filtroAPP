@@ -1,0 +1,11 @@
+.fv-app-shell:has(.acp-page) { --link: var(--brand-text); }
+.fv-app-shell:has(.acp-page) .fv-topbar__breadcrumb a { color: var(--link); }
+.acp-page { display: grid; gap: var(--space-5); min-width: 0; }
+.acp-page__content { min-width: 0; }
+.acp-tutorial-mobile { display: none; }
+
+@media (max-width: 767.98px) {
+  .acp-tutorial-desktop { display: none; }
+  .acp-tutorial-mobile { display: block; }
+  .acp-page { gap: var(--space-4); }
+}

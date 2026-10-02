@@ -11,8 +11,11 @@ export function formatSafeCurl(path: string, download = false, method: 'GET' | '
 }
 
 export function redactedRequestPreview(result: ApiPlaygroundResult | null, pending?: ApiPlaygroundInput) {
-  if (result?.request) return { ...result.request, authorization: result.request.authorization,
-    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result), result.request.method === 'POST' ? 'POST' : 'GET', result.request.body) };
+  if (result?.request) return {
+    ...result.request,
+    authorization: /^Bearer ••••[A-Za-z0-9_-]{4}$/.test(result.request.authorization) ? result.request.authorization : 'Bearer ••••',
+    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result), result.request.method === 'POST' ? 'POST' : 'GET', result.request.body)
+  };
   return pending ? { method: 'GET', path: '(gerado pelo catálogo)', authorization: 'Bearer ••••', curl: formatSafeCurl('(caminho gerado pelo catálogo)') } : null;
 }
 

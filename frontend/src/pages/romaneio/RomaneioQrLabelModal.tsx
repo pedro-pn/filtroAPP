@@ -290,15 +290,14 @@ export function RomaneioQrLabelModal({ items, categoryName, onClose }: RomaneioQ
     <Modal
       open={items.length > 0}
       onClose={onClose}
-      ariaLabelledBy="romaneio-qr-label-title"
+      appearance="design-system"
+      title={isBatch ? `QR codes da categoria ${categoryName}` : 'QR code do equipamento'}
+      size="lg"
       ariaDescribedBy="romaneio-qr-label-description"
-      panelClassName="modal-card romaneio-qr-label-modal"
+      panelClassName="romaneio-dialog romaneio-qr-label-dialog"
     >
       <style dangerouslySetInnerHTML={{ __html: previewLabelStyles }} />
       <div className="romaneio-qr-label-modal-body">
-        <div className="section-title" id="romaneio-qr-label-title">
-          {isBatch ? `QR codes da categoria ${categoryName}` : 'QR code do equipamento'}
-        </div>
         <p className="placeholder-copy" id="romaneio-qr-label-description">
           {isBatch
             ? `${items.length} equipamentos serão organizados automaticamente em folhas A4. Na impressão, escolha uma impressora ou Salvar como PDF.`

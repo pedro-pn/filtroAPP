@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { IssuedApiCredential } from '../../../api/apiCredentials';
-import { Button } from '../../ui/Button';
+import { Badge, Button } from '../../ui/ds';
 import { Modal } from '../../ui/Modal';
 import { exampleOperationForCredential, type ApiOperationOption } from './apiOperations';
 
@@ -55,12 +55,11 @@ export function ApiTokenRevealModal({ issued, operations, onClose }: ApiTokenRev
   }
 
   return (
-    <Modal open={Boolean(issued)} onClose={() => confirmed && onClose()} ariaLabelledBy="api-token-reveal-title" ariaDescribedBy="api-token-reveal-description" panelClassName="modal-card api-token-reveal-modal">
+    <Modal open={Boolean(issued)} onClose={() => confirmed && onClose()} appearance="design-system" size="lg" title="Guarde o token agora" showCloseButton={false} ariaDescribedBy="api-token-reveal-description" panelClassName="api-token-reveal-modal" footer={issued ? <Button variant="primary" disabled={!confirmed} onClick={onClose}>Concluir</Button> : undefined}>
       {issued ? <>
         <div className="api-modal-body">
           <header className="api-token-reveal-header">
-            <span className="api-risk-badge">EXIBIÇÃO ÚNICA</span>
-            <h2 id="api-token-reveal-title">Guarde o token agora</h2>
+            <Badge tone="warning">Exibição única</Badge>
             <p id="api-token-reveal-description">Depois que esta janela for fechada, o valor não poderá ser recuperado. Armazene-o em um cofre de segredos.</p>
           </header>
           <section className="api-token-reveal-section" aria-labelledby="api-token-secret-label">
@@ -73,7 +72,7 @@ export function ApiTokenRevealModal({ issued, operations, onClose }: ApiTokenRev
           <section className="api-token-reveal-section" aria-labelledby="api-token-base-label">
             <h3 id="api-token-base-label">Endereço base da API</h3>
             <code className="api-token-base-url">{apiBaseUrl}</code>
-            <p>O caminho de cada consulta depende da área e das permissões concedidas ao token.</p>
+            <p>O caminho de cada operação depende da área e das permissões concedidas ao token.</p>
           </section>
           {exampleOperation ? <section className="api-token-reveal-section" aria-labelledby="api-token-curl-label">
             <div className="api-token-example-heading">
@@ -87,7 +86,6 @@ export function ApiTokenRevealModal({ issued, operations, onClose }: ApiTokenRev
           <span className="sr-only" role="status">{[copied.token && 'Token copiado.', copied.curl && 'cURL copiado.'].filter(Boolean).join(' ')}</span>
           <label className="api-confirm-copy"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> Confirmo que guardei o token em local seguro.</label>
         </div>
-        <div className="api-modal-footer"><Button disabled={!confirmed} onClick={onClose}>Concluir</Button></div>
       </> : null}
     </Modal>
   );

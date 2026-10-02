@@ -921,6 +921,11 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             leader: { select: { id: true, name: true, email: true, isActive: true } },
             planner: { select: { id: true, name: true, email: true, isActive: true } },
             closedBy: { select: { id: true, name: true } },
+            events: {
+              where: { action: { in: PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS } },
+              select: { action: true, data: true, createdAt: true },
+              orderBy: { createdAt: 'asc' }
+            },
             checklists: { select: { key: true, status: true } },
             weeklyExecutionReviews: { select: { weekStartDate: true, checks: true, completedAt: true } },
             teamMemberChecks: { select: { collaboratorId: true, key: true, status: true, source: true, sourceUpdatedAt: true } },
@@ -1012,6 +1017,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         workflow: workflow ? {
           projectId: workflow.projectId,
           stage: workflow.stage,
+          stageTimeline: projectWorkflowStageTimeline(workflow.events || []),
           leader: workflow.leader,
           planner: workflow.planner,
           acceptedAt: workflow.acceptedAt,

@@ -1,0 +1,4798 @@
+:where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+  display: block;
+  min-width: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__items {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item {
+  position: relative;
+  min-width: 0;
+  min-height: calc(var(--space-8) + var(--space-1));
+  padding: var(--space-1);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item.is-active {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item.is-active::after {
+  position: absolute;
+  inset-inline: 28%;
+  inset-block-end: var(--space-1);
+  height: calc(var(--border-width) * 2);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  content: '';
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__items {
+    grid-template-columns: repeat(var(--rdo-section-count, 8), minmax(0, 1fr));
+  }
+}
+
+/* Project lists use full-width rows; the existing card content remains available on expansion. */
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list:has(> .rdo-project-table),
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list:has(> .rdo-project-table) { display: block; width: 100%; min-width: 0; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table { width: 100%; min-width: 0; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__desktop { overflow-x: auto; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__table { min-width: 850px; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: var(--space-1); min-width: 235px; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__actions .fv-button { white-space: nowrap; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__details { padding: var(--space-3); background: var(--surface-2); }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail > .fv-card { width: 100%; box-shadow: none; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail > .fv-card > .fv-card__header,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__summary,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__quick-actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__details-disclosure,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-archived-project-card__actions > button[aria-expanded] { display: none; }
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item {
+    padding-inline: 0;
+    font-size: calc(var(--text-xs) - var(--border-width));
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-page,
+:where(.fv-ds, [data-fv-ds]).rdo-manager-nps-page {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 0;
+  overflow-y: visible;
+  background: transparent;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-page :where(.page-card, .admin-card) {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-metrics
+  .fv-metric-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__filters {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-filter-bar:where(
+    .rdo-manager-listing__filters,
+    .rdo-manager-projects__filters,
+    .rdo-archived-projects__filters,
+    .rdo-admin-page__filters,
+    .rdo-nps__filters
+  ) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__main {
+    flex-direction: column;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters
+    )
+    .fv-filter-bar__main {
+    display: grid;
+    grid-template-columns:
+      minmax(0, calc(var(--space-16) * 7))
+      auto;
+    justify-content: space-between;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters
+    )
+    .fv-filter-bar__search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters
+    )
+    .fv-filter-bar__actions {
+    justify-self: end;
+  }
+}
+
+@media (min-width: 1280px) {
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__actions {
+    flex-wrap: nowrap;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__actions
+    > .fv-button {
+    flex: 0 0 auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__actions
+    > :where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters
+    ) {
+    width: calc(var(--space-16) * 10);
+    max-width: 100%;
+    flex: 0 1 calc(var(--space-16) * 10);
+  }
+}
+
+@media (min-width: 1536px) {
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__main {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__actions {
+    width: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    :where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters
+    ) {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__toolbar,
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__global-load-more {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-listing__toolbar
+  .project-sort-button {
+  margin-inline-start: auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__global-load-more {
+  justify-content: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__loading {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-grid {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-title {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-meta,
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-meta {
+  margin-block-start: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__draft-actions .fv-button {
+  min-height: calc(var(--space-10) + var(--space-1));
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-listing
+  > .rdo-manager-project-card
+  + .rdo-manager-project-card {
+  margin-block-start: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-card.fv-card--padding-sm {
+  padding: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-card
+  .rdo-manager-project-group.card {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .project-group-toggle,
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-type-header {
+  width: 100%;
+  min-height: calc(var(--space-10) + var(--space-1));
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-type-header {
+  border-block-end: var(--border-width) solid var(--line);
+  border-radius: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  .rdo-manager-report-type-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  .rdo-manager-report-type-row
+  > .report-type-header {
+  min-width: 0;
+  flex: 1 1 auto;
+  border-block-end: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  .rdo-manager-report-type-sort {
+  display: none;
+  flex: 0 0 auto;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  :where(.project-group-toggle, .report-type-header):hover {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  :where(.project-group-toggle, .report-type-header):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-card .project-group-toggle {
+  padding: var(--space-4) var(--space-5);
+  border-block-end: var(--border-width) solid var(--line);
+  border-radius: 0;
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  .project-group-toggle
+  .sec {
+  gap: var(--space-2);
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: normal;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  .project-group-toggle
+  .sec::before {
+  width: var(--space-1);
+  height: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  :where(.group-chevron, .rtype-chevron) {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  :where(.project-group-toggle, .report-type-header)[aria-expanded='false']
+  :where(.group-chevron, .rtype-chevron) {
+  transform: rotate(-90deg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-type-group {
+  margin: 0;
+  padding-inline: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .rtype-count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-type-list {
+  gap: var(--space-3);
+  padding-block: var(--space-3) var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-group
+  .rdo-manager-listing__batch-toolbar {
+  gap: var(--space-3);
+  margin-block: var(--space-2);
+  padding-block: var(--space-2);
+  border-block: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-batch-count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-type-load-more {
+  margin-block: var(--space-4) var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-sequence-dialog {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-sequence-dialog__description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-sequence-dialog-modal
+  .fv-modal__header
+  .fv-icon-button {
+  min-inline-size: calc(var(--space-10) + var(--space-1));
+  min-block-size: calc(var(--space-10) + var(--space-1));
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-sequence-dialog-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-sequence-dialog-modal {
+    width: min(100%, var(--fv-modal-width));
+    height: auto;
+    max-height: calc(100dvh - var(--space-8));
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .reason-dialog--design-system
+  .reason-dialog__content {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .reason-dialog--design-system
+  .reason-dialog__description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .reason-dialog--design-system
+  .fv-modal__header
+  .fv-icon-button {
+  min-inline-size: calc(var(--space-10) + var(--space-1));
+  min-block-size: calc(var(--space-10) + var(--space-1));
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__page-header
+    .fv-page-header__actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__page-header
+    .fv-page-header__actions
+    .fv-button {
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics
+    .fv-metric-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+    display: none;
+  }
+}
+
+/* ── RDO B.9 — aba NPS do Gestor ─────────────────────────────────────────────
+   Superfície exclusiva do Gestor. O Coordenador tem implementação própria e
+   permanece legacy. Todo o CSS abaixo é escopado em `.rdo-nps` e tokenizado. */
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps {
+  display: grid;
+  min-width: 0;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__card {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__card > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+/* Mobile primeiro: título e ações empilham para não se sobreporem em telas
+   estreitas. A partir de 768px voltam a dividir a mesma linha. */
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__card > .fv-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__heading {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__groups {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-md);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group-meta {
+  display: flex;
+  margin: var(--space-1) 0 0;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__surveys {
+  display: grid;
+  min-width: 0;
+  margin-block-start: var(--space-4);
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey {
+  display: grid;
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  gap: var(--space-2);
+}
+
+/* O toggle é a área clicável de expansão: precisa ser confortável de tocar. */
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toggle {
+  display: flex;
+  min-height: calc(var(--space-10) + var(--space-1));
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+  gap: var(--space-2);
+  text-align: start;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__responses {
+  display: grid;
+  min-width: 0;
+  margin: var(--space-2) 0 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response {
+  display: grid;
+  min-width: 0;
+  padding-block: var(--space-2);
+  border-block-end: var(--border-width) solid var(--line);
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response:last-child {
+  border-block-end: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response dt {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__empty-response {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__loading {
+  min-height: var(--space-16);
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__card > .fv-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar {
+    justify-content: flex-end;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response {
+    /* Notas seguem compactas; respostas longas não podem consumir a pergunta. */
+    grid-template-columns: minmax(0, 1fr) fit-content(60%);
+    align-items: baseline;
+    gap: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response dd {
+    text-align: end;
+  }
+}
+
+/* Evolução visual: header, toolbar, métricas e entidades deixam de viver em
+   um único card e passam a compor uma página de gestão. */
+:where(.fv-ds, [data-fv-ds]).rdo-nps {
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__page-header,
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__filters,
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__results {
+  width: 100%;
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps
+  .rdo-nps__page-header
+  .fv-page-header__actions {
+  flex-wrap: wrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__metrics {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group {
+  overflow: hidden;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group-icon {
+  display: inline-grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group-copy {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey-meta {
+  justify-content: flex-end;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey > [id^='rdo-nps-panel-'] {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__responses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: var(--space-3);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    gap: 0 var(--space-5);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__response {
+    grid-template-columns: minmax(0, 1fr) fit-content(60%);
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-nps
+    .rdo-nps__page-header
+    .fv-page-header__actions,
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar .fv-button {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey-meta {
+    justify-content: flex-start;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps
+    .rdo-nps__survey
+    > [id^='rdo-nps-panel-'] {
+    grid-column: auto;
+  }
+}
+
+/* ── RDO B.10 — diálogo Arquivar projeto ────────────────────────────────────
+   A fronteira pertence somente à instância opt-in do Gestor. O Modal fornece
+   superfície, scrim, foco e dark mode; estas regras organizam conteúdo e ações
+   sem alcançar os demais diálogos ou consumidores legacy. */
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-archive-project-dialog
+  .rdo-manager-archive-project-dialog__title {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-archive-project-dialog
+  .rdo-manager-archive-project-dialog__description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-archive-project-dialog
+  .fv-modal__footer {
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-archive-project-dialog
+  .fv-modal__footer
+  .fv-button {
+  min-width: 0;
+  min-height: calc(var(--space-10) + var(--space-1));
+  height: auto;
+  flex: 1 1 0;
+  align-self: stretch;
+  justify-content: center;
+  padding: var(--space-2);
+  white-space: normal;
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-archive-project-dialog-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-archive-project-dialog {
+    width: min(100%, var(--fv-modal-width));
+    height: auto;
+    max-height: calc(100dvh - var(--space-8));
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog
+  :where(
+    .rdo-manager-project-team-dialog__title,
+    #project-team-dialog-description
+  ) {
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog
+  #project-team-dialog-description {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-team-dialog__form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog__form
+  :where(.field-group, .cc-list, .cc-add-row, .fv-control-shell) {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog__form
+  .cc-add-row
+  .fv-control-shell {
+  flex: 1 1 14rem;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-team-dialog__form .cc-list {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog__form
+  :where(.cc-row, .cc-add-row) {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-project-team-dialog__form .cc-email {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog__form
+  .email-chip-rm {
+  display: inline-grid;
+  width: var(--space-8);
+  min-height: var(--space-8);
+  place-items: center;
+  border-radius: var(--radius-md);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-project-team-dialog__form
+  .email-chip-rm:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-project-team-dialog-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-project-team-dialog {
+    width: min(100%, var(--fv-modal-width));
+    height: auto;
+    max-height: calc(100dvh - var(--space-16));
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog
+    :where(.fv-modal__header, .fv-modal__body, .fv-modal__footer) {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog
+    .fv-modal__title {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog
+    #project-team-dialog-description,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog__form
+    :where(label, .cc-email, .form-hint) {
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog__form
+    .fv-select-shell {
+    height: calc(var(--space-8) + var(--space-1));
+    --fv-control-height: calc(var(--space-8) + var(--space-1));
+    --fv-control-padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog__form
+    .fv-select {
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-project-team-dialog__form {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog
+    .fv-modal__footer {
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog
+    .fv-modal__footer
+    .fv-button {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-team-dialog
+    :where(.fv-modal__body, .fv-modal__footer)
+    .fv-button {
+    min-height: calc(var(--space-8) + var(--space-1));
+    --fv-button-height: calc(var(--space-8) + var(--space-1));
+    --fv-button-padding: var(--space-2);
+  }
+}
+
+/* ── Projetos arquivados ────────────────────────────────────────────────────
+   A aba usa os mesmos primitives e a mesma densidade das listagens do Gestor,
+   preservando paginação, agrupamento, downloads e mutations existentes. */
+:where(.fv-ds, [data-fv-ds]):is(
+    .rdo-manager-projects-page,
+    .rdo-manager-archived-page
+  )
+  .project-revision-picker__shell {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 220px;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page,
+:where(.fv-ds, [data-fv-ds]).rdo-manager-archived-page {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 0;
+  overflow-y: visible;
+  background: transparent;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects,
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list,
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__loading,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__loading {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__filters,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__filters {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__result-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects .fv-icon-button {
+  min-width: calc(var(--space-10) + var(--space-1));
+  min-height: calc(var(--space-10) + var(--space-1));
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-archived-projects__filters
+    .fv-filter-bar__main {
+    grid-template-columns: minmax(18rem, 32rem) auto;
+  }
+}
+
+/* ── Projetos ativos ────────────────────────────────────────────────────────
+   A listagem compartilha densidade, cards e comportamento responsivo com
+   Arquivados. Os formulários e revisões continuam com seus contratos legacy e
+   entram apenas em containers DS nesta fatia. */
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__pending-header {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__pending {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  padding-block-end: var(--space-2);
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__pending-header {
+  justify-content: space-between;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__pending-header h2 {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__identity {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__identity
+  > .rdo-archived-project-card__kicker,
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__identity
+  > .rdo-archived-project-card__title {
+  grid-area: auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card--pending {
+  border-color: var(--warning);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__overview {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__overview-item {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__overview-item :where(dt, dd) {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__overview-item dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__overview-item dd {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__legacy-form,
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-projects__legacy-form
+  .admin-inline-grid,
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card .admin-inline-grid {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :where(.rdo-manager-projects__legacy-form, .rdo-active-project-card)
+  .admin-inline-grid {
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :where(.rdo-manager-projects__legacy-form, .rdo-active-project-card)
+  :where(.field-group, input, select) {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card > .fv-card__header {
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-archived-project-card
+  > .fv-card__header
+  .fv-card__heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__toggle {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: calc(var(--space-10) + var(--space-1));
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'kicker count chevron'
+    'title count chevron';
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__toggle:hover {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__toggle:focus-visible,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__kicker {
+  grid-area: kicker;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xs);
+  text-transform: uppercase;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__title {
+  min-width: 0;
+  margin: 0;
+  grid-area: title;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__title-toggle {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__title-toggle:hover {
+  color: var(--brand-text);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card__title-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__count {
+  grid-area: count;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__chevron {
+  grid-area: chevron;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-archived-project-card__toggle[aria-expanded='false']
+  .rdo-archived-project-card__chevron,
+:where(.fv-ds, [data-fv-ds])
+  .rdo-archived-project-card__reports-toggle[aria-expanded='false']
+  .rdo-archived-project-card__chevron,
+:where(.fv-ds, [data-fv-ds])
+  .rdo-archived-report-type__toggle[aria-expanded='false']
+  .rdo-archived-report-type__chevron {
+  transform: rotate(-90deg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__badges,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__reports {
+  display: grid;
+  min-width: 0;
+  margin-block-start: var(--space-4);
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__details {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__details dl {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__detail {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__detail dt,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__detail dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__detail dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__detail dd {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* A apresentação compacta abaixo é exclusiva de Arquivados. Os cards ativos
+   continuam usando a composição rica de Projetos. */
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived {
+  gap: 0;
+  overflow: clip;
+  padding: 0;
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header {
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  > .fv-card__header
+  .fv-card__heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  > .fv-card__header
+  .fv-card__actions {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__heading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__reports-toggle {
+  align-self: center;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__toggle {
+  display: inline-grid;
+  width: var(--space-10);
+  min-width: var(--space-10);
+  height: var(--space-10);
+  min-height: var(--space-10);
+  grid-template: none;
+  padding: 0;
+  place-items: center;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__toggle:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__chevron {
+  grid-area: auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__icon {
+  display: inline-grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__identity {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__title-row,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__title-row {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__meta {
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__title {
+  grid-area: auto;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__badges {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  > .fv-card__body:empty {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived-collapsed
+  > .fv-card__body {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  > .fv-card__body:not(:empty) {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__reports {
+  margin-block-start: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__footer {
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-project-card--archived
+  .rdo-archived-project-card__actions {
+  justify-content: flex-end;
+}
+
+/* Projetos ativos usam uma leitura compacta por padrão e revelam uma visão
+   operacional completa sem adicionar dados ou ações que não existam. */
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__result-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card {
+  gap: var(--space-3);
+  overflow: clip;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card--expanded {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-e2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header {
+  align-items: center;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__icon {
+  display: inline-grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__identity {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__title-row,
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__context,
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__header-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__title-row {
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__context {
+  gap: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__context strong {
+  color: var(--ink);
+  font-weight: var(--font-medium);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__header-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__header-actions
+  .fv-icon-button {
+  min-width: calc(var(--space-10) + var(--space-1));
+  min-height: calc(var(--space-10) + var(--space-1));
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-toggle svg {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__details-toggle[aria-expanded='false']
+  svg {
+  transform: rotate(-90deg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-region {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-disclosure {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__details-disclosure
+  .rdo-active-project-card__details-toggle {
+  margin-inline-end: auto;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__details-region--expanded
+  .rdo-active-project-card__details-toggle {
+  z-index: 1;
+  margin-block-end: calc(0px - var(--border-width));
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+  border-block-end-color: var(--surface-2);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__body {
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: var(--space-6) minmax(0, 1fr);
+  grid-template-areas:
+    'icon label'
+    'icon value';
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary-item > svg {
+  grid-area: icon;
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__summary-item
+  :where(dt, dd) {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary-item dt {
+  grid-area: label;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary-item dd {
+  grid-area: value;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__expanded-content.rdo-archived-project-card__details {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__detail-panel {
+  min-width: 0;
+  scroll-margin-block-start: var(--space-6);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__detail-panel h4 {
+  margin: 0 0 var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__detail-panel > dl {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__detail-panel--overview
+  > dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__quick-actions {
+  display: grid;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__quick-actions h4 {
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__quick-action-list {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-active-project-card__quick-actions
+  .fv-button {
+  width: 100%;
+  min-height: calc(var(--space-10) + var(--space-1));
+  justify-content: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--compact {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__embedded-flow {
+  min-width: 0;
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+@media (max-width: 1280px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-active-project-card
+    > .fv-card__header
+    > .fv-card__actions {
+    width: 100%;
+    overflow: visible;
+    overscroll-behavior-inline: auto;
+    scrollbar-width: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--full {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--compact {
+    display: inline;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-active-project-card__quick-action-list {
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-active-project-card__quick-actions
+    .fv-button {
+    --fv-button-padding: var(--space-1);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__heading {
+    align-items: flex-start;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__icon {
+    width: var(--space-10);
+    height: var(--space-10);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-grid,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-active-project-card__detail-panel--overview
+    > dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Desktop: the existing project card becomes a responsive tile. Auto-fill
+   keeps a single search result compact; editing still has the full row. */
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list,
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__loading,
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list,
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__loading {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+    align-items: start;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list > .rdo-active-project-card {
+    container: rdo-project-tile / inline-size;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list > [data-project-editing='true'] {
+    grid-column: 1 / -1;
+  }
+
+  @container rdo-project-tile (max-width: 40rem) {
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header > .fv-card__actions {
+      width: 100%;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__header-actions {
+      width: 100%;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__heading {
+      align-items: flex-start;
+      gap: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__detail-panel {
+      padding: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--full {
+      display: none;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-action-label--compact {
+      display: inline;
+    }
+  }
+}
+
+/* Archived tiles retain their report groups, selection and project actions. */
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list > .rdo-project-card--archived {
+    container: rdo-archived-tile / inline-size;
+  }
+
+  @container rdo-archived-tile (max-width: 60rem) {
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'identity identity' 'reports quick-actions';
+      gap: var(--space-3);
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header > .fv-card__heading,
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__heading { display: contents; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__identity { grid-area: identity; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__icon { display: none; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__reports-toggle { grid-area: reports; justify-self: start; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header > .fv-card__actions {
+      grid-area: quick-actions;
+      justify-self: end;
+      overflow: visible;
+    }
+
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions {
+      display: grid;
+      width: 100%;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-2);
+    }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions > .fv-button:first-child { grid-area: 1 / 1; justify-self: start; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions > .fv-button:not(:first-child) { grid-area: 1 / 2; }
+    :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions > .fv-badge { grid-column: 1 / -1; justify-self: start; max-width: 100%; white-space: normal; }
+  }
+}
+
+/* A edição acontece dentro de um card que já possui padding. No mobile, uma
+   densidade própria evita somar a escala do formulário desktop à do card e
+   devolve largura útil aos campos que continuam organizados em duas colunas. */
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  .admin-inline-form {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.admin-inline-form, .rdo-manager-projects__legacy-form)
+  .field-group
+  > label {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.admin-inline-form, .rdo-manager-projects__legacy-form)
+  :where(input:not([type='checkbox']), select, textarea) {
+  border-color: var(--line-strong);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.admin-inline-form, .rdo-manager-projects__legacy-form)
+  :where(input:not([type='checkbox']), select, textarea):focus {
+  border-color: var(--brand);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--brand-soft);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.admin-inline-form, .rdo-manager-projects__legacy-form)
+  :where(input, textarea)::placeholder {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.admin-inline-form, .rdo-manager-projects__legacy-form)
+  option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .cc-list {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .cc-list-header {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  :where(.cc-row, .cc-add-row) {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .cc-email {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .cc-name-row
+  label {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .project-sequence-field {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .project-sequence-field
+  > span {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .project-sequence-field
+  > input {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .tog-lbl {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .tog-sl {
+  border: var(--border-width) solid var(--line-strong);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .tog-sl::after {
+  background: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .tog
+  input:checked
+  + .tog-sl {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+  :where(.rdo-project-edit-form, .rdo-manager-projects__legacy-form)
+  .tog
+  input:checked
+  + .tog-sl::after {
+  background: var(--on-brand);
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form {
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .field-group {
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .field-group
+    > label {
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    :where(input:not([type='checkbox']), select) {
+    min-height: calc(var(--space-8) + 2px);
+    padding-block: var(--space-1);
+    padding-inline: var(--space-2);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    select {
+    padding-inline-end: var(--space-6);
+    background-position:
+      calc(100% - var(--space-3)) 50%,
+      calc(100% - var(--space-2)) 50%;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .fv-control-shell {
+    height: calc(var(--space-8) + 2px);
+    --fv-control-padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    :where(.cc-add-row, .project-sequence-field) {
+    gap: var(--space-1);
+    padding: calc(var(--space-1) + var(--border-width)) var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .cc-add-row
+    > .fv-control-shell {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .cc-add-row
+    > .fv-button {
+    flex: 0 0 auto;
+    --fv-button-padding: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .project-sequence-grid {
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .project-toggle-row {
+    padding-block: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .fv-button {
+    min-height: calc(var(--space-8) + 2px);
+    --fv-button-height: calc(var(--space-8) + 2px);
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .admin-form-actions {
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
+    .rdo-project-edit-form
+    .admin-form-actions
+    .fv-button {
+    flex: 1 1 0;
+  }
+}
+
+/* ── Diálogos administrativos ainda baseados nos formulários legados ───────
+   Uploads manuais e a configuração do NPS agora usam a moldura do DS. Estes
+   seletores traduzem apenas os controles internos restantes para tokens, sem
+   mudar dados, validações ou ordem dos fluxos. */
+:where(.fv-ds, [data-fv-ds]).rdo-manager-manual-report-dialog-backdrop {
+  align-items: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-manual-report-dialog {
+  max-height: calc(100dvh - var(--space-8));
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-manual-report-dialog
+  .manual-report-form {
+  gap: var(--space-4);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :is(.rdo-manager-manual-report-dialog, .rdo-manager-survey-editor-dialog)
+  .field-group
+  > label {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :is(.rdo-manager-manual-report-dialog, .rdo-manager-survey-editor-dialog)
+  .field-group
+  :where(input:not([type='checkbox']), select, textarea) {
+  border-color: var(--line-strong);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :is(.rdo-manager-manual-report-dialog, .rdo-manager-survey-editor-dialog)
+  .field-group
+  :where(input:not([type='checkbox']), select, textarea):focus {
+  border-color: var(--brand);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--brand-soft);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :is(.rdo-manager-manual-report-dialog, .rdo-manager-survey-editor-dialog)
+  :where(input, textarea)::placeholder {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :is(.rdo-manager-manual-report-dialog, .rdo-manager-survey-editor-dialog)
+  option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-manual-report-dialog
+  .pdf-dropzone {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-manual-report-dialog
+  :where(.pdf-dropzone-icon, .pdf-dropzone-text strong) {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-manual-report-dialog
+  .pdf-dropzone-text small {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-manual-report-dialog
+  .manual-report-file-card {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-manual-report-dialog
+  .manual-report-file-name {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-survey-editor-dialog {
+  height: min(760px, calc(100dvh - var(--space-8)));
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .fv-modal__body {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-editor-form {
+  width: 100%;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-suggestions {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-suggestions
+  > span {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-editor-list {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-card {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-card.drag-placeholder {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  :where(.survey-question-drag-handle, .checkbox-line) {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-drag-handle:active {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-scale-dot {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  :where(.mini-btn.alt, .secondary-button) {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  :where(.mini-btn.alt, .secondary-button):hover {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .survey-question-editor-actions {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-survey-editor-dialog
+  .colab-tag {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-manual-report-dialog-backdrop {
+    padding: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-manual-report-dialog {
+    width: min(100%, var(--fv-modal-width));
+    height: auto;
+    max-height: calc(100dvh - var(--space-8));
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-manual-report-dialog
+    .fv-modal__footer {
+    align-items: stretch;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-manual-report-dialog
+    .fv-modal__footer
+    .fv-button {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-survey-editor-dialog {
+    height: 100dvh;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-survey-editor-dialog
+    .survey-question-card
+    .admin-inline-grid {
+    grid-template-columns: var(--space-8) minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-survey-editor-dialog
+    .survey-question-card
+    :where(.survey-question-type-field, .checkbox-line) {
+    grid-column: 1 / -1;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-survey-editor-dialog
+    .survey-question-card
+    .field-group-wide {
+    grid-column: 2 / -1;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-survey-editor-dialog
+    .admin-form-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-survey-editor-dialog
+    .admin-form-actions
+    > button {
+    width: 100%;
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type {
+  min-width: 0;
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__toggle {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-10) + var(--space-1));
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__toggle:hover {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__count {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__content {
+  display: grid;
+  min-width: 0;
+  padding-block-end: var(--space-4);
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-archived-report-type__content
+  .rdo-manager-listing__batch-toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-archived-report-type__content
+  .report-batch-count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__loading,
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type__load-more {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-card__overview {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__details dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-projects-page__header
+    .fv-page-header__actions,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-projects-page__header
+    .fv-page-header__actions
+    .fv-button {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card > .fv-card__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__toggle {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'kicker chevron'
+      'title chevron'
+      'count count';
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions,
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__actions .fv-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker {
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-1);
+    padding-block: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker__actions {
+    width: 100%;
+    max-width: none;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker__shell {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    height: var(--space-8);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker__select {
+    width: auto;
+    max-width: none;
+    height: var(--space-8);
+    min-height: var(--space-8);
+    flex: 1 1 auto;
+    padding: var(--space-1) var(--space-2);
+    border-color: var(--control-border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page
+    )
+    .project-revision-picker__button {
+    min-height: var(--space-8);
+    flex: 0 0 auto;
+    --fv-button-height: var(--space-8);
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'identity identity'
+      'reports quick-actions';
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-project-card--archived
+    > .fv-card__header
+    > .fv-card__heading,
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__heading {
+    display: contents;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-project-card--archived
+    > .fv-card__header
+    > .fv-card__actions {
+    grid-area: quick-actions;
+    width: auto;
+    max-width: 100%;
+    justify-self: end;
+    overflow: visible;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__icon {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-project-card--archived
+    .rdo-archived-project-card__reports-toggle {
+    grid-area: reports;
+    justify-self: start;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-archived-project-card__identity {
+    grid-area: identity;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-project-card--archived
+    .rdo-archived-project-card__badges {
+    width: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow: visible;
+  }
+}
+
+/* ── Equipe e usuários ─────────────────────────────────────────────────────
+   As duas áreas administrativas compartilham header, métricas, tabs internas,
+   listagens e formulários responsivos sem alterar os contratos de domínio. */
+:where(.fv-ds, [data-fv-ds]).rdo-manager-admin-page {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 0;
+  overflow-y: visible;
+  background: transparent;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-page__filters {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-admin-page .rdo-manager-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-admin-page .fv-metric-card__copy {
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-toolbar__actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-form__header,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-section-heading,
+:where(.fv-ds, [data-fv-ds]) .client-account-action-area,
+:where(.fv-ds, [data-fv-ds]) .client-account-badges,
+:where(.fv-ds, [data-fv-ds]) .client-account-button-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-section,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-section__content,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-listing,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-card-list,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-loading,
+:where(.fv-ds, [data-fv-ds]) .rdo-client-account-group__accounts {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-tabs {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-tab {
+  min-height: calc(var(--space-10) + var(--space-1));
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-tab:hover {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-tab.is-active {
+  background: var(--surface);
+  color: var(--brand-text);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-page__header .rdo-admin-page__filters {
+  width: min(100%, 22rem);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-workspace {
+  overflow: hidden;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-workspace > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tabs {
+  display: grid;
+  width: min(100%, 48rem);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tab {
+  width: 100%;
+  border: var(--border-width) solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tab:hover {
+  border-color: var(--control-border);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tab.is-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-surface-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-surface-heading__icon {
+  display: inline-grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--success-bg);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-surface-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xl);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-surface-heading p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborators {
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__identity,
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__mobile-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__avatar {
+  display: inline-grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__identity-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__identity-copy strong,
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator__mobile-title
+  > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-weight: var(--font-semibold);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__identity-copy > span,
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborators__count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :where(.rdo-team-collaborator__text, .rdo-team-collaborator__email) {
+  display: inline-block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__email {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator__row--inactive {
+  opacity: var(--disabled-opacity);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator__row--inactive:is(:hover, :focus-within) {
+  opacity: 1;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborators__count {
+  margin: 0;
+  padding-inline: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator-form {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator-form__grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form__grid
+  > :where(.field-group-wide, .rdo-team-collaborator-form__actions) {
+  grid-column: 1 / -1;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator-form__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator-form h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator-form .upload-dropzone {
+  border-color: var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form
+  .upload-dropzone:hover {
+  border-color: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form
+  .upload-dropzone:focus-visible {
+  border-color: var(--brand);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: none;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form
+  .upload-dropzone:is(.drag-over, .has-file) {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form
+  .upload-dropzone-text
+  strong {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form
+  .upload-dropzone-text
+  small {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborator-form
+  .image-dropzone-preview {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborators
+  :where(.fv-data-table__actions, .fv-mobile-list__actions) {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team-collaborators .fv-mobile-list__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team-collaborators
+  .fv-mobile-list__metadata
+  dd {
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-team
+  :where(.rdo-job-roles__card, .rdo-dds-themes__card) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-card-list {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-person-card {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-e0);
+}
+
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-page__header .fv-page-header__main {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-page__header .fv-page-header__actions {
+    width: auto;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-page__header .rdo-admin-page__filters {
+    max-width: 22rem;
+    flex: 1 1 18rem;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-page__header
+    .rdo-admin-toolbar__actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-page__header
+    .rdo-admin-toolbar__actions
+    .fv-button {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-collaborator-form__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-collaborator-form__grid
+    > :where(.field-group-wide, .rdo-team-collaborator-form__actions) {
+    grid-column: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-collaborators
+    .fv-mobile-list__actions
+    .fv-button {
+    flex: 1 1 var(--space-24);
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users__filters {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users-filter-control {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users-filter-control .fv-control-shell {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users-filter-control--sort {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users-workspace {
+  overflow: hidden;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users-workspace > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users .rdo-admin-tabs {
+  display: grid;
+  width: min(100%, calc(var(--space-16) * 6));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users .rdo-admin-tab {
+  width: 100%;
+  border: var(--border-width) solid var(--line-strong);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users .rdo-admin-tab.is-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users__table-summary {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users__table-summary strong {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users__table-summary span,
+:where(.fv-ds, [data-fv-ds])
+  :where(.rdo-user-identity__copy > span, .rdo-user-email, .rdo-user-link) {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-user-identity {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-user-avatar {
+  display: inline-grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-user-identity__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-user-identity__copy strong,
+:where(.fv-ds, [data-fv-ds])
+  :where(.rdo-user-identity__copy > span, .rdo-user-email, .rdo-user-link) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-user-form__grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-user-form__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-users__table
+  :where(.fv-data-table__actions, .fv-mobile-list__actions) {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-users__table .fv-mobile-list__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-users-page__header .fv-page-header__main {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-users-page__header
+    .fv-page-header__actions {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-users__filters .fv-filter-bar__main {
+    display: grid;
+    grid-template-columns: minmax(18rem, 1fr) minmax(32rem, 2fr) auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-users__filters .fv-filter-bar__controls {
+    grid-template-columns: repeat(2, minmax(10rem, 1fr)) minmax(14rem, 1.35fr);
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-user-form__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-user-form__actions {
+    grid-column: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-users__table
+    .fv-mobile-list__actions
+    .fv-button {
+    flex: 1 1 var(--space-24);
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-users-workspace {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-users .rdo-admin-tabs {
+    width: 100%;
+    gap: var(--space-1);
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-form--nested {
+  margin-block-start: var(--space-4);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-form__header {
+  justify-content: space-between;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-form__header h2,
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-section-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-section-heading p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-admin-form
+  :where(.admin-inline-grid, .field-group, input, select, textarea) {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-form :where(input, select, textarea) {
+  border-color: var(--line-strong);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+/* O shell composto é a única superfície visível dos controles DS. Manter o
+   input interno transparente evita o segundo retângulo — especialmente nítido
+   no campo somente leitura de Usuário — e preserva raio e foco contínuos. */
+:where(.fv-ds, [data-fv-ds])
+  .rdo-admin-form
+  .fv-control-shell
+  :where(.fv-input, .fv-select) {
+  background: transparent;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card .admin-item-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card .admin-item-main {
+  min-width: min(100%, 14rem);
+  flex: 1 1 14rem;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card .admin-item-title,
+:where(.fv-ds, [data-fv-ds]) .rdo-client-account-card .admin-item-title {
+  color: var(--ink);
+  font-weight: var(--font-semibold);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card .admin-item-sub,
+:where(.fv-ds, [data-fv-ds]) .rdo-client-account-card .admin-item-sub {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card__actions {
+  margin-inline-start: auto;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-admin-person-card
+  :where(.fv-badge, .fv-status-pill) {
+  flex: 0 0 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-client-accounts {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-client-account-group > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .client-account-group-toggle {
+  display: flex;
+  width: 100%;
+  min-height: calc(var(--space-10) + var(--space-1));
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: var(--font-semibold);
+  text-align: start;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .client-account-group-toggle:hover {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .client-account-group-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .client-account-group-toggle[aria-expanded='false']
+  .rtype-chevron {
+  transform: rotate(-90deg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .client-account-group-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-client-account-card > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .client-account-action-area {
+  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+:where(.fv-ds, [data-fv-ds]) .client-account-badges {
+  position: static;
+  max-width: none;
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-workspace {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tabs {
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tab {
+    min-height: var(--space-12);
+    padding-inline: var(--space-1);
+    font-size: calc(var(--text-xs) - var(--border-width));
+    line-height: var(--leading-xs);
+    white-space: normal;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team
+    .rdo-admin-person-card
+    .admin-item-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team
+    .rdo-admin-person-card
+    .collaborator-card-actions {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-inline-start: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team .collaborator-card-actions .fv-button {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-page__header .fv-page-header__actions,
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-toolbar__actions,
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-toolbar__actions .fv-button,
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-page__header .fv-button,
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card__actions,
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-person-card__actions .fv-button,
+  :where(.fv-ds, [data-fv-ds]) .client-account-action-area,
+  :where(.fv-ds, [data-fv-ds]) .client-account-button-row,
+  :where(.fv-ds, [data-fv-ds]) .client-account-button-row .fv-button {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-client-account-card > .fv-card__body {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-client-account-card
+    .client-account-action-area {
+    align-items: stretch;
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── RDO B.11 — diálogo Adicionar segmento ──────────────────────────────────
+   O opt-in permanece restrito a esta instância. O Modal e os campos do DS
+   fornecem superfície, foco, validação nativa e temas; as regras locais cuidam
+   apenas da composição do formulário e do footer responsivo. */
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-segment-dialog
+  .rdo-manager-segment-dialog__title {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-segment-dialog
+  .rdo-manager-segment-dialog__form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+/* O shell arredondado é o único responsável pelo anel de foco. A regra global
+   de acessibilidade também alcança o input interno e desenharia um segundo
+   outline retangular sobre o controle. */
+:where(.fv-ds, [data-fv-ds])
+  .rdo-manager-segment-dialog
+  .fv-input:focus-visible {
+  outline: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-segment-dialog .fv-modal__footer {
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-segment-dialog .fv-modal__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-segment-dialog
+    .fv-modal__footer
+    .fv-button {
+    width: 100%;
+  }
+}
+
+/* ── Composição móvel transversal do RDO ───────────────────────────────────
+   A navegação, os indicadores, as toolbars e as listas usam a mesma densidade
+   nas oito áreas. A informação continua disponível, mas deixa de repetir no
+   mobile a altura e as divisórias da composição desktop. */
+:where(.fv-ds, [data-fv-ds]) .rdo-sort-label--compact {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-action-label--compact {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+    margin-block-end: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item {
+    min-height: calc(var(--space-8) + var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+    .rdo-manager-page,
+    .rdo-manager-projects-page,
+    .rdo-manager-archived-page,
+    .rdo-manager-admin-page,
+    .rdo-manager-nps-page,
+    .rdo-manager-stats-page,
+    .rdo-nps
+  ) {
+    gap: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-nps-page,
+      .rdo-manager-stats-page,
+      .rdo-nps
+    )
+    .fv-button {
+    min-height: calc(var(--space-8) + var(--space-1));
+    --fv-button-height: calc(var(--space-8) + var(--space-1));
+    --fv-button-padding: var(--space-3);
+    --fv-button-font-size: var(--text-sm);
+    --fv-button-line-height: var(--leading-sm);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-nps-page,
+      .rdo-manager-stats-page,
+      .rdo-nps
+    )
+    .fv-icon-button {
+    min-width: calc(var(--space-8) + var(--space-1));
+    min-height: calc(var(--space-8) + var(--space-1));
+    --fv-button-height: calc(var(--space-8) + var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-nps-page,
+      .rdo-manager-stats-page,
+      .rdo-nps
+    )
+    .fv-control-shell {
+    height: var(--space-10);
+    --fv-control-padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-nps-page,
+      .rdo-manager-stats-page,
+      .rdo-nps
+    )
+    .fv-search-input__clear {
+    width: var(--space-8);
+    height: var(--space-8);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-group
+    .rdo-manager-report-type-sort,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-archived-report-type__header
+    > .rdo-manager-report-type-sort {
+    display: inline-flex;
+    min-height: var(--space-8);
+    margin-inline-end: var(--space-2);
+    --fv-button-height: var(--space-8);
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-group
+    .rdo-manager-report-type-row
+    > .report-type-header {
+    height: calc(var(--space-8) + var(--space-1));
+    min-height: calc(var(--space-8) + var(--space-1));
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
+    padding-block: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-project-card .project-group-toggle {
+    min-height: calc(var(--space-8) + var(--space-1));
+    padding: var(--space-2) var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    > .rdo-manager-project-card
+    + .rdo-manager-project-card {
+    margin-block-start: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team .rdo-admin-tab,
+  :where(.fv-ds, [data-fv-ds]) .rdo-users .rdo-admin-tab {
+    min-height: calc(var(--space-8) + var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__main {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__actions
+    > .fv-button {
+    width: 100%;
+    --fv-button-padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__actions
+    > .fv-button:only-of-type {
+    grid-column: 1 / -1;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header
+    )
+    .fv-page-header__actions
+    > .fv-filter-bar {
+    grid-column: 1 / -1;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-page__header
+    .rdo-admin-toolbar__actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar .fv-button,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-page__header
+    .rdo-admin-toolbar__actions
+    .fv-button {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-nps-page
+    .rdo-nps
+    .rdo-nps__toolbar
+    .fv-button,
+  :where(.fv-ds, [data-fv-ds]).rdo-manager-nps-page
+    .rdo-nps__filters
+    .fv-button {
+    min-height: calc(var(--space-8) + var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-page__header
+    .rdo-admin-toolbar__actions {
+    grid-column: 1 / -1;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-team-page__header
+    .rdo-admin-toolbar__actions
+    .fv-button {
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    padding: var(--focus-ring-offset) var(--focus-ring-offset) var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics
+    .fv-metric-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card {
+    min-width: 0;
+    min-height: var(--space-16);
+    flex: none;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-e0);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card__icon {
+    width: var(--space-8);
+    height: var(--space-8);
+    border-radius: var(--radius-sm);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card__copy {
+    gap: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card__value {
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics
+    .fv-metric-card__description {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics.rdo-manager-metrics--approved {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-1);
+    overflow-x: visible;
+    scroll-padding-inline: 0;
+    scroll-snap-type: none;
+    scrollbar-width: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics.rdo-manager-metrics--approved
+    .fv-metric-card {
+    display: grid;
+    min-width: 0;
+    min-height: calc(var(--space-16) + var(--space-2));
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    justify-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-1);
+    text-align: center;
+    scroll-snap-align: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics.rdo-manager-metrics--approved
+    .fv-metric-card__icon {
+    width: var(--space-6);
+    height: var(--space-6);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-metrics.rdo-manager-metrics--approved
+    .fv-metric-card__copy {
+    width: 100%;
+    justify-items: center;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .fv-filter-bar:where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters,
+      .rdo-users__filters
+    )
+    .fv-filter-bar__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .fv-filter-bar:where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters,
+      .rdo-users__filters
+    )
+    .fv-filter-bar__search {
+    grid-column: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .fv-filter-bar:where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters,
+      .rdo-users__filters
+    )
+    .fv-filter-bar__search:only-child {
+    grid-column: 1 / -1;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .fv-filter-bar:where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters,
+      .rdo-users__filters
+    )
+    .fv-filter-bar__actions {
+    width: auto;
+    grid-column: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .fv-filter-bar:where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters
+    )
+    .fv-filter-bar__actions
+    .project-sort-button,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps__filters
+    .fv-filter-bar__actions
+    .fv-button {
+    width: auto;
+    min-width: var(--space-16);
+    padding-inline: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-sort-label--full {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-sort-label--compact {
+    display: inline;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-action-label--full {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-action-label--compact {
+    display: inline;
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__items {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__item
+    > .fv-card {
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(.rdo-manager-page, .rdo-manager-archived-page)
+    .rdo-manager-listing
+    .fv-mobile-list__item
+    > .fv-card:not(.fv-card--selected) {
+    border-color: var(--line-strong);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-e1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    :is(.fv-mobile-list__actions, .fv-mobile-list__details) {
+    margin-block-start: var(--space-3);
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-project-group
+    .rdo-manager-listing__batch-toolbar,
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-archived-report-type__content
+    .rdo-manager-listing__batch-toolbar {
+    margin-block: 0;
+    padding-block: var(--space-2);
+    border-block: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar
+    > .admin-form-actions {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar
+    > .admin-form-actions
+    > .fv-button {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+    --fv-button-padding: var(--space-1);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar
+    > .admin-form-actions
+    > .report-batch-select-all {
+    flex-grow: 2;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar
+    .report-batch-select-all
+    .report-batch-action-label--full {
+    display: inline;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar
+    .report-batch-select-all
+    .report-batch-action-label--compact {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar--archived {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing__batch-toolbar--archived
+    > .report-batch-count {
+    white-space: nowrap;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__metadata,
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing .fv-mobile-list__metadata {
+    gap: var(--space-2);
+    padding-block-start: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__metadata-item {
+    grid-template-columns: calc(var(--space-16) + var(--space-2)) minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__metadata
+    dd {
+    text-align: start;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    > .rdo-manager-listing__actions {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-button {
+    width: auto;
+    min-width: calc(var(--space-10) + var(--space-1));
+    flex: 0 0 auto;
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-manager-listing
+    .fv-mobile-list__actions
+    .fv-icon-button {
+    flex-grow: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-workspace,
+  :where(.fv-ds, [data-fv-ds]) .rdo-users-workspace {
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-team-workspace > .fv-card__body,
+  :where(.fv-ds, [data-fv-ds]) .rdo-users-workspace > .fv-card__body {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary {
+    padding: var(--space-3);
+    border-block-start: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__groups {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group-icon {
+    width: var(--space-8);
+    height: var(--space-8);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__surveys {
+    margin-block-start: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1) var(--space-2);
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey-meta .fv-status-pill {
+    justify-self: start;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey-meta .fv-button {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
+  /* Ajuste fino de densidade: no mobile o conteúdo deve manter a hierarquia
+     nova sem reproduzir a escala dos cards e controles do desktop. */
+  :where(.fv-ds, [data-fv-ds]):is(
+    .rdo-manager-page,
+    .rdo-manager-projects-page,
+    .rdo-manager-archived-page,
+    .rdo-manager-admin-page,
+    .rdo-manager-nps-page,
+    .rdo-manager-stats-page,
+    .rdo-nps
+  ) {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-nps-page,
+      .rdo-manager-stats-page,
+      .rdo-nps
+    )
+    .fv-control-shell
+    :where(.fv-input, .fv-select),
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-projects-page,
+      .rdo-manager-archived-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-nps-page,
+      .rdo-manager-stats-page,
+      .rdo-nps
+    )
+    .fv-textarea {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    ),
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__main {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__actions {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :where(
+      .rdo-manager-listing__page-header,
+      .rdo-projects-page__header,
+      .rdo-admin-page__header,
+      .rdo-nps__page-header,
+      .rdo-manager-stats-page__header
+    )
+    .fv-page-header__actions
+    > .fv-button:only-of-type {
+    width: auto;
+    grid-column: auto;
+    justify-self: start;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .fv-filter-bar:where(
+      .rdo-manager-listing__filters,
+      .rdo-manager-projects__filters,
+      .rdo-archived-projects__filters,
+      .rdo-admin-page__filters,
+      .rdo-nps__filters,
+      .rdo-users__filters
+    ) {
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card {
+    min-width: calc(var(--space-16) * 2);
+    min-height: calc(var(--space-16) + var(--space-2));
+    flex-basis: calc(var(--space-16) * 2);
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card__icon {
+    width: calc(var(--space-8) - var(--space-1));
+    height: calc(var(--space-8) - var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-metrics .fv-metric-card__value {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__items {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__item
+    > .fv-card {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__header {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__title {
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    :where(
+      .fv-mobile-list__subtitle,
+      .fv-mobile-list__metadata dt,
+      .fv-mobile-list__metadata dd
+    ) {
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    .fv-mobile-list__metadata {
+    gap: var(--space-1);
+    padding-block-start: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]):is(
+      .rdo-manager-page,
+      .rdo-manager-admin-page,
+      .rdo-manager-stats-page,
+      .rdo-manager-archived-page
+    )
+    :is(.fv-mobile-list__actions, .fv-mobile-list__details) {
+    margin-block-start: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card > .fv-card__header,
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__heading,
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__header-actions {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__icon {
+    width: var(--space-8);
+    height: var(--space-8);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-active-project-card
+    .rdo-archived-project-card__title {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary-item {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'label'
+      'value';
+    gap: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__summary-item > svg {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__details-grid {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-active-project-card__detail-panel {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-card--archived > .fv-card__header {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-project-card--archived
+    > .fv-card__body:not(:empty) {
+    gap: var(--space-3);
+    padding: 0 var(--space-3) var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-manager-project-group .report-type-list {
+    gap: var(--space-2);
+    padding-block: var(--space-2) var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(
+      .rdo-admin-section,
+      .rdo-admin-section__content,
+      .rdo-admin-listing,
+      .rdo-admin-card-list,
+      .rdo-client-accounts,
+      .rdo-client-account-group__accounts
+    ) {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(.rdo-team-workspace, .rdo-users-workspace)
+    > .fv-card__body {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-admin-form {
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(.rdo-user-form__grid, .rdo-team-collaborator-form__grid) {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(
+      .rdo-admin-form__header h2,
+      .rdo-admin-section-heading h2,
+      .rdo-team-surface-heading h2
+    ) {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(
+      .rdo-user-avatar,
+      .rdo-team-collaborator__avatar,
+      .rdo-team-surface-heading__icon
+    ) {
+    width: var(--space-8);
+    height: var(--space-8);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(.rdo-user-identity, .rdo-team-collaborator__mobile-title) {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    :is(.rdo-client-account-group.fv-card, .rdo-client-account-card.fv-card) {
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-client-account-card > .fv-card__body {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-client-account-card .admin-avatar {
+    width: var(--space-8);
+    height: var(--space-8);
+    font-size: var(--text-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .client-account-action-area {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .client-account-button-row {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .client-account-button-row .fv-button {
+    width: 100%;
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-xs);
+    --fv-button-line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__groups,
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__surveys {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__survey {
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__toggle {
+    min-height: calc(var(--space-8) + var(--space-1));
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+    width: 100%;
+  }
+}

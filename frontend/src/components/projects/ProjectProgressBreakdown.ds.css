@@ -1,0 +1,28 @@
+.acp-progress-filter { display: grid; min-width: 0; gap: var(--space-1); }
+.acp-progress-ds, .acp-progress-ds__groups, .acp-progress-ds__group, .acp-progress-ds__service { display: grid; gap: var(--space-3); min-width: 0; }
+.acp-progress-ds__groups { gap: var(--space-4); }
+.acp-progress-ds__group { padding-block-start: var(--space-3); border-block-start: var(--border-width) solid var(--line); }
+.acp-progress-ds__group h4 { margin: 0; font-size: var(--text-sm); }
+.acp-progress-ds__service { gap: var(--space-2); padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.acp-progress-ds__service-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); font-size: var(--text-sm); }
+.acp-progress-ds__service-head span, .acp-progress-ds__note, .acp-progress-ds__updating { color: var(--muted); font-size: var(--text-xs); }
+.acp-progress-ds__group--collapsible, .acp-progress-ds__service--collapsible { display: block; }
+.acp-progress-ds__group-summary, .acp-progress-ds__service-summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--space-10); cursor: pointer; list-style: none; }
+.acp-progress-ds__group-summary { justify-content: space-between; font-size: var(--text-sm); font-weight: var(--font-semibold); }
+.acp-progress-ds__group-summary::-webkit-details-marker, .acp-progress-ds__service-summary::-webkit-details-marker { display: none; }
+.acp-progress-ds__group-summary::after, .acp-progress-ds__service-summary::after { content: ''; flex: 0 0 auto; width: .5rem; height: .5rem; margin-inline-start: auto; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform .15s ease; }
+.acp-progress-ds__group--collapsible[open] > .acp-progress-ds__group-summary::after, .acp-progress-ds__service--collapsible[open] > .acp-progress-ds__service-summary::after { transform: rotate(225deg); }
+.acp-progress-ds__group-summary:focus-visible, .acp-progress-ds__service-summary:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-sm); }
+.acp-progress-ds__group-content { display: grid; gap: var(--space-3); min-width: 0; padding-block-start: var(--space-2); }
+.acp-progress-ds__group--collapsible:not([open]) > .acp-progress-ds__group-content, .acp-progress-ds__service--collapsible:not([open]) > ul { display: none; }
+.acp-progress-ds__service--collapsible > ul { margin-block-start: var(--space-2); }
+.acp-progress-ds__service ul, .acp-progress-ds__pending ul { margin: 0; padding-inline-start: var(--space-4); font-size: var(--text-sm); }
+.acp-progress-ds__service li, .acp-progress-ds__pending li { padding-block: var(--space-1); overflow-wrap: anywhere; }
+.acp-progress-ds__pending { padding-block: var(--space-3); border-block: var(--border-width) solid var(--line); font-size: var(--text-sm); }
+.acp-progress-ds__pending summary { cursor: pointer; font-weight: var(--font-semibold); }
+.acp-progress-ds__pending p { margin-block: var(--space-3); }
+.acp-progress-ds__note { line-height: var(--leading-base); }
+.acp-progress-ds .app-combobox-control input { min-height: var(--space-10); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); font: inherit; }
+.acp-progress-ds .app-combobox-list { border-color: var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-e2); }
+.acp-progress-ds .app-combobox-list button { color: var(--ink); }
+.acp-progress-ds .app-combobox-list button:is(.active, :hover) { background: var(--surface-2); }

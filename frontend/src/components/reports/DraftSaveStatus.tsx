@@ -17,7 +17,22 @@ export function DraftSaveStatus({
   if (!visible) return null;
   return (
     <div className={`rdo-draft-save-status ${status}`} role="status" aria-live="polite">
-      {STATUS_LABELS[status]}
+      {status === 'saving' ? <Spinner size="sm" decorative /> : null}
+      {STATUS_LABELS[status] ? (
+        <StatusPill
+          status={status}
+          label={STATUS_LABELS[status]}
+          dot={status !== 'saving'}
+          tone={
+            status === 'saved'
+              ? 'success'
+              : status === 'error'
+                ? 'danger'
+                : 'info'
+          }
+        />
+      ) : null}
     </div>
   );
 }
+import { Spinner, StatusPill } from '../ui/ds';

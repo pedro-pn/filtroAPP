@@ -1,0 +1,32 @@
+.fv-theme-toggle {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: calc(var(--space-10) + var(--space-1));
+  height: calc(var(--space-10) + var(--space-1));
+  padding: 0;
+  place-items: center;
+  border-width: var(--border-width);
+  border-style: solid;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.fv-theme-toggle:hover:not(:disabled) {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+  color: var(--brand-hover);
+}
+
+.fv-theme-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fv-theme-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

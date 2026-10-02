@@ -1,3 +1,5 @@
+import { Card } from '../ui/ds';
+
 interface ReportDdsSummaryBlock {
   label: string;
   inicio: string;
@@ -13,8 +15,7 @@ export function ReportDdsSummarySection({ blocks }: ReportDdsSummarySectionProps
   if (!blocks.length) return null;
 
   return (
-    <section className="page-card">
-      <div className="section-title">DDS — Diálogo Diário de Segurança</div>
+    <Card className="rdo-report-detail-card" padding="md" title="DDS — Diálogo Diário de Segurança">
       <div className="detail-grid">
         {blocks.map(block => (
           <div key={block.label}>
@@ -27,6 +28,6 @@ export function ReportDdsSummarySection({ blocks }: ReportDdsSummarySectionProps
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

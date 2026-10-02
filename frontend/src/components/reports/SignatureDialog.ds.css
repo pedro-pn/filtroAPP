@@ -1,0 +1,168 @@
+/* Theme-safe appearance for SignatureDialog. The legacy appearance remains in base.css. */
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-modal-body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  padding: 0;
+  overflow: visible;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .field-group {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .field-group label,
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-remember-option label {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-name-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  outline: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-name-field input::placeholder {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-name-field input:focus-visible {
+  border-color: var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-name-field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-statement-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-mode-tabs {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-mode-tabs button {
+  min-height: var(--space-8);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  outline: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-mode-tabs button.active {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-mode-tabs button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds :where(.signature-draw-area, .signature-upload-area) {
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds :where(.signature-canvas-shell, .signature-upload-drop) {
+  border-color: var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+/* The drawing surface intentionally remains paper-white so its dark stroke is
+   exported consistently to PDFs in either application theme. */
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-canvas-shell {
+  background: var(--white);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-upload-drop {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-upload-area.drag-over .signature-upload-drop {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-upload-trigger {
+  color: var(--link);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-remember-option {
+  margin: 0;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-saved-remove {
+  border-color: transparent;
+  background: transparent;
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .privacy-notice {
+  margin: 0;
+  border-color: var(--line);
+  background: var(--brand-softer);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .privacy-notice-title {
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .signature-modal--ds .form-error {
+  margin: 0;
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .signature-modal--ds .signature-mode-tabs {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

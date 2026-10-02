@@ -6,13 +6,14 @@ import { HistoricalServicesContent } from './HistoricalServicesModal';
 const tabs = [{ id: 'pdf', label: 'PDFs antigos' }, { id: 'services', label: 'Serviços históricos' }] as const;
 type UploadTab = typeof tabs[number]['id'];
 
-export function LegacyReportsUploadModal({ replacing, submitting, projects, projectId, onProjectChange, onClose, children }: {
+export function LegacyReportsUploadModal({ replacing, submitting, projects, projectId, onProjectChange, onClose, footer, children }: {
   replacing: boolean;
   submitting: boolean;
   projects: Project[];
   projectId: string;
   onProjectChange: (projectId: string) => void;
   onClose: () => void;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState<UploadTab>('pdf');
@@ -31,11 +32,10 @@ export function LegacyReportsUploadModal({ replacing, submitting, projects, proj
   }
 
   return <Modal open onClose={() => { if (!busy) onClose(); }} closeOnEscape={!busy}
-    ariaLabelledBy="manual-report-upload-title" panelClassName={`modal-card manual-report-modal${replacing ? '' : ' legacy-reports-modal'}`}>
-    <div className="historical-heading">
-      <h2 className="section-title" id="manual-report-upload-title">{replacing ? 'Editar relatório manual' : 'Upload de relatórios antigos'}</h2>
-      <button type="button" className="mini-btn alt" onClick={onClose} disabled={busy}>Fechar</button>
-    </div>
+    appearance="design-system" size="lg" fullscreenOnMobile={false}
+    backdropClassName="rdo-manager-manual-report-dialog-backdrop"
+    panelClassName="rdo-manager-manual-report-dialog legacy-reports-modal"
+    title={replacing ? 'Editar relatório manual' : 'Upload de relatórios antigos'} footer={activeTab === 'pdf' || replacing ? footer : undefined}>
     {!replacing && <div className="legacy-upload-tabs" role="tablist" aria-label="Tipo de importação">
       {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab"
         id={`legacy-upload-tab-${tab.id}`} aria-controls={`legacy-upload-panel-${tab.id}`}

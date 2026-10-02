@@ -939,6 +939,7 @@ model Project {
   acompanhamentoArchivedAt       DateTime? // arquivamento exclusivo do módulo Acompanhamento
   acompanhamentoReviewedAt       DateTime? // última conferência enquanto arquivado no Acompanhamento
   acompanhamentoReportArchivedAt DateTime? // última finalização originada no módulo Relatórios
+  acompanhamentoCardName         String?   // nome de exibição apenas no card individual do Acompanhamento
 
   clientName                 String
   clientCnpj                 String

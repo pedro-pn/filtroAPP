@@ -130,11 +130,12 @@ export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId 
     <Modal
       open={open}
       onClose={onClose}
-      ariaLabelledBy="romaneio-qr-scanner-title"
+      appearance="design-system"
+      title="Escanear equipamento"
+      size="lg"
       ariaDescribedBy="romaneio-qr-scanner-status"
-      panelClassName="modal-card romaneio-qr-scanner-modal"
+      panelClassName="romaneio-dialog"
     >
-      <div className="section-title" id="romaneio-qr-scanner-title">Escanear equipamento</div>
       {liveCameraAvailable ? (
         <div className="romaneio-qr-camera">
           <video ref={videoRef} muted playsInline aria-label="Imagem da câmera para leitura do QR code" />

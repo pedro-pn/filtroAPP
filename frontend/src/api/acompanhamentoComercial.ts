@@ -343,6 +343,13 @@ export async function renameMissionGroup(groupId: string, name: string): Promise
   return data;
 }
 
+export async function renameProjectCard(projectId: string, name: string): Promise<{ projectId: string; cardName: string | null }> {
+  const { data } = await apiClient.patch<{ projectId: string; cardName: string | null }>(
+    `/acompanhamento/comercial/projetos/${projectId}/card-name`, { name }
+  );
+  return data;
+}
+
 export async function updateMissionGroupLaborPolicy(
   groupId: string,
   payload: {
@@ -632,6 +639,7 @@ export interface RequiredWeeklyProgress {
 export interface ProgressSlice {
   avancoPct: number | null;
   progressHistory: ProgressHistoryPoint[];
+  dailyProgressHistory?: DailyProgressPoint[];
   requiredWeeklyProgress: RequiredWeeklyProgress;
 }
 
@@ -725,12 +733,21 @@ export interface ProgressHistoryPoint {
   progressPct: number;
 }
 
+export interface DailyProgressPoint extends ProgressHistoryPoint {
+  services?: Array<{
+    serviceType: string;
+    progressPct: number | null;
+    quantities: Array<{ unit: string; realizedQty: number }>;
+  }>;
+}
+
 export interface ProjectCard {
   canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
   code: string;
   name: string;
+  cardName?: string | null;
   clientName: string;
   clientCnpj?: string | null;
   archived: boolean;
@@ -1012,7 +1029,9 @@ export interface ProjectDetail {
   maioresGastos: Array<{ categoria: string; total: number }>;
   manualCosts?: ManualProjectCost[];
   avancoPct: number | null;
+  progressBreakdown?: ProjectProgress | null;
   progressHistory?: ProgressHistoryPoint[];
+  dailyProgressHistory?: DailyProgressPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
   progressFilters?: ProgressFilters | null;
   standby: { count: number; minutes: number };

@@ -50,14 +50,14 @@ export function ProjectWeeklyTargetNovelty({ user, enabled, onSeen }: ProjectWee
         {
           popover: {
             title: '✨ Nova meta semanal do projeto',
-            description: 'Veja quanto o projeto precisa avançar por semana para entregar todo o escopo na data prevista.'
+            description: 'Veja o ritmo físico necessário por semana para entregar o escopo na data prevista.'
           }
         },
         {
           element: WEEKLY_TARGET_SELECTOR,
           popover: {
-            title: 'Ritmo geral e por serviço',
-            description: 'Além dos pontos percentuais, o painel mostra a necessidade semanal em metros, litros e outras unidades, consolidada por serviço.',
+            title: 'Ritmo necessário',
+            description: 'O indicador mostra a necessidade semanal em metros, unidades ou litros para o recorte selecionado.',
             side: 'bottom',
             align: 'start'
           }
@@ -68,7 +68,7 @@ export function ProjectWeeklyTargetNovelty({ user, enabled, onSeen }: ProjectWee
       markAcompanhamentoWeeklyTargetNoveltySeen(noveltyUser);
       driver({
         showProgress: true,
-        nextBtnText: 'Ver cálculo',
+        nextBtnText: 'Ver indicador',
         prevBtnText: 'Voltar',
         doneBtnText: 'Entendi',
         allowClose: true,

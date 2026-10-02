@@ -1,0 +1,258 @@
+.assinaturas-public {
+  min-height: 100dvh;
+  padding: clamp(var(--space-3), 3vw, var(--space-8));
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.assinaturas-public__container {
+  display: grid;
+  width: min(100%, 56rem);
+  min-width: 0;
+  margin-inline: auto;
+  gap: var(--space-4);
+}
+
+.assinaturas-public__brand,
+.assinaturas-public__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.assinaturas-public__brand {
+  padding-block: var(--space-2) var(--space-4);
+}
+
+.assinaturas-public__logo {
+  width: min(13.5rem, 58vw);
+  height: auto;
+}
+
+.assinaturas-public :is(.assinaturas-public__summary, .assinaturas-public__reader, .assinaturas-public__sign, .assinaturas-public__state) > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.assinaturas-public__heading {
+  align-items: flex-start;
+}
+
+.assinaturas-public__heading > div {
+  min-width: 0;
+}
+
+.assinaturas-public :is(h1, h2, p) {
+  margin: 0;
+}
+
+.assinaturas-public :is(h1, h2) {
+  color: var(--ink);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-public h1 {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+}
+
+.assinaturas-public h1:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+.assinaturas-public h2 {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.assinaturas-public .assinaturas-public__eyebrow {
+  margin-bottom: var(--space-2);
+  color: var(--brand-text);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+}
+
+.assinaturas-public__filename,
+.assinaturas-public__hint,
+.assinaturas-public__footnote,
+.assinaturas-public__progress {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-public__metadata {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding-block: var(--space-4);
+  gap: var(--space-4);
+  border-block: var(--border-width) solid var(--line);
+}
+
+.assinaturas-public__metadata dt {
+  margin-bottom: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.assinaturas-public__metadata dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-public__progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.assinaturas-public__navigation,
+.assinaturas-public__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.assinaturas-public__navigation > *,
+.assinaturas-public__actions > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.assinaturas-public__navigation > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.assinaturas-public__preview {
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.assinaturas-public__paper {
+  position: relative;
+  width: 100%;
+  /* Preserve the original document colors and normalized field coordinates. */
+  background: var(--white);
+}
+
+.assinaturas-public__paper > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.assinaturas-public__field {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: var(--border-width) dashed var(--brand);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  pointer-events: none;
+}
+
+.assinaturas-public__field > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assinaturas-public__footnote {
+  text-align: center;
+}
+
+.assinaturas-public__sign h2 + .assinaturas-public__hint {
+  margin-top: var(--space-2);
+}
+
+/* SignatureDialog is portaled; scope this opt-in to the public consent only. */
+.fv-ds.assinaturas-public__dialog-backdrop {
+  align-items: center;
+  padding: var(--space-3);
+}
+
+.assinaturas-public__dialog-backdrop .signature-modal--ds {
+  max-height: calc(100dvh - var(--space-6));
+  padding: 0;
+}
+
+.assinaturas-public__consent {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.assinaturas-public__consent .privacy-notice a {
+  color: var(--info);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+.assinaturas-public__consent .privacy-notice a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 767.98px) {
+  .assinaturas-public__metadata {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .assinaturas-public__metadata > div {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  .assinaturas-public__metadata dt {
+    margin: 0;
+  }
+
+  .assinaturas-public__navigation {
+    justify-content: space-between;
+  }
+
+  .assinaturas-public :is(.assinaturas-public__summary, .assinaturas-public__reader, .assinaturas-public__sign, .assinaturas-public__state) {
+    padding: var(--space-3);
+  }
+
+  .assinaturas-public__preview {
+    padding: var(--space-1);
+  }
+
+  .assinaturas-public .fv-button {
+    min-height: 44px;
+    padding-inline: var(--space-3);
+    font-size: var(--text-xs);
+  }
+
+  .assinaturas-public h1 {
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+  }
+}

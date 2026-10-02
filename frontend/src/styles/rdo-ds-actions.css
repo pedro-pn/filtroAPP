@@ -1,0 +1,72 @@
+/* Escala visual compartilhada dos botões de ação das superfícies do RDO já
+   migradas para o Design System.
+ *
+ * Por que existe: Cargos, Temas de DDS e a lista de destinatários da alocação
+ * mensal repetem o mesmo padrão — um lançador no cabeçalho do cartão, ações por
+ * linha e ações de formulário inline. Sem uma regra comum, cada superfície
+ * acabava escolhendo a própria escala e as telas divergiam.
+ *
+ * Hierarquia: há duas categorias dentro do mesmo padrão.
+ *
+ *   - Ação compacta (Novo…, Renomear, Desativar, Reativar, Editar, Cancelar):
+ *     usa a variante `sm` do Button, que já existe no DS. É a linguagem visual
+ *     das ações curtas — leve, com largura acompanhando o texto.
+ *   - Ação principal (Salvar, Enviar): permanece na variante `md`, mais
+ *     presente, para não perder a hierarquia dentro do formulário.
+ *
+ * Escopo: aplica-se apenas onde `.rdo-ds-actions` é declarado explicitamente,
+ * dentro da fronteira `.fv-ds`. Nenhum primitivo compartilhado do DS é alterado
+ * e nenhuma variante global é criada.
+ *
+ * Acessibilidade: a ação compacta encolhe apenas visualmente. A área de toque é
+ * devolvida por um pseudo-elemento que estende o alvo até 44x44px, de modo que
+ * o hit-testing continua adequado mesmo com a caixa desenhada menor. Foco,
+ * estados disabled/pending e contraste continuam vindo do primitivo. */
+
+/* `.rdo-ds-actions` pode estar na própria fronteira `.fv-ds` (Cargos, Temas de
+   DDS) ou em um cartão dentro dela (destinatários da alocação mensal), por isso
+   as duas formas do seletor. */
+:where(.fv-ds, [data-fv-ds]).rdo-ds-actions .fv-button,
+:where(.fv-ds, [data-fv-ds]) .rdo-ds-actions .fv-button {
+  --fv-button-padding: var(--space-3);
+
+  flex: 0 0 auto;
+}
+
+/* Ação principal: mantém a presença, com o alvo já satisfeito pela caixa. */
+:where(.fv-ds, [data-fv-ds]).rdo-ds-actions .fv-button:not(.fv-button--sm),
+:where(.fv-ds, [data-fv-ds]) .rdo-ds-actions .fv-button:not(.fv-button--sm) {
+  min-block-size: calc(var(--space-10) + var(--space-1));
+}
+
+/* Ação compacta: a caixa é a da variante `sm`; o alvo de 44x44px é reposto por
+   um pseudo-elemento centrado, sem afetar o layout ao redor. */
+:where(.fv-ds, [data-fv-ds]).rdo-ds-actions .fv-button--sm,
+:where(.fv-ds, [data-fv-ds]) .rdo-ds-actions .fv-button--sm {
+  position: relative;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-ds-actions .fv-button--sm::after,
+:where(.fv-ds, [data-fv-ds]) .rdo-ds-actions .fv-button--sm::after {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  min-width: calc(var(--space-10) + var(--space-1));
+  min-height: calc(var(--space-10) + var(--space-1));
+  width: 100%;
+  height: 100%;
+  content: '';
+  transform: translate(-50%, -50%);
+}
+
+/* Espaçamento das ações de lista. Com a caixa compacta, o alvo de 44px
+   ultrapassa a caixa em 6px de cada lado; o intervalo precisa ser maior que
+   isso para que dois alvos nunca se sobreponham quando as ações quebram em duas
+   linhas — caso contrário o clique cairia no botão vizinho. */
+:where(.fv-ds, [data-fv-ds]).rdo-ds-actions .fv-data-table__actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-ds-actions .fv-data-table__actions,
+:where(.fv-ds, [data-fv-ds]).rdo-ds-actions .fv-mobile-list__actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-ds-actions .fv-mobile-list__actions {
+  gap: var(--space-4);
+}

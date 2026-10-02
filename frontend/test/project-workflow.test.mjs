@@ -11,6 +11,7 @@ import {
   projectKanbanStage,
   projectStageInColumns,
   projectWorkflowMilestoneText,
+  projectWorkflowNextStagePreview,
   projectWorkflowStageOptions,
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
@@ -75,6 +76,31 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'FINISHED', closedAt: '2026-10-01T12:00:00Z', milestones: {} } }), 'Encerrado em 01/10/2026');
 });
 
+test('card usa a data prevista da próxima etapa sem confundir o marco D-30 com uma coluna', () => {
+  const project = {
+    workflow: {
+      executedAtHeadquarters: false,
+      plannedMobilizationDate: '2026-10-10',
+      plannedExecutionStartDate: null,
+      milestones: { daysUntilMobilization: 20, d30Date: '2026-09-10', preparationDate: '2026-09-25' }
+    },
+    operationalMission: { executionStartDate: '2026-10-12', executionEndDate: '2026-10-20' }
+  };
+  assert.deepEqual(projectWorkflowNextStagePreview(project, 'MOBILIZATION_PLANNING'), {
+    stage: 'PREPARATION', date: '2026-09-25', daysUntil: 5
+  });
+  assert.deepEqual(projectWorkflowNextStagePreview(project, 'EXECUTION'), {
+    stage: 'DEMOBILIZATION', date: '2026-10-20', daysUntil: 30
+  });
+  assert.equal(projectWorkflowNextStagePreview(project, 'INITIAL_ANALYSIS'), null, 'duas saídas possíveis não geram previsão inventada');
+  assert.equal(projectWorkflowNextStagePreview(project, 'FINISHED'), null);
+  project.workflow.executedAtHeadquarters = true;
+  project.workflow.plannedExecutionStartDate = '2026-10-10';
+  assert.deepEqual(projectWorkflowNextStagePreview(project, 'PREPARATION'), {
+    stage: 'EXECUTION', date: '2026-10-10', daysUntil: 20
+  });
+});
+
 test('Encerramento integra gate final, auditoria e reabertura justificada', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
@@ -100,7 +126,7 @@ test('Documentação e medição integra evidências, valores e 14 controles', (
   assert.match(panel, /Consolidação da medição/);
   assert.match(panel, /Pendente de aprovação/);
   assert.match(panel, /título\(s\) no Omie/);
-  assert.match(board, /Fechamento:/);
+  assert.doesNotMatch(board, /Fechamento:/);
   assert.match(styles, /project-closeout-financial/);
 });
 
@@ -115,7 +141,7 @@ test('desmobilização integra coluna, datas e 15 controles ao Kanban único', (
   assert.match(modal, /project\.mobilizationDate \|\| mission\?\.mobilizationDate/);
   assert.match(modal, /Salvar datas efetivas/);
   assert.match(modal, /Iniciar desmobilização/);
-  assert.match(board, /Desmobilização:/);
+  assert.match(board, /projectWorkflowNextStagePreview/);
 });
 
 test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => {
@@ -132,7 +158,7 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /onDragStart/);
   assert.match(board, /createPointerDragGhost/);
   assert.match(board, /Movimentação bloqueada:/);
-  assert.match(board, /Ver líder e equipe/);
+  assert.match(board, /'Equipe \('/);
   assert.match(board, /Equipe e ciclos/);
   assert.doesNotMatch(board, /MissionAllocationModal/);
   assert.match(modal, /data-project-workflow-team-cycles-section/);
@@ -153,7 +179,11 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.doesNotMatch(touchStart, /onProjectSelect/);
   assert.match(drop, /sourceStage !== stage/);
   assert.doesNotMatch(drop, /onProjectSelect\(project\.id\)/);
-  assert.match(board, /onError: async \(error: Error, variables\) => \{\s+setColumns\(variables\.snapshot\);\s+onProjectSelect\(variables\.project\.id\)/);
+  assert.match(board, /onError: async \(error: Error, variables\) => \{\s+setColumns\(variables\.snapshot\);\s+const count = new Set\(projectWorkflowErrorIssues\(error\)\)\.size;/);
+  assert.match(board, /setBlockedMoveFocus\(\{ projectId: variables\.project\.id, stage: variables\.project\.workflow\.stage, count/);
+  assert.match(board, /onProjectSelect\(variables\.project\.id\);\s+toast\(compactWorkflowError\(error, 'Movimentação bloqueada'\), 'error'\)/);
+  assert.match(modal, /setActiveStage\(blockedMoveFocus\.stage\)/);
+  assert.match(modal, /Ver bloqueios/);
   assert.match(board, /suppressCardClickUntilRef/);
   assert.match(board, /managedMove\.isPending \? managedMove\.variables\?\.project\.id : undefined/);
   assert.match(dragStart, /const startedFromInteractiveControl = interactiveMouseRef\.current;\s+interactiveMouseRef\.current = false;/);
@@ -227,7 +257,8 @@ test('detalhe mostra prontidão comercial e mantém ações de avanço no rodap�
   assert.match(intake, /Sincronizado pelo CRM/);
   assert.match(intake, /Nenhum item desta área gera pendência ou bloqueia/);
   assert.doesNotMatch(intake, /Salvar fato comercial/);
-  assert.match(board, /Sinais comerciais:/);
+  assert.match(board, /Nesta etapa desde/);
+  assert.doesNotMatch(board, /Sinais comerciais:/);
   assert.match(registry, /efetivo:commercial/);
 });
 
@@ -284,8 +315,8 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(modal, /data-project-workflow-d30/);
   assert.match(modal, /Aguardando D-30/);
   assert.doesNotMatch(modal, /item\.stage === \(workflow\.stage === 'HANDOVER'/);
-  assert.match(board, /Documentação:/);
-  assert.match(board, /Prazos atingidos:/);
+  assert.match(board, /Próxima etapa/);
+  assert.doesNotMatch(board, /Documentação:|Prazos atingidos:/);
   assert.match(administration, /EFETIVO_ADMINISTRATIVE/);
   assert.match(styles, /project-workflow-planning-grid/);
   assert.match(styles, /\.project-workflow-documentation-types \{[^}]*align-items: start/);
@@ -414,10 +445,9 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(modal, /data-project-workflow-d15/);
   assert.match(modal, /data-project-workflow-gate/);
-  assert.match(board, /Risco de mobilização/);
-  assert.match(board, /Mobilização autorizada/);
+  assert.doesNotMatch(board, /Risco de mobilização|Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(11, minmax\(288px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
@@ -473,7 +503,7 @@ test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
   assert.match(panel, /Lições aprendidas/);
   assert.match(panel, /Histórico relacionado/);
   assert.match(panel, /Registro em Qualidade/);
-  assert.match(board, /Pós-job:/);
+  assert.doesNotMatch(board, /Pós-job:/);
   assert.match(styles, /project-workflow-category/);
 });
 
@@ -485,7 +515,7 @@ test('campos de data com salvamento automático só confirmam datas completas e 
   assert.match(dateInput, /isCommittableDate/);
   assert.match(dateInput, /validity\.badInput/);
   assert.match(dateInput, /onCommit/);
-  assert.match(efetivoPage, /<DateInput id="efetivo-position-date"/);
+  assert.match(efetivoPage, /<DateInput id="efetivo-position-date-control"/);
   assert.match(preparation, /Agendado\$\{workflow\.preJob\.scheduledDate/);
   assert.match(preparation, /<DateInput id="workflow-freight-departure-date"/);
   const settings = modal.slice(modal.indexOf('function WorkflowSettingsForm('), modal.indexOf('function DemobilizationDatesForm('));
@@ -636,7 +666,7 @@ test('checklist de verificação do contato com o cliente: 17 perguntas em diál
   assert.match(intake, /function ClientContactChecklistRow/);
   assert.match(intake, /action: 'client_contact_check'/);
   assert.match(intake, /item\.answer !== null \? \(/);
-  assert.match(intake, /Observação \(opcional\)/);
+  assert.match(intake, /<Field id=\{`client-contact-check-note-\$\{item\.key\}`\} label="Observação"/);
   // não repete os itens já cobertos pelos itens críticos (cadastro no cliente, equipamento especial etc.)
   const checklistBlock = schema.slice(schema.indexOf('PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST = ['), schema.indexOf('PROJECT_WORKFLOW_DOCUMENTATION_TYPES'));
   const keyMatches = [...checklistBlock.matchAll(/key: '([A-Z_0-9]+)'/g)].map(match => match[1]);

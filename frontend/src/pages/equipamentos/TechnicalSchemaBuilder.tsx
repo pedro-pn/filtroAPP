@@ -5,6 +5,7 @@ import type {
   TechnicalFieldDefinition,
   TechnicalFieldType
 } from '../../api/equipamentos';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import {
   createPointerDragGhost,
   movePointerDragGhost,
@@ -248,7 +249,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
         <select value={field.type} onChange={e => onChange({ type: e.target.value as TechnicalFieldType })}>
           {typeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
-        <button className="tech-remove-btn" type="button" onClick={onRemove} aria-label="Remover campo" title="Remover campo">×</button>
+        <RemoveIconButton className="tech-field-remove" type="button" label="Remover campo" onClick={onRemove} />
       </div>
 
       <div className="tech-build-extra">

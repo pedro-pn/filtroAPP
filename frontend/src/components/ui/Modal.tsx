@@ -1,5 +1,11 @@
-import type { KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import type { KeyboardEvent, ReactNode, RefObject } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
+import { IconButton } from './ds/Button';
+import { DS_ICONS } from './ds/icons';
+import { joinClassNames } from './ds/utils';
+import './ds/modal.css';
 
 const focusableSelector = [
   'a[href]',
@@ -7,25 +13,66 @@ const focusableSelector = [
   'textarea:not([disabled])',
   'input:not([disabled])',
   'select:not([disabled])',
+  '[contenteditable="true"]',
   '[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
-function visibleFocusableElements(panel: HTMLElement) {
-  return Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
-    .filter(element => !element.matches(':disabled') && element.tabIndex !== -1
-      && !element.closest('[hidden], [inert]') && element.getClientRects().length > 0);
+let bodyScrollLocks = 0;
+let originalBodyOverflow = '';
+
+function lockBodyScroll() {
+  if (typeof document === 'undefined') return () => undefined;
+
+  if (bodyScrollLocks === 0) {
+    originalBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  bodyScrollLocks += 1;
+
+  return () => {
+    bodyScrollLocks = Math.max(0, bodyScrollLocks - 1);
+    if (bodyScrollLocks === 0)
+      document.body.style.overflow = originalBodyOverflow;
+  };
 }
 
-interface ModalProps {
+function visibleFocusableElements(panel: HTMLElement) {
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>(focusableSelector)
+  ).filter(
+    (element) =>
+      !element.matches(':disabled') &&
+      !element.closest('[hidden], [inert]') &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      element.tabIndex !== -1 &&
+      element.getClientRects().length > 0
+  );
+}
+
+export type ModalSize = 'sm' | 'md' | 'lg' | 'full';
+export type ModalAppearance = 'legacy' | 'design-system';
+
+export interface ModalProps {
   open: boolean;
   children: ReactNode;
   onClose: () => void;
   ariaLabelledBy?: string;
   ariaDescribedBy?: string;
+  ariaLabel?: string;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
   backdropClassName?: string;
   panelClassName?: string;
+  appearance?: ModalAppearance;
+  title?: ReactNode;
+  size?: ModalSize;
+  footer?: ReactNode;
+  headerActions?: ReactNode;
+  showCloseButton?: boolean;
+  closeLabel?: string;
+  fullscreenOnMobile?: boolean;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  preventInitialFocusScroll?: boolean;
 }
 
 export function Modal({
@@ -34,31 +81,62 @@ export function Modal({
   onClose,
   ariaLabelledBy,
   ariaDescribedBy,
+  ariaLabel,
   closeOnBackdrop = false,
   closeOnEscape = true,
-  backdropClassName = 'modal-backdrop',
-  panelClassName = 'modal-card'
+  backdropClassName,
+  panelClassName,
+  appearance = 'legacy',
+  title,
+  size = 'md',
+  footer,
+  headerActions,
+  showCloseButton = true,
+  closeLabel = 'Fechar',
+  fullscreenOnMobile = true,
+  initialFocusRef,
+  preventInitialFocusScroll = false
 }: ModalProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const generatedTitleId = useId().replace(/:/g, '');
+  const isDesignSystem = appearance === 'design-system';
+  const resolvedTitleId =
+    ariaLabelledBy ??
+    (isDesignSystem && title ? `fv-modal-${generatedTitleId}` : undefined);
 
   useEffect(() => {
-    if (!open) return;
-    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const panel = panelRef.current;
-    const focusable = panel ? visibleFocusableElements(panel) : [];
-    window.setTimeout(() => {
-      (focusable[0] || panel)?.focus();
-    }, 0);
+    if (!open) return undefined;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const unlockBodyScroll = lockBodyScroll();
+    const frame = window.requestAnimationFrame(() => {
+      const initialFocus = initialFocusRef?.current;
+      const firstFocusable = panelRef.current ? visibleFocusableElements(panelRef.current)[0] : undefined;
+      (initialFocus ?? firstFocusable ?? panelRef.current)?.focus({
+        preventScroll: preventInitialFocusScroll
+      });
+    });
 
     return () => {
-      previousFocusRef.current?.focus();
+      window.cancelAnimationFrame(frame);
+      unlockBodyScroll();
+      const previousFocus = previousFocusRef.current;
+      if (previousFocus && document.contains(previousFocus))
+        previousFocus.focus();
     };
-  }, [open]);
+  }, [initialFocusRef, open, preventInitialFocusScroll]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    // React portal events bubble through their owning dialog, even though the
+    // nested dialog is outside its DOM tree. Only the nearest dialog handles keys.
+    if (event.target instanceof Element
+      && event.target.closest('[role="dialog"], [role="alertdialog"]') !== event.currentTarget) return;
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -74,7 +152,7 @@ export function Modal({
 
     if (!focusable.length) {
       event.preventDefault();
-      panel.focus();
+      panelRef.current?.focus();
       return;
     }
 
@@ -82,7 +160,7 @@ export function Modal({
     const last = focusable[focusable.length - 1];
     const active = document.activeElement;
 
-    if (event.shiftKey && active === first) {
+    if (event.shiftKey && (active === first || active === panelRef.current)) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && active === last) {
@@ -91,26 +169,66 @@ export function Modal({
     }
   }
 
-  return (
+  const backdropClasses = isDesignSystem
+    ? joinClassNames('fv-ds', 'fv-modal-backdrop', backdropClassName)
+    : (backdropClassName ?? 'modal-backdrop');
+  const panelClasses = isDesignSystem
+    ? joinClassNames(
+        'fv-modal',
+        `fv-modal--${size}`,
+        fullscreenOnMobile && 'fv-modal--mobile-fullscreen',
+        panelClassName
+      )
+    : (panelClassName ?? 'modal-card');
+
+  return createPortal(
     <div
-      className={backdropClassName}
+      className={backdropClasses}
+      data-fv-ds={isDesignSystem ? '' : undefined}
       role="presentation"
-      onMouseDown={event => {
+      onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) onClose();
       }}
     >
       <section
         ref={panelRef}
-        className={panelClassName}
+        className={panelClasses}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={ariaLabelledBy}
+        aria-labelledby={resolvedTitleId}
         aria-describedby={ariaDescribedBy}
+        aria-label={ariaLabel}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
       >
-        {children}
+        {isDesignSystem ? (
+          <>
+            <header className="fv-modal__header">
+              <div className="fv-modal__title" id={resolvedTitleId}>
+                {title}
+              </div>
+              {headerActions ? (
+                <div className="fv-modal__header-actions">{headerActions}</div>
+              ) : null}
+              {showCloseButton ? (
+                <IconButton
+                  icon={DS_ICONS.close}
+                  label={closeLabel}
+                  size="md"
+                  onClick={onClose}
+                />
+              ) : null}
+            </header>
+            <div className="fv-modal__body">{children}</div>
+            {footer ? (
+              <footer className="fv-modal__footer">{footer}</footer>
+            ) : null}
+          </>
+        ) : (
+          children
+        )}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }

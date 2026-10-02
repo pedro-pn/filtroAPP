@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { getEfetivoProductivity } from '../../../api/efetivo';
-import { Button } from '../../../components/ui/Button';
+import { Badge, Button, Card, EmptyState, Field, MetricCard, Select, Skeleton } from '../../../components/ui/ds';
 import {
   parseProductivityPeriod,
   PRODUCTIVITY_MONTH_OPTIONS,
@@ -76,9 +76,9 @@ export function ProductivityBoard({ canManage }: Props) {
     }, { replace: true });
   }
 
-  if (query.isLoading) return <div className="page-card placeholder-copy">Carregando produtividade…</div>;
+  if (query.isLoading) return <Card data-efetivo-productivity><Skeleton variant="card" /></Card>;
   if (query.isError || !query.data) {
-    return <div className="page-card placeholder-copy">Não foi possível carregar a produtividade.</div>;
+    return <Card data-efetivo-productivity><EmptyState variant="error" title="Não foi possível carregar a produtividade." action={{ label: 'Tentar novamente', onClick: () => void query.refetch() }} /></Card>;
   }
 
   const data = query.data;
@@ -88,59 +88,41 @@ export function ProductivityBoard({ canManage }: Props) {
   );
 
   return (
-    <div className="efetivo-board">
-      <section className="page-card efetivo-filter-card" aria-label="Filtros de produtividade" data-efetivo-filters>
-        <div className="field-group">
-          <label htmlFor="efetivo-year">Ano</label>
-          <select id="efetivo-year" value={period.year} onChange={event => updatePeriod({ year: Number(event.target.value) })}>
+    <div className="efetivo-board efetivo-productivity-ds" data-efetivo-productivity>
+      <Card className="efetivo-productivity-filters" aria-label="Filtros de produtividade" data-efetivo-filters padding="sm">
+        <Field id="efetivo-year" label="Ano" optionalText="">
+          <Select size="sm" value={period.year} onChange={event => updatePeriod({ year: Number(event.target.value) })}>
             {years.map(year => <option key={year} value={year}>{year}</option>)}
-          </select>
-        </div>
-        <div className="field-group">
-          <label htmlFor="efetivo-cutoff">Mês de corte</label>
-          <select id="efetivo-cutoff" value={period.cutoffMonth} onChange={event => updatePeriod({ cutoffMonth: Number(event.target.value) })}>
+          </Select>
+        </Field>
+        <Field id="efetivo-cutoff" label="Mês de corte" optionalText="">
+          <Select size="sm" value={period.cutoffMonth} onChange={event => updatePeriod({ cutoffMonth: Number(event.target.value) })}>
             {PRODUCTIVITY_MONTH_OPTIONS.map(month => <option key={month.value} value={month.value}>{month.label}</option>)}
-          </select>
-        </div>
+          </Select>
+        </Field>
         <div className="efetivo-filter-note">
           O mês corrente fica fora do cálculo, mesmo quando incluído no corte.
         </div>
+      </Card>
+
+      <section className="efetivo-productivity-kpis" aria-label="Resumo de produtividade" data-efetivo-kpis>
+        <MetricCard label="HH produtivas acumuladas" value={hours(data.resumo.hhAcumuladas)} description="Horas extras excluídas" />
+        <MetricCard label="Média mensal da equipe" value={hours(data.resumo.mediaMensalEquipe)} description="Por mês equivalente analisado" />
+        <MetricCard label="Taxa Geral de Improdutividade" value={percent(data.resumo.taxaGeral)} description="Média simples das taxas válidas" tone="brand" />
+        <MetricCard label="Pendências" value={data.resumo.pendencias} description="Não entram na taxa oficial" tone={data.resumo.pendencias ? 'warning' : 'neutral'} />
       </section>
 
-      <section className="efetivo-kpis" aria-label="Resumo de produtividade" data-efetivo-kpis>
-        <article className="efetivo-kpi">
-          <span>HH produtivas acumuladas</span>
-          <strong>{hours(data.resumo.hhAcumuladas)}</strong>
-          <small>Horas extras excluídas</small>
-        </article>
-        <article className="efetivo-kpi">
-          <span>Média mensal da equipe</span>
-          <strong>{hours(data.resumo.mediaMensalEquipe)}</strong>
-          <small>Por mês equivalente analisado</small>
-        </article>
-        <article className="efetivo-kpi efetivo-kpi-accent">
-          <span>Taxa Geral de Improdutividade</span>
-          <strong>{percent(data.resumo.taxaGeral)}</strong>
-          <small>Média simples das taxas válidas</small>
-        </article>
-        <article className="efetivo-kpi">
-          <span>Pendências</span>
-          <strong>{data.resumo.pendencias}</strong>
-          <small>Não entram na taxa oficial</small>
-        </article>
-      </section>
-
-      <section className="page-card efetivo-reference-card">
+      <Card className="efetivo-productivity-reference">
         <div>
           <span className="efetivo-eyebrow">Referência vigente</span>
           <strong>{hours(data.referenciaMensalHH)} / mês</strong>
           <p>Origem: 176 × 11 ÷ 12. Férias já estão anualizadas e não são descontadas novamente.</p>
           <p>HE70, HE100 e extras genéricas não entram nas HH produtivas.</p>
         </div>
-        {canManage ? <Button variant="secondary" onClick={() => setReferenceOpen(true)}>Editar referência</Button> : null}
-      </section>
+        {canManage ? <Button variant="secondary" size="sm" onClick={() => setReferenceOpen(true)}>Editar referência</Button> : null}
+      </Card>
 
-      <section className="page-card">
+      <Card className="efetivo-productivity-section">
         <div className="efetivo-section-heading">
           <div>
             <h2>Evolução mensal</h2>
@@ -160,16 +142,16 @@ export function ProductivityBoard({ canManage }: Props) {
                 </span>
                 <span className="efetivo-month-value">{hours(item.mediaHH)}</span>
                 <span className="efetivo-month-flags">
-                  {item.instavel ? <span className="efetivo-badge warning">Pode mudar</span> : null}
-                  {item.temFerias ? <span className="efetivo-badge">Férias</span> : null}
+                  {item.instavel ? <Badge tone="warning">Pode mudar</Badge> : null}
+                  {item.temFerias ? <Badge tone="info">Férias</Badge> : null}
                 </span>
               </div>
             );
           })}
         </div>
-      </section>
+      </Card>
 
-      <section className="page-card" data-efetivo-results>
+      <Card className="efetivo-productivity-section" data-efetivo-results>
         <div className="efetivo-section-heading">
           <div>
             <h2>Resultado por colaborador</h2>
@@ -194,7 +176,7 @@ export function ProductivityBoard({ canManage }: Props) {
               <tbody>
                 {data.colaboradores.map(collaborator => (
                   <tr key={collaborator.id} onClick={() => openCollaborator(collaborator.id)}>
-                    <td data-label="Colaborador"><button type="button" className="efetivo-row-link">{collaborator.nome}</button></td>
+                    <td data-label="Colaborador"><Button type="button" variant="link" size="sm" className="efetivo-productivity-person-link">{collaborator.nome}</Button></td>
                     <td data-label="Cargo">{collaborator.cargo}</td>
                     <td data-label="HH acumuladas">{hours(collaborator.hhAcumuladas)}</td>
                     <td data-label="Média mensal">{hours(collaborator.mediaMensal)}</td>
@@ -205,24 +187,24 @@ export function ProductivityBoard({ canManage }: Props) {
                       {collaborator.mesesComFerias.length ? <span className="efetivo-vacation-note">Férias: {collaborator.mesesComFerias.map(monthLabel).join(', ')}</span> : null}
                     </td>
                     <td data-label="Situação">
-                      <span className={`efetivo-badge ${collaborator.situacao === 'CONSOLIDADO' ? '' : 'warning'}`} title={collaborator.situacao === 'PODE_MUDAR' ? `Meses ainda na janela de reprocessamento: ${collaborator.mesesInstaveis.map(monthLabel).join(', ')}` : collaborator.situacao === 'SEM_BASE' ? 'Sem meses analisáveis no período; não entra na taxa oficial.' : 'Todos os meses analisados já saíram da janela de reprocessamento.'}>{statusLabel[collaborator.situacao]}</span>
+                      <Badge tone={collaborator.situacao === 'CONSOLIDADO' ? 'success' : 'warning'} title={collaborator.situacao === 'PODE_MUDAR' ? `Meses ainda na janela de reprocessamento: ${collaborator.mesesInstaveis.map(monthLabel).join(', ')}` : collaborator.situacao === 'SEM_BASE' ? 'Sem meses analisáveis no período; não entra na taxa oficial.' : 'Todos os meses analisados já saíram da janela de reprocessamento.'}>{statusLabel[collaborator.situacao]}</Badge>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : <p className="placeholder-copy">Nenhum colaborador elegível no período.</p>}
-      </section>
+        ) : <EmptyState title="Nenhum colaborador elegível no período." />}
+      </Card>
 
       <ProductivityPendingList items={data.pendentes} />
 
-      <section className="page-card efetivo-data-note">
+      <Card className="efetivo-productivity-data-note">
         <strong>Validade dos dados</strong>
         <p>Última sincronização: {dateTime(data.sincronizacao.ultimaSincronizacao)}.</p>
         <p>Alcance: {dateTime(data.sincronizacao.inicioHistorico)} até {dateTime(data.sincronizacao.fimHistorico)}.</p>
         <p>Meses dentro da janela de reprocessamento de 31 dias aparecem como “Pode mudar”.</p>
-      </section>
+      </Card>
 
       {canManage ? (
         <ReferenceSettingModal

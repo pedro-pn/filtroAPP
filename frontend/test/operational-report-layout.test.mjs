@@ -35,7 +35,7 @@ async function loadOperationalReportsNovelty() {
   }
 }
 
-test('RDO comum e relatórios operacionais compartilham os campos centrais', async () => {
+test('RDO e relatórios operacionais compartilham cálculos e usam controles DS', async () => {
   const [rdo, operational] = await Promise.all([
     readFile(
       new URL('../src/pages/collaborator/NewReportPage.tsx', import.meta.url),
@@ -59,12 +59,21 @@ test('RDO comum e relatórios operacionais compartilham os campos centrais', asy
   ];
 
   for (const component of sharedComponents) {
-    assert.match(rdo, new RegExp(`<${component}`));
     assert.match(operational, new RegExp(`<${component}`));
   }
+  for (const component of ['ProgressSteps', 'Card', 'Input', 'Select', 'Button']) {
+    assert.match(rdo, new RegExp(`<${component}\\b`));
+  }
+  for (const page of [rdo, operational]) {
+    assert.match(page, /calculateReportOvertimeSummary/);
+    for (const field of ['reportDate', 'arrivalTime', 'departureTime', 'lunchBreak', 'collaboratorIds']) assert.ok(page.includes(field), field);
+  }
+  assert.match(rdo, /<OperationalReportFormPage mode=\{selection\}/);
+  assert.match(operational, /<OperationalModuleAppShell/);
+  for (const component of ['Card', 'Field', 'Input', 'Select', 'Button']) assert.match(operational, new RegExp(`<${component}\\b`));
 });
 
-test('turno noturno usa a mesma implementação nos dois fluxos', async () => {
+test('turno noturno preserva os campos nos dois fluxos, sem reverter o DS do RDO', async () => {
   const [specialConditions, operational] = await Promise.all([
     readFile(
       new URL(
@@ -82,25 +91,30 @@ test('turno noturno usa a mesma implementação nos dois fluxos', async () => {
     )
   ]);
 
-  assert.match(specialConditions, /<ReportNightShiftFields/);
+  assert.match(specialConditions, /<Switch/);
+  for (const field of ['noturno', 'nightCollaboratorIds', 'noturnoStart', 'noturnoEnd', 'noturnoInterval']) assert.ok(specialConditions.includes(field), field);
   assert.match(operational, /<ReportNightShiftFields/);
   assert.doesNotMatch(operational, /operational-collaborator-grid/);
   assert.doesNotMatch(operational, /operational-toggle/);
 });
 
-test('componente compartilhado preserva a estrutura visual consolidada do RDO', async () => {
+test('campos compartilhados operacionais usam o stepper e controles DS', async () => {
   const shared = await readFile(
     new URL('../src/components/reports/ReportCoreFields.tsx', import.meta.url),
     'utf8'
   );
 
-  assert.match(shared, /className="page-card rdo-step-panel"/);
-  assert.match(shared, /className="fg-r2"/);
+  assert.match(shared, /<ProgressSteps/);
+  assert.match(shared, /<Card className="operational-form-stepper"/);
+  assert.match(shared, /<Field/);
+  assert.match(shared, /<Input/);
+  assert.match(shared, /<Select/);
+  assert.match(shared, /<Switch/);
+  assert.match(shared, /<Textarea/);
   assert.match(shared, /colab-list/);
   assert.match(shared, /className="cadd"/);
-  assert.match(shared, /className="tog-row"/);
-  assert.match(shared, /className="collapse-section noturno-section"/);
-  assert.match(shared, /className="page-card rdo-bottom-actions"/);
+  assert.match(shared, /className="operational-form-night-fields"/);
+  assert.match(shared, /className="operational-form-actions"/);
 });
 
 test('manutenção usa o padrão visual de anexos e exibe os dados cadastrados do equipamento', async () => {
@@ -184,7 +198,7 @@ test('categoria controla sua presença em todas as áreas de manutenção', asyn
   assert.match(modal, /category\?\.showInMaintenance \?\? true/);
   assert.match(modal, /Exibir no módulo de manutenção/);
   assert.match(modal, /showInMaintenance,/);
-  assert.match(manager, /fora da manutenção/);
+  assert.match(manager, /category\.showInMaintenance && 'Manutenção'/);
   assert.match(
     config,
     /categories\.filter\(\(category\) => category\.showInMaintenance !== false\)/
@@ -220,7 +234,7 @@ test('checklist de serviços da manutenção não possui scroll interno no mobil
 });
 
 test('cabeçalhos e anexos do formulário operacional cabem em celulares estreitos', async () => {
-  const [form, styles] = await Promise.all([
+  const [form, styles, dsStyles] = await Promise.all([
     readFile(
       new URL(
         '../src/pages/collaborator/OperationalReportFormPage.tsx',
@@ -231,14 +245,20 @@ test('cabeçalhos e anexos do formulário operacional cabem em celulares estreit
     readFile(
       new URL('../src/styles/operational-reports.css', import.meta.url),
       'utf8'
+    ),
+    readFile(
+      new URL('../src/pages/collaborator/OperationalReportFormPage.ds.css', import.meta.url),
+      'utf8'
     )
   ]);
 
   assert.equal(
     (form.match(/operational-card-head operational-section-head/g) || [])
       .length,
-    2
+    3
   );
+  assert.match(dsStyles, /\.operational-form-page-v2 \.operational-section-head\s*\{[^}]*flex-direction:\s*column/s);
+  assert.match(dsStyles, /\.operational-form-page-v2 \.operational-section-head > \.fv-button\s*\{[^}]*width:\s*100%/s);
   assert.match(styles, /@media \(max-width: 360px\)/);
   assert.match(
     styles,
@@ -303,11 +323,11 @@ test('envio operacional é direto e a revisão abre o editor completo sem resumo
   assert.match(modulePage, /'manutencao-avulsa'/);
   assert.match(modulePage, /<option value="PENDING">Pendente<\/option>/);
   assert.match(reportPermissions, /params\.set\('revisao', '1'\)/);
-  assert.match(newReportPage, /const operationalSelection/);
+  assert.match(newReportPage, /resolveAuthorizedReportSelection/);
   assert.doesNotMatch(modulePage, /<Modal|<ConfirmDialog|openReport\(/);
 });
 
-test('cards internos seguem o padrão dos RDOs e aprovados ficam disponíveis para consulta', async () => {
+test('relatórios operacionais aprovados ficam disponíveis para consulta', async () => {
   const [modulePage, card, form] = await Promise.all([
     readFile(new URL('../src/pages/MaintenanceProductionPage.tsx', import.meta.url), 'utf8'),
     readFile(
@@ -327,7 +347,6 @@ test('cards internos seguem o padrão dos RDOs e aprovados ficam disponíveis pa
   ]);
 
   assert.match(modulePage, /<OperationalReportSummaryCard/);
-  assert.match(modulePage, /<StandaloneMaintenanceSummaryCard/);
   assert.match(modulePage, /value="APPROVED">Aprovado/);
   assert.match(card, /rel-item report-card report-card-clickable/);
   assert.match(card, /className="report-card-main"/);
@@ -387,7 +406,8 @@ test('configuração de manutenção usa perfil padrão por categoria e exceçõ
   assert.match(config, /useForm<MaintenanceProfileFormValues>/);
   assert.match(config, /zodResolver\(maintenanceProfileFormSchema\)/);
   assert.match(config, /item\.isActive/);
-  assert.match(config, /panelClassName="modal-card equip-modal"/);
+  assert.match(config, /appearance="design-system"/);
+  assert.match(config, /panelClassName="equip-config-profile-modal"/);
   assert.match(
     config,
     /className="admin-form-actions equip-form-actions"[\s\S]*?Salvar supervisor/
@@ -509,7 +529,7 @@ test('manutenção e produção possuem módulo próprio com abas e histórico r
   assert.match(history, /operational-maintenance-history-cards/);
   assert.match(styles, /@media \(max-width: 720px\)[\s\S]*?operational-maintenance-history-table[\s\S]*?display:\s*none/s);
   assert.doesNotMatch(newReport, /<ReportTypeChooser/);
-  assert.match(newReport, /resolveSiteReportSelection/);
+  assert.match(newReport, /resolveAuthorizedReportSelection/);
 });
 
 test('relatório de manutenção aceita nenhum cartão e valida os cartões adicionados', async () => {
@@ -621,8 +641,8 @@ test('intervalos compartilhados preservam segundos e a validação aceita HH:mm:
   assert.doesNotMatch(shared, /normalizeReportMinuteTime/);
 });
 
-test('módulo usa largura de desktop e histórico ordenável no servidor', async () => {
-  const [page, table, api, styles] = await Promise.all([
+test('módulo usa AppShell fluido e histórico ordenável no servidor', async () => {
+  const [page, table, api, shell] = await Promise.all([
     readFile(
       new URL('../src/pages/MaintenanceProductionPage.tsx', import.meta.url),
       'utf8'
@@ -639,14 +659,14 @@ test('módulo usa largura de desktop e histórico ordenável no servidor', async
       'utf8'
     ),
     readFile(
-      new URL('../src/styles/operational-reports.css', import.meta.url),
+      new URL('../src/pages/OperationalModuleAppShell.tsx', import.meta.url),
       'utf8'
     )
   ]);
 
   assert.match(
-    styles,
-    /\.app-shell:has\(\.operational-module-page\)\s*\{[^}]*max-width:\s*none;/s
+    shell,
+    /<AppShell[\s\S]*?contentWidth="fluid"/s
   );
   assert.match(table, /aria-sort=\{ariaSort\}/);
   assert.match(table, /onSortChange\(field, nextDirection\)/);
@@ -716,10 +736,11 @@ test('programação preventiva fica restrita à manutenção, calcula prazos no 
     }).success,
     false
   );
-  assert.match(
-    styles,
-    /\.operational-module-tabs\s*\{[^}]*top:\s*0;/s
+  const moduleStyles = await readFile(
+    new URL('../src/pages/MaintenanceProductionPage.ds.css', import.meta.url),
+    'utf8'
   );
+  assert.match(moduleStyles, /@media \(max-width: 767\.98px\)[\s\S]*?\.operational-module-tabs \{ display: none; \}/s);
   assert.match(
     styles,
     /@media \(max-width: 720px\)[\s\S]*?\.operational-schedule-table\s*\{[^}]*display:\s*none/s
@@ -734,7 +755,7 @@ test('programação preventiva fica restrita à manutenção, calcula prazos no 
   );
 });
 
-test('campos obrigatórios operacionais exibem asterisco vermelho', async () => {
+test('campos obrigatórios operacionais usam rótulos DS com indicação de obrigatório', async () => {
   const [form, shared] = await Promise.all([
     readFile(
       new URL(
@@ -752,7 +773,6 @@ test('campos obrigatórios operacionais exibem asterisco vermelho', async () => 
   for (const label of [
     'Categoria do equipamento',
     'Equipamento',
-    'Serviços realizados',
     'Data',
     'Local',
     'Serviço',
@@ -760,12 +780,11 @@ test('campos obrigatórios operacionais exibem asterisco vermelho', async () => 
     'Material',
     'Qual material?',
     'Quantidade (kg)'
-  ]) {
-    assert.match(form, new RegExp(`${label.replace(/[?()]/g, '\\$&')}<RequiredMark \\/>`));
-  }
+  ]) assert.match(form, new RegExp(`label="${label.replace(/[?()]/g, '\\$&')}" required`));
+  assert.match(form, /Serviços realizados<RequiredMark \/>/);
   assert.match(shared, /Equipe diurna\{requiredMark\(required\)\}/);
-  assert.match(shared, /Intervalo noturno\{requiredMark\(true\)\}/);
+  assert.match(shared, /label="Intervalo noturno" required/);
   assert.match(shared, /Equipe noturna\{requiredMark\(true\)\}/);
-  assert.match(shared, /color: 'var\(--rd\)'/);
+  assert.match(shared, /color: 'var\(--danger\)'/);
   assert.match(form, /<ReportActivitiesCard[\s\S]*?required[\s\S]*?\/>/);
 });

@@ -1,128 +1,73 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Link, Navigate } from 'react-router';
 
 import { useAuth } from '../auth/AuthContext';
 import { preferredEntryPath } from '../auth/moduleNavigation';
+import { AppIcon } from '../components/icons/AppIcon';
+import { Alert, Button, Field, Input } from '../components/ui/ds';
 import { normalizeCnpjInput } from '../utils/formatCnpj';
+import { PublicFlowShell } from './PublicFlowShell';
 
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
 const REMEMBERED_USER_KEY = 'filtrovali-react-remembered-user';
 
-export function LoginPage() {
+export function LoginPage({ preview = false }: { preview?: boolean }) {
   const { isAuthenticated, isBootstrapping, token, user, login } = useAuth();
-  const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_USER_KEY) || '');
+  const [username, setUsername] = useState(() => preview ? '' : localStorage.getItem(REMEMBERED_USER_KEY) || '');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem(REMEMBERED_USER_KEY)));
+  const [rememberMe, setRememberMe] = useState(() => !preview && Boolean(localStorage.getItem(REMEMBERED_USER_KEY)));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [previewMessage, setPreviewMessage] = useState('');
 
   const redirectPath = useMemo(() => preferredEntryPath(user), [user]);
-  if (isBootstrapping || (token && !user)) return null;
-  if (isAuthenticated) return <Navigate to={redirectPath} replace />;
+  if (!preview && (isBootstrapping || (token && !user))) return null;
+  if (!preview && isAuthenticated) return <Navigate to={redirectPath} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    if (preview) {
+      setPreviewMessage('Esta é uma demonstração visual. Use o login normal para entrar.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       await login({ username, password, rememberMe });
-      if (rememberMe) {
-        localStorage.setItem(REMEMBERED_USER_KEY, username);
-      } else {
-        localStorage.removeItem(REMEMBERED_USER_KEY);
-      }
+      if (rememberMe) localStorage.setItem(REMEMBERED_USER_KEY, username);
+      else localStorage.removeItem(REMEMBERED_USER_KEY);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Falha ao realizar login.';
-      setError(message);
+      setError(err instanceof Error ? err.message : 'Falha ao realizar login.');
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="auth-logo-wrap">
-          <img className="auth-logo" src={loginLogoUrl} alt="Filtrovali" />
-          <p className="auth-subtitle">Sistema de relatórios de serviços</p>
-        </div>
-
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="field-group">
-            <label htmlFor="username">Usuário</label>
-            <input
-              id="username"
-              value={username}
-              onChange={event => setUsername(event.target.value)}
-              onBlur={() => {
-                const digits = username.replace(/\D/g, '');
-                if (digits.length === 14 && !/[A-Za-z@]/.test(username)) {
-                  setUsername(normalizeCnpjInput(username));
-                }
-              }}
-            />
-          </div>
-
-          <div className="field-group">
-            <label htmlFor="password">Senha</label>
-            <div className="password-input-wrap">
-              <input
-                id="password"
-                type={isPasswordVisible ? 'text' : 'password'}
-                value={password}
-                autoComplete="current-password"
-                onChange={event => setPassword(event.target.value)}
-              />
-              <button
-                className="password-visibility-button"
-                type="button"
-                aria-label={isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'}
-                title={isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'}
-                aria-pressed={isPasswordVisible}
-                onMouseDown={event => event.preventDefault()}
-                onClick={() => setIsPasswordVisible(current => !current)}
-              >
-                {isPasswordVisible ? (
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                    <path d="M9.2 5.4A9.5 9.5 0 0 1 12 5c5.5 0 9 5.2 9 7a5.8 5.8 0 0 1-1.7 2.6" />
-                    <path d="M6.6 6.8C4.4 8.3 3 10.7 3 12c0 1.8 3.5 7 9 7a9.3 9.3 0 0 0 4.5-1.2" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M3 12c0-1.8 3.5-7 9-7s9 5.2 9 7-3.5 7-9 7-9-5.2-9-7z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="auth-options-row">
-          <label className="checkbox-line">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={event => setRememberMe(event.target.checked)}
-            />
-            <span>Lembrar usuário</span>
-          </label>
-            <Link className="auth-link" to="/forgot-password">Esqueci minha senha</Link>
-          </div>
-
-          {error ? <div className="inline-error">{error}</div> : null}
-
-          <button className="primary-button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Entrando...' : 'Entrar'}
+  return <PublicFlowShell title="Acessar conta" titleHidden description="Sistema Integrado de Operação" logoVariant="login" preview={preview}>
+    <form className="public-flow-form" onSubmit={handleSubmit}>
+      <Field id="login-username" label="Usuário" required optionalText={null}>
+        <Input value={username} autoComplete="username" onChange={event => setUsername(event.target.value)} onBlur={() => {
+          const digits = username.replace(/\D/g, '');
+          if (digits.length === 14 && !/[A-Za-z@]/.test(username)) setUsername(normalizeCnpjInput(username));
+        }} />
+      </Field>
+      <Field id="login-password" label="Senha" required optionalText={null}>
+        <div className="public-flow-password">
+          <Input type={isPasswordVisible ? 'text' : 'password'} value={password} autoComplete="current-password" onChange={event => setPassword(event.target.value)} />
+          <button type="button" className="public-flow-password-toggle" aria-label={isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={isPasswordVisible} onMouseDown={event => event.preventDefault()} onClick={() => setIsPasswordVisible(current => !current)}>
+            <AppIcon icon={isPasswordVisible ? EyeOff : Eye} size="sm" />
           </button>
-        </form>
-        <div className="auth-footer-links">
-          <Link className="auth-link" to="/privacidade">Política de privacidade</Link>
         </div>
-      </section>
-    </main>
-  );
+      </Field>
+      <div className="public-flow-options">
+        <label className="public-flow-checkbox"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} />Lembrar usuário</label>
+        <Link to="/forgot-password">Esqueci minha senha</Link>
+      </div>
+      {error ? <Alert tone="danger">{error}</Alert> : null}
+      {previewMessage ? <Alert tone="info">{previewMessage}</Alert> : null}
+      <Button variant="primary" type="submit" loading={isSubmitting} fullWidth>{isSubmitting ? 'Entrando…' : 'Entrar'}</Button>
+    </form>
+    <div className="public-flow-options"><Link to="/privacidade">Política de privacidade</Link></div>
+  </PublicFlowShell>;
 }

@@ -24,11 +24,12 @@ import {
   pontoMaisSyncWindows,
   type PontoImportRow,
   type PontoImportSourceFilter,
+  type PontoMaisSyncRun,
   type PontoMaisPending
 } from '../../api/acompanhamentoPonto';
 import { useAuth } from '../../auth/AuthContext';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
-import { Button } from '../ui/Button';
+import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, Input, Select } from '../ui/ds';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/ToastContext';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
@@ -69,6 +70,98 @@ function importSourceLabel(item: PontoImportRow) {
   return item.source === 'PONTOMAIS_API' ? 'API Ponto Mais' : 'Planilha XLSX';
 }
 
+function syncRunStatus(run: PontoMaisSyncRun) {
+  return run.status === 'SUCCEEDED' ? 'Concluída' : run.status === 'FAILED' ? 'Falhou' : 'Em andamento';
+}
+
+function syncRunTone(run: PontoMaisSyncRun): 'success' | 'danger' | 'neutral' {
+  return run.status === 'SUCCEEDED' ? 'success' : run.status === 'FAILED' ? 'danger' : 'neutral';
+}
+
+export function PontoSyncHistoryTable({ runs, loading = false }: { runs: PontoMaisSyncRun[]; loading?: boolean }) {
+  return (
+    <DataTable
+      ariaLabel="Histórico de sincronizações do ponto"
+      mobileBreakpoint="lg"
+      rows={runs}
+      getRowId={run => run.id}
+      loading={loading}
+      columns={[
+        { key: 'status', header: 'Status', render: run => (
+          <div className="acp-cost-ds__history-status">
+            <Badge tone={syncRunTone(run)}>{syncRunStatus(run)}</Badge>
+            {run.errorMessage ? <span>{run.errorMessage}</span> : null}
+          </div>
+        ) },
+        { key: 'trigger', header: 'Origem', render: run => pontoMaisSyncTriggerLabel(run.trigger) },
+        { key: 'period', header: 'Período', render: run => `${fmtDate(run.periodStart)} – ${fmtDate(run.periodEnd)}` },
+        { key: 'records', header: 'Registros', render: run => `${run.workDaysRead} jornadas · ${run.timeCardsRead} batidas` },
+        { key: 'links', header: 'Vínculos', render: run => `${run.collaboratorsMatched} vinculados · ${run.pendingCount} pendência(s)` },
+        { key: 'completed', header: 'Concluída', render: run => fmtDateTime(run.completedAt) }
+      ]}
+      mobile={{ renderItem: run => ({
+        title: `${fmtDate(run.periodStart)} – ${fmtDate(run.periodEnd)}`,
+        subtitle: pontoMaisSyncTriggerLabel(run.trigger),
+        status: <Badge tone={syncRunTone(run)}>{syncRunStatus(run)}</Badge>,
+        metadata: [
+          { label: 'Jornadas / batidas', value: `${run.workDaysRead} / ${run.timeCardsRead}` },
+          { label: 'Vínculos', value: `${run.collaboratorsMatched} vinculados · ${run.pendingCount} pendência(s)` },
+          { label: 'Concluída', value: fmtDateTime(run.completedAt) }
+        ],
+        details: run.errorMessage ? <p className="acp-cost-ds__history-error">{run.errorMessage}</p> : undefined
+      }) }}
+      emptyState={<EmptyState title="Nenhuma sincronização registrada" />}
+    />
+  );
+}
+
+export function PontoCurrentDataHistoryTable({
+  imports, isManager, onDelete, loading = false
+}: {
+  imports: PontoImportRow[];
+  isManager: boolean;
+  onDelete: (item: PontoImportRow) => void;
+  loading?: boolean;
+}) {
+  return (
+    <DataTable
+      ariaLabel="Histórico de dados vigentes do ponto"
+      mobileBreakpoint="lg"
+      rows={imports}
+      getRowId={item => item.id}
+      loading={loading}
+      columns={[
+        { key: 'source', header: 'Origem', render: item => (
+          <div className="acp-cost-ds__history-source">
+            <strong>{importSourceLabel(item)}</strong>
+            <span>{item.fileName}</span>
+          </div>
+        ) },
+        { key: 'period', header: 'Período', render: item => `${fmtDate(item.periodStart)} – ${fmtDate(item.periodEnd)}` },
+        { key: 'people', header: 'Colab.', render: item => `${item.collaboratorsMatched}/${item.collaboratorsTotal}` },
+        { key: 'rows', header: 'Linhas', render: item => item.rowsRead },
+        { key: 'updated', header: 'Atualizado', render: item => fmtDate(item.createdAt) }
+      ]}
+      rowActions={isManager ? item => item.source !== 'PONTOMAIS_API' ? (
+        <Button variant="danger" size="sm" onClick={() => onDelete(item)} aria-label={`Excluir importação ${item.fileName}`}>
+          Excluir
+        </Button>
+      ) : null : undefined}
+      mobile={{ renderItem: item => ({
+        title: importSourceLabel(item),
+        subtitle: item.fileName,
+        metadata: [
+          { label: 'Período', value: `${fmtDate(item.periodStart)} – ${fmtDate(item.periodEnd)}` },
+          { label: 'Colaboradores', value: `${item.collaboratorsMatched}/${item.collaboratorsTotal}` },
+          { label: 'Linhas', value: item.rowsRead },
+          { label: 'Atualizado', value: fmtDate(item.createdAt) }
+        ]
+      }) }}
+      emptyState={<EmptyState title="Nenhuma atualização ainda" />}
+    />
+  );
+}
+
 type PontoDetailTab = 'sync' | 'unallocated' | 'missing-projects' | 'employees' | 'rdo-simulation';
 
 function parsePontoDetailTab(value: string | null): PontoDetailTab {
@@ -97,7 +190,7 @@ export function PontoImportPanel() {
   const [syncEnd, setSyncEnd] = useState('');
   const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const { data: imports } = useQuery({
+  const { data: imports, isLoading: importsLoading } = useQuery({
     queryKey: ['ponto-imports', importSource],
     queryFn: () => getPontoImports(importSource),
     ...acompanhamentoRefreshQueryOptions
@@ -122,7 +215,7 @@ export function PontoImportPanel() {
     queryFn: getPontoMaisPending,
     enabled: isManager
   });
-  const { data: syncRuns } = useQuery({
+  const { data: syncRuns, isLoading: syncRunsLoading } = useQuery({
     queryKey: ['ponto-pontomais-sync-runs'],
     queryFn: () => getPontoMaisSyncRuns(20),
     enabled: isManager,
@@ -275,16 +368,15 @@ export function PontoImportPanel() {
 
   return (
     <>
-      <div className="page-card" data-pontomais-panel>
-        <div className="sec">Ponto (jornada)</div>
-        <p className="placeholder-copy ponto-panel-copy">
+      <Card className="acp-cost-ds__panel" title="Ponto (jornada)" data-pontomais-panel>
+        <p className="acp-cost-ds__copy">
           {integrationConfigured
             ? 'A jornada é sincronizada automaticamente pelo backend. A primeira carga percorre continuamente todo o histórico até hoje e, depois, os 31 dias anteriores são atualizados diariamente para incorporar correções.'
             : 'A integração automática com o VR Ponto Mais ainda não está configurada neste ambiente. Configure PONTOMAIS_API_TOKEN no backend para iniciar a carga histórica; não é necessário enviar planilhas.'}
         </p>
 
         {isManager && pendencyCounts ? (
-          <p className="placeholder-copy ponto-section-copy">
+          <p className="acp-cost-ds__copy">
             Pendências abertas: <strong>{pendencyCounts.unallocatedDays}</strong> dia(s) sem alocação
             {' · '}<strong>{pendencyCounts.ambiguousDays}</strong> conflito(s) de projeto
             {' · '}<strong>{pendencyCounts.unlinkedEmployees}</strong> colaborador(es) do Ponto Mais sem vínculo.
@@ -295,59 +387,59 @@ export function PontoImportPanel() {
         ) : null}
 
         {isManager ? (
-          <div className="acp-seg ponto-detail-tabs" role="tablist" aria-label="Detalhes da integração do Ponto Mais">
-            <button
-              type="button"
+          <div className="acp-cost-ds__tabs acp-cost-ds__tabs--detail" role="tablist" aria-label="Detalhes da integração do Ponto Mais">
+            <Button
               role="tab"
               aria-selected={detailTab === 'sync'}
-              className={`acp-seg-btn${detailTab === 'sync' ? ' active' : ''}`}
+              variant={detailTab === 'sync' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setDetailTab('sync')}
             >
               Sincronização e pendências
-              <span className="acp-seg-count">{actionablePendingCount}</span>
-            </button>
-            <button
-              type="button"
+              <span className="acp-cost-ds__tab-count">{actionablePendingCount}</span>
+            </Button>
+            <Button
               role="tab"
               aria-selected={detailTab === 'unallocated'}
-              className={`acp-seg-btn${detailTab === 'unallocated' ? ' active' : ''}`}
+              variant={detailTab === 'unallocated' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setDetailTab('unallocated')}
               data-pontomais-unallocated-tab
             >
               Dias sem alocação
-              <span className="acp-seg-count">{pendencyCounts?.unallocatedDays ?? 0}</span>
-            </button>
-            <button
-              type="button"
+              <span className="acp-cost-ds__tab-count">{pendencyCounts?.unallocatedDays ?? 0}</span>
+            </Button>
+            <Button
               role="tab"
               aria-selected={detailTab === 'missing-projects'}
-              className={`acp-seg-btn${detailTab === 'missing-projects' ? ' active' : ''}`}
+              variant={detailTab === 'missing-projects' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setDetailTab('missing-projects')}
               data-pontomais-missing-projects-tab
             >
               Projetos não encontrados
-              <span className="acp-seg-count">{missingProjectsCount}</span>
-            </button>
-            <button
-              type="button"
+              <span className="acp-cost-ds__tab-count">{missingProjectsCount}</span>
+            </Button>
+            <Button
               role="tab"
               aria-selected={detailTab === 'employees'}
-              className={`acp-seg-btn${detailTab === 'employees' ? ' active' : ''}`}
+              variant={detailTab === 'employees' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setDetailTab('employees')}
               data-pontomais-employees-tab
             >
               Colaboradores encontrados
-              <span className="acp-seg-count">{externalEmployees?.length ?? 0}</span>
-            </button>
-            <button
-              type="button"
+              <span className="acp-cost-ds__tab-count">{externalEmployees?.length ?? 0}</span>
+            </Button>
+            <Button
               role="tab"
               aria-selected={detailTab === 'rdo-simulation'}
-              className={`acp-seg-btn${detailTab === 'rdo-simulation' ? ' active' : ''}`}
+              variant={detailTab === 'rdo-simulation' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setDetailTab('rdo-simulation')}
             >
               Simulação por RDO
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -380,15 +472,15 @@ export function PontoImportPanel() {
               <span>Último lote concluído em {fmtDateTime(integrationStatus.automation.lastSuccessfulAt)}</span>
             ) : null}
             {integrationStatus.automation.lastErrorMessage ? (
-              <span className="field-error">{integrationStatus.automation.lastErrorMessage} A rotina tentará novamente.</span>
+              <span className="acp-cost-ds__error">{integrationStatus.automation.lastErrorMessage} A rotina tentará novamente.</span>
             ) : null}
           </div>
         ) : null}
 
         {isManager ? (
-          <div className="det-section">
-            <div className="sec ponto-subtitle">Sincronizar um período</div>
-            <p className="placeholder-copy ponto-section-copy">
+          <section className="acp-cost-ds__surface">
+            <h3 className="acp-cost-ds__section-title">Sincronizar um período</h3>
+            <p className="acp-cost-ds__copy">
               Busca o período de novo no Ponto Mais. Use para cobrir faixas antigas que a carga
               histórica não alcançou. Períodos longos são fatiados em janelas de 31 dias
               automaticamente — o limite é do relatório do Ponto Mais, não seu. Se nada mudou no Ponto Mais, o snapshot é reconhecido pelo
@@ -397,33 +489,30 @@ export function PontoImportPanel() {
               snapshot.
             </p>
             {!integrationConfigured ? (
-              <p className="field-error">
+              <Alert tone="warning">
                 Indisponível: o backend está sem PONTOMAIS_API_TOKEN. Defina a variável e reinicie o
                 container do backend — ela é lida na inicialização do processo.
-              </p>
+              </Alert>
             ) : null}
             <div className="ponto-filter-row">
-              <div className="field-group">
-                <label htmlFor="ponto-sync-start">De</label>
-                <input
-                  id="ponto-sync-start"
+              <Field label="De" optionalText="">
+                <Input
                   type="date"
                   value={syncStart}
                   onChange={event => setSyncStart(event.target.value)}
                 />
-              </div>
-              <div className="field-group">
-                <label htmlFor="ponto-sync-end">Até</label>
-                <input
-                  id="ponto-sync-end"
+              </Field>
+              <Field label="Até" optionalText="">
+                <Input
                   type="date"
                   value={syncEnd}
                   min={syncStart || undefined}
                   onChange={event => setSyncEnd(event.target.value)}
                 />
-              </div>
+              </Field>
               <Button
-                variant="mini"
+                variant="primary"
+                size="sm"
                 disabled={
                   !integrationConfigured || !syncStart || !syncEnd || syncStart > syncEnd || syncMutation.isPending
                 }
@@ -434,37 +523,37 @@ export function PontoImportPanel() {
                   : 'Sincronizar período'}
               </Button>
               {syncStart && syncEnd && syncStart <= syncEnd ? (
-                <span className="placeholder-copy">
+                <span className="acp-cost-ds__copy">
                   {syncMutation.isPending && syncProgress
                     ? `Janela ${Math.min(syncProgress.done + 1, syncProgress.total)} de ${syncProgress.total}…`
                     : `${pontoMaisSyncWindows(syncStart, syncEnd).length} janela(s) de até 31 dias.`}
                 </span>
               ) : null}
             </div>
-          </div>
+          </section>
         ) : null}
 
         {integrationStatus?.lastSuccessfulRun ? (
-          <p className="placeholder-copy ponto-section-copy">
+          <p className="acp-cost-ds__copy">
             Última sincronização: {fmtDate(integrationStatus.lastSuccessfulRun.completedAt)} · período {fmtDate(integrationStatus.lastSuccessfulRun.periodStart)} a {fmtDate(integrationStatus.lastSuccessfulRun.periodEnd)}
             {integrationStatus.lastSuccessfulRun.pendingCount ? ` · ${integrationStatus.lastSuccessfulRun.pendingCount} pendência(s)` : ' · sem pendências'}
           </p>
         ) : null}
 
         {isManager && pending ? (
-          <div className="det-section ponto-pending-section">
-            <div className="sec ponto-subtitle">
+          <section className="acp-cost-ds__surface">
+            <h3 className="acp-cost-ds__section-title">
               Colaboradores do ponto sem vínculo ({actionablePendingCount})
-            </div>
+            </h3>
             {actionablePendingCount > 0 ? (
-              <p className="placeholder-copy ponto-section-copy">
+              <p className="acp-cost-ds__copy">
                 Enquanto ficarem aqui, as horas dessas pessoas não entram no custo de projeto nenhum.
                 Vincule ao colaborador correspondente ou use “Ignorar” para tirar da fila quem não é
                 da operação — dá para reverter na aba “Colaboradores encontrados”.
               </p>
             ) : null}
             {actionablePendingCount === 0 ? (
-              <p className="placeholder-copy">
+              <p className="acp-cost-ds__copy">
                 Nenhum colaborador do ponto sem vínculo. Os dias de ponto que não chegaram a projeto
                 nenhum ficam na aba “Dias sem alocação”.
               </p>
@@ -477,17 +566,14 @@ export function PontoImportPanel() {
             >
 
             {pending.employees.map(item => {
-              const fieldId = `pontomais-employee-${encodeURIComponent(item.externalEmployeeId)}`;
               return (
-                <div key={item.externalEmployeeId} className="field-row ponto-link-row">
+                <div key={item.externalEmployeeId} className="ponto-link-row">
                   <div className="ponto-link-copy">
                     <strong>{item.externalName}</strong>
                     <span>{item.registrationNumber ? `Matrícula ${item.registrationNumber}` : 'Sem matrícula conciliada'}</span>
                   </div>
-                  <div className="field-group ponto-link-field">
-                    <label htmlFor={fieldId}>Vincular ao colaborador</label>
-                    <select
-                      id={fieldId}
+                  <Field className="ponto-link-field" label="Vincular ao colaborador" optionalText="">
+                    <Select
                       value={externalEmployeeLinks[item.externalEmployeeId] ?? ''}
                       onChange={event => setExternalEmployeeLinks(previous => ({
                         ...previous,
@@ -498,11 +584,11 @@ export function PontoImportPanel() {
                       {(linkCollaborators ?? []).map(collaborator => (
                         <option key={collaborator.id} value={collaborator.id}>{collaboratorOptionLabel(collaborator)}</option>
                       ))}
-                    </select>
-                  </div>
+                    </Select>
+                  </Field>
                   <div className="ponto-pending-actions">
                     <Button
-                      variant="mini"
+                      variant="secondary" size="sm"
                       disabled={!externalEmployeeLinks[item.externalEmployeeId] || externalEmployeeLinkMutation.isPending}
                       onClick={() => externalEmployeeLinkMutation.mutate({
                         externalEmployeeId: item.externalEmployeeId,
@@ -514,7 +600,7 @@ export function PontoImportPanel() {
                     {/* Mesmo efeito do botão da aba "Colaboradores encontrados": evita ter de sair
                         daqui e caçar a pessoa lá para tirá-la da fila. */}
                     <Button
-                      variant="mini"
+                      variant="secondary" size="sm"
                       disabled={ignoreExternalEmployeeMutation.isPending}
                       onClick={() => ignoreExternalEmployeeMutation.mutate({
                         externalEmployeeId: item.externalEmployeeId,
@@ -534,15 +620,13 @@ export function PontoImportPanel() {
                  duplicava a fila e fazia o contador somar o mesmo dia duas vezes. */}
 
             {xlsxOnlyUnmatched.map(item => (
-              <div key={item.normalizedName} className="field-row ponto-link-row">
+              <div key={item.normalizedName} className="ponto-link-row">
                 <div className="ponto-link-copy">
                   <strong>{item.rawName}</strong>
                   <span>Só aparece em planilha importada — vincule pelo nome.</span>
                 </div>
-                <div className="field-group ponto-link-field">
-                  <label htmlFor={`ponto-link-${item.normalizedName}`}>Vincular ao colaborador</label>
-                  <select
-                    id={`ponto-link-${item.normalizedName}`}
+                <Field className="ponto-link-field" label="Vincular ao colaborador" optionalText="">
+                  <Select
                     value={links[item.normalizedName] ?? ''}
                     onChange={event => setLinks(previous => ({ ...previous, [item.normalizedName]: event.target.value }))}
                   >
@@ -550,10 +634,10 @@ export function PontoImportPanel() {
                     {(linkCollaborators ?? []).map(collaborator => (
                       <option key={collaborator.id} value={collaborator.id}>{collaboratorOptionLabel(collaborator)}</option>
                     ))}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
                 <Button
-                  variant="mini"
+                  variant="secondary" size="sm"
                   disabled={!links[item.normalizedName] || linkMutation.isPending}
                   onClick={() => linkMutation.mutate({
                     normalizedName: item.normalizedName,
@@ -566,96 +650,39 @@ export function PontoImportPanel() {
             ))}
 
             {!unlinkedTotal ? (
-              <p className="placeholder-copy ponto-section-copy">Nenhum colaborador do ponto sem vínculo.</p>
+              <p className="acp-cost-ds__copy">Nenhum colaborador do ponto sem vínculo.</p>
             ) : null}
             </div>
-          </div>
+          </section>
         ) : null}
 
-        {isManager && syncRuns?.length ? (
-          <>
-            <div id="ponto-sync-history-title" className="sec ponto-history-title">Histórico de sincronizações</div>
-            <div
-              className="acp-table-wrap ponto-history-table"
-              role="region"
-              aria-labelledby="ponto-sync-history-title"
-              tabIndex={0}
-            >
-              <table className="acp-table">
-                <thead>
-                  <tr><th>Status</th><th>Origem</th><th>Período</th><th>Registros</th><th>Vínculos</th><th>Concluída</th></tr>
-                </thead>
-                <tbody>
-                  {syncRuns.map(run => (
-                    <tr key={run.id}>
-                      <td data-label="Status"><strong>{run.status === 'SUCCEEDED' ? 'Concluída' : run.status === 'FAILED' ? 'Falhou' : 'Em andamento'}</strong>{run.errorMessage ? <span className="ponto-history-file">{run.errorMessage}</span> : null}</td>
-                      <td data-label="Origem">{pontoMaisSyncTriggerLabel(run.trigger)}</td>
-                      <td data-label="Período">{fmtDate(run.periodStart)} – {fmtDate(run.periodEnd)}</td>
-                      <td data-label="Registros">{run.workDaysRead} jornadas · {run.timeCardsRead} batidas</td>
-                      <td data-label="Vínculos">{run.collaboratorsMatched} vinculados · {run.pendingCount} pendência(s)</td>
-                      <td data-label="Concluída">{fmtDateTime(run.completedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+        {isManager ? (
+          <section className="acp-cost-ds__history-section" aria-labelledby="ponto-sync-history-title">
+            <h3 id="ponto-sync-history-title">Histórico de sincronizações</h3>
+            <PontoSyncHistoryTable runs={syncRuns ?? []} loading={syncRunsLoading} />
+          </section>
         ) : null}
 
-        <div id="ponto-current-data-history-title" className="sec ponto-history-title">Histórico de dados vigentes</div>
+        <h3 id="ponto-current-data-history-title" className="acp-cost-ds__section-title">Histórico de dados vigentes</h3>
         <div className="ponto-filter-row">
-          <div className="field-group">
-            <label htmlFor="ponto-import-source">Origem</label>
-            <select
-              id="ponto-import-source"
+          <Field label="Origem" optionalText="">
+            <Select
               value={importSource}
               onChange={event => setImportSource(event.target.value as PontoImportSourceFilter)}
             >
               <option value="ALL">Todas (mais recentes)</option>
               <option value="XLSX">Somente planilhas</option>
               <option value="PONTOMAIS_API">Somente API</option>
-            </select>
-          </div>
+            </Select>
+          </Field>
           {importSource === 'ALL' ? (
-            <span className="placeholder-copy">
+            <span className="acp-cost-ds__copy">
               A lista mostra os mais recentes. Para achar planilhas antigas — e poder excluí-las —
               troque para “Somente planilhas”.
             </span>
           ) : null}
         </div>
-        {imports?.length ? (
-          <div
-            className="acp-table-wrap ponto-history-table"
-            role="region"
-            aria-labelledby="ponto-current-data-history-title"
-            tabIndex={0}
-          >
-            <table className="acp-table">
-              <thead>
-                <tr><th>Origem</th><th>Período</th><th>Colab.</th><th>Linhas</th><th>Atualizado</th>{isManager ? <th /> : null}</tr>
-              </thead>
-              <tbody>
-                {imports.map(item => {
-                  const canDelete = isManager && item.source !== 'PONTOMAIS_API';
-                  return (
-                    <tr key={item.id}>
-                      <td data-label="Origem"><strong>{importSourceLabel(item)}</strong><span className="ponto-history-file">{item.fileName}</span></td>
-                      <td data-label="Período">{fmtDate(item.periodStart)} – {fmtDate(item.periodEnd)}</td>
-                      <td data-label="Colab.">{item.collaboratorsMatched}/{item.collaboratorsTotal}</td>
-                      <td data-label="Linhas">{item.rowsRead}</td>
-                      <td data-label="Atualizado">{fmtDate(item.createdAt)}</td>
-                      {isManager ? (
-                        <td data-label="Ações" className="ponto-history-actions">
-                          {canDelete ? <Button variant="danger" onClick={() => setDeleteTarget(item)}>Excluir</Button> : null}
-                        </td>
-                      ) : null}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : <p className="placeholder-copy">Nenhuma atualização ainda.</p>}
+        <PontoCurrentDataHistoryTable imports={imports ?? []} isManager={isManager} onDelete={setDeleteTarget} loading={importsLoading} />
           </>
         ) : null}
 
@@ -664,11 +691,11 @@ export function PontoImportPanel() {
         ) : null}
 
         {detailTab === 'missing-projects' && isManager && pending ? (
-          <section className="det-section ponto-employee-section" aria-labelledby="ponto-missing-projects-title">
-            <div id="ponto-missing-projects-title" className="sec ponto-subtitle">
+          <section className="acp-cost-ds__surface" aria-labelledby="ponto-missing-projects-title">
+            <h3 id="ponto-missing-projects-title" className="acp-cost-ds__section-title">
               Projetos não encontrados ({missingProjectsCount})
-            </div>
-            <p className="placeholder-copy ponto-section-copy">
+            </h3>
+            <p className="acp-cost-ds__copy">
               Estes códigos e etiquetas vieram do Ponto Mais, mas não existem no cadastro do app. Eles podem ser de missões antigas e ficam separados das pendências operacionais. Vincule somente quando houver um projeto correspondente.
             </p>
             <div
@@ -678,17 +705,14 @@ export function PontoImportPanel() {
               tabIndex={0}
             >
               {pending.missingProjects.projectTags.map(item => {
-                const fieldId = `pontomais-missing-tag-${encodeURIComponent(item.normalizedTag)}`;
                 return (
-                  <div key={item.normalizedTag} className="field-row ponto-link-row">
+                  <div key={item.normalizedTag} className="ponto-link-row">
                     <div className="ponto-link-copy">
                       <strong>{item.rawTag}</strong>
                       <span>Etiqueta de projeto não reconhecida</span>
                     </div>
-                    <div className="field-group ponto-link-field">
-                      <label htmlFor={fieldId}>Vincular ao projeto</label>
-                      <select
-                        id={fieldId}
+                    <Field className="ponto-link-field" label="Vincular ao projeto" optionalText="">
+                      <Select
                         value={projectTagLinks[item.normalizedTag] ?? ''}
                         onChange={event => setProjectTagLinks(previous => ({
                           ...previous,
@@ -702,11 +726,11 @@ export function PontoImportPanel() {
                             {project.historical ? ' (histórico)' : project.isActive ? '' : ' (inativo)'}
                           </option>
                         ))}
-                      </select>
-                    </div>
+                      </Select>
+                    </Field>
                     <div className="ponto-pending-actions">
                       <Button
-                        variant="mini"
+                        variant="secondary" size="sm"
                         disabled={!projectTagLinks[item.normalizedTag] || projectTagLinkMutation.isPending}
                         onClick={() => projectTagLinkMutation.mutate({
                           rawTag: item.rawTag,
@@ -716,7 +740,7 @@ export function PontoImportPanel() {
                         Vincular
                       </Button>
                       <Button
-                        variant="mini"
+                        variant="secondary" size="sm"
                         disabled={projectTagIgnoreMutation.isPending}
                         onClick={() => projectTagIgnoreMutation.mutate({ rawTag: item.rawTag, ignored: true })}
                       >
@@ -735,7 +759,7 @@ export function PontoImportPanel() {
                     <div key={item.normalizedTag} className="ponto-ignored-tag-row">
                       <span>{item.rawTag}</span>
                       <Button
-                        variant="mini"
+                        variant="secondary" size="sm"
                         disabled={projectTagIgnoreMutation.isPending}
                         onClick={() => projectTagIgnoreMutation.mutate({ rawTag: item.rawTag, ignored: false })}
                       >
@@ -749,7 +773,7 @@ export function PontoImportPanel() {
               {pending.missingProjects.ambiguousDays.map(item => {
                 const pendingKey = `${item.externalEmployeeId}:${item.date}`;
                 return (
-                  <div key={pendingKey} className="field-row ponto-link-row ponto-missing-project-day-row">
+                  <div key={pendingKey} className="ponto-link-row ponto-missing-project-day-row">
                     <div className="ponto-link-copy">
                       <strong>{item.externalName} · {fmtDate(item.date)}</strong>
                       <span>
@@ -761,7 +785,7 @@ export function PontoImportPanel() {
               })}
 
               {!missingProjectsCount ? (
-                <p className="placeholder-copy ponto-section-copy">Nenhum projeto não encontrado.</p>
+                <p className="acp-cost-ds__copy">Nenhum projeto não encontrado.</p>
               ) : null}
             </div>
           </section>
@@ -770,11 +794,11 @@ export function PontoImportPanel() {
         {detailTab === 'rdo-simulation' && isManager ? <RdoSimulationExclusionsPanel /> : null}
 
         {detailTab === 'employees' && isManager ? (
-          <section className="det-section ponto-employee-section" aria-labelledby="ponto-employees-title">
-            <div id="ponto-employees-title" className="sec ponto-subtitle">
+          <section className="acp-cost-ds__surface" aria-labelledby="ponto-employees-title">
+            <h3 id="ponto-employees-title" className="acp-cost-ds__section-title">
               Colaboradores encontrados ({externalEmployees?.length ?? 0})
-            </div>
-            <p className="placeholder-copy ponto-section-copy">
+            </h3>
+            <p className="acp-cost-ds__copy">
               Ignore pessoas fora da operação. A preferência é reversível e também retira seus dados históricos do cálculo vigente.
             </p>
             <div
@@ -798,7 +822,8 @@ export function PontoImportPanel() {
                     </span>
                   </div>
                   <Button
-                    variant={employee.ignored ? 'secondary' : 'mini'}
+                    variant="secondary"
+                    size="sm"
                     disabled={ignoreExternalEmployeeMutation.isPending}
                     onClick={() => ignoreExternalEmployeeMutation.mutate({
                       externalEmployeeId: employee.externalEmployeeId,
@@ -810,12 +835,12 @@ export function PontoImportPanel() {
                 </div>
               ))}
               {!externalEmployees?.length ? (
-                <p className="placeholder-copy">Nenhum colaborador foi encontrado ainda.</p>
+                <p className="acp-cost-ds__copy">Nenhum colaborador foi encontrado ainda.</p>
               ) : null}
             </div>
           </section>
         ) : null}
-      </div>
+      </Card>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

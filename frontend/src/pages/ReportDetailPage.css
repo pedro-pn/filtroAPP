@@ -1,0 +1,373 @@
+/* Visual migration boundary for the RDO editor embedded in report details. */
+
+.rdo-edit-form {
+  padding-block-end: var(--space-4);
+}
+
+.rdo-edit-form .ongoing-item-react--future {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.rdo-edit-form .ongoing-item-react--future :is(.admin-item-title, .admin-item-sub, strong, p),
+.rdo-edit-form .ongoing-future-note { color: var(--muted); }
+.rdo-edit-form .ongoing-future-note { margin: var(--space-1) 0 0; font-size: var(--text-xs); font-weight: var(--font-semibold); }
+
+.rdo-edit-form .rdo-edit-field-hint,
+.rdo-edit-form .field-group > .placeholder-copy,
+.rdo-edit-form .field-group > .inline-error {
+  margin-block-start: var(--space-1);
+}
+
+.rdo-edit-form .manual-operational-sections,
+.rdo-edit-form .manual-operational-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.rdo-edit-form .manual-operational-fields-embedded {
+  grid-column: 1 / -1;
+}
+
+.rdo-edit-form .manual-operational-section + .manual-operational-section {
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+.rdo-edit-form .manual-operational-lunch,
+.rdo-edit-form .manual-operational-subtitle {
+  margin-block-start: 0;
+}
+
+.rdo-edit-form .upload-final-note {
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--info-line);
+  border-radius: var(--radius-md);
+  background: var(--info-bg);
+  color: var(--info);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.rdo-edit-form .overtime-review-inline,
+.rdo-edit-form .overtime-review-main {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.rdo-edit-actions {
+  position: sticky;
+  inset-block-end: var(--space-3);
+  z-index: var(--z-sticky);
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e3);
+}
+
+.rdo-edit-actions .fv-button {
+  flex: 1 1 calc(var(--space-16) * 2);
+}
+
+@media (max-width: 767.98px) {
+  .rdo-edit-form {
+    padding-block-end: calc(var(--space-16) + var(--space-8));
+  }
+
+  .rdo-edit-actions {
+    inset-block-end: calc(
+      var(--bottombar-h) + env(safe-area-inset-bottom) + var(--space-1)
+    );
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1);
+    padding: var(--space-2);
+  }
+
+  .rdo-edit-actions .fv-button {
+    --fv-button-height: calc(var(--space-10) - var(--space-1));
+    --fv-button-padding: var(--space-2);
+    --fv-button-font-size: var(--text-sm);
+
+    width: 100%;
+    min-width: 0;
+    min-height: calc(var(--space-10) - var(--space-1));
+  }
+}
+
+/* Read-only report details, shared by signed reports and client review. */
+.fv-ds.rdo-report-detail-page {
+  --g: var(--brand);
+  --gd: var(--brand-text);
+  --rd: var(--danger);
+  --mu: var(--muted);
+  --tx: var(--ink);
+  --br: var(--line);
+  --wh: var(--surface);
+
+  display: grid;
+  width: min(100%, 960px);
+  min-width: 0;
+  margin-inline: auto;
+  gap: var(--space-5);
+  padding-block-end: var(--space-4);
+  color: var(--ink);
+}
+
+.rdo-report-detail-page > *,
+.rdo-report-detail-card,
+.rdo-report-detail-card > .fv-card__body {
+  min-width: 0;
+}
+
+.rdo-report-detail-card > .fv-card__body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rdo-report-detail-page .detail-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.rdo-report-detail-page .detail-grid > div,
+.rdo-report-detail-page .det-row {
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.rdo-report-detail-page .detail-label,
+.rdo-report-detail-field > label,
+.rdo-report-detail-comment > label {
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.rdo-report-detail-page .detail-value,
+.rdo-report-detail-page .det-val {
+  display: block;
+  min-width: 0;
+  max-width: none;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: start;
+}
+
+.rdo-report-detail-page :where(.placeholder-copy, .report-audit-description) {
+  color: var(--muted);
+}
+
+.rdo-report-detail-page .detail-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.rdo-report-detail-page .detail-list li {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.rdo-report-detail-page .section-subtitle {
+  margin: 0;
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.rdo-report-detail-page .rdo-report-detail-services {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.rdo-report-detail-page .rdo-report-detail-service {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+.rdo-report-detail-page .rdo-report-detail-service > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.rdo-report-detail-page .admin-card-title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+.rdo-report-detail-page .signature-progress {
+  margin: 0;
+  border-color: var(--info-line);
+  background: var(--info-bg);
+  color: var(--ink);
+}
+
+.rdo-report-detail-page :where(.signature-progress-head span:last-child, .signature-progress-names) {
+  color: var(--muted);
+}
+
+.rdo-report-detail-page .signature-progress-names {
+  overflow-x: visible;
+  white-space: normal;
+}
+
+.rdo-report-detail-page .report-note {
+  margin: 0;
+  padding: var(--space-3);
+  border-inline-start: var(--space-1) solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.rdo-report-detail-page .det-section {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.rdo-report-detail-page .det-row {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.rdo-report-detail-page .det-label {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+}
+
+.rdo-report-detail-page .report-audit-section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rdo-report-detail-page .report-audit-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rdo-report-detail-page .report-audit-item {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.rdo-report-detail-page .report-audit-title {
+  color: var(--ink);
+}
+
+.rdo-report-detail-page .report-audit-meta span,
+.rdo-report-detail-page .report-audit-hashes span {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.rdo-report-detail-actions {
+  position: sticky;
+  inset-block-end: var(--space-3);
+  z-index: var(--z-sticky);
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e3);
+}
+
+.rdo-report-detail-comment {
+  min-width: 0;
+  flex: 1 1 100%;
+}
+
+.rdo-report-sequence-form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.rdo-report-sequence-form .placeholder-copy {
+  margin: 0;
+}
+
+.rdo-report-sequence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 767.98px) {
+  .fv-ds.rdo-report-detail-page {
+    gap: var(--space-3);
+    padding-block-end: calc(var(--space-16) + var(--space-6));
+  }
+
+  .rdo-report-detail-page .fv-page-header__actions,
+  .rdo-report-detail-page .fv-page-header__actions .fv-button {
+    width: 100%;
+  }
+
+  .rdo-report-detail-page .detail-grid,
+  .rdo-report-detail-page .det-section {
+    grid-template-columns: 1fr;
+  }
+
+  .rdo-report-detail-card.fv-card--padding-md {
+    padding: var(--space-4);
+  }
+
+  .rdo-report-detail-actions {
+    inset-block-end: calc(
+      var(--bottombar-h) + env(safe-area-inset-bottom) + var(--space-1)
+    );
+    padding: var(--space-2);
+  }
+
+  .rdo-report-detail-actions .fv-button {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+}

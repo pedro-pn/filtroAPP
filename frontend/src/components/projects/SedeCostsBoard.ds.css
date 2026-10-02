@@ -1,0 +1,117 @@
+.acp-sede-ds, .acp-sede-ds__results, .acp-sede-ds__operations, .acp-sede-ds__costs {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.acp-sede-ds__heading h1, .acp-sede-ds__section-heading h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+.acp-sede-ds__section-heading h2 { font-size: var(--text-lg); }
+.acp-sede-ds__heading p, .acp-sede-ds__section-heading p {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.acp-sede-ds__filters .fv-card__body { display: grid; gap: var(--space-4); }
+.acp-sede-ds__periods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+}
+.acp-sede-ds__periods .fv-button { min-width: 0; }
+.acp-sede-ds__period-fields { display: grid; gap: var(--space-3); min-width: 0; }
+.acp-sede-ds__period-fields .fv-field { min-width: 0; }
+.acp-sede-ds__metrics, .acp-sede-ds__operation-grid, .acp-sede-ds__cost-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+  align-items: start;
+}
+.acp-sede-ds__metrics { gap: var(--space-3); }
+.acp-sede-ds__cost-card, .acp-sede-ds__operation-grid > .fv-card { min-width: 0; }
+.acp-sede-ds__cost-card .fv-card__body, .acp-sede-ds__operation-grid > .fv-card .fv-card__body {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.acp-sede-ds__card-title { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
+.acp-sede-ds__cost-total, .acp-sede-ds__operation-total {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.acp-sede-ds__cost-total > span, .acp-sede-ds__operation-total > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.acp-sede-ds__cost-total > strong, .acp-sede-ds__operation-total > strong {
+  color: var(--brand-text);
+  font-size: var(--text-xl);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.acp-sede-ds__facts { display: grid; gap: var(--space-2); margin: 0; min-width: 0; }
+.acp-sede-ds__facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.acp-sede-ds__facts dt, .acp-sede-ds__operation-stats dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.acp-sede-ds__facts dd, .acp-sede-ds__operation-stats dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-semibold);
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+.acp-sede-ds__cost-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  border-block-start: var(--border-width) solid var(--line);
+  padding-block-start: var(--space-4);
+}
+.acp-sede-ds__cost-section h3, .acp-sede-ds__breakdowns h3 { margin: 0; font-size: var(--text-sm); }
+.acp-sede-ds__cost-section > p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.acp-sede-ds__operation-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+.acp-sede-ds__operation-stats > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.acp-sede-ds__operation-stats dd { text-align: start; }
+.acp-sede-ds__breakdowns { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-sede-ds__breakdowns > div { display: grid; gap: var(--space-3); min-width: 0; }
+
+@media (min-width: 640px) {
+  .acp-sede-ds__periods { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .acp-sede-ds__period-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acp-sede-ds__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acp-sede-ds__breakdowns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .acp-sede-ds__operation-grid, .acp-sede-ds__cost-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .acp-sede-ds__periods { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .acp-sede-ds__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

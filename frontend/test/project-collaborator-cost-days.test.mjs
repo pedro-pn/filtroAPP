@@ -13,7 +13,7 @@ test('detalhe identifica custo sem atividade e conserva a jornada exclusiva dos 
     appType: 'custom'
   });
   try {
-    const { ProjectCollaboratorHoursDialog } = await server.ssrLoadModule('/src/components/projects/ProjectCollaboratorHoursDialog.tsx');
+    const { ProjectCollaboratorHoursContent } = await server.ssrLoadModule('/src/components/projects/ProjectCollaboratorHoursDialog.tsx');
     const collaborator = {
       name: 'Ana', role: 'Operador', horas: 8, horasApropriadas: 17.6,
       diasApropriados: [
@@ -22,8 +22,8 @@ test('detalhe identifica custo sem atividade e conserva a jornada exclusiva dos 
       ],
       horasRelatoriosPorData: [{ data: '2026-09-30', horas: 8, relatorios: [{ id: 'r1', tipo: 'RDO', numero: 1, horas: 8 }] }]
     };
-    const render = source => renderToStaticMarkup(createElement(ProjectCollaboratorHoursDialog, {
-      collaborator, source, onSourceChange() {}, onClose() {}
+    const render = source => renderToStaticMarkup(createElement(ProjectCollaboratorHoursContent, {
+      collaborator, source, onSourceChange() {}
     }));
     const cost = render('POINT');
     assert.match(cost, /Dia sem atividade\/viagem/);

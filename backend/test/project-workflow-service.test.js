@@ -488,6 +488,9 @@ test('somente o líder designado aceita o handover informativo', async () => {
   assert.ok(HANDOVER.enteredAt, 'início da gestão abre o Handover');
   assert.equal(HANDOVER.completedAt, INITIAL_ANALYSIS.enteredAt, 'o aceite conclui o Handover e abre a análise');
   assert.equal(INITIAL_ANALYSIS.completedAt, null);
+  const listing = await listProjectWorkflows({}, leader, { database });
+  assert.equal(listing.items[0].workflow.stageTimeline.INITIAL_ANALYSIS.enteredAt, INITIAL_ANALYSIS.enteredAt);
+  assert.deepEqual(state.lastProjectFindManyInput.select.workflow.include.events.where.action.in, ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE']);
 });
 
 test('pendência só aparece enquanto o item crítico correspondente está em Sim', async () => {

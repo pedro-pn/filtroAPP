@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { getEfetivoCollaboratorDetail, type EfetivoPeriod } from '../../../api/efetivo';
-import { Button } from '../../../components/ui/Button';
+import { Badge, Button, EmptyState, MetricCard, Skeleton } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
 
 interface Props {
@@ -26,26 +26,21 @@ export function ProductivityCollaboratorDetail({ collaboratorId, period, onClose
   });
 
   return (
-    <Modal open onClose={onClose} ariaLabelledBy="efetivo-detail-title" panelClassName="modal-card efetivo-modal efetivo-detail-modal">
-      <div className="efetivo-modal-layout">
-        <header className="efetivo-modal-header">
-          <div>
-            <h3 id="efetivo-detail-title">Detalhe mensal</h3>
-            <p>{query.data?.colaborador.nome || 'Carregando colaborador…'}</p>
-          </div>
-          <Button variant="mini" onClick={onClose} aria-label="Fechar detalhe">Fechar</Button>
-        </header>
-        <div className="efetivo-modal-body">
-          {query.isLoading ? <p className="placeholder-copy">Carregando meses…</p> : null}
-          {query.isError ? <p className="placeholder-copy">Não foi possível carregar o detalhe mensal.</p> : null}
+    <Modal open onClose={onClose} appearance="design-system" title="Detalhe mensal" size="lg"
+      fullscreenOnMobile={false} panelClassName="efetivo-dialog efetivo-productivity-detail"
+      footer={<Button variant="secondary" size="sm" onClick={onClose}>Voltar à lista</Button>}>
+      <div className="efetivo-productivity-detail__content">
+          {query.isLoading ? <Skeleton variant="card" /> : null}
+          {query.isError ? <EmptyState variant="error" title="Não foi possível carregar o detalhe mensal." /> : null}
           {query.data ? (
             <>
-              <div className="efetivo-detail-summary">
-                <span><small>HH acumuladas</small><strong>{hours(query.data.colaborador.hhAcumuladas)}</strong></span>
-                <span><small>HE excluídas</small><strong>{hours(query.data.colaborador.heExcluidas)}</strong></span>
-                <span><small>Meses analisados</small><strong>{query.data.colaborador.mesesAnalisados.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</strong></span>
+              <p className="efetivo-productivity-detail__name">{query.data.colaborador.nome}</p>
+              <div className="efetivo-productivity-detail__metrics">
+                <MetricCard label="HH acumuladas" value={hours(query.data.colaborador.hhAcumuladas)} />
+                <MetricCard label="HE excluídas" value={hours(query.data.colaborador.heExcluidas)} />
+                <MetricCard label="Meses analisados" value={query.data.colaborador.mesesAnalisados.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} />
               </div>
-              <div className="efetivo-table-wrap">
+              <div className="efetivo-table-wrap efetivo-productivity-detail__table">
                 <table className="efetivo-table efetivo-detail-table">
                   <thead>
                     <tr><th>Mês</th><th>HH normais</th><th>HE excluídas</th><th>Distância da referência</th><th>Situação</th></tr>
@@ -58,8 +53,8 @@ export function ProductivityCollaboratorDetail({ collaboratorId, period, onClose
                         <td data-label="HE excluídas">{hours(month.heExcluidas)}</td>
                         <td data-label="Distância da referência">{hours(month.distanciaReferencia)}</td>
                         <td data-label="Situação" className="efetivo-month-flags">
-                          {month.ferias ? <span className="efetivo-badge">Férias</span> : null}
-                          {month.instavel ? <span className="efetivo-badge warning">Pode mudar</span> : null}
+                          {month.ferias ? <Badge tone="info">Férias</Badge> : null}
+                          {month.instavel ? <Badge tone="warning">Pode mudar</Badge> : null}
                           {!month.ferias && !month.instavel ? 'Consolidado' : null}
                         </td>
                       </tr>
@@ -69,8 +64,6 @@ export function ProductivityCollaboratorDetail({ collaboratorId, period, onClose
               </div>
             </>
           ) : null}
-        </div>
-        <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={onClose}>Voltar à lista</Button></footer>
       </div>
     </Modal>
   );

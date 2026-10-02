@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -13,6 +14,7 @@ import { isRouteAllowed } from '../../auth/routeAccess';
 import { moduleRouteAccess } from '../../modules/registry';
 import type { Project } from '../../types/domain';
 import { Modal } from '../../components/ui/Modal';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import { downloadBlob } from '../../utils/download';
 import { matchesSearch } from '../../utils/search';
@@ -201,7 +203,7 @@ export function HistoricalServicesContent({ projects, projectId, onProjectChange
               {item.serviceType !== 'filtragem' && <><option value="m">m — metros</option><option value="cm">cm — centímetros</option></>}{['filtragem', 'flushing'].includes(item.serviceType) && <><option value="L">L — litros</option><option value="mL">mL — mililitros</option></>}
             </select></div>
           </div>
-          {form.items.length > 1 && <button type="button" className="mini-btn alt" onClick={() => { setPreview(null); setForm({ ...form, items: form.items.filter((_, i) => i !== index) }); }}>Remover linha {index + 1}</button>}
+          {form.items.length > 1 && <RemoveIconButton label={`Remover linha ${index + 1}`} onClick={() => { setPreview(null); setForm({ ...form, items: form.items.filter((_, i) => i !== index) }); }} />}
         </div>)}
         <div className="historical-toolbar">
           <button type="button" className="mini-btn alt" onClick={() => {
@@ -239,7 +241,7 @@ export function HistoricalServicesContent({ projects, projectId, onProjectChange
         <div className="field-group"><label htmlFor="historical-from">De</label><input id="historical-from" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></div>
         <div className="field-group"><label htmlFor="historical-to">Até</label><input id="historical-to" type="date" value={dateTo} min={dateFrom} onChange={event => setDateTo(event.target.value)} /></div>
       </div>
-      {history.isPending && projectId && <p role="status">Carregando histórico...</p>}
+      {history.isPending && projectId && <p role="status"><BrandLoading label="Carregando histórico" inline size="sm" /></p>}
       {history.isError && <div className="historical-error" role="alert">{history.error.message} <button className="mini-btn alt" type="button" onClick={() => void history.refetch()}>Tentar novamente</button></div>}
       {!!totals.length && <><div className="historical-totals" aria-label="Totais dos resultados">{totals.map(total => <span key={`${total.serviceType}:${total.unit}`}>{historicalServiceLabels[total.serviceType]}: <strong>{quantityText(total.quantity)} {total.unit}</strong></span>)}</div><p className="historical-help">Totais convertidos para metros e litros. As linhas preservam a unidade informada.</p></>}
       {!history.isPending && !history.isError && !visible.length && <p className="historical-help">{history.data?.length ? 'Nenhum lançamento corresponde aos filtros.' : 'Nenhum serviço histórico cadastrado neste projeto. Importe um CSV ou adicione um relatório.'}</p>}

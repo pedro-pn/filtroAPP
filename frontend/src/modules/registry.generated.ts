@@ -12,7 +12,8 @@ export const moduleRegistry = [
       "roles": [
         "rdo:manager",
         "rdo:coordinator",
-        "rdo:collaborator"
+        "rdo:collaborator",
+        "rdo:client"
       ],
       "pathStrategy": "roleHome"
     },

@@ -1,0 +1,869 @@
+/* Detailed NPS dashboard for the Gestor Design System surface. The shared
+   component keeps its legacy appearance by default for Coordinator. */
+
+:where(.fv-ds, [data-fv-ds]) .rdo-nps-dashboard-modal {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard-modal
+  > .fv-modal__header {
+  padding-block: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard-modal
+  > .fv-modal__body {
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-nps-dashboard-modal__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard-modal__title
+  > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard-modal__title-short {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-nps-dashboard-modal__logo {
+  width: auto;
+  height: var(--space-6);
+  flex: 0 0 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-nps-dashboard {
+  display: grid;
+  width: 100%;
+  max-width: var(--content-max);
+  min-width: 0;
+  margin-inline: auto;
+  gap: var(--space-4);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.rdo-nps-dashboard__filters, .rdo-nps-dashboard__overview, .rdo-nps-dashboard__section, .rdo-nps-dashboard__state) {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.rdo-nps-dashboard__filters, .rdo-nps-dashboard__overview, .rdo-nps-dashboard__section)
+  > .fv-card__header {
+  align-items: flex-start;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.rdo-nps-dashboard__filters, .rdo-nps-dashboard__overview, .rdo-nps-dashboard__section)
+  > .fv-card__body {
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__section-heading {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__section-heading
+  h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-md);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__section-heading
+  span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__filters
+  > .fv-card__body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__filter-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__filter-scope {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__filter-scope
+  :where(span, strong, small) {
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__filter-scope
+  span {
+  padding-inline-start: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: var(--font-semibold);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__filter-scope
+  small {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__overview
+  > .fv-card__body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__overview-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__score {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  justify-items: start;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: var(--border-width) solid currentColor;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__score-label {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xs);
+  text-transform: uppercase;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__score
+  > strong {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-2xl);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__score-zone {
+  color: currentColor;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__score
+  small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__metrics
+  .fv-metric-card {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segments {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment
+  span {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment
+  strong {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment
+  small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.rdo-nps-dashboard__zone--excellent, .rdo-nps-dashboard__zone--very-good) {
+  color: var(--success);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__zone--good {
+  color: var(--info);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__zone--reasonable {
+  color: var(--warning);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.rdo-nps-dashboard__zone--bad, .rdo-nps-dashboard__zone--critical) {
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment--promoter
+  strong {
+  color: var(--success);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment--neutral
+  strong {
+  color: var(--warning);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__segment--detractor
+  strong {
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-seg-bar {
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-seg-detractor {
+  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+  background: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-seg-neutral {
+  background: var(--warning);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-seg-promoter {
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  background: var(--success);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__benchmark {
+  margin: 0;
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__analysis-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-dist {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-dist-row {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-dist-track {
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-dist-bar {
+  border-radius: var(--radius-pill);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.survey-dash-dist-promoter, .survey-dash-dist-bar.survey-dash-dist-promoter) {
+  color: var(--success);
+  background-color: var(--success);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.survey-dash-dist-neutral, .survey-dash-dist-bar.survey-dash-dist-neutral) {
+  color: var(--warning);
+  background-color: var(--warning);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.survey-dash-dist-detractor, .survey-dash-dist-bar.survey-dash-dist-detractor) {
+  color: var(--danger);
+  background-color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-dist-score {
+  color: currentColor;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-trend {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-trend-bar {
+  background: currentColor;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-trend-baseline {
+  background: var(--line-strong);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-trend-lbl {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa {
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'label value count'
+    'track track track';
+  gap: var(--space-2);
+  padding-block-end: var(--space-3);
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-row:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-label {
+  grid-area: label;
+  color: var(--ink);
+  white-space: normal;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-track {
+  height: var(--space-2);
+  grid-area: track;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-fill {
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-val {
+  grid-area: value;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-qa-count {
+  display: inline;
+  grid-area: count;
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.survey-dash-compact-list, .survey-dash-client-lines, .survey-dash-follow-list) {
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.survey-dash-compact-row, .survey-dash-driver-row, .survey-dash-client-line) {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  :where(.survey-dash-driver-row small, .survey-dash-compact-row small) {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-client-line {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-client-line
+  strong {
+  border-radius: var(--radius-pill);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-follow-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-follow-row__identity {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-follow-row__identity
+  strong {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-follow-row__identity
+  span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__follow-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__project-disclosure {
+  min-width: 0;
+  overflow: hidden;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__project-disclosure
+  > summary {
+  display: flex;
+  min-height: calc(var(--space-10) + var(--space-1));
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__project-disclosure
+  > summary
+  > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__project-disclosure
+  > summary
+  small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .rdo-nps-dashboard__project-disclosure
+  > .survey-dash-project-list {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+  background: var(--surface-2);
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-proj-row {
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-proj-name {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-proj-status {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-proj-ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-proj-pending {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-nps-dashboard
+  .survey-dash-proj-expired {
+  background: var(--line);
+  color: var(--muted);
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard-modal
+    > .fv-modal__body {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-nps-dashboard {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard-modal__title-long {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard-modal__title-short {
+    display: inline;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__filters
+    > .fv-card__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__filters
+    > .fv-card__header
+    > .fv-card__actions {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__filters
+    .fv-button {
+    width: 100%;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__score {
+    min-height: calc(var(--space-16) * 2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__segments {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__segment {
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__segment
+    span {
+    overflow: hidden;
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+    text-overflow: ellipsis;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__segment
+    small {
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .survey-dash-client-line {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .survey-dash-client-line
+    div {
+    justify-content: flex-start;
+  }
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard-modal
+    > .fv-modal__body {
+    padding: var(--space-5);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-nps-dashboard {
+    gap: var(--space-5);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__filter-grid {
+    grid-template-columns: repeat(2, minmax(0, calc(var(--space-16) * 4)));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__overview-grid {
+    grid-template-columns: minmax(calc(var(--space-16) * 3), 0.7fr) minmax(0, 2fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .survey-dash-trend {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__follow-controls {
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .rdo-nps-dashboard__analysis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-nps-dashboard
+    .survey-dash-follow-row {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    align-items: end;
+  }
+}

@@ -44,21 +44,8 @@ export function StockCategoryFormModal({ open, category, saving, onClose, onSubm
   }
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="stock-category-form-title" panelClassName="modal-card equip-modal stock-modal">
+    <Modal open={open} onClose={onClose} appearance="design-system" title={category ? 'Editar categoria' : 'Nova categoria'} size="lg" showCloseButton={!saving} closeOnEscape={!saving} panelClassName="stock-dialog">
       <form className="equip-form" onSubmit={handleSubmit}>
-        <header className="equip-form-head equip-form-head-with-close">
-          <h3 id="stock-category-form-title">{category ? 'Editar categoria' : 'Nova categoria'}</h3>
-          <button
-            className="equip-modal-close icon-button"
-            type="button"
-            aria-label="Fechar edição de categoria"
-            title="Fechar"
-            onClick={onClose}
-            disabled={saving}
-          >
-            ×
-          </button>
-        </header>
 
         <div className="field-group">
           <label htmlFor="stock-category-type">Tipo *</label>
@@ -100,7 +87,7 @@ export function StockCategoryFormModal({ open, category, saving, onClose, onSubm
           <div className="admin-toolbar">
             <div className="sec">Pontos do checklist</div>
           </div>
-          <ChecklistItemsEditor value={checklistItems} onChange={setChecklistItems} disabled={saving || !checklistEnabled} />
+          <ChecklistItemsEditor appearance="design-system" value={checklistItems} onChange={setChecklistItems} disabled={saving || !checklistEnabled} />
         </div>
 
         <div className="admin-form-actions equip-form-actions">

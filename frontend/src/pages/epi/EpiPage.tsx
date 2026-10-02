@@ -1,6 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Alert, Badge, Button, EmptyState, Input, Select, Skeleton } from '../../components/ui/ds';
+import { PageHeader } from '../../layout/PageHeader';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 
 import {
   archiveEpiRecords,
@@ -24,15 +27,13 @@ import {
 } from '../../api/epi';
 
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
 import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import './EpiPage.ds.css';
 
 type Tab = 'collaborators' | 'catalog';
 type RecordTab = 'active' | 'archived';
@@ -128,11 +129,9 @@ function hasSignatureEvidence(record: { signedAt?: string | null; signatureImage
 }
 
 export function EpiPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const showToast = useToast();
-  const { confirm, confirmDialog } = useConfirmDialog();
+  const { confirm, confirmDialog } = useConfirmDialog('design-system');
   const queryClient = useQueryClient();
   const isTechnician = user?.accountType === 'ADMIN' || user?.moduleRoles?.includes('epi:technician');
   const [tab, setTab] = useUrlParamState<Tab>({
@@ -140,6 +139,10 @@ export function EpiPage() {
     defaultValue: 'collaborators',
     parse: parseEpiTab
   });
+  const subNavigation = useMemo(() => [
+    { id: 'collaborators', label: 'Colaboradores', href: '/epi?tab=collaborators', active: tab === 'collaborators', onSelect: () => setTab('collaborators') },
+    { id: 'catalog', label: 'Catálogo', href: '/epi?tab=catalog', active: tab === 'catalog', onSelect: () => setTab('catalog') }
+  ], [setTab, tab]);
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -443,37 +446,10 @@ export function EpiPage() {
     });
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
-    <Shell>
-      <TopBar
-        title="EPI"
-        subtitle="Fichas de controle por colaborador"
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <main className="page-scroll epi-page">
-        <section className="page-card epi-panel">
-          <div className="admin-toolbar">
-            <div className="sec">Controle de EPIs</div>
-          </div>
-          <div className="filter-tabs" role="tablist" aria-label="Áreas de EPI">
-            <button className={`filter-tab ${tab === 'collaborators' ? 'active' : ''}`} type="button" onClick={() => setTab('collaborators')}>Colaboradores</button>
-            <button className={`filter-tab ${tab === 'catalog' ? 'active' : ''}`} type="button" onClick={() => setTab('catalog')}>Gerenciar EPIs</button>
-          </div>
-        </section>
+    <OperationalModuleAppShell moduleId="epi" title="EPI" sectionLabel={tab === 'catalog' ? 'Catálogo' : 'Colaboradores'} subNavigation={subNavigation}>
+      <main className="epi-page-v2 fv-ds">
+        <PageHeader title={tab === 'catalog' ? 'Catálogo de EPIs' : 'Fichas por colaborador'} description={tab === 'catalog' ? 'Gerencie os equipamentos de proteção disponíveis.' : 'Consulte entregas, devoluções e assinaturas das fichas.'} />
 
         {tab === 'collaborators' ? (
           <>
@@ -489,6 +465,10 @@ export function EpiPage() {
                 />
               </div>
             </section>
+
+            {collaboratorsQuery.isLoading ? <Skeleton variant="card" label="Carregando colaboradores…" /> : null}
+            {collaboratorsQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void collaboratorsQuery.refetch() }}>Não foi possível carregar os colaboradores.</Alert> : null}
+            {!collaboratorsQuery.isLoading && !collaboratorsQuery.isError && !visibleCollaborators.length ? <EmptyState variant={search ? 'search' : 'default'} title={search ? 'Nenhum colaborador encontrado.' : 'Nenhum colaborador disponível.'} description={search ? 'Tente outro nome, código ou cargo.' : 'As fichas aparecerão quando houver colaboradores cadastrados.'} /> : null}
 
             {visibleCollaborators.map(collaborator => {
               const isOpen = expandedId === collaborator.id;
@@ -508,7 +488,7 @@ export function EpiPage() {
               const unsigned = activeRecords.filter(record => !record.signedAt).length;
               return (
                 <section className="page-card epi-collaborator-card" key={collaborator.id}>
-                  <button className="epi-card-head" type="button" onClick={() => openCollaborator(collaborator)}>
+                  <button className="epi-card-head" type="button" aria-expanded={isOpen} aria-controls={isOpen ? `epi-collaborator-${collaborator.id}` : undefined} onClick={() => openCollaborator(collaborator)}>
                     <span>
                       <strong>{collaborator.name}</strong>
                       <small>{collaborator.code} · {effectiveEpiRole(collaborator)}</small>
@@ -517,12 +497,12 @@ export function EpiPage() {
                   </button>
 
                   {isOpen ? (
-                    <div className="epi-card-body">
+                    <div className="epi-card-body" id={`epi-collaborator-${collaborator.id}`}>
                       {editingProfileId === collaborator.id ? (
                         <div className="epi-profile-grid">
                           <div className="field-group epi-profile-role">
-                            <label htmlFor={`epi-profile-role-${collaborator.id}`}>Cargo no EPI</label>
-                            <select
+                            <label htmlFor={`epi-profile-role-${collaborator.id}`}>Cargo usado no EPI</label>
+                            <Select
                               id={`epi-profile-role-${collaborator.id}`}
                               value={profileForm.roleOverrideJobRoleId}
                               onChange={event => setProfileForm(current => ({ ...current, roleOverrideJobRoleId: event.target.value }))}
@@ -535,12 +515,12 @@ export function EpiPage() {
                               {(jobRolesQuery.data || []).map(role => (
                                 <option key={role.id} value={role.id}>{role.name}{role.isActive ? '' : ' (inativo)'}</option>
                               ))}
-                            </select>
-                            <small>Selecione um cargo cadastrado ou use o cargo atual do RDO.</small>
+                            </Select>
+                            <small>O cargo escolhido vale para o EPI. O cargo atual no APP permanece {collaborator.currentJobRole.name}.</small>
                           </div>
                           <div className="field-group epi-profile-cpf">
                             <label htmlFor={`epi-profile-cpf-${collaborator.id}`}>CPF</label>
-                            <input
+                            <Input
                               id={`epi-profile-cpf-${collaborator.id}`}
                               inputMode="numeric"
                               maxLength={14}
@@ -552,29 +532,29 @@ export function EpiPage() {
                           </div>
                           <div className="field-group epi-profile-registration">
                             <label htmlFor={`epi-profile-registration-${collaborator.id}`}>Matrícula</label>
-                            <input id={`epi-profile-registration-${collaborator.id}`} value={profileForm.registrationNumber} onChange={event => setProfileForm(current => ({ ...current, registrationNumber: event.target.value }))} disabled={!isTechnician} />
+                            <Input id={`epi-profile-registration-${collaborator.id}`} value={profileForm.registrationNumber} onChange={event => setProfileForm(current => ({ ...current, registrationNumber: event.target.value }))} disabled={!isTechnician} />
                           </div>
                           <div className="field-group epi-profile-admission">
                             <label htmlFor={`epi-profile-admission-${collaborator.id}`}>Data de admissão</label>
-                            <input id={`epi-profile-admission-${collaborator.id}`} type="date" value={profileForm.admissionDate} onChange={event => setProfileForm(current => ({ ...current, admissionDate: event.target.value }))} disabled={!isTechnician} />
+                            <Input id={`epi-profile-admission-${collaborator.id}`} type="date" value={profileForm.admissionDate} onChange={event => setProfileForm(current => ({ ...current, admissionDate: event.target.value }))} disabled={!isTechnician} />
                           </div>
                           {isTechnician ? (
                             <>
-                              <button className="primary-button epi-profile-save" type="button" onClick={() => saveProfile(collaborator.id)}>
+                              <Button variant="primary" className="epi-profile-save" onClick={() => saveProfile(collaborator.id)}>
                                 Salvar dados
-                              </button>
-                              <button className="secondary-button epi-profile-cancel" type="button" onClick={() => setEditingProfileId(null)}>
+                              </Button>
+                              <Button variant="secondary" className="epi-profile-cancel" onClick={() => setEditingProfileId(null)}>
                                 Cancelar
-                              </button>
+                              </Button>
                             </>
                           ) : null}
                         </div>
                       ) : (
                         <div className="epi-profile-summary">
                           <div>
-                            <span>Cargo no EPI</span>
+                            <span>Cargo no EPI <em className="epi-profile-role-status">{collaborator.roleOverrideJobRole ? 'Específico' : 'Sincronizado'}</em></span>
                             <strong>{effectiveEpiRole(collaborator)}</strong>
-                            <small>{collaborator.roleOverrideJobRole ? `Cargo atual no APP: ${collaborator.currentJobRole.name}` : 'Sincronizado com o cargo atual do APP'}</small>
+                            <small>{collaborator.roleOverrideJobRole ? `Cargo temporário para EPI · no APP: ${collaborator.currentJobRole.name}` : 'Usa o cargo atual do APP'}</small>
                           </div>
                           <div>
                             <span>CPF</span>
@@ -589,9 +569,9 @@ export function EpiPage() {
                             <strong>{formatDate(collaborator.admissionDate)}</strong>
                           </div>
                           {isTechnician ? (
-                            <button className="secondary-button" type="button" onClick={() => startProfileEdit(collaborator)}>
+                            <Button variant="secondary" size="sm" className="epi-profile-edit" onClick={() => startProfileEdit(collaborator)}>
                               Editar
-                            </button>
+                            </Button>
                           ) : null}
                         </div>
                       )}
@@ -599,86 +579,87 @@ export function EpiPage() {
                       {isTechnician ? (
                         <form className="epi-record-form" onSubmit={submitRecord}>
                           <div className="field-group">
-                            <label>EPI cadastrado</label>
-                            <select value={recordForm.catalogItemId || ''} onChange={event => selectCatalog(event.target.value)}>
+                            <label htmlFor={`epi-record-catalog-${collaborator.id}`}>EPI cadastrado</label>
+                            <Select id={`epi-record-catalog-${collaborator.id}`} value={recordForm.catalogItemId || ''} onChange={event => selectCatalog(event.target.value)}>
                               <option value="">Novo EPI</option>
                               {(catalogQuery.data || []).map(item => (
                                 <option key={item.id} value={item.id}>{item.name} · {caLabel(item.ca)}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                           <div className="field-group">
-                            <label>Nome do EPI</label>
-                            <input value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null }))} required />
+                            <label htmlFor={`epi-record-name-${collaborator.id}`}>Nome do EPI</label>
+                            <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null }))} required />
                           </div>
                           <div className="field-group">
-                            <label>C.A</label>
-                            <input value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null }))} />
+                            <label htmlFor={`epi-record-ca-${collaborator.id}`}>C.A</label>
+                            <Input id={`epi-record-ca-${collaborator.id}`} value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null }))} />
                           </div>
                           <div className="field-group">
-                            <label>Quantidade</label>
-                            <input type="number" min="1" value={recordForm.quantity} onChange={event => setRecordForm(current => ({ ...current, quantity: Number(event.target.value) }))} required />
+                            <label htmlFor={`epi-record-quantity-${collaborator.id}`}>Quantidade</label>
+                            <Input id={`epi-record-quantity-${collaborator.id}`} type="number" min="1" value={recordForm.quantity} onChange={event => setRecordForm(current => ({ ...current, quantity: Number(event.target.value) }))} required />
                           </div>
                           <div className="field-group">
-                            <label>Fornecimento</label>
-                            <input type="date" value={recordForm.lendDate} onChange={event => setRecordForm(current => ({ ...current, lendDate: event.target.value }))} required />
+                            <label htmlFor={`epi-record-lend-${collaborator.id}`}>Fornecimento</label>
+                            <Input id={`epi-record-lend-${collaborator.id}`} type="date" value={recordForm.lendDate} onChange={event => setRecordForm(current => ({ ...current, lendDate: event.target.value }))} required />
                           </div>
                           <div className="field-group">
-                            <label>Devolução</label>
-                            <input type="date" value={recordForm.devolutionDate || ''} onChange={event => setRecordForm(current => ({ ...current, devolutionDate: event.target.value }))} />
+                            <label htmlFor={`epi-record-return-${collaborator.id}`}>Devolução</label>
+                            <Input id={`epi-record-return-${collaborator.id}`} type="date" value={recordForm.devolutionDate || ''} onChange={event => setRecordForm(current => ({ ...current, devolutionDate: event.target.value }))} />
                           </div>
-                          <button className="primary-button" type="submit" disabled={createRecordMutation.isPending}>Adicionar EPI</button>
+                          <Button variant="primary" type="submit" loading={createRecordMutation.isPending}>Adicionar EPI</Button>
                         </form>
                       ) : null}
 
-                      <div className="filter-tabs epi-record-tabs" role="tablist" aria-label="Fichas de EPI do colaborador">
-                        <button className={`filter-tab ${recordTab === 'active' ? 'active' : ''}`} type="button" onClick={() => setRecordTab('active')}>
+                      <div className="filter-tabs epi-record-tabs" role="group" aria-label="Fichas de EPI do colaborador">
+                        <button className={`filter-tab ${recordTab === 'active' ? 'active' : ''}`} type="button" aria-pressed={recordTab === 'active'} onClick={() => setRecordTab('active')}>
                           Ativos ({activeRecords.length})
                         </button>
-                        <button className={`filter-tab ${recordTab === 'archived' ? 'active' : ''}`} type="button" onClick={() => setRecordTab('archived')}>
+                        <button className={`filter-tab ${recordTab === 'archived' ? 'active' : ''}`} type="button" aria-pressed={recordTab === 'archived'} onClick={() => setRecordTab('archived')}>
                           Arquivados ({archivedRecords.length})
                         </button>
                       </div>
 
                       <div className="epi-record-actions">
-                        <button className="secondary-button" type="button" onClick={() => downloadPdf(collaborator, recordTab === 'archived')}>
+                        <Button variant="secondary" size="sm" onClick={() => downloadPdf(collaborator, recordTab === 'archived')}>
                           {recordTab === 'archived' ? 'Baixar PDF arquivados' : 'Baixar PDF'}
-                        </button>
+                        </Button>
                         {isTechnician && recordTab === 'active' ? (
                           <>
-                            <button
-                              className="secondary-button"
-                              type="button"
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               disabled={!selectedRecordIds.size || archiveRecordsMutation.isPending}
                               onClick={() => void confirmArchiveRecords(collaborator, activeRecords, true)}
                             >
                               Arquivar selecionados
-                            </button>
-                            <button
-                              className="primary-button"
-                              type="button"
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="sm"
                               disabled={!selectedRecordIds.size || hasSelectedSigned || requestSignatureMutation.isPending}
                               onClick={() => requestSignatureMutation.mutate(collaborator.id)}
                             >
                               {hasSelectedActiveRequest ? 'Solicitar novamente' : 'Solicitar assinatura'}
-                            </button>
+                            </Button>
                           </>
                         ) : null}
                         {isTechnician && recordTab === 'archived' ? (
-                          <button
-                            className="secondary-button epi-restore-button"
-                            type="button"
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="epi-restore-button"
                             disabled={!selectedArchivedRecordIds.size || hasSelectedArchivedSigned || archiveRecordsMutation.isPending}
                             onClick={() => void confirmArchiveRecords(collaborator, archivedRecords, false)}
                           >
                             Restaurar selecionados
-                          </button>
+                          </Button>
                         ) : null}
                       </div>
                       {lastSignUrl ? (
                         <div className="epi-sign-link">
                           <span>{lastSignUrl}</span>
-                          <button className="mini-btn" type="button" onClick={() => navigator.clipboard?.writeText(lastSignUrl)}>Copiar</button>
+                          <Button variant="secondary" size="sm" onClick={() => navigator.clipboard?.writeText(lastSignUrl)}>Copiar</Button>
                         </div>
                       ) : null}
 
@@ -694,23 +675,21 @@ export function EpiPage() {
                               <strong>{record.epiName}</strong>
                               <small>{caLabel(record.ca)} · Qtd. {record.quantity} · Forn. {formatDate(record.lendDate)} · Dev. {formatDate(record.devolutionDate)}{record.archivedAt ? ` · Arq. ${formatDate(record.archivedAt)}` : ''}</small>
                             </div>
-                            <span className={`epi-status ${record.signedAt ? 'signed' : ''}`}>{signedLabel(record)}</span>
+                            <Badge tone={record.signedAt ? 'success' : record.signatureRequest?.status === 'PENDING' ? 'warning' : 'neutral'}>{signedLabel(record)}</Badge>
                             {isTechnician ? (
                               <div className="epi-row-buttons">
                                 {recordTab === 'active' && !record.devolutionDate ? (
-                                  <button
-                                    className="mini-btn"
-                                    type="button"
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
                                     disabled={returnRecordMutation.isPending}
                                     onClick={() => returnRecordMutation.mutate({ collaboratorId: collaborator.id, id: record.id })}
                                   >
                                     Devolver
-                                  </button>
+                                  </Button>
                                 ) : null}
                                 {!hasSignatureEvidence(record) ? (
-                                  <button className="mini-btn danger" type="button" onClick={() => confirmRemoveRecord(record)}>
-                                    Remover
-                                  </button>
+                                  <RemoveIconButton label={`Remover EPI ${record.epiName}`} onClick={() => confirmRemoveRecord(record)} />
                                 ) : null}
                               </div>
                             ) : null}
@@ -730,16 +709,20 @@ export function EpiPage() {
             {isTechnician ? (
               <form className="epi-catalog-form" onSubmit={event => { event.preventDefault(); saveCatalogMutation.mutate(); }}>
                 <div className="field-group">
-                  <label>Nome do EPI</label>
-                  <input value={catalogForm.name} onChange={event => setCatalogForm(current => ({ ...current, name: event.target.value }))} required />
+                  <label htmlFor="epi-catalog-name">Nome do EPI</label>
+                  <Input id="epi-catalog-name" value={catalogForm.name} onChange={event => setCatalogForm(current => ({ ...current, name: event.target.value }))} required />
                 </div>
                 <div className="field-group">
-                  <label>C.A</label>
-                  <input value={catalogForm.ca} onChange={event => setCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                  <label htmlFor="epi-catalog-ca">C.A</label>
+                  <Input id="epi-catalog-ca" value={catalogForm.ca} onChange={event => setCatalogForm(current => ({ ...current, ca: event.target.value }))} />
                 </div>
-                <button className="primary-button" type="submit">Adicionar</button>
+                <Button variant="primary" type="submit" loading={saveCatalogMutation.isPending}>Adicionar</Button>
               </form>
             ) : null}
+
+            {catalogQuery.isLoading ? <Skeleton variant="card" label="Carregando catálogo de EPIs…" /> : null}
+            {catalogQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void catalogQuery.refetch() }}>Não foi possível carregar o catálogo de EPIs.</Alert> : null}
+            {!catalogQuery.isLoading && !catalogQuery.isError && !(catalogQuery.data || []).length ? <EmptyState variant="default" title="Nenhum EPI no catálogo." description={isTechnician ? 'Cadastre o primeiro equipamento acima.' : 'Os equipamentos aparecerão aqui quando forem cadastrados.'} /> : null}
 
             <div className="epi-catalog-list">
               {(catalogQuery.data || []).map(item => (
@@ -751,17 +734,17 @@ export function EpiPage() {
                     </div>
                     {isTechnician ? (
                       <div className="epi-row-buttons">
-                        <button className="mini-btn" type="button" onClick={() => editCatalog(item)}>Editar</button>
-                        <button className="mini-btn danger" type="button" onClick={() => confirmRemoveCatalog(item)}>Remover</button>
+                        <Button variant="secondary" size="sm" onClick={() => editCatalog(item)}>Editar</Button>
+                        <RemoveIconButton label={`Remover item ${item.name}`} onClick={() => confirmRemoveCatalog(item)} />
                       </div>
                     ) : null}
                   </div>
                   {editingCatalogId === item.id ? (
                     <div className="epi-catalog-edit-form">
-                      <input value={editCatalogForm.name} onChange={event => setEditCatalogForm(current => ({ ...current, name: event.target.value }))} />
-                      <input value={editCatalogForm.ca} onChange={event => setEditCatalogForm(current => ({ ...current, ca: event.target.value }))} />
-                      <button className="mini-btn" type="button" onClick={() => updateCatalogMutation.mutate({ id: item.id, payload: editCatalogForm })}>Salvar</button>
-                      <button className="mini-btn alt" type="button" onClick={() => setEditingCatalogId(null)}>Cancelar</button>
+                      <Input aria-label={`Nome de ${item.name}`} value={editCatalogForm.name} onChange={event => setEditCatalogForm(current => ({ ...current, name: event.target.value }))} />
+                      <Input aria-label={`C.A de ${item.name}`} value={editCatalogForm.ca} onChange={event => setEditCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                      <Button variant="primary" size="sm" loading={updateCatalogMutation.isPending} onClick={() => updateCatalogMutation.mutate({ id: item.id, payload: editCatalogForm })}>Salvar</Button>
+                      <Button variant="secondary" size="sm" onClick={() => setEditingCatalogId(null)}>Cancelar</Button>
                     </div>
                   ) : null}
                 </div>
@@ -773,25 +756,24 @@ export function EpiPage() {
       <Modal
         open={!!removeDialog}
         onClose={() => setRemoveDialog(null)}
-        ariaLabelledBy="epi-remove-dialog-title"
+        appearance="design-system"
+        size="sm"
+        title={removeDialog?.title || 'Remover EPI'}
         ariaDescribedBy="epi-remove-dialog-description"
-        panelClassName="modal-card epi-remove-dialog"
+        panelClassName="epi-remove-dialog"
       >
-        <div className="section-title" id="epi-remove-dialog-title">{removeDialog?.title || 'Remover EPI'}</div>
         <p className="placeholder-copy" id="epi-remove-dialog-description">{removeDialogDescription()}</p>
         <div className="epi-remove-dialog-item">
           <strong>{removeDialog?.description}</strong>
         </div>
         <div className="admin-form-actions epi-remove-dialog-actions">
-          <button className="secondary-button" type="button" onClick={() => setRemoveDialog(null)}>
+          <Button variant="secondary" onClick={() => setRemoveDialog(null)}>
             Cancelar
-          </button>
-          <button className="danger-button" type="button" onClick={confirmRemoveDialog}>
-            Remover
-          </button>
+          </Button>
+          <RemoveIconButton label={removeDialog?.title || 'Remover EPI'} onClick={confirmRemoveDialog} />
         </div>
       </Modal>
       {confirmDialog}
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

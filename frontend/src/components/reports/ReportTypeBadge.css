@@ -1,0 +1,49 @@
+:where(.fv-ds, [data-fv-ds]) .rdo-report-type-badge[data-report-type='RDO'] {
+  --fv-tone-bg: var(--success-bg);
+  --fv-tone-ink: var(--success);
+  --fv-tone-line: var(--success-line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-report-type-badge[data-report-type='RTP'] {
+  --fv-tone-bg: var(--danger-bg);
+  --fv-tone-ink: var(--danger);
+  --fv-tone-line: var(--danger-line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-report-type-badge[data-report-type='RLQ'] {
+  --fv-tone-bg: var(--warning-bg);
+  --fv-tone-ink: var(--warning);
+  --fv-tone-line: var(--warning-line);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .rdo-report-type-badge:is(
+    [data-report-type='RCP'],
+    [data-report-type='RCPU']
+  ) {
+  --fv-tone-bg: color-mix(in srgb, var(--info-bg) 58%, var(--danger-bg));
+  --fv-tone-ink: color-mix(in srgb, var(--info) 58%, var(--danger));
+  --fv-tone-line: color-mix(in srgb, var(--info-line) 58%, var(--danger-line));
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-report-type-badge[data-report-type='RLM'] {
+  --fv-tone-bg: var(--info-bg);
+  --fv-tone-ink: var(--info);
+  --fv-tone-line: var(--info-line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-report-type-badge[data-report-type='RLI'] {
+  --fv-tone-bg: color-mix(in srgb, var(--info-bg) 52%, var(--success-bg));
+  --fv-tone-ink: color-mix(in srgb, var(--info) 52%, var(--success));
+  --fv-tone-line: color-mix(in srgb, var(--info-line) 52%, var(--success-line));
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-report-type-badge[data-report-type='RLF'] {
+  --fv-tone-bg: color-mix(in srgb, var(--danger-bg) 48%, var(--warning-bg));
+  --fv-tone-ink: color-mix(in srgb, var(--danger) 48%, var(--warning));
+  --fv-tone-line: color-mix(
+    in srgb,
+    var(--danger-line) 48%,
+    var(--warning-line)
+  );
+}

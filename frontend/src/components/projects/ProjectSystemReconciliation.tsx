@@ -5,8 +5,9 @@ import { ApiClientError } from '../../api/client';
 import { getSystemReconciliation, saveMeasurementSystems, type MeasurementSelection, type ReconciledMeasurement, type ReconciledReport } from '../../api/systemReconciliation';
 import { listProjectSystems, type ProjectSystem } from '../../api/projectSystems';
 import { matchesSearch } from '../../utils/search';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, MetricCard, Select, Skeleton } from '../ui/ds';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
-import './system-reconciliation.css';
+import './ProjectSystemReconciliation.ds.css';
 
 const labels: Record<string, string> = { limpeza: 'Limpeza química', pressao: 'Teste de pressão', filtragem: 'Filtragem', flushing: 'Flushing' };
 const reportTitle = (report: ReconciledReport) => `${report.reportType} ${report.sequenceNumber == null ? 'sem número' : String(report.sequenceNumber).padStart(3, '0')}`;
@@ -23,19 +24,19 @@ function MeasurementLink({ item, systems, disabled, saving, onSave }: {
   const candidates = systems.filter(system => item.reconciliation.compatibleSystemIds.includes(system.id));
   const previous = systems.find(system => system.id === previousId);
   const previousOutsideScope = Boolean(previousId && !candidates.some(system => system.id === previousId));
-  return <div className="reconciliation-link">
-    <label>
-      <span>Sistema desta medição</span>
-      <select value={selected} disabled={disabled} onChange={event => setSelected(event.target.value)}>
+  return <div className="acp-reconciliation-ds__link">
+    <Field label="Sistema desta medição" optionalText="" disabled={disabled}>
+      <Select size="sm" value={selected} onChange={event => setSelected(event.target.value)}>
         <option value="">Manter identificação original</option>
         {previousOutsideScope ? <option value={previousId} disabled>
           {previous ? `${previous.equipment} · ${previous.name}` : 'Destino antigo indisponível'} — vínculo salvo sem meta compatível
         </option> : null}
         {candidates.map(system => <option key={system.id} value={system.id}>{system.equipment} · {system.name}</option>)}
-      </select>
-    </label>
-    <button type="button" className="mini-btn" disabled={disabled || selected === (item.projectSystemId || '') || Boolean(selected && !candidates.some(system => system.id === selected))}
-      onClick={() => onSave(selected || null)}>{saving ? 'Salvando…' : selected ? 'Salvar vínculo' : 'Restaurar identificação original'}</button>
+      </Select>
+    </Field>
+    <Button size="sm" variant="primary" loading={saving}
+      disabled={disabled || selected === (item.projectSystemId || '') || Boolean(selected && !candidates.some(system => system.id === selected))}
+      onClick={() => onSave(selected || null)}>{selected ? 'Salvar vínculo' : 'Restaurar identificação original'}</Button>
     {!previousId && item.reconciliation.suggestedSystemId ? <small>Destino sugerido pelo nome. Confira antes de salvar.</small> : null}
     {!candidates.length ? <small>{item.reconciliation.status === 'GLOBAL_SCOPE' ? 'A meta global não exige um vínculo individual.' : 'Nenhum destino com meta compatível. Confira o serviço, diâmetro e quantidade prevista no cronograma.'}</small> : null}
     {item.projectSystemId ? <small>Este vínculo vale somente para esta medição. Restaurar a identificação original mantém as associações anteriores.</small> : null}
@@ -112,60 +113,97 @@ export function ProjectSystemReconciliation({ projectId, canManage, onBack }: {
   const selectable = visible.flatMap(({ report, items }) => items.filter(item => item.reconciliation.compatibleSystemIds.length).map(item => ({ report, item, key: rowKey(report, item) }))).slice(0, 200);
   const allSelected = selectable.length > 0 && selectable.every(entry => selected[entry.key]);
 
-  return <div className="acp-det">
-    <div className="acp-det-bar">
-      <button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={onBack}>← Voltar</button>
-    </div>
-    <div className="page-card reconciliation-page">
-    <div className="reconciliation-heading">
-      <div><h2>Conciliação de sistemas</h2><p>{query.data ? `Missão ${query.data.project.code} · ${query.data.project.name}` : 'Carregando missão…'}</p></div>
-    </div>
-    <p>Vincule cada medição ao escopo salvo, individualmente ou selecionando várias linhas. A lista reúne históricos importados e serviços finalizados dos relatórios cadastrados no app.</p>
-    <p>As identificações anteriores continuam válidas. Novos vínculos afetam somente as linhas selecionadas e preservam os nomes, quantidades e PDFs originais.</p>
-    <p>Se uma quantidade reúne vários sistemas, confira a divisão nos documentos e edite as linhas do relatório antes de vincular.</p>
-    {!canManage ? <p>Consulta disponível. As alterações são feitas pelo gestor de Acompanhamento.</p> : null}
-    <div className="reconciliation-summary"><span>{items.length} medições</span><span>{linked} vínculos individuais</span><span>{pending} sem meta compatível</span></div>
-    <p role="status" aria-live="polite">{busy ? 'Salvando e atualizando a conciliação…' : feedback}</p>
-    {error || unavailable ? <div role="alert"><p>{error || 'Não foi possível carregar a conciliação.'}</p><button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={() => void retry()}>Atualizar lista</button></div> : null}
+  return <div className="fv-ds acp-reconciliation-ds">
+    <div><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={onBack}>← Voltar ao projeto</Button></div>
+    <header className="acp-reconciliation-ds__heading">
+      <h1>Conciliação de sistemas</h1>
+      <p>{query.data ? `Missão ${query.data.project.code} · ${query.data.project.name}` : 'Carregando missão…'}</p>
+    </header>
+    <Card variant="flat" className="acp-reconciliation-ds__intro">
+      <p>Vincule cada medição ao escopo salvo, individualmente ou selecionando várias linhas. A lista reúne históricos importados e serviços finalizados dos relatórios cadastrados no app.</p>
+      <p>As identificações anteriores continuam válidas. Novos vínculos afetam somente as linhas selecionadas e preservam os nomes, quantidades e PDFs originais.</p>
+      <p>Se uma quantidade reúne vários sistemas, confira a divisão nos documentos e edite as linhas do relatório antes de vincular.</p>
+    </Card>
+    {!canManage ? <Alert tone="info">Consulta disponível. As alterações são feitas pelo gestor de Acompanhamento.</Alert> : null}
+    {query.data ? <div className="acp-reconciliation-ds__metrics">
+      <MetricCard label="Medições" value={items.length} />
+      <MetricCard label="Vínculos individuais" value={linked} />
+      <MetricCard label="Sem meta compatível" value={pending} tone={pending ? 'warning' : 'neutral'} />
+    </div> : null}
+    {busy ? <Alert tone="info" role="status">{busy === 'refresh' ? 'Atualizando a conciliação…' : 'Salvando e atualizando a conciliação…'}</Alert>
+      : feedback ? <Alert tone="success" role="status">{feedback}</Alert> : null}
+    {error || unavailable ? <Alert tone="danger" title="A conciliação precisa ser atualizada"
+      action={<Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={() => void retry()}>Atualizar lista</Button>}>
+      {error || 'Não foi possível carregar a conciliação.'}
+    </Alert> : null}
 
-      <div className="reconciliation-filters">
-        <label>Origem<select value={source} disabled={Boolean(busy)} onChange={event => { setSource(event.target.value); clearSelection(); }}><option value="all">Todas as origens</option><option value="HISTORICAL">Históricos importados</option><option value="REPORT">Relatórios do app</option></select></label>
-        <label>Buscar<input value={search} disabled={Boolean(busy)} onChange={event => { setSearch(event.target.value); clearSelection(); }} placeholder="Relatório, equipamento, sistema ou diâmetro" /></label>
-        <label>Mostrar<select value={filter} disabled={Boolean(busy)} onChange={event => { setFilter(event.target.value); clearSelection(); }}><option value="all">Todas as medições</option><option value="pending">Sem meta compatível</option><option value="linked">Vínculos individuais salvos</option></select></label>
+    <Card variant="flat" title="Filtrar medições">
+      <div className="acp-reconciliation-ds__filters">
+        <Field label="Origem" optionalText="" disabled={Boolean(busy)}>
+          <Select size="sm" value={source} onChange={event => { setSource(event.target.value); clearSelection(); }}>
+            <option value="all">Todas as origens</option><option value="HISTORICAL">Históricos importados</option><option value="REPORT">Relatórios do app</option>
+          </Select>
+        </Field>
+        <Field label="Buscar" optionalText="" disabled={Boolean(busy)}>
+          <Input size="sm" value={search} onChange={event => { setSearch(event.target.value); clearSelection(); }} placeholder="Relatório, equipamento, sistema ou diâmetro" />
+        </Field>
+        <Field label="Mostrar" optionalText="" disabled={Boolean(busy)}>
+          <Select size="sm" value={filter} onChange={event => { setFilter(event.target.value); clearSelection(); }}>
+            <option value="all">Todas as medições</option><option value="pending">Sem meta compatível</option><option value="linked">Vínculos individuais salvos</option>
+          </Select>
+        </Field>
       </div>
-      {canManage ? <div className="reconciliation-batch">
-        <label className="reconciliation-check"><input type="checkbox" checked={allSelected} disabled={Boolean(busy) || unavailable || !selectable.length}
-          onChange={event => { setSelected(event.target.checked ? Object.fromEntries(selectable.map(entry => [entry.key, selection(entry.report, entry.item)])) : {}); setBatchTarget(''); }} />Selecionar até 200 medições exibidas com meta compatível</label>
-        {Object.keys(selected).length ? <>
-          <strong>{Object.keys(selected).length} selecionada(s)</strong>
-          <label>Destino das selecionadas<select aria-label="Destino das selecionadas" disabled={Boolean(busy) || unavailable || selectionChanged} value={batchCandidates.some(system => system.id === batchTarget) ? batchTarget : ''} onChange={event => setBatchTarget(event.target.value)}>
+    </Card>
+
+    {canManage ? <Card variant="flat" title="Vincular várias medições" className="acp-reconciliation-ds__batch">
+      <label className="acp-reconciliation-ds__check"><input type="checkbox" checked={allSelected} disabled={Boolean(busy) || unavailable || !selectable.length}
+        onChange={event => { setSelected(event.target.checked ? Object.fromEntries(selectable.map(entry => [entry.key, selection(entry.report, entry.item)])) : {}); setBatchTarget(''); }} />Selecionar até 200 medições exibidas com meta compatível</label>
+      {Object.keys(selected).length ? <div className="acp-reconciliation-ds__batch-fields">
+        <Badge tone="brand">{Object.keys(selected).length} selecionada(s)</Badge>
+        <Field label="Destino das selecionadas" optionalText="" disabled={Boolean(busy) || unavailable || selectionChanged}>
+          <Select size="sm" value={batchCandidates.some(system => system.id === batchTarget) ? batchTarget : ''} onChange={event => setBatchTarget(event.target.value)}>
             <option value="">Selecione um sistema compatível com todas</option>
             {batchCandidates.map(system => <option key={system.id} value={system.id}>{system.equipment} · {system.name}</option>)}
-          </select></label>
-          {selectionChanged ? <p role="alert">A lista mudou. Limpe a seleção e confira as medições novamente.</p> : !batchCandidates.length ? <p>Nenhum destino é compatível com todas as linhas. Revise a seleção e as metas do cronograma.</p> : null}
-          <button type="button" className="mini-btn" disabled={Boolean(busy) || unavailable || selectionChanged || !batchCandidates.some(system => system.id === batchTarget)} onClick={() => void save(Object.values(selected), batchTarget)}>Aplicar às selecionadas</button>
-          <button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={clearSelection}>Limpar seleção</button>
-        </> : null}
+          </Select>
+        </Field>
+        {selectionChanged ? <Alert tone="warning">A lista mudou. Limpe a seleção e confira as medições novamente.</Alert>
+          : !batchCandidates.length ? <Alert tone="info">Nenhum destino é compatível com todas as linhas. Revise a seleção e as metas do cronograma.</Alert> : null}
+        <div className="acp-reconciliation-ds__actions">
+          <Button size="sm" variant="primary" disabled={Boolean(busy) || unavailable || selectionChanged || !batchCandidates.some(system => system.id === batchTarget)}
+            onClick={() => void save(Object.values(selected), batchTarget)}>Aplicar às selecionadas</Button>
+          <Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={clearSelection}>Limpar seleção</Button>
+        </div>
       </div> : null}
-      {query.isLoading || systems.isLoading ? <p>Carregando medições…</p> : !visible.length && !unavailable ? <p>{items.length ? 'Nenhuma medição corresponde aos filtros.' : 'Nenhum quantitativo histórico ou serviço finalizado nesta missão.'}</p> : null}
-      {visible.map(({ report, items }) => <section className="reconciliation-report" key={`${report.source}:${report.id}`}>
-        <h3>{reportTitle(report)} <small>· {report.reportDate.slice(0, 10).split('-').reverse().join('/')} · {report.source === 'REPORT' ? 'Relatório do app' : 'Histórico importado'}</small></h3>
-        {report.unappliedLinks ? <p role="alert">{report.unappliedLinks} vínculo(s) anterior(es) não corresponde(m) mais aos quantitativos deste relatório. Confira as medições após a edição do documento.</p> : null}
-        {items.map(item => <article className="reconciliation-measurement" key={`${rowKey(report, item)}:${report.revision}`}>
-          <div>
-            {canManage ? <label className="reconciliation-check"><input type="checkbox" aria-label={`Selecionar ${reportTitle(report)} · ${item.equipment} · ${item.system} · linha ${item.itemIndex + 1}`} checked={Boolean(selected[rowKey(report, item)])}
-              disabled={Boolean(busy) || unavailable || !item.reconciliation.compatibleSystemIds.length || (!selected[rowKey(report, item)] && Object.keys(selected).length >= 200)}
-              onChange={event => { const checked = event.target.checked; setSelected(previous => { const next = { ...previous }; if (checked) next[rowKey(report, item)] = selection(report, item); else delete next[rowKey(report, item)]; return next; }); setBatchTarget(''); }} />Selecionar medição</label> : null}
-            <strong>{item.equipment} · {item.system}</strong>
-            <p>{labels[item.serviceType]}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''} · {item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 6 })} {item.unit}</p>
-            <span className={`reconciliation-state ${compatible(item) ? 'compatible' : 'pending'}`}>{item.reconciliation.message}</span>
-            <p>Destino: {item.reconciliation.matchedSystem ? `${item.reconciliation.matchedSystem.equipment} · ${item.reconciliation.matchedSystem.name}` : 'Pendente de identificação'}{item.projectSystemId ? ' · vínculo desta medição' : item.reconciliation.matchedSystem ? ' · identificação anterior' : ''}</p>
-          </div>
-          {canManage ? <MeasurementLink item={item} systems={systems.data ?? []} disabled={Boolean(busy) || unavailable || (item.reconciliation.status === 'SOURCE_CONFLICT' && !item.projectSystemId)} saving={busy === 'save'}
-            onSave={id => void save([selection(report, item)], id)} /> : null}
-        </article>)}
-      </section>)}
-    <details className="reconciliation-progress"><summary>Conferir avanço do escopo</summary><ProjectProgressBreakdown projectId={projectId} canManage={canManage} /></details>
+    </Card> : null}
+
+    <div className="acp-reconciliation-ds__reports" aria-busy={query.isLoading || systems.isLoading}>
+      {query.isLoading || systems.isLoading ? <Skeleton variant="text" lines={6} label="Carregando medições" />
+        : !visible.length && !unavailable ? <EmptyState title={items.length ? 'Nenhuma medição corresponde aos filtros' : 'Nenhuma medição encontrada'}
+          description={items.length ? 'Ajuste a origem, situação ou busca.' : 'Não há quantitativo histórico ou serviço finalizado nesta missão.'} /> : null}
+      {visible.map(({ report, items }) => <Card variant="flat" key={`${report.source}:${report.id}`}
+        title={reportTitle(report)}
+        actions={<Badge tone="neutral">{report.source === 'REPORT' ? 'Relatório do app' : 'Histórico importado'}</Badge>}>
+        <p className="acp-reconciliation-ds__report-date">{report.reportDate.slice(0, 10).split('-').reverse().join('/')}</p>
+        {report.unappliedLinks ? <Alert tone="warning">{report.unappliedLinks} vínculo(s) anterior(es) não corresponde(m) mais aos quantitativos deste relatório. Confira as medições após a edição do documento.</Alert> : null}
+        <div className="acp-reconciliation-ds__measurements">
+          {items.map(item => <article className="acp-reconciliation-ds__measurement" key={`${rowKey(report, item)}:${report.revision}`}>
+            <div className="acp-reconciliation-ds__measurement-info">
+              {canManage ? <label className="acp-reconciliation-ds__check"><input type="checkbox" aria-label={`Selecionar ${reportTitle(report)} · ${item.equipment} · ${item.system} · linha ${item.itemIndex + 1}`} checked={Boolean(selected[rowKey(report, item)])}
+                disabled={Boolean(busy) || unavailable || !item.reconciliation.compatibleSystemIds.length || (!selected[rowKey(report, item)] && Object.keys(selected).length >= 200)}
+                onChange={event => { const checked = event.target.checked; setSelected(previous => { const next = { ...previous }; if (checked) next[rowKey(report, item)] = selection(report, item); else delete next[rowKey(report, item)]; return next; }); setBatchTarget(''); }} />Selecionar medição</label> : null}
+              <strong>{item.equipment} · {item.system}</strong>
+              <p>{labels[item.serviceType]}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''} · {item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 6 })} {item.unit}</p>
+              <Badge tone={compatible(item) ? 'success' : 'warning'} multiline>{item.reconciliation.message}</Badge>
+              <p>Destino: {item.reconciliation.matchedSystem ? `${item.reconciliation.matchedSystem.equipment} · ${item.reconciliation.matchedSystem.name}` : 'Pendente de identificação'}{item.projectSystemId ? ' · vínculo desta medição' : item.reconciliation.matchedSystem ? ' · identificação anterior' : ''}</p>
+            </div>
+            {canManage ? <MeasurementLink item={item} systems={systems.data ?? []} disabled={Boolean(busy) || unavailable || (item.reconciliation.status === 'SOURCE_CONFLICT' && !item.projectSystemId)} saving={busy === 'save'}
+              onSave={id => void save([selection(report, item)], id)} /> : null}
+          </article>)}
+        </div>
+      </Card>)}
     </div>
+    <details className="acp-reconciliation-ds__progress"><summary>Conferir avanço do escopo</summary>
+      <ProjectProgressBreakdown projectId={projectId} canManage={canManage} appearance="design-system" />
+    </details>
   </div>;
 }

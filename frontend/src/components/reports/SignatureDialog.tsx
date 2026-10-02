@@ -1,15 +1,22 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Modal } from '../ui/Modal';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
+import { Button } from '../ui/ds';
+import './SignatureDialog.ds.css';
 
 interface SignatureDialogProps {
   open: boolean;
+  appearance?: 'legacy' | 'design-system';
+  fullscreenOnMobile?: boolean;
+  backdropClassName?: string;
   title: string;
   initialSignerName?: string | null;
   cacheIdentity?: string | null;
   allowCachedSignerName?: boolean;
   maxUploadMb?: number;
   isSubmitting?: boolean;
+  loadingLabel?: string;
   submissionError?: string;
   confirmDisabled?: boolean;
   confirmDisabledMessage?: string;
@@ -97,12 +104,16 @@ function canvasPoint(canvas: HTMLCanvasElement, event: PointerEvent) {
 
 export function SignatureDialog({
   open,
+  appearance = 'legacy',
+  fullscreenOnMobile = true,
+  backdropClassName,
   title,
   initialSignerName = '',
   cacheIdentity = '',
   allowCachedSignerName = true,
   maxUploadMb = 1.5,
   isSubmitting = false,
+  loadingLabel = 'Assinando relatório',
   submissionError = '',
   confirmDisabled = false,
   confirmDisabledMessage = 'Confirme os termos para continuar.',
@@ -124,6 +135,7 @@ export function SignatureDialog({
   const signatureCacheKey = allowCachedSignerName ? cacheKey(cacheIdentity) : '';
   const signerNameInvalid = (signerNameTouched || confirmAttempted) && !hasFirstAndLastName(signerName);
   const visibleError = signerNameInvalid ? SIGNER_FULL_NAME_ERROR : error || submissionError;
+  const isDesignSystem = appearance === 'design-system';
 
   useEffect(() => {
     if (!open || mode !== 'draw') return;
@@ -279,12 +291,41 @@ export function SignatureDialog({
   }
 
   return (
-    <Modal open={open} onClose={onCancel} ariaLabelledBy="signature-dialog-title" panelClassName="modal-card signature-modal">
+    <Modal
+      open={open}
+      onClose={onCancel}
+      appearance={appearance}
+      fullscreenOnMobile={fullscreenOnMobile}
+      backdropClassName={backdropClassName}
+      title={isDesignSystem ? title : undefined}
+      ariaLabelledBy={isDesignSystem ? undefined : 'signature-dialog-title'}
+      panelClassName={isDesignSystem
+        ? 'signature-modal signature-modal--ds'
+        : 'modal-card signature-modal'}
+      footer={isDesignSystem ? (
+        <>
+          <Button variant="secondary" size="sm" onClick={onCancel} disabled={isSubmitting}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={confirm}
+            loading={isSubmitting}
+            loadingLabel={loadingLabel}
+          >
+            {isSubmitting ? 'Assinando...' : 'Confirmar assinatura'}
+          </Button>
+        </>
+      ) : undefined}
+    >
       <div className="signature-modal-body">
-        <div className="modal-head">
-          <h2 id="signature-dialog-title">{title}</h2>
-          <button className="icon-button" type="button" aria-label="Fechar" onClick={onCancel}>×</button>
-        </div>
+        {!isDesignSystem ? (
+          <div className="modal-head">
+            <h2 id="signature-dialog-title">{title}</h2>
+            <button className="icon-button" type="button" aria-label="Fechar" onClick={onCancel}>×</button>
+          </div>
+        ) : null}
         <div className={`field-group signature-name-field ${signerNameInvalid ? 'field-invalid' : ''}`}>
           <label htmlFor="signature-signer-name">Nome e sobrenome do signatário</label>
           <input
@@ -314,7 +355,11 @@ export function SignatureDialog({
               <canvas ref={canvasRef} width={560} height={180} aria-label="Área para desenhar assinatura" />
             </div>
             <div className="signature-inline-actions">
-              <button className="secondary-button" type="button" onClick={clearDrawing}>Limpar</button>
+              {isDesignSystem ? (
+                <Button variant="secondary" size="sm" onClick={clearDrawing}>Limpar</Button>
+              ) : (
+                <button className="secondary-button" type="button" onClick={clearDrawing}>Limpar</button>
+              )}
             </div>
           </div>
         ) : (
@@ -334,9 +379,7 @@ export function SignatureDialog({
             {uploadedDataUrl ? (
               <div className="signature-upload-drop signature-upload-drop-filled">
                 <img src={uploadedDataUrl} alt="Prévia da assinatura" />
-                <button className="signature-upload-remove" type="button" onClick={removeUploadedImage}>
-                  Remover
-                </button>
+                <RemoveIconButton className="signature-upload-remove" label="Remover imagem da assinatura" onClick={removeUploadedImage} />
               </div>
             ) : (
               <button
@@ -360,21 +403,29 @@ export function SignatureDialog({
               <span>Lembrar nome neste dispositivo</span>
             </label>
             {rememberSignature ? (
-              <button className="signature-saved-remove" type="button" onClick={removeSavedSignature}>
-                Esquecer nome
-              </button>
+              isDesignSystem ? (
+                <Button className="signature-saved-remove" variant="ghost" size="sm" onClick={removeSavedSignature}>
+                  Esquecer nome
+                </Button>
+              ) : (
+                <button className="signature-saved-remove" type="button" onClick={removeSavedSignature}>
+                  Esquecer nome
+                </button>
+              )
             ) : null}
           </div>
         ) : null}
         {notice}
-      </div>
-      <div className="modal-actions">
         {visibleError ? <div className="form-error" id="signature-dialog-error" role="alert">{visibleError}</div> : null}
-        <button className="secondary-button" type="button" onClick={onCancel} disabled={isSubmitting}>Cancelar</button>
-        <button className="primary-button" type="button" onClick={confirm} disabled={isSubmitting}>
-          {isSubmitting ? 'Assinando...' : 'Confirmar assinatura'}
-        </button>
       </div>
+      {!isDesignSystem ? (
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={isSubmitting}>Cancelar</button>
+          <button className="primary-button" type="button" onClick={confirm} disabled={isSubmitting}>
+            {isSubmitting ? 'Assinando...' : 'Confirmar assinatura'}
+          </button>
+        </div>
+      ) : null}
     </Modal>
   );
 }

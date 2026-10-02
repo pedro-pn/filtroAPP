@@ -9,7 +9,7 @@ import {
 } from '../../auth/moduleNavigation';
 import type { AuthUser } from '../../types/auth';
 
-const EQUIPMENT_TAB_SELECTOR = '[data-romaneio-equipment-tab]';
+const EQUIPMENT_TAB_SELECTOR = 'a[href="/romaneio?tab=equipamentos"]';
 const CATEGORY_QR_TRIGGER_SELECTOR = '[data-romaneio-category-qr-trigger]';
 const QR_LABEL_TRIGGER_SELECTOR = '[data-romaneio-qr-label-trigger]';
 const CREATE_ROMANEIO_SELECTOR = '[data-romaneio-create-trigger]';
@@ -49,7 +49,7 @@ export function RomaneioQrNovelty({
         return;
       }
 
-      const requiredSelector = variant === 'form' ? QR_SCANNER_SELECTOR : EQUIPMENT_TAB_SELECTOR;
+      const requiredSelector = variant === 'form' ? QR_SCANNER_SELECTOR : CREATE_ROMANEIO_SELECTOR;
       if (!document.querySelector(requiredSelector)) {
         if (attempt < 20) retryTimer = window.setTimeout(() => startWhenReady(attempt + 1), 500);
         return;
@@ -65,8 +65,13 @@ export function RomaneioQrNovelty({
       ];
 
       if (variant === 'overview') {
+        const equipmentTabSelector = window.matchMedia('(max-width: 767px)').matches
+          ? `.fv-bottom-bar ${EQUIPMENT_TAB_SELECTOR}`
+          : window.matchMedia('(min-width: 1024px)').matches
+            ? `.fv-sidebar ${EQUIPMENT_TAB_SELECTOR}`
+            : '';
         steps.push({
-          element: EQUIPMENT_TAB_SELECTOR,
+          ...(equipmentTabSelector ? { element: equipmentTabSelector } : {}),
           popover: {
             title: 'Gere as etiquetas',
             description: 'Na aba Equipamentos, cada item pode gerar etiquetas horizontais em três tamanhos. Você também pode combinar vários tamanhos na mesma folha A4.',

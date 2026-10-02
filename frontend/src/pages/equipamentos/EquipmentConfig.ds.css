@@ -1,0 +1,402 @@
+.equip-page-v2 .equip-config-page,
+.equip-page-v2 .equip-maintenance-config {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.equip-page-v2 .equip-config-page .page-card,
+.equip-page-v2 .equip-maintenance-config .page-card {
+  min-width: 0;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.equip-page-v2 .equip-config-page :is(.rel-meta, .form-hint, .placeholder-copy),
+.equip-page-v2 .equip-maintenance-config :is(.rel-meta, .form-hint, .placeholder-copy) {
+  color: var(--muted);
+  line-height: var(--leading-base);
+}
+
+.equip-page-v2 .equip-config-page :is(.sec, .section-title),
+.equip-page-v2 .equip-maintenance-config :is(.sec, .section-title) {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.equip-page-v2 .equip-category-manager .admin-toolbar,
+.equip-page-v2 .equip-maintenance-config .operational-card-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.equip-page-v2 .equip-category-manager__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.equip-page-v2 .equip-maintenance-config .equip-maintenance-profiles-head {
+  margin-block-end: var(--space-4);
+}
+
+.equip-page-v2 .equip-rdo-slots-config .equip-slot-row {
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.equip-page-v2 .equip-category-manager__table-wrap {
+  min-width: 0;
+  margin-top: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.equip-page-v2 .equip-category-manager__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.equip-page-v2 .equip-category-manager__table thead th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+}
+
+.equip-page-v2 .equip-category-manager__table :is(th, td) {
+  min-width: 0;
+  padding: var(--space-3);
+  border-bottom: var(--border-width) solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.equip-page-v2 .equip-category-manager__table th:nth-child(1) { width: 24%; }
+.equip-page-v2 .equip-category-manager__table th:nth-child(2) { width: 42%; }
+.equip-page-v2 .equip-category-manager__table th:nth-child(3) { width: 18%; }
+.equip-page-v2 .equip-category-manager__table th:nth-child(4) { width: 16%; }
+.equip-page-v2 .equip-category-manager__table tbody tr:last-child > * { border-bottom: 0; }
+.equip-page-v2 .equip-category-manager__table tbody tr:hover { background: var(--surface-2); }
+.equip-page-v2 .equip-category-manager__table tbody th { font-weight: var(--font-semibold); }
+.equip-page-v2 .equip-category-manager__table .equip-category-manager__actions { align-items: center; }
+.equip-page-v2 .equip-category-manager__table .equip-category-manager__actions .fv-button { flex: 0 0 auto; }
+.equip-page-v2 .equip-category-manager__table .fv-remove-icon-button { flex: 0 0 auto; }
+
+.equip-page-v2 .equip-category-manager__settings,
+.equip-page-v2 .equip-category-manager__reports {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.equip-page-v2 .equip-category-manager__setting {
+  display: inline-flex;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.equip-page-v2 .equip-category-manager__list { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.equip-page-v2 .equip-category-manager__item {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.equip-page-v2 .equip-category-manager__item-name { overflow-wrap: anywhere; }
+.equip-page-v2 .equip-category-manager__item-detail { display: grid; gap: var(--space-1); }
+.equip-page-v2 .equip-category-manager__item-detail > span:first-child { color: var(--muted); font-size: var(--text-xs); }
+.equip-page-v2 .equip-category-manager__item .rel-meta { margin: 0; }
+.equip-page-v2 .equip-category-manager__item .equip-category-manager__actions { justify-content: flex-end; align-items: center; }
+
+.equip-page-v2 .equip-rdo-slots-config .equip-slots-service {
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+}
+
+.equip-page-v2 .equip-rdo-slots-config .equip-slot-name { color: var(--muted); }
+.equip-page-v2 .equip-rdo-slots-config .equip-slot-row select {
+  min-width: 0;
+  min-height: var(--space-10);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+.equip-page-v2 .equip-notif-config .equip-notif-fields { border-color: var(--line); }
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add, .equip-notif-list) .equip-toggle { color: var(--ink); }
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add) .field-group > label { color: var(--muted); }
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add) :is(input:not([type='checkbox']), select) {
+  min-height: var(--space-10);
+  border-color: var(--control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+.equip-page-v2 :is(.equip-notif-config, .equip-notif-add) :is(input, select):focus-visible {
+  border-color: var(--brand);
+  background-color: var(--surface);
+}
+.equip-page-v2 .equip-notif-inline > .fv-button { flex: 0 0 auto; }
+.equip-page-v2 .equip-notif-config .equip-form-actions { border-color: var(--line); }
+.equip-page-v2 .equip-notif-item {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.equip-page-v2 .equip-notif-item.off { opacity: 1; }
+.equip-page-v2 .equip-notif-item.off .equip-notif-email { color: var(--muted); }
+.equip-page-v2 .equip-notif-tag { background: var(--brand-soft); color: var(--brand-text); }
+.equip-page-v2 .equip-notif-item .fv-remove-icon-button { margin-inline-start: auto; }
+
+.equip-page-v2 .equip-maintenance-config .operational-profile-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-3);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-profile-card,
+.equip-page-v2 .equip-maintenance-config .operational-category-maintenance-row,
+.equip-page-v2 .equip-maintenance-config .operational-equipment-profile-list > div {
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-profile-card > div:first-child,
+.equip-page-v2 .equip-maintenance-config .operational-equipment-profile-list > div > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.equip-page-v2 .equip-maintenance-config .admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-profile-card .admin-actions {
+  margin-top: auto;
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-category-maintenance-row {
+  grid-template-columns: minmax(150px, .4fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-category-maintenance-summary {
+  overflow-wrap: anywhere;
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-category-maintenance-controls {
+  gap: var(--space-3);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-category-interval-form {
+  gap: var(--space-2);
+}
+
+.equip-page-v2 .equip-maintenance-config :is(input:not([type='checkbox']), select),
+.fv-ds .equip-config-form :is(input:not([type='checkbox']):not([type='hidden']), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+.equip-page-v2 .equip-maintenance-config :is(input, select):disabled,
+.fv-ds .equip-config-form :is(input, select, textarea):disabled {
+  background-color: var(--disabled-bg);
+  color: var(--disabled-ink);
+}
+
+.equip-page-v2 .equip-maintenance-config .field-group > label,
+.fv-ds .equip-config-form .field-group > label {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.equip-page-v2 .equip-maintenance-config .field-error,
+.fv-ds .equip-config-form .field-error { color: var(--danger); }
+
+.equip-page-v2 .equip-maintenance-config .field-invalid :is(input, select),
+.fv-ds .equip-config-form .field-invalid :is(input, select) { border-color: var(--danger); }
+
+.equip-page-v2 .equip-maintenance-config .operational-equipment-profile-list {
+  margin-top: var(--space-3);
+  gap: var(--space-2);
+}
+
+.equip-page-v2 .equip-maintenance-config .app-search-input {
+  min-height: var(--space-10);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.equip-page-v2 .equip-maintenance-config .operational-equipment-profile-list > div {
+  grid-template-columns: minmax(0, 1fr) minmax(210px, .8fr);
+  gap: var(--space-3);
+}
+
+.fv-ds .equip-config-category-modal .fv-modal__body,
+.fv-ds .equip-config-profile-modal .fv-modal__body {
+  padding: var(--space-5);
+}
+
+.fv-ds .equip-config-form {
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0;
+  overflow: visible;
+  color: var(--ink);
+}
+
+.fv-ds .equip-config-form :is(.rel-meta, .form-hint) { color: var(--muted); }
+.fv-ds .equip-config-form :is(.sec, .section-title) { color: var(--ink); }
+.fv-ds .equip-config-form .equip-flags {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.fv-ds .equip-config-form .equip-toggle-block {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.fv-ds .equip-config-form .equip-toggle-block .equip-toggle { width: 100%; }
+
+.fv-ds .equip-config-form :is(.equip-flags, .equip-toggle-block) .equip-toggle,
+.fv-ds .equip-config-form .operational-profile-item-active {
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.fv-ds .equip-config-form .equip-toggle input[type='checkbox'] { accent-color: var(--brand); }
+.fv-ds .equip-config-form .equip-fields-builder,
+.fv-ds .equip-config-form :is(.checklist-item-editor-row, .equip-field-row, .tech-build-row, .operational-profile-item) {
+  min-width: 0;
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.fv-ds .equip-config-form .equip-fields-builder { background: var(--surface); }
+.fv-ds .equip-config-form .checklist-item-editor-index { background: var(--surface); border-color: var(--line); color: var(--muted); }
+.fv-ds .equip-config-form .tech-drag-handle { background: var(--surface); border-color: var(--line); color: var(--muted); }
+.fv-ds .equip-config-form .mini-btn.danger {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.fv-ds .equip-config-form .tech-field-remove { margin-inline-start: auto; }
+
+.fv-ds .equip-config-form .mini-btn:not(.danger),
+.fv-ds .equip-config-form .icon-toggle {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.fv-ds .equip-config-form .mini-btn:hover:not(:disabled),
+.fv-ds .equip-config-form .tech-drag-handle:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.fv-ds .equip-config-form .admin-toolbar,
+.fv-ds .equip-config-form .equip-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fv-ds .equip-config-form .equip-form-actions,
+.fv-ds .equip-config-form .modal-actions {
+  justify-content: flex-end;
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--line);
+}
+
+.fv-ds .equip-config-form .operational-profile-item { gap: var(--space-2); }
+.fv-ds .equip-config-form .operational-profile-item .admin-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+@media (max-width: 1023.98px) {
+  .equip-page-v2 .equip-maintenance-config .operational-category-maintenance-row,
+  .equip-page-v2 .equip-maintenance-config .operational-category-maintenance-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .equip-page-v2 .equip-category-manager .admin-toolbar > .fv-button { margin-inline-start: auto; }
+  .equip-page-v2 .equip-maintenance-config .operational-equipment-profile-list > div,
+  .fv-ds .equip-config-form .equip-flags,
+  .fv-ds .equip-config-form .operational-profile-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .equip-page-v2 .equip-maintenance-config .operational-category-interval-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .fv-ds .equip-config-category-modal .fv-modal__body,
+  .fv-ds .equip-config-profile-modal .fv-modal__body { padding: var(--space-4); }
+}
+
+@media (max-width: 420px) {
+  .equip-page-v2 .equip-maintenance-config .operational-category-interval-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .equip-page-v2 .equip-maintenance-config .operational-category-interval-form .fv-button { justify-self: start; }
+}

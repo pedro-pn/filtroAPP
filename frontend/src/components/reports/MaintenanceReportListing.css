@@ -1,0 +1,73 @@
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing .fv-data-table__table {
+  table-layout: fixed;
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing thead th:nth-child(1) { width: 37%; }
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing thead th:nth-child(2) { width: 22%; }
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing thead th:nth-child(3) { width: 13%; }
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing thead th:nth-child(4) { width: 14%; }
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing thead th:nth-child(5) { width: 14%; }
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing tbody tr[data-row-id] {
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-listing__identity {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-listing__icon {
+  display: inline-grid;
+  width: var(--space-8);
+  height: var(--space-8);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-listing__identity-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-listing__link {
+  width: fit-content;
+  min-height: var(--space-8);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  text-align: start;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-listing__link:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-listing__link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .maintenance-report-listing .fv-mobile-list__metadata {
+  gap: var(--space-2);
+}

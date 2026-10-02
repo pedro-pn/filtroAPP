@@ -14,6 +14,7 @@ import {
   canClientSeeReportWithRules,
   releasedServiceReportsForSignedRdo
 } from '../../lib/reports/client-visibility.js';
+import { createClientReportTabsHandler } from '../../lib/reports/client-tabs.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import { resolveReportCounter, resolveReportManometers, resolveReportUnits } from '../../lib/report-equipment-resolve.js';
@@ -5757,6 +5758,8 @@ router.use('/historical-services', historicalServicesRouter);
 router.use('/project-systems', createProjectSystemsRouter(prisma, collaboratorCanAccessProject));
 router.get('/planning-context', requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
 router.get('/collaborator-prefill', requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
+
+router.get('/client-tabs', requireAuth, requireRdoAccess, asyncHandler(createClientReportTabsHandler({ prisma, buildReportListWhere, canClientSeeReport })));
 
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const pagination = parseReportListPagination(req.query);

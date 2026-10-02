@@ -8,6 +8,8 @@ import { LaborRateTable } from './LaborRateTable';
 import { OmieCostCategoriesPanel } from './OmieCostCategoriesPanel';
 import { PontoImportPanel } from './PontoImportPanel';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import { Button } from '../ui/ds';
+import './CostEngineManager.ds.css';
 
 type CostTab = 'cargos' | 'ponto' | 'auditoria' | 'rates' | 'categorias' | 'simulador';
 
@@ -39,19 +41,19 @@ export function CostEngineManager({ canManageCosts = true }: { canManageCosts?: 
   }, [canManageCosts, setTab, tab]);
 
   return (
-    <div data-acp-custo>
-      <div className="acp-seg acp-cost-tabs" role="tablist" aria-label="Seções de custo">
+    <div className="fv-ds acp-cost-ds" data-acp-custo>
+      <div className="acp-cost-ds__tabs" role="tablist" aria-label="Seções de custo">
         {tabs.map(([key, label]) => (
-          <button
+          <Button
             key={key}
-            type="button"
             role="tab"
             aria-selected={activeTab === key}
-            className={`acp-seg-btn ${activeTab === key ? 'active' : ''}`}
+            variant={activeTab === key ? 'primary' : 'secondary'}
+            size="sm"
             onClick={() => setTab(key)}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 

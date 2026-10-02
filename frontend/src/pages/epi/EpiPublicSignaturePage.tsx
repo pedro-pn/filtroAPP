@@ -3,20 +3,25 @@ import { useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { confirmEpiPublicSignature, epiPublicSignaturePdfUrl, getEpiPublicSignature } from '../../api/epi';
+import { BrandLogo } from '../../components/brand/BrandLogo';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
+import { Alert, Button, Card, Skeleton, StatusPill, type SemanticTone } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
 import { SIGNATURE_EPI_NOTICE_VERSION } from '../../constants/privacy';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
-
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const logoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_VERDE.png`;
+import '../RdoPublicPage.css';
+import './EpiPublicSignaturePage.ds.css';
 
 const statusText: Record<string, string> = {
   ACTIVE: 'Disponível para assinatura',
   SIGNED: 'Link de assinatura encerrado',
   EXPIRED: 'Link expirado',
   INVALID: 'Link inválido'
+};
+
+const statusTone: Record<string, SemanticTone> = {
+  ACTIVE: 'info', SIGNED: 'success', EXPIRED: 'warning', INVALID: 'danger'
 };
 
 type EpiPublicSignatureConfirmPayload = Parameters<typeof confirmEpiPublicSignature>[1];
@@ -57,41 +62,38 @@ export function EpiPublicSignaturePage() {
   }
 
   return (
-    <main className="survey-page-shell public-signature-page">
-      <header className="survey-header">
-        <img src={logoUrl} alt="Filtrovali" />
+    <main className="fv-ds rdo-public-shell epi-public-page" data-fv-ds>
+      <header className="rdo-public-header">
+        <BrandLogo className="rdo-public-logo" />
       </header>
-      <section className="auth-card public-signature-card">
-        <div className="section-title">Assinatura de EPI</div>
-        {signatureQuery.isLoading ? <p className="placeholder-copy">Carregando ficha...</p> : null}
+      <Card className="rdo-public-card epi-public-card" padding="lg" title="Assinatura de EPI">
+        {signatureQuery.isLoading ? <Skeleton variant="text" lines={5} label="Carregando ficha de EPI" /> : null}
         {signatureQuery.isError ? (
-          <p className="inline-error">
+          <Alert tone="danger" title="Não foi possível carregar a ficha">
             {signatureQuery.error instanceof Error ? signatureQuery.error.message : 'Não foi possível carregar o link.'}
-          </p>
+          </Alert>
         ) : null}
         {!signatureQuery.isLoading && !signatureQuery.isError ? (
           <>
-            <div className={`public-signature-status status-${status.toLowerCase()}`}>
-              {statusText[status] || status}
-            </div>
+            <StatusPill className="rdo-public-status" status={status} label={statusText[status] || status} tone={statusTone[status] || 'neutral'} />
             {payload?.collaborator ? (
-              <div className="det-section">
-                <div className="det-row"><span className="det-label">Colaborador</span><span className="det-val">{payload.collaborator.name}</span></div>
-                <div className="det-row"><span className="det-label">Cargo</span><span className="det-val">{payload.collaborator.role || '-'}</span></div>
-                <div className="det-row"><span className="det-label">EPIs</span><span className="det-val">{payload.records.length}</span></div>
-                <div className="det-row"><span className="det-label">Expira em</span><span className="det-val">{formatDateOnlyPtBr(payload.expiresAt || '')}</span></div>
-              </div>
+              <dl className="rdo-public-details">
+                <div><dt>Colaborador</dt><dd>{payload.collaborator.name}</dd></div>
+                <div><dt>Cargo</dt><dd>{payload.collaborator.role || 'Não informado'}</dd></div>
+                <div><dt>EPIs</dt><dd>{payload.records.length}</dd></div>
+                <div><dt>Expira em</dt><dd>{formatDateOnlyPtBr(payload.expiresAt || '')}</dd></div>
+              </dl>
             ) : (
-              <p className="placeholder-copy">Não foi possível localizar uma solicitação ativa para este link.</p>
+              <Alert tone="warning">Não foi possível localizar uma solicitação ativa para este link.</Alert>
             )}
 
             {payload?.records?.length ? (
               <div className="epi-public-list">
                 {payload.records.map(record => (
-                  <div className="epi-public-row" key={record.id}>
+                  <Card className="epi-public-row" variant="flat" padding="sm" key={record.id}>
                     <strong>{record.epiName}</strong>
                     <small>C.A {record.ca} · Qtd. {record.quantity}</small>
-                  </div>
+                  </Card>
                 ))}
               </div>
             ) : null}
@@ -108,16 +110,16 @@ export function EpiPublicSignaturePage() {
                 ) : null}
                 <div className="public-signature-actions">
                   {canSign ? (
-                    <a className="secondary-button" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
+                    <a className="fv-button fv-button--secondary fv-button--sm" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
                       Abrir PDF
                     </a>
                   ) : null}
                   {canSign ? (
-                    <button className="primary-button" type="button" onClick={openSignatureDialog} disabled={!privacyAccepted}>
+                    <Button variant="primary" size="sm" onClick={openSignatureDialog} disabled={!privacyAccepted}>
                       Assinar
-                    </button>
+                    </Button>
                   ) : status === 'SIGNED' ? (
-                    <a className="primary-button" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
+                    <a className="fv-button fv-button--primary fv-button--sm" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
                       Baixar PDF assinado
                     </a>
                   ) : null}
@@ -126,9 +128,10 @@ export function EpiPublicSignaturePage() {
             ) : null}
           </>
         ) : null}
-      </section>
+      </Card>
       <SignatureDialog
         open={signatureOpen}
+        appearance="design-system"
         title="Assinar EPIs"
         initialSignerName={payload?.collaborator?.name || ''}
         cacheIdentity={payload?.collaborator?.id || token}

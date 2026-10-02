@@ -1,16 +1,42 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 
+import { AppIcon } from '../icons/AppIcon';
 import type { ReportSummary } from '../../types/domain';
 import { groupByProject } from '../../utils/groupByProject';
 import { compareReportTypes, sortProjectGroups, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
+import { Alert, Badge, Button, Card, Skeleton } from '../ui/ds';
+import { DS_ICONS } from '../ui/ds/icons';
 import { InfiniteScrollSentinel } from '../ui/InfiniteScrollSentinel';
+import { ManagerReportTypeSortButton } from './manager/ManagerReportTypeSortButton';
+import { ReportTypeBadge } from './ReportTypeBadge';
 import { ReportSummaryCard } from './ReportSummaryCard';
+
+export interface GroupedReportCollectionContext {
+  reports: ReportSummary[];
+  projectId: string;
+  projectLabel: string;
+  reportType: string;
+  sortDirection: ProjectSortDirection;
+  onSortChange: () => void;
+}
 
 interface GroupedReportListProps {
   reports: ReportSummary[];
   archived?: boolean;
+  appearance?: 'legacy' | 'design-system';
   renderReport?: (report: ReportSummary) => React.ReactNode;
+  renderReportCollection?: (
+    context: GroupedReportCollectionContext
+  ) => ReactNode;
   renderTypeActions?: (reports: ReportSummary[]) => React.ReactNode;
   onLoadMoreType?: (params: {
     projectId: string;
@@ -37,6 +63,7 @@ interface GroupedReportListProps {
   storageKey?: string;
   initialVisiblePerType?: number;
   loadMoreStep?: number;
+  defaultTypeCollapsed?: boolean;
 }
 
 interface GroupedReportListStorage {
@@ -47,6 +74,10 @@ interface GroupedReportListStorage {
 }
 
 const groupedReportListSnapshots = new Map<string, GroupedReportListStorage>();
+
+function disclosureIdPart(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
 
 function sanitizeStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
@@ -106,7 +137,9 @@ function LazyTypeEnsure({ onVisible, rootMargin = '400px' }: { onVisible: () => 
 export function GroupedReportList({
   reports,
   archived,
+  appearance = 'legacy',
   renderReport,
+  renderReportCollection,
   renderTypeActions,
   onLoadMoreType,
   onEnsureTypePage,
@@ -121,8 +154,11 @@ export function GroupedReportList({
   showTypeSort = false,
   storageKey,
   initialVisiblePerType = 10,
-  loadMoreStep = 10
+  loadMoreStep = 10,
+  defaultTypeCollapsed = false
 }: GroupedReportListProps) {
+  const designSystem = appearance === 'design-system';
+  const disclosureIdPrefix = disclosureIdPart(useId());
   const [closedProjects, setClosedProjects] = useState<string[]>([]);
   const [closedTypes, setClosedTypes] = useState<string[]>([]);
   const [visibleByType, setVisibleByType] = useState<Record<string, number>>({});
@@ -227,28 +263,56 @@ export function GroupedReportList({
         const projectLabel = group.projectCode
           ? `${group.projectCode} - ${group.projectName}`
           : group.projectName;
+        const projectClosed = closedProjects.includes(group.projectId);
+        const projectPanelId = `${disclosureIdPrefix}-project-${disclosureIdPart(group.projectId)}`;
 
-        return (
-          <div className="card report-project-group" key={group.projectId}>
+        const projectContent = (
+          <>
             <button
               type="button"
               className="project-group-toggle"
+              aria-expanded={!projectClosed}
+              aria-controls={projectPanelId}
               onClick={() => toggleProject(group.projectId)}
             >
               <span className="sec">
                 {projectLabel}
                 {archived ? (
-                  <span className="badge badge-rev" style={{ textTransform: 'none', marginLeft: 6 }}>
-                    Arquivado
-                  </span>
+                  designSystem ? (
+                    <Badge tone="neutral">Arquivado</Badge>
+                  ) : (
+                    <span className="badge badge-rev" style={{ textTransform: 'none', marginLeft: 6 }}>
+                      Arquivado
+                    </span>
+                  )
                 ) : null}
               </span>
-              <span className="group-chevron">{closedProjects.includes(group.projectId) ? '▸' : '▾'}</span>
+              <span className="group-chevron" aria-hidden="true">
+                {designSystem ? (
+                  <AppIcon icon={DS_ICONS.chevronDown} size="sm" />
+                ) : projectClosed ? (
+                  '▸'
+                ) : (
+                  '▾'
+                )}
+              </span>
             </button>
 
-            {!closedProjects.includes(group.projectId) ? Object.entries(typeGroups).sort(([a], [b]) => compareReportTypes(a, b)).map(([reportType, typeReports]) => {
+            <div
+              id={projectPanelId}
+              hidden={projectClosed}
+              style={
+                projectClosed
+                  ? undefined
+                  : designSystem
+                    ? { display: 'contents' }
+                    : { paddingTop: 'var(--space-3)' }
+              }
+            >
+            {!projectClosed ? Object.entries(typeGroups).sort(([a], [b]) => compareReportTypes(a, b)).map(([reportType, typeReports]) => {
               const typeKey = `${group.projectId}-${reportType}`;
-              const typeClosed = closedTypes.includes(typeKey);
+              const typeClosed = defaultTypeCollapsed ? !closedTypes.includes(typeKey) : closedTypes.includes(typeKey);
+              const typePanelId = `${disclosureIdPrefix}-type-${disclosureIdPart(typeKey)}`;
               const typeSortDirection = typeSortDirections[typeKey] || 'asc';
               const sortedReports = sortReportsInGroup(typeReports, typeSortDirection);
               const visibleLimit = visibleLimitForType(typeKey);
@@ -272,27 +336,81 @@ export function GroupedReportList({
                   ? orderedLoadedCount < totalReports
                   : (hasMoreType?.(group.projectId, reportType, sortedReports.length) ?? false));
               const typeLoading = isTypeLoading?.(group.projectId, reportType) ?? false;
+              const typeHeaderContent = (
+                <>
+                  {designSystem ? (
+                    <ReportTypeBadge
+                      className="rdo-manager-report-type-badge"
+                      reportType={reportType}
+                    />
+                  ) : (
+                    <span className={`rtype-badge rtype-${reportType}`}>
+                      {reportType}
+                    </span>
+                  )}
+                  <span className="rtype-count">
+                    {defaultTypeCollapsed && typeClosed ? totalReports : `${visibleReports.length} de ${totalReports}`} relatório
+                    {totalReports !== 1 ? 's' : ''}
+                  </span>
+                  {showTypeSort && !designSystem ? (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <ProjectSortButton
+                        direction={typeSortDirection}
+                        onToggle={() => toggleTypeSort(typeKey)}
+                      />
+                    </span>
+                  ) : null}
+                  <span className="rtype-chevron" aria-hidden="true">
+                    {designSystem ? (
+                      <AppIcon icon={DS_ICONS.chevronDown} size="sm" />
+                    ) : typeClosed ? (
+                      '▸'
+                    ) : (
+                      '▾'
+                    )}
+                  </span>
+                </>
+              );
 
               return (
                 <div className="report-type-group" key={typeKey}>
+                  {designSystem ? (
+                    <div className="rdo-manager-report-type-row">
+                      <button
+                        type="button"
+                        className="report-type-header"
+                        onClick={() => toggleType(typeKey)}
+                        aria-expanded={!typeClosed}
+                        aria-controls={typePanelId}
+                      >
+                        {typeHeaderContent}
+                      </button>
+                      {showTypeSort ? (
+                        <ManagerReportTypeSortButton
+                          reportType={reportType}
+                          direction={typeSortDirection}
+                          onToggle={() => toggleTypeSort(typeKey)}
+                        />
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div
+                      className="report-type-header"
+                      onClick={() => toggleType(typeKey)}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={!typeClosed}
+                      aria-controls={typePanelId}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleType(typeKey); } }}
+                    >
+                      {typeHeaderContent}
+                    </div>
+                  )}
                   <div
-                    className="report-type-header"
-                    onClick={() => toggleType(typeKey)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleType(typeKey); } }}
+                    id={typePanelId}
+                    hidden={typeClosed}
+                    style={{ display: typeClosed ? undefined : 'contents' }}
                   >
-                    <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
-                    <span className="rtype-count">
-                      {visibleReports.length} de {totalReports} relatório{totalReports !== 1 ? 's' : ''}
-                    </span>
-                    {showTypeSort ? (
-                      <span onClick={e => e.stopPropagation()}>
-                        <ProjectSortButton direction={typeSortDirection} onToggle={() => toggleTypeSort(typeKey)} />
-                      </span>
-                    ) : null}
-                    <span className="rtype-chevron">{typeClosed ? '▸' : '▾'}</span>
-                  </div>
                   {!typeClosed ? (
                     <>
                       {renderTypeActions && visibleReports.length ? renderTypeActions(visibleReports) : null}
@@ -309,20 +427,41 @@ export function GroupedReportList({
                               });
                             }}
                           />
-                          <div className="report-type-skeleton" aria-hidden="true">
-                            <div className="skeleton skeleton-row" />
-                            <div className="skeleton skeleton-row" />
-                          </div>
+                          <Skeleton variant="text" lines={2} decorative />
                         </>
                       ) : null}
                       {typeErrored ? (
-                        <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
+                        designSystem ? (
+                          <Alert
+                            tone="danger"
+                            title="Não foi possível carregar os relatórios desta aba."
+                          />
+                        ) : (
+                          <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
+                        )
                       ) : null}
                       {visibleReports.length ? (
                         <div className="report-type-list">
-                          {visibleReports.map(report => (
-                            renderReport ? renderReport(report) : <ReportSummaryCard key={report.id} report={report} />
-                          ))}
+                          {renderReportCollection
+                            ? renderReportCollection({
+                                reports: visibleReports,
+                                projectId: group.projectId,
+                                projectLabel,
+                                reportType,
+                                sortDirection: typeSortDirection,
+                                onSortChange: () =>
+                                  toggleTypeSort(typeKey)
+                              })
+                            : visibleReports.map((report) =>
+                                renderReport ? (
+                                  renderReport(report)
+                                ) : (
+                                  <ReportSummaryCard
+                                    key={report.id}
+                                    report={report}
+                                  />
+                                )
+                              )}
                         </div>
                       ) : null}
                       {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
@@ -338,27 +477,71 @@ export function GroupedReportList({
                               void handleLoadMoreType(group.projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
                             }}
                           />
-                          <button
-                            className="mini-btn"
-                            type="button"
-                            disabled={typeLoading}
-                            onClick={() => {
-                              if (hasLoadedItemsToReveal) {
-                                loadMoreType(typeKey, sortedReports.length);
-                                return;
-                              }
-                              void handleLoadMoreType(group.projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
-                            }}
-                          >
-                            {typeLoading ? 'Carregando...' : typeErrored ? 'Tentar novamente' : 'Carregar mais'}
-                          </button>
+                          {designSystem ? (
+                            <Button
+                              variant="secondary"
+                              loading={typeLoading}
+                              disabled={typeLoading}
+                              onClick={() => {
+                                if (hasLoadedItemsToReveal) {
+                                  loadMoreType(typeKey, sortedReports.length);
+                                  return;
+                                }
+                                void handleLoadMoreType(
+                                  group.projectId,
+                                  reportType,
+                                  typeKey,
+                                  sortedReports.length,
+                                  hasLoadedItemsToReveal,
+                                  typeSortDirection
+                                );
+                              }}
+                            >
+                              {typeErrored
+                                ? 'Tentar novamente'
+                                : 'Carregar mais'}
+                            </Button>
+                          ) : (
+                            <button
+                              className="mini-btn"
+                              type="button"
+                              disabled={typeLoading}
+                              onClick={() => {
+                                if (hasLoadedItemsToReveal) {
+                                  loadMoreType(typeKey, sortedReports.length);
+                                  return;
+                                }
+                                void handleLoadMoreType(group.projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                              }}
+                            >
+                              {typeLoading ? 'Carregando...' : typeErrored ? 'Tentar novamente' : 'Carregar mais'}
+                            </button>
+                          )}
                         </div>
                       ) : null}
                     </>
                   ) : null}
+                  </div>
                 </div>
               );
             }) : null}
+            </div>
+          </>
+        );
+
+        return designSystem ? (
+          <Card
+            className="rdo-manager-project-card"
+            padding="sm"
+            key={group.projectId}
+          >
+            <div className="card report-project-group rdo-manager-project-group">
+              {projectContent}
+            </div>
+          </Card>
+        ) : (
+          <div className="card report-project-group" key={group.projectId}>
+            {projectContent}
           </div>
         );
       })}

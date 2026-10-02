@@ -1,0 +1,64 @@
+html,
+body,
+#shell-design-system-root {
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--canvas);
+}
+
+.fv-shell-demo-content {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-8);
+  background: transparent;
+}
+
+.fv-shell-demo-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+.fv-shell-demo-status {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.fv-shell-demo-module-code {
+  color: var(--brand-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xs);
+}
+
+.fv-shell-demo-module-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+@media (min-width: 480px) {
+  .fv-shell-demo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .fv-shell-demo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .fv-shell-demo-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

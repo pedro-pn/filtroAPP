@@ -9,8 +9,8 @@ test('dashboard de projeto exibe campo e histórico de notas com autoria e data'
 
   assert.match(source, /Notas da gestão/);
   assert.match(source, /canManageProjectNotes \? \(/);
-  assert.match(source, /className="field-group acp-project-note-field"/);
-  assert.match(source, /<textarea[\s\S]{0,500}?maxLength=\{2000\}/);
+  assert.match(source, /<Field id="acp-project-note-content" label="Nova nota"/);
+  assert.match(source, /<Textarea[\s\S]{0,500}?maxLength=\{2000\}/);
   assert.match(source, /note\.author\.name/);
   assert.match(source, /<time dateTime=\{note\.createdAt\}>\{fmtDateTime\(note\.createdAt\)\}<\/time>/);
   assert.ok(
@@ -35,17 +35,26 @@ test('somente gestores recebem a permissão de adicionar notas', async () => {
   assert.match(boardSource, /canManageProjectNotes=\{canManageProjectNotes\}/);
 });
 
+test('somente gestores podem abrir a edição das divisões do acompanhamento', async () => {
+  const board = await readSource('src/components/projects/ProjectCardsBoard.tsx');
+  const detail = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
+
+  assert.match(board, /canManageDivisions=\{canManageGroups\}/);
+  assert.match(detail, /canManageDivisions \? <Button[^>]*onClick=\{\(\) => setTrackingDivisionsOpen\(true\)\}/);
+});
+
 test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', async () => {
   const source = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
+  const people = await readSource('src/components/projects/ProjectDetailPeople.tsx');
 
   assert.match(source, /!data\.header\.lastRdoDate/);
   assert.match(source, /plannedCollaborators\.map/);
-  assert.match(source, /className="api-badge status-planned">Planejado/);
-  assert.match(source, /Ainda não há RDO para este projeto/);
+  assert.match(people, /<Badge tone="info">Planejado<\/Badge>/);
+  assert.match(people, /Ainda não há RDO para este projeto/);
 });
 
-test('escopo do dashboard possui rolagem local após o limite de altura', async () => {
-  const styles = await readSource('src/styles/base.css');
+test('escopo do dashboard acomoda textos longos no layout atual', async () => {
+  const styles = await readSource('src/components/projects/ProjectDetailDashboard.ds.css');
 
-  assert.match(styles, /\.acp-det-scope\s*\{[^}]*max-height:\s*280px[^}]*overflow-y:\s*auto/);
+  assert.match(styles, /\.acp-detail-scope li \{[^}]*overflow-wrap: anywhere;/);
 });

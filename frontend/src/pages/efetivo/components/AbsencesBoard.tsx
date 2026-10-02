@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -11,7 +12,8 @@ import {
   type EfetivoAbsence,
   type EfetivoAbsencePayload
 } from '../../../api/efetivo';
-import { Button } from '../../../components/ui/Button';
+import { Button, Field, Select } from '../../../components/ui/ds';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { defaultProductivityPeriod, productivityYearOptions } from '../utils/productivityPeriods';
@@ -113,21 +115,20 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
   return (
     <div className="efetivo-board" data-efetivo-absences>
       <section className="page-card efetivo-absence-toolbar">
-        <div className="field-group">
-          <label htmlFor="efetivo-absence-year">Ano</label>
-          <select id="efetivo-absence-year" value={year} onChange={event => changeYear(Number(event.target.value))}>
+        <Field id="efetivo-absence-year" label="Ano" optionalText="">
+          <Select size="sm" value={year} onChange={event => changeYear(Number(event.target.value))}>
             {years.map(option => <option key={option} value={option}>{option}</option>)}
-          </select>
-        </div>
+          </Select>
+        </Field>
         <div>
           <strong>Férias e ausências</strong>
           <p>Os meses são sinalizados na Produtividade, sem alterar a taxa oficial.</p>
         </div>
-        {canManage ? <Button onClick={openCreate}>Programar indisponibilidade</Button> : null}
+        {canManage ? <Button variant="primary" size="sm" onClick={openCreate}>Programar indisponibilidade</Button> : null}
       </section>
 
       <section className="page-card">
-        {absencesQuery.isLoading ? <p className="placeholder-copy">Carregando indisponibilidades…</p>
+        {absencesQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando indisponibilidades" inline size="sm" /></p>
           : absencesQuery.isError ? <p className="placeholder-copy">Não foi possível carregar os períodos.</p>
           : absences.length === 0 ? <p className="placeholder-copy">Nenhuma indisponibilidade cadastrada em {year}.</p>
           : (
@@ -145,8 +146,8 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
                   </div>
                   {canManage ? (
                     <div className="efetivo-absence-actions">
-                      <Button variant="mini" onClick={() => openEdit(absence)}>Editar</Button>
-                      <Button variant="danger" onClick={() => setDeleting(absence)}>Remover</Button>
+                      <Button variant="secondary" size="sm" onClick={() => openEdit(absence)}>Editar</Button>
+                      <RemoveIconButton label={`Remover afastamento de ${absence.collaborator.name}`} onClick={() => setDeleting(absence)} />
                     </div>
                   ) : null}
                 </article>
@@ -166,6 +167,7 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
         />
       ) : null}
       <ConfirmDialog
+        appearance="design-system"
         open={Boolean(deleting)}
         title="Remover indisponibilidade?"
         description="O período deixa de aparecer na tela, mas a trilha é preservada."

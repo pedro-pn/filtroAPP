@@ -1,10 +1,37 @@
+import { BrandLoading } from '../components/brand/BrandLoading';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 
 import { getOperationalStatus, type OperationalFileStatus, type OperationalStatus } from '../api/operations';
 import { useAuth } from '../auth/AuthContext';
-import { Shell } from '../layout/Shell';
-import { TopBar } from '../layout/TopBar';
+import { Button } from '../components/ui/ds';
+import { AppShell } from '../layout/AppShell';
+import { NAVIGATION_CHROME_ICONS } from '../layout/navigationIcons';
+import type { NavigationModel } from '../layout/navigationModel';
+import { PageHeader } from '../layout/PageHeader';
+import './OperationsPage.ds.css';
+
+const previewStatus: OperationalStatus = {
+  ok: false,
+  generatedAt: '2026-10-01T14:35:00.000Z',
+  problems: [{ message: 'Backup diário atrasado. Confira a última execução.' }],
+  jobs: {
+    recurring: [
+      { name: 'Backup diário', latestRun: { id: 'demo-1', name: 'Backup diário', status: 'FAILED', startedAt: '2026-09-30T02:00:00.000Z', finishedAt: '2026-09-30T02:02:00.000Z', durationMs: 120000, metadata: null, result: null, error: 'Falha de exemplo' } },
+      { name: 'Sincronização Omie', latestRun: { id: 'demo-2', name: 'Sincronização Omie', status: 'SUCCESS', startedAt: '2026-10-01T12:00:00.000Z', finishedAt: '2026-10-01T12:04:00.000Z', durationMs: 240000, metadata: null, result: null, error: null } }
+    ],
+    dataRetention: { latestRun: null },
+    reportApprovalPostProcessing: { counts: {}, latestFailed: null },
+    activeLocks: []
+  },
+  backup: { configured: true, status: 'FAILED', finishedAt: '2026-09-30T02:02:00.000Z', ageMs: 131580000, maxAgeMs: 86400000, message: 'Aguardando próxima execução.' },
+  restore: { configured: true, status: 'SUCCESS', finishedAt: '2026-09-29T10:30:00.000Z', ageMs: 187500000, maxAgeMs: 604800000 },
+  omie: { configured: true, enabled: true, status: 'SUCCESS', latestRun: { id: 'demo-omie', integration: 'OMIE', scope: 'Projetos', status: 'SUCCESS', recordsRead: 124, recordsWritten: 8, error: null, summary: null, triggeredBy: 'Agendamento', startedAt: '2026-10-01T12:00:00.000Z', finishedAt: '2026-10-01T12:04:00.000Z' }, scopes: [] },
+  commercialImport: { configured: true, status: 'SUCCESS', latestImport: { id: 'demo-import', fileName: 'propostas-outubro.xlsx', source: 'UPLOAD', status: 'SUCCESS', rowsRead: 38, created: 2, updated: 4, skipped: 32, pendingProjectsCreated: 0, error: null, summary: null, importedByUserId: null, createdAt: '2026-10-01T09:15:00.000Z' } },
+  errorTracking: { enabled: true, provider: 'Monitoramento ativo' },
+  alerting: { enabled: true, webhookConfigured: true, intervalMs: 300000 }
+};
 
 function dateTime(value?: string | null) {
   if (!value) return '—';
@@ -32,8 +59,17 @@ function statusClass(status: string) {
   return 'is-bad';
 }
 
+function statusLabel(status: string) {
+  const labels: Record<string, string> = {
+    SUCCESS: 'Concluído', COMPLETED: 'Concluído', SKIPPED: 'Ignorado', FAILED: 'Falhou',
+    RUNNING: 'Em andamento', NOT_CONFIGURED: 'Não configurado', SEM_EXECUCAO: 'Sem execução',
+    SEM_RECEBIMENTO: 'Sem recebimento', ATIVO: 'Ativo'
+  };
+  return labels[status] || status;
+}
+
 function StatusPill({ status }: { status: string }) {
-  return <span className={`ops-pill ${statusClass(status)}`}>{status}</span>;
+  return <span className={`ops-pill ${statusClass(status)}`}>{statusLabel(status)}</span>;
 }
 
 function DetailRows({ rows }: { rows: Array<{ label: string; value: string }> }) {
@@ -141,52 +177,46 @@ function JobsPanel({ status }: { status: OperationalStatus }) {
   );
 }
 
-export function OperationsPage() {
+export function OperationsPage({ preview = false }: { preview?: boolean }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['operations', 'status'],
     queryFn: getOperationalStatus,
-    refetchInterval: 60_000
+    refetchInterval: preview ? false : 60_000,
+    enabled: !preview
   });
+  const navigation = useMemo<NavigationModel>(() => ({ groups: [{ id: 'principal', label: 'Principal', items: [
+    { id: 'hub', label: 'Visão geral', href: '/modulos', group: 'principal', icon: NAVIGATION_CHROME_ICONS.home, active: false },
+    { id: 'operations', label: 'Operações', href: preview ? '/visualizar/operacoes' : '/operacoes', group: 'principal', icon: NAVIGATION_CHROME_ICONS.operations, active: true }
+  ] }] }), [preview]);
+  const status = preview ? previewStatus : data;
 
   return (
-    <Shell>
-      <TopBar
-        title="Operação"
-        subtitle={user?.name}
-        actions={
+    <AppShell navigation={navigation} title="Operações" breadcrumb={[{ label: 'Filtrovali', href: '/modulos' }, { label: 'Operações' }]} contentWidth="fluid" profile={preview ? { name: 'Administrador de demonstração', description: 'Visualização local' } : user ? { name: user.name, description: user.email || user.username } : undefined} onLogout={preview ? undefined : async () => { await logout(); navigate('/login', { replace: true }); }}>
+      <main className="fv-ds ops-page ops-page-v2" data-fv-ds>
+        <PageHeader title="Saúde da operação" description="Acompanhe integrações, rotinas e arquivos essenciais do sistema." actions={<Button variant="secondary" size="sm" type="button" onClick={() => { if (!preview) void refetch(); }} disabled={isFetching || preview}>Atualizar</Button>} />
+        {preview ? <div className="ops-preview-note">Demonstração visual · dados fictícios · <a href="/visualizar">ver todos os links</a></div> : null}
+        {!preview && isLoading && <div className="ops-panel"><BrandLoading label="Carregando" /></div>}
+        {!preview && error && <div className="ops-panel ops-error">Não foi possível carregar o status operacional.</div>}
+        {status && (
           <>
-            <button className="topbar-chip" type="button" onClick={() => refetch()} disabled={isFetching}>
-              Atualizar
-            </button>
-            <button className="topbar-chip" type="button" onClick={async () => { await logout(); navigate('/login', { replace: true }); }}>
-              Sair
-            </button>
-          </>
-        }
-      />
-      <main className="ops-page">
-        {isLoading && <div className="ops-panel">Carregando...</div>}
-        {error && <div className="ops-panel ops-error">Não foi possível carregar o status operacional.</div>}
-        {data && (
-          <>
-            <section className={`ops-summary ${data.ok ? 'is-ok' : 'is-bad'}`}>
+            <section className={`ops-summary ${status.ok ? 'is-ok' : 'is-bad'}`}>
               <div>
                 <span>Status geral</span>
-                <strong>{data.ok ? 'Operação OK' : 'Atenção operacional'}</strong>
+                <strong>{status.ok ? 'Operação OK' : 'Atenção operacional'}</strong>
               </div>
-              <span>{dateTime(data.generatedAt)}</span>
+              <span>{dateTime(status.generatedAt)}</span>
             </section>
 
-            {!!data.problems.length && (
+            {!!status.problems.length && (
               <section className="ops-panel ops-panel--wide">
                 <div className="ops-panel-head">
                   <h2>Problemas</h2>
-                  <span className="ops-count">{data.problems.length}</span>
+                  <span className="ops-count">{status.problems.length}</span>
                 </div>
                 <ul className="ops-problems">
-                  {data.problems.map((problem, index) => (
+                  {status.problems.map((problem, index) => (
                     <li key={`${problem.message}-${index}`}>{problem.message}</li>
                   ))}
                 </ul>
@@ -194,38 +224,38 @@ export function OperationsPage() {
             )}
 
             <div className="ops-grid">
-              <FileStatusCard title="Backup" item={data.backup} />
-              <FileStatusCard title="Restore" item={data.restore} />
-              <OmieStatusCard item={data.omie} />
-              <CommercialImportCard item={data.commercialImport} />
+              <FileStatusCard title="Backup" item={status.backup} />
+              <FileStatusCard title="Restore" item={status.restore} />
+              <OmieStatusCard item={status.omie} />
+              <CommercialImportCard item={status.commercialImport} />
               <section className="ops-panel">
                 <div className="ops-panel-head">
                   <h2>Alertas</h2>
-                  <StatusPill status={data.alerting.enabled ? 'ATIVO' : 'NOT_CONFIGURED'} />
+                  <StatusPill status={status.alerting.enabled ? 'ATIVO' : 'NOT_CONFIGURED'} />
                 </div>
                 <div className="ops-metric-grid">
                   <div>
                     <span>Webhook</span>
-                    <strong>{data.alerting.webhookConfigured ? 'Configurado' : 'Ausente'}</strong>
+                    <strong>{status.alerting.webhookConfigured ? 'Configurado' : 'Ausente'}</strong>
                   </div>
                   <div>
                     <span>Intervalo</span>
-                    <strong>{duration(data.alerting.intervalMs)}</strong>
+                    <strong>{duration(status.alerting.intervalMs)}</strong>
                   </div>
                 </div>
               </section>
               <section className="ops-panel">
                 <div className="ops-panel-head">
                   <h2>Erros</h2>
-                  <StatusPill status={data.errorTracking.enabled ? 'ATIVO' : 'NOT_CONFIGURED'} />
+                  <StatusPill status={status.errorTracking.enabled ? 'ATIVO' : 'NOT_CONFIGURED'} />
                 </div>
-                <p className="ops-note">{data.errorTracking.provider}</p>
+                <p className="ops-note">{status.errorTracking.provider}</p>
               </section>
-              <JobsPanel status={data} />
+              <JobsPanel status={status} />
             </div>
           </>
         )}
       </main>
-    </Shell>
+    </AppShell>
   );
 }

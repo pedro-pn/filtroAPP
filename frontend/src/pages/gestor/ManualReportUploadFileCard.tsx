@@ -2,6 +2,7 @@ import {
   ManualReportOperationalFields,
   type ManualReportOperationalFieldsValue
 } from '../../components/reports/ManualReportOperationalFields';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import type { Collaborator } from '../../types/domain';
 import type { ManualReportCollaboratorReplicationPrompt } from './manualReportCollaboratorReplication';
 import type { ManualReportUploadFileState } from './manualReportUploadFile';
@@ -47,14 +48,7 @@ export function ManualReportUploadFileCard({
     <div className="manual-report-file-card">
       <div className="manual-report-file-header">
         <span className="manual-report-file-name">{index + 1}. {file.fileName}</span>
-        <button
-          className="mini-btn alt"
-          type="button"
-          disabled={disabled}
-          onClick={() => onRemove(file.id)}
-        >
-          Remover
-        </button>
+        <RemoveIconButton label={`Remover arquivo ${file.fileName}`} disabled={disabled} onClick={() => onRemove(file.id)} />
       </div>
       <div className={`manual-report-file-fields ${serviceReportSelected ? 'with-service' : ''}`}>
         <div className="field-group">

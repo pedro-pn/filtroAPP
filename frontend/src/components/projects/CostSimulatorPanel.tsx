@@ -10,6 +10,7 @@ import {
   type CostResult
 } from '../../api/acompanhamentoCusto';
 import { useToast } from '../ui/ToastContext';
+import { Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
 import { PARAM_FIELDS, BENEFIT_FIELDS, INPUT_FIELDS, brl, modelNumber } from './costFields';
 
 function todayKey() {
@@ -66,47 +67,51 @@ function activeCostParams(params: CostParams) {
 
 function ModelHistory({ history }: { history: CostParameterHistoryEntry[] }) {
   if (!history.length) {
-    return <p className="placeholder-copy" style={{ margin: 0 }}>Nenhuma vigência salva para este modelo.</p>;
+    return <p className="acp-cost-ds__copy">Nenhuma vigência salva para este modelo.</p>;
   }
 
   const seenDates = new Set<string>();
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
+    <div className="acp-cost-ds__history">
       {history.map((entry, index) => {
         const dateKey = entry.effectiveDate?.slice(0, 10) || '';
         const isUsed = !seenDates.has(dateKey);
         seenDates.add(dateKey);
         return (
-          <details key={`${dateKey}-${entry.updatedAt ?? index}`} className="acp-det-tax-details">
-            <summary className="acp-det-collabs-summary">
+          <details key={`${dateKey}-${entry.updatedAt ?? index}`} className="acp-cost-ds__history-entry">
+            <summary className="acp-cost-ds__history-summary">
               <span>{fmtDate(entry.effectiveDate)}</span>
-              <span className="placeholder-copy">
+              <span className="acp-cost-ds__history-meta">
                 {isUsed ? 'Usada pelo motor' : 'Substituída por correção posterior'} · salvo em {fmtDateTime(entry.updatedAt)}
               </span>
             </summary>
-            <div className="det-section" style={{ marginTop: 8 }}>
-              <div className="sec" style={{ fontSize: 13 }}>Parâmetros</div>
-              {PARAM_FIELDS.map(([key, label]) => (
-                <div className="det-row" key={key}>
-                  <span className="det-label">{label}</span>
-                  <span className="det-val">{formatParam(entry.params, key)}</span>
+            <section className="acp-cost-ds__history-section" aria-label="Parâmetros">
+              <h4>Parâmetros</h4>
+              <dl className="acp-cost-ds__facts">
+                {PARAM_FIELDS.map(([key, label]) => (
+                  <div className="acp-cost-ds__fact" key={key}>
+                    <dt>{label}</dt>
+                    <dd>{formatParam(entry.params, key)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <section className="acp-cost-ds__history-section" aria-label="Benefícios">
+              <h4>Benefícios</h4>
+              <dl className="acp-cost-ds__facts">
+                {BENEFIT_FIELDS.map(([key, label]) => (
+                  <div className="acp-cost-ds__fact" key={key}>
+                    <dt>{label}</dt>
+                    <dd>{brl(benefits(entry.params)[key])}</dd>
+                  </div>
+                ))}
+                <div className="acp-cost-ds__fact">
+                  <dt>Total</dt>
+                  <dd>{brl(benefitTotal(entry.params))}</dd>
                 </div>
-              ))}
-            </div>
-            <div className="det-section" style={{ marginTop: 8 }}>
-              <div className="sec" style={{ fontSize: 13 }}>Benefícios</div>
-              {BENEFIT_FIELDS.map(([key, label]) => (
-                <div className="det-row" key={key}>
-                  <span className="det-label">{label}</span>
-                  <span className="det-val">{brl(benefits(entry.params)[key])}</span>
-                </div>
-              ))}
-              <div className="det-row">
-                <span className="det-label">Total</span>
-                <span className="det-val">{brl(benefitTotal(entry.params))}</span>
-              </div>
-            </div>
-            {entry.note ? <p className="placeholder-copy" style={{ margin: '8px 0 0' }}>Nota: {entry.note}</p> : null}
+              </dl>
+            </section>
+            {entry.note ? <p className="acp-cost-ds__copy">Nota: {entry.note}</p> : null}
           </details>
         );
       })}
@@ -157,7 +162,7 @@ export function CostSimulatorPanel() {
     onError: () => showToast('Não foi possível simular.')
   });
 
-  if (isLoading) return <div className="page-card placeholder-copy">Carregando motor de custo…</div>;
+  if (isLoading) return <Card className="acp-cost-ds__panel"><Skeleton height={180} /></Card>;
 
   const profiles = data ?? [];
   const selectedProfile = profiles.find(p => p.key === selectedKey) ?? null;
@@ -168,90 +173,83 @@ export function CostSimulatorPanel() {
   const setBenefit = (key: string, value: string) => setParams(current => ({ ...current, beneficios: { ...((current.beneficios as Record<string, number>) ?? {}), [key]: Number(value) } }));
 
   return (
-    <div className="page-card">
-      <div className="sec">Modelos base e simulador</div>
-      <p className="placeholder-copy" style={{ margin: '4px 0 12px' }}>
+    <Card className="acp-cost-ds__panel" title="Modelos base e simulador">
+      <p className="acp-cost-ds__copy">
         Planilha base de cálculo (Modelo 1 = Operador+, Modelo 2 = Auxiliar). Os cargos herdam estes
         parâmetros pela data de vigência (aba <strong>Cargos</strong>). Salvar cria uma nova vigência que
         passa a valer a partir da data informada. Frações: 0,3 = 30%. A insalubridade é calculada por
         salário mínimo × 20%.
       </p>
 
-      <div className="field-group" style={{ maxWidth: 320 }}>
-        <label htmlFor="cost-profile">Modelo base</label>
-        <select id="cost-profile" value={selectedKey} onChange={e => { setSelectedKey(e.target.value); setResult(null); }}>
+      <Field className="acp-cost-ds__month" label="Modelo base" optionalText="">
+        <Select value={selectedKey} onChange={e => { setSelectedKey(e.target.value); setResult(null); }}>
           {profiles.map((p, i) => <option key={p.key} value={p.key}>Modelo {modelNumber(p.key, i + 1)} ({p.label})</option>)}
-        </select>
-      </div>
+        </Select>
+      </Field>
       {selectedProfile?.effectiveDate ? (
-        <p className="placeholder-copy" style={{ margin: '8px 0 0' }}>
+        <p className="acp-cost-ds__copy">
           Última vigência salva para este modelo: <strong>{fmtDate(selectedProfile.effectiveDate)}</strong>.
         </p>
       ) : null}
 
-      <div className="admin-inline-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginTop: 12 }}>
+      <div className="acp-cost-ds__fields">
         {PARAM_FIELDS.map(([key, label]) => (
-          <div className="field-group" key={key}>
-            <label htmlFor={`p-${key}`}>{label}</label>
-            <input id={`p-${key}`} type="number" step="any" value={num(key)} onChange={e => setNum(key, e.target.value)} />
-          </div>
+          <Field label={label} optionalText="" key={key}>
+            <Input type="number" step="any" value={num(key)} onChange={e => setNum(key, e.target.value)} />
+          </Field>
         ))}
         {BENEFIT_FIELDS.map(([key, label]) => (
-          <div className="field-group" key={key}>
-            <label htmlFor={`b-${key}`}>{label} (R$)</label>
-            <input id={`b-${key}`} type="number" step="any" value={Number(benefits[key] ?? 0)} onChange={e => setBenefit(key, e.target.value)} />
-          </div>
+          <Field label={`${label} (R$)`} optionalText="" key={key}>
+            <Input type="number" step="any" value={Number(benefits[key] ?? 0)} onChange={e => setBenefit(key, e.target.value)} />
+          </Field>
         ))}
-        <div className="field-group">
-          <label htmlFor="p-effective-date">Vigente a partir de</label>
-          <input id="p-effective-date" type="date" required value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="p-note">Nota da alteração</label>
-          <input id="p-note" type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Ex.: correção do histórico" />
-        </div>
+        <Field label="Vigente a partir de" required>
+          <Input type="date" required value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
+        </Field>
+        <Field label="Nota da alteração" optionalText="">
+          <Input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Ex.: correção do histórico" />
+        </Field>
       </div>
 
-      <div style={{ marginTop: 12 }}>
-        <button className="mini-btn" type="button" disabled={!effectiveDate || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+      <div className="acp-cost-ds__actions">
+        <Button variant="primary" size="sm" loading={saveMutation.isPending} disabled={!effectiveDate} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? 'Salvando…' : 'Salvar parâmetros do modelo'}
-        </button>
+        </Button>
       </div>
 
-      <div className="det-section" style={{ marginTop: 14 }}>
-        <div className="sec" style={{ fontSize: 13 }}>Histórico de vigências do modelo</div>
+      <section className="acp-cost-ds__subsection" aria-label="Histórico de vigências do modelo">
+        <h3>Histórico de vigências do modelo</h3>
         <ModelHistory history={history} />
-      </div>
+      </section>
 
-      <hr style={{ margin: '16px 0', border: 0, borderTop: '1px solid #eee' }} />
-
-      <div className="sec">Simulador mensal</div>
-      <div className="admin-inline-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginTop: 8 }}>
+      <h3 className="acp-cost-ds__section-title acp-cost-ds__section-title--divided">Simulador mensal</h3>
+      <div className="acp-cost-ds__fields">
         {INPUT_FIELDS.map(([key, label]) => (
-          <div className="field-group" key={key}>
-            <label htmlFor={`i-${key}`}>{label}</label>
-            <input id={`i-${key}`} type="number" step="any" value={inputs[key] ?? 0} onChange={e => setInputs(c => ({ ...c, [key]: Number(e.target.value) }))} />
-          </div>
+          <Field label={label} optionalText="" key={key}>
+            <Input type="number" step="any" value={inputs[key] ?? 0} onChange={e => setInputs(c => ({ ...c, [key]: Number(e.target.value) }))} />
+          </Field>
         ))}
       </div>
-      <div style={{ marginTop: 12 }}>
-        <button className="mini-btn" type="button" disabled={simulateMutation.isPending} onClick={() => simulateMutation.mutate()}>
+      <div className="acp-cost-ds__actions">
+        <Button variant="secondary" size="sm" loading={simulateMutation.isPending} onClick={() => simulateMutation.mutate()}>
           {simulateMutation.isPending ? 'Calculando…' : 'Simular custo'}
-        </button>
+        </Button>
       </div>
 
       {result ? (
-        <div className="det-section" style={{ marginTop: 12 }}>
-          <div className="det-row"><span className="det-label">Remuneração bruta</span><span className="det-val">{brl(result.remuneracaoBruta)}</span></div>
-          <div className="det-row"><span className="det-label">Encargos (FGTS)</span><span className="det-val">{brl(result.encargos)}</span></div>
-          <div className="det-row"><span className="det-label">Provisões (13º+férias+FGTS)</span><span className="det-val">{brl(result.provisoes)}</span></div>
-          <div className="det-row"><span className="det-label">Benefícios</span><span className="det-val">{brl(result.beneficios)}</span></div>
-          <div className="det-row"><span className="det-label">Passivo rescisório</span><span className="det-val">{brl(result.passivoRescisorio)}</span></div>
-          <div className="det-row"><span className="det-label"><strong>Custo total mensal</strong></span><span className="det-val"><strong>{brl(result.totalMensal)}</strong></span></div>
-          <div className="det-row"><span className="det-label">Custo/hora (220h)</span><span className="det-val">{brl(result.custoHora220)}</span></div>
-          <div className="det-row"><span className="det-label">Custo/dia útil</span><span className="det-val">{brl(result.custoDiaUtil)}</span></div>
-        </div>
+        <section className="acp-cost-ds__surface" aria-label="Resultado da simulação">
+          <dl className="acp-cost-ds__facts">
+            <div className="acp-cost-ds__fact"><dt>Remuneração bruta</dt><dd>{brl(result.remuneracaoBruta)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Encargos (FGTS)</dt><dd>{brl(result.encargos)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Provisões (13º+férias+FGTS)</dt><dd>{brl(result.provisoes)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Benefícios</dt><dd>{brl(result.beneficios)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Passivo rescisório</dt><dd>{brl(result.passivoRescisorio)}</dd></div>
+            <div className="acp-cost-ds__fact acp-cost-ds__fact--total"><dt>Custo total mensal</dt><dd>{brl(result.totalMensal)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Custo/hora (220h)</dt><dd>{brl(result.custoHora220)}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Custo/dia útil</dt><dd>{brl(result.custoDiaUtil)}</dd></div>
+          </dl>
+        </section>
       ) : null}
-    </div>
+    </Card>
   );
 }

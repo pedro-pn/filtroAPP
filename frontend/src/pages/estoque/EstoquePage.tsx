@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { StockCategoriesTab } from './StockCategoriesTab';
 import { StockItemsTab } from './StockItemsTab';
 import { StockMovementFormModal } from './StockMovementFormModal';
 import { StockMovementsTab } from './StockMovementsTab';
 import { StockSummaryTab } from './StockSummaryTab';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import './EstoquePage.ds.css';
 
 type EstoqueTab = 'resumo' | 'movimentacoes' | 'itens' | 'categorias';
 
@@ -32,47 +31,24 @@ export function EstoquePage() {
     defaultValue: 'resumo',
     parse: parseEstoqueTab
   });
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const isManager = Boolean(user?.moduleRoles?.includes('estoque:manager'));
   const [movementModalOpen, setMovementModalOpen] = useState(false);
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login');
-  }
+  const sectionLabel = TABS.find(item => item.key === tab)?.label || 'Estoque';
+  const subNavigation = TABS.map(item => ({
+    id: item.key,
+    label: item.label,
+    shortLabel: item.key === 'movimentacoes' ? 'Movimentos' : undefined,
+    href: item.key === 'resumo' ? '/estoque' : `/estoque?tab=${item.key}`,
+    active: tab === item.key,
+    onSelect: () => setTab(item.key)
+  }));
 
   return (
-    <Shell>
-      <TopBar
-        title="Estoque"
-        subtitle="Filtros, produtos químicos e movimentações"
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>Conta</button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>Sair</button>
-          </>
-        }
-      />
-      <main className="page-scroll stock-page">
-        <section className="page-card">
-          <div className="nav-tabs" role="tablist" aria-label="Seções do estoque">
-            {TABS.map(item => (
-              <button
-                key={item.key}
-                className={`nav-tab ${tab === item.key ? 'active' : ''}`}
-                type="button"
-                role="tab"
-                aria-selected={tab === item.key}
-                onClick={() => setTab(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
+    <OperationalModuleAppShell moduleId="estoque" title="Estoque" sectionLabel={sectionLabel} subNavigation={subNavigation}>
+      <main className="fv-ds stock-page stock-page-v2">
+        <PageHeader title={sectionLabel} description="Controle de filtros, produtos químicos, lotes e movimentações." />
         {tab === 'resumo' && <StockSummaryTab isManager={isManager} onRegisterMovement={() => setMovementModalOpen(true)} />}
         {tab === 'movimentacoes' && <StockMovementsTab isManager={isManager} onRegisterMovement={() => setMovementModalOpen(true)} />}
         {tab === 'itens' && <StockItemsTab isManager={isManager} />}
@@ -84,6 +60,6 @@ export function EstoquePage() {
           onClose={() => setMovementModalOpen(false)}
         />
       ) : null}
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

@@ -102,3 +102,6 @@ RELATORIO_PENTEST_FILTROVALI.md
 opencode.jsonc
 .claude/settings.json.bak
 *.bak
+
+# Disposable database credentials and generated validation files
+output/validation/

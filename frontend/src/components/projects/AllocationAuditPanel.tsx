@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -9,7 +10,7 @@ import {
   type AllocationDay
 } from '../../api/acompanhamentoPonto';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
-import { Button } from '../ui/Button';
+import { Badge, Button, Card, DataTable, Field, Input, Select, type DataTableColumn } from '../ui/ds';
 import { allocationReasonLabel, fmtHours } from './allocationReasons';
 
 type AuditMode = 'collaborator' | 'project';
@@ -49,6 +50,30 @@ const SORT_COLUMNS: Array<{ key: SortKey; label: string; numeric?: boolean }> = 
   { key: 'allocated', label: 'Alocado' },
   { key: 'reason', label: 'Motivo' }
 ];
+
+function displayValue(day: AllocationDay, key: SortKey): string {
+  switch (key) {
+    case 'date': return fmtFullDate(day.date);
+    case 'normalHours': return day.normalHours.toFixed(2);
+    case 'he70Hours': return day.he70Hours.toFixed(2);
+    case 'he100Hours': return day.he100Hours.toFixed(2);
+    case 'tags': return day.tags.length ? day.tags.join(' | ') : '—';
+    case 'rdo': return day.rdoProjects.length
+      ? day.rdoProjects.map(item => `${item.code ?? item.projectId} (${item.hours.toFixed(1)}h)`).join(', ')
+      : '—';
+    case 'manual': return day.manualProjects.length ? projectList(day.manualProjects) : '—';
+    case 'allocated': return allocationList(day);
+    case 'reason': return allocationReasonLabel(day.reason);
+  }
+}
+
+const AUDIT_COLUMNS: DataTableColumn<AllocationDay>[] = SORT_COLUMNS.map(column => ({
+  key: column.key,
+  header: column.label,
+  numeric: column.numeric,
+  sortable: true,
+  render: day => displayValue(day, column.key)
+}));
 
 // Valor comparável de cada coluna: número para as de hora, texto para o resto.
 function sortValue(day: AllocationDay, key: SortKey): string | number {
@@ -167,50 +192,46 @@ export function AllocationAuditPanel() {
   }, [rows]);
 
   return (
-    <div className="page-card" data-acp-auditoria>
-      <div className="sec">Auditoria da alocação do ponto</div>
-      <p className="placeholder-copy ponto-panel-copy">
+    <Card className="acp-cost-ds__panel" title="Auditoria da alocação do ponto" data-acp-auditoria>
+      <p className="acp-cost-ds__copy">
         Mostra, dia a dia, para onde foram as horas de cada colaborador e por qual motivo. É a mesma
         decisão que gera o custo de mão de obra dos cards de projeto.
       </p>
 
-      <div className="acp-seg" role="tablist" aria-label="Visão da auditoria">
-        <button
-          type="button"
+      <div className="acp-cost-ds__tabs acp-cost-ds__tabs--inline" role="tablist" aria-label="Visão da auditoria">
+        <Button
           role="tab"
           aria-selected={!byProject}
-          className={`acp-seg-btn${!byProject ? ' active' : ''}`}
+          variant={!byProject ? 'primary' : 'secondary'}
+          size="sm"
           onClick={() => setMode('collaborator')}
         >
           Por colaborador
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           role="tab"
           aria-selected={byProject}
-          className={`acp-seg-btn${byProject ? ' active' : ''}`}
+          variant={byProject ? 'primary' : 'secondary'}
+          size="sm"
           onClick={() => setMode('project')}
         >
           Por projeto
-        </button>
+        </Button>
       </div>
 
       <div className="ponto-filter-row">
         {byProject ? (
-          <div className="field-group ponto-filter-grow">
-            <label htmlFor="audit-project">Missão</label>
-            <select id="audit-project" value={projectId} onChange={event => setProjectId(event.target.value)}>
+          <Field className="ponto-filter-grow" label="Missão" optionalText="">
+            <Select value={projectId} onChange={event => setProjectId(event.target.value)}>
               <option value="">Selecione a missão…</option>
               {(projects ?? []).map(project => (
                 <option key={project.id} value={project.id}>{project.code} — {project.name}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         ) : (
-          <div className="field-group ponto-filter-grow">
-            <label htmlFor="audit-collaborator">Colaborador</label>
-            <select
-              id="audit-collaborator"
+          <Field className="ponto-filter-grow" label="Colaborador" optionalText="">
+            <Select
               value={collaboratorId}
               onChange={event => setCollaboratorId(event.target.value)}
             >
@@ -220,18 +241,16 @@ export function AllocationAuditPanel() {
                   {collaborator.name}{collaborator.role ? ` — ${collaborator.role}` : ''}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         )}
-        <div className="field-group">
-          <label htmlFor="audit-de">De</label>
-          <input id="audit-de" type="date" value={de} onChange={event => setDe(event.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="audit-ate">Até</label>
-          <input id="audit-ate" type="date" value={ate} onChange={event => setAte(event.target.value)} />
-        </div>
-        <label className="field-check" htmlFor="audit-only-unallocated">
+        <Field label="De" optionalText="">
+          <Input type="date" value={de} onChange={event => setDe(event.target.value)} />
+        </Field>
+        <Field label="Até" optionalText="">
+          <Input type="date" value={ate} onChange={event => setAte(event.target.value)} />
+        </Field>
+        <label className="acp-cost-ds__checkbox" htmlFor="audit-only-unallocated">
           <input
             id="audit-only-unallocated"
             type="checkbox"
@@ -241,7 +260,8 @@ export function AllocationAuditPanel() {
           Só dias não alocados
         </label>
         <Button
-          variant="mini"
+          variant="secondary"
+          size="sm"
           disabled={!rows.length}
           onClick={() => downloadCsv(toCsv(rows), `auditoria-ponto-${byProject ? 'projeto' : 'colaborador'}.csv`)}
         >
@@ -250,13 +270,13 @@ export function AllocationAuditPanel() {
       </div>
 
       {!ready ? (
-        <p className="placeholder-copy">
+        <p className="acp-cost-ds__copy">
           {byProject ? 'Selecione uma missão para auditar.' : 'Selecione um colaborador para auditar.'}
         </p>
       ) : null}
-      {ready && (isLoading || isFetching) ? <p className="placeholder-copy">Carregando…</p> : null}
+      {ready && (isLoading || isFetching) ? <p className="acp-cost-ds__copy"><BrandLoading label="Carregando" inline size="sm" /></p> : null}
       {ready && !isLoading && !rows.length ? (
-        <p className="placeholder-copy">Nenhum dia de ponto no período selecionado.</p>
+        <p className="acp-cost-ds__copy">Nenhum dia de ponto no período selecionado.</p>
       ) : null}
 
       {rows.length ? (
@@ -268,10 +288,10 @@ export function AllocationAuditPanel() {
       ) : null}
 
       {rows.map(collaborator => (
-        <div key={collaborator.collaboratorId} className="det-section">
-          <div className="sec ponto-subtitle">
+        <section key={collaborator.collaboratorId} className="acp-cost-ds__surface">
+          <h3 className="acp-cost-ds__section-title">
             {collaborator.name}{collaborator.role ? ` · ${collaborator.role}` : ''}
-          </div>
+          </h3>
           <div className="ponto-audit-summary">
             {collaborator.totals.byProject.map(project => (
               <span key={project.projectId}>
@@ -285,61 +305,47 @@ export function AllocationAuditPanel() {
               <span>Sem alocação: <strong>{fmtHours(collaborator.totals.unallocatedHours)}</strong></span>
             ) : null}
           </div>
-          <div className="ponto-audit-scroll" tabIndex={0} role="region" aria-label={`Dias de ${collaborator.name}`}>
-            <table className="acp-table">
-              <thead>
-                <tr>
-                  {SORT_COLUMNS.map(column => {
-                    const active = sort.key === column.key;
-                    return (
-                      <th
-                        key={column.key}
-                        aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-                        className={column.numeric ? 'ponto-audit-num' : undefined}
-                      >
-                        <button
-                          type="button"
-                          className={`ponto-audit-sort${active ? ' active' : ''}`}
-                          onClick={() => toggleSort(column.key)}
-                        >
-                          {column.label}
-                          <span aria-hidden="true">{active ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
-                        </button>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {sortDays(collaborator.days, sort.key, sort.direction).map(day => {
-                  const isTarget = byProject && day.allocations.some(item => item.projectId === projectId);
-                  const classes = [
-                    !day.allocated ? 'ponto-audit-row-unallocated' : '',
-                    isTarget ? 'ponto-audit-row-target' : ''
-                  ].filter(Boolean).join(' ');
-                  return (
-                    <tr key={day.date} className={classes || undefined}>
-                      <td>{fmtFullDate(day.date)}</td>
-                      <td className="ponto-audit-num">{day.normalHours.toFixed(2)}</td>
-                      <td className="ponto-audit-num">{day.he70Hours.toFixed(2)}</td>
-                      <td className="ponto-audit-num">{day.he100Hours.toFixed(2)}</td>
-                      <td>{day.tags.length ? day.tags.join(' | ') : '—'}</td>
-                      <td>
-                        {day.rdoProjects.length
-                          ? day.rdoProjects.map(item => `${item.code ?? item.projectId} (${item.hours.toFixed(1)}h)`).join(', ')
-                          : '—'}
-                      </td>
-                      <td>{day.manualProjects.length ? projectList(day.manualProjects) : '—'}</td>
-                      <td>{allocationList(day)}</td>
-                      <td>{allocationReasonLabel(day.reason)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="acp-cost-ds__audit-mobile-sort">
+            <Field label="Ordenar dias" optionalText="">
+              <Select value={sort.key} onChange={event => setSort(current => ({ ...current, key: event.target.value as SortKey }))}>
+                {SORT_COLUMNS.map(column => <option key={column.key} value={column.key}>{column.label}</option>)}
+              </Select>
+            </Field>
+            <Button variant="secondary" size="sm" onClick={() => toggleSort(sort.key)}>
+              {sort.direction === 'asc' ? 'Crescente' : 'Decrescente'}
+            </Button>
           </div>
-        </div>
+          <DataTable
+            ariaLabel={`Dias de ${collaborator.name}`}
+            mobileBreakpoint="lg"
+            rows={sortDays(collaborator.days, sort.key, sort.direction)}
+            getRowId={day => day.date}
+            columns={AUDIT_COLUMNS}
+            sort={sort}
+            onSortChange={next => setSort({ key: next.key as SortKey, direction: next.direction })}
+            getRowClassName={day => [
+              !day.allocated ? 'acp-cost-ds__audit-unallocated' : '',
+              byProject && day.allocations.some(item => item.projectId === projectId) ? 'acp-cost-ds__audit-target' : ''
+            ].filter(Boolean).join(' ')}
+            mobile={{ renderItem: day => ({
+              title: fmtFullDate(day.date),
+              subtitle: `${fmtHours(day.normalHours + day.he70Hours + day.he100Hours)} no ponto`,
+              value: allocationList(day),
+              status: !day.allocated ? <Badge tone="warning">Sem alocação</Badge>
+                : byProject && day.allocations.some(item => item.projectId === projectId)
+                  ? <Badge tone="brand">Nesta missão</Badge> : undefined,
+              metadata: [
+                { label: 'Normais', value: displayValue(day, 'normalHours') },
+                { label: 'HE 70% / 100%', value: `${displayValue(day, 'he70Hours')} / ${displayValue(day, 'he100Hours')}` },
+                { label: 'Etiquetas', value: displayValue(day, 'tags') },
+                { label: 'RDO do dia', value: displayValue(day, 'rdo') },
+                { label: 'Manual', value: displayValue(day, 'manual') },
+                { label: 'Motivo', value: displayValue(day, 'reason') }
+              ]
+            }) }}
+          />
+        </section>
       ))}
-    </div>
+    </Card>
   );
 }

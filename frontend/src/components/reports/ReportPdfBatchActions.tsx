@@ -1,15 +1,22 @@
 import { downloadReportsBatch } from '../../api/reports';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
+import { Button } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 
 type ReportPdfBatchActionsProps = {
   reports: ReportSummary[];
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
+  appearance?: 'legacy' | 'design-system';
 };
 
-export function ReportPdfBatchActions({ reports, selectedIds, onSelectionChange }: ReportPdfBatchActionsProps) {
+export function ReportPdfBatchActions({
+  reports,
+  selectedIds,
+  onSelectionChange,
+  appearance = 'legacy'
+}: ReportPdfBatchActionsProps) {
   const showToast = useToast();
   const visibleIds = reports.map(report => report.id);
   const selectedVisibleIds = selectedIds.filter(id => visibleIds.includes(id));
@@ -31,6 +38,78 @@ export function ReportPdfBatchActions({ reports, selectedIds, onSelectionChange 
     }
   }
 
+  const selectAllLabel = (
+    <>
+      <span className="report-batch-action-label report-batch-action-label--full">
+        Selecionar todos
+      </span>
+      <span className="report-batch-action-label report-batch-action-label--compact">
+        Todos
+      </span>
+    </>
+  );
+  const clearLabel = (
+    <>
+      <span className="report-batch-action-label report-batch-action-label--full">
+        Limpar seleção
+      </span>
+      <span className="report-batch-action-label report-batch-action-label--compact">
+        Limpar
+      </span>
+    </>
+  );
+  const downloadLabel = (
+    <>
+      <span className="report-batch-action-label report-batch-action-label--full">
+        Baixar PDF
+      </span>
+      <span className="report-batch-action-label report-batch-action-label--compact">
+        PDF
+      </span>
+    </>
+  );
+
+  if (appearance === 'design-system') {
+    return (
+      <div className="report-batch-toolbar rdo-manager-listing__batch-toolbar rdo-role-listing__batch-toolbar">
+        <span className="report-batch-count" role="status" aria-live="polite">
+          {selectedVisibleIds.length} selecionado(s)
+        </span>
+        <div className="admin-form-actions">
+          <Button
+            className="report-batch-select-all"
+            variant="secondary"
+            size="sm"
+            aria-label="Selecionar todos"
+            onClick={() => onSelectionChange(Array.from(new Set([...selectedIds, ...visibleIds])))}
+          >
+            {selectAllLabel}
+          </Button>
+          {hasSelection ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Limpar seleção"
+                onClick={() => onSelectionChange(selectedIds.filter(id => !visibleIds.includes(id)))}
+              >
+                {clearLabel}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="Baixar PDF"
+                onClick={() => void handleDownload()}
+              >
+                {downloadLabel}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="report-batch-toolbar">
       <span className="report-batch-count">{selectedVisibleIds.length} selecionado(s)</span>
@@ -38,21 +117,28 @@ export function ReportPdfBatchActions({ reports, selectedIds, onSelectionChange 
         <button
           className="mini-btn alt"
           type="button"
+          aria-label="Selecionar todos"
           onClick={() => onSelectionChange(Array.from(new Set([...selectedIds, ...visibleIds])))}
         >
-          Selecionar todos
+          {selectAllLabel}
         </button>
         {hasSelection ? (
           <>
             <button
               className="mini-btn alt"
               type="button"
+              aria-label="Limpar seleção"
               onClick={() => onSelectionChange(selectedIds.filter(id => !visibleIds.includes(id)))}
             >
-              Limpar seleção
+              {clearLabel}
             </button>
-            <button className="mini-btn alt" type="button" onClick={() => void handleDownload()}>
-              Baixar PDF
+            <button
+              className="mini-btn alt"
+              type="button"
+              aria-label="Baixar PDF"
+              onClick={() => void handleDownload()}
+            >
+              {downloadLabel}
             </button>
           </>
         ) : null}

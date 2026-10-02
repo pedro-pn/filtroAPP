@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +15,9 @@ import {
   updateStockItem
 } from '../../api/estoque';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { Badge, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
 import { StockItemDocumentsModal } from './StockItemDocumentsModal';
 import { StockItemFormModal } from './StockItemFormModal';
@@ -142,9 +145,30 @@ export function StockItemsTab({ isManager }: Props) {
     });
   }
 
+  function renderDocuments(item: StockItem) {
+    if (!item.documents.length) return <span className="stock-table-muted">Nenhum</span>;
+    const links = item.documents.map(document => <a key={document.id} href={document.publicUrl} target="_blank" rel="noreferrer">{document.fileName}</a>);
+    return item.documents.length === 1 ? links[0] : <details className="stock-table-documents"><summary>{item.documents.length} documentos</summary><div>{links}</div></details>;
+  }
+
+  const columns: DataTableColumn<StockItem>[] = [
+    { key: 'item', header: 'Item', rowHeader: true, render: item => <div className="stock-table-identity"><strong>{item.code} · {item.name}</strong><small>{itemSubtitle(item) || typeLabel(item.type)}</small></div> },
+    { key: 'category', header: 'Categoria', render: item => item.category?.name || 'Sem categoria' },
+    { key: 'unit', header: 'Unidade / mínimo', render: item => <><strong>{item.unitLabel}</strong>{item.minQuantity ? <small className="stock-table-muted">Mín. {item.minQuantity}</small> : null}</> },
+    { key: 'location', header: 'Local', render: item => item.location || '—' },
+    { key: 'documents', header: 'Documentos', render: renderDocuments },
+    { key: 'status', header: 'Situação', render: item => <Badge tone={item.isActive ? 'success' : 'danger'}>{item.isActive ? 'Ativo' : 'Inativo'}</Badge> }
+  ];
+  const renderActions = (item: StockItem) => isManager ? <div className="stock-table-actions">
+    <button className="mini-btn alt" type="button" onClick={() => setDocumentsItemId(item.id)}>Documentos</button>
+    <button className="mini-btn alt" type="button" onClick={() => setFormItem(item)}>Editar</button>
+    <button className="mini-btn alt" type="button" onClick={() => confirmActive(item, !item.isActive)}>{item.isActive ? 'Inativar' : 'Reativar'}</button>
+    <RemoveIconButton label={`Remover item ${item.code} — ${item.name}`} disabled={removeMutation.isPending} onClick={() => confirmRemove(item)} />
+  </div> : null;
+
   return (
-    <section className="page-card">
-      <div className="admin-toolbar">
+    <section className="page-card stock-panel">
+      <div className="admin-toolbar stock-panel-header">
         <div className="sec">Itens</div>
         {isManager ? (
           <button className="mini-btn" type="button" onClick={() => setFormItem(null)}>Novo item</button>
@@ -162,11 +186,11 @@ export function StockItemsTab({ isManager }: Props) {
           />
         </div>
         <div className="nps-tab-toolbar-right">
-          <select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
+          <Select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
             <option value="">Todos os tipos</option>
             <option value="FILTRO">Filtros</option>
             <option value="PRODUTO_QUIMICO">Produtos químicos</option>
-          </select>
+          </Select>
           <label className="equip-toggle">
             <input type="checkbox" checked={includeInactive} onChange={event => setIncludeInactive(event.target.checked)} />
             <span>Inativos</span>
@@ -174,53 +198,27 @@ export function StockItemsTab({ isManager }: Props) {
         </div>
       </div>
 
-      {itemsQuery.isLoading ? <p className="placeholder-copy">Carregando itens...</p> : null}
+      {itemsQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando itens" inline size="sm" /></p> : null}
       {itemsQuery.isError ? <p className="equip-form-error">Não foi possível carregar os itens.</p> : null}
       {!itemsQuery.isLoading && !items.length ? <p className="placeholder-copy">Nenhum item encontrado.</p> : null}
 
-      <div className="equip-grid">
-        {items.map(item => (
-          <article className="card" key={item.id}>
-            <div className="admin-toolbar">
-              <div>
-                <div className="sec">{item.code}</div>
-                <strong>{item.name}</strong>
-                <p className="rel-meta">{itemSubtitle(item) || typeLabel(item.type)}</p>
-              </div>
-              <span className="badge">{item.category?.name || typeLabel(item.type)}</span>
-            </div>
-            <p className="rel-meta">
-              Unidade: <strong>{item.unitLabel}</strong>
-              {item.minQuantity ? <> · Mínimo: <strong>{item.minQuantity}</strong></> : null}
-              {item.location ? <> · Local: <strong>{item.location}</strong></> : null}
-            </p>
-            {!item.isActive ? <span className="badge danger">Inativo</span> : null}
-            {item.documents.length ? (
-              <div className="upload-list stock-item-document-list" aria-label={`Documentos de ${item.name}`}>
-                {item.documents.map(document => (
-                  <div className="upload-list-item" key={document.id}>
-                    <a className="upload-list-name" href={document.publicUrl} target="_blank" rel="noreferrer">
-                      {document.fileName}
-                    </a>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="rel-meta">Nenhum documento anexado.</p>}
-            {isManager ? (
-              <div className="admin-form-actions">
-                <button className="mini-btn alt" type="button" onClick={() => setDocumentsItemId(item.id)}>
-                  Documentos ({item.documents.length})
-                </button>
-                <button className="mini-btn alt" type="button" onClick={() => setFormItem(item)}>Editar</button>
-                <button className="mini-btn alt" type="button" onClick={() => confirmActive(item, !item.isActive)}>
-                  {item.isActive ? 'Inativar' : 'Reativar'}
-                </button>
-                <button className="danger-button" type="button" onClick={() => confirmRemove(item)}>Excluir</button>
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
+      {items.length ? <DataTable
+        className="stock-entity-table"
+        rows={items}
+        columns={columns}
+        getRowId={item => item.id}
+        ariaLabel="Itens do estoque"
+        density="compact"
+        mobileBreakpoint="md"
+        rowActions={isManager ? renderActions : undefined}
+        mobile={{ renderItem: item => ({
+          title: `${item.code} · ${item.name}`,
+          subtitle: itemSubtitle(item) || typeLabel(item.type),
+          status: <Badge tone={item.isActive ? 'success' : 'danger'}>{item.isActive ? 'Ativo' : 'Inativo'}</Badge>,
+          metadata: [{ label: 'Categoria', value: item.category?.name || 'Sem categoria' }, { label: 'Unidade', value: item.unitLabel }, { label: 'Mínimo', value: item.minQuantity || '—' }, { label: 'Local', value: item.location || '—' }],
+          details: <div className="stock-table-mobile-documents"><strong>Documentos</strong>{renderDocuments(item)}</div>
+        }) }}
+      /> : null}
 
       {formItem !== undefined ? (
         <StockItemFormModal
@@ -244,6 +242,7 @@ export function StockItemsTab({ isManager }: Props) {
 
       <ConfirmDialog
         open={!!confirm}
+        appearance="design-system"
         title={confirm?.title || ''}
         description={confirm?.description}
         highlight={confirm?.highlight}

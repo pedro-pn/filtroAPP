@@ -18,6 +18,7 @@ import {
 import { listProjects } from '../../api/projects';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { makeEstoqueSchemas } from '../../../../shared/schemas/estoque.js';
@@ -257,16 +258,12 @@ function ReturnMovementLineRow({
           />
         </div>
 
-        <button
-          className="icon-button stock-return-remove"
-          type="button"
-          aria-label="Remover produto da devolução"
-          title="Remover produto"
+        <RemoveIconButton
+          className="stock-return-remove"
+          label="Remover produto da devolução"
           disabled={saving || !canRemove}
           onClick={onRemove}
-        >
-          ×
-        </button>
+        />
       </div>
       {batchesQuery.isSuccess && line.itemId && projectId && !batches.length ? (
         <small className="field-error">Este produto não possui lote com saldo disponível na obra.</small>
@@ -453,24 +450,14 @@ export function StockMovementFormModal({ open, onClose }: Props) {
       <Modal
         open={open}
         onClose={onClose}
-        ariaLabelledBy="stock-movement-form-title"
-        panelClassName={`modal-card equip-modal stock-modal${isProjectReturn ? ' stock-return-modal' : ''}`}
+        appearance="design-system"
+        title="Registrar movimentação"
+        size="lg"
+        showCloseButton={!savingMutation.isPending}
+        closeOnEscape={!savingMutation.isPending}
+        panelClassName={`stock-dialog${isProjectReturn ? ' stock-dialog--return' : ''}`}
       >
-        <button
-          className="equip-modal-close-float icon-button"
-          type="button"
-          aria-label="Fechar movimentação"
-          title="Fechar"
-          onClick={onClose}
-          disabled={savingMutation.isPending}
-        >
-          ×
-        </button>
         <form className="equip-form" onSubmit={handleSubmit(submit)}>
-          <header className="equip-form-head has-float-close">
-            <h3 id="stock-movement-form-title">Movimentação</h3>
-            <span className="equip-form-sub">Estoque</span>
-          </header>
 
           <div className="field-group">
             <label htmlFor="stock-move-reason">Movimentação *</label>

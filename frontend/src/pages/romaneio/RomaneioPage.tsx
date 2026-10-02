@@ -1,6 +1,7 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import {
   createRomaneioCatalogItem,
@@ -25,17 +26,20 @@ import {
 } from '../../api/romaneio';
 
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button } from '../../components/ui/ds';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useToast } from '../../components/ui/ToastContext';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
+import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 import { downloadBlob } from '../../utils/download';
 import { defaultRomaneioUnit, romaneioMeasureLabel } from '../../utils/romaneioMeasure';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
 import { RomaneioQrLabelModal } from './RomaneioQrLabelModal';
 import { RomaneioQrNovelty } from './RomaneioQrNovelty';
+import './RomaneioPage.ds.css';
 
 type Tab = 'romaneios' | 'equipamentos' | 'notificacoes';
 interface QrLabelSelection {
@@ -120,8 +124,7 @@ function parseRomaneioTab(value: string | null): Tab {
 
 export function RomaneioPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const isManager = user?.moduleRoles?.includes('romaneio:manager');
@@ -384,46 +387,26 @@ export function RomaneioPage() {
     renameCategoryMutation.mutate({ currentName: editingCategory, newName });
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
+  const sectionLabel = tab === 'equipamentos' ? 'Equipamentos' : tab === 'notificacoes' ? 'E-mails' : 'Romaneios';
+  const subNavigation = [
+    { id: 'romaneios', label: 'Romaneios', href: '/romaneio', active: tab === 'romaneios', onSelect: () => setTab('romaneios') },
+    { id: 'equipamentos', label: 'Equipamentos', href: '/romaneio?tab=equipamentos', active: tab === 'equipamentos', onSelect: () => setTab('equipamentos') },
+    ...(isManager ? [{ id: 'notificacoes', label: 'E-mails', href: '/romaneio?tab=notificacoes', active: tab === 'notificacoes', onSelect: () => setTab('notificacoes') }] : [])
+  ];
 
   return (
-    <Shell>
-      <TopBar
-        title="Romaneio"
-        subtitle="Equipamentos por projeto"
-        actions={
+    <OperationalModuleAppShell moduleId="romaneio" title="Romaneio" sectionLabel={sectionLabel} subNavigation={subNavigation}>
+      <main className="fv-ds romaneio-page-v2">
+        <PageHeader title={sectionLabel} description="Controle de equipamentos e materiais por projeto." actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
-              Conta
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
+            <Button variant="secondary" size="sm" onClick={downloadCatalogPdf} disabled={isDownloadingCatalogPdf}>
+              {isDownloadingCatalogPdf ? 'Gerando PDF...' : 'PDF modelo'}
+            </Button>
+            <Button variant="primary" size="sm" data-romaneio-create-trigger onClick={() => navigate('/romaneio/novo')}>
+              Criar romaneio
+            </Button>
           </>
-        }
-      />
-      <main className="page-scroll">
-        <section className="page-card romaneio-panel">
-          <div className="admin-toolbar">
-            <div className="sec">Romaneios</div>
-            <div className="report-card-actions">
-              <button className="secondary-button" type="button" onClick={downloadCatalogPdf} disabled={isDownloadingCatalogPdf}>
-                {isDownloadingCatalogPdf ? 'Gerando PDF...' : 'PDF modelo'}
-              </button>
-              <button className="primary-button" type="button" data-romaneio-create-trigger onClick={() => navigate('/romaneio/novo')}>
-                Criar romaneio
-              </button>
-            </div>
-          </div>
-          <div className="filter-tabs" role="tablist" aria-label="Áreas do romaneio">
-            <button className={`filter-tab ${tab === 'romaneios' ? 'active' : ''}`} type="button" onClick={() => setTab('romaneios')}>Romaneios</button>
-            <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" data-romaneio-equipment-tab onClick={() => setTab('equipamentos')}>Equipamentos</button>
-            {isManager && <button className={`filter-tab ${tab === 'notificacoes' ? 'active' : ''}`} type="button" onClick={() => setTab('notificacoes')}>E-mails</button>}
-          </div>
-        </section>
+        } />
 
         {tab === 'romaneios' && (
           <>
@@ -467,19 +450,23 @@ export function RomaneioPage() {
                   <span>Pesquisa</span>
                   <SearchBar loading={search !== debouncedSearch || romaneiosQuery.isFetching} value={search} onChange={setSearch} placeholder="Projeto, placa, motorista ou item" />
                 </label>
-                <label className="field-group">
-                  <span>Projeto</span>
-                  <select value={projectId} onChange={event => setProjectId(event.target.value)}>
-                    <option value="">Todos</option>
-                    {(projectsQuery.data || []).map(project => (
-                      <option key={project.id} value={project.id}>Missão {project.code} - {project.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <SearchCombobox
+                  id="romaneio-project-filter"
+                  label="Projeto"
+                  value={projectId}
+                  onChange={setProjectId}
+                  variant="select"
+                  portal
+                  placeholder="Pesquisar projeto"
+                  options={[
+                    { value: '', label: 'Todos os projetos' },
+                    ...(projectsQuery.data || []).map(project => ({ value: project.id, label: `Missão ${project.code} - ${project.name}` }))
+                  ]}
+                />
               </div>
             </section>
 
-            {(search !== debouncedSearch || romaneiosQuery.isLoading) && <section className="page-card romaneio-panel">Carregando romaneios...</section>}
+            {(search !== debouncedSearch || romaneiosQuery.isLoading) && <section className="page-card romaneio-panel"><BrandLoading label="Carregando romaneios" /></section>}
             {search === debouncedSearch && !romaneiosQuery.isLoading && !groupedRomaneios.length && <section className="page-card romaneio-panel">Nenhum romaneio encontrado.</section>}
             {groupedRomaneios.map(([projectName, items]) => (
               <section className="page-card romaneio-panel" key={projectName}>
@@ -528,6 +515,7 @@ export function RomaneioPage() {
           <>
             {isManager ? (
               <section className="page-card romaneio-panel">
+                <div className="admin-section-head"><div className="sec">Novo item do catálogo</div></div>
                 <form className="admin-form-grid manager-header-grid" onSubmit={submitCatalog}>
                   <label className="field-group">
                     <span>Código</span>
@@ -588,6 +576,7 @@ export function RomaneioPage() {
               </section>
             ) : null}
             <section className="page-card romaneio-panel">
+              <div className="admin-section-head"><div className="sec">Catálogo</div></div>
               <div className="admin-form-grid manager-header-grid romaneio-catalog-search">
                 <label className="field-group field-group-wide">
                   <span>Pesquisar equipamento</span>
@@ -665,7 +654,7 @@ export function RomaneioPage() {
                                   {isManager && !isRdoOwnedCatalogItem(item) ? (
                                     <>
                                       <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
-                                      <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
+                                      <RemoveIconButton label={`Remover item ${item.code || item.name}`} onClick={() => removeCatalogMutation.mutate(item.id)} />
                                     </>
                                   ) : isManager && isRdoOwnedCatalogItem(item) ? (
                                     <span className="rel-meta">{managedCatalogSourceLabel(item)}</span>
@@ -745,7 +734,7 @@ export function RomaneioPage() {
                   <div className="rel-meta">{catalogSearch.trim() ? 'Nenhum item encontrado.' : 'Nenhum item cadastrado.'}</div>
                 )}
                 {catalogQuery.isLoading && (
-                  <div className="rel-meta">Carregando equipamentos...</div>
+                  <div className="rel-meta"><BrandLoading label="Carregando equipamentos" /></div>
                 )}
                 </div>
               </section>
@@ -754,6 +743,7 @@ export function RomaneioPage() {
 
         {tab === 'notificacoes' && isManager && (
           <section className="page-card romaneio-panel">
+            <div className="admin-section-head"><div className="sec">Destinatários</div></div>
             <form className="admin-form-grid manager-header-grid" onSubmit={event => { event.preventDefault(); saveRecipientMutation.mutate(); }}>
               <label className="field-group">
                 <span>Nome</span>
@@ -769,12 +759,12 @@ export function RomaneioPage() {
             </form>
             <div className="romaneio-catalog-list">
               {(recipientsQuery.data || []).map(item => (
-                <div className="romaneio-catalog-row" key={item.id}>
-                  <div>
+                <div className="romaneio-catalog-row romaneio-recipient-row" key={item.id}>
+                  <div className="romaneio-recipient-details">
                     <strong>{item.name || item.email}</strong>
                     <div className="rel-meta">{item.email} · {item.isActive ? 'ativo' : 'inativo'}</div>
                   </div>
-                  <button className="mini-btn danger" type="button" onClick={() => removeRecipientMutation.mutate(item.id)}>Remover</button>
+                  <RemoveIconButton className="romaneio-recipient-remove" label={`Remover destinatário ${item.name || item.email}`} onClick={() => removeRecipientMutation.mutate(item.id)} />
                 </div>
               ))}
             </div>
@@ -799,6 +789,6 @@ export function RomaneioPage() {
         categoryName={qrLabelSelection?.categoryName}
         onClose={() => setQrLabelSelection(null)}
       />
-    </Shell>
+    </OperationalModuleAppShell>
   );
 }

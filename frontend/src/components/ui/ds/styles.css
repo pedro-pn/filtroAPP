@@ -1,0 +1,920 @@
+/* Filtrovali DS primitives. Every rule is scoped to an explicit migration boundary. */
+
+:where(.fv-ds, [data-fv-ds]) {
+  --fv-control-height: var(--space-10);
+  --fv-control-padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  :where(.fv-button, .fv-control-shell, .fv-textarea) {
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+/* Button and IconButton */
+:where(.fv-ds, [data-fv-ds]) .fv-button {
+  display: inline-flex;
+  min-width: 0;
+  height: var(--fv-button-height);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--fv-button-padding);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fv-button-font-size);
+  font-weight: var(--font-medium);
+  line-height: var(--fv-button-line-height);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--sm {
+  --fv-button-height: var(--space-8);
+  --fv-button-padding: var(--space-3);
+  --fv-button-font-size: var(--text-sm);
+  --fv-button-line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--md {
+  --fv-button-height: var(--space-10);
+  --fv-button-padding: var(--space-4);
+  --fv-button-font-size: var(--text-base);
+  --fv-button-line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--lg {
+  --fv-button-height: var(--space-12);
+  --fv-button-padding: var(--space-5);
+  --fv-button-font-size: var(--text-md);
+  --fv-button-line-height: var(--leading-md);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--primary:hover:not(:disabled),
+:where(.fv-ds, [data-fv-ds]) .fv-button--primary:active:not(:disabled) {
+  border-color: var(--brand-hover);
+  background: var(--brand-hover);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--secondary {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--secondary:hover:not(:disabled),
+:where(.fv-ds, [data-fv-ds]) .fv-button--secondary:active:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--control-border);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--ghost {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--ghost:hover:not(:disabled),
+:where(.fv-ds, [data-fv-ds]) .fv-button--ghost:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--danger:hover:not(:disabled),
+:where(.fv-ds, [data-fv-ds]) .fv-button--danger:active:not(:disabled) {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--link {
+  padding-inline: var(--space-1);
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: var(--border-width);
+  text-underline-offset: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--link:hover:not(:disabled),
+:where(.fv-ds, [data-fv-ds]) .fv-button--link:active:not(:disabled) {
+  color: var(--link-hover);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button:disabled {
+  cursor: not-allowed;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button:disabled:not([data-loading='true']) {
+  border-color: var(--disabled-line);
+  background: var(--disabled-bg);
+  color: var(--disabled-ink);
+  box-shadow: var(--shadow-e0);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button[data-loading='true'] {
+  cursor: wait;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--full {
+  width: 100%;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button__counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: var(--space-5);
+  min-height: var(--space-5);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button__icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button__icon:empty {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--multiline {
+  height: auto;
+  min-height: var(--fv-button-height);
+  justify-content: flex-start;
+  padding-block: var(--space-1);
+  white-space: normal;
+  text-align: start;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-button--multiline .fv-button__label {
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-icon-button {
+  width: var(--fv-button-height);
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+/* Spinner */
+:where(.fv-ds, [data-fv-ds]) .fv-spinner {
+  display: inline-grid;
+  width: var(--fv-spinner-size);
+  height: var(--fv-spinner-size);
+  flex: 0 0 auto;
+
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-spinner--sm {
+  --fv-spinner-size: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-spinner--md {
+  --fv-spinner-size: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-spinner--lg {
+  --fv-spinner-size: var(--space-6);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-spinner .fv-brand-loading__symbol {
+  width: var(--fv-spinner-size);
+}
+
+/* Field and native controls */
+:where(.fv-ds, [data-fv-ds]) .fv-field {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-field__heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-field__label {
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-field__required,
+:where(.fv-ds, [data-fv-ds]) .fv-field__message--error {
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) :where(.fv-field__optional, .fv-field__message) {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-field__optional {
+  margin-inline-start: auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-field__additional {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-field__message {
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell {
+  --fv-autofill-bg: var(--surface);
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: var(--fv-control-height);
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--fv-control-padding);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell--sm {
+  --fv-control-height: var(--space-8);
+  --fv-control-padding: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell--md {
+  --fv-control-height: var(--space-10);
+  --fv-control-padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell--lg {
+  --fv-control-height: var(--space-12);
+  --fv-control-padding: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-control-shell:hover:not([data-disabled='true']) {
+  border-color: var(--line-strong);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell:focus-within {
+  border-color: var(--line-strong);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Compound controls delegate their single visible focus ring to the rounded
+   shell. Never draw a second rectangular outline on the nested input/select. */
+:where(.fv-ds, [data-fv-ds])
+  .fv-control-shell
+  :where(.fv-input, .fv-select):focus-visible {
+  outline: 0;
+  outline-offset: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell[data-invalid='true'] {
+  border-color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell[data-disabled='true'] {
+  border-color: var(--disabled-line);
+  background: var(--disabled-bg);
+  color: var(--disabled-ink);
+  cursor: not-allowed;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell[data-readonly='true'] {
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell__adornment,
+:where(.fv-ds, [data-fv-ds]) .fv-select-shell__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]) :where(.fv-input, .fv-select) {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+/* Match the shell color even when legacy input[type] rules are loaded later. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select) {
+  color: inherit;
+}
+
+/* Browsers tint the nested autofilled input, leaving the shell's padding
+   untouched. Paint both with the same theme-aware color. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell:has(:is(.fv-input, .fv-select):autofill) {
+  --fv-autofill-bg: color-mix(in srgb, var(--surface) 90%, var(--brand) 10%);
+  background: var(--fv-autofill-bg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select):autofill {
+  background: var(--fv-autofill-bg);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1000px var(--fv-autofill-bg);
+  -webkit-text-fill-color: var(--ink);
+}
+
+/* Legacy native date/time rules use a fixed light text color. Keep the
+   browser-rendered segments in the same theme as their DS control shell. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input:is([type='date'], [type='time'])::-webkit-datetime-edit,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-hour-field,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-minute-field,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-second-field,
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-input[type='time']::-webkit-datetime-edit-ampm-field {
+  color: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds]) :where(.fv-input, .fv-textarea)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-select {
+  padding-inline-end: var(--space-6);
+  cursor: pointer;
+  appearance: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-select:disabled {
+  cursor: not-allowed;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-select option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-select-shell {
+  position: relative;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-select-shell__icon {
+  position: absolute;
+  inset-inline-end: var(--fv-control-padding);
+  pointer-events: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: calc(var(--space-16) + var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  resize: vertical;
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  outline: 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea--sm {
+  padding: var(--space-2) var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea--lg {
+  padding: var(--space-4) var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea:focus-visible {
+  border-color: var(--line-strong);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea:disabled {
+  border-color: var(--disabled-line);
+  background: var(--disabled-bg);
+  color: var(--disabled-ink);
+  cursor: not-allowed;
+}
+
+/* Reusable semantic tone contract */
+:where(.fv-ds, [data-fv-ds]) .fv-tone--neutral {
+  --fv-tone-bg: var(--surface-2);
+  --fv-tone-ink: var(--ink);
+  --fv-tone-line: var(--line-strong);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-tone--brand {
+  --fv-tone-bg: var(--brand-soft);
+  --fv-tone-ink: var(--brand-text);
+  --fv-tone-line: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-tone--success {
+  --fv-tone-bg: var(--success-bg);
+  --fv-tone-ink: var(--success);
+  --fv-tone-line: var(--success-line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-tone--warning {
+  --fv-tone-bg: var(--warning-bg);
+  --fv-tone-ink: var(--warning);
+  --fv-tone-line: var(--warning-line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-tone--danger {
+  --fv-tone-bg: var(--danger-bg);
+  --fv-tone-ink: var(--danger);
+  --fv-tone-line: var(--danger-line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-tone--info {
+  --fv-tone-bg: var(--info-bg);
+  --fv-tone-ink: var(--info);
+  --fv-tone-line: var(--info-line);
+}
+
+/* Badge and StatusPill */
+:where(.fv-ds, [data-fv-ds]) .fv-badge {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: var(--space-5);
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: var(--border-width) solid var(--fv-tone-line);
+  border-radius: var(--radius-sm);
+  background: var(--fv-tone-bg);
+  color: var(--fv-tone-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+  vertical-align: middle;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge__dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge--multiline {
+  width: fit-content;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge--multiline .fv-badge__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge__remove {
+  display: inline-grid;
+  width: var(--space-6);
+  height: var(--space-6);
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge__remove:hover {
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-badge__remove:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Alert */
+:where(.fv-ds, [data-fv-ds]) .fv-alert {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--fv-tone-line);
+  border-radius: var(--radius-md);
+  background: var(--fv-tone-bg);
+  color: var(--fv-tone-ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding-block: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__content {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__title {
+  color: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__description {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__action {
+  display: flex;
+  justify-content: flex-start;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__action .fv-button--link {
+  color: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-alert__dismiss {
+  color: inherit;
+}
+
+/* EmptyState */
+:where(.fv-ds, [data-fv-ds]) .fv-empty-state {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  color: var(--ink);
+  text-align: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-empty-state__visual {
+  display: grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-empty-state--error .fv-empty-state__visual {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-empty-state__title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-empty-state__description {
+  max-width: 72ch;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-empty-state__action {
+  display: flex;
+  justify-content: center;
+  padding-block-start: var(--space-2);
+}
+
+/* Skeleton */
+:where(.fv-ds, [data-fv-ds]) .fv-skeleton {
+  width: var(--fv-skeleton-width, 100%);
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-skeleton__content {
+  display: grid;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-skeleton--card .fv-skeleton__content {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+/* Card */
+:where(.fv-ds, [data-fv-ds]) .fv-card {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--padding-sm {
+  padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--padding-md {
+  padding: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--padding-lg {
+  padding: var(--space-6);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--flat,
+:where(.fv-ds, [data-fv-ds]) .fv-card--elevation-none {
+  box-shadow: var(--shadow-e0);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--elevation-sm {
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--elevation-md {
+  box-shadow: var(--shadow-e2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--interactive {
+  cursor: pointer;
+  appearance: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--interactive:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-e2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--interactive:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--selected {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
+/* Surface button remains behind content; embedded controls keep their own hit areas. */
+:where(.fv-ds, [data-fv-ds]) .fv-card--surface-action {
+  position: relative;
+  isolation: isolate;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__surface-action {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__surface-action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--surface-action > :not(.fv-card__surface-action) {
+  position: relative;
+  pointer-events: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--surface-action :where(button:not(.fv-card__surface-action), a, input, select, textarea, label, form, [tabindex], [data-card-interactive]) {
+  pointer-events: auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card--accent {
+  border-inline-start: var(--space-1) solid var(--fv-tone-ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__heading {
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__actions {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__body {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-card__footer {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+}
+
+/* MetricCard */
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-16) + var(--space-5));
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card__icon {
+  display: inline-grid;
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--fv-tone-bg);
+  color: var(--fv-tone-ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card__label,
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card__description {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card__label {
+  font-weight: var(--font-medium);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-metric-card__value {
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-xl);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds])
+    :where(.fv-card__actions, .fv-card__footer) {
+    min-width: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-button {
+    min-height: calc(var(--space-10) + var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-icon-button,
+  :where(.fv-ds, [data-fv-ds]) .fv-badge__remove {
+    min-width: calc(var(--space-10) + var(--space-1));
+    min-height: calc(var(--space-10) + var(--space-1));
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-control-shell {
+    height: var(--space-12);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) :where(.fv-input, .fv-select, .fv-textarea) {
+    font-size: var(--text-md);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-card--padding-md {
+    padding: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-card--padding-lg {
+    padding: var(--space-5);
+  }
+}
+
+@media (max-width: 479.98px) {
+  :where(.fv-ds, [data-fv-ds]) .fv-alert {
+    flex-wrap: wrap;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-alert__action {
+    width: 100%;
+  }
+}

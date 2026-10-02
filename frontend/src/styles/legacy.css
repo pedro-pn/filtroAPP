@@ -1,0 +1,3 @@
+/* Transitional boundary for the existing application styles.
+   Keep this import last in main.tsx until each screen has migrated to .fv-ds. */
+@import './base.css' layer(legacy);

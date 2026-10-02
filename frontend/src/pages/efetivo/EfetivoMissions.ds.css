@@ -1,0 +1,40 @@
+/* Mission listing and programming share the existing DS primitives. */
+
+/* Four actions stay on one row, without an inner scrollbar. */
+
+.efetivo-mission-programming-dialog .efetivo-mission-form-identity {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  overflow-wrap: anywhere;
+}
+.efetivo-mission-form-identity > span:last-child { color: var(--muted); font-size: var(--text-xs); }
+
+.efetivo-mission-programming-dialog :is(.efetivo-mission-form-section, .efetivo-team-fieldset) {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-radius: 0;
+  border-top: var(--border-width) solid var(--line);
+}
+.efetivo-mission-programming-dialog :where(.efetivo-mission-form-section, .efetivo-team-fieldset) > legend {
+  padding: 0 var(--space-2) 0 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+.efetivo-mission-programming-dialog .app-combobox-control input {
+  min-height: var(--space-10);
+  font-size: var(--text-sm);
+}
+.efetivo-mission-programming-dialog .app-combobox-list { font-size: var(--text-sm); }
+.efetivo-mission-programming-dialog .efetivo-team-picker-trigger { align-items: start; }
+.efetivo-mission-programming-dialog .efetivo-team-picker-trigger > div { min-width: 0; }
+.efetivo-mission-programming-dialog .efetivo-team-picker-trigger > button { flex-shrink: 0; }
+
+@media (max-width: 767.98px) {
+  .efetivo-mission-programming-dialog .efetivo-team-picker-trigger { flex-wrap: wrap; gap: var(--space-2); }
+}

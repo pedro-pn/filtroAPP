@@ -19,6 +19,7 @@ export function ProjectWorkflowNovelty({ userId, enabled }: { userId: string; en
       }
       markProjectWorkflowNoveltySeen(userId);
       guide = driver({
+        popoverClass: 'efetivo-guide-popover',
         showProgress: true,
         nextBtnText: 'Próximo',
         prevBtnText: 'Voltar',

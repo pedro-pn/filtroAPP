@@ -1,19 +1,21 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createServer } from 'vite';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
 const readSource = relativePath => readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 
-test('relatórios aparecem abaixo do escopo em projeto individual e grupo mesclado', async () => {
+test('relatórios permanecem na execução em projeto individual e grupo mesclado', async () => {
   const source = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
 
-  const scopeIndex = source.indexOf('<PlannedScopeView scope={effectiveScope} />');
   const reportsIndex = source.indexOf('<ProjectReportsDialog');
 
-  assert.ok(scopeIndex >= 0, 'o escopo cadastrado deve continuar visível');
-  assert.ok(reportsIndex > scopeIndex, 'o acesso aos relatórios deve ficar abaixo do escopo');
+  assert.ok(reportsIndex >= 0, 'o acesso aos relatórios deve permanecer');
+  assert.doesNotMatch(source, /<PlannedScopeView|Escopo cadastrado/);
   assert.match(source, /isGroup \? Boolean\(data\.group\?\.members\.some\(member => member\.visible !== false\)\) : Boolean\(projectId\)/);
   assert.match(source, /groupMembers=\{isGroup \? data\.group\?\.members : undefined\}/);
 });
@@ -52,7 +54,7 @@ test('filtro do grupo seleciona apenas missões visíveis e conserva a missão e
 
   assert.match(source, /resolveProjectReportsMission\(projectId, groupMembers, selectedProjectId\)/);
   assert.match(source, /projectId: reportProjectId/);
-  assert.match(source, /<select[\s\S]*?value=\{reportProjectId\}[\s\S]*?onChange=\{event => setSelectedProjectId\(event\.target\.value\)\}/);
+  assert.match(source, /<Select[\s\S]*?value=\{reportProjectId\}[\s\S]*?onChange=\{event => setSelectedProjectId\(event\.target\.value\)\}/);
 });
 
 test('diálogo replica os cards aprovados em modo consulta e oferece somente ações de PDF', async () => {
@@ -62,10 +64,32 @@ test('diálogo replica os cards aprovados em modo consulta e oferece somente aç
   assert.match(dialogSource, /statuses: \['APPROVED', 'SIGNED'\]/);
   assert.match(dialogSource, /projectId: reportProjectId/);
   assert.match(dialogSource, /<GroupedReportList/);
+  assert.match(dialogSource, /defaultTypeCollapsed/);
   assert.match(dialogSource, /<ReportSummaryCard[\s\S]{0,180}?allowOpenDetail=\{false\}/);
   assert.match(dialogSource, /downloadReportPdf\(report\.id\)/);
   assert.doesNotMatch(dialogSource, /downloadReportDocx|updateReport|deleteReport/);
   assert.match(cardSource, /onClick=\{allowOpenDetail \? handleOpenDetail : undefined\}/);
+});
+
+test('categorias de relatório do diálogo iniciam recolhidas', async () => {
+  const server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
+  try {
+    const { GroupedReportList } = await server.ssrLoadModule('/src/components/reports/GroupedReportList.tsx');
+    const reports = ['RDO', 'RLQ'].map(reportType => ({
+      id: reportType, reportType, projectId: 'p1', project: { code: '5800', name: 'Reframax', isActive: true },
+      reportDate: '2026-09-01', sequenceNumber: 1
+    }));
+    const html = renderToStaticMarkup(createElement(GroupedReportList, {
+      appearance: 'design-system', defaultTypeCollapsed: true, reports,
+      renderReport: report => createElement('span', null, `Conteúdo ${report.reportType}`)
+    }));
+    assert.equal((html.match(/aria-expanded="false"/g) ?? []).length, 2);
+    assert.doesNotMatch(html, /Conteúdo RDO|Conteúdo RLQ/);
+    assert.match(html, /1 relatório/);
+  } finally {
+    await server.close();
+  }
 });
 
 test('visualizador usa PDF.js localmente e permite baixar o arquivo autenticado', async () => {

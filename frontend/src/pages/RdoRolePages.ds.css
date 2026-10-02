@@ -1,0 +1,909 @@
+:where(.fv-ds, [data-fv-ds]).rdo-role-page {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 0;
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page > * {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .section-title {
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .section-title::before {
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page :where(.admin-card-subtitle, .admin-card-meta, .placeholder-copy) {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .rdo-role-inline-status {
+  margin-inline-start: var(--space-2);
+  text-transform: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-toolbar > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-toolbar__controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .project-sort-button,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-toolbar .project-sort-button,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-listing-toolbar .project-sort-button,
+:where(.fv-ds, [data-fv-ds]) .rdo-client-report-section .project-sort-button,
+:where(.fv-ds, [data-fv-ds]) .nps-tab-heading .project-sort-button {
+  min-width: max-content;
+  min-height: var(--space-8);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+/* ReportSummaryCard ainda atende alguns fluxos de arquivados. Dentro das
+   páginas migradas ele deve consumir as mesmas superfícies semânticas do DS,
+   em vez dos aliases claros preservados para consumidores legados. */
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .report-card {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .report-card:hover {
+  border-color: var(--line-strong);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .report-card .rel-icon {
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .report-card .rel-name {
+  color: var(--link);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .report-card :where(.rel-meta, .signature-progress-names) {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-role-page .report-card .signature-progress {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-listing-toolbar,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-page-actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-load-more {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-load-more {
+  justify-content: center;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-collaborator-report-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-collaborator-report-section__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-collaborator-report-section__heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-tabs,
+:where(.fv-ds, [data-fv-ds]) :where(.rdo-client-project-tabs, .rdo-client-report-tabs) .filter-tabs {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-tabs .filter-tab,
+:where(.fv-ds, [data-fv-ds]) :where(.rdo-client-project-tabs, .rdo-client-report-tabs) .filter-tab {
+  min-width: 0;
+  min-height: var(--space-8);
+  flex: 1 1 auto;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+  white-space: normal;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-tabs .filter-tab.active,
+:where(.fv-ds, [data-fv-ds]) :where(.rdo-client-project-tabs, .rdo-client-report-tabs) .filter-tab.active {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-type-tab.is-locked {
+  border-color: var(--line);
+  background: var(--canvas-subtle);
+  color: var(--muted);
+  opacity: .68;
+  cursor: help;
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .rdo-client-report-tabs {
+    display: none;
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-metrics,
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .stats-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/* Navegação local é a ponte para tablet. No desktop as seções vivem na
+   lateral; no mobile ficam no menu hamburger, como no perfil gestor. */
+:where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+  display: block;
+  min-width: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__items {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(var(--rdo-section-count, 6), minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item {
+  position: relative;
+  min-width: 0;
+  min-height: var(--space-8);
+  padding: var(--space-1);
+  overflow: hidden;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item.is-active {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--brand-text);
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-section-navigation__item.is-active::after {
+  position: absolute;
+  inset-inline: 28%;
+  inset-block-end: var(--space-1);
+  height: calc(var(--border-width) * 2);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  content: '';
+}
+
+/* Listagem compartilhada entre gestor, coordenador e colaborador. */
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing > .rdo-manager-project-card + .rdo-manager-project-card {
+  margin-block-start: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .rdo-manager-project-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .rdo-manager-project-card.fv-card--padding-sm {
+  padding: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .rdo-manager-project-group.card {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .project-group-toggle,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .report-type-header {
+  width: 100%;
+  min-height: var(--space-10);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .project-group-toggle {
+  padding: var(--space-4) var(--space-5);
+  border-block-end: var(--border-width) solid var(--line);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .project-group-toggle .sec {
+  gap: var(--space-2);
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: normal;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .project-group-toggle .sec::before {
+  width: var(--space-1);
+  height: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .rdo-manager-report-type-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-block-end: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .rdo-manager-report-type-row > .report-type-header {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .report-type-group {
+  margin: 0;
+  padding-inline: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing .report-type-list {
+  gap: var(--space-3);
+  padding-block: var(--space-3) var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing :where(.group-chevron, .rtype-chevron) {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-report-listing :where(.project-group-toggle, .report-type-header)[aria-expanded='false'] :where(.group-chevron, .rtype-chevron) {
+  transform: rotate(-90deg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-listing__batch-toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block: var(--space-2);
+  padding-block: var(--space-2);
+  border-block: var(--border-width) solid var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-listing__batch-toolbar > .admin-form-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-listing__batch-toolbar .report-batch-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+/* Início do colaborador. */
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card {
+  min-width: 0;
+  min-height: calc(var(--space-16) * 2);
+  text-align: start;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card > .fv-card__body {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card__icon,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__icon {
+  display: inline-grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card .home-action-title {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-lg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card .home-action-subtitle,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__meta,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__meta {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-action-card.is-disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-archive-link > .fv-card__body {
+  display: flex;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-drafts > .fv-card__body,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-draft-list,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-project > .fv-card__body,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-project__list {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__head,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__copy,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__meta,
+:where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+/* Portal do cliente: mantém o fluxo especial de assinatura, mas usa a mesma
+   hierarquia, densidade e paleta do restante do módulo. */
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xl);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-subtitle,
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-welcome-card .client-welcome-meta strong {
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]) :where(.rdo-client-project-tabs, .rdo-client-report-tabs) > .fv-card__body {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-project-pending-dot,
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-tab-badge {
+  flex: 0 0 auto;
+  background: var(--warning);
+  color: var(--on-warning);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-client-project-summary > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .det-section {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .det-row {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .det-label {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .det-val {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: start;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .survey-project-panel {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-client-report-section > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-client-report-section > .fv-card__body > .report-type-header {
+  display: flex;
+  min-width: 0;
+  min-height: var(--space-10);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .report-type-list {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-card {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-header,
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-main,
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-buttons {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-main {
+  flex-wrap: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-copy .admin-card-title {
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-copy .admin-card-subtitle {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-author {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: var(--font-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-context {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-copy,
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-comment {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-actions {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-buttons {
+  flex-wrap: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-buttons .fv-button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-label--compact {
+  display: none;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-actions textarea {
+  width: 100%;
+  min-height: calc(var(--space-12) * 2);
+  border-color: var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .client-rejection-note {
+  border-inline-start-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page .signature-progress {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-client-page :where(.signature-progress-head span:last-child, .signature-progress-names) {
+  color: var(--muted);
+}
+
+/* Superfícies ainda específicas do coordenador recebem o mesmo acabamento,
+   sem alterar seus dados ou ações. */
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page :where(.page-card, .nps-tab-content, .admin-card) {
+  min-width: 0;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e1);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .nps-tab-content {
+  padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .nps-tab-heading,
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .admin-card-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .admin-card-meta {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .det-section {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .det-row {
+  border-block-end-color: var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .det-label {
+  color: var(--muted);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .det-val,
+:where(.fv-ds, [data-fv-ds]).rdo-coordinator-page .client-account-group-toggle {
+  color: var(--ink);
+}
+
+@media (max-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-section-navigation,
+  :where(.fv-ds, [data-fv-ds]) .rdo-collaborator-reports-page .rdo-role-tabs {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-action-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-action-card {
+    min-height: auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-listing__batch-toolbar {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-listing__batch-toolbar > .admin-form-actions .fv-button {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-role-listing__batch-toolbar
+    .report-batch-select-all
+    .report-batch-action-label--full {
+    display: inline;
+  }
+
+  :where(.fv-ds, [data-fv-ds])
+    .rdo-role-listing__batch-toolbar
+    .report-batch-select-all
+    .report-batch-action-label--compact {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__head,
+  :where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__main {
+    align-items: stretch;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__main {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-ongoing-service__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .det-section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-toolbar__controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-metrics,
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .stats-grid {
+    gap: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-metrics .fv-metric-card,
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .stats-grid .fv-metric-card {
+    min-width: 0;
+    padding: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-metrics :where(.fv-metric-card__icon, .fv-metric-card__description),
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .stats-grid :where(.fv-metric-card__icon, .fv-metric-card__description) {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-metrics .fv-metric-card__label,
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .stats-grid .fv-metric-card__label {
+    font-size: calc(var(--text-xs) - var(--border-width));
+    overflow-wrap: anywhere;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-metrics .fv-metric-card__value,
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .stats-grid .fv-metric-card__value {
+    font-size: var(--text-lg);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__head {
+    display: grid;
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-role-draft-card__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-card {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-buttons .fv-button {
+    min-height: var(--space-8);
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-buttons .fv-button:not(:only-child) {
+    flex: 1 1 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-label--full {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-client-page .client-report-action-label--compact {
+    display: inline;
+  }
+}

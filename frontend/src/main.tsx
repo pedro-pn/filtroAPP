@@ -2,14 +2,20 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
+import '@fontsource-variable/inter/wght.css';
 
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { ToastProvider } from './components/ui/Toast';
 import { installClientErrorTracking } from './observability/errorTracking';
 import { MaintenancePage } from './pages/MaintenancePage';
+import { ThemeProvider } from './theme/ThemeProvider';
+import { initializeTheme } from './theme/theme';
+import './styles/tailwind.css';
 import './styles/variables.css';
-import './styles/base.css';
+import './styles/foundation.css';
+import './styles/utilities.css';
+import './styles/legacy.css';
 import './styles/operational-reports.css';
 
 const queryClient = new QueryClient({
@@ -31,22 +37,25 @@ const queryClient = new QueryClient({
   }
 });
 const isMaintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
+initializeTheme();
 installClientErrorTracking();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isMaintenanceMode ? (
-      <MaintenancePage />
-    ) : (
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    )}
+    <ThemeProvider>
+      {isMaintenanceMode ? (
+        <MaintenancePage />
+      ) : (
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AuthProvider>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
+      )}
+    </ThemeProvider>
   </React.StrictMode>
 );

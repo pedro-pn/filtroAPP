@@ -1,4 +1,10 @@
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button } from '../../components/ui/ds';
+
 interface ChecklistItemsEditorProps {
+  appearance?: 'legacy' | 'design-system';
   value: string[];
   onChange: (items: string[]) => void;
   disabled?: boolean;
@@ -6,6 +12,17 @@ interface ChecklistItemsEditorProps {
   placeholder?: string;
   itemLabel?: string;
   addLabel?: string;
+}
+
+function EditorButton({ appearance, variant, className, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+  appearance: 'legacy' | 'design-system';
+  variant: 'secondary' | 'danger';
+  children: ReactNode;
+}) {
+  if (appearance === 'design-system') {
+    return <Button variant={variant} size="sm" className={className} {...props}>{children}</Button>;
+  }
+  return <button type="button" className={`mini-btn ${variant === 'danger' ? 'danger' : 'alt'} ${className || ''}`} {...props}>{children}</button>;
 }
 
 function updateAt(items: string[], index: number, value: string) {
@@ -24,6 +41,7 @@ function move(items: string[], index: number, direction: -1 | 1) {
 }
 
 export function ChecklistItemsEditor({
+  appearance = 'legacy',
   value,
   onChange,
   disabled = false,
@@ -51,52 +69,45 @@ export function ChecklistItemsEditor({
               }
             />
             <div className="checklist-item-editor-actions">
-              <button
-                className="mini-btn alt checklist-item-editor-action"
-                type="button"
+              <EditorButton
+                appearance={appearance} variant="secondary" className="checklist-item-editor-action"
                 aria-label="Mover ponto para cima"
                 title="Mover para cima"
                 disabled={disabled || index === 0}
                 onClick={() => onChange(move(value, index, -1))}
               >
                 ↑
-              </button>
-              <button
-                className="mini-btn alt checklist-item-editor-action"
-                type="button"
+              </EditorButton>
+              <EditorButton
+                appearance={appearance} variant="secondary" className="checklist-item-editor-action"
                 aria-label="Mover ponto para baixo"
                 title="Mover para baixo"
                 disabled={disabled || index === value.length - 1}
                 onClick={() => onChange(move(value, index, 1))}
               >
                 ↓
-              </button>
-              <button
-                className="mini-btn danger checklist-item-editor-action"
-                type="button"
-                aria-label="Remover ponto"
-                title="Remover ponto"
+              </EditorButton>
+              <RemoveIconButton
+                className="checklist-item-editor-action"
+                label={`Remover ponto ${index + 1}`}
                 disabled={disabled}
                 onClick={() =>
                   onChange(
                     value.filter((_, currentIndex) => currentIndex !== index)
                   )
                 }
-              >
-                ×
-              </button>
+              />
             </div>
           </div>
         </div>
       ))}
-      <button
-        className="mini-btn alt checklist-item-editor-add"
-        type="button"
+      <EditorButton
+        appearance={appearance} variant="secondary" className="checklist-item-editor-add"
         disabled={disabled || value.length >= 100}
         onClick={() => onChange([...value, ''])}
       >
         {addLabel}
-      </button>
+      </EditorButton>
     </div>
   );
 }

@@ -14,13 +14,14 @@ import type {
   ProjectWorkflowPatch
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
+import { Field, Input } from '../../../components/ui/ds';
 import { DateInput } from '../../../components/ui/DateInput';
 import { Modal } from '../../../components/ui/Modal';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedule';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
-import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
 import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
@@ -106,7 +107,7 @@ export function ProjectWorkflowCommercialSignals({ workflow }: { workflow: Proje
 // Uma pergunta do checklist: Sim/Não obrigatório, com observação opcional (salva ao sair do campo, como as
 // outras notas de texto do módulo). A observação só aparece depois de respondido, para não poluir a lista.
 function ClientContactChecklistRow({ workflow, item, saving, onPatch }: {
-  workflow: ProjectWorkflow;
+  workflow: Pick<ProjectWorkflow, 'version' | 'clientContactChecklist'>;
   item: ProjectWorkflowClientContactChecklistItem;
   saving: boolean;
   onPatch: PatchHandler;
@@ -129,10 +130,9 @@ function ClientContactChecklistRow({ workflow, item, saving, onPatch }: {
         onSelect={answer => { if (item.answer !== answer) onPatch({ action: 'client_contact_check', version: workflow.version, key: item.key, answer, note: item.note }); }}
       />
       {item.answer !== null ? (
-        <div className="field-group project-workflow-checklist-note">
-          <label htmlFor={`client-contact-check-note-${item.key}`}>Observação (opcional)</label>
-          <input id={`client-contact-check-note-${item.key}`} value={note} disabled={disabled} onChange={event => setNote(event.target.value)} onBlur={saveNote} />
-        </div>
+        <Field id={`client-contact-check-note-${item.key}`} label="Observação" className="project-workflow-checklist-note">
+          <Input value={note} disabled={disabled} onChange={event => setNote(event.target.value)} onBlur={saveNote} />
+        </Field>
       ) : null}
     </article>
   );
@@ -140,25 +140,18 @@ function ClientContactChecklistRow({ workflow, item, saving, onPatch }: {
 
 // Checklist em caixa de diálogo separada (não polui a tela principal da Análise inicial): obrigatório antes de
 // avançar para o Planejamento (D-30).
-function ClientContactChecklistDialog({ open, workflow, saving, onPatch, onClose }: {
+export function ClientContactChecklistDialog({ open, workflow, saving, onPatch, onClose }: {
   open: boolean;
-  workflow: ProjectWorkflow;
+  workflow: Pick<ProjectWorkflow, 'version' | 'clientContactChecklist'>;
   saving: boolean;
   onPatch: PatchHandler;
   onClose: () => void;
 }) {
   const dialog = (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="client-contact-checklist-title" backdropClassName="modal-backdrop project-workflow-checklist-backdrop" panelClassName="modal-card project-workflow-checklist-dialog">
-      <header className="project-workflow-checklist-dialog-header">
-        <h3 id="client-contact-checklist-title">Checklist de verificação do contato com o cliente</h3>
-        <button className="project-workflow-icon-button" type="button" aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
-      </header>
-      <p className="placeholder-copy">Responda Sim ou Não para cada item durante a ligação com o cliente; a observação é opcional.</p>
+    <Modal open={open} onClose={onClose} appearance="design-system" title="Checklist de contato com o cliente" size="lg" fullscreenOnMobile={false} backdropClassName="project-workflow-checklist-backdrop" panelClassName="efetivo-dialog project-workflow-checklist-dialog" footer={<Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>}>
+      <p className="efetivo-dialog-description">Responda Sim ou Não para cada item durante a ligação com o cliente; a observação é opcional.</p>
       <div className="project-workflow-checklist-dialog-list">
         {workflow.clientContactChecklist.map(item => <ClientContactChecklistRow workflow={workflow} item={item} saving={saving} onPatch={onPatch} key={item.key} />)}
-      </div>
-      <div className="admin-form-actions confirm-dialog-actions">
-        <Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>
       </div>
     </Modal>
   );
@@ -423,7 +416,7 @@ function DocumentationRequirementEditor({ item, version, saving, canEdit, onPatc
           </div>
         </div>
       </div>
-      <div className="project-workflow-documentation-requirement-footer"><RequirementHistory item={item} />{canEdit ? <Button type="button" variant="mini" disabled={saving} onClick={() => onPatch({ action: 'documentation_requirement_archive', version, requirementId: item.id, archived: true })}>Remover item</Button> : null}</div>
+      <div className="project-workflow-documentation-requirement-footer"><RequirementHistory item={item} />{canEdit ? <RemoveIconButton label="Remover item de documentação" disabled={saving} onClick={() => onPatch({ action: 'documentation_requirement_archive', version, requirementId: item.id, archived: true })} /> : null}</div>
     </article>
   );
 }

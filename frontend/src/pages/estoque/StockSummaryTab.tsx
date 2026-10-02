@@ -1,8 +1,11 @@
+import { BrandLoading } from '../../components/brand/BrandLoading';
 import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getStockSummary, type StockSummaryItem } from '../../api/estoque';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
+import { Badge, Select } from '../../components/ui/ds';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 
 interface Props {
@@ -42,9 +45,9 @@ function itemDetailFields(row: StockSummaryItem) {
 }
 
 function batchStatus(batch: StockSummaryItem['batches'][number]) {
-  if (batch.expired) return <span className="badge danger">Vencido</span>;
-  if (batch.expiringSoon) return <span className="badge danger">Vencendo</span>;
-  return <span className="badge">Regular</span>;
+  if (batch.expired) return <Badge tone="danger">Vencido</Badge>;
+  if (batch.expiringSoon) return <Badge tone="warning">Vencendo</Badge>;
+  return <Badge tone="success">Regular</Badge>;
 }
 
 export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
@@ -87,8 +90,8 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
   }
 
   return (
-    <section className="page-card">
-      <div className="admin-toolbar">
+    <section className="page-card stock-panel">
+      <div className="admin-toolbar stock-panel-header">
         <div className="sec">Estoque</div>
         {isManager ? (
           <button className="mini-btn" type="button" onClick={onRegisterMovement}>Registrar movimentação</button>
@@ -97,35 +100,47 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
 
       <div className="stock-summary-filters">
         <SearchBar value={search} onChange={setSearch} placeholder="Buscar item, código ou lote" ariaLabel="Buscar no estoque" count={{ shown: filteredRows.length, total: rows.length }} />
-        <select aria-label="Filtrar item" value={itemId} onChange={event => setItemId(event.target.value)}>
-          <option value="">Todos os itens</option>
-          {rows.map(row => <option key={row.item.id} value={row.item.id}>{row.item.code} — {row.item.name}</option>)}
-        </select>
-        <select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value)}>
+        <SearchCombobox
+          label="Filtrar item"
+          hideLabel
+          value={itemId}
+          onChange={setItemId}
+          variant="select"
+          portal
+          placeholder="Pesquisar item"
+          options={[{ value: '', label: 'Todos os itens' }, ...rows.map(row => ({ value: row.item.id, label: `${row.item.code} — ${row.item.name}` }))]}
+        />
+        <Select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value)}>
           <option value="">Todos os tipos</option>
           <option value="FILTRO">Filtros</option>
           <option value="PRODUTO_QUIMICO">Produtos químicos</option>
-        </select>
-        <select aria-label="Filtrar categoria" value={categoryId} onChange={event => setCategoryId(event.target.value)}>
-          <option value="">Todas as categorias</option>
-          {categories.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>
-        <select aria-label="Filtrar situação do estoque" value={status} onChange={event => setStatus(event.target.value)}>
+        </Select>
+        <SearchCombobox
+          label="Filtrar categoria"
+          hideLabel
+          value={categoryId}
+          onChange={setCategoryId}
+          variant="select"
+          portal
+          placeholder="Pesquisar categoria"
+          options={[{ value: '', label: 'Todas as categorias' }, ...categories.map(([id, name]) => ({ value: id, label: name }))]}
+        />
+        <Select aria-label="Filtrar situação do estoque" value={status} onChange={event => setStatus(event.target.value)}>
           <option value="">Todas as situações</option>
           <option value="REGULAR">Regular</option>
           <option value="BELOW_MIN">Abaixo do mínimo</option>
           <option value="EXPIRING">Vencendo</option>
           <option value="EXPIRED">Lote vencido</option>
           <option value="INACTIVE">Inativo</option>
-        </select>
+        </Select>
       </div>
 
-      {summaryQuery.isLoading ? <p className="placeholder-copy">Carregando resumo...</p> : null}
+      {summaryQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando resumo" inline size="sm" /></p> : null}
       {summaryQuery.isError ? <p className="equip-form-error">Não foi possível carregar o resumo.</p> : null}
       {!summaryQuery.isLoading && !filteredRows.length ? <p className="placeholder-copy">{rows.length ? 'Nenhum item corresponde aos filtros.' : 'Nenhum item cadastrado.'}</p> : null}
 
       {filteredRows.length ? (
-        <div className="equip-table-wrap stock-summary-table-wrap">
+        <div className="equip-table-wrap stock-summary-table-wrap stock-table-wrap">
           <table className="equip-table stock-summary-table">
             <thead>
               <tr>
@@ -172,9 +187,9 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                       <td>{row.item.minQuantity || '-'}</td>
                       <td>
                         <div className="stock-summary-status">
-                          {badges.map(label => <span key={label} className="badge danger">{label}</span>)}
-                          {!row.item.isActive ? <span className="badge">Inativo</span> : null}
-                          {!badges.length && row.item.isActive ? <span className="badge">Regular</span> : null}
+                          {badges.map(label => <Badge key={label} tone={label === 'Vencendo' ? 'warning' : 'danger'}>{label}</Badge>)}
+                          {!row.item.isActive ? <Badge tone="neutral">Inativo</Badge> : null}
+                          {!badges.length && row.item.isActive ? <Badge tone="success">Regular</Badge> : null}
                         </div>
                       </td>
                       <td>

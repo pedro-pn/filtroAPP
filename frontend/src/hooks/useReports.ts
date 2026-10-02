@@ -287,6 +287,24 @@ export function useReportCounts(queries: ReportCountQuery[], enabled = true) {
   });
 }
 
+// O endpoint limita cada lote a oito filtros. Superfícies que precisam de uma
+// contagem por entidade dividem a carga sem alterar a ordem dos resultados.
+export function useBatchedReportCounts(queries: ReportCountQuery[], enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: [...queryKeys.reportCounts(queries, user?.id), 'batched'],
+    queryFn: async () => {
+      const batches = Array.from(
+        { length: Math.ceil(queries.length / 8) },
+        (_, index) => queries.slice(index * 8, index * 8 + 8)
+      );
+      const totals = await Promise.all(batches.map(batch => fetchReportCounts(batch)));
+      return totals.flat();
+    },
+    enabled: enabled && queries.length > 0
+  });
+}
+
 export function hasMoreReportProjects(
   pagination: ReportPagination | undefined,
   loadedProjectCount: number,

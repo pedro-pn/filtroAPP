@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -9,6 +10,9 @@ import {
   setProjectAdditionalRevision,
   setProjectRevision
 } from '../../api/acompanhamentoComercial';
+import { Button, Select } from '../ui/ds';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { useToast } from '../ui/ToastContext';
 
 function formatBRL(value?: string | number | null) {
@@ -37,6 +41,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   });
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedApp, setSelectedApp] = useState('');
+  const [pendingAppRevision, setPendingAppRevision] = useState<{ externalId: string; label: string } | null>(null);
   const [selectedAdditionals, setSelectedAdditionals] = useState<Record<string, number | null>>({});
 
   function refreshAcompanhamentoQueries() {
@@ -96,7 +101,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
     return (
       <div className="det-row">
         <span className="det-label">Proposta</span>
-        <span className="det-val">Carregando…</span>
+        <span className="det-val"><BrandLoading label="Carregando" inline size="sm" /></span>
       </div>
     );
   }
@@ -113,49 +118,68 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
 
   return (
     <div className="project-revision-picker">
-      {appRevisions.length > 0 ? <div className="det-row">
+      {appRevisions.length > 0 ? <div className="det-row project-revision-picker__row">
         <span className="det-label">Revisão do ComercialAPP</span>
-        <span className="det-val det-inline-actions">
-          <select value={chosenApp} onChange={event => setSelectedApp(event.target.value)}>
+        <span className="det-val det-inline-actions project-revision-picker__actions">
+          <Select
+            aria-label="Revisão do ComercialAPP"
+            className="project-revision-picker__select"
+            containerClassName="project-revision-picker__shell"
+            value={chosenApp}
+            onChange={event => setSelectedApp(event.target.value)}
+          >
             {appRevisions.map(item => <option key={item.externalId} value={item.externalId}>
               {`${item.proposalCode} Rev ${item.revisionNumber} · ${formatBRL(item.salePrice)}${item.selectionStatus === 'SELECTED' ? ' (atual)' : ' (aguardando)'}`}
             </option>)}
-          </select>
-          <button type="button" className="mini-btn"
+          </Select>
+          <Button type="button" className="project-revision-picker__button" variant="primary" size="sm"
             disabled={appMutation.isPending || !chosenApp}
             onClick={() => {
               if (!chosenApp) return;
               const replaceLegacy = Boolean(appData?.budgetSource &&
                 appData.budgetSource !== 'COMERCIAL_APP');
-              if (replaceLegacy && !window.confirm(
-                'O orçamento atual vem do Access. Deseja selecionar esta revisão do ComercialAPP para o projeto?'
-              )) return;
+              if (replaceLegacy) {
+                const revision = appRevisions.find(item => item.externalId === chosenApp);
+                setPendingAppRevision({
+                  externalId: chosenApp,
+                  label: revision ? `${revision.proposalCode} · Rev ${revision.revisionNumber}` : chosenApp
+                });
+                return;
+              }
               appMutation.mutate({ externalId: chosenApp, replaceLegacy });
             }}>
             {appMutation.isPending ? 'Aplicando…'
               : chosenApp === currentApp?.externalId ? 'Sincronizar escopo' : 'Aplicar'}
-          </button>
+          </Button>
         </span>
       </div> : null}
       {revisions.length > 0 ? (
-        <div className="det-row">
+        <div className="det-row project-revision-picker__row">
           <span className="det-label">Revisão que vale</span>
-          <span className="det-val det-inline-actions">
-            <select value={chosen ?? ''} onChange={event => setSelected(Number(event.target.value))}>
+          <span className="det-val det-inline-actions project-revision-picker__actions">
+            <Select
+              aria-label="Revisão que vale"
+              className="project-revision-picker__select"
+              containerClassName="project-revision-picker__shell"
+              value={chosen ?? ''}
+              onChange={event => setSelected(Number(event.target.value))}
+            >
               {revisions.map(revision => (
                 <option key={revision.codBd} value={revision.codBd}>
                   {`Rev ${revision.nRev} · ${formatBRL(revision.salePrice)}${revision.codBd === current ? ' (atual)' : ''}`}
                 </option>
               ))}
-            </select>
-            <button
+            </Select>
+            <Button
+              className="project-revision-picker__button"
+              variant="primary"
+              size="sm"
               type="button"
-              className="mini-btn"
               disabled={mutation.isPending || chosen === null || chosen === current}
               onClick={() => chosen !== null && mutation.mutate(chosen)}
             >
               {mutation.isPending ? 'Aplicando…' : 'Aplicar'}
-            </button>
+            </Button>
           </span>
         </div>
       ) : null}
@@ -164,10 +188,13 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
         const proposalCode = Number(group.proposalCode);
         const additionalChosen = selectedAdditionals[group.proposalCode] ?? group.currentCodBd ?? group.revisions[0]?.codBd ?? null;
         return (
-          <div className="det-row acp-additional-proposal-row" key={group.proposalCode}>
+          <div className="det-row acp-additional-proposal-row project-revision-picker__row" key={group.proposalCode}>
             <span className="det-label">Proposta adicional {group.proposalCode}</span>
-            <span className="det-val det-inline-actions">
-              <select
+            <span className="det-val det-inline-actions project-revision-picker__actions">
+              <Select
+                aria-label={`Revisão da proposta adicional ${group.proposalCode}`}
+                className="project-revision-picker__select"
+                containerClassName="project-revision-picker__shell"
                 value={additionalChosen ?? ''}
                 onChange={event => setSelectedAdditionals(prev => ({
                   ...prev,
@@ -179,29 +206,46 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
                     {`Rev ${revision.nRev} · ${formatBRL(revision.salePrice)}${revision.codBd === group.currentCodBd ? ' (atual)' : ''}`}
                   </option>
                 ))}
-              </select>
-              <button
+              </Select>
+              <Button
+                className="project-revision-picker__button"
+                variant="primary"
+                size="sm"
                 type="button"
-                className="mini-btn"
                 disabled={additionalMutation.isPending || additionalChosen === null || additionalChosen === group.currentCodBd}
                 onClick={() => additionalChosen !== null && additionalMutation.mutate(additionalChosen)}
               >
                 {additionalMutation.isPending ? 'Aplicando…' : group.currentCodBd ? 'Aplicar' : 'Adicionar'}
-              </button>
+              </Button>
               {group.currentCodBd ? (
-                <button
-                  type="button"
-                  className="mini-btn alt"
+                <RemoveIconButton
+                  className="project-revision-picker__button"
+                  label="Remover revisão adicional"
                   disabled={removeAdditionalMutation.isPending || !Number.isInteger(proposalCode)}
+                  loading={removeAdditionalMutation.isPending}
                   onClick={() => Number.isInteger(proposalCode) && removeAdditionalMutation.mutate(proposalCode)}
-                >
-                  {removeAdditionalMutation.isPending ? 'Removendo…' : 'Remover'}
-                </button>
+                />
               ) : null}
             </span>
           </div>
         );
       })}
+      <ConfirmDialog
+        open={Boolean(pendingAppRevision)}
+        appearance="design-system"
+        title="Substituir revisão do orçamento?"
+        description="O orçamento atual vem do Access. Selecione esta revisão do ComercialAPP para o projeto."
+        highlight={pendingAppRevision?.label}
+        confirmLabel="Selecionar revisão"
+        danger={false}
+        confirmDisabled={appMutation.isPending}
+        onConfirm={() => {
+          if (!pendingAppRevision) return;
+          appMutation.mutate({ externalId: pendingAppRevision.externalId, replaceLegacy: true });
+          setPendingAppRevision(null);
+        }}
+        onCancel={() => setPendingAppRevision(null)}
+      />
     </div>
   );
 }

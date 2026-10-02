@@ -147,7 +147,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
   const [projects, queriedReports, queriedCollaborators, labor, hoursByProject] = await Promise.all([
     prisma.project.findMany({
       where: { id: { in: projectIds } },
-      select: { id: true, workdayHours: true, weekendWorkdayHours: true }
+      select: { id: true, workdayHours: true, weekendWorkdayHours: true, acompanhamentoCardName: true }
     }),
     prisma.report.findMany({
       where: { projectId: { in: projectIds }, deletedAt: null },
@@ -281,6 +281,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       projectId: row.projectId,
       code: row.code,
       name: row.name,
+      cardName: projById.get(row.projectId)?.acompanhamentoCardName ?? null,
       clientName: row.clientName,
       clientCnpj: row.clientCnpj ?? null,
       archived,

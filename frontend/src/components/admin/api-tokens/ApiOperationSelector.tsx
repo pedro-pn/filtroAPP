@@ -1,5 +1,6 @@
 import type { ApiCredentialPublic } from '../../../../../shared/schemas/api-credentials.js';
 import { SearchCombobox } from '../../ui/SearchCombobox';
+import { Alert, Badge, Card } from '../../ui/ds';
 import type { ApiOperationOption } from './apiOperations';
 import { operationsForScope } from './apiOperations';
 import type { ApiScopeDefinition } from '../../../api/apiCredentials';
@@ -31,11 +32,14 @@ export function ApiOperationSelector({
       (scope) => !credential?.scopeCodes.includes(scope)
     ) || [];
   return (
-    <section className="page-card api-playground-section">
+    <Card className="api-playground-section api-operation-selector">
       <h3>1. Escolha uma operação</h3>
       {onScopeChange ? (
         <SearchCombobox
+          id="playground-scope"
           label="Permissão a testar"
+          variant="select"
+          portal
           value={scopeCode}
           onChange={onScopeChange}
           options={scopes
@@ -56,7 +60,10 @@ export function ApiOperationSelector({
         </p>
       )}
       <SearchCombobox
+        id="playground-operation"
         label="Operação"
+        variant="select"
+        portal
         value={value}
         onChange={onChange}
         options={filtered.map((operation) => ({
@@ -67,7 +74,7 @@ export function ApiOperationSelector({
       />
       {selected ? (
         <div className="api-operation-contract">
-          <span className="api-method">{selected.method}</span>
+          <Badge tone={selected.method === 'POST' ? 'warning' : 'info'} className="api-method">{selected.method}</Badge>
           <code>{selected.path}</code>
           <small>
             Método e caminho são definidos pelo catálogo e não podem ser
@@ -76,16 +83,14 @@ export function ApiOperationSelector({
         </div>
       ) : null}
       {missing.length ? (
-        <div className="inline-error">
-          A credencial não possui: {missing.join(', ')}.
-        </div>
+        <Alert tone="warning">A credencial não possui: {missing.join(', ')}.</Alert>
       ) : null}
       {scopeCode && !credential?.scopeCodes.includes(scopeCode) ? (
-        <p className="inline-error">
+        <Alert tone="warning">
           A permissão selecionada não foi concedida a este token. Selecione
           outro token ou faça uma rotação com essa permissão.
-        </p>
+        </Alert>
       ) : null}
-    </section>
+    </Card>
   );
 }

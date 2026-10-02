@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +16,7 @@ import { ApiCursorPagination } from '../../components/admin/api-tokens/ApiCursor
 import { ApiClientError } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import { ApiCredentialCards } from '../../components/admin/api-tokens/ApiCredentialCards';
+import { ApiCredentialSummary } from '../../components/admin/api-tokens/ApiCredentialSummary';
 import { ApiCredentialForm } from '../../components/admin/api-tokens/ApiCredentialForm';
 import { ApiCredentialActions } from '../../components/admin/api-tokens/ApiCredentialActions';
 import { ApiCredentialActivity } from '../../components/admin/api-tokens/ApiCredentialActivity';
@@ -23,18 +24,22 @@ import { ApiTokenRevealModal } from '../../components/admin/api-tokens/ApiTokenR
 import { ApiOperationSelector } from '../../components/admin/api-tokens/ApiOperationSelector';
 import { ApiOperationParameters, type ApiPlaygroundParameters } from '../../components/admin/api-tokens/ApiOperationParameters';
 import { ApiRequestConsole } from '../../components/admin/api-tokens/ApiRequestConsole';
-import { Button } from '../../components/ui/Button';
-import { SearchBar } from '../../components/ui/SearchBar';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Alert, Badge, Button, Card, EmptyState, Field, FilterBar, Input, SearchInput, Select } from '../../components/ui/ds';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
+import { AdminModuleAppShell } from './AdminModuleAppShell';
 import { isApiTokenPlaygroundNoveltyActive, markApiTokenPlaygroundNoveltySeen, shouldShowApiTokenPlaygroundNovelty } from './apiTokenPlaygroundNovelty';
 import { startApiTokenPlaygroundTour } from './apiTokenPlaygroundTour';
+import './AdminTokensPage.ds.css';
+
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativos', NEAR_EXPIRY: 'Vencem em breve', SCHEDULED: 'Agendados', EXPIRED: 'Expirados', REVOKED: 'Revogados'
+};
 
 export function AdminTokensPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const etapa = searchParams.get('etapa') || 'credenciais';
   const operation = searchParams.get('operation') || '';
@@ -52,6 +57,7 @@ export function AdminTokensPage() {
   const testSequence = useRef(0);
   const [playgroundResult, setPlaygroundResult] = useState<ApiPlaygroundResult | null>(null);
   const [testing, setTesting] = useState(false);
+  const [pendingPostParameters, setPendingPostParameters] = useState<ApiPlaygroundParameters | null>(null);
   const [showNovelty, setShowNovelty] = useState(false);
   const noveltyWindowActive = isApiTokenPlaygroundNoveltyActive();
   const scopesQuery = useQuery({ queryKey: ['admin-api-scopes'], queryFn: listApiScopes, staleTime: 300000 });
@@ -111,20 +117,40 @@ export function AdminTokensPage() {
     testSequence.current += 1;
     setPlaygroundResult(null);
     setTesting(false);
+    setPendingPostParameters(null);
     setError('');
   }, [selectedOperation, selectedCredential?.id, selectedCredential?.version, maxTestItems, testScope, scopeSignature, resetParameters]);
+
+  useEffect(() => {
+    if (etapa !== 'credenciais' || !activityCredentialId) return;
+    const timeout = window.setTimeout(() => {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById('api-credential-detail')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+    }, 100);
+    return () => window.clearTimeout(timeout);
+  }, [activityCredentialId, etapa]);
 
   function replaceSafeParams(values: Record<string, string | undefined>) {
     setSearchParams(nextAdminSearch(searchParams, values), { replace: true });
   }
 
+  function changeListFilters(values: Record<string, string>) {
+    replaceSafeParams({ ...values, cursor: '' });
+  }
+
+  const activeFilters = [
+    ...(search ? [{ id: 'q', label: `Busca: ${search}`, onRemove: () => changeListFilters({ q: '' }) }] : []),
+    ...(statusFilter ? [{ id: 'status', label: `Status: ${STATUS_FILTER_LABELS[statusFilter] || statusFilter}`, onRemove: () => changeListFilters({ status: '' }) }] : []),
+    ...(scopeFilter ? [{ id: 'scope', label: `Escopo: ${scopeFilter}`, onRemove: () => changeListFilters({ scope: '' }) }] : []),
+    ...(expiresBeforeFilter ? [{ id: 'expiresBefore', label: `Vence até: ${expiresBeforeFilter}`, onRemove: () => changeListFilters({ expiresBefore: '' }) }] : [])
+  ];
+
   function setEtapa(value: string) {
     replaceSafeParams({ etapa: value, operation: value === 'playground' ? operation : undefined });
   }
 
-  async function runPlayground(values: ApiPlaygroundParameters) {
+  async function executePlayground(values: ApiPlaygroundParameters) {
     if (!selectedCredential || !selectedOperation || !canTest) return;
-    if (selectedOperation.method === 'POST' && !window.confirm('Esta operação grava dados reais. Deseja enviar o POST agora?')) return;
     setTesting(true);
     setError('');
     setPlaygroundResult(null);
@@ -148,54 +174,91 @@ export function AdminTokensPage() {
     }
   }
 
+  function runPlayground(values: ApiPlaygroundParameters) {
+    if (selectedOperation?.method === 'POST') {
+      setPendingPostParameters(values);
+      return;
+    }
+    void executePlayground(values);
+  }
+
   return (
-    <Shell>
-      <TopBar title="Tokens de API" subtitle="Integrações com menor privilégio" actions={<button className="topbar-chip" type="button" onClick={() => navigate('/admin/accounts')}>Contas</button>} />
-      <main className="page-scroll api-token-page equip-page">
-        <nav className="api-admin-tabs" aria-label="Administração"><button type="button" onClick={() => navigate('/admin/accounts')}>Contas</button><button type="button" className="active" aria-current="page">Tokens</button></nav>
-        <section className="api-hero" data-api-token-hero>
-          <div><span className="api-eyebrow">API PLAYGROUND {showNovelty ? <span className="api-new-badge">Novo</span> : null}</span><h1>Tokens e integrações</h1><p>Gerencie acessos de leitura aos dados do app e teste suas consultas.</p></div>
-          <div className="api-hero-actions">{noveltyWindowActive ? <Button variant="secondary" onClick={() => startApiTokenPlaygroundTour({ user, force: true })}>Ver tutorial</Button> : null}{etapa !== 'configurar' ? <Button onClick={() => setEtapa('configurar')}>Gerar token</Button> : <Button variant="secondary" onClick={() => setEtapa('credenciais')}>Voltar à lista</Button>}</div>
-        </section>
+    <AdminModuleAppShell sectionLabel="Tokens de API">
+      <main className="fv-ds api-token-page api-token-page-v2">
+        <div data-api-token-hero>
+          <PageHeader title="Tokens e integrações" description="Gerencie permissões de integração e teste as operações autorizadas."
+            auxiliary={showNovelty ? <Badge tone="info">Novo API Playground</Badge> : null}
+            actions={<div className="api-hero-actions">{noveltyWindowActive ? <Button variant="secondary" onClick={() => startApiTokenPlaygroundTour({ user, force: true })}>Ver tutorial</Button> : null}{etapa !== 'configurar' ? <Button variant="primary" onClick={() => setEtapa('configurar')}>Gerar token</Button> : <Button variant="secondary" onClick={() => setEtapa('credenciais')}>Voltar à lista</Button>}</div>} />
+        </div>
         <nav className="api-workflow-tabs" aria-label="Etapas do playground">
-          <button data-api-workflow="credentials" type="button" aria-current={etapa === 'credenciais' ? 'page' : undefined} className={etapa === 'credenciais' ? 'active' : ''} onClick={() => setEtapa('credenciais')}>Meus tokens</button>
-          <button data-api-workflow="configure" type="button" aria-current={etapa === 'configurar' ? 'page' : undefined} className={etapa === 'configurar' ? 'active' : ''} onClick={() => setEtapa('configurar')}>Novo token</button>
-          <button data-api-workflow="playground" type="button" aria-current={etapa === 'playground' ? 'page' : undefined} className={etapa === 'playground' ? 'active' : ''} onClick={() => setEtapa('playground')}>Testar API</button>
+          <button data-api-workflow="credentials" type="button" aria-current={etapa === 'credenciais' ? 'page' : undefined} className={etapa === 'credenciais' ? 'active' : ''} onClick={() => setEtapa('credenciais')}><span className="api-workflow-number">1</span><span>Meus tokens</span></button>
+          <button data-api-workflow="configure" type="button" aria-current={etapa === 'configurar' ? 'page' : undefined} className={etapa === 'configurar' ? 'active' : ''} onClick={() => setEtapa('configurar')}><span className="api-workflow-number">2</span><span>Novo token</span></button>
+          <button data-api-workflow="playground" type="button" aria-current={etapa === 'playground' ? 'page' : undefined} className={etapa === 'playground' ? 'active' : ''} onClick={() => setEtapa('playground')}><span className="api-workflow-number">3</span><span>Testar API</span></button>
         </nav>
-        {error ? <div className="inline-error" role="alert">{error}</div> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
         {etapa === 'configurar' ? (
           scopesQuery.isLoading ? <Skeleton lines={6} />
-            : scopesQuery.isError ? <div className="inline-error">Não foi possível carregar o catálogo de permissões.</div>
+            : scopesQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void scopesQuery.refetch() }}>Não foi possível carregar o catálogo de permissões.</Alert>
               : <ApiCredentialForm scopes={scopesQuery.data?.items || []} onSubmit={issueCredential} />
         ) : etapa === 'playground' ? <section className="api-playground">
-          <section className="page-card api-playground-section"><h3>Credencial usada no playground</h3><div className="field-group"><label htmlFor="playground-credential">Credencial</label><select id="playground-credential" value={selectedCredentialId} onChange={event => { replaceSafeParams({ credential: event.target.value }); setPlaygroundResult(null); }}><option value="">Selecione</option>{selectedCredentialId && !credentialOptions.some(item => item.id === selectedCredentialId) ? <option value={selectedCredentialId}>Credencial indisponível</option> : null}{credentialOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.displayToken}</option>)}</select></div>{selectedQuery.isError ? <p className="inline-error" role="alert">Não foi possível carregar a credencial selecionada. Selecione outra ou <button type="button" onClick={() => void selectedQuery.refetch()}>tente novamente</button>.</p> : null}<p>Para encontrar outros tokens, use os filtros e a paginação em Meus tokens e abra o token no Playground.</p><p>A restrição de IP não é simulada no painel; valide-a a partir da rede real do consumidor.</p></section>
-          {scopesQuery.isError ? <div className="inline-error">Não foi possível carregar as operações disponíveis.</div> : null}
+          <Card className="api-playground-section api-playground-credential" header={<h3>Credencial usada na simulação</h3>}>
+            <Field id="playground-credential" label="Credencial" optionalText="">
+              <Select value={selectedCredentialId} onChange={event => { replaceSafeParams({ credential: event.target.value }); setPlaygroundResult(null); }}><option value="">Selecione</option>{selectedCredentialId && !credentialOptions.some(item => item.id === selectedCredentialId) ? <option value={selectedCredentialId}>Credencial indisponível</option> : null}{credentialOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.displayToken}</option>)}</Select>
+            </Field>
+            {selectedQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void selectedQuery.refetch() }}>Não foi possível carregar a credencial selecionada. Selecione outra ou tente novamente.</Alert> : null}
+            <p>Para encontrar outros tokens, use os filtros e a paginação em Meus tokens e abra o token no Playground.</p>
+            <p>A restrição de IP não é simulada no painel; valide-a a partir da rede real do consumidor.</p>
+          </Card>
+          {scopesQuery.isError ? <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: () => void scopesQuery.refetch() }}>Não foi possível carregar as operações disponíveis.</Alert> : null}
           <ApiOperationSelector operations={operations} scopes={scopesQuery.data?.items || []} scopeCode={testScope} credential={selectedCredential} value={operation}
             onScopeChange={value => replaceSafeParams({ etapa: 'playground', testScope: value, operation: value ? operationsForScope(operations, value)[0]?.operationId || '' : '' })}
             onChange={value => replaceSafeParams({ etapa: 'playground', operation: value })} />
           <ApiOperationParameters operation={selectedOperation} value={parameterForm.watch()} register={parameterForm.register} maxPageSize={maxTestItems} scopes={grantedScopes}
             errors={Object.fromEntries(Object.entries(parameterForm.formState.errors).map(([name, error]) => [name, String(error?.message || '')]))}
             onChange={value => { for (const [name, item] of Object.entries(value)) parameterForm.setValue(name, item, { shouldValidate: parameterForm.formState.isSubmitted }); testSequence.current += 1; setTesting(false); setPlaygroundResult(null); }} />
-          <div className="api-playground-run"><Button disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.method === 'POST' ? 'Enviar POST' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
+          <div className="api-playground-run"><Button variant="primary" loading={testing} disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.method === 'POST' ? 'Enviar POST' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>
           <ApiRequestConsole result={playgroundResult} loading={testing} />
         </section> : <>
-          <section className="page-card api-token-filters"><div className="field-group"><label htmlFor="api-token-search">Buscar</label><SearchBar id="api-token-search" value={search} onChange={value => replaceSafeParams({ q: value })} placeholder="Nome, finalidade ou destinatário"  /></div><div className="field-group"><label htmlFor="api-token-status">Status</label><select id="api-token-status" value={statusFilter} onChange={event => replaceSafeParams({ status: event.target.value })}><option value="">Todos</option><option value="ACTIVE">Ativos</option><option value="NEAR_EXPIRY">Vencem em breve</option><option value="SCHEDULED">Agendados</option><option value="EXPIRED">Expirados</option><option value="REVOKED">Revogados</option></select></div><div className="field-group"><label htmlFor="api-token-scope">Escopo</label><input id="api-token-scope" value={scopeFilter} onChange={event => replaceSafeParams({ scope: event.target.value })} placeholder="qualidade.registros.read" /></div><div className="field-group"><label htmlFor="api-token-expiry-filter">Vence até</label><input id="api-token-expiry-filter" type="date" value={expiresBeforeFilter} onChange={event => replaceSafeParams({ expiresBefore: event.target.value })} /></div></section>
-          {credentialsQuery.isLoading ? <Skeleton lines={5} />
-            : credentialsQuery.isError ? <div className="inline-error">Não foi possível carregar as credenciais.</div>
-              : credentials.length === 0 ? <section className="page-card api-empty"><h2>Nenhuma credencial encontrada</h2><p>Gere um token temporário para começar.</p><Button onClick={() => setEtapa('configurar')}>Gerar primeiro token</Button></section>
-                : <ApiCredentialCards credentials={credentials} onSelect={credential => replaceSafeParams({ detail: activityCredentialId === credential.id ? '' : credential.id })} />}
-          <ApiCursorPagination key={[search, statusFilter, scopeFilter, expiresBeforeFilter].join('|')} label="Paginação dos tokens" cursor={cursor} nextCursor={credentialsQuery.data?.page.nextCursor} loading={credentialsQuery.isFetching} onChange={value => replaceSafeParams({ cursor: value })} />
-          {activityCredentialId ? <section className="api-credential-detail" aria-label="Detalhes do token">
-            <div className="api-hero-actions"><Button variant="secondary" onClick={() => replaceSafeParams({ detail: '' })}>Fechar detalhes</Button>{activityCredential ? <Button onClick={() => replaceSafeParams({ etapa: 'playground', credential: activityCredential.id })}>Abrir no Playground</Button> : null}</div>
-            {detailQuery.isLoading ? <Skeleton /> : detailQuery.isError ? <p className="inline-error" role="alert">Não foi possível carregar os detalhes. <button type="button" onClick={() => void detailQuery.refetch()}>Tentar novamente</button></p> : activityCredential ? <>
-              <h2>{activityCredential.name}</h2>
-              {scopesQuery.data ? <ApiCredentialActions key={activityCredential.id} credential={activityCredential} scopes={scopesQuery.data.items} onChanged={refreshCredentials} onIssued={value => setIssued(value)} /> : <p>Carregue o catálogo de permissões para gerenciar a política.</p>}
+          <FilterBar className="api-token-filters" label="Filtros dos tokens" resultsId="api-token-results"
+            search={<SearchInput id="api-token-search" label="Buscar token" value={search} onChange={value => changeListFilters({ q: value })} placeholder="Nome, finalidade ou destinatário" loading={credentialsQuery.isFetching && !credentialsQuery.isLoading} />}
+            activeFilters={activeFilters} activeCount={activeFilters.length} loading={credentialsQuery.isFetching && !credentialsQuery.isLoading}
+            onClear={() => changeListFilters({ q: '', status: '', scope: '', expiresBefore: '' })} mobileApplyLabel="Ver tokens">
+            <Field id="api-token-status" label="Status" optionalText=""><Select value={statusFilter} onChange={event => changeListFilters({ status: event.target.value })}><option value="">Todos</option><option value="ACTIVE">Ativos</option><option value="NEAR_EXPIRY">Vencem em breve</option><option value="SCHEDULED">Agendados</option><option value="EXPIRED">Expirados</option><option value="REVOKED">Revogados</option></Select></Field>
+            <Field id="api-token-scope" label="Escopo" optionalText=""><Input value={scopeFilter} onChange={event => changeListFilters({ scope: event.target.value })} placeholder="Ex.: projetos.read" /></Field>
+            <Field id="api-token-expiry-filter" label="Vence até" optionalText=""><Input type="date" value={expiresBeforeFilter} onChange={event => changeListFilters({ expiresBefore: event.target.value })} /></Field>
+          </FilterBar>
+          <div id="api-token-results" aria-live="polite">
+            {credentialsQuery.isLoading ? <Skeleton lines={5} />
+              : credentialsQuery.isError ? <Alert tone="danger" title="Não foi possível carregar as credenciais" action={{ label: 'Tentar novamente', onClick: () => void credentialsQuery.refetch() }}>Confira a conexão e tente novamente.</Alert>
+                : credentials.length === 0 ? <EmptyState title={activeFilters.length ? 'Nenhum token encontrado' : 'Nenhum token cadastrado'} description={activeFilters.length ? 'Ajuste ou limpe os filtros para ver outros tokens.' : 'Crie uma credencial para começar.'} variant={activeFilters.length ? 'search' : 'create'} action={activeFilters.length ? { label: 'Limpar filtros', onClick: () => changeListFilters({ q: '', status: '', scope: '', expiresBefore: '' }) } : { label: 'Gerar primeiro token', onClick: () => setEtapa('configurar') }} />
+                  : <ApiCredentialCards credentials={credentials} selectedId={activityCredentialId} onSelect={credential => replaceSafeParams({ detail: activityCredentialId === credential.id ? '' : credential.id, eventCursor: '' })} />}
+          </div>
+          {cursor || credentialsQuery.data?.page.nextCursor ? <ApiCursorPagination key={[search, statusFilter, scopeFilter, expiresBeforeFilter].join('|')} label="Paginação dos tokens" cursor={cursor} nextCursor={credentialsQuery.data?.page.nextCursor} loading={credentialsQuery.isFetching} onChange={value => replaceSafeParams({ cursor: value })} /> : null}
+          {activityCredentialId ? <section id="api-credential-detail" className="api-credential-detail" aria-label="Detalhes do token">
+            <div className="api-detail-heading"><div><span className="api-detail-eyebrow">Detalhes da credencial</span><h2>{activityCredential?.name || 'Carregando credencial'}</h2></div><div className="api-hero-actions"><Button variant="secondary" size="sm" onClick={() => replaceSafeParams({ detail: '', eventCursor: '' })}>Fechar detalhes</Button>{activityCredential ? <Button variant="primary" size="sm" onClick={() => replaceSafeParams({ etapa: 'playground', credential: activityCredential.id })}>Abrir no Playground</Button> : null}</div></div>
+            {detailQuery.isLoading ? <Skeleton /> : detailQuery.isError ? <Alert tone="danger" title="Não foi possível carregar os detalhes" action={{ label: 'Tentar novamente', onClick: () => void detailQuery.refetch() }} /> : activityCredential ? <>
+              <ApiCredentialSummary credential={activityCredential} />
+              {scopesQuery.data ? <ApiCredentialActions key={activityCredential.id} credential={activityCredential} scopes={scopesQuery.data.items} onChanged={refreshCredentials} onIssued={value => setIssued(value)} /> : <Alert tone="warning">Carregue o catálogo de permissões para gerenciar a política.</Alert>}
               <ApiCredentialActivity key={'activity:' + activityCredential.id} credentialId={activityCredential.id} cursor={eventCursor} onCursorChange={value => replaceSafeParams({ eventCursor: value })} />
             </> : null}
           </section> : null}
         </>}
       </main>
       <ApiTokenRevealModal issued={issued} operations={operations} onClose={() => setIssued(null)} />
-    </Shell>
+      <ConfirmDialog
+        open={Boolean(pendingPostParameters)}
+        appearance="design-system"
+        title="Enviar operação POST?"
+        description="Esta operação grava dados reais. Confirme o envio antes de continuar."
+        confirmLabel="Enviar POST"
+        confirmDisabled={testing || !canTest}
+        onConfirm={() => {
+          const values = pendingPostParameters;
+          setPendingPostParameters(null);
+          if (values) void executePlayground(values);
+        }}
+        onCancel={() => setPendingPostParameters(null)}
+      />
+    </AdminModuleAppShell>
   );
 }

@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 
-import {
-  getProjectStandbyHistory, type TrackingDivision
-} from '../../api/acompanhamentoComercial';
-import { Button } from '../ui/Button';
+import { getProjectStandbyHistory, type ProjectStandbyHistoryEntry, type TrackingDivision } from '../../api/acompanhamentoComercial';
 import { Modal } from '../ui/Modal';
+import { Alert, Button, DataTable, EmptyState, Skeleton } from '../ui/ds';
+import './ProjectStandbyHistoryDialog.ds.css';
 
 type StandbyHistoryProject = {
   projectId: string;
@@ -22,6 +21,31 @@ function formatMinutes(minutes: number) {
   const hours = Math.floor(total / 60);
   const remainder = total % 60;
   return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+}
+
+export function StandbyHistoryTable({ entries }: { entries: ProjectStandbyHistoryEntry[] }) {
+  return <DataTable<ProjectStandbyHistoryEntry>
+    rows={entries}
+    getRowId={entry => entry.date}
+    ariaLabel="Histórico de standby por dia"
+    density="compact"
+    mobileBreakpoint="md"
+    emptyState={<EmptyState title="Nenhum registro de standby" description="Este projeto ainda não possui tempo de standby registrado." />}
+    columns={[
+      { key: 'date', header: 'Dia', rowHeader: true, render: entry => formatDate(entry.date) },
+      { key: 'time', header: 'Horas em standby', align: 'right', render: entry => formatMinutes(entry.standbyMinutes) },
+      { key: 'people', header: 'Nº de colaboradores', align: 'right', render: entry => entry.collaboratorCount ?? 'Não informado' },
+      { key: 'reason', header: 'Motivo', render: entry => entry.reason || 'Não informado' }
+    ]}
+    mobile={{ renderItem: entry => ({
+      title: formatDate(entry.date),
+      value: formatMinutes(entry.standbyMinutes),
+      metadata: [
+        { label: 'Colaboradores', value: entry.collaboratorCount ?? 'Não informado' },
+        { label: 'Motivo', value: entry.reason || 'Não informado' }
+      ]
+    }) }}
+  />;
 }
 
 export function ProjectStandbyHistoryDialog({
@@ -52,75 +76,22 @@ export function ProjectStandbyHistoryDialog({
     <Modal
       open={project !== null}
       onClose={onClose}
-      ariaLabelledBy="acp-standby-history-title"
+      appearance="design-system"
+      title="Histórico de standby"
+      size="lg"
       ariaDescribedBy="acp-standby-history-description"
-      panelClassName="modal-card acp-manage-card acp-standby-history-modal"
+      panelClassName="acp-standby-ds-modal"
+      footer={<Button variant="secondary" onClick={onClose}>Fechar</Button>}
     >
-      <div className="acp-manage acp-standby-history">
-        <div className="acp-manage-head">
-          <div>
-            <div className="sec" id="acp-standby-history-title">Histórico de standby</div>
-            <div className="acp-standby-history-project">
-              {projectLabel}
-            </div>
-          </div>
-          <Button variant="mini" className="alt" onClick={onClose} aria-label="Fechar histórico de standby">
-            ✕
-          </Button>
-        </div>
-
-        <div className="acp-manage-body">
-          <p id="acp-standby-history-description" className="acp-standby-history-description">
-            Somente dias com tempo de standby registrado são exibidos.
-          </p>
-
-          {historyQuery.isLoading ? (
-            <div className="placeholder-copy" aria-live="polite">Carregando histórico de standby…</div>
-          ) : historyQuery.isError ? (
-            <div className="acp-standby-history-error" role="alert">
-              <span>Não foi possível carregar o histórico de standby deste projeto.</span>
-              <Button
-                variant="mini"
-                className="alt"
-                disabled={historyQuery.isFetching}
-                onClick={() => historyQuery.refetch()}
-              >
-                {historyQuery.isFetching ? 'Tentando novamente…' : 'Tentar novamente'}
-              </Button>
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="placeholder-copy" aria-live="polite">
-              Este projeto não possui registros de standby.
-            </div>
-          ) : (
-            <div className="acp-standby-table-wrap">
-              <table className="acp-standby-table">
-                <thead>
-                  <tr>
-                    <th>Dia</th>
-                    <th>Horas em standby</th>
-                    <th>Nº de colaboradores</th>
-                    <th>Motivo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map(entry => (
-                    <tr key={entry.date}>
-                      <td data-label="Dia">{formatDate(entry.date)}</td>
-                      <td data-label="Horas em standby" className="acp-standby-time">{formatMinutes(entry.standbyMinutes)}</td>
-                      <td data-label="Nº de colaboradores">{entry.collaboratorCount ?? 'Não informado'}</td>
-                      <td data-label="Motivo" className="acp-standby-reason">{entry.reason || 'Não informado'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="acp-manage-foot">
-          <Button variant="mini" className="alt" onClick={onClose}>Fechar</Button>
-        </div>
+      <div className="acp-standby-ds">
+        <p id="acp-standby-history-description" className="acp-standby-ds__context">
+          {projectLabel} · Somente dias com tempo de standby registrado são exibidos.
+        </p>
+        {historyQuery.isLoading ? <Skeleton variant="table-rows" lines={5} label="Carregando histórico de standby" />
+          : historyQuery.isError ? <Alert tone="danger" title="Não foi possível carregar o histórico de standby"
+            action={<Button size="sm" variant="secondary" loading={historyQuery.isFetching}
+              onClick={() => void historyQuery.refetch()}>Tentar novamente</Button>} />
+          : <StandbyHistoryTable entries={entries} />}
       </div>
     </Modal>
   );

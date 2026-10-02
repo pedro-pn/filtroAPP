@@ -1,3 +1,4 @@
+import { BrandLoading } from '../brand/BrandLoading';
 import { lazy, Suspense, useMemo, useState } from 'react';
 
 import { downloadReportPdf } from '../../api/reports';
@@ -11,8 +12,9 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { GroupedReportList } from '../reports/GroupedReportList';
 import { ReportSummaryCard } from '../reports/ReportSummaryCard';
 import { Modal } from '../ui/Modal';
-import { ReportListSkeleton } from '../ui/Skeleton';
+import { Button, EmptyState, Field, Select, Skeleton } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
+import './ProjectReportsDialog.css';
 
 const REPORT_PAGE_SIZE = 30;
 const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer').then(module => ({ default: module.PdfCanvasViewer })));
@@ -108,40 +110,32 @@ export function ProjectReportsDialog({
 
   return (
     <>
-      <button
+      <Button
         type="button"
-        className="mini-btn alt acp-mission-reports-trigger"
+        size="sm"
+        variant="secondary"
+        className="acp-mission-reports-trigger"
         onClick={() => setOpen(true)}
       >
-        {groupMembers ? 'Relatórios das missões' : 'Relatórios da missão'}
-      </button>
+        Ver relatórios
+      </Button>
       <Modal
         open={open && !pdfPreview}
         onClose={closeReports}
         closeOnBackdrop
+        appearance="design-system"
+        title="Relatórios da missão"
+        size="lg"
+        fullscreenOnMobile={false}
         ariaLabelledBy={titleId}
-        panelClassName="modal-card acp-mission-reports-modal"
+        panelClassName="acp-mission-reports-modal"
       >
         <div className="acp-mission-reports-dialog">
-          <header className="acp-mission-reports-head">
-            <div>
-              <h2 id={titleId}>{groupMembers ? 'Relatórios das missões' : 'Relatórios da missão'}</h2>
-              <p>{missionLabel}</p>
-            </div>
-            <button
-              type="button"
-              className="mini-btn alt"
-              aria-label="Fechar relatórios"
-              onClick={closeReports}
-            >
-              Fechar
-            </button>
-          </header>
+          <p className="acp-mission-reports-context">{missionLabel}</p>
           {groupMembers ? (
             <div className="acp-mission-reports-filter">
-              <label htmlFor={`project-reports-mission-${reportProjectId}`}>Missão</label>
-              <select
-                id={`project-reports-mission-${reportProjectId}`}
+              <Field id={`project-reports-mission-${reportProjectId}`} label="Missão">
+              <Select
                 value={reportProjectId}
                 onChange={event => setSelectedProjectId(event.target.value)}
               >
@@ -150,27 +144,29 @@ export function ProjectReportsDialog({
                     Missão {member.code || 'sem código'}{member.name || member.clientName ? ` · ${member.name || member.clientName}` : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
+              </Field>
             </div>
           ) : null}
           <div className="acp-mission-reports-body">
             {reportsQuery.isLoading ? (
-              <ReportListSkeleton groups={1} rowsPerGroup={3} />
+              <Skeleton variant="text" lines={7} label="Carregando relatórios da missão" />
             ) : reportsQuery.isError ? (
               <div className="acp-mission-reports-feedback">
-                <span className="placeholder-copy">Não foi possível carregar os relatórios desta missão.</span>
-                <button type="button" className="mini-btn alt" onClick={() => void reportsQuery.refetch()}>
+                <EmptyState title="Não foi possível carregar os relatórios desta missão." />
+                <Button size="sm" variant="secondary" type="button" onClick={() => void reportsQuery.refetch()}>
                   Tentar novamente
-                </button>
+                </Button>
               </div>
             ) : reportsQuery.items.length === 0 ? (
-              <div className="placeholder-copy">Nenhum relatório aprovado ou assinado para esta missão.</div>
+              <EmptyState title="Nenhum relatório disponível" description="Esta missão ainda não possui relatório aprovado ou assinado." />
             ) : (
               <GroupedReportList
+                appearance="design-system"
+                defaultTypeCollapsed
                 key={reportProjectId}
                 reports={reportsQuery.items}
                 archived={false}
-                storageKey={`acp-mission-reports:${user?.id || user?.username || 'anonymous'}:${reportProjectId}`}
                 onLoadMoreType={reportsQuery.loadMoreGroup}
                 onEnsureTypePage={reportsQuery.ensureGroupPage}
                 isTypePageReady={reportsQuery.isGroupPageReady}
@@ -187,22 +183,24 @@ export function ProjectReportsDialog({
                     allowOpenDetail={false}
                     actions={(
                       <span className="report-download-actions">
-                        <button
+                        <Button
                           type="button"
-                          className="mini-btn"
+                          size="sm"
+                          variant="primary"
                           disabled={openingReportId !== null || downloadingReportId !== null}
                           onClick={() => void handleOpenPdf(report)}
                         >
                           {openingReportId === report.id ? 'Abrindo...' : 'Abrir PDF'}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className="mini-btn alt"
+                          size="sm"
+                          variant="secondary"
                           disabled={downloadingReportId !== null || openingReportId !== null}
                           onClick={() => void handleDownload(report)}
                         >
                           {downloadingReportId === report.id ? 'Baixando...' : 'Baixar PDF'}
-                        </button>
+                        </Button>
                       </span>
                     )}
                   />
@@ -215,24 +213,24 @@ export function ProjectReportsDialog({
       <Modal
         open={Boolean(pdfPreview)}
         onClose={closePdfPreview}
+        appearance="design-system"
+        title="Visualizar PDF"
+        size="full"
         ariaLabelledBy={pdfTitleId}
-        panelClassName="modal-card acp-pdf-viewer-modal"
+        panelClassName="acp-pdf-viewer-modal"
       >
         {pdfPreview ? (
           <div className="acp-pdf-viewer">
             <header className="acp-pdf-viewer-head">
-              <div>
-                <h2 id={pdfTitleId}>Visualizar PDF</h2>
-                <p>{pdfPreview.report.reportType} {pdfPreview.report.sequenceNumber || ''} · {groupMembers
+              <p>{pdfPreview.report.reportType} {pdfPreview.report.sequenceNumber || ''} · {groupMembers
                   ? `Missão ${groupMembers.find(member => member.projectId === pdfPreview.report.projectId)?.code || 'sem código'}`
                   : missionLabel}</p>
-              </div>
               <div className="acp-pdf-viewer-actions">
-                <button type="button" className="mini-btn" onClick={handlePreviewDownload}>Baixar PDF</button>
-                <button type="button" className="mini-btn alt" onClick={closePdfPreview}>Fechar</button>
+                <Button size="sm" variant="primary" type="button" onClick={handlePreviewDownload}>Baixar PDF</Button>
+                <Button size="sm" variant="secondary" type="button" onClick={closePdfPreview}>Fechar</Button>
               </div>
             </header>
-            <Suspense fallback={<div className="acp-pdf-viewer-loading">Preparando visualizador...</div>}>
+            <Suspense fallback={<BrandLoading label="Preparando visualizador" />}>
               <PdfCanvasViewer blob={pdfPreview.blob} />
             </Suspense>
           </div>

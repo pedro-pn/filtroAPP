@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -159,7 +160,7 @@ export function ProjectDocumentsCategory({ projectId, users }: { projectId: stri
   };
 
   return <ProjectWorkflowCategory title="Documentos do projeto" description="Propostas, contratos, desenhos, certificados e demais arquivos com histórico por versão." area="Documentação" tone={blockerCount ? 'crit' : undefined} status={query.isLoading ? 'Carregando…' : blockerCount ? `${blockerCount} bloqueio(s)` : `${query.data?.documents.length || 0} documento(s)`} complete={ready} data-project-documents>
-    {query.isLoading ? <p className="placeholder-copy">Carregando documentos do projeto…</p> : query.isError || !query.data ? <div className="placeholder-copy"><p>Não foi possível carregar os documentos deste projeto.</p><Button variant="secondary" onClick={() => void query.refetch()}>Tentar novamente</Button></div> : <>
+    {query.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando documentos do projeto" inline size="sm" /></p> : query.isError || !query.data ? <div className="placeholder-copy"><p>Não foi possível carregar os documentos deste projeto.</p><Button variant="secondary" onClick={() => void query.refetch()}>Tentar novamente</Button></div> : <>
       <div className="project-documents-toolbar">
         <label><input type="checkbox" checked={includeArchived} onChange={event => setIncludeArchived(event.target.checked)} /> Mostrar arquivados</label>
         {query.data.allowedTypes.length && !query.data.projectReadOnly ? <Button type="button" variant="secondary" onClick={() => setFormDocument('new')} data-project-document-add>Adicionar documento</Button> : null}

@@ -1,4 +1,5 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { RemoveIconButton } from './RemoveIconButton';
 
 interface ImageDropzoneProps {
   onFile: (file: File | null) => void;
@@ -63,7 +64,7 @@ export function ImageDropzone({
         <small>{previewSrc ? 'Clique ou solte outra para substituir' : hint}</small>
       </span>
       {previewSrc && !disabled && (
-        <button type="button" className="pdf-dropzone-clear" aria-label="Remover imagem" onClick={event => { event.stopPropagation(); onFile(null); }}>×</button>
+        <RemoveIconButton label="Remover imagem" onClick={event => { event.stopPropagation(); onFile(null); }} />
       )}
     </div>
   );

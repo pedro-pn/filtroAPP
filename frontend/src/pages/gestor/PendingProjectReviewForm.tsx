@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { Button } from '../../components/ui/ds';
 import type { Project } from '../../types/domain';
 import {
   pendingProjectReviewPayload,
@@ -63,8 +64,8 @@ export function PendingProjectReviewForm({ project, saving, onCancel, onSubmit }
       {field('contractCode', 'Proposta')}
       {field('location', 'Local')}
       <div className="admin-form-actions">
-        <button className="mini-btn" type="submit" disabled={saving}>Confirmar e salvar</button>
-        <button className="mini-btn alt" type="button" onClick={onCancel}>Cancelar revisão</button>
+        <Button variant="primary" type="submit" disabled={saving}>Confirmar e salvar</Button>
+        <Button variant="secondary" size="sm" type="button" onClick={onCancel}>Cancelar revisão</Button>
       </div>
     </form>
   );

@@ -1,0 +1,220 @@
+/* Reusable form-navigation primitives. Scoped by the DS migration boundary. */
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__item {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__connector {
+  position: absolute;
+  inset-block-start: calc(var(--space-6) / 2);
+  inset-inline: 0;
+  z-index: 0;
+  display: block;
+  height: var(--border-width);
+  background: var(--line-strong);
+  pointer-events: none;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-progress-steps__item:first-child
+  .fv-progress-steps__connector {
+  inset-inline-start: 50%;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-progress-steps__item:last-child
+  .fv-progress-steps__connector {
+  inset-inline-end: 50%;
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-progress-steps__item[data-state='complete']
+  .fv-progress-steps__connector,
+:where(.fv-ds, [data-fv-ds])
+  .fv-progress-steps__item[data-state='current']
+  .fv-progress-steps__connector {
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: var(--space-6);
+  height: var(--space-6);
+  place-items: center;
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-progress-steps__item[data-state='complete']
+  .fv-progress-steps__marker,
+:where(.fv-ds, [data-fv-ds])
+  .fv-progress-steps__item[data-state='current']
+  .fv-progress-steps__marker {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__label {
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__item[data-state='current'] {
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__item[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: var(--disabled-opacity);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-progress-steps__item:focus-visible {
+  border-radius: var(--radius-md);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-10) + var(--space-1));
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__description {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__control {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__track {
+  display: flex;
+  width: calc(var(--space-10) + var(--space-1));
+  height: var(--space-6);
+  align-items: center;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch__thumb {
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-e1);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-switch__control
+  input:checked
+  + .fv-switch__track {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-switch__control
+  input:checked
+  + .fv-switch__track
+  .fv-switch__thumb {
+  transform: translateX(var(--space-5));
+}
+
+:where(.fv-ds, [data-fv-ds])
+  .fv-switch__control
+  input:focus-visible
+  + .fv-switch__track {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-switch[data-disabled='true'] {
+  cursor: not-allowed;
+  opacity: var(--disabled-opacity);
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .fv-progress-steps__item {
+    padding-inline: var(--space-1);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .fv-progress-steps__label {
+    font-size: var(--text-xs);
+  }
+}

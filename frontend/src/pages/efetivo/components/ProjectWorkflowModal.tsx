@@ -1,3 +1,4 @@
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -1038,8 +1039,9 @@ function workflowStageDate(workflow: ProjectWorkflow, stage: ProjectWorkflowStag
     : null;
 }
 
-export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, legacySummaryMission, legacySummaryRoles, planningMission, planningMissionLoading, onTeamCyclesMutated, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
+export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, legacySummaryMission, legacySummaryRoles, planningMission, planningMissionLoading, onTeamCyclesMutated, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
   detail: ProjectWorkflowDetail | null;
+  blockedMoveFocus?: { projectId: string; stage: ProjectWorkflowStage; count: number; token: number } | null;
   leaders: WorkflowUserOption[];
   loading: boolean;
   error: boolean;
@@ -1090,6 +1092,11 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     setActiveStage(detail.workflow.stage);
     setCorrectionStage(null);
   }, [detail?.project.id, detail?.workflow?.stage]);
+  useEffect(() => {
+    if (!blockedMoveFocus || blockedMoveFocus.projectId !== detail?.project.id || !detail.workflow) return;
+    setActiveStage(blockedMoveFocus.stage);
+    setBlockersOpen(false);
+  }, [blockedMoveFocus, detail?.project.id, detail?.workflow]);
   const hasWorkflow = Boolean(detail?.workflow);
   // Em telas estreitas a linha do tempo rola na horizontal: mantém a etapa aberta à vista.
   useEffect(() => {
@@ -1167,7 +1174,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
           </dl> : null}
           <button className="project-workflow-icon-button" type="button" disabled={saving || legacySummaryBusy} aria-label="Fechar" onClick={onClose}><ProjectWorkflowIcon name="x" /></button>
         </header>
-        {detail ? <div className="project-workflow-romaneios-action"><ProjectRomaneiosDialog key={detail.project.id} projectId={detail.project.id} missionLabel={`Missão ${detail.project.code}`} source="efetivo" showOnlyWhenAvailable /></div> : null}
+        {detail ? <div className="fv-ds project-workflow-romaneios-action"><ProjectRomaneiosDialog key={detail.project.id} projectId={detail.project.id} missionLabel={`Missão ${detail.project.code}`} source="efetivo" showOnlyWhenAvailable /></div> : null}
         {workflow && canManageMission && detail?.project.operationalMission ? (
           <div className="project-workflow-mission-bar" data-project-workflow-mission-bar>
             <span>Programação operacional: <strong>{LEGACY_MISSION_STAGE_LABELS[detail.project.operationalMission.stage]}</strong> · {detail.project.operationalMission.participantCount} participante(s)</span>
@@ -1183,6 +1190,9 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
             </div>
           </div>
         ) : null}
+        {workflow && blockedMoveFocus && blockedMoveFocus.projectId === detail?.project.id ? <p className="project-workflow-move-alert" role="status">
+          {blockedMoveFocus.count} pendência{blockedMoveFocus.count === 1 ? '' : 's'} em {WORKFLOW_STAGE_LABELS[blockedMoveFocus.stage]}. Revise os controles desta etapa; use “Ver bloqueios” para consultar os detalhes.
+        </p> : null}
         {workflow ? <div className="project-workflow-fixed-top">
           <div className="project-workflow-stage-tabs-scroll">
             <div className="project-workflow-stage-tabs" role="tablist" aria-label="Etapas do planejamento">
@@ -1221,7 +1231,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
           </p>
         </div> : null}
         <div className={`efetivo-modal-body project-workflow-modal-body${workflow ? ' has-stage-layout' : ''}`}>
-          {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy">Carregando gestão do projeto…</p> : !workflow ? (
+          {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy"><BrandLoading label="Carregando gestão do projeto" inline size="sm" /></p> : !workflow ? (
             <>
             {detail.project.operationalMission && detail.permissions.canInitialize ? (
               legacyChoice === null ? (
@@ -1303,7 +1313,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
             {!workflow && legacyChoice === 'summary' && detail?.project.operationalMission && detail.permissions.canInitialize ? <Button type="submit" form={LEGACY_SUMMARY_FORM_ID} disabled={saving || legacySummaryBusy}>{saving || legacySummaryBusy ? 'Iniciando…' : 'Iniciar gestão resumida'}</Button> : null}
             {workflow && !isCurrentStageSelected && !correctionMode ? <Button disabled={saving} onClick={() => selectStage(workflow.stage)}>Ir para a etapa atual</Button> : null}
             {workflow?.stage === 'HANDOVER' && isCurrentStageSelected && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}
-            {workflow?.stage !== 'HANDOVER' && isCurrentStageSelected && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={WORKFLOW_STAGES.indexOf(option.stage) > WORKFLOW_STAGES.indexOf(workflow.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{option.allowed ? null : <ProjectWorkflowIcon name="lock" />}{transitionLabel(workflow.stage, option.stage, workflow.preparationLeadTimeDays)}</Button>) : null}
+            {workflow?.stage !== 'HANDOVER' && isCurrentStageSelected && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={WORKFLOW_STAGES.indexOf(option.stage) > WORKFLOW_STAGES.indexOf(workflow.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.length ? `${option.issues.length} pendência${option.issues.length === 1 ? '' : 's'} para avançar. Consulte os bloqueios nesta etapa.` : undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{option.allowed ? null : <ProjectWorkflowIcon name="lock" />}{transitionLabel(workflow.stage, option.stage, workflow.preparationLeadTimeDays)}</Button>) : null}
           </div>
         </footer>
       </div>

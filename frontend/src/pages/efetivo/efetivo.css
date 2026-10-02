@@ -507,7 +507,6 @@
 .efetivo-context-toolbar,
 .efetivo-list-toolbar,
 .efetivo-calendar-toolbar,
-.efetivo-scenario-actions,
 .efetivo-setting-row {
   align-items: end;
   display: flex;
@@ -532,58 +531,14 @@
   border-color: var(--rd);
 }
 
-.efetivo-utilization-card {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(180px, .35fr) minmax(0, 1fr);
-}
-
-.efetivo-utilization-card > div:first-child {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.efetivo-utilization-card strong {
-  color: var(--g);
-  font-size: 26px;
-}
-
-.efetivo-utilization-card small,
 .efetivo-role-card small,
-.efetivo-mission-card p,
-.efetivo-kanban-card p,
-.efetivo-scenario-card small {
+.efetivo-kanban-card p {
   color: var(--mu);
 }
 
 .efetivo-operational-disclaimer { color: var(--mu); font-size: 12px; margin: 14px 0 0; }
 
-.efetivo-utilization-track {
-  align-self: center;
-  background: var(--bg);
-  border-radius: 999px;
-  height: 18px;
-  overflow: hidden;
-  position: relative;
-}
-
-.efetivo-utilization-track span {
-  background: var(--gl);
-  display: block;
-  height: 100%;
-}
-
-.efetivo-utilization-track i {
-  background: var(--tx);
-  bottom: 0;
-  position: absolute;
-  top: 0;
-  width: 2px;
-}
-
 .efetivo-role-grid,
-.efetivo-scenario-grid,
 .efetivo-user-grid {
   display: grid;
   gap: 12px;
@@ -608,22 +563,14 @@
   padding: 14px;
 }
 
-.efetivo-role-card header,
-.efetivo-mission-card header,
-.efetivo-mission-card footer,
-.efetivo-scenario-comparison > header {
+.efetivo-role-card header {
   align-items: flex-start;
   display: flex;
   gap: 12px;
   justify-content: space-between;
 }
 
-.efetivo-mission-card header > div {
-  min-width: 0;
-}
-
 .efetivo-role-card dl,
-.efetivo-mission-card dl,
 .efetivo-kanban-card dl {
   display: grid;
   gap: 8px;
@@ -632,22 +579,26 @@
 }
 
 .efetivo-role-card dl div,
-.efetivo-mission-card dl div,
 .efetivo-kanban-card dl div {
   background: var(--sf);
   border-radius: var(--rs);
   padding: 8px;
 }
 
+/* Narrow Kanban columns stack the metrics before a date breaks in half. */
+.efetivo-kanban-card dl {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr));
+}
+
 .efetivo-role-card dt,
-.efetivo-mission-card dt,
 .efetivo-kanban-card dt {
   color: var(--mu);
   font-size: 11px;
 }
 
+.efetivo-kanban-card dt { color: var(--ink); }
+
 .efetivo-role-card dd,
-.efetivo-mission-card dd,
 .efetivo-kanban-card dd {
   color: var(--g);
   font-weight: 700;
@@ -656,8 +607,7 @@
 }
 
 .efetivo-two-column,
-.efetivo-calendar-layout,
-.efetivo-comparison-grid {
+.efetivo-calendar-layout {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -881,16 +831,16 @@
 }
 
 .efetivo-team-option.selected {
-  background: rgba(48, 80, 58, .07);
+  background: var(--brand-softer);
   box-shadow: inset 3px 0 0 var(--g);
 }
 
 .efetivo-team-option:not(.unavailable):hover {
-  background: #f8faf8;
+  background: var(--surface-2);
 }
 
 .efetivo-team-option.selected:hover {
-  background: rgba(48, 80, 58, .11);
+  background: var(--brand-soft);
 }
 
 .efetivo-team-option input {
@@ -940,11 +890,6 @@
   white-space: nowrap;
 }
 
-.efetivo-mission-card header > .efetivo-status {
-  align-self: flex-start;
-  flex: 0 0 auto;
-}
-
 .efetivo-status.status-confirmed,
 .efetivo-status.status-allocated,
 .efetivo-status.status-active,
@@ -971,30 +916,10 @@
   gap: 7px;
 }
 
-.efetivo-mission-card footer { align-items: stretch; flex-direction: column; }
-.efetivo-mission-card-actions {
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-.efetivo-mission-card-actions > button { flex: 0 0 auto; white-space: nowrap; }
-
-.efetivo-mission-card {
-  display: flex;
-  flex-direction: column;
-  gap: 13px;
-}
-
-.efetivo-mission-card h2,
-.efetivo-mission-card p,
 .efetivo-kanban-card h3,
 .efetivo-kanban-card p,
 .efetivo-kanban-intro h2,
 .efetivo-kanban-intro p,
-.efetivo-scenario-actions p,
-.efetivo-scenario-comparison h2,
-.efetivo-scenario-comparison p,
 .efetivo-setting-row h2,
 .efetivo-setting-row p {
   margin: 0;
@@ -1106,8 +1031,7 @@
   margin-bottom: 14px;
 }
 
-.efetivo-demand-summary button,
-.efetivo-scenario-card {
+.efetivo-demand-summary button {
   background: var(--wh);
   border: 1px solid var(--br);
   border-radius: var(--r);
@@ -1120,8 +1044,7 @@
   text-align: left;
 }
 
-.efetivo-demand-summary button.active,
-.efetivo-scenario-card.selected { border-color: var(--g); box-shadow: inset 0 0 0 1px var(--g); }
+.efetivo-demand-summary button.active { border-color: var(--g); box-shadow: inset 0 0 0 1px var(--g); }
 
 .efetivo-allocation-add,
 .efetivo-holiday-form,
@@ -1224,7 +1147,7 @@
 }
 .efetivo-toggle input { accent-color: var(--g); height: 16px; margin: 0; width: 16px; }
 .efetivo-toggle span { font-size: 12px; font-weight: 700; }
-.efetivo-toggle small { background: var(--sf); border-radius: 999px; color: var(--mu); font-size: 11px; padding: 1px 6px; }
+.efetivo-toggle small { background: var(--sf); border-radius: 999px; color: var(--ink); font-size: 11px; padding: 1px 6px; }
 
 .efetivo-kanban-mobile-select { display: none; }
 .efetivo-kanban-card .efetivo-kanban-move-select { display: none; }
@@ -1237,18 +1160,18 @@
 .efetivo-kanban.show-cancelled { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
 /* Cor só na bolinha da etapa; colunas e cards seguem a cor única do módulo. */
-[data-kanban-stage='STANDBY'] { --stage: #64748b; }
-[data-kanban-stage='MOBILIZATION'] { --stage: #f59e0b; }
-[data-kanban-stage='EXECUTION'] { --stage: #2563eb; }
-[data-kanban-stage='FINAL_MEASUREMENT'] { --stage: #8b5cf6; }
-[data-kanban-stage='FINISHED'] { --stage: #16a34a; }
-[data-kanban-status='CANCELLED'] { --stage: #dc2626; }
-[data-availability-status='AVAILABLE'] { --stage: #16a34a; }
-[data-availability-status='AWAITING_MOBILIZATION'] { --stage: #f59e0b; }
-[data-availability-status='MOBILIZED'] { --stage: #2563eb; }
-[data-availability-status='ON_VACATION'] { --stage: #8b5cf6; }
-[data-availability-status='OTHER_UNAVAILABLE'] { --stage: #dc6a58; }
-[data-availability-status='OUTSIDE_EMPLOYMENT'] { --stage: #9ca3af; }
+[data-kanban-stage='STANDBY'] { --stage: var(--muted); }
+[data-kanban-stage='MOBILIZATION'] { --stage: var(--warning); }
+[data-kanban-stage='EXECUTION'] { --stage: var(--info); }
+[data-kanban-stage='FINAL_MEASUREMENT'] { --stage: var(--pu); }
+[data-kanban-stage='FINISHED'] { --stage: var(--success); }
+[data-kanban-status='CANCELLED'] { --stage: var(--danger); }
+[data-availability-status='AVAILABLE'] { --stage: var(--success); }
+[data-availability-status='AWAITING_MOBILIZATION'] { --stage: var(--warning); }
+[data-availability-status='MOBILIZED'] { --stage: var(--info); }
+[data-availability-status='ON_VACATION'] { --stage: var(--pu); }
+[data-availability-status='OTHER_UNAVAILABLE'] { --stage: var(--danger); }
+[data-availability-status='OUTSIDE_EMPLOYMENT'] { --stage: var(--muted); }
 
 .efetivo-kanban-column {
   background: var(--sf);
@@ -1311,7 +1234,7 @@
 }
 
 .efetivo-kanban-card.draggable { cursor: grab; }
-.efetivo-kanban-card.draggable:hover { box-shadow: 0 6px 16px rgba(20, 20, 20, .1); }
+.efetivo-kanban-card.draggable:hover { box-shadow: var(--shadow-e2); }
 .efetivo-kanban-card.efetivo-kanban-pending {
   background: var(--warning-bg);
   border-color: var(--warning-border);
@@ -1328,25 +1251,7 @@
   font-weight: 700;
   padding: 8px;
 }
-.efetivo-kanban-card.selected,
-.efetivo-mission-card.selected { border-color: var(--gl); box-shadow: 0 0 0 2px var(--gl); }
-
-.efetivo-execution-panel {
-  border: 1px solid var(--bd);
-  border-radius: 12px;
-  background: var(--bg);
-  padding: 12px;
-  display: grid;
-  gap: 9px;
-}
-.efetivo-execution-panel header { display: flex; justify-content: space-between; gap: 10px; }
-.efetivo-execution-panel header span,
-.efetivo-execution-grid span { color: var(--mu); font-size: 12px; }
-.efetivo-execution-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.efetivo-execution-grid > div { display: grid; gap: 2px; }
-.efetivo-execution-panel p { margin: 0; font-size: 12px; }
-.efetivo-execution-panel .danger { color: var(--rd); }
-.efetivo-execution-suggestion { border-top: 1px solid var(--bd); padding-top: 8px; }
+.efetivo-kanban-card.selected { border-color: var(--gl); box-shadow: 0 0 0 2px var(--gl); }
 
 /* Coluna sob o cartão arrastado. */
 .efetivo-kanban-column.drop-target {
@@ -1484,7 +1389,7 @@
 .efetivo-period-cell { align-items: center; border-bottom: 1px solid var(--br); display: flex; height: 39px; justify-content: center; min-width: 0; padding: 0 2px; }
 .efetivo-period-cell i { border-radius: 4px; display: block; height: 25px; opacity: .88; width: 100%; }
 .efetivo-period-cell:hover i { opacity: 1; outline: 2px solid var(--tx); outline-offset: 1px; }
-.help-tip-portal.efetivo-period-cell-tip { max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px; }
+.help-tip-portal.efetivo-period-cell-tip { background: var(--surface); border-color: var(--line); color: var(--ink); max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px; }
 .efetivo-period-tooltip { display: flex; flex-direction: column; gap: 3px; }
 .efetivo-period-tooltip strong { color: var(--tx); font-size: 12px; }
 .efetivo-period-tooltip span { color: var(--mu); font-size: 11px; text-transform: capitalize; }
@@ -1519,13 +1424,6 @@
 .efetivo-pending-banner strong { color: var(--warning-text); display: block; }
 .efetivo-pending-banner p { color: var(--warning-text); margin: 4px 0 0; }
 
-.efetivo-mission-card.efetivo-mission-pending {
-  background: var(--warning-bg);
-  border-color: var(--warning-border);
-  border-left: 4px solid var(--warning-border);
-  cursor: pointer;
-}
-
 .efetivo-status.status-pending {
   background: var(--wh);
   border-color: var(--warning-border);
@@ -1558,13 +1456,6 @@
 
 .efetivo-mission-identity strong { font-size: 14px; }
 
-.efetivo-scenario-card { width: 100%; }
-.efetivo-scenario-actions { justify-content: space-between; }
-.efetivo-scenario-comparison > header { margin-bottom: 14px; }
-.efetivo-comparison-grid article { background: var(--sf); border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 4px; padding: 14px; }
-.efetivo-comparison-grid strong { color: var(--g); font-size: 20px; }
-.efetivo-comparison-grid em { color: var(--mu); font-size: 11px; }
-
 .efetivo-admin-role {
   align-items: end;
   border: 1px solid var(--br);
@@ -1578,7 +1469,7 @@
 .efetivo-admin-role > div:first-child { align-items: center; display: flex; gap: 8px; }
 .efetivo-admin-tabs { display: flex; gap: 8px; padding: 8px; }
 .efetivo-admin-tabs button { background: transparent; border: 0; border-radius: var(--rs); color: var(--mu); cursor: pointer; font-weight: 700; padding: 9px 12px; }
-.efetivo-admin-tabs button.active { background: var(--gl); color: var(--g); }
+.efetivo-admin-tabs button.active { background: var(--brand-soft); color: var(--brand-text); }
 .efetivo-role-color { border: 1px solid var(--br); border-radius: 50%; height: 18px; width: 18px; }
 .efetivo-user-grid article { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 4px; padding: 12px; }
 .efetivo-user-grid span { color: var(--mu); }
@@ -1586,6 +1477,15 @@
 .efetivo-activity-list article { display: flex; gap: 12px; }
 .efetivo-activity-list p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
 .efetivo-activity-marker { background: var(--gl); border-radius: 50%; flex: 0 0 9px; height: 9px; margin-top: 5px; }
+
+@media (min-width: 1001px) and (max-width: 1279.98px) {
+  .efetivo-kanban,
+  .efetivo-kanban.show-cancelled { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1280px) and (max-width: 1439.98px) {
+  .efetivo-kanban.show-cancelled { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 @media (max-width: 1000px) {
   .efetivo-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1596,8 +1496,7 @@
 
 @media (max-width: 760px) {
   .efetivo-calendar-layout,
-  .efetivo-two-column,
-  .efetivo-utilization-card { grid-template-columns: 1fr; }
+  .efetivo-two-column { grid-template-columns: 1fr; }
   .efetivo-calendar-grid.view-month { display: flex; flex-direction: column; }
   .efetivo-calendar-grid.view-month > button.outside { display: none; }
   .efetivo-calendar-grid > button { min-height: auto; }
@@ -1621,19 +1520,14 @@
   .efetivo-context-toolbar,
   .efetivo-list-toolbar,
   .efetivo-calendar-toolbar,
-  .efetivo-scenario-actions,
   .efetivo-setting-row,
   .efetivo-kanban-intro,
   .efetivo-kanban-view-controls,
-  .efetivo-mission-card header,
-  .efetivo-mission-card footer,
-  .efetivo-scenario-comparison > header,
   .efetivo-admin-tabs,
   .efetivo-compact-list > a,
   .efetivo-compact-list > article { align-items: stretch; flex-direction: column; }
   .efetivo-form-grid,
   .efetivo-demand-grid,
-  .efetivo-comparison-grid,
   .efetivo-admin-role { grid-template-columns: 1fr; }
   .efetivo-form-wide,
   .efetivo-demand-fieldset,
@@ -1670,6 +1564,15 @@
   }
 }
 
+.equip-nav-count.efetivo-nav-pending {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.equip-nav-item.active .equip-nav-count.efetivo-nav-pending {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
 
 /* Tiras de resumo (missões e kanban), no padrão do exemplo de referência. */
 .efetivo-summary-strip {
@@ -1714,15 +1617,12 @@
 .efetivo-team-status.danger { color: var(--rd); }
 .efetivo-team-status.success { color: var(--g); }
 
-/* Kanban: descrição da etapa, responsável e equipe expansível. */
+/* Kanban: descrição da etapa, responsável e equipe sempre visível. */
 .efetivo-kanban-column > header { align-items: flex-start; flex-direction: column; gap: 2px; }
 .efetivo-kanban-column > header > div { align-items: center; display: flex; gap: 8px; justify-content: space-between; width: 100%; }
 .efetivo-kanban-column > header small { color: var(--mu); font-size: 11px; }
 .efetivo-kanban-empty { color: var(--mu); font-size: 12px; margin: 0; padding: 10px 4px; }
 
-.efetivo-mission-owner { align-items: center; display: flex; gap: 8px; }
-
-.efetivo-mission-owner > i,
 .efetivo-kanban-details > div > i {
   align-items: center;
   background: var(--bg);
@@ -1739,11 +1639,6 @@
   width: 26px;
 }
 
-.efetivo-mission-owner span { display: flex; flex-direction: column; min-width: 0; }
-.efetivo-mission-owner small { color: var(--mu); font-size: 9.5px; letter-spacing: .06em; }
-.efetivo-mission-owner strong { font-size: 12.5px; }
-.efetivo-mission-owner b { color: var(--mu); font-size: 11px; font-weight: 500; }
-
 .efetivo-kanban-details {
   background: var(--bg);
   border-radius: var(--rs);
@@ -1754,10 +1649,11 @@
 }
 
 .efetivo-kanban-details > span { color: var(--mu); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
-.efetivo-kanban-details > div { align-items: center; display: flex; gap: 7px; }
-.efetivo-kanban-details strong { font-size: 12.5px; }
+.efetivo-kanban-details > div { align-items: center; display: grid; gap: 2px 7px; grid-template-columns: 26px minmax(0, 1fr); }
+.efetivo-kanban-details > div > i { grid-row: span 2; }
+.efetivo-kanban-details strong { font-size: 12.5px; overflow-wrap: anywhere; }
 .efetivo-kanban-details em { color: var(--g); font-size: 10.5px; margin-left: 6px; }
-.efetivo-kanban-details small { color: var(--mu); font-size: 11px; margin-left: auto; }
+.efetivo-kanban-details small { color: var(--mu); font-size: 11px; grid-column: 2; overflow-wrap: anywhere; }
 .efetivo-kanban-details p { color: var(--mu); font-size: 12px; margin: 0; }
 
 .efetivo-team-toggle {
@@ -1770,6 +1666,8 @@
   padding: 2px 0;
   text-align: left;
 }
+
+.efetivo-kanban-pending .efetivo-team-toggle { color: var(--warning); }
 
 .efetivo-kanban-team-actions { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
 .efetivo-kanban-team-manage {
@@ -1841,7 +1739,7 @@
 
 .efetivo-calendar-grid button.has-conflict { border-color: var(--rd); }
 .efetivo-planning-table tbody tr { cursor: pointer; }
-.efetivo-planning-table tbody tr.selected { background: rgba(48, 80, 58, .07); box-shadow: inset 3px 0 0 var(--gl); }
+.efetivo-planning-table tbody tr.selected { background: var(--brand-softer); box-shadow: inset 3px 0 0 var(--gl); }
 .efetivo-absence-card.selected { border-color: var(--gl); box-shadow: 0 0 0 2px var(--gl); }
 
 /* Itens acionáveis das listas compactas e atalhos entre painéis. */
@@ -1870,7 +1768,6 @@
 }
 
 .efetivo-panel-link:hover { text-decoration: underline; }
-.efetivo-utilization-card .efetivo-panel-link { align-self: flex-start; }
 
 /* Evolução única do projeto; equipe e ciclos ficam dentro da gestão de cada projeto. */
 .project-workflow-toolbar { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 330px), .55fr); }
@@ -1882,7 +1779,7 @@
 /* Seção oculta com as missões canceladas: os dados continuam salvos, só somem da coluna e das etapas que
    exigem programação oficial (mobilização, execução, encerramento) até serem reativadas aqui. */
 .project-workflow-cancelled-toggle { color: var(--mu); grid-column: 1 / -1; justify-self: start; }
-.project-workflow-cancelled-toggle:hover { color: var(--pw-accent); }
+.project-workflow-cancelled-toggle:hover { color: var(--brand-text); }
 .project-workflow-cancelled-missions header h3 { margin: 0 0 4px; }
 .project-workflow-cancelled-missions header p { color: var(--mu); margin: 0; }
 .project-workflow-cancelled-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
@@ -1891,10 +1788,20 @@
 .project-workflow-cancelled-card span,
 .project-workflow-cancelled-card small { color: var(--mu); font-size: 12px; }
 
+.project-workflow-move-alert {
+  background: var(--pw-warn-bg);
+  border-bottom: 1px solid var(--pw-border);
+  color: var(--pw-warn);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  padding: 10px 18px;
+}
+
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(11, minmax(230px, 1fr));
+  grid-template-columns: repeat(11, minmax(288px, 1fr));
   min-width: 0;
   width: 100%;
   overflow-x: auto;
@@ -1940,30 +1847,9 @@
 .project-workflow-card-summary > div { min-width: 0; }
 .project-workflow-card-summary dt { color: var(--mu); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .project-workflow-card-summary dd { font-size: 12px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
-.project-workflow-card .efetivo-mission-owner { margin-top: 2px; }
 .project-workflow-card .efetivo-kanban-details { margin-top: 3px; }
 .project-workflow-card-move-select { display: none; margin: 3px 0 0; }
-.project-workflow-card > strong,
-.project-workflow-card > span,
-.project-workflow-card > small,
-.project-workflow-card > em { max-width: 100%; overflow-wrap: anywhere; }
-.project-workflow-card > span:not(.efetivo-eyebrow),
-.project-workflow-card > small { color: var(--mu); }
-.project-workflow-card > em { color: var(--g); font-size: 12px; font-style: normal; font-weight: 700; }
-.project-workflow-card > em.is-overdue,
 .project-workflow-overdue { color: var(--rd); }
-.project-workflow-card .project-workflow-commercial-badge { color: var(--mu); font-weight: 700; }
-.project-workflow-card .project-workflow-commercial-badge.is-released { color: var(--g); }
-.project-workflow-card .project-workflow-documentation-badge,
-.project-workflow-card .project-workflow-deadline-alert { color: var(--rd); font-weight: 700; }
-.project-workflow-card .project-workflow-documentation-badge.is-ok,
-.project-workflow-card .project-workflow-planning-badge,
-.project-workflow-card .project-workflow-preparation-badge,
-.project-workflow-card .project-workflow-execution-badge,
-.project-workflow-card .project-workflow-authorization-badge.is-authorized { color: var(--g); font-weight: 700; }
-.project-workflow-card .project-workflow-documentation-badge.is-in_progress { color: var(--warning-text); }
-.project-workflow-card .project-workflow-mobilization-risk { color: var(--rd); font-weight: 700; }
-.project-workflow-card .project-workflow-mobilization-risk.is-attention { color: var(--warning-text); }
 .project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
 
 /* ==========================================================================
@@ -2000,10 +1886,35 @@
   --pw-crit-dot: #de2e21;
   --pw-info: #185fb4;
   --pw-info-bg: #e6ecf5;
-  --pw-ring: rgba(48, 80, 58, .22);
+  --pw-ring: var(--focus-ring);
   --pw-shadow-xs: 0 1px 2px rgba(29, 32, 30, .06);
   --pw-shadow-sm: 0 1px 3px rgba(29, 32, 30, .08), 0 1px 2px rgba(29, 32, 30, .04);
   --pw-shadow-lg: 0 24px 60px -18px rgba(29, 32, 30, .35), 0 8px 20px -10px rgba(29, 32, 30, .18);
+}
+
+.dark :is(.project-workflow-modal, .efetivo-team-dialog, .project-workflow-stage-tip-balloon, .project-workflow-category-help-balloon) {
+  --pw-surface: var(--surface);
+  --pw-surface-2: var(--surface-2);
+  --pw-surface-3: color-mix(in srgb, var(--surface-2) 92%, var(--ink));
+  --pw-border: var(--line-strong);
+  --pw-border-soft: var(--line);
+  --pw-ink: var(--ink);
+  --pw-ink-2: var(--ink);
+  --pw-muted: var(--muted);
+  --pw-faint: var(--gray-400);
+  --pw-accent: var(--brand-text);
+  --pw-accent-hover: var(--green-300);
+  --pw-accent-soft: var(--brand-soft);
+  --pw-accent-line: var(--success-line);
+  --pw-ok: var(--success);
+  --pw-ok-bg: var(--success-bg);
+  --pw-warn: var(--warning);
+  --pw-warn-bg: var(--warning-bg);
+  --pw-crit: var(--danger);
+  --pw-crit-bg: var(--danger-bg);
+  --pw-crit-dot: var(--danger);
+  --pw-info: var(--info);
+  --pw-info-bg: var(--info-bg);
 }
 
 /* Caixa do diálogo: ocupa bastante espaço, mas sempre com margem até a borda da tela */
@@ -2088,7 +1999,7 @@
 }
 
 /* Balão de pendências de cada etapa */
-.help-tip-portal.project-workflow-stage-tip-balloon { border-radius: 12px; max-width: min(380px, calc(100vw - 16px)); overflow-x: hidden; overflow-y: auto; padding: 0; width: max-content; }
+.help-tip-portal.project-workflow-stage-tip-balloon { background: var(--pw-surface); border-color: var(--pw-border); border-radius: 12px; color: var(--pw-ink); max-width: min(380px, calc(100vw - 16px)); overflow-x: hidden; overflow-y: auto; padding: 0; width: max-content; }
 .project-workflow-stage-tip { color: var(--pw-ink); min-width: min(310px, calc(100vw - 18px)); }
 .project-workflow-stage-tip > header { align-items: center; background: var(--pw-surface-2); border-bottom: 1px solid var(--pw-border-soft); display: flex; gap: 16px; justify-content: space-between; padding: 10px 12px; position: sticky; top: 0; z-index: 1; }
 .project-workflow-stage-tip > header strong { font-size: 12.5px; }
@@ -2194,7 +2105,7 @@
 .project-workflow-category-help:hover,
 .project-workflow-category-help:focus-visible { color: var(--pw-muted); outline: none; }
 .project-workflow-category-help .project-workflow-icon { height: 14px; width: 14px; }
-.help-tip-portal.project-workflow-category-help-balloon { max-width: min(320px, calc(100vw - 16px)); }
+.help-tip-portal.project-workflow-category-help-balloon { background: var(--pw-surface); border-color: var(--pw-border); color: var(--pw-ink); max-width: min(320px, calc(100vw - 16px)); }
 .project-workflow-category-status { align-items: center; background: var(--pw-surface-3); border-radius: 999px; color: var(--pw-muted); display: inline-flex; flex: 0 0 auto; font-size: 12px; font-weight: 600; gap: 5px; line-height: 1; max-width: 240px; padding: 5px 9px; white-space: nowrap; }
 .project-workflow-category-status .project-workflow-icon { height: 12px; stroke-width: 2.5; width: 12px; }
 .project-workflow-category.is-ok .project-workflow-category-status { background: var(--pw-ok-bg); color: var(--pw-ok); }
@@ -2346,7 +2257,7 @@
 .project-workflow-member-check input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
 .project-workflow-member-check input:disabled { cursor: default; }
 .project-workflow-member-check:hover:not(:has(input:disabled)) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
-.project-workflow-member-check:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, rgba(48, 80, 58, .22)); }
+.project-workflow-member-check:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, var(--focus-ring)); }
 .project-workflow-check-box { align-items: center; border: 1.5px solid var(--pw-faint, var(--mu)); border-radius: 999px; display: inline-flex; flex: 0 0 auto; height: 18px; justify-content: center; width: 18px; }
 .project-workflow-check-box .project-workflow-icon { height: 11px; opacity: 0; stroke-width: 3.2; width: 11px; }
 .project-workflow-member-check.is-done { background: var(--pw-accent-soft, #ebf0ec); border-color: var(--pw-accent-line, var(--g)); color: var(--pw-accent, var(--g)); }
@@ -2436,7 +2347,7 @@
 .project-workflow-check-states label:hover { color: var(--pw-ink, var(--tx)); }
 .project-workflow-check-states input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
 .project-workflow-check-states label:has(input:disabled) { cursor: not-allowed; opacity: .7; }
-.project-workflow-check-states label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, rgba(48, 80, 58, .22)); }
+.project-workflow-check-states label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, var(--focus-ring)); }
 .project-workflow-check-states label.is-selected { background: var(--pw-surface, var(--wh)); box-shadow: var(--pw-shadow-sm, 0 1px 3px rgba(0, 0, 0, .08)); color: var(--pw-ink, var(--tx)); }
 .project-workflow-check-item.is-done .project-workflow-check-states label.is-selected { color: var(--pw-accent, var(--g)); }
 /* Mais específico que o rótulo genérico de campo do diálogo, que é cinza */
@@ -2490,7 +2401,7 @@
 .project-workflow-documentation-type header p { color: var(--mu); margin-top: 3px; }
 .project-workflow-documentation-choice { background: var(--pw-surface-3, var(--bg)); border-radius: 9px; display: inline-flex; flex: 0 0 auto; gap: 2px; padding: 3px; }
 .project-workflow-choice-button { min-width: 58px; transition: background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease; }
-.project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button { background: transparent; border-color: transparent; border-radius: 7px; box-shadow: none; color: var(--pw-muted); min-height: 30px; padding: 4px 14px; }
+.project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button { background: transparent; border-color: transparent; border-radius: 7px; box-shadow: none; color: var(--pw-ink); min-height: 30px; padding: 4px 14px; }
 .project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button:hover:not(:disabled):not(.is-selected) { background: var(--pw-surface); color: var(--pw-ink); }
 .project-workflow-modal .project-workflow-choice-button.is-selected.is-yes,
 .project-workflow-choice-button.is-selected.is-yes { background: var(--g); border-color: var(--g); box-shadow: var(--pw-shadow-sm, none); color: var(--wh); }
@@ -3067,10 +2978,17 @@
   .modal-card.efetivo-modal.project-workflow-modal { max-height: calc(100dvh - 24px); width: calc(100vw - 16px); }
   .project-workflow-modal .efetivo-modal-layout { height: calc(100dvh - 24px); }
   .project-workflow-modal .project-workflow-header { padding: 12px 10px 12px 14px; }
-  .project-workflow-meta > div { flex: 0 0 auto; }
+  .project-workflow-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    overflow: visible;
+  }
+  .project-workflow-meta > div { border: 0; padding: 0; }
+  .project-workflow-meta :is(dt, dd) { white-space: normal; overflow-wrap: anywhere; }
+  .project-workflow-meta dd { align-items: flex-start; }
   .project-workflow-fixed-top { padding: 8px 8px 4px; }
   .project-workflow-stage-legend { display: none; }
-  .project-workflow-meta { scrollbar-width: none; }
   .project-workflow-modal-body.has-stage-layout > .project-workflow-stage-panel { flex-direction: column; }
   .project-workflow-stage-rail { border-bottom: 1px solid var(--pw-border-soft); border-right: 0; flex: 0 0 auto; flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding: 8px 12px; width: auto; }
   .project-workflow-stage-rail-title,

@@ -66,7 +66,7 @@ export function ProjectGroupRenameNovelty({ user, enabled, onSeen }: ProjectGrou
           popover: {
             title: 'Edição direto no título',
             description:
-              'Use o lápis para editar o nome completo do card. Os códigos e nomes dos projetos continuam no subtítulo para referência.',
+              'Use o lápis na linha de ações para editar o título do card. Os códigos e nomes originais continuam na lista de missões para referência.',
             side: 'bottom',
             align: 'end'
           }

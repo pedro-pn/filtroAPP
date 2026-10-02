@@ -1,5 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 
+import { RemoveIconButton } from '../ui/RemoveIconButton';
+import './ReportCollaboratorTags.css';
 import type { Collaborator } from '../../types/domain';
 
 export interface DdsThemeSnapshot {
@@ -82,19 +84,23 @@ export function ManualReportOperationalFields({
   teamLabel = 'Equipe diurna',
   onChange
 }: ManualReportOperationalFieldsProps) {
+  const idPrefix = useId();
+  const fieldId = (key: string) => `${idPrefix}-${key}`;
   const [customThemeInputs, setCustomThemeInputs] = useState<Record<string, string>>({});
 
   function renderSelected(ids: string[], field: 'collaboratorIds' | 'noturnoCollaboratorIds') {
     if (!ids.length) return <div className="colab-empty">Nenhum colaborador adicionado.</div>;
 
     return ids.map(id => (
-      <span className="colab-tag" key={`${field}-${id}`}>
+      <span className="colab-tag report-collaborator-tag" key={`${field}-${id}`}>
         <span>{collaboratorName(collaborators, id)}</span>
         <button
+          className="colab-tag__remove"
           type="button"
           disabled={disabled}
           onClick={() => onChange({ [field]: ids.filter(item => item !== id) })}
-          aria-label="Remover colaborador"
+          aria-label={`Remover colaborador ${collaboratorName(collaborators, id)}`}
+          title="Remover"
         >
           ×
         </button>
@@ -159,14 +165,11 @@ export function ManualReportOperationalFields({
             selected.map(theme => (
               <span className={`colab-tag ${theme.custom ? 'colab-tag-custom' : ''}`} key={`${field}-${theme.id}`}>
                 <span>{theme.custom ? `${theme.name} (novo)` : theme.name}</span>
-                <button
-                  type="button"
+                <RemoveIconButton
                   disabled={disabled}
                   onClick={() => onChange({ [field]: selected.filter(item => item.id !== theme.id) })}
-                  aria-label="Remover tema"
-                >
-                  ×
-                </button>
+                  label={`Remover tema ${theme.name}`}
+                />
               </span>
             ))
           ) : (
@@ -232,6 +235,7 @@ export function ManualReportOperationalFields({
           <label className="tog">
             <input
               type="checkbox"
+              aria-label={shift === 'day' ? 'Houve DDS?' : 'Houve DDS no turno noturno?'}
               checked={enabled}
               disabled={disabled}
               onChange={event => onChange({ [enabledField]: event.target.checked })}
@@ -243,8 +247,9 @@ export function ManualReportOperationalFields({
           <div className="collapse-section">
             <div className="fg-r2">
               <div className="field-group">
-                <label>Início</label>
+                <label htmlFor={fieldId(startField)}>Início</label>
                 <input
+                  id={fieldId(startField)}
                   type="time"
                   value={value[startField]}
                   disabled={disabled}
@@ -252,8 +257,9 @@ export function ManualReportOperationalFields({
                 />
               </div>
               <div className="field-group">
-                <label>Término</label>
+                <label htmlFor={fieldId(endField)}>Término</label>
                 <input
+                  id={fieldId(endField)}
                   type="time"
                   value={value[endField]}
                   disabled={disabled}
@@ -276,8 +282,9 @@ export function ManualReportOperationalFields({
           <div className="section-title">Horários</div>
           <div className="fg-r2">
             <div className="field-group">
-              <label>Chegada</label>
+              <label htmlFor={fieldId('arrivalTime')}>Chegada</label>
               <input
+                id={fieldId('arrivalTime')}
                 type="time"
                 value={value.arrivalTime}
                 disabled={disabled}
@@ -285,8 +292,9 @@ export function ManualReportOperationalFields({
               />
             </div>
             <div className="field-group">
-              <label>Saída</label>
+              <label htmlFor={fieldId('departureTime')}>Saída</label>
               <input
+                id={fieldId('departureTime')}
                 type="time"
                 value={value.departureTime}
                 disabled={disabled}
@@ -295,8 +303,9 @@ export function ManualReportOperationalFields({
             </div>
           </div>
           <div className="field-group manual-operational-lunch">
-            <label>Intervalo de almoço</label>
+            <label htmlFor={fieldId('lunchBreak')}>Intervalo de almoço</label>
             <input
+              id={fieldId('lunchBreak')}
               type="time"
               step={1}
               value={value.lunchBreak}
@@ -326,6 +335,7 @@ export function ManualReportOperationalFields({
                 <label className="tog">
                   <input
                     type="checkbox"
+                    aria-label="Stand-by"
                     checked={value.standby}
                     disabled={disabled}
                     onChange={event => onChange({ standby: event.target.checked })}
@@ -337,8 +347,9 @@ export function ManualReportOperationalFields({
                 <div className="collapse-section">
                   <div className="fg-r2">
                     <div className="field-group">
-                      <label>Tempo total</label>
+                      <label htmlFor={fieldId('standbyDuration')}>Tempo total</label>
                       <input
+                        id={fieldId('standbyDuration')}
                         type="time"
                         step={1}
                         value={value.standbyDuration}
@@ -347,8 +358,9 @@ export function ManualReportOperationalFields({
                       />
                     </div>
                     <div className="field-group">
-                      <label>Motivo</label>
+                      <label htmlFor={fieldId('standbyMotivo')}>Motivo</label>
                       <input
+                        id={fieldId('standbyMotivo')}
                         value={value.standbyMotivo}
                         disabled={disabled}
                         onChange={event => onChange({ standbyMotivo: event.target.value })}
@@ -368,6 +380,7 @@ export function ManualReportOperationalFields({
                 <label className="tog">
                   <input
                     type="checkbox"
+                    aria-label="Houve turno noturno?"
                     checked={value.noturno}
                     disabled={disabled}
                     onChange={event => onChange({ noturno: event.target.checked })}
@@ -379,8 +392,9 @@ export function ManualReportOperationalFields({
                 <div className="collapse-section noturno-section">
                   <div className="fg-r2 night-time-grid">
                     <div className="field-group">
-                      <label>Início</label>
+                      <label htmlFor={fieldId('noturnoStart')}>Início</label>
                       <input
+                        id={fieldId('noturnoStart')}
                         type="time"
                         value={value.noturnoStart}
                         disabled={disabled}
@@ -388,8 +402,9 @@ export function ManualReportOperationalFields({
                       />
                     </div>
                     <div className="field-group">
-                      <label>Término</label>
+                      <label htmlFor={fieldId('noturnoEnd')}>Término</label>
                       <input
+                        id={fieldId('noturnoEnd')}
                         type="time"
                         value={value.noturnoEnd}
                         disabled={disabled}
@@ -398,8 +413,9 @@ export function ManualReportOperationalFields({
                     </div>
                   </div>
                   <div className="field-group manual-operational-lunch">
-                    <label>Intervalo noturno</label>
+                    <label htmlFor={fieldId('noturnoInterval')}>Intervalo noturno</label>
                     <input
+                      id={fieldId('noturnoInterval')}
                       type="time"
                       step={1}
                       value={value.noturnoInterval}

@@ -1,0 +1,391 @@
+/* ============================================================================
+   Filtrovali DS — Tokens CSS (handoff inicial)
+   ----------------------------------------------------------------------------
+   Handoff Designer → Desenvolvedor. Os valores atuais de execução vivem em
+   frontend/src/styles/variables.css. Não copiar isoladamente sobre o projeto:
+   ela depende de foundation.css, tailwind.css e legacy.css.
+
+   Estrutura:
+     1. Primitivos            (paleta bruta — NÃO usar direto em componentes)
+     2. Escalas fixas         (tipografia, espaçamento, radius, sombra, z, bp)
+     3. Semânticos — LIGHT    (:root)
+     4. Semânticos — DARK     (.dark  +  @media prefers-color-scheme)
+     5. Compatibilidade      (aliases temporários para o legado)
+     6. Integração           (foundation e Tailwind vivem em arquivos próprios)
+   Componentes consomem APENAS os tokens semânticos (seção 3/4) e as escalas.
+   ============================================================================ */
+
+/* ------------------------------------------------------------------ */
+/* 1. PRIMITIVOS                                                       */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Marca (verde Filtrovali) */
+  --green-700: #243d2c;
+  --green-600: #2c4a36;
+  --green-500: #30503a; /* marca (light) */
+  --green-400: #3d6449;
+  --green-300: #4f8a63; /* marca (dark)  */
+  --green-200: #72b487;
+  --green-100: #e6efe9;
+  --green-50: #f2f7f4;
+
+  /* Neutros (rampa única) */
+  --gray-950: #0f1512;
+  --gray-900: #16211b;
+  --gray-800: #1c2a22;
+  --gray-700: #374151;
+  --gray-500: #6b7280;
+  --gray-400: #9aa7a0;
+  --gray-300: #d1d5db;
+  --gray-200: #e5e7eb;
+  --gray-100: #f3f4f4;
+  --gray-50: #f7f8f7;
+  --white: #ffffff;
+
+  /* Feedback — base / bg / line */
+  --success-500: #1f7a3d;
+  --success-bg-500: #e6f4ea;
+  --success-line-500: #b7dcc3;
+  --warning-500: #b45309;
+  --warning-bg-500: #fff7e6;
+  --warning-line-500: #fcd9a3;
+  --danger-500: #c81519;
+  --danger-bg-500: #fdecec;
+  --danger-line-500: #f3b3b5;
+  --info-500: #11437e;
+  --info-bg-500: #e7effa;
+  --info-line-500: #b6cbe6;
+}
+
+/* ------------------------------------------------------------------ */
+/* 2. ESCALAS FIXAS (independem do tema)                               */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Tipografia */
+  --font-sans:
+    "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+
+  /* Tamanhos + line-height (par font-size / line-height) */
+  --text-xs: 12px;
+  --leading-xs: 16px;
+  --text-sm: 13px;
+  --leading-sm: 18px;
+  --text-base: 14px;
+  --leading-base: 20px;
+  --text-md: 16px;
+  --leading-md: 24px;
+  --text-lg: 18px;
+  --leading-lg: 26px;
+  --text-xl: 22px;
+  --leading-xl: 30px;
+  --text-2xl: 28px;
+  --leading-2xl: 36px;
+
+  /* Pesos */
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Espaçamento (base 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* Borda */
+  --border-width: 1px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Elevação / sombras */
+  --shadow-e0: none;
+  --shadow-e1: 0 1px 2px rgba(16, 21, 18, 0.06);
+  --shadow-e2: 0 4px 12px rgba(16, 21, 18, 0.08);
+  --shadow-e3: 0 16px 40px rgba(16, 21, 18, 0.16);
+
+  /* Z-index */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-sidebar: 200;
+  --z-dropdown: 300;
+  --z-bottombar: 400;
+  --z-overlay: 500;
+  --z-modal: 600;
+  --z-toast: 700;
+
+  /* Layout */
+  --content-max: 1280px;
+  --sidebar-w: 260px;
+  --sidebar-w-collapsed: 72px;
+  --topbar-h: 64px;
+  --topbar-h-mobile: 56px;
+  --bottombar-h: 56px;
+
+  /* Breakpoints (referência — usar em @media / config Tailwind) */
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+  --bp-2xl: 1536px;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+}
+
+/* ------------------------------------------------------------------ */
+/* 3. SEMÂNTICOS — LIGHT (padrão)                                      */
+/* ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+
+  /* Superfícies e texto */
+  --canvas: var(--gray-50);
+  --canvas-subtle: var(--gray-100);
+  --surface: var(--white);
+  --surface-2: var(--gray-100);
+  --line: var(--gray-200);
+  --line-strong: var(--gray-300);
+  --ink: #1a1a1a;
+  --muted: var(--gray-500);
+  --inverse: var(--white);
+
+  /* Marca */
+  --brand: var(--green-500);
+  --brand-hover: var(--green-700);
+  --brand-soft: var(--green-100);
+  --brand-softer: var(--green-50);
+  --brand-text: var(--green-500);
+  --on-brand: var(--white);
+  --link: var(--brand);
+  --link-hover: var(--brand-hover);
+  --control-border: var(--gray-500);
+
+  /* Feedback */
+  --success: var(--success-500);
+  --success-bg: var(--success-bg-500);
+  --success-line: var(--success-line-500);
+  --warning: var(--warning-500);
+  --warning-bg: var(--warning-bg-500);
+  --warning-line: var(--warning-line-500);
+  --danger: var(--danger-500);
+  --danger-hover: #a40f13;
+  --on-danger: var(--white);
+  --danger-bg: var(--danger-bg-500);
+  --danger-line: var(--danger-line-500);
+  --info: var(--info-500);
+  --info-bg: var(--info-bg-500);
+  --info-line: var(--info-line-500);
+
+  /* Foco */
+  --focus-ring: var(--green-500);
+  --scrim: rgba(15, 21, 18, 0.58);
+  --skeleton-highlight: rgba(255, 255, 255, 0.72);
+  --disabled-opacity: 0.45;
+  --disabled-bg: var(--gray-100);
+  --disabled-ink: var(--gray-700);
+  --disabled-line: var(--gray-300);
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. SEMÂNTICOS — DARK                                                */
+/*    Ativação por classe .dark (toggle) e/ou preferência do sistema.  */
+/* ------------------------------------------------------------------ */
+.dark {
+  color-scheme: dark;
+
+  --canvas: var(--gray-950);
+  --canvas-subtle: #131b16;
+  --surface: var(--gray-900);
+  --surface-2: var(--gray-800);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --ink: #eef2ef;
+  --muted: var(--gray-400);
+  --inverse: var(--gray-950);
+
+  --brand: var(--green-300);
+  --brand-hover: var(--green-200);
+  --brand-soft: rgba(79, 138, 99, 0.12);
+  --brand-softer: rgba(79, 138, 99, 0.1);
+  --brand-text: var(--green-200);
+  --on-brand: var(--gray-950);
+  --link: var(--brand-hover);
+  --link-hover: var(--ink);
+  --control-border: var(--gray-400);
+
+  --success: #57b979;
+  --success-bg: rgba(31, 122, 61, 0.16);
+  --success-line: rgba(87, 185, 121, 0.3);
+  --warning: #e0a049;
+  --warning-bg: rgba(180, 83, 9, 0.18);
+  --warning-line: rgba(224, 160, 73, 0.3);
+  --danger: #ef6b6e;
+  --danger-hover: #ff8588;
+  --on-danger: var(--gray-950);
+  --danger-bg: rgba(200, 21, 25, 0.18);
+  --danger-line: rgba(239, 107, 110, 0.3);
+  --info: #6ba3e0;
+  --info-bg: rgba(17, 67, 126, 0.22);
+  --info-line: rgba(107, 163, 224, 0.3);
+
+  --focus-ring: var(--green-200);
+  --scrim: rgba(0, 0, 0, 0.72);
+  --skeleton-highlight: rgba(255, 255, 255, 0.08);
+  --disabled-bg: var(--gray-800);
+  --disabled-ink: var(--gray-400);
+  --disabled-line: var(--line-strong);
+}
+
+/* Opcional: seguir o sistema quando NÃO houver override manual (.light / .dark).
+   Remova este bloco se o app controlar o tema exclusivamente por classe. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark) {
+    color-scheme: dark;
+
+    --canvas: var(--gray-950);
+    --canvas-subtle: #131b16;
+    --surface: var(--gray-900);
+    --surface-2: var(--gray-800);
+    --line: rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --ink: #eef2ef;
+    --muted: var(--gray-400);
+    --inverse: var(--gray-950);
+
+    --brand: var(--green-300);
+    --brand-hover: var(--green-200);
+    --brand-soft: rgba(79, 138, 99, 0.12);
+    --brand-softer: rgba(79, 138, 99, 0.1);
+    --brand-text: var(--green-200);
+    --on-brand: var(--gray-950);
+    --link: var(--brand-hover);
+    --link-hover: var(--ink);
+    --control-border: var(--gray-400);
+
+    --success: #57b979;
+    --success-bg: rgba(31, 122, 61, 0.16);
+    --success-line: rgba(87, 185, 121, 0.3);
+    --warning: #e0a049;
+    --warning-bg: rgba(180, 83, 9, 0.18);
+    --warning-line: rgba(224, 160, 73, 0.3);
+    --danger: #ef6b6e;
+    --danger-hover: #ff8588;
+    --on-danger: var(--gray-950);
+    --danger-bg: rgba(200, 21, 25, 0.18);
+    --danger-line: rgba(239, 107, 110, 0.3);
+    --info: #6ba3e0;
+    --info-bg: rgba(17, 67, 126, 0.22);
+    --info-line: rgba(107, 163, 224, 0.3);
+
+    --focus-ring: var(--green-200);
+    --scrim: rgba(0, 0, 0, 0.72);
+    --skeleton-highlight: rgba(255, 255, 255, 0.08);
+    --disabled-bg: var(--gray-800);
+    --disabled-ink: var(--gray-400);
+    --disabled-line: var(--line-strong);
+  }
+}
+
+/* Aliases semânticos descritivos — resolvem dinamicamente conforme o tema. */
+:root {
+  --background: var(--canvas);
+  --surface-subtle: var(--surface-2);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --text: var(--ink);
+  --text-muted: var(--muted);
+  --text-inverse: var(--inverse);
+}
+
+/* ------------------------------------------------------------------ */
+/* 5. COMPATIBILIDADE TEMPORÁRIA COM O LEGADO                         */
+/* ------------------------------------------------------------------ */
+:root {
+  --g: var(--green-500);
+  --gl: var(--green-400);
+  --gd: var(--green-700);
+  --bl: var(--info-500);
+  --rd: var(--danger-500);
+  --pu: #9b93a8;
+  --bg: #f4f5f4;
+  --wh: var(--white);
+  --tx: #1a1a1a;
+  --mu: var(--gray-500);
+  --mut: var(--gray-500);
+  --br: var(--gray-300);
+  --bd: var(--gray-300);
+  --r: var(--radius-md);
+  --rs: var(--radius-sm);
+  --shadow: var(--shadow-e1);
+
+  --legacy-warning-bg: #fff7e6;
+  --warning-border: #f3d7a5;
+  --warning-text: #8a4b00;
+  --warning-shadow: rgba(161, 92, 0, 0.16);
+  --error: var(--danger-500);
+  --error-bg: #fdeaea;
+  --tx-soft: #64748b;
+}
+
+/* ============================================================================
+   6. INTEGRAÇÃO IMPLEMENTADA NA FASE 1
+
+   Foundation:
+   - frontend/src/styles/foundation.css contém as regras base;
+   - elas são limitadas a .fv-ds / [data-fv-ds];
+   - frontend/src/styles/legacy.css importa base.css em layer(legacy).
+
+   Tailwind v4:
+   - frontend/src/styles/tailwind.css importa theme.css e utilities.css;
+   - Preflight NÃO é importado;
+   - ordem das layers: theme, legacy, utilities;
+   - a paleta genérica do Tailwind é desabilitada.
+
+   Mapeamento semântico principal:
+
+   @theme inline {
+     --color-canvas: var(--canvas);
+     --color-surface: var(--surface);
+     --color-surface-2: var(--surface-2);
+     --color-line: var(--line);
+     --color-ink: var(--ink);
+     --color-muted: var(--muted);
+     --color-brand: var(--brand);
+     --color-brand-soft: var(--brand-soft);
+     --color-on-brand: var(--on-brand);
+     --color-link: var(--link);
+     --color-link-hover: var(--link-hover);
+     --color-control-border: var(--control-border);
+     --color-success: var(--success);   --color-success-bg: var(--success-bg);
+     --color-warning: var(--warning);   --color-warning-bg: var(--warning-bg);
+     --color-danger:  var(--danger);    --color-danger-bg:  var(--danger-bg);
+     --color-info:    var(--info);      --color-info-bg:    var(--info-bg);
+     --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 18px;
+     --shadow-e1: 0 1px 2px rgba(16,21,18,.06);
+     --shadow-e2: 0 4px 12px rgba(16,21,18,.08);
+     --shadow-e3: 0 16px 40px rgba(16,21,18,.16);
+     --breakpoint-sm: 480px; --breakpoint-md: 768px; --breakpoint-lg: 1024px;
+     --breakpoint-xl: 1280px; --breakpoint-2xl: 1536px;
+   }
+
+   Ver 07-foundation-phase-1.md para a arquitetura completa e critérios de uso.
+   ============================================================================ */

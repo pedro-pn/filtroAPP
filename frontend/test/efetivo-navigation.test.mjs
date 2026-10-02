@@ -43,6 +43,10 @@ test('navegação inclui disponibilidade e preserva data e função', async () =
   assert.equal(period.get('final'), '2026-09-21');
   assert.equal(period.get('disponibilidadeView'), 'calendar');
   assert.equal(navigation.parsePlanningSection('simulacoes'), 'disponibilidade');
+  const availability = navigation.setPlanningSectionParams(new URLSearchParams('section=simulacoes&cenario=c1&missao=m1&final=2026-09-21'), 'disponibilidade');
+  assert.equal(availability.has('cenario'), false);
+  assert.equal(availability.has('missao'), false);
+  assert.equal(availability.get('final'), '2026-09-21');
 });
 
 test('período da disponibilidade persiste ao navegar por outras seções do módulo', async () => {
@@ -83,7 +87,9 @@ test('colaborador e ausência selecionados pela URL são destacados na tela', ()
 test('detalhe do dia mostra pessoas, vagas em aberto e conflitos', () => {
   const detail = fs.readFileSync(new URL('../src/pages/efetivo/components/CalendarDayDetail.tsx', import.meta.url), 'utf8');
   const calendar = fs.readFileSync(new URL('../src/pages/efetivo/components/OperationalCalendar.tsx', import.meta.url), 'utf8');
-  assert.match(detail, /event\.people/);
+  const people = fs.readFileSync(new URL('../src/pages/efetivo/components/calendarDayEvents.ts', import.meta.url), 'utf8');
+  assert.match(detail, /calendarEventPeopleOnDay/);
+  assert.match(people, /event\.people/);
   assert.match(detail, /vagas em aberto/);
   assert.match(detail, /dayConflicts/);
   assert.match(calendar, /conflicts=\{conflicts\}/);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { Button } from '../../../components/ui/Button';
+import { Button } from '../../../components/ui/ds';
+import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { sequentialSignaturePageLoader, type SignaturePageLoader } from '../utils/preview';
 
 type PageContent = { imageUrl: string; pageNumber: number; onImageError: () => void };
@@ -63,7 +64,7 @@ function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, d
           {error ? <div className="signature-preview-error" role="alert">
             <p>Não foi possível exibir a página {pageNumber}.</p>
             <Button variant="secondary" onClick={() => setAttempt(value => value + 1)}>Tentar novamente</Button>
-          </div> : <p role="status">{visible ? `Carregando página ${pageNumber}…` : `Página ${pageNumber}`}</p>}
+          </div> : visible ? <BrandLoading size="md" label={`Carregando página ${pageNumber}`} /> : <p>Página {pageNumber}</p>}
         </div>
       )}
     </section>

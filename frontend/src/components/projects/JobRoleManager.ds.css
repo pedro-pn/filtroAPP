@@ -1,0 +1,186 @@
+.fv-ds.rdo-job-roles {
+  display: grid;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__card {
+  min-width: 0;
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__card > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__title-icon {
+  display: inline-grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--success-bg);
+  color: var(--brand-text);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__create-form {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, auto) auto;
+  align-items: end;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__edit-fields {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__operational-control {
+  display: inline-flex;
+  min-height: var(--control-md);
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__operational-control input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--brand);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__form-actions,
+.fv-ds.rdo-job-roles .fv-data-table__actions,
+.fv-ds.rdo-job-roles .fv-mobile-list__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* O espaçamento das listas é definido por `styles/rdo-ds-actions.css`, que
+   precisa garantir que os alvos de 44px não colidam ao quebrar em duas linhas. */
+.fv-ds.rdo-job-roles .rdo-job-roles__form-actions {
+  gap: var(--space-2);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__name {
+  display: inline-block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-weight: var(--font-semibold);
+}
+
+/* O control shell é o dono do anel de foco visível nesta superfície: sem isto,
+   o outline retangular do input desenhado por foundation.css corta o anel
+   arredondado do shell. Correção escopada, como na B.6 e na B.8. */
+.fv-ds.rdo-job-roles .fv-input:focus-visible {
+  outline: 0;
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__rename-field {
+  min-width: min(var(--content-sm), 100%);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__row--inactive {
+  opacity: var(--disabled-opacity);
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__row--inactive:focus-within,
+.fv-ds.rdo-job-roles .rdo-job-roles__row--inactive:hover {
+  opacity: 1;
+}
+
+.fv-ds.rdo-job-roles .rdo-job-roles__loading {
+  min-height: var(--space-48);
+}
+
+.fv-ds.rdo-job-roles .fv-mobile-list__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 767.98px) {
+  .fv-ds.rdo-job-roles .rdo-job-roles__card > .fv-card__body {
+    gap: var(--space-3);
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__card h2 {
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__title {
+    gap: var(--space-2);
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__title-icon {
+    width: calc(var(--space-8) + var(--space-1));
+    height: calc(var(--space-8) + var(--space-1));
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__card > .fv-card__header {
+    display: grid;
+    gap: var(--space-2);
+    align-items: stretch;
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__card > .fv-card__header,
+  .fv-ds.rdo-job-roles .rdo-job-roles__create-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__card > .fv-card__header,
+  .fv-ds.rdo-job-roles
+    .rdo-job-roles__card
+    > .fv-card__header
+    .fv-card__actions {
+    width: 100%;
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__card > .fv-card__header .fv-button,
+  .fv-ds.rdo-job-roles .rdo-job-roles__form-actions .fv-button {
+    flex: 1 1 var(--space-28);
+  }
+
+  .fv-ds.rdo-job-roles .fv-mobile-list__actions .fv-button {
+    flex: 1 1 var(--space-24);
+  }
+
+  .fv-ds.rdo-job-roles .rdo-job-roles__create-form {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+}

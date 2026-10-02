@@ -1,24 +1,28 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
-import { rdoPath } from '../../auth/rolePath';
+import { navigationStateFromLocation } from '../../auth/moduleNavigation';
+import { rdoPath, rdoReportDetailPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportPdfBatchActions, ReportSelectionCheckbox } from '../../components/reports/ReportPdfBatchActions';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
-import { SearchBar } from '../../components/ui/SearchBar';
+import { ManagerReportListing } from '../../components/reports/manager/ManagerReportListing';
+import { Button, Card, SearchInput } from '../../components/ui/ds';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
+import { currentPageScrollState, saveCurrentPageScroll } from '../../hooks/usePageScrollRestoration';
+import { RdoAppShell } from '../RdoAppShell';
 
 const REPORT_PAGE_SIZE = 25;
 
 export function MyArchivedReportsPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const location = useLocation();
+  const { user } = useAuth();
   // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
   const [search, setSearch] = usePersistentSearch(`my-archived-search:${user?.id || user?.username || 'anonymous'}`);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
@@ -44,86 +48,110 @@ export function MyArchivedReportsPage() {
     );
     return sorted;
   }, [reports]);
+  const navigationSections = useMemo(() => [
+    { id: 'home', label: 'Início', href: rdoPath('/home'), active: false },
+    { id: 'reports', label: 'Meus relatórios', href: rdoPath('/meus-relatorios'), active: false },
+    { id: 'ongoing', label: 'Em andamento', href: rdoPath('/andamento'), active: false },
+    { id: 'archived', label: 'Arquivados', href: rdoPath('/meus-relatorios/arquivados'), active: true }
+  ], []);
 
-  async function handleLogout() {
-    await logout();
-    navigate('/', { replace: true });
+  function handleOpenReport(report: (typeof reports)[number]) {
+    saveCurrentPageScroll(location, user?.id || user?.username || 'anonymous');
+    navigate(rdoReportDetailPath(user, report.id), {
+      state: {
+        ...(navigationStateFromLocation(location) || {}),
+        ...currentPageScrollState()
+      }
+    });
   }
 
   return (
-    <Shell>
-      <TopBar
-        title="Arquivados"
-        subtitle={user?.name}
-        actions={
-          <>
-            <button className="topbar-chip" type="button" onClick={() => navigate(rdoPath('/home'))}>
-              Início
-            </button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>
-              Sair
-            </button>
-          </>
-        }
+    <RdoAppShell
+      title="Arquivados"
+      sectionLabel="Relatórios arquivados"
+      subNavigation={navigationSections}
+    >
+      <main className="fv-ds rdo-role-page rdo-collaborator-reports-page">
+        <PageHeader
+          title="Relatórios arquivados"
+          description="Consulte e baixe os relatórios vinculados a projetos já arquivados."
+          actions={(
+            <Button variant="secondary" size="sm" onClick={() => navigate(rdoPath('/home'))}>
+              Voltar ao início
+            </Button>
+          )}
       />
-      <main className="page-scroll">
-        <section className="page-card">
-          <div className="admin-search-row">
-            <SearchBar value={search} loading={reportsQuery.isSearching} onChange={setSearch} placeholder="Buscar em arquivados" />
+        <Card className="rdo-role-toolbar" padding="sm">
+          <div className="rdo-role-toolbar__controls">
+            <SearchInput value={search} onChange={setSearch} placeholder="Buscar em arquivados" aria-label="Buscar em arquivados" />
           </div>
-        </section>
-        {reportsQuery.isLoadingInitial ? <ReportListSkeleton /> : null}
-        {!reportsQuery.isLoadingInitial && !groups.length ? (
-          <div className="page-card placeholder-copy">
+        </Card>
+        {reportsQuery.isLoading ? <ReportListSkeleton /> : null}
+        {!reportsQuery.isLoading && !groups.length ? (
+          <Card className="placeholder-copy" padding="lg">
             {search.trim() ? 'Nenhum relatório arquivado encontrado.' : 'Nenhum relatório arquivado.'}
-          </div>
+          </Card>
         ) : null}
-        <GroupedReportList
-          reports={groups}
-          archived
-          storageKey={`collaborator-archived-report-groups:${user?.id || user?.username || 'anonymous'}`}
-          renderTypeActions={typeReports => (
-            <ReportPdfBatchActions
-              reports={typeReports}
-              selectedIds={selectedReportIds}
-              onSelectionChange={setSelectedReportIds}
-            />
-          )}
-          onLoadMoreType={reportsQuery.loadMoreGroup}
-          onEnsureTypePage={reportsQuery.ensureGroupPage}
-          isTypePageReady={reportsQuery.isGroupPageReady}
-          getTypeLoadedCount={reportsQuery.groupLoadedCount}
-          hasMoreType={reportsQuery.hasMoreGroup}
-          isTypeLoading={reportsQuery.isGroupLoading}
-          isTypePageErrored={reportsQuery.isGroupError}
-          getTypeTotal={reportsQuery.groupTotal}
-          getProjectTypeTotals={reportsQuery.projectTypeTotals}
-          renderReport={report => (
-            <ReportSummaryCard
-              key={report.id}
-              report={report}
-              leadingControl={(
-                <ReportSelectionCheckbox
-                  reportId={report.id}
-                  selectedIds={selectedReportIds}
-                  onSelectionChange={setSelectedReportIds}
-                />
-              )}
-            />
-          )}
-        />
+        <div className="rdo-manager-listing rdo-role-report-listing">
+          <GroupedReportList
+            reports={groups}
+            archived
+            appearance="design-system"
+            storageKey={`collaborator-archived-report-groups:${user?.id || user?.username || 'anonymous'}`}
+            renderTypeActions={typeReports => (
+              <ReportPdfBatchActions
+                appearance="design-system"
+                reports={typeReports}
+                selectedIds={selectedReportIds}
+                onSelectionChange={setSelectedReportIds}
+              />
+            )}
+            onLoadMoreType={reportsQuery.loadMoreGroup}
+            onEnsureTypePage={reportsQuery.ensureGroupPage}
+            isTypePageReady={reportsQuery.isGroupPageReady}
+            getTypeLoadedCount={reportsQuery.groupLoadedCount}
+            hasMoreType={reportsQuery.hasMoreGroup}
+            isTypeLoading={reportsQuery.isGroupLoading}
+            isTypePageErrored={reportsQuery.isGroupError}
+            getTypeTotal={reportsQuery.groupTotal}
+            getProjectTypeTotals={reportsQuery.projectTypeTotals}
+            renderReportCollection={({ reports: typeReports, projectLabel, reportType, sortDirection, onSortChange }) => (
+              <ManagerReportListing
+                reports={typeReports}
+                selectedReportIds={selectedReportIds}
+                onSelectionChange={setSelectedReportIds}
+                onOpenReport={handleOpenReport}
+                renderActions={() => null}
+                reportType={reportType}
+                projectLabel={projectLabel}
+                sortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
+            )}
+            renderReport={report => (
+              <ReportSummaryCard
+                key={report.id}
+                report={report}
+                leadingControl={(
+                  <ReportSelectionCheckbox
+                    reportId={report.id}
+                    selectedIds={selectedReportIds}
+                    onSelectionChange={setSelectedReportIds}
+                  />
+                )}
+              />
+            )}
+          />
+        </div>
         <div ref={loadMoreRef} aria-hidden="true" />
         {reportsQuery.hasMore || reportsQuery.isLoadingMore ? (
-          <div className="admin-create-toolbar">
-            <button className="mini-btn" type="button" disabled={reportsQuery.isLoadingMore} onClick={reportsQuery.loadMore}>
+          <div className="admin-create-toolbar rdo-role-load-more">
+            <Button variant="secondary" size="sm" loading={reportsQuery.isLoadingMore} disabled={reportsQuery.isLoadingMore} onClick={reportsQuery.loadMore}>
               {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-            </button>
+            </Button>
           </div>
         ) : null}
-        <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/home'))}>
-          Voltar
-        </button>
       </main>
-    </Shell>
+    </RdoAppShell>
   );
 }

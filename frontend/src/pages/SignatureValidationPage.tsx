@@ -3,12 +3,13 @@ import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { getSignatureValidation, getStandaloneSignatureValidation } from '../api/signatureValidation';
+import { BrandLogo } from '../components/brand/BrandLogo';
+import { Alert, Card, Skeleton, StatusPill, type SemanticTone } from '../components/ui/ds';
 import { useToast } from '../components/ui/ToastContext';
 import { formatSignatureDateTime } from './assinaturas/utils/datetime';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const logoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_VERDE.png`;
+import './RdoPublicPage.css';
 
 const statusLabels: Record<string, string> = {
   VALID: 'Documento válido',
@@ -16,6 +17,20 @@ const statusLabels: Record<string, string> = {
   REJECTED: 'Assinatura reprovada',
   UNAVAILABLE: 'Validação indisponível',
   INVALID: 'Código não encontrado'
+};
+
+const statusTones: Record<string, SemanticTone> = {
+  VALID: 'success',
+  SUPERSEDED: 'warning',
+  REJECTED: 'danger',
+  UNAVAILABLE: 'neutral',
+  INVALID: 'danger'
+};
+
+const signerStatusLabels: Record<string, string> = {
+  SIGNED: 'Assinado',
+  REJECTED: 'Reprovado',
+  PENDING: 'Pendente'
 };
 
 async function sha256File(file: File) {
@@ -78,39 +93,36 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
   }
 
   return (
-    <main className="survey-page-shell signature-validation-page">
-      <header className="survey-header">
-        <img src={logoUrl} alt="Filtrovali" />
+    <main className="fv-ds rdo-public-shell signature-validation-page" data-fv-ds>
+      <header className="rdo-public-header">
+        <BrandLogo className="rdo-public-logo" />
       </header>
-      <section className="auth-card signature-validation-card">
-        <div className="section-title">Validação de assinatura</div>
-        {validationQuery.isLoading ? <p className="placeholder-copy">Carregando validação...</p> : null}
+      <Card className="rdo-public-card signature-validation-card" padding="lg" title="Validação de assinatura">
+        {validationQuery.isLoading ? <Skeleton variant="text" lines={6} label="Carregando validação" /> : null}
         {validationQuery.isError ? (
-          <p className="inline-error">
+          <Alert tone="danger" title="Não foi possível carregar a validação">
             {validationQuery.error instanceof Error ? validationQuery.error.message : 'Não foi possível carregar a validação.'}
-          </p>
+          </Alert>
         ) : null}
         {payload ? (
           <>
-            <div className={`signature-validation-status status-${payload.status.toLowerCase()}`}>
-              {statusLabels[payload.status] || payload.status}
-            </div>
+            <StatusPill className="rdo-public-status" status={payload.status} label={statusLabels[payload.status] || payload.status} tone={statusTones[payload.status] || 'neutral'} />
             {payload.report ? (
-              <div className="det-section">
-                <div className="det-row"><span className="det-label">Código</span><span className="det-val">{payload.validationCode}</span></div>
-                <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{payload.report.project.code} - {payload.report.project.name}</span></div>
-                <div className="det-row"><span className="det-label">Relatório</span><span className="det-val">{payload.report.reportType} {payload.report.sequenceNumber || ''}</span></div>
-                <div className="det-row"><span className="det-label">Data</span><span className="det-val">{formatDateOnlyPtBr(payload.report.reportDate || '')}</span></div>
-              </div>
+              <dl className="rdo-public-details">
+                <div><dt>Código</dt><dd>{payload.validationCode}</dd></div>
+                <div><dt>Projeto</dt><dd>{payload.report.project.code} - {payload.report.project.name}</dd></div>
+                <div><dt>Relatório</dt><dd>{payload.report.reportType} {payload.report.sequenceNumber || ''}</dd></div>
+                <div><dt>Data</dt><dd>{formatDateOnlyPtBr(payload.report.reportDate || '')}</dd></div>
+              </dl>
             ) : null}
             {payload.document ? (
-              <div className="det-section">
-                <div className="det-row"><span className="det-label">Código</span><span className="det-val">{payload.validationCode}</span></div>
-                <div className="det-row"><span className="det-label">Documento</span><span className="det-val">{payload.document.title}</span></div>
-                <div className="det-row"><span className="det-label">Arquivo original</span><span className="det-val">{payload.document.originalFileName}</span></div>
-                <div className="det-row"><span className="det-label">Solicitante</span><span className="det-val">{payload.document.requesterNameSnapshot}</span></div>
-                <div className="det-row"><span className="det-label">Concluído em</span><span className="det-val">{formatSignatureDateTime(payload.completedAt)}</span></div>
-              </div>
+              <dl className="rdo-public-details">
+                <div><dt>Código</dt><dd>{payload.validationCode}</dd></div>
+                <div><dt>Documento</dt><dd>{payload.document.title}</dd></div>
+                <div><dt>Arquivo original</dt><dd>{payload.document.originalFileName}</dd></div>
+                <div><dt>Solicitante</dt><dd>{payload.document.requesterNameSnapshot}</dd></div>
+                <div><dt>Concluído em</dt><dd>{formatSignatureDateTime(payload.completedAt)}</dd></div>
+              </dl>
             ) : null}
             {expectedHash ? (
               <div className="signature-validation-hashes">
@@ -123,7 +135,7 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
                 <div className="section-subtitle">Signatários</div>
                 {payload.signers.map(signer => (
                   <div className="det-row" key={`${signer.email || signer.name}-${signer.status}`}>
-                    <span className="det-label">{signer.status}</span>
+                    <span className="det-label">{signerStatusLabels[signer.status] || signer.status}</span>
                     <span className="det-val">
                       {signer.name}{signer.email ? ` (${signer.email})` : ''}
                       {signer.declaredName ? ` - nome informado: ${signer.declaredName}` : ''}
@@ -170,12 +182,12 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
                 ) : null}
               </div>
             ) : null}
-            <p className="placeholder-copy">
+            <p className="rdo-public-footnote">
               Dados técnicos completos, como IP e user-agent integrais, ficam disponíveis apenas no painel autenticado do gestor.
             </p>
           </>
         ) : null}
-      </section>
+      </Card>
     </main>
   );
 }

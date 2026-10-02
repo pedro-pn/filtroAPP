@@ -20,6 +20,8 @@ function writePersistentSearch(key: string, value: string) {
   }
 }
 
+export const setPersistentSearchValue = writePersistentSearch;
+
 /**
  * Estado de texto de busca persistido em `sessionStorage`, restaurado ao voltar — inclusive
  * depois de abrir um card e voltar, ou de alternar abas. Use uma `storageKey` que inclua a aba
@@ -45,7 +47,7 @@ export function usePersistentSearch(storageKey: string, initialValue = ''): [str
   }, [storageKey]);
 
   useEffect(() => {
-    writePersistentSearch(storageKey, value);
+    setPersistentSearchValue(storageKey, value);
   }, [storageKey, value]);
 
   return [value, setValue];

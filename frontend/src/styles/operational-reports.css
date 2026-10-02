@@ -26,8 +26,7 @@
 }
 
 .operational-type-grid,
-.operational-report-grid,
-.sede-operational-grid {
+.operational-report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
@@ -58,10 +57,6 @@
 .operational-list-page,
 .operational-module-page {
   min-width: 0;
-}
-
-.app-shell:has(.operational-module-page) {
-  max-width: none;
 }
 
 .operational-module-page {
@@ -731,74 +726,10 @@
   min-height: 42px;
 }
 
-.skeleton-stack {
-  display: grid;
-  gap: 9px;
-}
-
-.skeleton-stack .skeleton-line {
-  display: block;
-  height: 16px;
-  border-radius: var(--rs);
-  background: var(--br);
-  animation: operational-skeleton-pulse 1.2s ease-in-out infinite alternate;
-}
-
 @keyframes operational-skeleton-pulse {
   to {
     opacity: 0.45;
   }
-}
-
-.sede-operational-section {
-  display: grid;
-  gap: 10px;
-}
-
-.sede-operational-card {
-  min-width: 0;
-}
-
-.sede-operational-primary {
-  color: var(--g);
-  font-size: 20px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.sede-operational-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.sede-operational-kpis > div {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 8px;
-  border-radius: var(--rs);
-  background: var(--bg);
-}
-
-.sede-operational-kpis span,
-.sede-operational-breakdown span {
-  color: var(--mu);
-  font-size: 11px;
-}
-
-.sede-operational-breakdown {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sede-operational-breakdown > div > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--br);
 }
 
 @media (max-width: 720px) {
@@ -809,10 +740,8 @@
 
   .operational-type-grid,
   .operational-report-grid,
-  .sede-operational-grid,
   .operational-checklist,
-  .operational-equipment-data dl,
-  .sede-operational-breakdown {
+  .operational-equipment-data dl {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -942,9 +871,6 @@
     width: 100%;
   }
 
-  .sede-operational-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 360px) {

@@ -1,66 +1,54 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { BrandLoading } from '../components/brand/BrandLoading';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link, useLocation, useParams } from 'react-router';
 
-import {
-  getNotificationPreferenceStatus,
-  updatePublicNotificationPreferences,
-  type NotificationPreferences
-} from '../api/account';
+import { getNotificationPreferenceStatus, updatePublicNotificationPreferences, type NotificationPreferences } from '../api/account';
+import { Alert, Button, Switch } from '../components/ui/ds';
+import { PublicFlowShell } from './PublicFlowShell';
 
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
-const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
+const preferenceOptions: Array<{ key: keyof NotificationPreferences; label: string; description: string }> = [
+  { key: 'reports', label: 'Relatórios', description: 'Novos relatórios e atualizações importantes.' },
+  { key: 'signatures', label: 'Assinaturas', description: 'Convites e confirmação de documentos.' },
+  { key: 'signatureReminders', label: 'Lembretes de assinatura', description: 'Avisos sobre assinaturas pendentes.' },
+  { key: 'surveyReminders', label: 'Pesquisas de satisfação', description: 'Convites e lembretes para responder pesquisas.' },
+  { key: 'calibrationReminders', label: 'Calibração de equipamentos', description: 'Alertas de vencimento de calibração.' }
+];
 
 export function NotificationPreferencesPage() {
   const params = useParams();
+  const location = useLocation();
+  const preview = import.meta.env.DEV && new URLSearchParams(location.search).get('visualizar') === '1';
   const token = useMemo(() => params.token || '', [params.token]);
-  const [status, setStatus] = useState<'loading' | 'valid' | 'invalid' | 'saved'>('loading');
-  const [userName, setUserName] = useState('');
-  const [email, setEmail] = useState('');
-  const [preferences, setPreferences] = useState<NotificationPreferences>({
-    reports: true,
-    signatures: true,
-    signatureReminders: true,
-    surveyReminders: true,
-    calibrationReminders: true
-  });
+  const [status, setStatus] = useState<'loading' | 'valid' | 'invalid' | 'saved'>(preview ? 'valid' : 'loading');
+  const [userName, setUserName] = useState(preview ? 'Marina Costa' : '');
+  const [email, setEmail] = useState(preview ? 'marina@exemplo.com' : '');
+  const [preferences, setPreferences] = useState<NotificationPreferences>({ reports: true, signatures: true, signatureReminders: true, surveyReminders: true, calibrationReminders: true });
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (preview) return;
     let mounted = true;
     async function load() {
-      if (!token) {
-        if (mounted) setStatus('invalid');
-        return;
-      }
+      if (!token) { if (mounted) setStatus('invalid'); return; }
       try {
         const data = await getNotificationPreferenceStatus(token);
         if (!mounted) return;
-        if (!data.valid || !data.preferences) {
-          setStatus('invalid');
-          return;
-        }
+        if (!data.valid || !data.preferences) { setStatus('invalid'); return; }
         setUserName(data.userName || '');
         setEmail(data.email || '');
         setPreferences(data.preferences);
         setStatus('valid');
-      } catch {
-        if (mounted) setStatus('invalid');
-      }
+      } catch { if (mounted) setStatus('invalid'); }
     }
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, [token]);
-
-  function setPreference(field: keyof NotificationPreferences, checked: boolean) {
-    setPreferences(current => ({ ...current, [field]: checked }));
-  }
+    void load();
+    return () => { mounted = false; };
+  }, [preview, token]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    if (preview) { setStatus('saved'); return; }
     setIsSaving(true);
     try {
       const response = await updatePublicNotificationPreferences(token, preferences);
@@ -68,56 +56,20 @@ export function NotificationPreferencesPage() {
       setStatus('saved');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao atualizar preferências.');
-    } finally {
-      setIsSaving(false);
-    }
+    } finally { setIsSaving(false); }
   }
 
-  return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="auth-logo-wrap">
-          <img className="auth-logo" src={loginLogoUrl} alt="Filtrovali" />
-        </div>
-        <div className="section-title">Notificações por e-mail</div>
-        {status === 'loading' ? <p className="placeholder-copy">Validando link...</p> : null}
-        {status === 'invalid' ? <div className="inline-error">Link inválido, expirado ou já utilizado.</div> : null}
-        {status === 'valid' ? (
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <p className="placeholder-copy">{userName || email}</p>
-            <label className="notification-option">
-              <input type="checkbox" checked={preferences.reports} onChange={event => setPreference('reports', event.target.checked)} />
-              <span>Relatórios</span>
-            </label>
-            <label className="notification-option">
-              <input type="checkbox" checked={preferences.signatures} onChange={event => setPreference('signatures', event.target.checked)} />
-              <span>Assinaturas</span>
-            </label>
-            <label className="notification-option">
-              <input type="checkbox" checked={preferences.signatureReminders} onChange={event => setPreference('signatureReminders', event.target.checked)} />
-              <span>Lembretes de assinatura</span>
-            </label>
-            <label className="notification-option">
-              <input type="checkbox" checked={preferences.surveyReminders} onChange={event => setPreference('surveyReminders', event.target.checked)} />
-              <span>Pesquisas de satisfação</span>
-            </label>
-            <label className="notification-option">
-              <input type="checkbox" checked={preferences.calibrationReminders} onChange={event => setPreference('calibrationReminders', event.target.checked)} />
-              <span>Calibração de equipamentos</span>
-            </label>
-            {error ? <div className="inline-error">{error}</div> : null}
-            <button className="primary-button" type="submit" disabled={isSaving}>
-              {isSaving ? 'Salvando...' : 'Salvar preferências'}
-            </button>
-          </form>
-        ) : null}
-        {status === 'saved' ? (
-          <div className="auth-form">
-            <div className="inline-success">Preferências atualizadas. Este link não pode ser usado novamente.</div>
-            <Link className="secondary-button auth-back-button" to="/login">Ir para login</Link>
-          </div>
-        ) : null}
-      </section>
-    </main>
-  );
+  return <PublicFlowShell title="Notificações por e-mail" description="Escolha quais comunicados você quer receber." preview={preview}>
+    {status === 'loading' ? <BrandLoading label="Validando link" /> : null}
+    {status === 'invalid' ? <Alert tone="danger">Link inválido, expirado ou já utilizado.</Alert> : null}
+    {status === 'valid' ? <form className="public-flow-form" onSubmit={handleSubmit}>
+      <div className="public-flow-context"><strong>{userName || email}</strong>{userName && email ? <small>{email}</small> : null}</div>
+      <div className="public-flow-preferences">
+        {preferenceOptions.map(option => <Switch key={option.key} label={option.label} description={option.description} checked={preferences[option.key]} onChange={event => setPreferences(current => ({ ...current, [option.key]: event.target.checked }))} />)}
+      </div>
+      {error ? <Alert tone="danger">{error}</Alert> : null}
+      <Button variant="primary" type="submit" loading={isSaving} fullWidth>{isSaving ? 'Salvando…' : 'Salvar preferências'}</Button>
+    </form> : null}
+    {status === 'saved' ? <><Alert tone="success">Preferências atualizadas. Este link não pode ser usado novamente.</Alert><Link className="fv-button fv-button--secondary fv-button--md public-flow-back" to="/login">Ir para login</Link></> : null}
+  </PublicFlowShell>;
 }

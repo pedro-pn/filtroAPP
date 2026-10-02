@@ -1,15 +1,20 @@
-import { useLocation, useNavigate } from 'react-router';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router';
+
 
 import { useAuth } from '../../auth/AuthContext';
-import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
+import { AppIcon } from '../../components/icons/AppIcon';
+import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { Button, Card, StatusPill } from '../../components/ui/ds';
+import { DS_ICONS } from '../../components/ui/ds/icons';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReports } from '../../hooks/useReports';
-import { Shell } from '../../layout/Shell';
-import { TopBar } from '../../layout/TopBar';
+import { PageHeader } from '../../layout/PageHeader';
 import { useRdoStore } from '../../store/rdoStore';
 import type { ReportDraft } from '../../types/domain';
 import { collectOngoingServices } from '../../utils/ongoingServices';
+import { RdoAppShell } from '../RdoAppShell';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 
 const TEXT = {
@@ -23,7 +28,6 @@ const TEXT = {
   myReports: 'Meus relatórios',
   newReport: 'Novo relatório',
   noDate: 'Sem data definida',
-  remove: 'Remover',
   resume: 'Retomar preenchimento'
 };
 
@@ -31,7 +35,7 @@ function getGreeting(name: string) {
   const hour = new Date().getHours();
   const firstName = (name || '').split(' ')[0];
   const saudacao = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-  return `${saudacao}, ${firstName} \u{1F44B}`;
+  return `${saudacao}, ${firstName}`;
 }
 
 function getTodayLabel() {
@@ -92,14 +96,19 @@ function draftDateLabel(draft: ReportDraft) {
 }
 
 export function HomePage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const draftsQuery = useDrafts();
   const reportsQuery = useReports({ mine: true, summary: true });
   const draftMutations = useDraftMutations();
   const { hydrate, reset } = useRdoStore();
   const ongoingServices = collectOngoingServices(reportsQuery.data || []);
+  const navigationSections = useMemo(() => [
+    { id: 'home', label: 'Início', href: rdoPath('/home'), active: true },
+    { id: 'reports', label: 'Meus relatórios', href: rdoPath('/meus-relatorios'), active: false },
+    { id: 'ongoing', label: 'Em andamento', href: rdoPath('/andamento'), active: false },
+    { id: 'archived', label: 'Arquivados', href: rdoPath('/meus-relatorios/arquivados'), active: false }
+  ], []);
   const emissionPermissions = user?.reportEmissionPermissions || [];
   const canEmitSite = emissionPermissions.includes('SITE_RDO');
 
@@ -147,107 +156,88 @@ export function HomePage() {
   }
 
   return (
-    <Shell>
-      <TopBar
-        title="Home"
-        subtitle={user?.name}
-        showLogo
-        actions={
-          <>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={() =>
-                navigate('/conta', {
-                  state: accountPageStateFromPath(location)
-                })
-              }
+    <RdoAppShell
+      title="RDO"
+      sectionLabel="Início"
+      subNavigation={navigationSections}
+    >
+      <main className="fv-ds rdo-role-page rdo-collaborator-home">
+        <PageHeader
+          title={getGreeting(user?.name || '')}
+          description={getTodayLabel()}
+          actions={canEmitSite ? (
+            <Button
+              variant="primary"
+              iconLeft={<AppIcon icon={DS_ICONS.plus} size="sm" />}
+              onClick={handleNewReport}
             >
-              Conta
-            </button>
-            <button
-              className="topbar-chip"
-              type="button"
-              onClick={async () => {
-                await logout();
-                navigate('/', { replace: true });
-              }}
-            >
-              Sair
-            </button>
-          </>
-        }
+              {TEXT.newReport}
+            </Button>
+          ) : undefined}
       />
-      <main className="page-scroll">
-        <div className="home-greeting">
-          <div className="home-greeting-title">{getGreeting(user?.name || '')}</div>
-          <div className="home-greeting-date">{getTodayLabel()}</div>
-        </div>
+        {canEmitSite ? <section className="rdo-role-action-grid" aria-label="Ações rápidas">
+          <Card data-operational-new-report className="rdo-role-action-card" variant="accent" accentTone="brand" padding="md" onClick={handleNewReport}>
+            <span className="rdo-role-action-card__icon"><AppIcon icon={DS_ICONS.fileText} size="lg" /></span>
+            <div className="rdo-role-action-card__copy">
+              <span className="home-action-title">{TEXT.newReport}</span>
+              <span className="home-action-subtitle">{TEXT.createRdo}</span>
+            </div>
+          </Card>
+          <Card className="rdo-role-action-card" variant="interactive" padding="md" onClick={() => navigate(rdoPath('/meus-relatorios'))}>
+            <span className="rdo-role-action-card__icon"><AppIcon icon={DS_ICONS.folder} size="lg" /></span>
+            <div className="rdo-role-action-card__copy">
+              <span className="home-action-title">{TEXT.myReports}</span>
+              <span className="home-action-subtitle">{TEXT.historyByProject}</span>
+            </div>
+          </Card>
+          <Card
+            className={`rdo-role-action-card${ongoingServices.length ? '' : ' is-disabled'}`}
+            variant="interactive"
+            padding="md"
+            aria-disabled={!ongoingServices.length}
+            onClick={ongoingServices.length ? () => navigate(rdoPath('/andamento')) : undefined}
+          >
+            <span className="rdo-role-action-card__icon"><AppIcon icon={DS_ICONS.servicePressure} size="lg" /></span>
+            <div className="rdo-role-action-card__copy">
+              <span className="home-action-title">{TEXT.inProgress}</span>
+              <span className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</span>
+            </div>
+          </Card>
+        </section> : null}
 
-        <section className="home-actions-grid">
-          {canEmitSite ? (
-            <button className="home-action-card home-action-primary" type="button" onClick={handleNewReport} data-operational-new-report>
-              <span className="home-action-icon">📋</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span className="home-action-title">{TEXT.newReport}</span>
-                <span className="home-action-subtitle">{TEXT.createRdo}</span>
-              </div>
-            </button>
-          ) : null}
-          {canEmitSite ? (
-            <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/meus-relatorios'))}>
-              <div className="home-action-icon">📁</div>
-              <div className="home-action-title">{TEXT.myReports}</div>
-              <div className="home-action-subtitle">{TEXT.historyByProject}</div>
-            </button>
-          ) : null}
-          {canEmitSite ? (
-            <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/andamento'))} disabled={!ongoingServices.length}>
-              <div className="home-action-icon">⏳</div>
-              <div className="home-action-title">{TEXT.inProgress}</div>
-              <div className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</div>
-            </button>
-          ) : null}
-        </section>
+        {canEmitSite ? <Card className="rdo-role-archive-link" padding="sm">
+          <Button variant="ghost" size="sm" iconLeft={<AppIcon icon={DS_ICONS.archive} size="sm" />} onClick={() => navigate(rdoPath('/meus-relatorios/arquivados'))}>
+            {TEXT.archived} — {TEXT.archivedSubtitle}
+          </Button>
+        </Card>
 
-        {canEmitSite ? (
-          <section className="page-card compact-link-card">
-            <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/meus-relatorios/arquivados'))}>
-              {TEXT.archived} — {TEXT.archivedSubtitle}
-            </button>
-          </section>
-        ) : null}
-
+        : null}
         {canEmitSite && draftsQuery.data?.length ? (
-          <section className="page-card">
-            <div className="section-title">{TEXT.drafts}</div>
-            <div className="admin-stack">
+          <Card className="rdo-role-drafts" title={TEXT.drafts} padding="md">
+            <div className="rdo-role-draft-list">
               {draftsQuery.data.map(draft => (
-                <article className="admin-card-react" key={draft.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <div className="admin-card-title">{draft.title || 'RDO em andamento'}</div>
-                      <div className="admin-card-meta">
+                <Card className="rdo-role-draft-card" key={draft.id} padding="sm">
+                  <div className="rdo-role-draft-card__head">
+                    <div className="rdo-role-draft-card__copy">
+                      <div className="admin-card-title">{draft.title || 'RDO em andamento'} <StatusPill status="pending" label="Rascunho" tone="warning" /></div>
+                      <div className="rdo-role-draft-card__meta">
                         <span>{draft.project?.code || draft.projectId || 'Projeto'}</span>
                         <span>{draftDateLabel(draft)}</span>
                       </div>
                     </div>
-                    <div className="admin-card-actions">
-                      <button className="secondary-button" type="button" onClick={() => handleResumeDraft(draft)}>
+                    <div className="rdo-role-draft-card__actions">
+                      <Button variant="primary" size="sm" onClick={() => handleResumeDraft(draft)}>
                         {TEXT.continue}
-                      </button>
-                      <button className="danger-button" type="button" onClick={() => draftMutations.removeDraft.mutate(draft.id)}>
-                        {TEXT.remove}
-                      </button>
+                      </Button>
+                      <RemoveIconButton label={`Remover rascunho ${draft.title || 'RDO em andamento'}`} onClick={() => draftMutations.removeDraft.mutate(draft.id)} />
                     </div>
                   </div>
-                  <p className="placeholder-copy">{TEXT.resume}</p>
-                </article>
+                </Card>
               ))}
             </div>
-          </section>
+          </Card>
         ) : null}
       </main>
-    </Shell>
+    </RdoAppShell>
   );
 }

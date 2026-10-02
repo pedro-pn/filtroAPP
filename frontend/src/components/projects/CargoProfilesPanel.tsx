@@ -10,6 +10,7 @@ import {
 } from '../../api/acompanhamentoCusto';
 import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../ui/ToastContext';
+import { Button, Card, DataTable, EmptyState, Field, Input, Select, Skeleton } from '../ui/ds';
 import { brl, modelNumber } from './costFields';
 
 function num(params: CostProfile['params'], key: string): number {
@@ -100,114 +101,106 @@ export function CargoProfilesPanel() {
     onError: () => showToast('Não foi possível salvar o custo do cargo.')
   });
 
-  if (isLoading) return <div className="page-card placeholder-copy">Carregando cargos…</div>;
-  if (!models.length) return <div className="page-card placeholder-copy">Configure os modelos base na aba Simulador primeiro.</div>;
+  if (isLoading) return <Card className="acp-cost-ds__panel"><Skeleton height={180} /></Card>;
+  if (!models.length) return <Card className="acp-cost-ds__panel"><EmptyState title="Sem modelos base" description="Configure os modelos na aba Simulador primeiro." /></Card>;
 
   const list = cargos ?? [];
   const mp = selectedModel?.params ?? null;
   const history = selectedCargo?.history ?? [];
 
   return (
-    <div className="page-card">
-      <div className="sec">Custo por cargo</div>
-      <p className="placeholder-copy" style={{ margin: '4px 0 12px' }}>
+    <Card className="acp-cost-ds__panel" title="Custo por cargo">
+      <p className="acp-cost-ds__copy">
         Cada cargo é calculado com base em um <strong>modelo</strong> (planilha base) e define apenas o
         <strong> salário base</strong>. Os demais parâmetros (salário mínimo, adicionais, FGTS, multa rescisória,
         benefícios) vêm do modelo vigente na data calculada. Ao salvar, informe a data a partir da qual os novos
         valores passam a valer. A insalubridade é calculada por salário mínimo × 20%.
       </p>
       {selectedCargo?.effectiveDate ? (
-        <p className="placeholder-copy" style={{ margin: '-6px 0 12px' }}>
+        <p className="acp-cost-ds__copy">
           Última vigência salva para este cargo: <strong>{fmtDate(selectedCargo.effectiveDate)}</strong>.
         </p>
       ) : null}
 
-      <div className="admin-inline-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
-        <div className="field-group">
-          <label htmlFor="cargo-select">Cargo</label>
-          <select id="cargo-select" value={selectedId} onChange={e => setSelectedId(e.target.value)}>
+      <div className="acp-cost-ds__fields">
+        <Field label="Cargo" optionalText="">
+          <Select value={selectedId} onChange={e => setSelectedId(e.target.value)}>
             {list.map(c => (
               <option key={c.jobRoleId} value={c.jobRoleId}>
                 {c.name}{c.profileId ? '' : ' — sem custo'}
               </option>
             ))}
-          </select>
-        </div>
-        <div className="field-group">
-          <label htmlFor="cargo-model">Modelo base de cálculo</label>
-          <select id="cargo-model" value={baseModel} disabled={!isManager} onChange={e => setBaseModel(e.target.value)}>
+          </Select>
+        </Field>
+        <Field label="Modelo base de cálculo" optionalText="">
+          <Select value={baseModel} disabled={!isManager} onChange={e => setBaseModel(e.target.value)}>
             {models.map((m, i) => (
               <option key={m.key} value={m.key}>Modelo {modelNumber(m.key, i + 1)} ({m.label})</option>
             ))}
-          </select>
-        </div>
-        <div className="field-group">
-          <label htmlFor="cargo-salario">Salário base (R$)</label>
-          <input id="cargo-salario" type="number" step="any" disabled={!isManager} value={salarioBase} onChange={e => setSalarioBase(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="cargo-effective-date">Vigente a partir de</label>
-          <input id="cargo-effective-date" type="date" required disabled={!isManager} value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
-        </div>
+          </Select>
+        </Field>
+        <Field label="Salário base (R$)" optionalText="">
+          <Input type="number" step="any" disabled={!isManager} value={salarioBase} onChange={e => setSalarioBase(e.target.value)} />
+        </Field>
+        <Field label="Vigente a partir de" required>
+          <Input type="date" required disabled={!isManager} value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
+        </Field>
       </div>
 
       {selectedCargo && !selectedCargo.profileId ? (
-        <p className="placeholder-copy" style={{ margin: '8px 0 0', color: '#a06a00' }}>
+        <p className="acp-cost-ds__notice">
           Este cargo ainda não tem custo salvo — os valores acima vêm do modelo selecionado.
         </p>
       ) : null}
 
-      <div className="det-section" style={{ marginTop: 14 }}>
-        <div className="sec" style={{ fontSize: 13 }}>Histórico de vigências do cargo</div>
+      <section className="acp-cost-ds__subsection" aria-label="Histórico de vigências do cargo">
+        <h3>Histórico de vigências do cargo</h3>
         {history.length === 0 ? (
-          <p className="placeholder-copy" style={{ margin: 0 }}>Nenhuma vigência salva para este cargo.</p>
+          <p className="acp-cost-ds__copy">Nenhuma vigência salva para este cargo.</p>
         ) : (
-          <div className="acp-table-wrap" style={{ marginTop: 8 }}>
-            <table className="acp-table">
-              <thead>
-                <tr>
-                  <th>Vigente desde</th>
-                  <th>Modelo</th>
-                  <th>Salário base</th>
-                  <th>Salvo em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((entry, index) => (
-                  <tr key={`${entry.effectiveDate}-${entry.updatedAt ?? index}`}>
-                    <td>{fmtDate(entry.effectiveDate)}</td>
-                    <td>{modelLabel(entry.params?.baseModel, models)}</td>
-                    <td>{moneyParam(entry, 'salarioBase')}</td>
-                    <td>{fmtDateTime(entry.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            ariaLabel="Histórico de vigências do cargo"
+            rows={history}
+            getRowId={entry => `${entry.effectiveDate}-${entry.updatedAt ?? ''}`}
+            columns={[
+              { key: 'date', header: 'Vigente desde', render: entry => fmtDate(entry.effectiveDate) },
+              { key: 'model', header: 'Modelo', render: entry => modelLabel(entry.params?.baseModel, models) },
+              { key: 'salary', header: 'Salário base', render: entry => moneyParam(entry, 'salarioBase') },
+              { key: 'saved', header: 'Salvo em', render: entry => fmtDateTime(entry.updatedAt) }
+            ]}
+            mobile={{ renderItem: entry => ({
+              title: fmtDate(entry.effectiveDate),
+              subtitle: modelLabel(entry.params?.baseModel, models),
+              value: moneyParam(entry, 'salarioBase'),
+              metadata: [{ label: 'Salvo em', value: fmtDateTime(entry.updatedAt) }]
+            }) }}
+          />
         )}
-      </div>
+      </section>
 
       {mp ? (
-        <div className="det-section" style={{ marginTop: 14 }}>
-          <div className="sec" style={{ fontSize: 13 }}>Herdado do modelo selecionado</div>
-          <div className="det-row"><span className="det-label">Periculosidade</span><span className="det-val">{frac(mp, 'periculosidadePct')} (integral)</span></div>
-          <div className="det-row"><span className="det-label">Produtividade / Gratificação</span><span className="det-val">{frac(mp, 'produtividadePct')}</span></div>
-          <div className="det-row"><span className="det-label">Transferência / Viagem</span><span className="det-val">{frac(mp, 'transferenciaPct')}</span></div>
-          <div className="det-row"><span className="det-label">Confinamento / Offshore</span><span className="det-val">{frac(mp, 'confinamentoPct')}</span></div>
-          <div className="det-row"><span className="det-label">HE 70% / 100%</span><span className="det-val">{frac(mp, 'he70Pct')} / {frac(mp, 'he100Pct')}</span></div>
-          <div className="det-row"><span className="det-label">FGTS</span><span className="det-val">{frac(mp, 'fgtsPct')}</span></div>
-          <div className="det-row"><span className="det-label">Multa rescisória</span><span className="det-val">{frac(mp, 'multaPct')}</span></div>
-          <div className="det-row"><span className="det-label">Benefícios (total)</span><span className="det-val">{brl(benefitsTotal(mp))}</span></div>
-        </div>
+        <section className="acp-cost-ds__subsection" aria-label="Herdado do modelo selecionado">
+          <h3>Herdado do modelo selecionado</h3>
+          <dl className="acp-cost-ds__facts">
+            <div className="acp-cost-ds__fact"><dt>Periculosidade</dt><dd>{frac(mp, 'periculosidadePct')} (integral)</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Produtividade / Gratificação</dt><dd>{frac(mp, 'produtividadePct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Transferência / Viagem</dt><dd>{frac(mp, 'transferenciaPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Confinamento / Offshore</dt><dd>{frac(mp, 'confinamentoPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>HE 70% / 100%</dt><dd>{frac(mp, 'he70Pct')} / {frac(mp, 'he100Pct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>FGTS</dt><dd>{frac(mp, 'fgtsPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Multa rescisória</dt><dd>{frac(mp, 'multaPct')}</dd></div>
+            <div className="acp-cost-ds__fact"><dt>Benefícios (total)</dt><dd>{brl(benefitsTotal(mp))}</dd></div>
+          </dl>
+        </section>
       ) : null}
 
       {isManager ? (
-        <div style={{ marginTop: 12 }}>
-          <button className="mini-btn" type="button" disabled={!selectedId || !effectiveDate || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+        <div className="acp-cost-ds__actions">
+          <Button variant="primary" size="sm" loading={saveMutation.isPending} disabled={!selectedId || !effectiveDate} onClick={() => saveMutation.mutate()}>
             {saveMutation.isPending ? 'Salvando…' : 'Salvar custo do cargo'}
-          </button>
+          </Button>
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }
