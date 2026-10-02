@@ -29,6 +29,7 @@ import { serviceTypeLabels } from '../components/reports/serviceTypes';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
 import { useToast } from '../components/ui/ToastContext';
 import { useReportDetailBootstrap } from '../hooks/useBootstrap';
+import { useReportWorkforceAvailability } from '../hooks/useReportWorkforcePlanning';
 import { pageScrollRestoreStateFromNavigation } from '../hooks/usePageScrollRestoration';
 import { useReport, useReportAudit, useReportMutations } from '../hooks/useReports';
 import { AppShell } from '../layout/AppShell';
@@ -57,6 +58,7 @@ import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
+import { calculateReportOvertimeSummary } from '../utils/reportOvertime';
 import { isReportManuallyReleased } from '../utils/reportClientRelease';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasurement';
@@ -490,6 +492,27 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
   const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
     || (form.projectId === report.projectId ? report.project : null);
+  const isCollaboratorRdo = user?.role === 'COLLABORATOR' && report.reportType === 'RDO';
+  const holidayQuery = useReportWorkforceAvailability({
+    reportDate: form.reportDate,
+    collaboratorIds: form.collaboratorIds,
+    enabled: isCollaboratorRdo && !manualReport && !serviceReportMode
+  });
+  const collaboratorOvertimeSummary = isCollaboratorRdo
+    ? calculateReportOvertimeSummary({
+        policy: selectedProject,
+        reportDate: form.reportDate,
+        arrivalTime: form.arrivalTime,
+        departureTime: form.departureTime,
+        lunchBreak: form.lunchBreak,
+        nightEnabled: form.noturno,
+        nightArrivalTime: form.noturnoStart,
+        nightDepartureTime: form.noturnoEnd,
+        nightBreak: form.noturnoInterval,
+        isHoliday: Boolean(holidayQuery.data?.holidays?.some(holiday => holiday.date === form.reportDate))
+      })
+    : null;
+  const showOvertimeReason = !collaboratorOvertimeSummary || collaboratorOvertimeSummary.totalOvertimeMinutes > 0;
   const scopeOptions = projectScopeOptions(selectedProject);
   const workLocations = projectWorkLocations(selectedProject);
   const [invalidScopeServiceId, setInvalidScopeServiceId] = useState<string | null>(null);
@@ -1166,6 +1189,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       {!serviceReportMode && !manualReport ? (
       <div className="rdo-form-grid rdo-form-grid--finalization rdo-edit-finalization">
         <Card className="rdo-form-card rdo-form-card--overtime" title="Horas extras">
+          {collaboratorOvertimeSummary ? (
+            <Alert
+              tone={collaboratorOvertimeSummary.totalOvertimeMinutes > 0 ? 'warning' : 'info'}
+              title={collaboratorOvertimeSummary.totalOvertimeMinutes > 0
+                ? `Hora extra identificada: ${formatMinutes(collaboratorOvertimeSummary.totalOvertimeMinutes)}`
+                : 'Nenhuma hora extra identificada'}
+            />
+          ) : null}
           {showOvertimeApproval ? (
             <div className="overtime-review-inline">
               <div className="overtime-review-main">
@@ -1184,16 +1215,18 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               ) : null}
             </div>
           ) : null}
-          <div className="field-group">
-            <label htmlFor="rdo-overtime">Motivo da hora extra</label>
-            <Textarea
-              id="rdo-overtime"
-              rows={3}
-              value={form.overtimeReason}
-              disabled={readOnly || (showOvertimeApproval && !acceptOvertime)}
-              onChange={event => setField('overtimeReason', event.target.value)}
-            />
-          </div>
+          {showOvertimeReason ? (
+            <div className="field-group">
+              <label htmlFor="rdo-overtime">Motivo da hora extra</label>
+              <Textarea
+                id="rdo-overtime"
+                rows={3}
+                value={form.overtimeReason}
+                disabled={readOnly || (showOvertimeApproval && !acceptOvertime)}
+                onChange={event => setField('overtimeReason', event.target.value)}
+              />
+            </div>
+          ) : null}
         </Card>
 
         <Card className="rdo-form-card rdo-form-card--activities" title="Atividades do dia">
@@ -1778,6 +1811,7 @@ export function ReportDetailPage() {
   const canEditLinkedServiceReport = report ? canEditDerivedServiceReport(report, user) : false;
   const showRdoEditor =
     !!report
+    && !(user?.role === 'COLLABORATOR' && report.project.isActive === false)
     && (
       (report.status !== 'SIGNED' && report.reportType === 'RDO' && (
         canReviewReports

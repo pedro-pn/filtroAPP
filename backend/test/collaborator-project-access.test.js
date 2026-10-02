@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   assertCompleteTubeRows,
   canAccessReport,
+  canAccessReportPdf,
   collaboratorCanAccessProject,
   collaboratorCanMutateReport,
   collaboratorReportProjectWhere
@@ -81,7 +82,7 @@ test('project authorization grants report viewing without edit ownership', async
   assert.equal(collaboratorCanMutateReport(auth, report), false);
 });
 
-test('collaborator report access rejects hidden or inactive projects even for operator and participant', async () => {
+test('collaborator report access rejects hidden projects even for operator and participant', async () => {
   const baseReport = {
     id: 'report-1',
     createdByUserId: 'user-ana',
@@ -102,17 +103,79 @@ test('collaborator report access rejects hidden or inactive projects even for op
     }),
     false
   );
-  assert.equal(
-    await canAccessReport(auth, {
-      ...baseReport,
-      project: { ...baseReport.project, isActive: false }
-    }),
-    false
-  );
+  assert.equal(await canAccessReport(auth, {
+    ...baseReport,
+    project: { ...baseReport.project, isActive: false, visibleToCollaborators: false }
+  }), false);
   assert.equal(collaboratorCanMutateReport(auth, {
     ...baseReport,
     project: { ...baseReport.project, visibleToCollaborators: false }
   }), false);
+});
+
+test('project leaders can read archived reports and PDFs without gaining edit access', async () => {
+  const report = {
+    id: 'archived-report',
+    createdByUserId: 'user-ana',
+    project: {
+      isActive: false,
+      visibleToCollaborators: true,
+      managerOnly: false,
+      operatorId: 'collab-carlos',
+      authorizedUsers: []
+    },
+    collaborators: []
+  };
+
+  for (const leaderAuth of [auth, { user: auth.user }]) {
+    assert.equal(await canAccessReport(leaderAuth, report), true);
+    assert.equal(await canAccessReportPdf(leaderAuth, report), true);
+    assert.equal(collaboratorCanMutateReport(leaderAuth, report), false);
+    assert.equal(collaboratorCanAccessProject(leaderAuth, report.project), false);
+  }
+});
+
+test('explicit authorized users can read hidden archived reports without gaining edit access', async () => {
+  const report = {
+    id: 'archived-report',
+    createdByUserId: auth.user.id,
+    project: {
+      isActive: false,
+      visibleToCollaborators: false,
+      managerOnly: false,
+      operatorId: 'collab-ana',
+      authorizedUsers: [{ userId: auth.user.id }]
+    },
+    collaborators: [{ collaboratorId: auth.user.collaboratorId }]
+  };
+
+  assert.equal(await canAccessReport(auth, report), true);
+  assert.equal(await canAccessReportPdf(auth, report), true);
+  assert.equal(collaboratorCanMutateReport(auth, report), false);
+  assert.equal(collaboratorCanAccessProject(auth, report.project), false);
+  for (const forbidden of [{ managerOnly: true }, { deletedAt: new Date() }]) {
+    assert.equal(await canAccessReport(auth, { ...report, project: { ...report.project, ...forbidden } }), false);
+    assert.equal(await canAccessReportPdf(auth, { ...report, project: { ...report.project, ...forbidden } }), false);
+  }
+});
+
+test('report authors and participants cannot read archived projects without a project link', async () => {
+  const report = {
+    id: 'archived-report',
+    createdByUserId: auth.user.id,
+    project: {
+      isActive: false,
+      visibleToCollaborators: true,
+      managerOnly: false,
+      operatorId: 'collab-ana',
+      authorizedUsers: [{ userId: 'another-user' }]
+    },
+    collaborators: [{ collaboratorId: auth.user.collaboratorId }]
+  };
+
+  assert.equal(await canAccessReport(auth, report), false);
+  assert.equal(await canAccessReportPdf(auth, report), false);
+  assert.equal(collaboratorCanMutateReport(auth, report), false);
 });
 
 test('collaborator report access still allows explicit authorized users on hidden active projects', async () => {
@@ -151,6 +214,11 @@ test('collaborator report list filters by led or explicitly authorized project',
     ]
   });
   assert.deepEqual(collaboratorReportProjectWhere(null, null), { id: '__NO_MATCH__' });
+  assert.deepEqual(collaboratorReportProjectWhere('collab-carlos', 'user-carlos', false), {
+    ...collaboratorReportProjectWhere('collab-carlos', 'user-carlos'),
+    isActive: false
+  });
+  assert.deepEqual(collaboratorReportProjectWhere(null, null, false), { id: '__NO_MATCH__' });
 });
 
 test('report access rejects reports under soft-deleted projects', async () => {

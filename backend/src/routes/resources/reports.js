@@ -103,6 +103,8 @@ import {
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
 import { createReportPdfAccessChecker, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
+import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink } from '../../lib/reports/collaborator-access.js';
+export { collaboratorCanAccessReportProject } from '../../lib/reports/collaborator-access.js';
 import { createProjectSystemsRouter } from './project-systems.js';
 import { assertRdoProjectContext } from '../../lib/reports/project-context-validation.js';
 import { assertReportServicesProject } from '../../lib/reports/service-project-validation.js';
@@ -1485,27 +1487,10 @@ export function collaboratorCanAccessProject(auth, project) {
   );
 }
 
-function collaboratorHasAuthorizedProjectLink(auth, project) {
-  return Array.isArray(project?.authorizedUsers)
-    && project.authorizedUsers.some(link => link.userId === auth.user?.id);
-}
-
-export function collaboratorCanAccessReportProject(auth, project) {
-  return !!(
-    project?.isActive
-    && !project.deletedAt
-    && !project.managerOnly
-    && (
-      project.visibleToCollaborators
-      || collaboratorHasAuthorizedProjectLink(auth, project)
-    )
-  );
-}
-
-export function collaboratorReportProjectWhere(collaboratorId, userId) {
+export function collaboratorReportProjectWhere(collaboratorId, userId, isActive = true) {
   if (!collaboratorId && !userId) return { id: '__NO_MATCH__' };
   return {
-    isActive: true,
+    isActive,
     deletedAt: null,
     managerOnly: false,
     OR: [
@@ -1807,7 +1792,10 @@ export async function canAccessReport(auth, report, options = {}) {
     }
     return canClientSeeReportForAccess(report);
   }
-  if (auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
+  if (auth.user.role === 'COLLABORATOR') {
+    if (!collaboratorCanAccessReportProject(auth, report.project)) return false;
+    if (report.project.isActive === false) return true;
+  }
   if (collaboratorCanMutateReport(auth, report)) return true;
   if (collaboratorHasAuthorizedProjectLink(auth, report.project)) return true;
   return false;
@@ -1816,7 +1804,8 @@ export async function canAccessReport(auth, report, options = {}) {
 export const canAccessReportPdf = createReportPdfAccessChecker({ canAccessReport, isReportUnavailable, database: prisma });
 
 export function collaboratorCanMutateReport(auth, report) {
-  if (auth.user?.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
+  if (auth.user?.role === 'COLLABORATOR'
+    && (!report.project?.isActive || !collaboratorCanAccessReportProject(auth, report.project))) return false;
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
@@ -5743,7 +5732,7 @@ async function buildReportListWhere(auth, query) {
       where: { id: auth.user.id },
       select: { collaboratorId: true }
     });
-    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId, auth.user.id));
+    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId, auth.user.id, query.projectActive !== 'false'));
   } else if (query.mine === 'true') {
     where.createdByUserId = auth.user.id;
     assignActiveReportProjectWhere(where, { managerOnly: false });
