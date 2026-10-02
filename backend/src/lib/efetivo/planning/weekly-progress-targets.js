@@ -1,5 +1,6 @@
 import { computeProgressHistoryForProjects } from '../../acompanhamento/avanco.js';
-import { listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetError } from '../../acompanhamento/weekly-progress-targets.js';
+import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetError, weeklyTargetReferenceDayHours } from '../../acompanhamento/weekly-progress-targets.js';
+import { loadWeeklyServiceHistory } from '../../acompanhamento/weekly-service-history.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { resolvePlanningDatabase } from './plan-context.js';
 
@@ -15,15 +16,24 @@ async function missionOwner(client, missionId) {
 export async function getMissionWeeklyProgressTargets(missionId, dependencies = {}) {
   const client = await resolvePlanningDatabase(dependencies.database);
   const owner = await missionOwner(client, missionId);
-  const [targets, histories] = await Promise.all([
+  const [targets, histories, defaultReferenceDayHours] = await Promise.all([
     listWeeklyProgressTargets(owner, { client }),
-    (dependencies.loadHistory ?? computeProgressHistoryForProjects)([owner.projectId])
+    (dependencies.loadHistory ?? computeProgressHistoryForProjects)([owner.projectId]),
+    weeklyTargetReferenceDayHours(owner, { client })
   ]);
-  return { targets, progressHistory: histories.get(owner.projectId) ?? [] };
+  const serviceHistory = dependencies.includeServices
+    ? await (dependencies.loadServices ?? loadWeeklyServiceHistory)(owner, { client }) : undefined;
+  return { targets, defaultReferenceDayHours, progressHistory: histories.get(owner.projectId) ?? [], ...(serviceHistory ? { serviceHistory } : {}) };
 }
 
 export async function saveMissionWeeklyProgressTarget(missionId, payload, context = {}, dependencies = {}) {
   const client = await resolvePlanningDatabase(dependencies.database);
   const owner = await missionOwner(client, missionId);
   return saveWeeklyProgressTarget(owner, payload, { client, userId: context.userId, userName: context.userName });
+}
+
+export async function deleteMissionWeeklyProgressTarget(missionId, payload, context = {}, dependencies = {}) {
+  const client = await resolvePlanningDatabase(dependencies.database);
+  const owner = await missionOwner(client, missionId);
+  return deleteWeeklyProgressTarget(owner, payload, { client, userId: context.userId, userName: context.userName });
 }

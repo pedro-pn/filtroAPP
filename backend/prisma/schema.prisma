@@ -1762,7 +1762,9 @@ model MissionWeeklyProgressTarget {
   projectId        String?
   groupId          String?
   weekStartDate    DateTime @db.Date
-  plannedPctPoints Decimal  @db.Decimal(5, 2)
+  plannedPctPoints Decimal? @db.Decimal(5, 2)
+  definition       Json?
+  isDeleted        Boolean  @default(false)
   revision         Int      @default(1)
   createdByUserId  String?
   createdByName    String

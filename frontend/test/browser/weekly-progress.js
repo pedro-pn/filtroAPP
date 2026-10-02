@@ -10,7 +10,7 @@ async page => {
     }, { label, values });
   };
   await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
-  const week = await panel.getByLabel('Semana', { exact: true }).inputValue();
+  const week = await panel.getByLabel(/^Semana\s*\*?$/).inputValue();
   const planned = () => panel.getByLabel('Avanço previsto para a semana (p.p.)');
   await planned().fill('10');
   await panel.getByRole('button', { name: 'Salvar meta', exact: true }).click();
@@ -22,7 +22,7 @@ async page => {
     await state(label, [`${value} p.p.`, '10 p.p.', difference]);
   }
   await panel.getByText('3 versões', { exact: true }).click();
-  if (await panel.locator('details li').count() !== 3) throw new Error('As versões anteriores da meta não foram preservadas.');
+  if (await panel.locator('.mission-weekly-progress-table details > div').count() !== 3) throw new Error('As versões anteriores da meta não foram preservadas.');
   await page.getByRole('button', { name: 'Trocar área', exact: true }).click();
   await state('Acima da meta', ['5 p.p.', '10 p.p.', '+5 p.p.']);
   await page.getByRole('button', { name: 'Alternar permissão', exact: true }).click();
@@ -39,7 +39,7 @@ async page => {
   await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
   const future = new Date(`${week}T00:00:00Z`);
   future.setUTCDate(future.getUTCDate() + 7);
-  await panel.getByLabel('Semana', { exact: true }).fill(future.toISOString().slice(0, 10));
+  await panel.getByLabel(/^Semana\s*\*?$/).fill(future.toISOString().slice(0, 10));
   await planned().fill('0');
   await panel.getByRole('button', { name: 'Salvar meta', exact: true }).click();
   await panel.getByText('Semana futura', { exact: true }).waitFor();

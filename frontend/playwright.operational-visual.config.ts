@@ -5,7 +5,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: /(?:maintenance-theme|acompanhamento-cost-tabs|weekly-progress-visual|proposal-percentage-visual)\.spec\.ts/,
+  testMatch: /(?:maintenance-theme|acompanhamento-cost-tabs|weekly-progress-visual|weekly-targets-flexible|proposal-percentage-visual)\.spec\.ts/,
   workers: 1,
   retries: 0,
   timeout: 60_000,
