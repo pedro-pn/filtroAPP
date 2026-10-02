@@ -252,7 +252,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
   );
 
   const content = (
-        <div className={`efetivo-team-stack efetivo-team-v2${embedded ? ' project-workflow-team-cycles' : ''}`} data-project-workflow-team-cycles={embedded || undefined}>
+        <div className={`efetivo-team-stack efetivo-team-v2${embedded ? ' project-workflow-team-cycles' : ''}`} data-fv-ds={embedded ? '' : undefined} data-project-workflow-team-cycles={embedded || undefined}>
           {!embedded ? <p className="efetivo-dialog-description" id="mission-allocation-description">{mission.project.name} · {displayDateOnly(mission.mobilizationDate)} a {displayDateOnly(mission.returnDate || mission.executionEndDate)}</p> : null}
           {embedded ? <div className="project-workflow-team-cycles-overview" aria-label="Resumo da equipe e dos ciclos">
             <div><span>Período previsto da programação</span><strong>{displayDateOnly(mission.mobilizationDate)} a {displayDateOnly(mission.executionEndDate)}</strong></div>

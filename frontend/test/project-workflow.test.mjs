@@ -433,8 +433,8 @@ test('escolhas Sim e Não têm seleção acessível e cores semânticas', () => 
   assert.match(choice, /aria-pressed=\{value === false\}/);
   assert.match(choice, /is-yes/);
   assert.match(choice, /is-no/);
-  assert.match(styles, /project-workflow-choice-button\.is-selected\.is-yes[^}]*background: var\(--g\)/);
-  assert.match(styles, /project-workflow-choice-button\.is-selected\.is-no[^}]*background: var\(--rd\)/);
+  assert.match(styles, /project-workflow-choice-button\.is-selected\.is-yes[^}]*background: var\(--brand\)/);
+  assert.match(styles, /project-workflow-choice-button\.is-selected\.is-no[^}]*background: var\(--danger\)/);
 });
 
 test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe', () => {
