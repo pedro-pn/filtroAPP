@@ -726,19 +726,6 @@
   min-height: 42px;
 }
 
-.skeleton-stack {
-  display: grid;
-  gap: 9px;
-}
-
-.skeleton-stack .skeleton-line {
-  display: block;
-  height: 16px;
-  border-radius: var(--rs);
-  background: var(--br);
-  animation: operational-skeleton-pulse 1.2s ease-in-out infinite alternate;
-}
-
 @keyframes operational-skeleton-pulse {
   to {
     opacity: 0.45;

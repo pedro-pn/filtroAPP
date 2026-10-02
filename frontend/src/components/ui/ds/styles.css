@@ -675,65 +675,11 @@
   gap: var(--space-2);
 }
 
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton__shape {
-  display: block;
-  width: 100%;
-  height: var(--fv-skeleton-height, var(--space-16));
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background: linear-gradient(
-    90deg,
-    var(--surface-2),
-    var(--skeleton-highlight),
-    var(--surface-2)
-  );
-  background-size: 200% 100%;
-  animation: fv-skeleton-shimmer 1.6s var(--ease-standard) infinite;
-}
-
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton--circle .fv-skeleton__shape {
-  width: var(--fv-skeleton-width, var(--space-12));
-  height: var(--fv-skeleton-height, var(--space-12));
-  border-radius: var(--radius-pill);
-}
-
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton__line {
-  height: var(--fv-skeleton-height, var(--space-4));
-  border-radius: var(--radius-sm);
-}
-
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton__line[data-line='2'] {
-  width: 88%;
-}
-
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton__line[data-line='3'] {
-  width: 64%;
-}
-
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton--table-rows .fv-skeleton__line {
-  width: 100%;
-  height: var(--fv-skeleton-height, var(--space-10));
-  border-radius: var(--radius-sm);
-}
-
 :where(.fv-ds, [data-fv-ds]) .fv-skeleton--card .fv-skeleton__content {
   padding: var(--space-4);
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-}
-
-:where(.fv-ds, [data-fv-ds]) .fv-skeleton__card-media {
-  height: var(--fv-skeleton-height, var(--space-16));
-}
-
-@keyframes fv-skeleton-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
 }
 
 /* Card */
@@ -970,11 +916,5 @@
 
   :where(.fv-ds, [data-fv-ds]) .fv-alert__action {
     width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :where(.fv-ds, [data-fv-ds]) :where(.fv-spinner, .fv-skeleton__shape) {
-    animation: none;
   }
 }

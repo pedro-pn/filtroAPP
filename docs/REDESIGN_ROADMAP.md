@@ -1379,7 +1379,7 @@ F5.3 tem interface migrada, com validação por toque e persistência pendentes.
    tamanhos de tela, foco e ações.
 3. [x] **Qualidade, Naturezas:** conferir e corrigir a reordenação por toque;
    preservar setas de teclado, permissões e persistência.
-4. [ ] **F6, limpeza:** retirar CSS e componentes sem consumidores, reduzir
+4. [x] **F6, limpeza:** retirar CSS e componentes sem consumidores, reduzir
    duplicação de controles e dividir páginas que ultrapassam os limites.
 
 ### Validações e gates pendentes
@@ -1433,7 +1433,7 @@ Cada lote recebe commit e push antes de iniciar o seguinte.
   Qualidade, EPI, Privacidade e Romaneio.
 - [x] Etapa 3: acessibilidade, permissões, temas, responsividade, WebKit e
   onboarding nos fluxos autenticados.
-- [ ] Etapa 4: remover legado comprovadamente sem consumidores e duplicações.
+- [x] Etapa 4: remover legado comprovadamente sem consumidores e duplicações.
 - [ ] Conferência final por página em celular, tablet e desktop, claro e escuro.
 
 A lista de cinco ocorrências da auditoria de 01/10 fica preservada como
@@ -1480,3 +1480,34 @@ A medição automática de contraste não cobre gradientes, imagens ou elementos
 com opacidade herdada. A conferência página a página e dos demais estados
 é o último lote, após a limpeza. WebKit foi executado neste host; as notas
 anteriores sobre dependências ausentes ficam somente como histórico.
+
+
+### Etapa 4 — legado sem consumidores retirado
+
+Removidos 20 arquivos frontend não alcançados pelas rotas/imports atuais:
+CRUDs e hooks de catálogos substituídos, shim de autenticação, Placeholder,
+badge antigo de projetos, equivalências substituídas por reconciliação e
+telas de Missões/Simulações retiradas da navegação da main. Nenhuma rota de
+backend foi removida. As três entradas HTML de demonstração DS foram incluídas
+na análise e preservadas. Ao final, 509 arquivos TS/TSX são alcançáveis a partir
+dessas quatro entradas, sem órfãos.
+
+Foram retiradas 62 regras completas de CSS e 33 seletores órfãos em regras
+compartilhadas, além do shimmer antigo. O CSS do formulário de missão
+permanece. A normalização de serviços do detalhe usa o módulo já existente
+e testado; o tipo de sistema passa a ser preservado também no editor ativo.
+Os testes de componentes aposentados foram retirados e as asserções de
+consumidores ativos foram atualizadas. A suíte passou com 645/645 testes.
+
+Na conferência dos fluxos afetados, foram associados os rótulos dos horários
+operacionais e do serviço e nomeados os seletores de fotos. O botão Voltar no
+projeto não pode mais encolher e cortar o texto no celular. Gate, tipagem E2E,
+lint, build e o recorte integrado de celular passaram. Adaptadores e aliases
+com consumidores reais foram preservados; não foi aplicada remoção global
+por aparência de legado.
+
+A conferência final usa `redesign-pages.spec.ts`, com inventário de páginas,
+subabas, formulários e estados públicos em Chromium/WebKit, celular/tablet/
+desktop, claro/escuro. Os PDFs e os registros autenticados vêm do banco isolado;
+Pesquisa, Preferências, Confirmação de e-mail e assinatura RDO usam as prévias
+fictícias autorizadas. Código inválido também é um estado explícito do teste.

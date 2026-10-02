@@ -393,14 +393,8 @@ test('incremental report loading keeps lazy ensure, skeleton, error and retry st
   assert.match(groupedList, /rootMargin = '400px'/);
   assert.match(groupedList, /<LazyTypeEnsure/);
   assert.match(groupedList, /<Skeleton variant="text" lines=\{2\} decorative/);
-  assert.match(
-    baseCss,
-    /\.skeleton\s*\{[^}]*var\(--surface-2\)[^}]*var\(--skeleton-highlight\)[^}]*var\(--surface-2\)/
-  );
-  assert.doesNotMatch(
-    baseCss,
-    /\.skeleton\s*\{[^}]*#[\da-f]{3,8}\b[^}]*\}/i
-  );
+  assert.match(source('src/components/ui/ds/Skeleton.tsx'), /<BrandLoading/);
+  assert.doesNotMatch(baseCss, /@keyframes skeleton-shimmer/);
   assert.match(
     groupedList,
     /Não foi possível carregar os relatórios desta aba/

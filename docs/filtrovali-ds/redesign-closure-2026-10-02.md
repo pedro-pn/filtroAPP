@@ -7,8 +7,8 @@
 | Carregamentos e ajustes aprovados anteriormente | Logo original nas duas animações, escolha estável por montagem, controles compactos, movimento reduzido e status acessível; 670 testes frontend, lint, build e abas do cliente passaram | `ec59c187` |
 | 1. Arquitetura | Oito ocorrências zeradas sem ampliar budgets; miniatura de anexos e handler do cliente extraídos; seis IDs associados a labels | `3cc1570a` |
 | 2. Persistência | Cinco testes reais de formulário + consulta direta ao PostgreSQL passaram | `e53bb442` |
-| 3. Revisão transversal | 18/18 testes; 168 recortes de telas autenticadas; Chromium e WebKit, 3 tamanhos, 2 temas; permissões, foco e onboarding | commit deste lote |
-| 4. Limpeza F6 | Após a revisão transversal | — |
+| 3. Revisão transversal | 18/18 testes; 168 recortes de telas autenticadas; Chromium e WebKit, 3 tamanhos, 2 temas; permissões, foco e onboarding | `b6258a6e` |
+| 4. Limpeza F6 | 20 arquivos órfãos retirados; 62 regras e 33 seletores de CSS; normalização unificada; 645/645 testes | commit deste lote |
 | Conferência final | Após a limpeza | — |
 
 ## Banco e arquivos isolados
@@ -81,3 +81,25 @@ Cada rodada grava `audit.json` e capturas em
 `output/playwright/redesign-closure/`. O contraste é medido para texto visível
 sobre fundos planos; gradientes, imagens e opacidade são excluídos da medição.
 Não equivale a certificação WCAG nem a teste de leitor de tela/aparelho físico.
+
+## Limpeza e inventário final
+
+A análise de imports estáticos e dinâmicos parte de `main.tsx` e das três
+entradas HTML do DS. Os componentes de Simulações removidos da main, a antiga
+listagem de Missões, catálogos substituídos e equivalências substituídas pela
+reconciliação já não tinham consumidor em execução. Seus testes de markup
+foram aposentados; os testes funcionais de programação, alocação, reconciliação
+e compatibilidade de serviços permanecem. `Button`, `SearchBar`, `Skeleton`
+e aliases legados ainda utilizados são mantidos.
+
+Preparação e execução da conferência final:
+
+```sh
+node backend/scripts/validation/redesign-final-fixtures.mjs
+cd frontend
+npx playwright test --config=playwright.redesign-closure.config.ts redesign-pages.spec.ts --workers=2
+```
+
+O inventário está em `frontend/e2e/redesign-page-inventory.ts`. Cada recorte
+grava um JSON incremental e capturas por tela. `REDESIGN_AUDIT_LABELS` permite
+repetir um subconjunto por expressão regular, sem alterar o inventário.

@@ -507,7 +507,6 @@
 .efetivo-context-toolbar,
 .efetivo-list-toolbar,
 .efetivo-calendar-toolbar,
-.efetivo-scenario-actions,
 .efetivo-setting-row {
   align-items: end;
   display: flex;
@@ -533,16 +532,13 @@
 }
 
 .efetivo-role-card small,
-.efetivo-mission-card p,
-.efetivo-kanban-card p,
-.efetivo-scenario-card small {
+.efetivo-kanban-card p {
   color: var(--mu);
 }
 
 .efetivo-operational-disclaimer { color: var(--mu); font-size: 12px; margin: 14px 0 0; }
 
 .efetivo-role-grid,
-.efetivo-scenario-grid,
 .efetivo-user-grid {
   display: grid;
   gap: 12px;
@@ -567,22 +563,14 @@
   padding: 14px;
 }
 
-.efetivo-role-card header,
-.efetivo-mission-card header,
-.efetivo-mission-card footer,
-.efetivo-scenario-comparison > header {
+.efetivo-role-card header {
   align-items: flex-start;
   display: flex;
   gap: 12px;
   justify-content: space-between;
 }
 
-.efetivo-mission-card header > div {
-  min-width: 0;
-}
-
 .efetivo-role-card dl,
-.efetivo-mission-card dl,
 .efetivo-kanban-card dl {
   display: grid;
   gap: 8px;
@@ -591,7 +579,6 @@
 }
 
 .efetivo-role-card dl div,
-.efetivo-mission-card dl div,
 .efetivo-kanban-card dl div {
   background: var(--sf);
   border-radius: var(--rs);
@@ -604,7 +591,6 @@
 }
 
 .efetivo-role-card dt,
-.efetivo-mission-card dt,
 .efetivo-kanban-card dt {
   color: var(--mu);
   font-size: 11px;
@@ -613,7 +599,6 @@
 .efetivo-kanban-card dt { color: var(--ink); }
 
 .efetivo-role-card dd,
-.efetivo-mission-card dd,
 .efetivo-kanban-card dd {
   color: var(--g);
   font-weight: 700;
@@ -622,8 +607,7 @@
 }
 
 .efetivo-two-column,
-.efetivo-calendar-layout,
-.efetivo-comparison-grid {
+.efetivo-calendar-layout {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -906,11 +890,6 @@
   white-space: nowrap;
 }
 
-.efetivo-mission-card header > .efetivo-status {
-  align-self: flex-start;
-  flex: 0 0 auto;
-}
-
 .efetivo-status.status-confirmed,
 .efetivo-status.status-allocated,
 .efetivo-status.status-active,
@@ -937,30 +916,10 @@
   gap: 7px;
 }
 
-.efetivo-mission-card footer { align-items: stretch; flex-direction: column; }
-.efetivo-mission-card-actions {
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-.efetivo-mission-card-actions > button { flex: 0 0 auto; white-space: nowrap; }
-
-.efetivo-mission-card {
-  display: flex;
-  flex-direction: column;
-  gap: 13px;
-}
-
-.efetivo-mission-card h2,
-.efetivo-mission-card p,
 .efetivo-kanban-card h3,
 .efetivo-kanban-card p,
 .efetivo-kanban-intro h2,
 .efetivo-kanban-intro p,
-.efetivo-scenario-actions p,
-.efetivo-scenario-comparison h2,
-.efetivo-scenario-comparison p,
 .efetivo-setting-row h2,
 .efetivo-setting-row p {
   margin: 0;
@@ -1072,8 +1031,7 @@
   margin-bottom: 14px;
 }
 
-.efetivo-demand-summary button,
-.efetivo-scenario-card {
+.efetivo-demand-summary button {
   background: var(--wh);
   border: 1px solid var(--br);
   border-radius: var(--r);
@@ -1086,8 +1044,7 @@
   text-align: left;
 }
 
-.efetivo-demand-summary button.active,
-.efetivo-scenario-card.selected { border-color: var(--g); box-shadow: inset 0 0 0 1px var(--g); }
+.efetivo-demand-summary button.active { border-color: var(--g); box-shadow: inset 0 0 0 1px var(--g); }
 
 .efetivo-allocation-add,
 .efetivo-holiday-form,
@@ -1294,25 +1251,7 @@
   font-weight: 700;
   padding: 8px;
 }
-.efetivo-kanban-card.selected,
-.efetivo-mission-card.selected { border-color: var(--gl); box-shadow: 0 0 0 2px var(--gl); }
-
-.efetivo-execution-panel {
-  border: 1px solid var(--bd);
-  border-radius: 12px;
-  background: var(--bg);
-  padding: 12px;
-  display: grid;
-  gap: 9px;
-}
-.efetivo-execution-panel header { display: flex; justify-content: space-between; gap: 10px; }
-.efetivo-execution-panel header span,
-.efetivo-execution-grid span { color: var(--mu); font-size: 12px; }
-.efetivo-execution-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.efetivo-execution-grid > div { display: grid; gap: 2px; }
-.efetivo-execution-panel p { margin: 0; font-size: 12px; }
-.efetivo-execution-panel .danger { color: var(--rd); }
-.efetivo-execution-suggestion { border-top: 1px solid var(--bd); padding-top: 8px; }
+.efetivo-kanban-card.selected { border-color: var(--gl); box-shadow: 0 0 0 2px var(--gl); }
 
 /* Coluna sob o cartão arrastado. */
 .efetivo-kanban-column.drop-target {
@@ -1485,13 +1424,6 @@
 .efetivo-pending-banner strong { color: var(--warning-text); display: block; }
 .efetivo-pending-banner p { color: var(--warning-text); margin: 4px 0 0; }
 
-.efetivo-mission-card.efetivo-mission-pending {
-  background: var(--warning-bg);
-  border-color: var(--warning-border);
-  border-left: 4px solid var(--warning-border);
-  cursor: pointer;
-}
-
 .efetivo-status.status-pending {
   background: var(--wh);
   border-color: var(--warning-border);
@@ -1523,13 +1455,6 @@
 }
 
 .efetivo-mission-identity strong { font-size: 14px; }
-
-.efetivo-scenario-card { width: 100%; }
-.efetivo-scenario-actions { justify-content: space-between; }
-.efetivo-scenario-comparison > header { margin-bottom: 14px; }
-.efetivo-comparison-grid article { background: var(--sf); border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 4px; padding: 14px; }
-.efetivo-comparison-grid strong { color: var(--g); font-size: 20px; }
-.efetivo-comparison-grid em { color: var(--mu); font-size: 11px; }
 
 .efetivo-admin-role {
   align-items: end;
@@ -1595,19 +1520,14 @@
   .efetivo-context-toolbar,
   .efetivo-list-toolbar,
   .efetivo-calendar-toolbar,
-  .efetivo-scenario-actions,
   .efetivo-setting-row,
   .efetivo-kanban-intro,
   .efetivo-kanban-view-controls,
-  .efetivo-mission-card header,
-  .efetivo-mission-card footer,
-  .efetivo-scenario-comparison > header,
   .efetivo-admin-tabs,
   .efetivo-compact-list > a,
   .efetivo-compact-list > article { align-items: stretch; flex-direction: column; }
   .efetivo-form-grid,
   .efetivo-demand-grid,
-  .efetivo-comparison-grid,
   .efetivo-admin-role { grid-template-columns: 1fr; }
   .efetivo-form-wide,
   .efetivo-demand-fieldset,
@@ -1703,9 +1623,6 @@
 .efetivo-kanban-column > header small { color: var(--mu); font-size: 11px; }
 .efetivo-kanban-empty { color: var(--mu); font-size: 12px; margin: 0; padding: 10px 4px; }
 
-.efetivo-mission-owner { align-items: center; display: flex; gap: 8px; }
-
-.efetivo-mission-owner > i,
 .efetivo-kanban-details > div > i {
   align-items: center;
   background: var(--bg);
@@ -1721,11 +1638,6 @@
   justify-content: center;
   width: 26px;
 }
-
-.efetivo-mission-owner span { display: flex; flex-direction: column; min-width: 0; }
-.efetivo-mission-owner small { color: var(--mu); font-size: 9.5px; letter-spacing: .06em; }
-.efetivo-mission-owner strong { font-size: 12.5px; overflow-wrap: anywhere; }
-.efetivo-mission-owner b { color: var(--mu); font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
 
 .efetivo-kanban-details {
   background: var(--bg);

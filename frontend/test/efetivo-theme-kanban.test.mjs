@@ -1,66 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-
-test('líder e todos os participantes aparecem sem interação prévia', async t => {
-  const server = await createServer({
-    configFile: false,
-    root: new URL('..', import.meta.url).pathname,
-    server: { middlewareMode: true, hmr: false },
-    esbuild: { jsx: 'automatic' },
-    optimizeDeps: { noDiscovery: true },
-    appType: 'custom'
-  });
-  try {
-    const { MissionKanbanTeam } = await server.ssrLoadModule('/src/pages/efetivo/components/MissionKanbanTeam.tsx');
-    for (const status of ['CONFIRMED', 'DRAFT', 'CANCELLED']) {
-      for (const count of [0, 1, 8]) {
-        await t.test(`${status}: ${count} participantes`, () => {
-          const mission = {
-            scheduleStatus: status,
-            headquartersResponsibleName: count ? 'Ana Oliveira' : '',
-            headquartersResponsibleRole: count ? 'Coordenadora' : '',
-            headquartersResponsibleCollaboratorId: count ? 'person-0' : null,
-            allocations: Array.from({ length: count }, (_, index) => ({
-              id: `allocation-${index}`, collaboratorId: `person-${index}`,
-              collaborator: { name: `Pessoa ${index}`, role: 'Cargo do cadastro' },
-              jobRole: index ? undefined : { name: 'Função da missão' }
-            }))
-          };
-          const html = renderToStaticMarkup(createElement(MissionKanbanTeam, { mission }));
-          assert.ok(html.includes(`Participantes da missão · ${count}`));
-          assert.doesNotMatch(html, /<button|aria-expanded| hidden[ =>]|<details/);
-          // Initials are decorative, not duplicated content for screen readers.
-          assert.ok(html.includes('aria-hidden="true"'));
-          for (let index = 0; index < count; index += 1) assert.ok(html.includes(`Pessoa ${index}`));
-          if (count) {
-            assert.ok(html.includes('Ana Oliveira'));
-            assert.ok(html.includes('Função da missão'));
-            assert.equal((html.match(/<em>Líder<\/em>/g) || []).length, 1);
-          } else {
-            assert.ok(html.includes('Líder não vinculado'));
-            assert.ok(html.includes('Nenhum colaborador alocado ainda.'));
-          }
-        });
-      }
-    }
-    await t.test('alocação sem dados expandidos mantém fallback legível', () => {
-      const html = renderToStaticMarkup(createElement(MissionKanbanTeam, { mission: {
-        headquartersResponsibleName: '', headquartersResponsibleCollaboratorId: null,
-        allocations: [{ id: 'allocation', collaboratorId: 'person' }]
-      } }));
-      assert.ok(html.includes('Colaborador'));
-      assert.ok(html.includes('Cargo não informado'));
-    });
-  } finally {
-    await server.close();
-  }
-});
 
 test('evolução dos projetos mostra equipe e preserva ações de gestão', () => {
   const source = read('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx');

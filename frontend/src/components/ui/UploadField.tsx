@@ -250,6 +250,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           ref={inputRef}
           className="visually-hidden"
           type="file"
+          aria-label={`Selecionar imagens: ${label}`}
           accept="image/*,.heic,.heif"
           multiple
           disabled={disabled || isUploading}
