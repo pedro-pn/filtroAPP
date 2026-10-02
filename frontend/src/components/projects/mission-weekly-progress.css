@@ -8,8 +8,22 @@
 .mission-weekly-progress-current dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
 .mission-weekly-progress-current dl > div { min-width: 0; }
 .mission-weekly-progress-current dd { margin: var(--space-1) 0 0; font-size: var(--text-lg); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mission-weekly-progress-current dd small { display: block; margin-block-start: var(--space-1); color: var(--muted); font-size: var(--text-xs); font-weight: var(--font-normal); }
 .mission-weekly-progress-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; min-width: 0; }
 .mission-weekly-progress-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); grid-column: 1 / -1; }
+.mission-weekly-scenarios { display: grid; gap: var(--space-4); grid-column: 1 / -1; min-width: 0; }
+.mission-weekly-scenario { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); min-width: 0; }
+.mission-weekly-scenario legend { padding-inline: var(--space-2); font-weight: var(--font-semibold); }
+.mission-weekly-goal, .mission-weekly-service-options { grid-column: 1 / -1; display: grid; gap: var(--space-3); min-width: 0; }
+.mission-weekly-goal { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-block: var(--space-2); border-top: 1px solid var(--line); }
+.mission-weekly-service-options label { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.mission-weekly-service-options input { accent-color: var(--brand); width: 18px; height: 18px; }
+.mission-weekly-calculated { grid-column: 1 / -1; }
+.mission-weekly-goal-results { display: grid; gap: var(--space-3); }
+.mission-weekly-goal-results > div { display: grid; gap: var(--space-1); padding-block-start: var(--space-2); border-top: 1px solid var(--line); }
+.mission-weekly-goal-results small { color: var(--muted); }
+.mission-weekly-progress-current details { font-size: var(--text-sm); overflow-wrap: anywhere; }
+.mission-weekly-progress-current summary { cursor: pointer; color: var(--brand-text); }
 .mission-weekly-progress-table { max-height: 420px; min-width: 0; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-md); }
 .mission-weekly-progress-table table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--text-xs); }
 .mission-weekly-progress-table th, .mission-weekly-progress-table td { padding: var(--space-3) var(--space-2); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
@@ -25,9 +39,10 @@
 .mission-weekly-status.status-on_target { color: var(--success); background: var(--success-bg); }
 .mission-weekly-status.status-above { color: var(--info); background: var(--info-bg); }
 .mission-weekly-status.status-below { color: var(--danger); background: var(--danger-bg); }
-.mission-weekly-status.status-no_target, .mission-weekly-status.status-no_data, .mission-weekly-status.status-planned { color: var(--muted); background: var(--surface-2); }
+.mission-weekly-status.status-no_target, .mission-weekly-status.status-no_data, .mission-weekly-status.status-no_rule, .mission-weekly-status.status-planned { color: var(--muted); background: var(--surface-2); }
 @media (max-width: 1023.98px) {
   .mission-weekly-progress-form { grid-template-columns: 1fr; }
+  .mission-weekly-scenario, .mission-weekly-goal { grid-template-columns: 1fr; }
 }
 @media (max-width: 767.98px) {
   .mission-weekly-progress-table { max-height: none; border: 0; overflow: visible; }
@@ -42,4 +57,10 @@
 @media (max-width: 420px) {
   .mission-weekly-progress-current dl { gap: var(--space-2); }
   .mission-weekly-progress-current dd { font-size: var(--text-sm); }
+}
+
+.mission-weekly-row-actions { display: grid; gap: var(--space-2); min-width: 0; }
+.mission-weekly-record { display: grid; gap: var(--space-1); min-width: 0; }
+@media (max-width: 767.98px) {
+  .mission-weekly-record { text-align: right; }
 }

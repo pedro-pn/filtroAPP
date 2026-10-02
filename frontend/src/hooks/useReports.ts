@@ -710,6 +710,7 @@ function removeReportFromCaches(
 }
 
 function invalidateAcompanhamentoReportCaches(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] });
   ACOMPANHAMENTO_REPORT_QUERY_KEYS.forEach(queryKey => {
     queryClient.invalidateQueries({ queryKey });
   });

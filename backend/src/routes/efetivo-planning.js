@@ -55,7 +55,7 @@ import {
 } from '../lib/efetivo/planning/mission-planning.js';
 import { requestEvidence } from '../lib/efetivo/planning/plan-context.js';
 import { getMissionExecutionComparison } from '../lib/efetivo/planning/execution-comparison.js';
-import { getMissionWeeklyProgressTargets, saveMissionWeeklyProgressTarget } from '../lib/efetivo/planning/weekly-progress-targets.js';
+import { deleteMissionWeeklyProgressTarget, getMissionWeeklyProgressTargets, saveMissionWeeklyProgressTarget } from '../lib/efetivo/planning/weekly-progress-targets.js';
 import { computeProjectProgress } from '../lib/acompanhamento/avanco.js';
 import {
   getPlanningOverview,
@@ -221,11 +221,17 @@ router.get('/missions/:missionId/execution', requireEfetivoViewer, asyncHandler(
 }));
 
 router.get('/missions/:missionId/weekly-targets', requireEfetivoViewer, asyncHandler(async (req, res) => {
-  res.json(await getMissionWeeklyProgressTargets(idSchema.parse(req.params.missionId)));
+  res.json(await getMissionWeeklyProgressTargets(idSchema.parse(req.params.missionId), { includeServices: req.query.services === 'true' }));
 }));
 
 router.put('/missions/:missionId/weekly-targets', requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await saveMissionWeeklyProgressTarget(idSchema.parse(req.params.missionId), req.body, {
+    userId: req.auth.user.id, userName: req.auth.user.name
+  }));
+}));
+
+router.delete('/missions/:missionId/weekly-targets', requireEfetivoManager, asyncHandler(async (req, res) => {
+  res.json(await deleteMissionWeeklyProgressTarget(idSchema.parse(req.params.missionId), req.body, {
     userId: req.auth.user.id, userName: req.auth.user.name
   }));
 }));

@@ -31,7 +31,8 @@ import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
-import { listWeeklyProgressTargets, saveWeeklyProgressTarget } from '../../lib/acompanhamento/weekly-progress-targets.js';
+import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetReferenceDayHours } from '../../lib/acompanhamento/weekly-progress-targets.js';
+import { loadWeeklyServiceHistory } from '../../lib/acompanhamento/weekly-service-history.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { getMissionGroupDetail } from '../../lib/acompanhamento/project-detail-groups.js';
 import { createMissionGroup, dissolveMissionGroup, listMissionGroups, loadActiveMissionGroups, MissionGroupError, updateMissionGroup } from '../../lib/acompanhamento/mission-groups.js';
@@ -58,13 +59,22 @@ for (const [path, ownerKey, param] of [
   ['/grupos-missoes/:groupId/metas-semanais', 'groupId', 'groupId']
 ]) {
   router.get(path, requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
-    const targets = await listWeeklyProgressTargets({ [ownerKey]: req.params[param] });
+    const owner = { [ownerKey]: req.params[param] };
+    const [targets, defaultReferenceDayHours] = await Promise.all([
+      listWeeklyProgressTargets(owner), weeklyTargetReferenceDayHours(owner)
+    ]);
     const progressHistory = ownerKey === 'projectId' && req.query.history === 'true'
       ? (await computeProgressHistoryForProjects([req.params[param]])).get(req.params[param]) ?? [] : undefined;
-    res.json({ targets, ...(progressHistory ? { progressHistory } : {}) });
+    const serviceHistory = req.query.services === 'true' ? await loadWeeklyServiceHistory({ [ownerKey]: req.params[param] }) : undefined;
+    res.json({ targets, defaultReferenceDayHours, ...(progressHistory ? { progressHistory } : {}), ...(serviceHistory ? { serviceHistory } : {}) });
   }));
   router.put(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
     res.json(await saveWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {
+      userId: req.auth.user.id, userName: req.auth.user.name
+    }));
+  }));
+  router.delete(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+    res.json(await deleteWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {
       userId: req.auth.user.id, userName: req.auth.user.name
     }));
   }));
