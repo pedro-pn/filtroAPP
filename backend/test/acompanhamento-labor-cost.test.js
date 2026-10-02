@@ -1046,7 +1046,7 @@ test('EM VIAGEM é contexto de deslocamento e nunca código de missão', () => {
   assert.equal(resolveTestTag('EM VIAGEM - 07.264.184/0001-46'), null);
 });
 
-test('RDO não-offshore usa hospedagem manual: fora = transferência, casa = gratificação', () => {
+test('RDO não-offshore usa hospedagem manual: fora = transferência, casa = produtividade', () => {
   const away = computeCollaboratorCost({
     params: PARAMS, epiMensal: 0, normalHours: 44, he70Horas: 0, he100Horas: 0, folgaHours: 0,
     projects: [{ pid: 'A', rdoDaysHours: 44, awayDaysHours: 44, rdoWorkedHours: 44, offshore: false }]
@@ -1303,6 +1303,8 @@ test('Efetivo individual apropria EM VIAGEM sem RDO e aplica o piso de 8h48', ()
   assert.ok(near(classificado.byProject.get('p-5804').normalHours, 7.8));
   assert.ok(near(classificado.byProject.get('p-5804').he70Hours, 1));
   assert.ok(near(classificado.byProject.get('p-5804').travelHours, 8.8));
+  assert.ok(near(classificado.byProject.get('p-5804').homeHours, 7.8));
+  assert.equal(classificado.byProject.get('p-5804').awayHours, 0);
   assert.equal(classificado.dayTrail[0].minimumNormalHoursApplied, true);
 });
 
