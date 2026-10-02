@@ -1,5 +1,6 @@
 import { projectScopeOptions, projectWorkLocations } from '../../../shared/modules/rdo-project-context.js';
 import { ReportServiceScopeField, ReportWorkLocationField } from '../components/reports/ReportProjectFields';
+import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
 import { GeneralUploadThumb } from '../components/reports/GeneralUploadThumb';
 import { BrandLoading } from '../components/brand/BrandLoading';
@@ -1058,21 +1059,26 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                         <div className="rdo-service-section__grid">
                           <div className="field-group">
                             <label htmlFor={`service-equipment-${service.id}`}>Equipamento(s)</label>
-                            <Input
+                            <ProjectSystemInput
+                              projectId={form.projectId}
+                              data={service.data}
+                              serviceType={service.type}
+                              field="equipmentId"
                               id={`service-equipment-${service.id}`}
-                              value={getString(service.data.equipmentId)}
                               disabled={readOnly || manualReport}
-                              placeholder="Informar equipamento do cliente..."
-                              onChange={event => updateService(service.id, { data: { equipmentId: event.target.value } })}
+                              onChange={patch => updateService(service.id, { data: patch })}
                             />
                           </div>
                           <div className="field-group">
                             <label htmlFor={`service-system-${service.id}`}>Sistema</label>
-                            <Input
+                            <ProjectSystemInput
+                              projectId={form.projectId}
+                              data={service.data}
+                              serviceType={service.type}
+                              field="system"
                               id={`service-system-${service.id}`}
-                              value={getString(service.data.system)}
                               disabled={readOnly || manualReport}
-                              onChange={event => updateService(service.id, { data: { system: event.target.value } })}
+                              onChange={patch => updateService(service.id, { data: patch })}
                             />
                           </div>
                         </div>

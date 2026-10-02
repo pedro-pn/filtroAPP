@@ -1,5 +1,6 @@
 import { projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
 import { ReportServiceScopeField, ReportWorkLocationField } from '../../components/reports/ReportProjectFields';
+import { ProjectSystemInput } from '../../components/projects/ProjectSystemInput';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
@@ -1267,28 +1268,35 @@ function SiteRdoFormPage() {
                           <h4 className="rdo-service-section__title">Equipamento e sistema</h4>
                           <div className="rdo-service-section__grid">
                             <div className={serviceFieldState(service.id, 'equipmentId')}>
-                              <label>
+                              <label htmlFor={`service-equipment-${service.id}`}>
                                 Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
                                 {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
                               </label>
-                              <Input
+                              <ProjectSystemInput
+                                id={`service-equipment-${service.id}`}
+                                projectId={projectId}
+                                data={service.data}
+                                serviceType={service.type}
+                                field="equipmentId"
                                 className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
-                                value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
-                                invalid={invalidTarget === `${service.id}:equipmentId`}
-                                placeholder="Informar equipamento do cliente..."
-                                onChange={event => updateService(service.id, { equipmentId: event.target.value })}
+                                error={invalidTarget === `${service.id}:equipmentId` ? 'Informe o equipamento do cliente.' : undefined}
+                                onChange={patch => updateService(service.id, patch)}
                               />
                             </div>
                             <div className={serviceFieldState(service.id, 'system')}>
-                              <label>
+                              <label htmlFor={`service-system-${service.id}`}>
                                 Sistema <span style={{ color: 'var(--rd)' }}>*</span>
                                 {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
                               </label>
-                              <Input
+                              <ProjectSystemInput
+                                id={`service-system-${service.id}`}
+                                projectId={projectId}
+                                data={service.data}
+                                serviceType={service.type}
+                                field="system"
                                 className={service.data._prefilled && service.data.system ? 'pre' : ''}
-                                value={typeof service.data.system === 'string' ? service.data.system : ''}
-                                invalid={invalidTarget === `${service.id}:system`}
-                                onChange={event => updateService(service.id, { system: event.target.value })}
+                                error={invalidTarget === `${service.id}:system` ? 'Informe o sistema.' : undefined}
+                                onChange={patch => updateService(service.id, patch)}
                               />
                             </div>
                           </div>
