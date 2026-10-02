@@ -356,8 +356,12 @@
   line-height: var(--leading-md);
 }
 
-/* Match the shell color even when legacy input[type] rules are loaded later. */
+/* The shell owns the surface. Native date/time minimum heights must not make
+   the nested control overflow compact fields anywhere in the application. */
 :where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select) {
+  min-height: 0;
+  border-radius: 0;
+  box-shadow: none;
   color: inherit;
 }
 

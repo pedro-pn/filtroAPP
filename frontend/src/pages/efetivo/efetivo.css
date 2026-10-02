@@ -2176,14 +2176,14 @@
 .project-workflow-modal .secondary-button.is-ghost:hover:not(:disabled) { background: var(--pw-surface-3); color: var(--pw-ink); }
 .project-workflow-modal .secondary-button.is-small { border-radius: 8px; font-size: 12.5px; min-height: 32px; padding: 5px 12px; }
 
-/* Campos do diálogo: altura única, anel de foco verde */
+/* Campos nativos do diálogo; controles DS mantêm borda e foco no shell. */
 .project-workflow-modal .field-group label { color: var(--pw-muted); font-size: 12px; font-weight: 500; }
-.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea) { background-color: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); font-size: 13px; min-height: 36px; padding: 7px 11px; transition: border-color .15s, box-shadow .15s; }
-.project-workflow-modal select { padding-right: 30px; }
-.project-workflow-modal textarea { min-height: 64px; }
-.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):hover:not(:disabled) { border-color: var(--pw-faint); }
-.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
-.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
+.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)) { background-color: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); font-size: 13px; min-height: 36px; padding: 7px 11px; transition: border-color .15s, box-shadow .15s; }
+.project-workflow-modal select:not(.fv-select) { padding-right: 30px; }
+.project-workflow-modal textarea:not(.fv-textarea) { min-height: 64px; }
+.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):hover:not(:disabled) { border-color: var(--pw-faint); }
+.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
 .project-workflow-modal :is(input, textarea)::placeholder { color: var(--pw-faint); }
 .project-workflow-modal input.is-required-empty { border-color: var(--pw-crit-dot); }
 .project-workflow-modal input.is-required-empty:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
@@ -3039,12 +3039,12 @@
 .efetivo-team-dialog .secondary-button:hover:not(:disabled) { background: var(--pw-surface-2); border-color: var(--pw-faint); }
 .efetivo-team-dialog .secondary-button:disabled { box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: .7; }
 .efetivo-team-dialog .field-group label { color: var(--pw-muted); font-size: 12px; font-weight: 500; }
-.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea) { background-color: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); font-size: 13px; min-height: 36px; padding: 7px 11px; transition: border-color .15s, box-shadow .15s; }
-.efetivo-team-dialog select { padding-right: 30px; }
-.efetivo-team-dialog textarea { min-height: 64px; }
-.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):hover:not(:disabled) { border-color: var(--pw-faint); }
-.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
-.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)) { background-color: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); font-size: 13px; min-height: 36px; padding: 7px 11px; transition: border-color .15s, box-shadow .15s; }
+.efetivo-team-dialog select:not(.fv-select) { padding-right: 30px; }
+.efetivo-team-dialog textarea:not(.fv-textarea) { min-height: 64px; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):hover:not(:disabled) { border-color: var(--pw-faint); }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
 .efetivo-team-dialog :is(input, textarea)::placeholder { color: var(--pw-faint); }
 .efetivo-team-dialog input.is-required-empty { border-color: var(--pw-crit-dot); }
 .efetivo-team-dialog input.is-required-empty:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
