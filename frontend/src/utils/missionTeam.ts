@@ -1,4 +1,5 @@
 import type { MissionScheduleStatus, PlanningMission } from '../api/efetivoPlanning';
+import { missionAllocationPeriods } from './missionAllocationPeriod';
 
 export type CollaboratorActivityFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
 
@@ -7,6 +8,47 @@ export type MissionAllocationPeriodDraft = {
   mobilizationDate: string;
   demobilizationDate: string;
 };
+
+/** Usa os mesmos períodos da inclusão individual ou da edição da equipe na API. */
+export function missionTeamCollaboratorPeriods({ mission, collaboratorId, startDate, endDate, allocationPeriods = [], singleSelection = false }: {
+  mission: PlanningMission | null;
+  collaboratorId: string;
+  startDate: string;
+  endDate: string;
+  allocationPeriods?: MissionAllocationPeriodDraft[];
+  singleSelection?: boolean;
+}) {
+  const requested = allocationPeriods.find(period => period.collaboratorId === collaboratorId);
+  if (!mission) return [{
+    startDate: requested?.mobilizationDate || startDate,
+    endDate: requested?.demobilizationDate || endDate
+  }];
+
+  const sourceMission = singleSelection ? mission : {
+    ...mission, mobilizationDate: startDate, executionEndDate: endDate, returnDate: endDate
+  };
+  const defaultCycle = sourceMission.cycles?.find(cycle => cycle.isDefault);
+  const missionStart = (defaultCycle?.mobilizationDate || sourceMission.mobilizationDate).slice(0, 10);
+  const forecastEnd = (sourceMission.returnDate || sourceMission.executionEndDate).slice(0, 10);
+  const missionEnd = defaultCycle ? (sourceMission.cycles || []).reduce((latest, cycle) => {
+    const date = (cycle.demobilizationDate || cycle.mobilizationDate).slice(0, 10);
+    return date > latest ? date : latest;
+  }, forecastEnd) : forecastEnd;
+  const proposedMission = { ...sourceMission, mobilizationDate: missionStart, returnDate: missionEnd };
+  const boundsStart = singleSelection ? missionStart : startDate;
+  const boundsEnd = singleSelection ? missionEnd : endDate;
+  const existing = singleSelection ? undefined : mission.allocations.find(allocation => allocation.collaboratorId === collaboratorId);
+  const period = singleSelection ? { mobilizationDate: startDate, demobilizationDate: endDate } : requested;
+  return missionAllocationPeriods({
+    cycles: existing?.cycles,
+    mobilizationDate: period
+      ? period.mobilizationDate === boundsStart ? null : period.mobilizationDate
+      : existing?.mobilizationDate || null,
+    demobilizationDate: period
+      ? period.demobilizationDate === boundsEnd ? null : period.demobilizationDate
+      : existing?.demobilizationDate || null
+  }, proposedMission);
+}
 
 export function filterCollaboratorsByActivity<T extends { isActive?: boolean }>(people: T[], filter: CollaboratorActivityFilter): T[] {
   return people.filter(person => filter === 'ALL' || (filter === 'INACTIVE' ? person.isActive === false : person.isActive !== false));

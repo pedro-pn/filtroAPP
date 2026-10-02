@@ -30,7 +30,7 @@ export function missionCyclePeriods(mission: PlanningMission) {
   }];
 }
 
-export function missionAllocationPeriods(allocation: MissionAllocation, mission: PlanningMission) {
+export function missionAllocationPeriods(allocation: Pick<MissionAllocation, 'mobilizationDate' | 'demobilizationDate' | 'cycles'>, mission: PlanningMission) {
   if (allocation.cycles?.length) return allocation.cycles.map(cycle => ({
     id: cycle.id,
     startDate: dateKey(cycle.mobilizationDate),

@@ -17,7 +17,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { AVAILABILITY_STATUSES, buildMissionAvailabilityColumns, type AvailabilityStatus } from '../../../utils/collaboratorAvailability';
 import { allocationOverlapsPeriod } from '../../../utils/missionAllocationPeriod';
-import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, plannedRoleCoverage, plannedRoleIdSet, toggleMissionCollaborator, type CollaboratorActivityFilter, type PlannedTeamRole } from '../../../utils/missionTeam';
+import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, missionTeamCollaboratorPeriods, plannedRoleCoverage, plannedRoleIdSet, toggleMissionCollaborator, type CollaboratorActivityFilter, type PlannedTeamRole } from '../../../utils/missionTeam';
 import { MissionPeriodFields, type MissionPeriodDraft } from './MissionPeriodFields';
 import '../EfetivoTeam.ds.css';
 
@@ -115,10 +115,14 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     }
     return result;
   }, [collaborators.data, excludedIds, mission, selectedIds]);
+  const periodsByCollaboratorId = useMemo(() => new Map(options.map(collaborator => [
+    collaborator.id,
+    missionTeamCollaboratorPeriods({ mission, collaboratorId: collaborator.id, startDate, endDate, allocationPeriods, singleSelection })
+  ])), [allocationPeriods, endDate, mission, options, singleSelection, startDate]);
   const { columns, otherUnavailable } = useMemo(() => validPeriod
-    ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id)
+    ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id, periodsByCollaboratorId)
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
-  [absences.data, endDate, mission?.id, missions.data, options, startDate, validPeriod]);
+  [absences.data, endDate, mission?.id, missions.data, options, periodsByCollaboratorId, startDate, validPeriod]);
   const operationalRoleIds = useMemo(() => new Set(roles.filter(role => role.isOperational).map(role => role.id)), [roles]);
   const plannedIds = useMemo(() => plannedRoleIdSet(plannedRoles), [plannedRoles]);
   const filterByPlan = Boolean(plannedRoles?.length) && !showAll;
@@ -145,7 +149,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     && (missions.data || []).some(otherMission => otherMission.id !== mission?.id
       && otherMission.scheduleStatus === 'CONFIRMED'
       && otherMission.allocations.some(allocation => allocation.collaboratorId === id
-        && allocationOverlapsPeriod(allocation, otherMission, startDate, endDate))));
+        && periodsByCollaboratorId.get(id)?.some(period => allocationOverlapsPeriod(allocation, otherMission, period.startDate, period.endDate)))));
   const applyTeam = (confirmedIds: string[] = [], confirmedInactiveIds: string[] = []) => {
     if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected) return;
     onChange(draftIds, [...new Set([
