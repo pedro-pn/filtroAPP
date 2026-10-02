@@ -14,7 +14,8 @@
  *    marcações maiores e fins de semana preservam o total real do ponto.
  *  - diasCliente (periculosidade) = dias COM projeto (RDO, viagem ou alocação oficial). Em projeto não-offshore, a configuração
  *    manual por colaborador define se o dia entra como diasFora (dorme fora) ou diasCasa (dorme em
- *    casa/gratificação). Dia com ponto sem nenhuma evidência de projeto não alimenta verbas variáveis.
+ *    casa/produtividade), inclusive em dias de viagem. Dia com ponto sem nenhuma evidência de projeto
+ *    não alimenta verbas variáveis.
  *  - Dia de semana sem ponto e sem alocação = folga: 8,8h zerados (só no denominador do HH).
  *  - HH = folha ÷ (horas do ponto + horas de folga).
  *
@@ -1382,7 +1383,8 @@ export function classifyProjectHours(
       project.he100Hours += allocatedHe100Hours;
       project.rdoWorkedHours += Math.max(0, Number(allocation.rdo?.hours) || 0);
       if (project.offshore) project.offshoreHours += allocatedNormalHours;
-      else if (travelContext || project.sleepMode !== 'HOME') project.awayHours += allocatedNormalHours;
+      // Deslocamento não define hospedagem: o cronograma determina produtividade ou transferência.
+      else if (project.sleepMode !== 'HOME') project.awayHours += allocatedNormalHours;
       else project.homeHours += allocatedNormalHours;
       if (travelContext) project.travelHours += allocatedNormalHours + allocatedHe70Hours + allocatedHe100Hours;
     }

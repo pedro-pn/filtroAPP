@@ -128,6 +128,7 @@ test('modalidades viagem e offshore usam transferencia/confinamento da planilha'
   const operadorViagem = computeMonthlyCost(operador, { ...HOME_INPUTS, diasCasa: 0, diasFora: 22 });
   const operadorOffshore = computeMonthlyCost(operador, { ...HOME_INPUTS, diasCasa: 0, offshoreDays: 22 });
   close(operadorViagem.transferencia, (4086.57 + 324.2) * 0.3);
+  assert.equal(operadorViagem.produtividade, 0);
   close(operadorOffshore.confinamento, (4086.57 + 324.2) * 0.4);
   assert.ok(operadorOffshore.totalMensal > operadorViagem.totalMensal);
 
@@ -135,6 +136,7 @@ test('modalidades viagem e offshore usam transferencia/confinamento da planilha'
   const auxViagem = computeMonthlyCost(auxiliar, { ...HOME_INPUTS, diasCasa: 0, diasFora: 22 });
   const auxOffshore = computeMonthlyCost(auxiliar, { ...HOME_INPUTS, diasCasa: 0, offshoreDays: 22 });
   close(auxViagem.transferencia, (2395.37 + 324.2) * 0.1);
+  assert.equal(auxViagem.produtividade, 0);
   close(auxOffshore.confinamento, (2395.37 + 324.2) * 0.2);
   assert.ok(auxOffshore.totalMensal > auxViagem.totalMensal);
 });

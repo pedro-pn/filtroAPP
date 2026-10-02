@@ -310,6 +310,11 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const collaboratorSleepSection = canManage ? (
     <>
       <h3 className="acp-schedule-ds__section-title">Colaboradores e hospedagem</h3>
+      {!offshoreValue ? (
+        <p className="acp-schedule-ds__muted">
+          Dorme em casa: recebe produtividade, sem adicional de transferência. Dorme fora: recebe adicional de transferência, sem produtividade.
+        </p>
+      ) : null}
       <div className="acp-sleep-add">
         <Field id={`acp-labor-add-${projectId}`} label="Adicionar colaborador manualmente" optionalText="">
           <Select

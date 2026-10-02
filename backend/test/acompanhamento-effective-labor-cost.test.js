@@ -9,9 +9,13 @@ import {
 } from '../src/lib/acompanhamento/labor-cost.js';
 import { buildProjectDetailCollaborator, divisionLaborAllocation } from '../src/lib/acompanhamento/project-detail.js';
 import { buildAllocationAudit, groupUnallocatedDays } from '../src/lib/acompanhamento/allocation-audit.js';
+import { computeMonthlyCost } from '../src/lib/acompanhamento/cost-engine.js';
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} ≠ ${expected}`);
 const collaborator = { id: 'c1', name: 'Ana', jobRoleId: 'role1', jobRole: { id: 'role1', name: 'Operador' }, jobRoleHistory: [] };
+const modelParams = {
+  cargaHoraria: 220, diasUteis: 22, periculosidadePct: 0.3, produtividadePct: 0.15, transferenciaPct: 0.3
+};
 
 function allocation(overrides = {}) {
   return {
@@ -24,7 +28,10 @@ function allocation(overrides = {}) {
   };
 }
 
-function mockCalculation(t, { start = '2026-09-01', end = '2026-09-30', days = [], reports = [], allocations = [allocation()] } = {}) {
+function mockCalculation(t, {
+  start = '2026-09-01', end = '2026-09-30', days = [], reports = [], allocations = [allocation()],
+  laborSleepModeByCollaborator = { c1: 'HOME' }
+} = {}) {
   const stub = (model, method, implementation) => {
     const original = prisma[model][method];
     prisma[model][method] = implementation;
@@ -39,12 +46,10 @@ function mockCalculation(t, { start = '2026-09-01', end = '2026-09-30', days = [
   mock('jobRole', 'findMany', [{ name: 'Operador', costProfile: { parameterSets: [
     { effectiveDate: '2026-01-01', params: { salarioBase: 3960 } }
   ] } }]);
-  mock('costProfile', 'findMany', [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params: {
-    cargaHoraria: 220, diasUteis: 22, periculosidadePct: 0.3, transferenciaPct: 0.3
-  } }] }]);
+  mock('costProfile', 'findMany', [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params: modelParams }] }]);
   stub('report', 'findMany', async ({ where }) => where.project?.offshore ? [] : reports);
   mock('acompanhamentoSetting', 'findUnique', { numberValue: 0 });
-  mock('project', 'findMany', [{ id: 'p1', code: '1001', laborSleepModeByCollaborator: { c1: 'HOME' } }]);
+  mock('project', 'findMany', [{ id: 'p1', code: '1001', laborSleepModeByCollaborator }]);
   mock('pontoProjectTagAlias', 'findMany', []);
   mock('acompanhamentoMissionGroup', 'findMany', []);
   mock('efetivoMissionAllocation', 'findMany', allocations);
@@ -134,6 +139,43 @@ test('ponto existente não duplica custo; RDO e viagem conservam seus contextos'
   assert.deepEqual(rate.workedDates, ['2026-09-21', '2026-09-22']);
   assert.equal(rate.allocationTrail.filter(day => day.date === '2026-09-21').length, 1);
   assert.equal(rate.allocationTrail[2].noActivityContext, false);
+});
+
+test('hospedagem do cronograma define as verbas na folha e no projeto, inclusive em viagem', async t => {
+  for (const mode of ['HOME', 'AWAY', null]) {
+    await t.test(mode ?? 'fora por padrão', async t => {
+      const laborSleepModeByCollaborator = mode ? { c1: mode } : {};
+      mockCalculation(t, {
+        start: '2026-09-21', end: '2026-09-23', laborSleepModeByCollaborator,
+        days: [
+          { date: '2026-09-21', workedMinutes: 528, extrasMinutes: 0 },
+          { date: '2026-09-22', workedMinutes: 528, extrasMinutes: 0, tags: ['EM VIAGEM'] }
+        ],
+        reports: [{
+          reportType: 'RDO', projectId: 'p1', project: { code: '1001', laborSleepModeByCollaborator },
+          reportDate: '2026-09-21', daytimeWorkedMinutes: 528, collaborators: [{ collaboratorId: 'c1' }]
+        }]
+      });
+      const { rates: [rate] } = await computeCollaboratorRates();
+      const params = { ...modelParams, salarioBase: 3960 };
+      const expected = computeMonthlyCost(params, mode === 'HOME' ? { diasCasa: 3 } : { diasFora: 3 });
+      const fixed = computeMonthlyCost(params).totalMensal;
+      const variable = expected.totalMensal - fixed;
+      const total = Math.round((fixed * 3 / 30 + variable) * 100) / 100;
+      assert.ok((mode === 'HOME' ? expected.produtividade : expected.transferencia) > 0);
+      assert.equal(mode === 'HOME' ? expected.transferencia : expected.produtividade, 0);
+      near(rate.totalMensal, total);
+      near(rate.variavelMensal, variable);
+      for (const allocation of [rate.byProject.p1, rate.analyticalByProject.p1]) {
+        near(allocation.cost, total);
+        near(allocation.costBase, total);
+        near(allocation.hours, 26.4);
+        near(allocation.travelHours, 8.8);
+      }
+      assert.deepEqual(rate.allocationTrail.map(day => day.travelContext), [false, true, false]);
+      assert.equal(rate.allocationTrail[2].noActivityContext, true);
+    });
+  }
 });
 
 test('datas individuais e pausas prevalecem, limitadas ao período de custo e sem duplicar linhas', () => {
