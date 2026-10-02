@@ -1393,7 +1393,9 @@ F5.3 tem interface migrada, com validação por toque e persistência pendentes.
 - [x] Concluir a auditoria de acessibilidade, contraste, responsividade e
   permissões nos fluxos autenticados, incluindo WebKit. Matriz de 02/10:
   18 testes passaram; 14 telas × 3 tamanhos × 2 temas × 2 navegadores.
-- [ ] Conferir Assinaturas em celular físico; envio SMTP real não foi homologado.
+- [x] Funcionamento existente de assinatura e envio de e-mails confirmado pelo
+  usuário. Uso de aparelho físico e SMTP externo permanecem limites da cobertura
+  dos testes locais, sem nova exigência de homologação para publicar o redesign.
 - [x] Atualizar os testes estáticos para as tabelas do Estoque, o calendário
   do Efetivo e os novos controles dos diálogos. A suíte frontend passou
   integralmente (669/669); lint e build passaram.
@@ -1564,17 +1566,21 @@ combinações (60 recortes), sem falhas de contraste nos fundos medidos.
 
 Não há outra migração visual conhecida aberta nesta revisão. A branch contém
 `origin/main` até `a9d9f6ee`, verificado novamente em 02/10. A entrega está pronta
-para homologação final; a publicação precisa dos passos abaixo:
+para integração e publicação pelo procedimento habitual:
 
-- [ ] Executar/aprovar a CI do commit de integração; não há execução da CI desta
-  branch registrada nesta conferência.
-- [ ] Homologar Assinaturas/gestos em aparelho físico e entrega SMTP externa.
-- [ ] Publicar frontend **e** backend da mesma versão, com backup e migrations.
-  O delta para a main inclui `20260928120000_project_acompanhamento_card_name`,
-  além de ajustes de API; publicar somente o frontend não entrega o conjunto.
+- [ ] Integrar a branch e acompanhar os checks automáticos da CI já existente.
+- [x] Funcionamento de assinatura e envio de e-mails no ambiente atual confirmado
+  pelo usuário. Não há nova exigência de homologação desses serviços para liberar
+  o redesign; o último lote de correções não alterou a lógica backend deles.
+- [ ] Publicar pelo procedimento normal, com backup e migrations pendentes, se
+  houver. A branch completa contém mudanças anteriores de API e
+  `20260928120000_project_acompanhamento_card_name`; uma migration já aplicada
+  não precisa ser reaplicada manualmente.
 
 Critérios, evidências e limites estão na
 [avaliação para produção](filtrovali-ds/redesign-production-readiness-2026-10-02.md).
 
-Homologação em aparelhos físicos, leitor de tela, câmera/canvas de assinatura
-física e entrega SMTP externa continuam fora da validação local desta rodada.
+Uso de aparelhos físicos, leitor de tela, câmera/canvas físico e entrega SMTP
+externa continuam fora da cobertura dos testes locais desta rodada. Esses limites
+de cobertura não representam novos bloqueios de publicação; a conferência visual
+em aparelho físico fica como recomendação opcional.

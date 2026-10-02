@@ -174,6 +174,11 @@ controle sem nome, imagem quebrada, exceção ou contraste insuficiente nos fund
 medidos foi encontrado nessa repetição.
 
 Consulte a [avaliação para produção](redesign-production-readiness-2026-10-02.md)
-para os gates e passos de publicação ainda necessários.
+para os checks da integração habitual e os passos de publicação.
 
-Não foram identificadas outras inconsistências reproduzíveis nos recortes conferidos. Permanecem fora desta rodada a homologação em celulares/tablets físicos, leitor de tela, câmera/canvas de assinatura física e entrega SMTP externa. O SMTP de teste só captura mensagens localmente.
+Não foram identificadas outras inconsistências reproduzíveis nos recortes
+conferidos. Aparelhos físicos, leitor de tela, câmera/canvas físico e entrega SMTP
+externa não foram exercitados nos testes locais; o SMTP de teste só captura
+mensagens. O usuário confirmou que assinatura e envio de e-mails já funcionam no
+ambiente atual. Esses limites da rodada local não constituem novas pendências
+funcionais ou exigências de homologação para publicar o redesign.
