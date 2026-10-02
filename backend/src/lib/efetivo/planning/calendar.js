@@ -70,8 +70,12 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
     demand: mission.demands.reduce((sum, item) => sum + item.requiredCount, 0),
     allocated: mission.allocations.filter(item => allocationPeriods(item, mission)
       .some(period => periodsOverlap(period, cycle))).length,
-    people: mission.allocations.filter(item => allocationPeriods(item, mission)
-      .some(period => periodsOverlap(period, cycle))).map(item => item.collaborator)
+    people: mission.allocations.flatMap(item => {
+      const periods = allocationPeriods(item, mission)
+        .filter(period => periodsOverlap(period, cycle))
+        .map(period => overlapWindow(period, cycle));
+      return periods.length && item.collaborator ? [{ ...item.collaborator, periods }] : [];
+    })
   })));
   const absenceEvents = absences.map(absence => ({
     id: absence.id,

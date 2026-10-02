@@ -1001,3 +1001,27 @@
     padding-inline: var(--space-8);
   }
 }
+
+@media (max-width: 767.98px) {
+  .fv-app-shell__main {
+    padding-block-start: var(--topbar-h);
+  }
+
+  .fv-app-shell .fv-topbar {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: calc(var(--z-bottombar) - 1);
+    min-height: var(--topbar-h);
+    transition: transform 220ms ease;
+  }
+
+  .fv-app-shell.is-mobile-header-hidden .fv-topbar {
+    pointer-events: none;
+    transform: translateY(calc(-100% - 1px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fv-app-shell .fv-topbar { transition-duration: 0.01ms; }
+}

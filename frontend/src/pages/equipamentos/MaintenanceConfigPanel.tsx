@@ -508,7 +508,7 @@ export function MaintenanceConfigPanel({
       </section>
 
       <section className="page-card">
-        <div className="operational-card-head">
+        <div className="operational-card-head equip-maintenance-profiles-head">
           <div>
             <div className="section-title">Perfis de manutenção</div>
             <div className="form-hint">

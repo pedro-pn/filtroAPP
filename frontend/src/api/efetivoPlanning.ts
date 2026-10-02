@@ -282,7 +282,7 @@ export interface CalendarEvent {
   entityPath: string;
   demand?: number;
   allocated?: number;
-  people?: Array<{ id: string; name: string }>;
+  people?: Array<{ id: string; name: string; periods?: Array<{ startDate: DateOnly; endDate: DateOnly }> }>;
 }
 
 export interface PlanningScenario {

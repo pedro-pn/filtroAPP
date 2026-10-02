@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { BottomBar } from './BottomBar';
 import { NavigationDrawer } from './NavigationDrawer';
+import { PageScrollControls } from './PageScrollControls';
 import { mobileSectionNavigation, type NavigationModel } from './navigationModel';
 import { Sidebar, type NavigationProfile } from './Sidebar';
 import { TopBar, type TopBarBreadcrumb } from './TopBar';
+import { useMobileHeaderReveal } from './useMobileHeaderReveal';
 import './AppShell.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'fv-sidebar-collapsed';
@@ -49,6 +51,7 @@ export function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(storedSidebarCollapsed);
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
+  const mobileHeaderHidden = useMobileHeaderReveal();
   const effectiveSidebarCollapsed = sidebarCollapsed && !sidebarHoverExpanded;
   const hasMobileSections = Boolean(mobileSectionNavigation(navigation));
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -71,7 +74,7 @@ export function AppShell({
   }, [closeDrawer]);
 
   return (
-    <div className={`fv-app-shell${effectiveSidebarCollapsed ? ' is-sidebar-collapsed' : ''}${hasMobileSections ? ' has-mobile-sections' : ''}`} data-testid="fv-app-shell">
+    <div className={`fv-app-shell${effectiveSidebarCollapsed ? ' is-sidebar-collapsed' : ''}${hasMobileSections ? ' has-mobile-sections' : ''}${mobileHeaderHidden && !drawerOpen ? ' is-mobile-header-hidden' : ''}`} data-testid="fv-app-shell">
       <Sidebar
         navigation={navigation}
         profile={profile}
@@ -113,6 +116,8 @@ export function AppShell({
         appearance="design-system"
         navigation={navigation}
       />
+
+      <PageScrollControls />
 
       <NavigationDrawer
         open={drawerOpen}

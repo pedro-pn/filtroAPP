@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type FocusEvent, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { FileImage, FileText } from 'lucide-react';
 import type { PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist';
 
@@ -22,8 +23,25 @@ export function QualityEvidenceThumbnail({ file, url, fileName, mimeType }: Prop
   const [localUrl, setLocalUrl] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const [pdfReady, setPdfReady] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number; above: boolean } | null>(null);
+  const tooltipId = useId();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewUrl = file ? localUrl : url || '';
+
+  function showFileName(event: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const above = window.innerHeight - bounds.bottom < 80 && bounds.top > 80;
+    setTooltipPosition({
+      left: Math.max(8, Math.min(bounds.left, window.innerWidth - Math.min(320, window.innerWidth - 16) - 8)),
+      top: above ? bounds.top - 6 : bounds.bottom + 6,
+      above
+    });
+  }
+
+  const tooltip = tooltipPosition ? createPortal(
+    <span id={tooltipId} className={`quality-evidence-filename-tooltip${tooltipPosition.above ? ' quality-evidence-filename-tooltip--above' : ''}`} role="tooltip" style={{ left: tooltipPosition.left, top: tooltipPosition.top }}>{name}</span>,
+    document.body
+  ) : null;
 
   useEffect(() => {
     if (!file) return;
@@ -93,10 +111,11 @@ export function QualityEvidenceThumbnail({ file, url, fileName, mimeType }: Prop
   );
 
   return previewUrl ? (
-    <a className="quality-evidence-thumb" href={previewUrl} target="_blank" rel="noreferrer" aria-label={`Abrir ${name}`} title={name}>
+    <a className="quality-evidence-thumb" href={previewUrl} target="_blank" rel="noreferrer" aria-label={`Abrir ${name}`} aria-describedby={tooltipPosition ? tooltipId : undefined} onMouseEnter={showFileName} onMouseLeave={() => setTooltipPosition(null)} onFocus={showFileName} onBlur={() => setTooltipPosition(null)}>
       {thumbnail}
+      {tooltip}
     </a>
   ) : (
-    <span className="quality-evidence-thumb" role="img" aria-label={name} title={name}>{thumbnail}</span>
+    <span className="quality-evidence-thumb" role="img" aria-label={name} aria-describedby={tooltipPosition ? tooltipId : undefined} tabIndex={0} onMouseEnter={showFileName} onMouseLeave={() => setTooltipPosition(null)} onFocus={showFileName} onBlur={() => setTooltipPosition(null)}>{thumbnail}{tooltip}</span>
   );
 }

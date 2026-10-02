@@ -125,6 +125,20 @@
 .stock-page-v2 .stock-table-muted,
 .stock-page-v2 .rel-meta { color: var(--muted); }
 
+.stock-page-v2 .stock-entity-table { margin-top: var(--space-3); }
+.stock-page-v2 .stock-entity-table .fv-data-table__desktop { overflow-x: auto; }
+.stock-page-v2 .stock-entity-table .fv-data-table__table { min-width: 760px; }
+.stock-page-v2 .stock-table-identity { display: grid; gap: 2px; min-width: 160px; }
+.stock-page-v2 .stock-table-identity small,
+.stock-page-v2 .stock-entity-table td > small { display: block; color: var(--muted); }
+.stock-page-v2 .stock-table-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); flex-wrap: wrap; min-width: 190px; }
+.stock-page-v2 .stock-table-actions .mini-btn { white-space: nowrap; }
+.stock-page-v2 .stock-table-documents { max-width: 180px; }
+.stock-page-v2 .stock-table-documents summary { cursor: pointer; color: var(--brand-text); }
+.stock-page-v2 .stock-table-documents > div { display: grid; gap: var(--space-1); padding-top: var(--space-1); }
+.stock-page-v2 .stock-entity-table a { color: var(--brand-text); overflow-wrap: anywhere; }
+.stock-page-v2 .stock-table-mobile-documents { display: grid; gap: var(--space-1); }
+
 .stock-page-v2 .stock-entity-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));

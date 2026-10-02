@@ -164,11 +164,9 @@ test('Projetos preserva bootstrap, busca, ordenação e contratos CRUD', () => {
     projectsTab,
     /matchesSearch\(projectSearchParts\(project\), gestorSearch\)/
   );
-  assert.match(
-    projectsTab,
-    /sortProjects\(pendingRegistrationProjects, projectSortDir\)/
-  );
-  assert.match(projectsTab, /sortProjects\(activeProjects, projectSortDir\)/);
+  assert.match(projectsTab, /sortProjects\(projects, projectSortDir\)/);
+  assert.match(projectsTab, /renderProjectTable\(pendingRegistrationProjects, 'Projetos aguardando revisão'\)/);
+  assert.match(projectsTab, /renderProjectTable\(activeProjects, 'Projetos ativos'\)/);
   assert.match(page, /useBatchedReportCounts\(/);
   assert.match(reportsHook, /queries\.slice\(index \* 8, index \* 8 \+ 8\)/);
   assert.match(
@@ -304,11 +302,8 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
     /reportCount: activeProjectReportCountById\.get\(project\.id\)/
   );
   assert.match(projectCard, /<ProjectRevisionPicker projectId=\{project\.id\}/);
-  assert.match(
-    page,
-    /const initiallyExpandedId =\s*sortProjects\(readyProjects, projectSortDir\)\[0\]\?\.id \|\|\s*activeProjects\[0\]\?\.id/
-  );
-  assert.match(page, /stored !== null && Array\.isArray\(parsed\)/);
+  assert.match(projectsTab, /<DataTable[\s\S]*?className="rdo-project-table"/);
+  assert.match(page, /const \[expandedProjectDetailIds, setExpandedProjectDetailIds\] = useState<string\[\]>\(\[\]\)/);
 
   assert.match(
     projectsTab,

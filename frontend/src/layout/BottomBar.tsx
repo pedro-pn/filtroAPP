@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/ds';
 import { Modal } from '../components/ui/Modal';
 import { NAVIGATION_CHROME_ICONS, navigationSectionIcon } from './navigationIcons';
 import { mobileSectionNavigation, type NavigationModel } from './navigationModel';
+import { scrollPageTo } from './pageScroll';
 
 interface LegacyBottomBarProps {
   appearance?: 'legacy';
@@ -217,9 +218,11 @@ function DesignSystemBottomBar({
             <li key={item.id}>
               <Link className={item.active ? 'is-active' : undefined} to={item.href}
                 onClick={event => {
-                  if (!item.onSelect || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  if (!item.active && !item.onSelect) return;
                   event.preventDefault();
-                  item.onSelect();
+                  if (item.active) scrollPageTo('start');
+                  else item.onSelect?.();
                 }}
                 aria-current={item.active ? 'page' : undefined} title={item.label}>
                 <span className="fv-bottom-bar__icon">
@@ -253,7 +256,9 @@ function DesignSystemBottomBar({
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                pendingActionRef.current = item.onSelect ?? (() => { void navigate(item.href); });
+                pendingActionRef.current = item.active
+                  ? () => window.requestAnimationFrame(() => scrollPageTo('start'))
+                  : item.onSelect ?? (() => { void navigate(item.href); });
                 setMorePhase('closing');
               }}>
               <AppIcon icon={navigationSectionIcon(sections.module.id, item.id)} size="md" />

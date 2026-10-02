@@ -150,10 +150,11 @@ test('Arquivados preserva queries, busca, agrupamento, paginação e handlers de
   );
 });
 
-test('Arquivados abre um único diálogo DS sob demanda sem expandir os cards', () => {
+test('Arquivados mantém o diálogo de relatórios ao expandir linhas da tabela', () => {
   const page = source('src/pages/gestor/GestorPage.tsx');
   const tab = sectionBetween(page, 'function renderArchivedProjectsTab', 'function renderEquipeTab');
-  const cardOptions = sectionBetween(tab, 'return renderProjectCard', 'segments: projectSegmentsQuery.data');
+  const cardOptions = sectionBetween(tab, 'renderProjectCard(project, {', 'segments: projectSegmentsQuery.data');
+  assert.match(tab, /<DataTable[\s\S]*?ariaLabel="Projetos arquivados"/);
   assert.doesNotMatch(cardOptions, /children:|reportSectionExpanded:|onToggleReports:/);
   assert.match(cardOptions, /onOpenReports: openArchivedReports/);
   assert.equal((tab.match(/<Modal\b/g) || []).length, 1);

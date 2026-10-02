@@ -15,7 +15,7 @@ import {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Badge, Select } from '../../components/ui/ds';
+import { Badge, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ToastContext';
 import { StockCategoryFormModal } from './StockCategoryFormModal';
 
@@ -128,6 +128,19 @@ export function StockCategoriesTab({ isManager }: Props) {
     });
   }
 
+  const columns: DataTableColumn<StockCategory>[] = [
+    { key: 'name', header: 'Categoria', rowHeader: true, render: category => <strong>{category.name}</strong> },
+    { key: 'type', header: 'Tipo', render: category => typeLabel(category.type) },
+    { key: 'items', header: 'Itens', render: category => category.itemCount },
+    { key: 'checklist', header: 'Checklist', render: category => <><Badge tone={category.checklistEnabled ? 'success' : 'neutral'}>{category.checklistEnabled ? 'Ativo' : 'Desativado'}</Badge>{category.checklistEnabled ? <small className="stock-table-muted">{category.checklistItems.length} pontos de checagem</small> : null}</> },
+    { key: 'status', header: 'Situação', render: category => <Badge tone={category.isActive ? 'success' : 'danger'}>{category.isActive ? 'Ativa' : 'Inativa'}</Badge> }
+  ];
+  const renderActions = (category: StockCategory) => isManager ? <div className="stock-table-actions">
+    <button className="mini-btn alt" type="button" onClick={() => setFormCategory(category)}>Editar</button>
+    <button className="mini-btn alt" type="button" onClick={() => confirmActive(category, !category.isActive)}>{category.isActive ? 'Inativar' : 'Reativar'}</button>
+    <RemoveIconButton label={`Remover categoria ${category.name}`} disabled={removeMutation.isPending} onClick={() => confirmRemove(category)} />
+  </div> : null;
+
   return (
     <section className="page-card stock-panel">
       <div className="admin-toolbar stock-panel-header">
@@ -164,34 +177,22 @@ export function StockCategoriesTab({ isManager }: Props) {
       {categoriesQuery.isError ? <p className="equip-form-error">Não foi possível carregar as categorias.</p> : null}
       {!categoriesQuery.isLoading && !categories.length ? <p className="placeholder-copy">Nenhuma categoria encontrada.</p> : null}
 
-      <div className="equip-grid stock-entity-grid">
-        {categories.map(category => (
-          <article className="card stock-entity-card" key={category.id}>
-            <div className="admin-toolbar">
-              <div>
-                <div className="sec">{category.name}</div>
-                <p className="rel-meta">{typeLabel(category.type)} · {category.itemCount} item(ns)</p>
-              </div>
-              <Badge tone={category.checklistEnabled ? 'success' : 'neutral'}>{category.checklistEnabled ? 'Checklist' : 'Sem checklist'}</Badge>
-            </div>
-            {category.checklistEnabled ? (
-              <p className="rel-meta">{category.checklistItems.length} ponto(s) de checagem</p>
-            ) : (
-              <p className="rel-meta">Itens vinculados não geram checklist enquanto a categoria estiver sem checklist.</p>
-            )}
-            {!category.isActive ? <Badge tone="danger">Inativa</Badge> : null}
-            {isManager ? (
-              <div className="admin-form-actions">
-                <button className="mini-btn alt" type="button" onClick={() => setFormCategory(category)}>Editar</button>
-                <button className="mini-btn alt" type="button" onClick={() => confirmActive(category, !category.isActive)}>
-                  {category.isActive ? 'Inativar' : 'Reativar'}
-                </button>
-                <RemoveIconButton label={`Remover categoria ${category.name}`} disabled={removeMutation.isPending} onClick={() => confirmRemove(category)} />
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
+      {categories.length ? <DataTable
+        className="stock-entity-table"
+        rows={categories}
+        columns={columns}
+        getRowId={category => category.id}
+        ariaLabel="Categorias do estoque"
+        density="compact"
+        mobileBreakpoint="md"
+        rowActions={isManager ? renderActions : undefined}
+        mobile={{ renderItem: category => ({
+          title: category.name,
+          subtitle: typeLabel(category.type),
+          status: <Badge tone={category.isActive ? 'success' : 'danger'}>{category.isActive ? 'Ativa' : 'Inativa'}</Badge>,
+          metadata: [{ label: 'Itens', value: category.itemCount }, { label: 'Checklist', value: category.checklistEnabled ? `${category.checklistItems.length} pontos` : 'Desativado' }]
+        }) }}
+      /> : null}
 
       {formCategory !== undefined ? (
         <StockCategoryFormModal

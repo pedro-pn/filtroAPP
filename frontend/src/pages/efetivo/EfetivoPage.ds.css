@@ -692,6 +692,87 @@
   border-color: var(--danger);
 }
 
+.efetivo-page-v2 .efetivo-calendar-grid > button { position: relative; }
+.efetivo-page-v2 .efetivo-calendar-grid > button:hover { z-index: 5; opacity: 1; }
+.efetivo-page-v2 .efetivo-calendar-event-title,
+.efetivo-page-v2 .efetivo-calendar-event-people { display: block; }
+.efetivo-page-v2 .efetivo-calendar-event-people { margin-top: 3px; color: var(--muted); font-size: .9em; overflow-wrap: anywhere; }
+.efetivo-page-v2 .efetivo-calendar-busy {
+  display: grid;
+  width: 100%;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--brand-softer);
+}
+.efetivo-page-v2 .efetivo-calendar-busy__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  color: var(--brand-text);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-xs);
+}
+.efetivo-page-v2 .efetivo-calendar-busy__heading strong {
+  display: inline-flex;
+  min-width: 20px;
+  justify-content: center;
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  color: var(--on-brand);
+}
+.efetivo-page-v2 .efetivo-calendar-busy__people { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
+.efetivo-page-v2 .efetivo-calendar-busy__person,
+.efetivo-page-v2 .efetivo-calendar-busy__more {
+  max-width: 100%;
+  padding: 2px var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  overflow-wrap: anywhere;
+}
+.efetivo-page-v2 .efetivo-calendar-busy__more { color: var(--brand-text); font-weight: var(--font-semibold); }
+.efetivo-page-v2 .efetivo-calendar-grid.view-day .efetivo-calendar-busy__people { max-height: 180px; overflow-y: auto; }
+.efetivo-page-v2 .efetivo-calendar-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(340px, 80vw);
+  max-height: min(430px, 65vh);
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e3);
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  pointer-events: auto;
+}
+.efetivo-page-v2 .efetivo-calendar-grid > button.tooltip-align-end .efetivo-calendar-tooltip { left: auto; right: 0; }
+.efetivo-page-v2 .efetivo-calendar-grid.view-month > button:nth-last-child(-n+7) .efetivo-calendar-tooltip { top: auto; bottom: calc(100% + 4px); }
+.efetivo-page-v2 .efetivo-calendar-grid > button:is(:hover, :focus-visible) .efetivo-calendar-tooltip { display: grid; gap: var(--space-2); }
+.efetivo-page-v2 .efetivo-calendar-tooltip__heading { font-weight: 700; text-transform: capitalize; }
+.efetivo-page-v2 .efetivo-calendar-tooltip__busy { display: grid; gap: var(--space-1); padding: var(--space-2); border-radius: var(--radius-sm); background: var(--brand-softer); }
+.efetivo-page-v2 .efetivo-calendar-tooltip__busy > strong { color: var(--brand-text); }
+.efetivo-page-v2 .efetivo-calendar-tooltip__busy > span { display: grid; gap: 1px; }
+.efetivo-page-v2 .efetivo-calendar-tooltip__busy small { color: var(--muted); overflow-wrap: anywhere; }
+.efetivo-page-v2 .efetivo-calendar-tooltip__event { display: grid; gap: 2px; padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.efetivo-page-v2 .efetivo-calendar-tooltip__event > span { color: var(--muted); }
+.efetivo-page-v2 .efetivo-calendar-tooltip__conflicts { display: grid; gap: 2px; padding-top: var(--space-2); border-top: 1px solid var(--danger); color: var(--danger); }
+@media (hover: none) { .efetivo-page-v2 .efetivo-calendar-grid > button .efetivo-calendar-tooltip { display: none !important; } }
+
 @media (max-width: 1199.98px) {
   .efetivo-page-v2 [data-efetivo-collaborators] .efetivo-table,
   .efetivo-page-v2 [data-efetivo-collaborators] .efetivo-table tbody {

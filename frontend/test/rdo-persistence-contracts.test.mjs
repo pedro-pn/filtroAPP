@@ -239,14 +239,14 @@ test('preferências do gestor preservam ordenação e grupos recolhidos por usu�
     manager,
     [
       "`gestor-ui-prefs:${user?.id || 'anonymous'}`",
-      "`gestor-project-details-collapsed:${user?.id || 'anonymous'}`",
+      "`gestor-project-table-expanded:${user?.id || 'anonymous'}`",
       "projectSortDir: 'asc' | 'desc'",
       'closedArchivedProjectIds: string[]',
       'closedArchivedTypeKeys: string[]',
       "archivedTypeSortDirections: Record<string, 'asc' | 'desc'>",
       'closedClientAccountGroupIds: string[]',
       'localStorage.setItem(storageKey, JSON.stringify(prefs))',
-      'localStorage.setItem(projectDetailsStorageKey, JSON.stringify(ids))'
+      'localStorage.setItem(projectDetailsStorageKey, JSON.stringify(next))'
     ],
     'GestorPage'
   );

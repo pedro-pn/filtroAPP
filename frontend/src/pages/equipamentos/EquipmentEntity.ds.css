@@ -342,6 +342,16 @@
 @media (max-width: 767.98px) {
   .fv-ds .equip-entity-modal .fv-modal__body { --equip-modal-pad: var(--space-4); }
   .fv-ds .equip-entity-modal .fv-modal__footer { padding-bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
+  .fv-ds .equip-technical-modal .tech-group-item-head > .fv-remove-icon-button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+  }
+  .fv-ds .equip-technical-modal .tech-photo-remove {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+  }
 }
 
 @media (max-width: 640px) {

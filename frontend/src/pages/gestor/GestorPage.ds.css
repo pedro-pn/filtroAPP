@@ -80,6 +80,22 @@
   }
 }
 
+/* Project lists use full-width rows; the existing card content remains available on expansion. */
+:where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list:has(> .rdo-project-table),
+:where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list:has(> .rdo-project-table) { display: block; width: 100%; min-width: 0; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table { width: 100%; min-width: 0; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__desktop { overflow-x: auto; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__table { min-width: 850px; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: var(--space-1); min-width: 235px; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__actions .fv-button { white-space: nowrap; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__details { padding: var(--space-3); background: var(--surface-2); }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail > .fv-card { width: 100%; box-shadow: none; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail > .fv-card > .fv-card__header,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__summary,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__quick-actions,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__details-disclosure,
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-archived-project-card__actions > button[aria-expanded] { display: none; }
+
 @media (max-width: 768px) {
   :where(.fv-ds, [data-fv-ds]).rdo-section-navigation {
     display: none;

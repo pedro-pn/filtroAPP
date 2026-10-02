@@ -14,6 +14,26 @@ test('calendário combina missão e três tipos de indisponibilidade com caminho
   assert.ok(result.events.every(item => item.entityPath.startsWith('/efetivo?')));
 });
 
+test('calendário informa os períodos individuais de cada colaborador', async () => {
+  const database = {
+    efetivoPlan: { findFirst: async () => ({ id: 'p1' }) },
+    efetivoMissionPlan: { findMany: async () => [{
+      id: 'm1', mobilizationDate: new Date('2026-08-20Z'), returnDate: new Date('2026-08-25Z'),
+      project: { id: 'pr1', code: 'P-1', name: 'Obra' }, demands: [],
+      allocations: [
+        { collaborator: { id: 'c1', name: 'Ana' }, mobilizationDate: new Date('2026-08-20Z'), demobilizationDate: new Date('2026-08-21Z') },
+        { collaborator: { id: 'c2', name: 'Bia' }, mobilizationDate: new Date('2026-08-23Z'), demobilizationDate: new Date('2026-08-25Z') }
+      ]
+    }] },
+    collaboratorAbsence: { findMany: async () => [] }
+  };
+  const { events } = await getPlanningCalendar({ startDate: '2026-08-20', endDate: '2026-08-25' }, { database });
+  assert.deepEqual(events[0].people.map(person => ({ name: person.name, periods: person.periods })), [
+    { name: 'Ana', periods: [{ startDate: '2026-08-20', endDate: '2026-08-21' }] },
+    { name: 'Bia', periods: [{ startDate: '2026-08-23', endDate: '2026-08-25' }] }
+  ]);
+});
+
 test('calendário aponta ausência sobreposta à missão e dupla alocação da mesma pessoa', async () => {
   const { collectCalendarConflicts } = await import('../src/lib/efetivo/planning/calendar.js');
   const ana = { id: 'c1', name: 'Ana' };

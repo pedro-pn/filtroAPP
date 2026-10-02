@@ -202,10 +202,10 @@ export function GestorPage() {
   const [gestorSearch, setGestorSearch] = usePersistentSearch(`gestor-search:${user?.id || 'anonymous'}:${tab}`);
   // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
   const debouncedGestorSearch = useDebouncedValue(gestorSearch, 300);
-  const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
+  const projectDetailsStorageKey = `gestor-project-table-expanded:${user?.id || 'anonymous'}`;
   const gestorUiPrefsStorageKey = `gestor-ui-prefs:${user?.id || 'anonymous'}`;
   const initialUiPrefs = useMemo(() => readGestorUiPrefs(gestorUiPrefsStorageKey), [gestorUiPrefsStorageKey]);
-  const [collapsedProjectDetailIds, setCollapsedProjectDetailIds] = useState<string[]>([]);
+  const [expandedProjectDetailIds, setExpandedProjectDetailIds] = useState<string[]>([]);
 
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
@@ -443,6 +443,15 @@ export function GestorPage() {
   }, [gestorUiPrefsStorageKey]);
 
   useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(projectDetailsStorageKey) || '[]');
+      setExpandedProjectDetailIds(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : []);
+    } catch {
+      setExpandedProjectDetailIds([]);
+    }
+  }, [projectDetailsStorageKey]);
+
+  useEffect(() => {
     writeGestorUiPrefs(gestorUiPrefsStorageKey, {
       ...initialUiPrefs,
       projectSortDir,
@@ -452,41 +461,14 @@ export function GestorPage() {
     });
   }, [gestorUiPrefsStorageKey, initialUiPrefs, projectSortDir, closedArchivedTypeKeys, archivedTypeSortDirections, closedClientAccountGroupIds]);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(projectDetailsStorageKey);
-      const parsed = stored ? JSON.parse(stored) : [];
-      const storedIds = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-      if (stored !== null && Array.isArray(parsed)) {
-        setCollapsedProjectDetailIds(storedIds);
-        return;
-      }
-
-      const activeProjects = (activeProjectsQuery.data || []).filter((project) => project.isActive !== false);
-      const readyProjects = partitionProjectsByRegistration(activeProjects).ready;
-      const initiallyExpandedId = sortProjects(readyProjects, projectSortDir)[0]?.id || activeProjects[0]?.id;
-      setCollapsedProjectDetailIds(activeProjects.filter((project) => project.id !== initiallyExpandedId).map((project) => project.id));
-    } catch {
-      setCollapsedProjectDetailIds([]);
-    }
-  }, [activeProjectsQuery.data, projectDetailsStorageKey, projectSortDir]);
-
-  function persistCollapsedProjectDetails(ids: string[]) {
-    try {
-      localStorage.setItem(projectDetailsStorageKey, JSON.stringify(ids));
-    } catch {
-      // localStorage can be unavailable in private or restricted contexts.
-    }
-  }
-
   function projectDetailsExpanded(projectId: string) {
-    return !collapsedProjectDetailIds.includes(projectId);
+    return expandedProjectDetailIds.includes(projectId);
   }
 
   function toggleProjectDetails(project: Project) {
-    setCollapsedProjectDetailIds((current) => {
-      const next = current.includes(project.id) ? current.filter((id) => id !== project.id) : [...current, project.id];
-      persistCollapsedProjectDetails(next);
+    setExpandedProjectDetailIds(current => {
+      const next = current.includes(project.id) ? current.filter(id => id !== project.id) : [...current, project.id];
+      try { localStorage.setItem(projectDetailsStorageKey, JSON.stringify(next)); } catch { /* Storage may be unavailable. */ }
       return next;
     });
   }
@@ -2469,6 +2451,41 @@ export function GestorPage() {
         segments: projectSegmentsQuery.data
       });
 
+    const projectColumns: DataTableColumn<Project>[] = [
+      { key: 'project', header: 'Projeto', rowHeader: true, render: project => <strong>{projectTitle(project)}</strong> },
+      { key: 'client', header: 'Cliente', render: project => project.clientName || '—' },
+      { key: 'operator', header: 'Responsável', render: project => project.operator?.name || 'Não informado' },
+      { key: 'reports', header: 'Relatórios', numeric: true, render: project => activeProjectReportCountById.get(project.id) ?? '—' },
+      { key: 'updated', header: 'Atualização', render: project => formatDate(project.updatedAt || project.createdAt) },
+      { key: 'status', header: 'Situação', render: project => <Badge tone={projectRegistrationPending(project) ? 'warning' : commercialPendenciaByProject.has(project.id) ? 'warning' : 'success'}>{projectRegistrationPending(project) ? 'Revisar cadastro' : commercialPendenciaByProject.has(project.id) ? 'Revisão comercial' : 'Ativo'}</Badge> }
+    ];
+    const renderProjectActions = (project: Project) => <div className="rdo-project-table__actions">
+      <Button variant="secondary" size="sm" type="button" onClick={() => toggleProjectEdit(project)}>{projectEditingId === project.id ? 'Fechar edição' : projectRegistrationPending(project) ? 'Revisar' : 'Editar'}</Button>
+      <Button variant="secondary" size="sm" type="button" onClick={() => openProjectTeamDialog(project)}>Equipe</Button>
+      <Button variant="secondary" size="sm" type="button" onClick={() => handleViewProjectReports(project)}>Relatórios</Button>
+      {!projectRegistrationPending(project) ? <Button variant="secondary" size="sm" type="button" onClick={() => openManualReportUpload(project.id)}>Upload antigo</Button> : null}
+      <Button variant="secondary" size="sm" type="button" aria-expanded={projectDetailsExpanded(project.id)} aria-controls={`project-table-detail-${project.id}`} onClick={() => toggleProjectDetails(project)}>{projectDetailsExpanded(project.id) ? 'Ocultar' : 'Detalhes'}</Button>
+      <Button variant="secondary" size="sm" type="button" onClick={() => handleProjectToggleArchive(project)}>Arquivar</Button>
+      <RemoveIconButton label={`Excluir: ${projectTitle(project)}`} onClick={() => setRemoveProjectTarget(project)} />
+    </div>;
+    const renderProjectTable = (projects: Project[], label: string) => <DataTable
+      className="rdo-project-table"
+      rows={sortProjects(projects, projectSortDir)}
+      columns={projectColumns}
+      getRowId={project => project.id}
+      ariaLabel={label}
+      density="compact"
+      mobileBreakpoint="md"
+      rowActions={renderProjectActions}
+      renderRowDetails={project => projectDetailsExpanded(project.id) || projectEditingId === project.id ? <div className="rdo-project-table__detail" id={`project-table-detail-${project.id}`}>{renderEditableProjectCard(project)}</div> : null}
+      mobile={{ renderItem: project => ({
+        title: projectTitle(project),
+        subtitle: project.clientName || 'Cliente não informado',
+        status: <Badge tone={projectRegistrationPending(project) ? 'warning' : 'success'}>{projectRegistrationPending(project) ? 'Revisar cadastro' : 'Ativo'}</Badge>,
+        metadata: [{ label: 'Responsável', value: project.operator?.name || 'Não informado' }, { label: 'Relatórios', value: activeProjectReportCountById.get(project.id) ?? '—' }, { label: 'Atualização', value: formatDate(project.updatedAt || project.createdAt) }]
+      }) }}
+    />;
+
     return (
       <section id="rdo-manager-project-results" className="rdo-manager-projects rdo-ds-actions" aria-label="Lista de projetos ativos">
         {showProjectForm && !projectEditingId ? (
@@ -2621,12 +2638,12 @@ export function GestorPage() {
             <Alert tone="warning" title="Verificação necessária">
               {pendingProjectRegistrationMessage(pendingRegistrationProjects)}
             </Alert>
-            <div className="rdo-manager-projects__list">{sortProjects(pendingRegistrationProjects, projectSortDir).map(renderEditableProjectCard)}</div>
+            <div className="rdo-manager-projects__list">{renderProjectTable(pendingRegistrationProjects, 'Projetos aguardando revisão')}</div>
           </section>
         ) : null}
 
         {activeProjects.length ? (
-          <div className="rdo-manager-projects__list">{sortProjects(activeProjects, projectSortDir).map(renderEditableProjectCard)}</div>
+          <div className="rdo-manager-projects__list">{renderProjectTable(activeProjects, 'Projetos ativos')}</div>
         ) : pendingRegistrationProjects.length ? null : (
           <Card padding="lg">
             <EmptyState
@@ -2685,6 +2702,30 @@ export function GestorPage() {
         };
       })
       .filter((item) => item.visible);
+    type ArchivedProjectRow = (typeof archivedProjectCards)[number];
+    const archivedColumns: DataTableColumn<ArchivedProjectRow>[] = [
+      { key: 'project', header: 'Projeto', rowHeader: true, render: row => <strong>{projectTitle(row.project)}</strong> },
+      { key: 'client', header: 'Cliente', render: row => row.project.clientName || '—' },
+      { key: 'reports', header: 'Relatórios', numeric: true, render: row => row.reportTotal },
+      { key: 'updated', header: 'Atualização', render: row => formatDate(row.project.updatedAt || row.project.createdAt) },
+      { key: 'status', header: 'Situação', render: () => <Badge tone="neutral">Arquivado</Badge> }
+    ];
+    const renderArchivedDetails = ({ project, reportTotal }: ArchivedProjectRow) => projectDetailsExpanded(project.id) ? <div className="rdo-project-table__detail" id={`project-table-detail-${project.id}`}>{renderProjectCard(project, {
+      appearance: 'design-system',
+      commercialPendencia: commercialPendenciaByProject.get(project.id) ?? null,
+      onUploadOldReports: project => openManualReportUpload(project.id),
+      onEdit: toggleProjectEdit,
+      onToggleArchive: handleProjectToggleArchive,
+      onRemove: setRemoveProjectTarget,
+      detailsExpanded: true,
+      onToggleDetails: toggleProjectDetails,
+      reportCount: reportTotal,
+      onOpenReports: openArchivedReports,
+      onSendSurvey: handleSendSurvey,
+      onResendSurvey: handleResendSurvey,
+      surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+      segments: projectSegmentsQuery.data
+    })}</div> : null;
     const dialogProject = archivedProjectCards.find(({ project }) => project.id === archivedReportsProjectId);
     return (
       <section id="rdo-manager-archived-results" className="rdo-archived-projects rdo-ds-actions" aria-label="Lista de projetos arquivados">
@@ -2693,26 +2734,29 @@ export function GestorPage() {
             <p className="rdo-archived-projects__result-count">
               {archivedProjectCards.length} projeto{archivedProjectCards.length === 1 ? '' : 's'} encontrado{archivedProjectCards.length === 1 ? '' : 's'}
             </p>
-            <div className="rdo-archived-projects__list">
-              {archivedProjectCards.map(({ project, reportTotal }) => {
-                return renderProjectCard(project, {
-                  appearance: 'design-system',
-                  commercialPendencia: commercialPendenciaByProject.get(project.id) ?? null,
-                  onUploadOldReports: project => openManualReportUpload(project.id),
-                  onEdit: toggleProjectEdit,
-                  onToggleArchive: handleProjectToggleArchive,
-                  onRemove: setRemoveProjectTarget,
-                  detailsExpanded: projectDetailsExpanded(project.id),
-                  onToggleDetails: toggleProjectDetails,
-                  reportCount: reportTotal,
-                  onOpenReports: openArchivedReports,
-                  onSendSurvey: handleSendSurvey,
-                  onResendSurvey: handleResendSurvey,
-                  surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
-                  segments: projectSegmentsQuery.data
-                });
-              })}
-            </div>
+            <div className="rdo-archived-projects__list"><DataTable
+              className="rdo-project-table"
+              rows={archivedProjectCards}
+              columns={archivedColumns}
+              getRowId={row => row.project.id}
+              ariaLabel="Projetos arquivados"
+              density="compact"
+              mobileBreakpoint="md"
+              rowActions={({ project }) => <div className="rdo-project-table__actions">
+                <Button variant="secondary" size="sm" type="button" onClick={() => openArchivedReports(project)}>Relatórios</Button>
+                <Button variant="secondary" size="sm" type="button" onClick={() => openManualReportUpload(project.id)}>Upload antigo</Button>
+                <Button variant="secondary" size="sm" type="button" aria-expanded={projectDetailsExpanded(project.id)} aria-controls={`project-table-detail-${project.id}`} onClick={() => toggleProjectDetails(project)}>{projectDetailsExpanded(project.id) ? 'Ocultar' : 'Detalhes'}</Button>
+                <Button variant="secondary" size="sm" type="button" onClick={() => handleProjectToggleArchive(project)}>Restaurar</Button>
+                <RemoveIconButton label={`Excluir permanentemente: ${projectTitle(project)}`} onClick={() => setRemoveProjectTarget(project)} />
+              </div>}
+              renderRowDetails={renderArchivedDetails}
+              mobile={{ renderItem: ({ project, reportTotal }) => ({
+                title: projectTitle(project),
+                subtitle: project.clientName || 'Cliente não informado',
+                status: <Badge tone="neutral">Arquivado</Badge>,
+                metadata: [{ label: 'Relatórios', value: reportTotal }, { label: 'Atualização', value: formatDate(project.updatedAt || project.createdAt) }]
+              }) }}
+            /></div>
           </>
         ) : (
           <EmptyState

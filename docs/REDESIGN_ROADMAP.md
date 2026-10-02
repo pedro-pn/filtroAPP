@@ -1,5 +1,10 @@
 # Roadmap do redesign do frontend
 
+> **Auditoria de 01/10/2026:** os 12 módulos ativos têm as telas principais no
+> design system. F5.4 (EPI) e F5.5 (Privacidade) estão visualmente concluídas;
+> os quadros históricos abaixo não devem ser usados como fila atual. O estado
+> verificável e as próximas entregas estão em [Fechamento transversal atual](#fechamento-transversal-atual).
+
 > **Fechamento X3 em 28/09/2026:** liberação individual, revogação e assinatura
 > física foram validadas com gestor e cliente em banco isolado. Gestor, detalhe
 > e portal do cliente passaram no Chromium em 390 e 1280 px, nos temas claro e
@@ -151,21 +156,21 @@ Todas as fases devem preservar os seguintes contratos:
 
 | Área | Superfícies que agora fazem parte do redesign | Situação |
 | --- | --- | --- |
-| Hub e navegação global | Efetivo, Assinaturas, Manutenção/Produção e novidades de API/Tokens; ícones e acesso por perfil/permissão | Integração preserva DS; revisão transversal X2 pendente |
+| Hub e navegação global | Efetivo, Assinaturas, Manutenção/Produção e novidades de API/Tokens; ícones e acesso por perfil/permissão | X2 concluído; auditoria transversal F6 pendente |
 | Efetivo | Visão geral, Calendário, Colaboradores/Ausências, Disponibilidade, Missões, Kanban de evolução, Produtividade e Administração | **F2 concluído tecnicamente** — matriz de oito perfis, conta sem acesso e persistência em banco isolado |
 | Assinaturas | Lista de ativos/arquivados, novo documento, configuração do PDF, assinantes, publicação, acompanhamento, auditoria e assinatura pública | **Migrado e validado tecnicamente** — F3.1–F3.5; teste em celular físico com o usuário |
 | Acompanhamento | Dashboard/cards/detalhe; novos faturamentos Omie, TAGs, romaneios, origem das jornadas RDO e indicadores operacionais em Sede | **A1–A7 concluídos tecnicamente** — perfis, divisões e persistência conferidos |
-| Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Novos fluxos; harmonização pendente |
-| Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Novos fluxos; harmonização pendente |
-| RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline migrado e validado; somente as novas bordas reabertas em X1/X2 |
+| Estoque | Resumo expansível por lote, devolução com múltiplos itens, documentos do item e ordenação de movimentações | Harmonizado em F4; novas tabelas de itens e categorias aguardam reconciliação dos testes estáticos |
+| Romaneio | Impressão de etiquetas QR, scanner por câmera e continuação da inclusão do item após leitura | Harmonizado em F4; gravação integrada não repetida após a migração visual |
+| RDO e gestão | Histórico de cargos, upload manual, equipe/justificativas, núcleo e bordas públicas; novas permissões de emissão e criação de senha por link | Baseline e X1–X3 concluídos tecnicamente |
 | Manutenção/Produção | Listagem, criação/edição/revisão de RDOs e manutenção avulsa, programação preventiva e histórico | M1–M5 concluídos tecnicamente; fluxo visual, permissões e rascunho isolado conferidos |
 | Equipamentos | Supervisor, perfis/checklists, categorias/intervalos/visibilidade, exceções e histórico/documentos | EQ1–EQ3 concluídos; dependência dos fluxos de manutenção |
 | Administração — Gestão de Contas | Lista, filtros, criação/edição, papéis e permissões, vínculo com colaborador, ativação, exclusão e link de senha | **Migração visual F5.2 concluída**; persistência com banco isolado segue na validação F6 |
 | Administração — API/Tokens | Lista/filtros, política/escopos, segredo único, redução/rotação/revogação, Playground, uso e eventos | API1–API4 concluídos, acesso exclusivo ADMIN |
 | Ativação de contas | Criação sem senha inicial, link manual, página pública de criar/redefinir senha e reenvio | X1 migrado visualmente; regras e chamadas da main preservadas |
-| Qualidade | Registros, filtros, evidências, exportação, Naturezas, reordenação e formulários | **F5.3 em andamento**; shell, navegação, listagem e diálogos principais migrados, revisão interna e validação integral pendentes |
-| EPI | Fichas por colaborador, catálogo, entregas/devoluções, arquivo, assinatura e PDF | **F5.4 em andamento**; shell, navegação, superfícies principais e assinatura pública harmonizados, validação integral pendente |
-| Privacidade | Solicitações LGPD, verificação de identidade, respostas e páginas públicas | **Migração visual pendente em F5.5** |
+| Qualidade | Registros, filtros, evidências, exportação, Naturezas, reordenação e formulários | Visual F5.3 migrado; validação por toque e persistência isolada pendentes |
+| EPI | Fichas por colaborador, catálogo, entregas/devoluções, arquivo, assinatura e PDF | **F5.4 visualmente concluída**; persistência isolada pendente em F6 |
+| Privacidade | Solicitações LGPD, verificação de identidade, respostas e páginas públicas | **F5.5 visualmente concluída**; persistência isolada pendente em F6 |
 | Administração — ajustes pontuais | Visibilidade de categorias Omie | Ajuste localizado concluído em F5 |
 | Onboarding | Tutoriais e campanhas de Efetivo, Assinaturas, QR, standby e controles operacionais | Auditoria visual e mobile pendente |
 
@@ -1228,7 +1233,7 @@ as credenciais de demonstração locais não deram acesso autenticado.
 
 #### F5.3 — Qualidade
 
-Em andamento. `QualidadePage` usa `AppShell` com Registros/Naturezas na
+Visual implementado, validação incompleta. `QualidadePage` usa `AppShell` com Registros/Naturezas na
 navegação responsiva e preserva `?tab=` e tutorial. Registros tem tabela DS no
 desktop, cartões no celular e filtros recolhidos no celular. O formulário usa
 controles DS, inclusive seleções, anexos e links; o envio Interno/SGQ com link
@@ -1242,12 +1247,14 @@ isolado.
   mantendo os links diretos com `?tab=` e o tutorial.
 - [x] Migrar busca, filtros, tabela responsiva, estados, ações, exportação e
   visualização de evidências dos Registros.
-- [ ] Migrar cadastro, edição, inativação, exclusão e reordenação das Naturezas,
-  inclusive os diálogos e a interação por toque/teclado.
+- [x] Migrar cadastro, edição, inativação, exclusão e reordenação das Naturezas,
+  inclusive os diálogos e a interação por teclado.
+- [ ] Validar reordenação por toque em aparelho físico.
 - [x] Migrar o formulário de Registro, inclusive projeto ou Interno/SGQ,
   anexos/links, validação e envio.
-- [ ] Validar gestor e visualizador, temas, larguras, API e persistência sem
-  alterar regras de recorrência ou permissões.
+- [x] Validar gestor e visualizador, temas, larguras e API sintética sem alterar
+  regras de recorrência ou permissões.
+- [ ] Validar persistência em banco isolado.
 
 #### F5.4 — EPI
 
@@ -1346,18 +1353,43 @@ precisam de uma conta isolada válida para completar a auditoria autenticada.
 - automação: teste de contrato estático, teste comportamental do fluxo crítico,
   `npm run lint`, `npm test` e `npm run build`.
 
-## Ordem recomendada dos próximos lotes
+## Fechamento transversal atual
 
-Com F2, A7, X3, EQ1–EQ3, M1–M5 e F4 fechados tecnicamente, a sequência restante é:
+Auditoria do código e das rotas ativas em 01/10/2026. `origin/main` é ancestral
+da branch de redesign. Os lotes F2, A7, F3, F4, F5.1, F5.2, F5.4, F5.5,
+EQ1–EQ3, M1–M5, API1–API4 e X1–X3 já têm migração visual implementada.
+F5.3 tem interface migrada, com validação por toque e persistência pendentes.
 
-1. **F5.3–F5.5 pendentes**: migrar Qualidade, EPI e Privacidade, que ainda usam
-   shell ou controles legados; conferir cada fluxo e seus perfis.
-2. **F6 em andamento**: validar a persistência da Gestão de Contas com banco
-   isolado, continuar a regressão visual e a acessibilidade dos fluxos
-   autenticados, validar WebKit com contas isoladas e retirar legado sem
-   consumidores. A reconciliação da suíte, o Hub visual e as páginas públicas
-   do RDO em WebKit já foram concluídos nesta etapa.
+### Próximas frentes de implementação
 
-Erros funcionais de integração têm precedência sobre essa fila. O histórico dos
-lotes anteriores e do [delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md)
-permanece registrado nas seções acima.
+1. [ ] **Páginas independentes:** harmonizar Login, Pesquisa de satisfação,
+   Preferências de notificações, Confirmação de e-mail e Operações; disponibilizar
+   links de demonstração locais para as páginas dependentes de token ou dados.
+2. [ ] **Efetivo, diálogos ativos:** harmonizar formulários de documentos,
+   encerramento de projeto legado e checklist de contato, verificando temas,
+   tamanhos de tela, foco e ações.
+3. [ ] **Qualidade, Naturezas:** conferir e corrigir a reordenação por toque;
+   preservar setas de teclado, permissões e persistência.
+4. [ ] **F6, limpeza:** retirar CSS e componentes sem consumidores, reduzir
+   duplicação de controles e dividir páginas que ultrapassam os limites.
+
+### Validações e gates pendentes
+
+- [ ] Validar persistência em banco isolado para Gestão de Contas, Qualidade,
+  EPI e Privacidade; repetir gravação integrada do Romaneio após F4.
+- [ ] Concluir a auditoria de acessibilidade, contraste, responsividade e
+  permissões nos fluxos autenticados, incluindo WebKit.
+- [ ] Conferir Assinaturas em celular físico; envio SMTP real não foi homologado.
+- [ ] Atualizar dois testes estáticos para as novas estruturas da tabela de
+  categorias do Estoque e do calendário do Efetivo. Em 01/10, o frontend passou
+  667 de 669 testes; lint e build passaram.
+- [ ] Recuperar `architecture:check`: `ReportDetailPage.tsx` excede o limite
+  em 34 linhas; dois campos em Acompanhamento e dois em Administração do Efetivo
+  dependem apenas de placeholder como rótulo. `git diff --check` passou.
+- [ ] Conferir os fluxos de demonstração em navegador e atualizar este roteiro
+  com a evidência final. Uma resposta sintética não substitui a validação de
+  gravação com contas e banco isolados.
+
+O inventário mais antigo acima fica preservado como histórico. O
+[delta de 23/09](filtrovali-ds/main-integration-2026-09-23.md) também registra
+as decisões de conciliação anteriores.
