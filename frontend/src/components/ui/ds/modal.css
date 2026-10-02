@@ -12,6 +12,12 @@
   overscroll-behavior: contain;
 }
 
+/* Confirmations must also clear legacy planning dialogs (1000) and their
+   nested team dialogs (1100), regardless of the legacy CSS cascade layer. */
+.fv-modal-backdrop.confirm-dialog-backdrop {
+  z-index: 1200;
+}
+
 :where(.fv-ds, [data-fv-ds]) .fv-modal {
   display: grid;
   width: min(100%, var(--fv-modal-width));

@@ -99,7 +99,7 @@
 .efetivo-team-v2 .app-combobox-list { font-size: var(--text-sm); }
 
 /* The same team controls also render inside a workflow stage. */
-.project-workflow-team-cycles.efetivo-team-v2 { gap: var(--space-4); }
+.project-workflow-team-cycles.efetivo-team-v2 { gap: var(--space-4); background: transparent; }
 .project-workflow-team-cycles .efetivo-dialog-description { margin: 0; color: var(--muted); font-size: var(--text-sm); }
 .project-workflow-team-cycles .efetivo-team-section {
   display: grid;
@@ -112,7 +112,21 @@
 }
 .project-workflow-team-cycles .efetivo-team-section + .efetivo-team-section { border-block-start: var(--border-width) solid var(--line); }
 .project-workflow-team-cycles .efetivo-team-section > header { gap: var(--space-1); }
-.project-workflow-team-cycles .efetivo-team-person-card { box-shadow: none; }
+.project-workflow-team-cycles .efetivo-team-person-card {
+  border-color: var(--line-strong);
+  border-inline-start: 3px solid var(--brand-text);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.project-workflow-team-cycles .efetivo-team-person-card + .efetivo-team-person-card { margin-block-start: var(--space-2); }
+.project-workflow-team-cycles .efetivo-team-person-heading { padding-block-end: var(--space-3); border-color: var(--line-strong); }
+.project-workflow-team-cycles .efetivo-team-person-heading h4 { font-size: var(--text-md); line-height: var(--leading-md); }
+.project-workflow-team-cycles .efetivo-team-person-card .efetivo-team-cycle-list {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
 .project-workflow-team-cycles .efetivo-team-allocation-form { background: var(--surface-2); }
 .project-workflow-team-cycles .efetivo-team-actions { justify-content: flex-start; }
 .project-workflow-team-cycles .efetivo-team-period-fields { width: 100%; }

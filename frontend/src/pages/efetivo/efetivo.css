@@ -1872,6 +1872,8 @@
   --pw-muted: #606c64;
   --pw-faint: #9ba69f;
   --pw-accent: var(--g);
+  --pw-action: var(--brand);
+  --pw-on-warning: var(--on-brand);
   --pw-accent-hover: #253c2c;
   --pw-accent-soft: #ebf0ec;
   --pw-accent-line: #b2d1bc;
@@ -1903,7 +1905,7 @@
   --pw-muted: var(--muted);
   --pw-faint: var(--gray-400);
   --pw-accent: var(--brand-text);
-  --pw-accent-hover: var(--green-300);
+  --pw-accent-hover: var(--brand-hover);
   --pw-accent-soft: var(--brand-soft);
   --pw-accent-line: var(--success-line);
   --pw-ok: var(--success);
@@ -1915,6 +1917,9 @@
   --pw-crit-dot: var(--danger);
   --pw-info: var(--info);
   --pw-info-bg: var(--info-bg);
+  --pw-ok-dot: var(--success);
+  --pw-warn-dot: var(--warning);
+  --pw-on-warning: var(--on-warning);
 }
 
 /* Caixa do diálogo: ocupa bastante espaço, mas sempre com margem até a borda da tela */
@@ -1976,10 +1981,10 @@
 .project-workflow-stage-node { align-items: center; background: var(--pw-surface); border: 2px solid var(--pw-border); border-radius: 999px; color: var(--pw-faint); display: inline-flex; height: 24px; justify-content: center; position: relative; transition: transform .15s; width: 24px; z-index: 1; }
 .project-workflow-stage-tab:hover .project-workflow-stage-node { transform: scale(1.08); }
 .project-workflow-stage-node .project-workflow-icon { height: 13px; stroke-width: 3; width: 13px; }
-.project-workflow-stage-tab.is-done .project-workflow-stage-node { background: var(--pw-accent); border-color: var(--pw-accent); color: var(--wh); }
+.project-workflow-stage-tab.is-done .project-workflow-stage-node { background: var(--pw-action); border-color: var(--pw-action); color: var(--on-brand); }
 .project-workflow-stage-tab.is-now .project-workflow-stage-node { border-color: var(--pw-accent); box-shadow: 0 0 0 4px var(--pw-accent-soft); }
 .project-workflow-stage-tab.is-now .project-workflow-stage-node::after { background: var(--pw-accent); border-radius: 999px; content: ""; height: 8px; width: 8px; }
-.project-workflow-stage-node b { background: var(--pw-crit-dot); border: 2px solid var(--pw-surface); border-radius: 999px; color: var(--wh); font-size: 9.5px; font-weight: 700; line-height: 1; min-width: 17px; padding: 2px 4px; position: absolute; right: -12px; top: -8px; }
+.project-workflow-stage-node b { background: var(--pw-crit-dot); border: 2px solid var(--pw-surface); border-radius: 999px; color: var(--on-danger); font-size: 9.5px; font-weight: 700; line-height: 1; min-width: 17px; padding: 2px 4px; position: absolute; right: -12px; top: -8px; }
 .project-workflow-stage-tab-label { font-size: 12px; font-weight: 500; line-height: 1.25; text-wrap: balance; }
 .project-workflow-stage-tab.is-done .project-workflow-stage-tab-label { color: var(--pw-ink-2); }
 .project-workflow-stage-tab.is-now .project-workflow-stage-tab-label,
@@ -2154,16 +2159,19 @@
 .project-workflow-modal :is(.primary-button, .secondary-button, .danger-button, .mini-btn) { align-items: center; border: 1px solid transparent; border-radius: 9px; display: inline-flex; font-size: 13px; font-weight: 600; gap: 7px; justify-content: center; line-height: 1.1; min-height: 36px; padding: 7px 15px; transition: background-color .15s, border-color .15s, box-shadow .15s, color .15s; }
 .project-workflow-modal :is(.primary-button, .secondary-button, .danger-button, .mini-btn) .project-workflow-icon { height: 15px; width: 15px; }
 .project-workflow-modal :is(.primary-button, .secondary-button, .danger-button, .mini-btn):focus-visible { box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
-.project-workflow-modal :is(.primary-button, .mini-btn) { background: var(--pw-accent); border-color: var(--pw-accent); box-shadow: var(--pw-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .12); color: var(--wh); }
+.project-workflow-modal :is(.primary-button, .mini-btn) { background: var(--pw-action); border-color: var(--pw-action); box-shadow: var(--pw-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .12); color: var(--on-brand); }
 .project-workflow-modal :is(.primary-button, .mini-btn):hover:not(:disabled) { background: var(--pw-accent-hover); border-color: var(--pw-accent-hover); }
+.project-workflow-modal .danger-button { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
+.project-workflow-modal .danger-button:hover:not(:disabled) { background: var(--danger-hover); border-color: var(--danger-hover); }
 .project-workflow-modal :is(.primary-button, .mini-btn, .danger-button):disabled { background: var(--pw-surface-3); border-color: var(--pw-surface-3); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: 1; }
 .project-workflow-modal .mini-btn { border-radius: 8px; font-size: 12.5px; min-height: 30px; padding: 5px 11px; }
 .project-workflow-modal .secondary-button { background: var(--pw-surface); border-color: var(--pw-border); box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); }
 .project-workflow-modal .secondary-button:hover:not(:disabled) { background: var(--pw-surface-2); border-color: var(--pw-faint); }
 .project-workflow-modal .secondary-button:disabled { box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: .7; }
-.project-workflow-modal .project-workflow-correction-button { background: var(--pw-correction-bg, #fff4e5); border-color: var(--pw-correction-border, #e2a85a); color: var(--pw-correction-text, #8a4b08); }
-.project-workflow-modal .project-workflow-correction-button:hover:not(:disabled) { background: var(--pw-correction-bg-hover, #ffe8c7); border-color: var(--pw-correction-border-hover, #cc8122); color: var(--pw-correction-text, #8a4b08); }
-.project-workflow-modal .project-workflow-correction-button.is-active { background: var(--pw-correction-text, #8a4b08); border-color: var(--pw-correction-text, #8a4b08); color: var(--wh); }
+.project-workflow-modal .project-workflow-correction-button { background: var(--warning-bg); border-color: var(--warning-line); color: var(--warning); }
+.project-workflow-modal .project-workflow-correction-button:hover:not(:disabled) { background: color-mix(in srgb, var(--warning) 10%, var(--warning-bg)); border-color: var(--warning); color: var(--warning); }
+.project-workflow-modal .project-workflow-correction-button.is-active { background: var(--warning); border-color: var(--warning); color: var(--pw-on-warning); }
+.project-workflow-modal .project-workflow-correction-button.is-active:hover:not(:disabled) { background: color-mix(in srgb, var(--warning) 90%, var(--on-warning)); color: var(--pw-on-warning); }
 .project-workflow-modal .secondary-button.is-ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--pw-muted); }
 .project-workflow-modal .secondary-button.is-ghost:hover:not(:disabled) { background: var(--pw-surface-3); color: var(--pw-ink); }
 .project-workflow-modal .secondary-button.is-small { border-radius: 8px; font-size: 12.5px; min-height: 32px; padding: 5px 12px; }
@@ -2261,7 +2269,7 @@
 .project-workflow-check-box { align-items: center; border: 1.5px solid var(--pw-faint, var(--mu)); border-radius: 999px; display: inline-flex; flex: 0 0 auto; height: 18px; justify-content: center; width: 18px; }
 .project-workflow-check-box .project-workflow-icon { height: 11px; opacity: 0; stroke-width: 3.2; width: 11px; }
 .project-workflow-member-check.is-done { background: var(--pw-accent-soft, #ebf0ec); border-color: var(--pw-accent-line, var(--g)); color: var(--pw-accent, var(--g)); }
-.project-workflow-member-check.is-done .project-workflow-check-box { background: var(--pw-accent, var(--g)); border-color: var(--pw-accent, var(--g)); color: var(--wh); }
+.project-workflow-member-check.is-done .project-workflow-check-box { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .project-workflow-member-check.is-done .project-workflow-check-box .project-workflow-icon { opacity: 1; }
 .project-workflow-member-check small { color: var(--pw-accent, var(--g)); font-size: 11px; }
 .project-workflow-integration-note { color: var(--mu); overflow-wrap: anywhere; }
@@ -2404,9 +2412,9 @@
 .project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button { background: transparent; border-color: transparent; border-radius: 7px; box-shadow: none; color: var(--pw-muted); min-height: 30px; padding: 4px 14px; }
 .project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button:hover:not(:disabled):not(.is-selected) { background: var(--pw-surface); color: var(--pw-ink); }
 .project-workflow-modal .project-workflow-choice-button.is-selected.is-yes,
-.project-workflow-choice-button.is-selected.is-yes { background: var(--g); border-color: var(--g); box-shadow: var(--pw-shadow-sm, none); color: var(--wh); }
+.project-workflow-choice-button.is-selected.is-yes { background: var(--brand); border-color: var(--brand); box-shadow: var(--pw-shadow-sm, none); color: var(--on-brand); }
 .project-workflow-modal .project-workflow-choice-button.is-selected.is-no,
-.project-workflow-choice-button.is-selected.is-no { background: var(--rd); border-color: var(--rd); box-shadow: var(--pw-shadow-sm, none); color: var(--wh); }
+.project-workflow-choice-button.is-selected.is-no { background: var(--danger); border-color: var(--danger); box-shadow: var(--pw-shadow-sm, none); color: var(--on-danger); }
 .project-workflow-choice-button.is-selected.is-no:focus-visible { outline-color: color-mix(in srgb, var(--rd) 38%, transparent); }
 .project-workflow-documentation-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px; }
 .project-workflow-documentation-add { align-items: end; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
@@ -2455,7 +2463,7 @@
 .project-workflow-equipment-category { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; overflow: hidden; }
 .project-workflow-equipment-category.is-expanded { border-color: color-mix(in srgb, var(--g) 42%, var(--br)); }
 .project-workflow-equipment-category-toggle { align-items: center; background: var(--bg); border: 0; color: var(--tx); cursor: pointer; display: grid; font: inherit; gap: 9px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; padding: 8px 10px; text-align: left; width: 100%; }
-.project-workflow-equipment-category-toggle:focus-visible { outline: 3px solid rgba(9, 90, 44, .24); outline-offset: -3px; }
+.project-workflow-equipment-category-toggle:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
 .project-workflow-equipment-category-toggle:disabled { cursor: wait; opacity: .7; }
 .project-workflow-equipment-option > input,
 .project-workflow-equipment-option > label > input { accent-color: var(--g); height: 17px; margin: 0; width: 17px; }
@@ -2556,7 +2564,7 @@
    checkbox em pílula com moldura, que quebrava linha feio com textos mais longos. */
 .project-workflow-modal .project-workflow-status-toggle { background: var(--pw-surface, var(--wh)); border-color: var(--pw-border, var(--br)); color: var(--pw-muted, var(--mu)); }
 .project-workflow-modal .project-workflow-status-toggle:hover:not(:disabled) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
-.project-workflow-modal .project-workflow-status-toggle.is-active { background: var(--pw-accent, var(--g)); border-color: var(--pw-accent, var(--g)); color: var(--wh); }
+.project-workflow-modal .project-workflow-status-toggle.is-active { background: var(--pw-action); border-color: var(--pw-action); color: var(--on-brand); }
 /* Caixa de diálogo separada do checklist de verificação do contato com o cliente (16 perguntas): mesma
    sobreposição da confirmação de exclusão, já que abre por cima do modal do projeto. */
 .project-workflow-checklist-backdrop { z-index: 1200; }
@@ -2688,7 +2696,7 @@
 .project-closeout-rdo-grid span { color: var(--mu); font-size: 12px; }
 .project-closeout-report-list { display: grid; gap: 7px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .project-closeout-report-list article { background: var(--wh); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 9px; }
-.project-closeout-report-list article.is-warning { border-color: #f59e0b; }
+.project-closeout-report-list article.is-warning { border-color: var(--warning-line); }
 .project-closeout-report-list span,
 .project-closeout-report-list small { color: var(--mu); }
 .project-closeout-notes { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -3023,7 +3031,7 @@
    ========================================================================== */
 .efetivo-team-dialog :is(.primary-button, .secondary-button, .danger-button, .mini-btn) { align-items: center; border: 1px solid transparent; border-radius: 9px; display: inline-flex; font-size: 13px; font-weight: 600; gap: 7px; justify-content: center; line-height: 1.1; min-height: 36px; padding: 7px 15px; transition: background-color .15s, border-color .15s, box-shadow .15s, color .15s; }
 .efetivo-team-dialog :is(.primary-button, .secondary-button, .danger-button, .mini-btn):focus-visible { box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
-.efetivo-team-dialog :is(.primary-button, .mini-btn) { background: var(--pw-accent); border-color: var(--pw-accent); box-shadow: var(--pw-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .12); color: var(--wh); }
+.efetivo-team-dialog :is(.primary-button, .mini-btn) { background: var(--pw-action); border-color: var(--pw-action); box-shadow: var(--pw-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .12); color: var(--on-brand); }
 .efetivo-team-dialog :is(.primary-button, .mini-btn):hover:not(:disabled) { background: var(--pw-accent-hover); border-color: var(--pw-accent-hover); }
 .efetivo-team-dialog :is(.primary-button, .mini-btn, .danger-button):disabled { background: var(--pw-surface-3); border-color: var(--pw-surface-3); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; opacity: 1; }
 .efetivo-team-dialog .mini-btn { border-radius: 8px; font-size: 12.5px; min-height: 30px; padding: 5px 11px; }
@@ -3077,7 +3085,7 @@
 .efetivo-team-toggle { align-items: center; color: var(--pw-ink); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 600; gap: 10px; position: relative; }
 .efetivo-team-toggle input { height: 1px; margin: 0; opacity: 0; position: absolute; width: 1px; }
 .efetivo-team-toggle-track { background: var(--pw-faint); border-radius: 999px; flex: 0 0 auto; height: 20px; position: relative; transition: background-color .15s; width: 36px; }
-.efetivo-team-toggle-track::after { background: var(--wh); border-radius: 50%; box-shadow: var(--pw-shadow-xs); content: ""; height: 16px; left: 2px; position: absolute; top: 2px; transition: transform .15s; width: 16px; }
+.efetivo-team-toggle-track::after { background: var(--on-brand); border-radius: 50%; box-shadow: var(--pw-shadow-xs); content: ""; height: 16px; left: 2px; position: absolute; top: 2px; transition: transform .15s; width: 16px; }
 .efetivo-team-toggle input:checked + .efetivo-team-toggle-track { background: var(--pw-accent); }
 .efetivo-team-toggle input:checked + .efetivo-team-toggle-track::after { transform: translateX(16px); }
 .efetivo-team-toggle input:focus-visible + .efetivo-team-toggle-track { box-shadow: 0 0 0 3px var(--pw-ring); }

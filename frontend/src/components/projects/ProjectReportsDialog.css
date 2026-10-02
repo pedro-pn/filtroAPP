@@ -1,3 +1,40 @@
+.fv-modal:is(.acp-mission-reports-modal, .acp-pdf-viewer-modal) {
+  /* These portals cannot inherit the module page's legacy theme aliases. */
+  --wh: var(--surface);
+  --bg: var(--canvas);
+  --br: var(--line);
+  --g: var(--brand-text);
+  --tx: var(--ink);
+  --mu: var(--muted);
+  --rd: var(--danger);
+}
+
+.fv-modal.acp-mission-reports-modal .report-card {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.fv-modal.acp-mission-reports-modal .rel-icon {
+  background: var(--brand-softer);
+}
+
+.fv-modal.acp-mission-reports-modal .signature-progress {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.fv-modal.acp-pdf-viewer-modal .acp-pdf-canvas-stage {
+  background: var(--canvas);
+}
+
+.fv-modal.acp-pdf-viewer-modal .acp-pdf-rendering {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
 .fv-modal.acp-mission-reports-modal .acp-mission-reports-body {
   display: grid;
   gap: var(--space-3);
