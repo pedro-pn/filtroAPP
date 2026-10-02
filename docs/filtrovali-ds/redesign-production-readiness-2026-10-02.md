@@ -9,7 +9,8 @@ O usuário confirmou que assinatura e envio de e-mails já funcionam no ambiente
 atual. As últimas correções deste lote alteraram somente o frontend e a
 documentação. Os limites da validação local em aparelho físico e SMTP externo
 foram registrados como evidência de cobertura; não constituem novas exigências
-para liberar o redesign. A CI existente acompanha a integração. Esta avaliação
+para liberar o redesign. A [PR #337](https://github.com/pedro-pn/filtroAPP/pull/337)
+foi integrada à main em 02/10, com CI aprovada na PR e na main. Esta avaliação
 não representa uma publicação realizada.
 
 ## Verificações realizadas
@@ -28,7 +29,8 @@ não representa uma publicação realizada.
 | Gravação de documentos | Selecionar, remover, arrastar, validar 20 MB e versão obrigatória, salvar arquivo inicial/nova versão; SQL e recarga confirmaram nome, identificação e tamanho dos dois arquivos, nos dois motores. |
 | Acesso local | Login em 5173 e 5174, em Chromium e WebKit; caches distintos por processo, sem exceções ou HTTP com falha. O reinício informado pelo usuário resolveu o acesso; o erro original não foi recuperado. |
 | Build compilado | Login e planejamento real abriram em Chromium/WebKit com a API isolada. Corrigido o encaminhamento indevido dos bundles/fontes/imagens com hash para a API no `vite preview`. |
-| CI remota da branch | Não há execução registrada para `feat/frontend-redesign-2` nesta conferência. Os checks locais não substituem os jobs remotos, incluindo Docker. |
+| CI remota | Architecture, Frontend, Backend e Docker aprovados na [PR #337, commit `2bbabc9d`](https://github.com/pedro-pn/filtroAPP/actions/runs/36999447606) e na [main, commit `103d6a49`](https://github.com/pedro-pn/filtroAPP/actions/runs/36999769971). Nenhuma falha exigiu correção. |
+| Correção posterior: filtros de Projetos | Faixa de seleção com o padrão de Privacidade/Custo; contadores e filtros preservados. Chromium/WebKit, quatro larguras, dois temas: 16 combinações aprovadas, sem overflow ou exceções. 13 testes existentes, lint, build e arquitetura aprovados. A correção segue PR separada após a integração do redesign. |
 | Assinatura e e-mails no ambiente atual | Funcionamento confirmado pelo usuário. Nenhuma alteração na lógica backend de assinatura ou envio de e-mails foi feita no último lote de correções. |
 
 A primeira rodada backend usou `SEND_CLIENT_EMAILS=false`, configuração do runner
@@ -49,10 +51,9 @@ As evidências são locais e ignoradas pelo Git:
 
 ## Passos para publicar
 
-1. Integrar o commit revisado seguindo a CI existente em `.github/workflows/ci.yml`.
-   Ela executa arquitetura, testes, lint, build e construção das imagens Docker
-   em PRs para main e pushes na main; também permite execução manual. Não exige
-   configuração de um serviço novo para este redesign.
+1. Usar a main revisada: a PR #337 já foi integrada, com os quatro jobs da CI
+   existente em `.github/workflows/ci.yml` aprovados. Correções posteriores devem
+   seguir a mesma CI de PR, incluindo arquitetura, testes, lint, build e Docker.
 2. Seguir [o procedimento de produção](../../deploy/PRODUCTION.md), com backup
    e as migrations pendentes, se houver. A branch completa contém mudanças
    anteriores de API e a migration `20260928120000_project_acompanhamento_card_name`;
