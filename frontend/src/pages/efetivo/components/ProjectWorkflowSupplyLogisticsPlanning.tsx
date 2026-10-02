@@ -7,7 +7,6 @@ import type {
   ProjectWorkflowSupplyType
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
-import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { DateInput } from '../../../components/ui/DateInput';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
@@ -164,7 +163,7 @@ export function ProjectWorkflowSupplyPlanningCard({ workflow, saving, onPatch }:
         const purchaseRequired = !stockItem || shortage > 0 || Boolean(item.requestedAt || item.purchasedAt);
         const invalidDates = Boolean(item.purchasedAt && (!item.requestedAt || item.purchasedAt < item.requestedAt));
         return <article className={purchaseRequired ? 'has-warning' : 'is-ready'} key={item.id}>
-          <header><div><strong>{stockItem?.code ? `${stockItem.code} · ` : ''}{item.name}</strong><span>{stockItem ? `Físico: ${stockItem.balance} · reservado: ${stockItem.reservedQuantity} · disponível: ${stockItem.availableQuantity} ${item.unitLabel}` : 'Não cadastrado no Estoque'}</span></div><RemoveIconButton label={`Remover insumo ${item.name}`} disabled={saving} onClick={() => setDraft(current => current.filter(entry => entry.id !== item.id))} /></header>
+          <header><div><strong>{stockItem?.code ? `${stockItem.code} · ` : ''}{item.name}</strong><span>{stockItem ? `Físico: ${stockItem.balance} · reservado: ${stockItem.reservedQuantity} · disponível: ${stockItem.availableQuantity} ${item.unitLabel}` : 'Não cadastrado no Estoque'}</span></div><Button type="button" variant="mini" disabled={saving} onClick={() => setDraft(current => current.filter(entry => entry.id !== item.id))}>Remover</Button></header>
           <div className="project-workflow-supply-fields">
             <div className="field-group"><label htmlFor={`workflow-supply-quantity-${item.id}`}>Quantidade necessária</label><input id={`workflow-supply-quantity-${item.id}`} type="number" min="0.001" step="0.001" value={item.requiredQuantity} disabled={saving} onChange={event => updateItem(item.id, { requiredQuantity: Math.max(0, Number(event.target.value) || 0) })} /></div>
             <div className="field-group"><label>Unidade</label><input value={item.unitLabel} disabled={Boolean(stockItem) || saving} maxLength={30} onChange={event => updateItem(item.id, { unitLabel: event.target.value })} /></div>

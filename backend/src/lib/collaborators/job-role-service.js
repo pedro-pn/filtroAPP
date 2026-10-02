@@ -131,7 +131,8 @@ export async function markFutureAllocationsForReplanning(database, collaboratorI
       missionId: true,
       mobilizationDate: true,
       demobilizationDate: true,
-      mission: { select: { planId: true, mobilizationDate: true, executionEndDate: true, returnDate: true } }
+      cycles: true,
+      mission: { select: { planId: true, mobilizationDate: true, executionEndDate: true, returnDate: true, cycles: true } }
     }
   });
   const today = new Date().toISOString().slice(0, 10);

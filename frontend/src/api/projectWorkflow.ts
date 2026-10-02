@@ -668,6 +668,7 @@ export interface ProjectWorkflow {
   closedAt: string | null;
   closedBy: { id: string; name: string } | null;
   plannedMobilizationDate: string | null;
+  actualMobilizationDate: string | null;
   fieldCompletionDate: string | null;
   demobilizationDate: string | null;
   version: number;
@@ -920,6 +921,7 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'issue'; version: number; issueId: string; description: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage; reason?: string }
+  | { action: 'mobilization'; version: number; mobilizationDate: string }
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }

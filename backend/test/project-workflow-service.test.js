@@ -1364,13 +1364,15 @@ test('avanço para execução não passa mais por "Pronto para mobilizar"', asyn
     now: new Date('2026-09-09T18:00:00Z'),
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, {
+  await assert.rejects(updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
+  await updateProjectWorkflow('project-1', { action: 'mobilization', version: 2, mobilizationDate: '2026-09-10' }, leader, { database, confirmOfficialMissionMobilization: async () => null });
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, {
     database,
     now: new Date('2026-09-10T09:00:00Z'),
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   });
   assert.equal(result.workflow.stage, 'EXECUTION');
-  assert.equal(result.workflow.version, 3);
+  assert.equal(result.workflow.version, 4);
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION']);
 });
@@ -1385,8 +1387,10 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   };
   let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, stageDependencies);
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, stageDependencies);
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
+  await assert.rejects(updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
+  await updateProjectWorkflow('project-1', { action: 'mobilization', version: 2, mobilizationDate: '2026-09-10' }, leader, { database, confirmOfficialMissionMobilization: async () => null });
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
   assert.equal(result.workflow.demobilizationReadiness.total, 17);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION']);
@@ -1395,7 +1399,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
 
   result = await updateProjectWorkflow('project-1', {
-    action: 'demobilization', version: 4, mobilizationDate: '2026-09-10', fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
+    action: 'demobilization', version: 5, mobilizationDate: '2026-09-10', fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
   }, leader, {
     database,
     synchronizeOfficialMissionDemobilization: async (_tx, _projectId, returnDate) => {
@@ -1409,16 +1413,38 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   assert.equal(state.events.at(-1).action, 'WORKFLOW_DEMOBILIZATION');
 
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'demobilization', version: 5, returnDate: '2026-09-19' }, leader, { database }),
+    updateProjectWorkflow('project-1', { action: 'demobilization', version: 6, returnDate: '2026-09-19' }, leader, { database }),
     error => error.code === 'INVALID_PROJECT_WORKFLOW_DEMOBILIZATION'
   );
-  assert.equal(state.workflow.version, 5);
+  assert.equal(state.workflow.version, 6);
 
   result = await updateProjectWorkflow('project-1', {
-    action: 'checklist', version: 5, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE'
+    action: 'checklist', version: 6, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE'
   }, operations, { database });
   // 1 controle do checklist + as datas de conclusão de campo e de desmobilização exigidas pelo gate
   assert.equal(result.workflow.demobilizationReadiness.completed, 3);
+});
+
+test('confirmação e correção de mobilização preservam a previsão e a etapa atual', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  const confirmations = [];
+  const dependencies = { database, confirmOfficialMissionMobilization: async (_tx, _id, date) => confirmations.push(date) };
+  await assert.rejects(updateProjectWorkflow('project-1', { action: 'mobilization', version: 1, mobilizationDate: '2026-09-10' }, leader, dependencies), error => error.code === 'PROJECT_WORKFLOW_MOBILIZATION_STAGE_REQUIRED');
+  state.workflow.stage = 'MOBILIZATION';
+  let detail = await updateProjectWorkflow('project-1', { action: 'mobilization', version: 1, mobilizationDate: '2026-09-10' }, leader, dependencies);
+  assert.equal(detail.workflow.actualMobilizationDate, '2026-09-10');
+  assert.equal(detail.workflow.plannedMobilizationDate, '2026-09-29');
+  assert.equal(detail.project.mobilizationDate, '2026-09-10');
+  state.workflow.stage = 'EXECUTION';
+  detail = await updateProjectWorkflow('project-1', { action: 'mobilization', correctionStage: 'MOBILIZATION', version: 2, mobilizationDate: '2026-09-12' }, leader, dependencies);
+  assert.equal(detail.workflow.stage, 'EXECUTION');
+  assert.equal(detail.workflow.actualMobilizationDate, '2026-09-12');
+  assert.equal(detail.workflow.plannedMobilizationDate, '2026-09-29');
+  assert.equal(detail.project.mobilizationDate, '2026-09-12');
+  assert.deepEqual(confirmations, ['2026-09-10', '2026-09-12']);
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_MOBILIZATION');
+  assert.equal(state.events.at(-1).data.correctionStage, 'MOBILIZATION');
 });
 
 test('datas efetivas não podem ser antecipadas fora da desmobilização', async () => {

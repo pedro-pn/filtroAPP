@@ -6,7 +6,7 @@ import {
   allocationPeriodWithinMission,
   maximumConcurrentAllocationCount
 } from './allocation-period.js';
-import { missionEndsOnOrAfter } from './mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from './mission-period.js';
 
 function dateValue(value) {
   return new Date(`${parseDateKey(value)}T00:00:00.000Z`);
@@ -77,7 +77,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
           planId,
           deletedAt: null,
           scheduleStatus: 'CONFIRMED',
-          mobilizationDate: { lte: dateValue(period.endDate) },
+          ...missionStartsOnOrBefore(dateValue(period.endDate)),
           ...missionEndsOnOrAfter(dateValue(period.startDate))
         }
       },
@@ -211,7 +211,7 @@ export async function syncSelectedMissionTeam(tx, missionId, team, context = {})
           data: {
             allocationId: saved.id,
             mobilizationDate: allocation.mobilizationDate || missionBounds?.mobilizationDate,
-            demobilizationDate: allocation.demobilizationDate || missionBounds?.returnDate || missionBounds?.executionEndDate,
+            demobilizationDate: allocation.demobilizationDate || null,
             createdByUserId: context.actorUserId || null
           }
         });

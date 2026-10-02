@@ -22,6 +22,7 @@ import { canEditEfetivoChecklistArea } from '../access.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
+import { confirmOfficialMissionMobilization } from '../planning/cycles.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
 import {
   synchronizeOfficialMissionDemobilization,
@@ -750,6 +751,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   return {
     ...workflow,
     plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
+    actualMobilizationDate: dateKey(workflow.actualMobilizationDate),
     commercialExpectedMobilizationDate: dateKey(workflow.commercialExpectedMobilizationDate),
     commercialExpectedStartDate: dateKey(workflow.commercialExpectedStartDate),
     analysisClientContactDate: dateKey(workflow.analysisClientContactDate),
@@ -2293,6 +2295,15 @@ async function applyMeasurement(tx, workflow, payload, context) {
   });
 }
 
+async function applyMobilization(tx, workflow, payload, context, dependencies) {
+  if (workflow.stage !== 'MOBILIZATION') {
+    throw planningError('Confirme a data efetiva na etapa Mobilização.', { statusCode: 409, code: 'PROJECT_WORKFLOW_MOBILIZATION_STAGE_REQUIRED' });
+  }
+  await (dependencies.confirmOfficialMissionMobilization || confirmOfficialMissionMobilization)(tx, workflow.projectId, payload.mobilizationDate, context);
+  await tx.project.update({ where: { id: workflow.projectId }, data: { mobilizationDate: utcDate(payload.mobilizationDate) } });
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data: { actualMobilizationDate: utcDate(payload.mobilizationDate) } });
+}
+
 async function applyDemobilization(tx, workflow, payload, context, dependencies) {
   if (workflow.stage !== 'DEMOBILIZATION') {
     throw planningError('As datas efetivas só podem ser registradas durante a desmobilização.', {
@@ -2330,10 +2341,14 @@ async function applyDemobilization(tx, workflow, payload, context, dependencies)
     });
   }
   if (Object.hasOwn(payload, 'mobilizationDate')) {
+    if (payload.mobilizationDate && payload.mobilizationDate !== dateKey(workflow.actualMobilizationDate)) {
+      await (dependencies.confirmOfficialMissionMobilization || confirmOfficialMissionMobilization)(tx, workflow.projectId, payload.mobilizationDate, context);
+    }
     await tx.project.update({
       where: { id: workflow.projectId },
       data: { mobilizationDate: payload.mobilizationDate ? utcDate(payload.mobilizationDate) : null }
     });
+    await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data: { actualMobilizationDate: payload.mobilizationDate ? utcDate(payload.mobilizationDate) : null } });
   }
   if (Object.hasOwn(payload, 'returnDate')) {
     await (dependencies.synchronizeOfficialMissionDemobilization || synchronizeOfficialMissionDemobilization)(
@@ -2442,6 +2457,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'issue') await applyIssue(tx, workflowForMutation, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
+    else if (payload.action === 'mobilization') await applyMobilization(tx, workflowForMutation, payload, context, dependencies);
     else if (payload.action === 'demobilization') await applyDemobilization(tx, workflowForMutation, payload, context, dependencies);
     else if (payload.action === 'post_job') await applyPostJob(tx, workflowForMutation, payload, context, dependencies, now);
     else if (payload.action === 'measurement') await applyMeasurement(tx, workflowForMutation, payload, context);

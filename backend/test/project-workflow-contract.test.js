@@ -5,6 +5,14 @@ import { z } from 'zod';
 
 import { makeProjectWorkflowSchemas } from '../../shared/schemas/project-workflow.js';
 
+test('mobilização exige uma data efetiva válida e aceita correção de etapa', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(patch.safeParse({ action: 'mobilization', version: 1, mobilizationDate: '2026-09-10', correctionStage: 'MOBILIZATION' }).success, true);
+  for (const mobilizationDate of [null, '', '2026-02-30', undefined]) {
+    assert.equal(patch.safeParse({ action: 'mobilization', version: 1, mobilizationDate }).success, false);
+  }
+});
+
 test('router de gestão fica sob autenticação do Efetivo e valida todas as entradas com Zod', () => {
   const parent = fs.readFileSync(new URL('../src/routes/resources/efetivo.js', import.meta.url), 'utf8');
   const router = fs.readFileSync(new URL('../src/routes/efetivo-project-workflow.js', import.meta.url), 'utf8');

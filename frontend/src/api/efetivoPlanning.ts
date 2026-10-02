@@ -76,6 +76,7 @@ export interface MissionDemand {
 }
 
 export interface MobilizationCycle {
+  isDefault?: boolean;
   id: string;
   mobilizationDate: DateOnly;
   demobilizationDate: DateOnly | null;

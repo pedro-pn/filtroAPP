@@ -336,6 +336,7 @@ function readyMobilizationWorkflow(overrides = {}) {
   return {
     stage: 'PREPARATION',
     version: 10,
+    actualMobilizationDate: '2026-09-10',
     checklists: readinessChecklists,
     commercialFacts,
     documentationCategories,
@@ -582,6 +583,14 @@ test('transições incluem Preparação e Mobilização, sem etapa de autorizaç
   assert.equal(allowedProjectWorkflowTransition('PREPARATION', 'INITIAL_ANALYSIS'), false);
   const workflow = readyMobilizationWorkflow();
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'MOBILIZATION'), []);
+});
+
+test('execução em campo exige confirmação efetiva, preservando o acesso à Mobilização e o fluxo da Sede', () => {
+  const workflow = readyMobilizationWorkflow({ stage: 'MOBILIZATION', actualMobilizationDate: null });
+  assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION').join(' '), /Confirmar a data de mobilização efetiva/);
+  assert.deepEqual(projectWorkflowTransitionIssues({ ...workflow, actualMobilizationDate: '2026-09-10' }, 'EXECUTION'), []);
+  assert.deepEqual(projectWorkflowTransitionIssues({ ...workflow, stage: 'PREPARATION' }, 'MOBILIZATION'), []);
+  assert.deepEqual(projectWorkflowTransitionIssues({ ...workflow, stage: 'PREPARATION', executedAtHeadquarters: true }, 'EXECUTION'), []);
 });
 
 test('entrada em mobilização ou execução exige o gate de mobilização limpo', () => {

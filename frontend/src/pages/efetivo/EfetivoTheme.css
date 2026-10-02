@@ -38,12 +38,13 @@
 }
 
 /* Legacy controls share the DS palette without changing their form layout
-   or overriding DS control shells. */
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(.field-group label, legend) {
+   or overriding DS control shells. The planning dialog already has its own
+   control styles in efetivo.css; keep those outside this compatibility layer. */
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal)), .efetivo-kanban-ghost) :where(.field-group label, legend) {
   color: var(--ink);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(input:not([type='checkbox']):not([type='radio']):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal)), .efetivo-kanban-ghost) :where(input:not([type='checkbox']):not([type='radio']):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)) {
   max-width: 100%;
   border-color: var(--control-border);
   border-radius: var(--radius-md);
@@ -52,68 +53,68 @@
   font-family: var(--font-sans);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(input, textarea)::placeholder {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal)), .efetivo-kanban-ghost) :where(input, textarea)::placeholder {
   color: var(--muted);
   opacity: 1;
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(input[type='checkbox'], input[type='radio']) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal)), .efetivo-kanban-ghost) :where(input[type='checkbox'], input[type='radio']) {
   accent-color: var(--brand);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea), button:not(.fv-button), a, summary):focus-visible {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea), button:not(.fv-button), a, summary):focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled {
   border-color: var(--disabled-line);
   background-color: var(--disabled-bg);
   color: var(--disabled-ink);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.primary-button, .secondary-button, .danger-button, .mini-btn, .icon-button) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(.primary-button, .secondary-button, .danger-button, .mini-btn, .icon-button) {
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.secondary-button, .mini-btn, .icon-button) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(.secondary-button, .mini-btn, .icon-button) {
   border-color: var(--line-strong);
   background: var(--surface);
   color: var(--ink);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.secondary-button, .mini-btn, .icon-button):hover:not(:disabled) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(.secondary-button, .mini-btn, .icon-button):hover:not(:disabled) {
   background: var(--surface-2);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .primary-button {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) .primary-button {
   border-color: var(--brand);
   background: var(--brand);
   color: var(--on-brand);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .primary-button:hover:not(:disabled) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) .primary-button:hover:not(:disabled) {
   background: var(--brand-hover);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .danger-button {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) .danger-button {
   border-color: var(--danger);
   background: var(--danger);
   color: var(--on-danger);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .danger-button:hover:not(:disabled) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) .danger-button:hover:not(:disabled) {
   background: var(--danger-hover);
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.primary-button, .secondary-button, .danger-button, .mini-btn, .icon-button):disabled {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(.primary-button, .secondary-button, .danger-button, .mini-btn, .icon-button):disabled {
   border-color: var(--disabled-line);
   background: var(--disabled-bg);
   color: var(--disabled-ink);
   opacity: 1;
 }
 
-:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.field-error, .field-invalid label) {
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal:not(:where(.project-workflow-modal))) :where(.field-error, .field-invalid label) {
   color: var(--danger);
 }

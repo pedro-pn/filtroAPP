@@ -6,7 +6,8 @@ import { buildWeeklyProgressComparison, corporateToday, weekStartKey, type Weekl
 import { listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetPath, type WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { ApiClientError } from '../../api/client';
 import type { ProgressHistoryPoint } from '../../api/acompanhamentoComercial';
-import { Alert, Button, Field, Input } from '../ui/ds';
+import { Alert, Field, Input } from '../ui/ds';
+import { WorkflowButton as Button } from '../ui/WorkflowButton';
 import { formatDateOnly } from '../../utils/dateOnly';
 import './mission-weekly-progress.css';
 
@@ -20,10 +21,11 @@ function pointsLabel(value: number | null, signed = false) {
 }
 type Draft = { weekStartDate: string; planned: string; expectedRevision: number };
 
-export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage = false }: {
+export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage = false, workflowAppearance = false }: {
   owner: WeeklyTargetOwner;
   progressHistory?: ProgressHistoryPoint[];
   canManage?: boolean;
+  workflowAppearance?: boolean;
 }) {
   const id = useId();
   const queryClient = useQueryClient();
@@ -75,10 +77,10 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   return <section className="fv-ds mission-weekly-progress" aria-label="Metas semanais de avanço" onClick={event => event.stopPropagation()}>
     <header className="mission-weekly-progress-head">
       <strong>Meta semanal de avanço</strong>
-      {canManage ? <Button size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || save.isPending} onClick={() => editWeek(currentWeek)}>Definir meta</Button> : null}
+      {canManage ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || save.isPending} onClick={() => editWeek(currentWeek)}>Definir meta</Button> : null}
     </header>
     <p className="mission-weekly-progress-hint">Segunda a domingo · Avanço da missão inteira, em pontos percentuais (p.p.). De 30% para 40% = 10 p.p.</p>
-    {targetsQuery.isPending ? <p role="status"><BrandLoading label="Carregando metas semanais" inline size="sm" /></p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
+    {targetsQuery.isPending ? <p role="status"><BrandLoading label="Carregando metas semanais" inline size="sm" /></p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
       <div className="mission-weekly-progress-current">
         <span>Semana de {formatDateOnly(currentWeek)} · Em andamento</span>
         <dl>
@@ -95,7 +97,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
           else setDraft({ ...draft, weekStartDate: '' });
         }} /></Field>
         <Field id={`${id}-planned`} label="Avanço previsto para a semana (p.p.)" required><Input type="number" min="0" max="100" step="0.01" inputMode="decimal" required value={draft.planned} disabled={save.isPending} onChange={event => setDraft({ ...draft, planned: event.target.value })} /></Field>
-        <div className="mission-weekly-progress-actions"><Button type="submit" size="sm" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar meta'}</Button><Button type="button" size="sm" variant="secondary" disabled={save.isPending} onClick={() => { setDraft(null); setError(''); }}>Cancelar</Button></div>
+        <div className="mission-weekly-progress-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="primary" type="submit" size="sm" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar meta'}</Button><Button workflowAppearance={workflowAppearance} workflowVariant="secondary" type="button" size="sm" variant="secondary" disabled={save.isPending} onClick={() => { setDraft(null); setError(''); }}>Cancelar</Button></div>
       </form> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
       <div className="mission-weekly-progress-table" role="region" aria-label="Comparativo semanal de avanço" tabIndex={0}>
@@ -108,12 +110,12 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
               <td data-label="Avanço previsto">{pointsLabel(row.plannedPctPoints)}</td><td data-label="Avanço realizado">{pointsLabel(row.actualPctPoints)}</td><td data-label="Diferença">{pointsLabel(row.differencePctPoints, true)}</td>
               <td data-label="Situação"><span className={`mission-weekly-status status-${row.status.toLowerCase()}`}>{STATUS_LABEL[row.status]}</span></td>
               <td data-label="Meta registrada">{row.target ? <><span>{row.target.author.name}</span><small>{new Date(row.target.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revisions.length > 1 ? <details><summary>{revisions.length} versões</summary><ul>{revisions.map(revision => <li key={revision.id}>{pointsLabel(revision.plannedPctPoints)} · {revision.author.name}<small>{new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small></li>)}</ul></details> : null}</> : '—'}</td>
-              {canManage ? <td data-label="Ação"><Button size="sm" variant="secondary" disabled={save.isPending} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button></td> : null}
+              {canManage ? <td data-label="Ação"><Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={save.isPending} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button></td> : null}
             </tr>;
           })}</tbody>
         </table>
       </div>
-      {rows.length > 12 ? <Button size="sm" variant="secondary" onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar últimas 12 semanas' : `Ver todas as ${rows.length} semanas`}</Button> : null}
+      {rows.length > 12 ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar últimas 12 semanas' : `Ver todas as ${rows.length} semanas`}</Button> : null}
       <p className="mission-weekly-progress-hint">Diferença = realizado − previsto. O realizado vem do histórico de avanço da missão. Semanas sem novas medições têm avanço zero; sem histórico, o realizado fica indefinido. A semana atual ainda está em andamento.</p>
     </>}
   </section>;

@@ -3,12 +3,13 @@ import { Field, Input } from '../../../components/ui/ds';
 export type MissionPeriodDraft = { mobilizationDate: string; demobilizationDate: string };
 
 /** Shared date controls for project cycles, individual cycles and allocations. */
-export function MissionPeriodFields({ id, value, min, max, disabled, startLabel = 'Mobilização', endLabel = 'Desmobilização', optionalEnd = false, onChange }: {
+export function MissionPeriodFields({ id, value, min, max, disabled, startDisabled, startLabel = 'Mobilização', endLabel = 'Desmobilização efetiva', optionalEnd = false, onChange }: {
   id: string;
   value: MissionPeriodDraft;
   min: string;
-  max: string;
+  max?: string;
   disabled?: boolean;
+  startDisabled?: boolean;
   startLabel?: string;
   endLabel?: string;
   optionalEnd?: boolean;
@@ -16,7 +17,7 @@ export function MissionPeriodFields({ id, value, min, max, disabled, startLabel 
 }) {
   return <div className="efetivo-team-period-fields">
     <Field id={`${id}-mobilization`} label={startLabel} required>
-      <Input size="sm" type="date" min={min} max={max} value={value.mobilizationDate} disabled={disabled} onChange={event => onChange({ ...value, mobilizationDate: event.target.value })} />
+      <Input size="sm" type="date" min={min} max={max} value={value.mobilizationDate} disabled={disabled || startDisabled} onChange={event => onChange({ ...value, mobilizationDate: event.target.value })} />
     </Field>
     <Field id={`${id}-demobilization`} label={endLabel} required={!optionalEnd} optionalText=""
       helperText={optionalEnd ? 'Opcional enquanto mobilizado.' : undefined}>

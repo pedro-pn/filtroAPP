@@ -1,7 +1,7 @@
 import { corporateDateKey } from '../../calendar/corporate-calendar.js';
 import { allocationCoversDate, missionCoversDate } from './allocation-period.js';
 import { resolvePlanningDatabase } from './plan-context.js';
-import { missionEndsOnOrAfter } from './mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from './mission-period.js';
 
 function utcDate(value) {
   return new Date(`${corporateDateKey(value)}T00:00:00.000Z`);
@@ -57,7 +57,7 @@ export async function getOfficialMissionContext({ projectId, date }, dependencie
         projectId,
         deletedAt: null,
         scheduleStatus: 'CONFIRMED',
-        mobilizationDate: { lte: position },
+        ...missionStartsOnOrBefore(position),
         ...missionEndsOnOrAfter(position),
         plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
       },

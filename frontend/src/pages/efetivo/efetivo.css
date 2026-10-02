@@ -2401,7 +2401,7 @@
 .project-workflow-documentation-type header p { color: var(--mu); margin-top: 3px; }
 .project-workflow-documentation-choice { background: var(--pw-surface-3, var(--bg)); border-radius: 9px; display: inline-flex; flex: 0 0 auto; gap: 2px; padding: 3px; }
 .project-workflow-choice-button { min-width: 58px; transition: background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease; }
-.project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button { background: transparent; border-color: transparent; border-radius: 7px; box-shadow: none; color: var(--pw-ink); min-height: 30px; padding: 4px 14px; }
+.project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button { background: transparent; border-color: transparent; border-radius: 7px; box-shadow: none; color: var(--pw-muted); min-height: 30px; padding: 4px 14px; }
 .project-workflow-modal .project-workflow-documentation-choice .project-workflow-choice-button:hover:not(:disabled):not(.is-selected) { background: var(--pw-surface); color: var(--pw-ink); }
 .project-workflow-modal .project-workflow-choice-button.is-selected.is-yes,
 .project-workflow-choice-button.is-selected.is-yes { background: var(--g); border-color: var(--g); box-shadow: var(--pw-shadow-sm, none); color: var(--wh); }

@@ -15,7 +15,8 @@ import {
   type MobilizationCycle,
   type PlanningMission
 } from '../../../api/efetivoPlanning';
-import { Alert, Badge, Button, Card, EmptyState } from '../../../components/ui/ds';
+import { Alert, Badge, Card, EmptyState } from '../../../components/ui/ds';
+import { WorkflowButton as Button } from '../../../components/ui/WorkflowButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { Modal } from '../../../components/ui/Modal';
@@ -34,7 +35,7 @@ const EMPTY_IDS: string[] = [];
 
 function missionBounds(mission: PlanningMission) {
   return {
-    mobilizationDate: mission.mobilizationDate.slice(0, 10),
+    mobilizationDate: (mission.cycles?.find(cycle => cycle.isDefault)?.mobilizationDate || mission.mobilizationDate).slice(0, 10),
     demobilizationDate: (mission.returnDate || mission.executionEndDate).slice(0, 10)
   };
 }
@@ -56,7 +57,7 @@ function cycleDraft(cycle: MobilizationCycle): PeriodDraft {
 
 function noEmbeddedClose() {}
 
-export function MissionAllocationModal({ mission, open, canManage, onClose = noEmbeddedClose, onPlanningMutated, embedded = false, readOnly = false, allowCycleChanges = true }: {
+export function MissionAllocationModal({ mission, open, canManage, onClose = noEmbeddedClose, onPlanningMutated, embedded = false, readOnly = false, allowCycleChanges = true, mobilizationConfirmed = true }: {
   mission: PlanningMission | null;
   open: boolean;
   canManage?: boolean;
@@ -65,6 +66,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
   embedded?: boolean;
   readOnly?: boolean;
   allowCycleChanges?: boolean;
+  mobilizationConfirmed?: boolean;
 }) {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -221,28 +223,29 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
     const active = canChangeCycles && editingCycle?.scope === scope && editingCycle.cycleId === cycle.id;
     if (!active) return null;
     return <div className="efetivo-team-cycle-editor">
-      <MissionPeriodFields id={'edit-cycle-' + cycle.id} value={editingCycle.draft} min={bounds.mobilizationDate} max={bounds.demobilizationDate} optionalEnd disabled={busy}
+      <MissionPeriodFields id={'edit-cycle-' + cycle.id} value={editingCycle.draft} min={bounds.mobilizationDate} max={mission.stage === 'EXECUTION' ? undefined : bounds.demobilizationDate} optionalEnd disabled={busy}
+        startDisabled={scope === 'MISSION' && cycle.isDefault}
         onChange={draft => setEditingCycle(current => current ? { ...current, draft } : current)} />
       <div className="efetivo-team-actions">
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => setEditingCycle(null)}>Cancelar</Button>
-        <Button variant="primary" size="sm" loading={updateCycle.isPending} disabled={busy || !validCycle(editingCycle.draft)} onClick={() => confirmInactiveCycle(allocationId, allowInactiveCollaborator => updateCycle.mutate({ editing: { ...editingCycle, allocationId }, allowInactiveCollaborator }))}>
+        <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={() => setEditingCycle(null)}>Cancelar</Button>
+        <Button workflowAppearance={embedded} variant="primary" size="sm" loading={updateCycle.isPending} disabled={busy || !validCycle(editingCycle.draft)} onClick={() => confirmInactiveCycle(allocationId, allowInactiveCollaborator => updateCycle.mutate({ editing: { ...editingCycle, allocationId }, allowInactiveCollaborator }))}>
           {cycle.demobilizationDate ? 'Salvar ciclo' : 'Registrar desmobilização'}
         </Button>
       </div>
     </div>;
   };
   const renderCycle = (cycle: MobilizationCycle, index: number, allocation?: PlanningMission['allocations'][number], inherited = false) => (
-    <article className="efetivo-team-cycle-row" key={cycle.id} data-cycle-id={cycle.id} data-cycle-state={cycle.demobilizationDate ? 'closed' : 'open'}>
+    <article className="efetivo-team-cycle-row" key={cycle.id} data-cycle-id={cycle.id} data-cycle-state={cycle.isDefault && !mobilizationConfirmed ? 'pending' : cycle.demobilizationDate ? 'closed' : 'open'}>
       <div className="efetivo-team-cycle-summary">
         <div className="efetivo-team-cycle-heading">
           <strong>Ciclo {index + 1}</strong>
-          <Badge tone={cycle.demobilizationDate ? 'neutral' : 'info'}>{cycle.demobilizationDate ? 'Encerrado' : 'Em aberto'}</Badge>
+          <Badge tone={cycle.demobilizationDate ? 'neutral' : 'info'}>{cycle.isDefault && !mobilizationConfirmed ? 'Mobilização pendente' : cycle.demobilizationDate ? 'Encerrado' : 'Em aberto'}</Badge>
         </div>
-        <p>{displayDateOnly(cycle.mobilizationDate)} a {cycle.demobilizationDate ? displayDateOnly(cycle.demobilizationDate) : 'desmobilização não registrada'}</p>
+        <p>{cycle.isDefault && !mobilizationConfirmed ? 'Mobilização prevista: ' : ''}{displayDateOnly(cycle.mobilizationDate)} a {cycle.demobilizationDate ? displayDateOnly(cycle.demobilizationDate) : 'desmobilização não registrada'}</p>
       </div>
       {canChangeCycles && !inherited ? <div className="efetivo-team-actions">
-        <Button variant="secondary" size="sm" disabled={busy} onClick={event => { editCycleTrigger.current = event.currentTarget; setEditingCycle({ scope: allocation ? 'ALLOCATION' : 'MISSION', allocationId: allocation?.id, cycleId: cycle.id, draft: cycleDraft(cycle) }); }}>{cycle.demobilizationDate ? 'Editar' : 'Registrar desmobilização'}</Button>
-        {allocation ? <RemoveIconButton label={`Remover ciclo ${index + 1}`} disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })} /> : null}
+        <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={event => { editCycleTrigger.current = event.currentTarget; setEditingCycle({ scope: allocation ? 'ALLOCATION' : 'MISSION', allocationId: allocation?.id, cycleId: cycle.id, draft: cycleDraft(cycle) }); }}>{cycle.demobilizationDate ? 'Editar' : 'Registrar desmobilização'}</Button>
+        {allocation ? (embedded ? <Button workflowAppearance variant="danger" disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })}>Remover ciclo</Button> : <RemoveIconButton label={`Remover ciclo ${index + 1}`} disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })} />) : null}
       </div> : null}
       {!inherited ? cycleEditor(allocation ? 'ALLOCATION' : 'MISSION', cycle, allocation?.id) : null}
     </article>
@@ -252,7 +255,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
         <div className={`efetivo-team-stack efetivo-team-v2${embedded ? ' project-workflow-team-cycles' : ''}`} data-project-workflow-team-cycles={embedded || undefined}>
           {!embedded ? <p className="efetivo-dialog-description" id="mission-allocation-description">{mission.project.name} · {displayDateOnly(mission.mobilizationDate)} a {displayDateOnly(mission.returnDate || mission.executionEndDate)}</p> : null}
           {embedded ? <div className="project-workflow-team-cycles-overview" aria-label="Resumo da equipe e dos ciclos">
-            <div><span>Período da programação</span><strong>{displayDateOnly(mission.mobilizationDate)} a {displayDateOnly(mission.returnDate || mission.executionEndDate)}</strong></div>
+            <div><span>Período previsto da programação</span><strong>{displayDateOnly(mission.mobilizationDate)} a {displayDateOnly(mission.executionEndDate)}</strong></div>
             <div><span>Equipe vinculada</span><strong>{mission.allocations.length} colaborador(es)</strong></div>
             <div><span>Ciclos do projeto</span><strong>{projectCycles.length}</strong></div>
           </div> : null}
@@ -261,12 +264,13 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
             : <Alert tone="info" title="Somente consulta">Você pode consultar a equipe e os ciclos. Alterações são feitas pelo gestor do Efetivo.</Alert> : null}
           <section className="efetivo-team-section efetivo-team-project-cycles" aria-labelledby="mission-project-cycles-title">
             <header><h3 id="mission-project-cycles-title">Ciclos do projeto</h3><p>Períodos em que a missão esteve mobilizada. A equipe herda estes ciclos por padrão.</p></header>
+            <p className="efetivo-team-help">Desmobilização prevista: {displayDateOnly(mission.executionEndDate)}. Apenas a desmobilização efetiva registrada manualmente encerra um ciclo. A mobilização do ciclo padrão é confirmada ou corrigida na etapa Mobilização.</p>
             <div className="efetivo-team-cycle-list">
               {projectCycles.length ? projectCycles.map((cycle, index) => renderCycle(cycle, index)) : <p className="efetivo-team-help">Nenhum ciclo do projeto registrado.</p>}
             </div>
             {canChangeCycles ? <div className="efetivo-team-cycle-editor efetivo-team-new-project-cycle">
-              <MissionPeriodFields id="new-project-cycle" value={missionCycleDraft} min={bounds.mobilizationDate} max={bounds.demobilizationDate} startLabel="Nova mobilização" optionalEnd disabled={busy || Boolean(openProjectCycle)} onChange={setMissionCycleDraft} />
-              <div className="efetivo-team-actions"><Button variant="primary" size="sm" loading={createProjectCycle.isPending} disabled={busy || Boolean(openProjectCycle) || !validCycle(missionCycleDraft)} onClick={() => confirmInactiveCycle(undefined, allowInactiveCollaborator => createProjectCycle.mutate({ draft: missionCycleDraft, allowInactiveCollaborator }))}>Adicionar ciclo</Button></div>
+              <MissionPeriodFields id="new-project-cycle" value={missionCycleDraft} min={bounds.mobilizationDate} max={mission.stage === 'EXECUTION' ? undefined : bounds.demobilizationDate} startLabel="Nova mobilização" optionalEnd disabled={busy || Boolean(openProjectCycle)} onChange={setMissionCycleDraft} />
+              <div className="efetivo-team-actions"><Button workflowAppearance={embedded} variant="primary" size="sm" loading={createProjectCycle.isPending} disabled={busy || Boolean(openProjectCycle) || !validCycle(missionCycleDraft)} onClick={() => confirmInactiveCycle(undefined, allowInactiveCollaborator => createProjectCycle.mutate({ draft: missionCycleDraft, allowInactiveCollaborator }))}>Adicionar ciclo</Button></div>
             </div> : null}
             {canChangeCycles && openProjectCycle ? <Alert tone="warning" role="status">Há uma mobilização aberta. Registre a desmobilização desse ciclo antes de adicionar outra.</Alert> : null}
           </section>
@@ -282,7 +286,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
               {!validPeriod ? <Alert tone="info">Informe uma data de entrada dentro do período da missão para consultar os colaboradores.</Alert>
                 : roles.isError ? <Alert tone="danger" title="Não foi possível carregar os cargos" action={{ label: 'Tentar novamente', onClick: () => { void roles.refetch(); } }}>As datas preenchidas foram mantidas.</Alert> : null}
               <div className="efetivo-team-actions efetivo-allocation-add-actions">
-                <Button variant="primary" size="sm" loading={add.isPending} disabled={busy || !validPeriod || roles.isError} onClick={() => setTeamPickerOpen(true)}>Adicionar colaborador à equipe</Button>
+                <Button workflowAppearance={embedded} variant="primary" size="sm" loading={add.isPending} disabled={busy || !validPeriod || roles.isError} onClick={() => setTeamPickerOpen(true)}>Adicionar colaborador à equipe</Button>
               </div>
             </div> : null}
             {canManageTeam && allowCycleChanges ? <p className="efetivo-team-help">Sem data de saída, a participação vai até o fim previsto da missão. Os ciclos individuais podem ser ajustados abaixo sem apagar o histórico.</p> : null}
@@ -304,17 +308,17 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                   {allocation.collaborator?.isActive === false ? <Badge tone="warning">Colaborador inativo</Badge> : null}
                   {allocation.allowMissionOverlap ? <Badge tone="warning">Sobreposição confirmada</Badge> : null}
                   {canManageTeam ? <div className="efetivo-team-actions">
-                    {canChangeCycles ? inherited ? <Button variant="secondary" size="sm" loading={initializeCycles.isPending && initializeCycles.variables === allocation.id} disabled={busy} onClick={() => initializeCycles.mutate(allocation.id)}>Personalizar ciclos</Button>
-                      : <Button variant="secondary" size="sm" disabled={busy || Boolean(openCycle)} onClick={event => { addCycleTrigger.current = event.currentTarget; setAddingCycleAllocationId(allocation.id); setAllocationCycleDraft(emptyPeriod()); }}>Novo ciclo individual</Button> : null}
-                    <RemoveIconButton label={`Remover ${allocation.collaborator?.name || 'colaborador'} da equipe`} loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)} />
+                    {canChangeCycles ? inherited ? <Button workflowAppearance={embedded} variant="secondary" size="sm" loading={initializeCycles.isPending && initializeCycles.variables === allocation.id} disabled={busy} onClick={() => initializeCycles.mutate(allocation.id)}>Personalizar ciclos</Button>
+                      : <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy || Boolean(openCycle)} onClick={event => { addCycleTrigger.current = event.currentTarget; setAddingCycleAllocationId(allocation.id); setAllocationCycleDraft(emptyPeriod()); }}>Novo ciclo individual</Button> : null}
+                    {embedded ? <Button workflowAppearance variant="danger" aria-label={`Remover ${allocation.collaborator?.name || 'colaborador'} da equipe`} loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)}>Remover da equipe</Button> : <RemoveIconButton label={`Remover ${allocation.collaborator?.name || 'colaborador'} da equipe`} loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)} />}
                   </div> : null}
                   <div className="efetivo-team-cycle-list">
                     {visibleCycles.length ? visibleCycles.map((cycle, index) => renderCycle(cycle, index, allocation, inherited))
                       : <p className="efetivo-team-help">Período de participação: {displayDateOnly(allocationPeriod.startDate)} a {displayDateOnly(allocationPeriod.endDate)}.<br />Nenhum ciclo {inherited ? 'do projeto' : 'individual'} registrado.</p>}
                   </div>
                   {adding ? <div className="efetivo-team-cycle-editor">
-                    <MissionPeriodFields id={'new-person-cycle-' + allocation.id} value={allocationCycleDraft} min={bounds.mobilizationDate} max={bounds.demobilizationDate} startLabel="Nova mobilização" optionalEnd disabled={busy} onChange={setAllocationCycleDraft} />
-                    <div className="efetivo-team-actions"><Button variant="secondary" size="sm" disabled={busy} onClick={() => setAddingCycleAllocationId(null)}>Cancelar</Button><Button variant="primary" size="sm" loading={createPersonCycle.isPending} disabled={busy || !validCycle(allocationCycleDraft)} onClick={() => confirmInactiveCycle(allocation.id, allowInactiveCollaborator => createPersonCycle.mutate({ allocationId: allocation.id, draft: allocationCycleDraft, allowInactiveCollaborator }))}>Adicionar ciclo</Button></div>
+                    <MissionPeriodFields id={'new-person-cycle-' + allocation.id} value={allocationCycleDraft} min={bounds.mobilizationDate} max={mission.stage === 'EXECUTION' ? undefined : bounds.demobilizationDate} startLabel="Nova mobilização" optionalEnd disabled={busy} onChange={setAllocationCycleDraft} />
+                    <div className="efetivo-team-actions"><Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={() => setAddingCycleAllocationId(null)}>Cancelar</Button><Button workflowAppearance={embedded} variant="primary" size="sm" loading={createPersonCycle.isPending} disabled={busy || !validCycle(allocationCycleDraft)} onClick={() => confirmInactiveCycle(allocation.id, allowInactiveCollaborator => createPersonCycle.mutate({ allocationId: allocation.id, draft: allocationCycleDraft, allowInactiveCollaborator }))}>Adicionar ciclo</Button></div>
                   </div> : null}
                   {canChangeCycles && openCycle ? <Alert tone="warning" role="status">{allocation.collaborator?.name} ainda está mobilizado. Registre a desmobilização antes de criar outro ciclo.</Alert> : null}
                 </Card>;
@@ -330,7 +334,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
         title={'Equipe · ' + mission.project.code} ariaDescribedBy="mission-allocation-description"
         panelClassName="efetivo-dialog efetivo-team-v2 efetivo-team-management-dialog"
         closeOnEscape={!busy} showCloseButton={!busy}
-        footer={<Button variant="secondary" size="sm" disabled={busy} onClick={onClose}>Fechar</Button>}>{content}</Modal>}
+        footer={<Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={onClose}>Fechar</Button>}>{content}</Modal>}
       {canManageTeam && teamPickerOpen ? <MissionTeamSelector
         mission={mission}
         planId={mission.planId}

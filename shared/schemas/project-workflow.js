@@ -802,6 +802,12 @@ export function makeProjectWorkflowSchemas(z) {
     stage: z.enum(PROJECT_WORKFLOW_STAGES),
     reason: z.string().trim().min(3, 'Informe uma justificativa com ao menos 3 caracteres.').max(1000, 'A justificativa deve ter no máximo 1000 caracteres.').optional()
   }).strict();
+  const mobilization = z.object({
+    action: z.literal('mobilization'),
+    version,
+    correctionStage,
+    mobilizationDate: dateOnly
+  }).strict();
   const demobilization = z.object({
     action: z.literal('demobilization'),
     version,
@@ -887,7 +893,7 @@ export function makeProjectWorkflowSchemas(z) {
     startLegacySummary,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, mobilization, demobilization, postJob, measurement]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

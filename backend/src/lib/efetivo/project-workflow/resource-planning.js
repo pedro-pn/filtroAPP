@@ -4,7 +4,7 @@ import {
 } from '../../operational-reports/domain.js';
 import { getItemBalances } from '../../estoque/stock-balance.js';
 import { calculateDailyCapacity } from '../planning/capacity.js';
-import { missionEndsOnOrAfter } from '../planning/mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from '../planning/mission-period.js';
 import { groupJobRoles } from '../../../../../shared/job-role-display.js';
 import { isHeadquartersWorkflow, projectWorkflowReferenceDate } from '../../../../../shared/schemas/project-workflow.js';
 
@@ -382,7 +382,7 @@ async function loadTeamCatalog(database, targetDate, currentProjectId) {
         deletedAt: null,
         project: { deletedAt: null },
         scheduleStatus: 'CONFIRMED',
-        mobilizationDate: { lte: date },
+        ...missionStartsOnOrBefore(date),
         ...missionEndsOnOrAfter(date)
       },
       include: {

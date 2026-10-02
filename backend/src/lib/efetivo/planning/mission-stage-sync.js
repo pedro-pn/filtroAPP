@@ -3,10 +3,11 @@ import { planningError } from './errors.js';
 import {
   missionInclude,
   missionMovePendencies,
-  syncMissionDemobilization,
-  validateMissionChronology
+  syncMissionDemobilization
 } from './mission-planning.js';
 import { bumpPlanRevision } from './plan-context.js';
+import { updateMissionCycle } from './cycles.js';
+import { parseDateKey } from './date-only.js';
 
 const WORKFLOW_TO_MISSION_STAGE = {
   // Sem "Pronto para mobilizar": voltar para a Preparação (de qualquer etapa operacional) devolve a missão a
@@ -118,13 +119,20 @@ export async function synchronizeOfficialMissionDemobilization(tx, projectId, re
       code: 'PROJECT_WORKFLOW_OFFICIAL_MISSION_REQUIRED'
     });
   }
-  validateMissionChronology({ ...mission, returnDate });
+  const first = mission.cycles?.find(cycle => cycle.isDefault);
+  if (returnDate && returnDate < parseDateKey(first?.mobilizationDate || mission.mobilizationDate)) {
+    throw planningError('A desmobilização não pode ser anterior à mobilização.', { code: 'INVALID_MISSION_CHRONOLOGY' });
+  }
   await syncMissionDemobilization(
     tx,
     mission.project,
     returnDate,
     mission.project.mobilizationDate ? undefined : dateKey(mission.mobilizationDate)
   );
+  const lastCycle = mission.cycles?.at(-1);
+  if (lastCycle && dateKey(lastCycle.demobilizationDate) !== returnDate) {
+    await updateMissionCycle(mission.id, lastCycle.id, { mobilizationDate: dateKey(lastCycle.mobilizationDate), demobilizationDate: returnDate }, context, { database: tx });
+  }
   if (dateKey(mission.returnDate) === returnDate) return mission;
   const updated = await tx.efetivoMissionPlan.update({
     where: { id: mission.id },

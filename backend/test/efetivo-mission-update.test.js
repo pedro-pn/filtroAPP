@@ -14,7 +14,7 @@ function fixture({ absences = [], individualCycles = [], missionCycles = null } 
     version: 1, scheduleStatus: 'CONFIRMED', stage: 'EXECUTION',
     mobilizationDate: '2026-07-06', executionStartDate: '2026-07-06',
     executionEndDate: '2026-08-20', returnDate: null,
-    cycles: missionCycles || [{ id: 'legacy-cycle', mobilizationDate: '2026-07-06', demobilizationDate: '2026-08-20' }],
+    cycles: missionCycles || [{ id: 'legacy-cycle', isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: null }],
     allocations: [{
       id: 'allocation', collaboratorId: person.id, jobRoleId: person.jobRoleId,
       collaborator: person, mobilizationDate: null, demobilizationDate: null, cycles: individualCycles
@@ -65,7 +65,7 @@ test('encurtar programação com equipe herdada atualiza o ciclo automático ant
     allocationPeriods: [{ collaboratorId: 'person', mobilizationDate: '2026-07-06', demobilizationDate: '2026-08-19' }]
   }, {}, { database });
   assert.equal(result.executionEndDate.toISOString().slice(0, 10), '2026-08-19');
-  assert.equal(result.cycles[0].demobilizationDate.toISOString().slice(0, 10), '2026-08-19');
+  assert.equal(result.cycles[0].demobilizationDate, null);
   assert.equal(result.allocations[0].demobilizationDate, null);
 });
 

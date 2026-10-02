@@ -14,7 +14,7 @@ import {
   maximumConcurrentAllocationCount,
   missionCycles
 } from './allocation-period.js';
-import { missionEndsOnOrAfter, missionPeriod } from './mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter, missionPeriod } from './mission-period.js';
 import { missionInclude } from './mission-planning.js';
 import { bumpPlanRevision, requireEditablePlan, resolvePlanningDatabase, runPlanningTransaction } from './plan-context.js';
 
@@ -147,7 +147,7 @@ export async function allocateCollaboratorInTransaction(tx, mission, payload, co
         data: {
           allocationId: allocation.id,
           mobilizationDate: utcDate(period.startDate),
-          demobilizationDate: utcDate(period.endDate),
+          demobilizationDate: payload.demobilizationDate ? utcDate(payload.demobilizationDate) : null,
           createdByUserId: context.actorUserId || null
         }
       });
@@ -177,7 +177,7 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
     database.efetivoMissionAllocation.findMany({
       where: {
         deletedAt: null,
-        mission: { planId: mission.planId, deletedAt: null, project: { deletedAt: null }, scheduleStatus: 'CONFIRMED', id: { not: mission.id }, mobilizationDate: { lte: new Date(`${period.endDate}T00:00:00.000Z`) }, ...missionEndsOnOrAfter(new Date(`${period.startDate}T00:00:00.000Z`)) }
+        mission: { planId: mission.planId, deletedAt: null, project: { deletedAt: null }, scheduleStatus: 'CONFIRMED', id: { not: mission.id }, ...missionStartsOnOrBefore(new Date(`${period.endDate}T00:00:00.000Z`)), ...missionEndsOnOrAfter(new Date(`${period.startDate}T00:00:00.000Z`)) }
       }, include: {
         cycles: { orderBy: { mobilizationDate: 'asc' } },
         mission: { include: { cycles: { orderBy: { mobilizationDate: 'asc' } } } }

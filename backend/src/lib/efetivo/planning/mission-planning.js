@@ -20,7 +20,7 @@ import {
 } from './plan-context.js';
 
 export const missionInclude = {
-  project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true } },
+  project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true, workflow: { select: { actualMobilizationDate: true } } } },
   cycles: { orderBy: { mobilizationDate: 'asc' } },
   demands: { include: { jobRole: { select: { id: true, name: true, calendarColor: true } } }, orderBy: { jobRole: { order: 'asc' } } },
   allocations: {
@@ -107,9 +107,12 @@ function missionData(payload, actorUserId, demands, responsible, stage, currentR
 
 export async function syncMissionDemobilization(tx, project, returnDate, mobilizationDate = undefined) {
   if (returnDate === undefined && mobilizationDate === undefined) return;
+  const workflow = mobilizationDate !== undefined && tx.projectWorkflow?.findUnique
+    ? await tx.projectWorkflow.findUnique({ where: { projectId: project.id }, select: { actualMobilizationDate: true } })
+    : null;
   const effectiveMobilization = mobilizationDate === undefined
     ? project.mobilizationDate
-    : mobilizationDate ? dateValue(mobilizationDate) : null;
+    : workflow?.actualMobilizationDate || (mobilizationDate ? dateValue(mobilizationDate) : null);
   const mobilizationChanged = mobilizationDate !== undefined
     && (project.mobilizationDate ? parseDateKey(project.mobilizationDate) : null)
       !== (effectiveMobilization ? parseDateKey(effectiveMobilization) : null);
@@ -132,10 +135,10 @@ export async function syncMissionDemobilization(tx, project, returnDate, mobiliz
     where: { id: project.id },
     data
   });
-  if (mobilizationChanged && tx.projectWorkflow?.updateMany) {
+  if ((mobilizationChanged || (workflow?.actualMobilizationDate && mobilizationDate !== undefined)) && tx.projectWorkflow?.updateMany) {
     await tx.projectWorkflow.updateMany({
-      where: { projectId: project.id },
-      data: { plannedMobilizationDate: effectiveMobilization, version: { increment: 1 } }
+      where: { projectId: project.id, OR: [{ plannedMobilizationDate: null }, { plannedMobilizationDate: { not: mobilizationDate ? dateValue(mobilizationDate) : null } }] },
+      data: { plannedMobilizationDate: mobilizationDate ? dateValue(mobilizationDate) : null, version: { increment: 1 } }
     });
   }
 }
@@ -361,8 +364,9 @@ export async function createMission(payload, context = {}, dependencies = {}) {
       await tx.efetivoMissionCycle.create({
         data: {
           missionId: mission.id,
+          isDefault: true,
           mobilizationDate: dateValue(payload.mobilizationDate),
-          demobilizationDate: dateValue(payload.returnDate || payload.executionEndDate),
+          demobilizationDate: payload.returnDate ? dateValue(payload.returnDate) : null,
           createdByUserId: context.actorUserId || null
         }
       });
@@ -405,7 +409,9 @@ export async function updateMission(missionId, payload, context = {}, dependenci
       startDate: parseDateKey(existing.mobilizationDate),
       endDate: missionEndDate(existing)
     };
-    const defaultCycle = existing.cycles?.length === 1
+    const defaultCycle = !existing.project?.workflow?.actualMobilizationDate
+      && existing.cycles?.length === 1 && (existing.cycles[0].isDefault ?? true)
+      && !existing.cycles[0].demobilizationDate
       && parseDateKey(existing.cycles[0].mobilizationDate) === existingBounds.startDate
       && parseDateKey(existing.cycles[0].demobilizationDate || existingBounds.endDate) === existingBounds.endDate;
     const missionForValidation = defaultCycle ? { ...existing, cycles: [] } : existing;
@@ -438,7 +444,7 @@ export async function updateMission(missionId, payload, context = {}, dependenci
         where: { id: existing.cycles[0].id },
         data: {
           mobilizationDate: dateValue(payload.mobilizationDate),
-          demobilizationDate: dateValue(payload.returnDate || payload.executionEndDate)
+          demobilizationDate: payload.returnDate ? dateValue(payload.returnDate) : null
         }
       });
     }

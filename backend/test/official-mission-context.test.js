@@ -43,7 +43,8 @@ test('lookup usa apenas plano oficial confirmado e fronteiras inclusivas', async
   const result = await getOfficialMissionContext({ projectId: 'p1', date: '2026-08-01' }, { database });
   assert.equal(where.plan.kind, 'OFFICIAL');
   assert.equal(where.scheduleStatus, 'CONFIRMED');
-  assert.equal(where.mobilizationDate.lte.toISOString().slice(0, 10), '2026-08-01');
+  assert.equal(where.AND[0].OR[0].mobilizationDate.lte.toISOString().slice(0, 10), '2026-08-01');
+  assert.equal(where.AND[0].OR[1].cycles.some.mobilizationDate.lte.toISOString().slice(0, 10), '2026-08-01');
   assert.equal(result.missionId, 'm1');
 });
 
