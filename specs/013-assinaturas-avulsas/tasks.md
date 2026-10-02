@@ -48,7 +48,7 @@ Web app: `backend/src/`, `frontend/src/`, testes em `backend/test/` e `frontend/
 - [X] T004 Ajustar `backend/prisma/schema.prisma` para conter apenas `ASSINATURAS` em `AppModule` e `ASSINATURAS_USER` em `ModuleRoleCode` (remover o `ASSINATURAS_VIEWER` gerado pelo scaffold)
 - [X] T005 Ajustar a migration gerada `backend/prisma/migrations/<ts>_add_assinaturas_module/migration.sql` para conter apenas os dois `ALTER TYPE ... ADD VALUE IF NOT EXISTS` (`ASSINATURAS`, `ASSINATURAS_USER`)
 - [X] T006 Rodar `npm run modules:generate` e confirmar que `frontend/src/modules/registry.generated.ts` reflete a role única
-- [X] T007 [P] Adicionar as variáveis novas ao schema Zod em `backend/src/config/env.js`: `ASSINATURAS_MAX_PDF_MB` (20), `ASSINATURAS_MAX_PAGES` (50), `ASSINATURAS_MAX_SIGNERS` (20), `ASSINATURAS_TOKEN_MAX_DAYS` (90), `ASSINATURAS_DELETED_RETENTION_DAYS` (90), `ASSINATURAS_PREVIEW_SCALE` (1.5)
+- [X] T007 [P] Adicionar as variáveis novas ao schema Zod em `backend/src/config/env.js`: `ASSINATURAS_MAX_PDF_MB` (20), `ASSINATURAS_MAX_PAGES` (100), `ASSINATURAS_MAX_SIGNERS` (20), `ASSINATURAS_TOKEN_MAX_DAYS` (90), `ASSINATURAS_DELETED_RETENTION_DAYS` (90), `ASSINATURAS_PREVIEW_SCALE` (1.5)
 - [X] T008 [P] Documentar as seis variáveis novas em `backend/.env.example` com comentário do que cada uma limita
 - [X] T009 [P] Adicionar casos das variáveis novas em `backend/test/env.test.js` (default aplicado, valor inválido derruba o boot)
 - [X] T010 Criar `backend/src/lib/assinaturas/access.js` com `requireAssinaturasAccess` usando `hasModuleRole(req.auth?.user, 'assinaturas:user')` e resposta 403 `'Acesso restrito ao módulo de Assinaturas.'`, no padrão de `requireEpiAccess` em `backend/src/routes/resources/epis.js`

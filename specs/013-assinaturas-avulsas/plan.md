@@ -54,7 +54,7 @@ e a pré-visualização paginada do PDF no frontend.
 de até 30 páginas / 10 assinantes.
 
 **Constraints**: PDF ≤ 20 MB (mesmo teto de `MAX_PDF_BYTES` do módulo Qualidade); corpo JSON do upload com
-limite de 30 MB para acomodar a expansão base64; ≤ 50 páginas por documento;
+limite de 30 MB para acomodar a expansão base64; ≤ 100 páginas por documento;
 ≤ 20 assinantes por documento; timezone de exibição `America/Sao_Paulo` (padrão de
 `internal-report-signatures.js`), persistência sempre em UTC.
 
@@ -797,7 +797,7 @@ depender de o assinante abrir o link.
 - O parser JSON aceita 30 MB **somente** em `POST /api/assinaturas/documentos`; 20 MiB de PDF ocupam cerca de
   28 MiB após base64. Demais rotas mantêm os limites atuais, e a confirmação pública permanece em 3 MB.
 - Contagem de páginas e sanidade estrutural por `PDFDocument.load()` do `pdf-lib` — um arquivo que não abre é
-  rejeitado com 400 antes de qualquer gravação. Teto `ASSINATURAS_MAX_PAGES` (default 50).
+  rejeitado com 400 antes de qualquer gravação. Teto `ASSINATURAS_MAX_PAGES` (default 100).
 - PDFs criptografados/protegidos por senha são rejeitados (o `load` falha ou exige `ignoreEncryption`; não
   passamos essa flag).
 - **Não executamos nem renderizamos JavaScript do PDF.** O `pdfjs-dist` roda no backend com
@@ -853,7 +853,7 @@ assinante não revogado → status atual → imagem de assinatura decodificável
 | Método + rota | Finalidade | Entrada | Saída | Validações principais |
 |---|---|---|---|---|
 | `GET /documentos` | Listar | `?status&q&arquivados&cursor` | Cards com progresso `assinados/total` | `where.ownerUserId` obrigatório |
-| `POST /documentos` | Upload + criação | `{ fileName, pdfDataUrl, title? }` | Documento `RASCUNHO` | data URL PDF, `%PDF`, ≤20 MB, ≤50 páginas, `pdf-lib` abre |
+| `POST /documentos` | Upload + criação | `{ fileName, pdfDataUrl, title? }` | Documento `RASCUNHO` | data URL PDF, `%PDF`, ≤20 MB, ≤100 páginas, `pdf-lib` abre |
 | `GET /documentos/:id` | Detalhes | — | Documento + assinantes + campos + progresso | owner |
 | `GET /documentos/:id/pdf` | PDF original | — | `application/pdf` | owner |
 | `GET /documentos/:id/pdf-final` | PDF assinado | — | `application/pdf` | owner + `CONCLUIDO` + hash confere |

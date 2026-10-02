@@ -171,7 +171,7 @@ const rawEnvSchema = z.object({
   API_TOKEN_MAX_OVERLAP_MINUTES: integerWithDefault('API_TOKEN_MAX_OVERLAP_MINUTES', 60, { min: 0, max: 1440 }),
   ASSINATURAS_MAX_PDF_MB: integerWithDefault('ASSINATURAS_MAX_PDF_MB', 20, { min: 1 }),
   PROJECT_DOCUMENT_MAX_MB: integerWithDefault('PROJECT_DOCUMENT_MAX_MB', 20, { min: 1, max: 100 }),
-  ASSINATURAS_MAX_PAGES: integerWithDefault('ASSINATURAS_MAX_PAGES', 50, { min: 1 }),
+  ASSINATURAS_MAX_PAGES: integerWithDefault('ASSINATURAS_MAX_PAGES', 100, { min: 1 }),
   ASSINATURAS_MAX_SIGNERS: integerWithDefault('ASSINATURAS_MAX_SIGNERS', 20, { min: 1 }),
   ASSINATURAS_TOKEN_MAX_DAYS: integerWithDefault('ASSINATURAS_TOKEN_MAX_DAYS', 90, { min: 1 }),
   ASSINATURAS_DELETED_RETENTION_DAYS: integerWithDefault('ASSINATURAS_DELETED_RETENTION_DAYS', 90, { min: 0 }),

@@ -598,7 +598,7 @@ Nginx HTTP interno
 | `SIGNATURE_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para links de assinatura de RDO, EPI e assinaturas avulsas |
 | `SIGNATURE_TOKEN_SECRET_PREVIOUS` | Não | Segredos antigos aceitos durante rotação de tokens de assinatura |
 | `ASSINATURAS_MAX_PDF_MB` | Não | Limite do PDF avulso em MB (padrão: `20`) |
-| `ASSINATURAS_MAX_PAGES` | Não | Máximo de páginas por PDF avulso (padrão: `50`) |
+| `ASSINATURAS_MAX_PAGES` | Não | Máximo de páginas por PDF avulso (padrão: `100`) |
 | `ASSINATURAS_MAX_SIGNERS` | Não | Máximo de assinantes por documento (padrão: `20`) |
 | `ASSINATURAS_TOKEN_MAX_DAYS` | Não | Validade máxima do convite em dias (padrão: `90`) |
 | `ASSINATURAS_DELETED_RETENTION_DAYS` | Não | Retenção de arquivos excluídos em dias (padrão: `90`) |
