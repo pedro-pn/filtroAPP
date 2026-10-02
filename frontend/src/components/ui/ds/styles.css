@@ -320,7 +320,12 @@
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-control-shell[data-invalid='true'] {
+  --focus-ring: var(--danger);
   border-color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell[data-invalid='true']:focus-within {
+  outline-color: var(--danger);
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-control-shell[data-disabled='true'] {
@@ -456,7 +461,12 @@
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-textarea[aria-invalid='true'] {
+  --focus-ring: var(--danger);
   border-color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-textarea[aria-invalid='true']:focus-visible {
+  outline-color: var(--danger);
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-textarea:disabled {

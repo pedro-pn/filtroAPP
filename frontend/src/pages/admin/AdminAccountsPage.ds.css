@@ -130,7 +130,7 @@
 
 .admin-accounts-page-v2 .admin-role-option:focus-within {
   outline: 2px solid var(--brand);
-  outline-offset: 2px;
+  outline-offset: var(--focus-ring-offset);
 }
 
 .admin-accounts-page-v2 .admin-role-option input {

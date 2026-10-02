@@ -28,6 +28,28 @@ html {
   font: inherit;
 }
 
+/* Fields reinforce their own rounded border on focus, including inside areas
+   with scrolling or clipping. Compound controls keep that contour on the shell. */
+:where(
+  input,
+  select,
+  textarea,
+  .fv-control-shell,
+  .fv-switch__track,
+  .fv-listing-checkbox,
+  .app-combobox-control,
+  .rdo-tag-option,
+  .rdo-pill-option,
+  .tog-sl,
+  .pdf-dropzone,
+  .upload-dropzone,
+  .historical-upload,
+  .admin-role-option,
+  .public-flow-scale label
+) {
+  --focus-ring-offset: var(--field-focus-ring-offset);
+}
+
 /* Native fields in forms such as RDO do not use the DS control shell. Override
    the browser's rectangular autofill paint through the field's rounded edge. */
 :where(

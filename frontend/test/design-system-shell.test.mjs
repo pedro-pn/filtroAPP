@@ -94,6 +94,55 @@ test('navigation model expands the active RDO module with its real secondary rou
   assert.equal(rdo.children.find((item) => item.active).id, 'projetos');
 });
 
+test('RDO forms and report details keep manager sections on desktop and mobile', async () => {
+  const { hubModulesForUser } = await loadModule('/src/pages/hubModules.ts');
+  const { createNavigationModel, mobileSectionNavigation } = await loadModule('/src/layout/navigationModel.ts');
+  const modules = hubModulesForUser({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['rdo:manager'] });
+
+  for (const pathname of ['/rdo/relatorio/novo', '/rdo/relatorios/novo', '/rdo/relatorios/42', '/rdo/gestor/relatorio/42']) {
+    const model = createNavigationModel({ modules, pathname });
+    const rdo = model.groups.find(group => group.id === 'modules').items.find(item => item.id === 'rdo');
+
+    assert.equal(rdo.active, true);
+    assert.equal(rdo.expanded, true);
+    assert.equal(rdo.children.length, 8);
+    assert.equal(rdo.children.find(item => item.id === 'projetos').href, '/rdo/gestor?tab=projetos');
+    assert.equal(rdo.children.find(item => item.id === 'aprovados').href, '/rdo/gestor?tab=aprovados');
+    assert.equal(rdo.children.find(item => item.active).href, '/rdo/gestor');
+    const mobile = mobileSectionNavigation(model);
+    assert.ok(mobile.quickItems.some(item => item.label === 'Projetos'));
+    assert.equal(mobile.hasMore, true);
+    assert.equal(mobile.allItems.length, 8);
+  }
+});
+
+test('RDO section defaults follow the accessible entry route and preserve page navigation', async () => {
+  const { hubModulesForUser } = await loadModule('/src/pages/hubModules.ts');
+  const { createNavigationModel } = await loadModule('/src/layout/navigationModel.ts');
+  const getRdo = model => model.groups.find(group => group.id === 'modules').items.find(item => item.id === 'rdo');
+  const pathname = '/rdo/relatorios/42';
+
+  for (const [role, accountType, moduleRole, expectedHrefs] of [
+    ['COORDINATOR', 'INTERNAL', 'rdo:coordinator', ['/rdo/coordenador', '/rdo/coordenador?tab=approved', '/rdo/coordenador?tab=archived', '/rdo/coordenador?tab=nps', '/rdo/coordenador?tab=estatisticas', '/rdo/coordenador?tab=dds']],
+    ['COLLABORATOR', 'INTERNAL', 'rdo:collaborator', ['/rdo/home', '/rdo/meus-relatorios', '/rdo/andamento', '/rdo/meus-relatorios/arquivados']],
+    ['CLIENT', 'CLIENT', 'rdo:client', ['/rdo/cliente']]
+  ]) {
+    const modules = hubModulesForUser({ role, accountType, moduleRoles: [moduleRole] });
+    const rdo = getRdo(createNavigationModel({ modules, pathname }));
+    assert.deepEqual(rdo.children.map(item => item.href), expectedHrefs);
+    assert.equal(rdo.children.filter(item => item.active).length, 1);
+    assert.equal(getRdo(createNavigationModel({ modules, pathname: '/modulos' })).children, undefined);
+  }
+
+  const emissionOnlyModules = hubModulesForUser({ role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: [], reportEmissionPermissions: ['SITE_RDO'] });
+  assert.equal(getRdo(createNavigationModel({ modules: emissionOnlyModules, pathname })).children, undefined);
+  const modules = hubModulesForUser({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['rdo:manager'] });
+  const items = [{ id: 'custom', label: 'Seção da página', href: '/rdo/gestor', active: true, badge: 3 }];
+  const explicit = getRdo(createNavigationModel({ modules, pathname, subNavigation: { parentId: 'rdo', items } }));
+  assert.equal(explicit.children, items);
+  assert.equal(getRdo(createNavigationModel({ modules: modules.map(module => ({ ...module, disabled: true })), pathname })).children, undefined);
+});
+
 test('mobile bottom navigation uses only sections of the active module and keeps overflow reachable', async () => {
   const { createNavigationModel, mobileSectionNavigation } = await loadModule('/src/layout/navigationModel.ts');
   const modules = [

@@ -40,18 +40,12 @@ import { reportDraftDateLabel, reportDraftServiceCount, reportDraftToRdoState, S
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { RdoAppShell } from '../RdoAppShell';
 import { RdoSectionNavigation } from '../gestor/RdoSectionNavigation';
+import { RDO_COORDINATOR_SECTIONS } from '../gestor/rdoSectionNavigationModel';
 import { coordinatorPendingCountQuery, coordinatorPendingReportFilters } from './pendingReportFilters';
 
 type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas' | 'dds';
 const COORDINATOR_TABS: CoordinatorTab[] = ['pending', 'approved', 'archived', 'nps', 'estatisticas', 'dds'];
-const COORDINATOR_SECTIONS: ReadonlyArray<{ id: CoordinatorTab; label: string }> = [
-  { id: 'pending', label: 'Pendentes' },
-  { id: 'approved', label: 'Aprovados' },
-  { id: 'archived', label: 'Arquivados' },
-  { id: 'nps', label: 'NPS' },
-  { id: 'estatisticas', label: 'Estatísticas' },
-  { id: 'dds', label: 'Temas de DDS' }
-];
+const COORDINATOR_SECTIONS = RDO_COORDINATOR_SECTIONS;
 const REPORT_PAGE_SIZE = 50;
 const REPORT_TYPE_PAGE_SIZE = 10;
 

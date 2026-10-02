@@ -126,6 +126,9 @@
   outline: 2px solid var(--g);
   outline-offset: 3px;
 }
+.api-token-page input[type="checkbox"]:focus-visible {
+  outline-offset: var(--focus-ring-offset);
+}
 
 .api-token-filters,
 .api-form-section,
@@ -2315,7 +2318,7 @@ a {
 
 .job-role-operational-field .tog input:focus-visible + .tog-sl {
   outline: 2px solid color-mix(in srgb, var(--g) 40%, transparent);
-  outline-offset: 2px;
+  outline-offset: var(--focus-ring-offset);
 }
 
 .job-role-row {
@@ -2455,7 +2458,7 @@ a {
 .acp-sleep-add select:focus {
   outline: none;
   border-color: var(--g);
-  box-shadow: 0 0 0 3px rgba(32, 126, 64, 0.12);
+  box-shadow: inset 0 0 0 var(--focus-ring-width) rgba(32, 126, 64, 0.12);
 }
 @media (max-width: 860px) { .acp-sleep-list { grid-template-columns: 1fr; } }
 @media (max-width: 480px) {
@@ -3181,8 +3184,8 @@ a {
 
 .rdo-tag-option:focus-within,
 .rdo-pill-option:focus-within {
-  outline: 3px solid rgba(9, 90, 44, 0.35);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid rgba(9, 90, 44, 0.35);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .rdo-step-panel {
@@ -4201,7 +4204,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 
 .service-finalized-field .rdo-tag-option:focus-within {
   outline: 2px solid var(--rd);
-  outline-offset: 2px;
+  outline-offset: var(--focus-ring-offset);
 }
 
 .field-error {
@@ -7442,7 +7445,8 @@ select:disabled {
 }
 
 .page-scroll {
-  overflow-x: clip !important;
+  /* Tables own horizontal scrolling; page edges must leave field focus visible. */
+  overflow-x: visible;
 }
 
 .page-scroll,
@@ -11509,7 +11513,8 @@ select:disabled {
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
-  padding-right: 4px;
+  /* Reserve space on every edge for outlines inside this scroll container. */
+  padding: calc(var(--focus-ring-width) + var(--focus-ring-offset));
 }
 
 /* Cabeçalho fixo do modal (título + abas): fica fora da rolagem e nunca some. */
@@ -12149,7 +12154,7 @@ select:disabled {
 .upload-dropzone:focus-visible {
   outline: none;
   border-color: var(--g);
-  box-shadow: 0 0 0 3px rgba(48, 80, 58, 0.18);
+  box-shadow: inset 0 0 0 var(--focus-ring-width) rgba(48, 80, 58, 0.18);
 }
 
 .pdf-dropzone.drag-over,
@@ -12181,7 +12186,7 @@ select:disabled {
 
 .dark .pdf-dropzone:focus-visible,
 .dark .upload-dropzone:focus-visible {
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--brand-soft);
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--brand-soft);
 }
 
 .dark .pdf-dropzone.drag-over,

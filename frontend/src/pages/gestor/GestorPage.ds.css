@@ -84,12 +84,20 @@
 :where(.fv-ds, [data-fv-ds]) .rdo-manager-projects__list:has(> .rdo-project-table),
 :where(.fv-ds, [data-fv-ds]) .rdo-archived-projects__list:has(> .rdo-project-table) { display: block; width: 100%; min-width: 0; }
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table { width: 100%; min-width: 0; }
-:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__desktop { overflow-x: auto; }
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__desktop { overflow-x: auto; container-type: inline-size; }
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__table { min-width: 850px; }
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table__actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: var(--space-1); min-width: 235px; }
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table__actions .fv-button { white-space: nowrap; }
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__details { padding: var(--space-3); background: var(--surface-2); }
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail > .fv-card { width: 100%; box-shadow: none; }
+/* Expanded forms fit the visible panel even when the table's columns scroll. */
+:where(.fv-ds, [data-fv-ds]) .rdo-project-table .fv-data-table__desktop .rdo-project-table__detail {
+  position: sticky;
+  inset-inline-start: var(--space-3);
+  width: calc(100cqw - 2 * var(--space-3));
+  min-width: 0;
+  max-width: 100%;
+}
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail > .fv-card > .fv-card__header,
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__summary,
 :where(.fv-ds, [data-fv-ds]) .rdo-project-table__detail .rdo-active-project-card__quick-actions,
@@ -2155,7 +2163,7 @@
   :where(input:not([type='checkbox']), select, textarea):focus {
   border-color: var(--brand);
   background-color: var(--surface);
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--brand-soft);
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--brand-soft);
 }
 
 :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
@@ -2414,7 +2422,7 @@
   :where(input:not([type='checkbox']), select, textarea):focus {
   border-color: var(--brand);
   background-color: var(--surface);
-  box-shadow: 0 0 0 var(--focus-ring-width) var(--brand-soft);
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--brand-soft);
 }
 
 :where(.fv-ds, [data-fv-ds])

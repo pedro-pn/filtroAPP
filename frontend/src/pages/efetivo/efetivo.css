@@ -2182,11 +2182,11 @@
 .project-workflow-modal select:not(.fv-select) { padding-right: 30px; }
 .project-workflow-modal textarea:not(.fv-textarea) { min-height: 64px; }
 .project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):hover:not(:disabled) { border-color: var(--pw-faint); }
-.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: inset 0 0 0 var(--focus-ring-width) var(--pw-ring); outline: none; }
 .project-workflow-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
 .project-workflow-modal :is(input, textarea)::placeholder { color: var(--pw-faint); }
 .project-workflow-modal input.is-required-empty { border-color: var(--pw-crit-dot); }
-.project-workflow-modal input.is-required-empty:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
+.project-workflow-modal input.is-required-empty:focus { box-shadow: inset 0 0 0 var(--focus-ring-width) color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
 .project-workflow-closure-gate details ul { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 20px; }
 .project-workflow-reopen textarea { resize: vertical; width: 100%; }
 .project-workflow-form { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 12px; padding: 12px; }
@@ -2265,7 +2265,7 @@
 .project-workflow-member-check input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
 .project-workflow-member-check input:disabled { cursor: default; }
 .project-workflow-member-check:hover:not(:has(input:disabled)) { border-color: var(--pw-accent-line, var(--g)); color: var(--pw-ink, var(--tx)); }
-.project-workflow-member-check:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, var(--focus-ring)); }
+.project-workflow-member-check:has(input:focus-visible) { box-shadow: inset 0 0 0 var(--focus-ring-width) var(--pw-ring, var(--focus-ring)); }
 .project-workflow-check-box { align-items: center; border: 1.5px solid var(--pw-faint, var(--mu)); border-radius: 999px; display: inline-flex; flex: 0 0 auto; height: 18px; justify-content: center; width: 18px; }
 .project-workflow-check-box .project-workflow-icon { height: 11px; opacity: 0; stroke-width: 3.2; width: 11px; }
 .project-workflow-member-check.is-done { background: var(--pw-accent-soft, #ebf0ec); border-color: var(--pw-accent-line, var(--g)); color: var(--pw-accent, var(--g)); }
@@ -2355,7 +2355,7 @@
 .project-workflow-check-states label:hover { color: var(--pw-ink, var(--tx)); }
 .project-workflow-check-states input { cursor: pointer; height: 100%; inset: 0; margin: 0; opacity: 0; position: absolute; width: 100%; }
 .project-workflow-check-states label:has(input:disabled) { cursor: not-allowed; opacity: .7; }
-.project-workflow-check-states label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--pw-ring, var(--focus-ring)); }
+.project-workflow-check-states label:has(input:focus-visible) { box-shadow: inset 0 0 0 var(--focus-ring-width) var(--pw-ring, var(--focus-ring)); }
 .project-workflow-check-states label.is-selected { background: var(--pw-surface, var(--wh)); box-shadow: var(--pw-shadow-sm, 0 1px 3px rgba(0, 0, 0, .08)); color: var(--pw-ink, var(--tx)); }
 .project-workflow-check-item.is-done .project-workflow-check-states label.is-selected { color: var(--pw-accent, var(--g)); }
 /* Mais específico que o rótulo genérico de campo do diálogo, que é cinza */
@@ -2375,7 +2375,7 @@
 .project-workflow-country-picker { position: relative; }
 .project-workflow-country-trigger { align-items: center; background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-xs); color: var(--pw-ink); display: flex; font-size: 13px; gap: 5px; justify-content: center; min-height: 36px; padding: 7px 8px; transition: border-color .15s, box-shadow .15s; width: 100%; }
 .project-workflow-country-trigger:hover:not(:disabled) { border-color: var(--pw-faint); }
-.project-workflow-country-trigger:focus-visible { border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.project-workflow-country-trigger:focus-visible { border-color: var(--pw-accent); box-shadow: inset 0 0 0 var(--focus-ring-width) var(--pw-ring); outline: none; }
 .project-workflow-country-trigger:disabled { background: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
 .project-workflow-country-trigger span:last-child { color: var(--pw-muted, var(--mu)); font-size: 10px; }
 .project-workflow-country-list { background: var(--pw-surface); border: 1px solid var(--pw-border); border-radius: 8px; box-shadow: var(--pw-shadow-md, 0 8px 24px rgba(0, 0, 0, .18)); max-height: 280px; min-width: 260px; overflow-y: auto; position: fixed; z-index: 1200; }
@@ -2571,7 +2571,7 @@
 .modal-card.project-workflow-checklist-dialog { display: flex; flex-direction: column; gap: 12px; max-width: 720px; width: min(94vw, 720px); }
 .project-workflow-checklist-dialog-header { align-items: start; display: flex; gap: 10px; justify-content: space-between; }
 .project-workflow-checklist-dialog-header h3 { margin: 0; }
-.project-workflow-checklist-dialog-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
+.project-workflow-checklist-dialog-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: calc(var(--focus-ring-width) + var(--focus-ring-offset)); }
 .project-workflow-checklist-item { flex-wrap: wrap; }
 /* Com o card quebrando linha (label longo), o Sim/Não vira o único item da sua linha — e "justify-content:
    space-between" jogaria um item sozinho pra esquerda. Fixa à direita independente de qual linha ele cair. */
@@ -3043,11 +3043,11 @@
 .efetivo-team-dialog select:not(.fv-select) { padding-right: 30px; }
 .efetivo-team-dialog textarea:not(.fv-textarea) { min-height: 64px; }
 .efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):hover:not(:disabled) { border-color: var(--pw-faint); }
-.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-ring); outline: none; }
+.efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus { background-color: var(--pw-surface); border-color: var(--pw-accent); box-shadow: inset 0 0 0 var(--focus-ring-width) var(--pw-ring); outline: none; }
 .efetivo-team-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled { background-color: var(--pw-surface-2); box-shadow: none; color: var(--pw-muted); cursor: not-allowed; }
 .efetivo-team-dialog :is(input, textarea)::placeholder { color: var(--pw-faint); }
 .efetivo-team-dialog input.is-required-empty { border-color: var(--pw-crit-dot); }
-.efetivo-team-dialog input.is-required-empty:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
+.efetivo-team-dialog input.is-required-empty:focus { box-shadow: inset 0 0 0 var(--focus-ring-width) color-mix(in srgb, var(--pw-crit-dot) 22%, transparent); }
 .modal-card.efetivo-modal.efetivo-team-dialog { border-color: var(--pw-border); border-radius: 16px; box-shadow: var(--pw-shadow-lg); color: var(--pw-ink); }
 .efetivo-team-dialog .efetivo-modal-header { border-bottom: 1px solid var(--pw-border-soft); padding: 18px 22px 14px; }
 .efetivo-team-dialog .efetivo-modal-header h3 { font-size: 17px; font-weight: 650; letter-spacing: -.015em; }
@@ -3088,7 +3088,7 @@
 .efetivo-team-toggle-track::after { background: var(--on-brand); border-radius: 50%; box-shadow: var(--pw-shadow-xs); content: ""; height: 16px; left: 2px; position: absolute; top: 2px; transition: transform .15s; width: 16px; }
 .efetivo-team-toggle input:checked + .efetivo-team-toggle-track { background: var(--pw-accent); }
 .efetivo-team-toggle input:checked + .efetivo-team-toggle-track::after { transform: translateX(16px); }
-.efetivo-team-toggle input:focus-visible + .efetivo-team-toggle-track { box-shadow: 0 0 0 3px var(--pw-ring); }
+.efetivo-team-toggle input:focus-visible + .efetivo-team-toggle-track { box-shadow: inset 0 0 0 var(--focus-ring-width) var(--pw-ring); }
 @media (prefers-reduced-motion: reduce) { .efetivo-team-toggle-track, .efetivo-team-toggle-track::after { transition: none; } }
 
 .efetivo-team-dialog .efetivo-availability-card { background: var(--pw-surface); border-color: var(--pw-border); border-radius: 10px; }

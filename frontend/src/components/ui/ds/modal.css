@@ -86,6 +86,13 @@
   overscroll-behavior: contain;
 }
 
+/* The modal body owns scrolling and already leaves room for focus outlines.
+   Legacy forms must not add a nested scroll container that clips field edges. */
+:where(.fv-ds, [data-fv-ds]) .fv-modal__body .equip-form {
+  overflow: visible;
+  padding: 0;
+}
+
 :where(.fv-ds, [data-fv-ds]) .fv-modal__footer {
   justify-content: flex-end;
   border-block-start: var(--border-width) solid var(--line);

@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 
 import { moduleIdFromPath } from '../auth/moduleNavigation';
 import type { HubModuleEntry } from '../pages/hubModules';
+import { rdoDefaultSectionNavigation } from '../pages/gestor/rdoSectionNavigationModel';
 import {
   MODULE_NAVIGATION_ICONS,
   NAVIGATION_CHROME_ICONS
@@ -88,7 +89,9 @@ export function createNavigationModel({
           const children =
             subNavigation?.parentId === module.id
               ? subNavigation.items
-              : undefined;
+              : module.id === 'rdo' && activeModuleId === 'rdo' && !module.disabled
+                ? rdoDefaultSectionNavigation(module.path)
+                : undefined;
           return {
             id: module.id,
             label: module.title,
