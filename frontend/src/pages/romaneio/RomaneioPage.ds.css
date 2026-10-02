@@ -62,8 +62,8 @@
 .romaneio-page-v2 .field-group { min-width: 0; }
 .romaneio-page-v2 .field-group > :is(span, label),
 .romaneio-dialog .field-group > :is(span, label) { color: var(--muted); font-size: var(--text-xs); font-weight: var(--font-semibold); }
-.romaneio-page-v2 .field-group :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea),
-.romaneio-dialog .field-group :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
+.romaneio-page-v2 .field-group :is(input:not(.fv-input):not([type='checkbox']):not([type='radio']):not([type='file']), select:not(.fv-select), textarea:not(.fv-textarea)),
+.romaneio-dialog .field-group :is(input:not(.fv-input):not([type='checkbox']):not([type='radio']):not([type='file']), select:not(.fv-select), textarea:not(.fv-textarea)) {
   width: 100%;
   min-height: var(--space-10);
   border: 1px solid var(--line);
@@ -74,8 +74,8 @@
   font-size: var(--text-sm);
   padding: var(--space-2) var(--space-3);
 }
-.romaneio-page-v2 .field-group :is(input, select, textarea):focus-visible,
-.romaneio-dialog .field-group :is(input, select, textarea):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.romaneio-page-v2 .field-group :is(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus-visible,
+.romaneio-dialog .field-group :is(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):focus-visible { outline: 2px solid var(--brand); outline-offset: var(--focus-ring-offset); }
 .romaneio-page-v2 .app-combobox-list { border-color: var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-e2); }
 .romaneio-page-v2 .app-combobox-list button { color: var(--ink); }
 .romaneio-page-v2 .app-combobox-list button:is(.active, :hover) { background: var(--surface-2); }

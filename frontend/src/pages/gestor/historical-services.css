@@ -22,7 +22,7 @@
 .historical-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .historical-upload { position: relative; overflow: hidden; cursor: pointer; }
 .historical-upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
-.historical-upload:focus-within { outline: 2px solid var(--accent, #2563eb); outline-offset: 3px; }
+.historical-upload:focus-within { outline: 2px solid var(--accent, #2563eb); outline-offset: var(--focus-ring-offset); }
 .historical-upload.disabled { opacity: .5; cursor: default; }
 .historical-editor, .historical-preview, .historical-history { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--border, #d5dbe3); padding-top: 18px; }
 .historical-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
