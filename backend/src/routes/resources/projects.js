@@ -39,7 +39,8 @@ const schema = z.object({
     email: emailSchema
   })).default([]),
   contractCode: z.string().min(1),
-  location: z.string().min(1),
+  location: z.string().trim().min(1),
+  additionalWorkLocations: z.array(z.string().trim().min(1)).transform(values => [...new Set(values)]).default([]),
   workdayHours: z.string().min(1).default('09:00'),
   weekendWorkdayHours: z.string().min(1).default('08:00'),
   includesSaturday: z.boolean().default(false),
@@ -228,6 +229,7 @@ async function invalidateProjectInternalSignatureRounds(tx, projectId, {
 }
 
 export const projectListInclude = {
+  plannedServices: { select: { id: true, scopeName: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
   operator: { include: { jobRole: true } },
   authorizedUsers: {
     include: {

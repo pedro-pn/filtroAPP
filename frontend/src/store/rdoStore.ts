@@ -18,6 +18,7 @@ export interface RdoStoreState {
   serviceOnly: boolean;
   projectId: string | null;
   reportDate: string;
+  workLocation: string;
   arrivalTime: string;
   departureTime: string;
   lunchBreak: string;
@@ -43,7 +44,7 @@ export interface RdoStoreState {
   dailyDescription: string;
   generalUploads: unknown[];
   services: RdoServiceDraft[];
-  setHeaderField: <K extends keyof Pick<RdoStoreState, 'serviceOnly' | 'projectId' | 'reportDate' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'ddsDay' | 'ddsDayStart' | 'ddsDayEnd' | 'ddsNight' | 'ddsNightStart' | 'ddsNightEnd' | 'overtimeReason' | 'workforceJustification' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
+  setHeaderField: <K extends keyof Pick<RdoStoreState, 'serviceOnly' | 'projectId' | 'reportDate' | 'workLocation' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'ddsDay' | 'ddsDayStart' | 'ddsDayEnd' | 'ddsNight' | 'ddsNightStart' | 'ddsNightEnd' | 'overtimeReason' | 'workforceJustification' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
   setCollaborators: (ids: string[]) => void;
   setNightCollaborators: (ids: string[]) => void;
   addDdsTheme: (shift: 'day' | 'night', theme: DdsThemeSnapshot) => void;
@@ -63,6 +64,7 @@ const initialState = {
   serviceOnly: false,
   projectId: null,
   reportDate: '',
+  workLocation: '',
   arrivalTime: '',
   departureTime: '',
   lunchBreak: '',

@@ -7,6 +7,25 @@ import { DOMParser } from '@xmldom/xmldom';
 import { buildReportDocx, stringifyReportDocxValue } from '../src/lib/report-docx.js';
 import { stringifyValue, wrapPdfText } from '../src/lib/report-pdf.js';
 
+test('RDO mostra o local escolhido e mantém o escopo apenas nos dados internos', async () => {
+  const report = {
+    reportType: 'RDO', sequenceNumber: 1, reportDate: '2026-10-02', collaborators: [],
+    specialConditions: { workLocation: 'Canteiro escolhido' },
+    project: { code: 'P-1', name: 'Projeto', clientName: 'Cliente', clientCnpj: '', location: 'Local principal antigo', contractCode: '', operator: {} },
+    services: [{ serviceType: 'limpeza', extraData: { __scopeKey: '"Escopo reservado"', __scopeName: 'Escopo reservado', 'Equipamento(s)': 'EQ-01' } }]
+  };
+  const documentText = bytes => new AdmZip(bytes).getEntries()
+    .filter(entry => /^word\/(document|header\d+)\.xml$/.test(entry.entryName))
+    .map(entry => new DOMParser().parseFromString(entry.getData().toString('utf8'), 'text/xml').documentElement.textContent)
+    .join('\n');
+  const xml = documentText(await buildReportDocx(report));
+  assert.match(xml, /Canteiro escolhido/);
+  assert.doesNotMatch(xml, /Local principal antigo|Escopo reservado|__scope/);
+  delete report.specialConditions.workLocation;
+  const legacyXml = documentText(await buildReportDocx(report));
+  assert.match(legacyXml, /Local principal antigo/);
+});
+
 test('stringifyReportDocxValue formats collaborator objects by names', () => {
   assert.equal(
     stringifyReportDocxValue({ ids: ['c1', 'c2'], names: ['Ana Lima', 'Bruno Dias'] }),

@@ -20,6 +20,7 @@ const UNITS = [
 ];
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 const percentFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
+const PROGRESS_HISTORY_DAYS = 10;
 
 export function rdoServiceName(type) {
   return SERVICE_NAMES[type] || String(type || '');
@@ -68,10 +69,14 @@ function compareReports(a, b) {
   return String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || String(a.id || '').localeCompare(String(b.id || ''));
 }
 
-// Uma linha por RDO. A porcentagem usa todos os serviços previstos do contrato,
+// Uma linha por RDO dos últimos dez dias, incluindo o dia do relatório.
+// O acumulado usa todo o histórico e todos os serviços previstos do contrato,
 // sem selecionar scopeName, equipamento ou o serviço da linha.
 export function buildRdoProgressRows(report, plannedServices = [], reports = []) {
   const currentDay = dayKey(report.reportDate);
+  const startOfWindow = currentDay ? new Date(`${currentDay}T00:00:00.000Z`) : null;
+  if (startOfWindow) startOfWindow.setUTCDate(startOfWindow.getUTCDate() - PROGRESS_HISTORY_DAYS + 1);
+  const firstVisibleDay = startOfWindow ? dayKey(startOfWindow) : '';
   const currentSequence = report.sequenceNumber;
   const previous = reports.filter(item => item.reportType === 'RDO'
     && (!report.id || item.id !== report.id)
@@ -126,7 +131,7 @@ export function buildRdoProgressRows(report, plannedServices = [], reports = [])
       progressmade: hasSystemType ? serviceAmounts.join(' + ') : formatQuantities(daily, dailyUnits),
       totalprogress: `${formatQuantities(accumulated, totalUnits)} / ${percentage == null ? '—' : `${percentFormat.format(percentage)}%`}`
     };
-  }).reverse();
+  }).filter((_, index) => dayKey(ordered[index].reportDate) >= firstVisibleDay).reverse();
 }
 
 export async function loadRdoProgressRows(report) {

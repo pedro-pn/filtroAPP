@@ -18,6 +18,7 @@ export interface ProjectPayload {
   clientSigners?: ClientSigner[];
   contractCode: string;
   location: string;
+  additionalWorkLocations?: string[];
   workdayHours?: string;
   weekendWorkdayHours?: string;
   includesSaturday?: boolean;

@@ -1,0 +1,10 @@
+.project-work-location-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.project-work-location-row > input {
+  flex: 1;
+  min-width: 0;
+}

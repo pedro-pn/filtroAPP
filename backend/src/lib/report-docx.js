@@ -503,7 +503,7 @@ function buildDocxData(report) {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
     client: report.project.clientName || '',
     cnpj: formatCnpj(report.project.clientCnpj) || '',
-    local: report.project.location || '',
+    local: report.specialConditions?.workLocation || report.project.location || '',
     proposal: report.project.contractCode || '',
     rdo: reportNumber(report),
     date: formatDatePt(report.reportDate),

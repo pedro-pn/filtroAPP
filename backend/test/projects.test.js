@@ -87,6 +87,45 @@ function stubAuthenticatedManager(t) {
   });
 }
 
+test('cadastro e edição preservam vários locais da obra e permitem removê-los', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  let project;
+  const calls = [];
+  const tx = {
+    project: {
+      create: async ({ data }) => {
+        project = { ...data, id: 'project-locations', operator: null, authorizedUsers: [], reportSequences: [] };
+        return project;
+      },
+      findUniqueOrThrow: async () => project,
+      update: async ({ data }) => {
+        calls.push(data);
+        project = { ...project, ...data };
+        return project;
+      }
+    }
+  };
+  prisma.$transaction = async callback => callback(tx);
+  t.after(() => { prisma.$transaction = originalTransaction; });
+  const created = await dispatchApp('POST', '/api/projects', {
+    code: 'P-1', name: 'Projeto', clientName: 'Cliente', clientCnpj: '11222333000144', contractCode: '1',
+    location: 'Oficina', additionalWorkLocations: [' Canteiro ', 'Navio', 'Canteiro']
+  });
+  assert.equal(created.statusCode, 201);
+  assert.deepEqual(created.json.additionalWorkLocations, ['Canteiro', 'Navio']);
+  const updated = await dispatchApp('PUT', '/api/projects/project-locations', { additionalWorkLocations: ['Navio'] });
+  assert.equal(updated.statusCode, 200);
+  assert.deepEqual(updated.json.additionalWorkLocations, ['Navio']);
+  await dispatchApp('PUT', '/api/projects/project-locations', { name: 'Projeto atualizado' });
+  assert.deepEqual(project.additionalWorkLocations, ['Navio']);
+  assert.equal(Object.hasOwn(calls.at(-1), 'additionalWorkLocations'), false);
+  await dispatchApp('PUT', '/api/projects/project-locations', { additionalWorkLocations: [] });
+  assert.deepEqual(project.additionalWorkLocations, []);
+  const invalidLocation = await dispatchApp('PUT', '/api/projects/project-locations', { additionalWorkLocations: [' '] });
+  assert.equal(invalidLocation.statusCode, 400);
+});
+
 function stubAuthenticatedClient(t) {
   const originalFindUnique = prisma.userSession.findUnique;
   prisma.userSession.findUnique = async () => ({

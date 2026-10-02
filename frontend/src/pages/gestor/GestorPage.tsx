@@ -1,3 +1,4 @@
+import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -555,6 +556,7 @@ export function GestorPage() {
       serviceOnly: asBoolean(payload.serviceOnly),
       projectId: asString(payload.projectId, draft.projectId || '') || null,
       reportDate: asString(payload.reportDate, draft.reportDate || ''),
+      workLocation: asString(payload.workLocation),
       arrivalTime: asString(payload.arrivalTime),
       departureTime: asString(payload.departureTime),
       lunchBreak: asString(payload.lunchBreak, '01:00:00'),
@@ -730,6 +732,7 @@ export function GestorPage() {
       clientSigners: cleanSigners(projectForm.clientSigners),
       contractCode: projectForm.contractCode.trim(),
       location: projectForm.location.trim(),
+      additionalWorkLocations: projectForm.additionalWorkLocations.map(value => value.trim()).filter(value => value !== projectForm.location.trim()),
       visibleToCollaborators: projectForm.visibleToCollaborators,
       managerOnly: projectForm.managerOnly,
       inhibitionServiceEnabled: projectForm.inhibitionServiceEnabled,
@@ -2327,10 +2330,8 @@ export function GestorPage() {
                   <label htmlFor={`project-contract-${project.id}`}>Proposta</label>
                   <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={(event) => setProjectForm((current) => ({ ...current, contractCode: event.target.value }))} />
                 </div>
-                <div className="field-group">
-                  <label htmlFor={`project-location-${project.id}`}>Local</label>
-                  <input id={`project-location-${project.id}`} value={projectForm.location} onChange={(event) => setProjectForm((current) => ({ ...current, location: event.target.value }))} />
-                </div>
+                <ProjectWorkLocationsFields id={`project-location-${project.id}`} location={projectForm.location} additionalLocations={projectForm.additionalWorkLocations}
+                  onChange={(location, additionalWorkLocations) => setProjectForm(current => ({ ...current, location, additionalWorkLocations }))} />
                 <div className="field-group">
                   <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
                   <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={(event) => setProjectForm((current) => ({ ...current, operatorId: event.target.value }))}>
@@ -2522,10 +2523,8 @@ export function GestorPage() {
                 <label htmlFor="project-contract">Proposta</label>
                 <input id="project-contract" value={projectForm.contractCode} onChange={(event) => setProjectForm((current) => ({ ...current, contractCode: event.target.value }))} />
               </div>
-              <div className="field-group">
-                <label htmlFor="project-location">Local</label>
-                <input id="project-location" value={projectForm.location} onChange={(event) => setProjectForm((current) => ({ ...current, location: event.target.value }))} />
-              </div>
+              <ProjectWorkLocationsFields id="project-location" location={projectForm.location} additionalLocations={projectForm.additionalWorkLocations}
+                onChange={(location, additionalWorkLocations) => setProjectForm(current => ({ ...current, location, additionalWorkLocations }))} />
               <div className="field-group">
                 <label htmlFor="project-operator">Operador responsável</label>
                 <select id="project-operator" value={projectForm.operatorId} onChange={(event) => setProjectForm((current) => ({ ...current, operatorId: event.target.value }))}>

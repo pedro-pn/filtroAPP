@@ -57,6 +57,7 @@ export function reportDraftToRdoState(draft: ReportDraft) {
     serviceOnly: asBoolean(payload.serviceOnly),
     projectId: asString(payload.projectId, draft.projectId || '') || null,
     reportDate: asString(payload.reportDate, draft.reportDate || ''),
+    workLocation: asString(payload.workLocation),
     arrivalTime: asString(payload.arrivalTime),
     departureTime: asString(payload.departureTime),
     lunchBreak: asString(payload.lunchBreak, '01:00:00'),

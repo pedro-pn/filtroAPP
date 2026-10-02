@@ -1,3 +1,5 @@
+import { projectScopeOptions, projectWorkLocations } from '../../../shared/modules/rdo-project-context.js';
+import { ReportServiceScopeField, ReportWorkLocationField } from '../components/reports/ReportProjectFields';
 import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
 import { GeneralUploadThumb } from '../components/reports/GeneralUploadThumb';
 import { BrandLoading } from '../components/brand/BrandLoading';
@@ -90,6 +92,7 @@ interface RdoFormState {
   projectId: string | null;
   sequenceNumber: string;
   reportDate: string;
+  workLocation: string;
   arrivalTime: string;
   departureTime: string;
   lunchBreak: string;
@@ -300,6 +303,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
     projectId: report.projectId,
     sequenceNumber: report.sequenceNumber ? String(report.sequenceNumber) : '',
     reportDate: toDateInput(report.reportDate),
+    workLocation: getString(specialConditions.workLocation) || (projectWorkLocations(report.project).length <= 1 ? report.project.location || '' : ''),
     arrivalTime: report.arrivalTime || '',
     departureTime: report.departureTime || '',
     lunchBreak: report.lunchBreak || '',
@@ -404,6 +408,7 @@ function buildPayload(
       : {
           ...asRecord(report.specialConditions),
           ...manualServiceData,
+          workLocation: form.workLocation,
           standby: form.standby,
           noturno: form.noturno,
           standbyDetails: {
@@ -485,6 +490,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
   const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
     || (form.projectId === report.projectId ? report.project : null);
+  const scopeOptions = projectScopeOptions(selectedProject);
+  const workLocations = projectWorkLocations(selectedProject);
+  const [invalidScopeServiceId, setInvalidScopeServiceId] = useState<string | null>(null);
+  const [invalidWorkLocation, setInvalidWorkLocation] = useState(false);
   const projectLeaderHint = selectedProject?.operator?.name
     ? `Líder do projeto: ${selectedProject.operator.name}`
     : 'Projeto sem líder definido.';
@@ -715,6 +724,21 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   async function handleSave(options: { navigateAfter?: boolean; showSuccess?: boolean } = {}) {
     if (readOnly) return false;
     if (manualReport) return handleManualInlineSave(options);
+    if (report.reportType === 'RDO') {
+      if (workLocations.length > 1 && !workLocations.includes(form.workLocation)) {
+        setInvalidWorkLocation(true);
+        showToast('Selecione o local da obra.', 'error');
+        document.getElementById('rdo-work-location')?.focus();
+        return false;
+      }
+      const missingScope = scopeOptions.length > 1 ? form.services.find(service => !scopeOptions.some(option => option.value === service.data.__scopeKey)) : null;
+      if (missingScope) {
+        setInvalidScopeServiceId(missingScope.id);
+        showToast('Selecione o escopo de cada serviço.', 'error');
+        document.getElementById(`service-scope-${missingScope.id}`)?.focus();
+        return false;
+      }
+    }
     const missingServiceTime = firstMissingRequiredServiceTime(form.services);
     if (missingServiceTime) {
       const label = missingServiceTime.field === 'startTime' ? 'hora de início' : 'hora de término/pausa';
@@ -857,7 +881,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               id="rdo-project"
               value={form.projectId || ''}
               disabled={readOnly || derivedServiceReport || manualReport}
-              onChange={event => setField('projectId', event.target.value || null)}
+              onChange={event => {
+                const nextProjectId = event.target.value || null;
+                const locations = projectWorkLocations(projects.find(project => project.id === nextProjectId));
+                setForm(current => ({ ...current, projectId: nextProjectId, workLocation: locations.length === 1 ? locations[0] : '',
+                  services: current.services.map(service => ({ ...service, data: { ...service.data, __scopeKey: '', __scopeName: null } })) }));
+                setInvalidWorkLocation(false);
+                setInvalidScopeServiceId(null);
+              }}
               required
             >
               <option value="">{TEXT.select}</option>
@@ -900,6 +931,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
+          {report.reportType === 'RDO' ? <ReportWorkLocationField locations={workLocations} value={form.workLocation}
+            disabled={readOnly || manualReport} invalid={invalidWorkLocation}
+            onChange={value => { setField('workLocation', value); setInvalidWorkLocation(false); }} /> : null}
           {manualServiceReport ? (
             <>
               <div className="field-group">
@@ -1014,6 +1048,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 ) : undefined}
               >
                 <div className="admin-form-grid">
+                  {report.reportType === 'RDO' && !manualReport ? <ReportServiceScopeField options={scopeOptions} serviceId={service.id}
+                    value={getString(service.data.__scopeKey)} disabled={readOnly} invalid={invalidScopeServiceId === service.id}
+                    onChange={update => { updateService(service.id, { data: update }); setInvalidScopeServiceId(null); }} /> : null}
                   {normalizeServiceType(service.type) !== 'inibicao' ? (
                     <>
                       <section className="rdo-service-section" aria-label="Equipamento e sistema">
@@ -1601,6 +1638,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           <div><span className="detail-label">{TEXT.project}</span><span className="detail-value">{report.project.name}</span></div>
           <div><span className="detail-label">{TEXT.code}</span><span className="detail-value">{report.project.code}</span></div>
           <div><span className="detail-label">Data</span><span className="detail-value">{formatDateOnlyPtBr(report.reportDate)}</span></div>
+          <div><span className="detail-label">Local da obra</span><span className="detail-value">{getString(specialConditions.workLocation) || report.project.location || '-'}</span></div>
           <div><span className="detail-label">{TEXT.time}</span><span className="detail-value">{report.arrivalTime} às {report.departureTime}</span></div>
           <div><span className="detail-label">{TEXT.interval}</span><span className="detail-value">{report.lunchBreak || '-'}</span></div>
           <div>

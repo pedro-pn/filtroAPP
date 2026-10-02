@@ -35,6 +35,15 @@ async function loadReportDraft() {
   }
 }
 
+test('rascunho restaura o local escolhido e o escopo de cada serviço', async () => {
+  const { reportDraftToRdoState } = await loadReportDraft();
+  const state = reportDraftToRdoState({ id: 'draft-1', projectId: 'project-1', payload: {
+    workLocation: 'Canteiro', services: [{ id: 'svc-1', type: 'limpeza', data: { __scopeKey: '"UG 2"', __scopeName: 'UG 2' } }]
+  } });
+  assert.equal(state.workLocation, 'Canteiro');
+  assert.equal(state.services[0].data.__scopeName, 'UG 2');
+});
+
 test('autosaveDraftTargetId keeps updating the active draft when project/date changes', async () => {
   const { autosaveDraftTargetId } = await loadDraftAutosave();
 
