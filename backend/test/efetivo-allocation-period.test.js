@@ -151,7 +151,7 @@ test('substituto entra na data informada sem apagar a mobilização anterior', a
   assert.equal(saved[0].mobilizationDate.toISOString().slice(0, 10), '2026-09-11');
   assert.equal(saved[0].demobilizationDate, null);
   assert.equal(createdCycles[0].mobilizationDate.toISOString().slice(0, 10), '2026-09-11');
-  assert.equal(createdCycles[0].demobilizationDate.toISOString().slice(0, 10), '2026-09-30');
+  assert.equal(createdCycles[0].demobilizationDate, null);
   assert.equal(updatedMission.allocations[0], priorAllocation);
   assert.equal(updatedMission.allocations.length, 2);
   await assert.doesNotReject(allocateCollaboratorInTransaction(tx, missionInput(), {

@@ -370,6 +370,29 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   );
 }
 
+function MobilizationDatesForm({ workflow, mission, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  mission: ProjectOperationalMissionSummary | null | undefined;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const schema = z.object({ mobilizationDate: z.string().min(1, 'Informe a data efetiva da mobilização.') });
+  const suggested = workflow.actualMobilizationDate || mission?.mobilizationDate || workflow.plannedMobilizationDate || '';
+  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema), defaultValues: { mobilizationDate: suggested }
+  });
+  useEffect(() => reset({ mobilizationDate: suggested }), [reset, suggested]);
+  return <form className="project-workflow-form" data-project-workflow-mobilization-date noValidate onSubmit={handleSubmit(values => onPatch({ action: 'mobilization', version: workflow.version, mobilizationDate: values.mobilizationDate }))}>
+    <p className="field-hint">Mobilização prevista: {workflow.plannedMobilizationDate ? displayDateOnly(workflow.plannedMobilizationDate) : 'Não informada'}. A confirmação abaixo registra o início efetivo do ciclo padrão.</p>
+    <div className={fieldClass(errors.mobilizationDate)}>
+      <label htmlFor="workflow-actual-mobilization-date">Data de mobilização efetiva *</label>
+      <input id="workflow-actual-mobilization-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.mobilizationDate)} {...register('mobilizationDate')} />
+      {errors.mobilizationDate ? <span className="field-error">{errors.mobilizationDate.message}</span> : null}
+    </div>
+    {workflow.permissions.canEdit ? <div className="project-workflow-inline-actions"><Button type="submit" disabled={saving || (Boolean(workflow.actualMobilizationDate) && !isDirty)}>{workflow.actualMobilizationDate ? 'Salvar data de mobilização' : 'Confirmar mobilização'}</Button></div> : null}
+  </form>;
+}
+
 function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }: {
   workflow: ProjectWorkflow;
   project: ProjectWorkflowDetail['project'];
@@ -392,16 +415,16 @@ function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
-      mobilizationDate: project.mobilizationDate || mission?.mobilizationDate || '',
+      mobilizationDate: workflow.actualMobilizationDate || project.mobilizationDate || '',
       fieldCompletionDate: workflow.fieldCompletionDate || '',
       returnDate: workflow.demobilizationDate || mission?.returnDate || ''
     }
   });
   useEffect(() => reset({
-    mobilizationDate: project.mobilizationDate || mission?.mobilizationDate || '',
+    mobilizationDate: workflow.actualMobilizationDate || project.mobilizationDate || '',
     fieldCompletionDate: workflow.fieldCompletionDate || '',
     returnDate: workflow.demobilizationDate || mission?.returnDate || ''
-  }), [mission?.mobilizationDate, mission?.returnDate, project.mobilizationDate, reset, workflow.demobilizationDate, workflow.fieldCompletionDate]);
+  }), [mission?.returnDate, project.mobilizationDate, reset, workflow.actualMobilizationDate, workflow.demobilizationDate, workflow.fieldCompletionDate]);
   return (
     <form className="project-workflow-form" data-project-workflow-demobilization-dates noValidate onSubmit={handleSubmit(values => onPatch({
       action: 'demobilization',
@@ -415,7 +438,7 @@ function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }
         <div className={fieldClass(errors.mobilizationDate)}>
           <label htmlFor="workflow-mobilization-date">Mobilização no cronograma *</label>
           <input id="workflow-mobilization-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.mobilizationDate)} {...register('mobilizationDate')} />
-          <span className="field-hint">Usa inicialmente a data da programação oficial e mantém o cronograma do projeto sincronizado.</span>
+          <span className="field-hint">Data efetiva confirmada na Mobilização. Alterações também atualizam o início do ciclo padrão.</span>
           {errors.mobilizationDate ? <span className="field-error">{errors.mobilizationDate.message}</span> : null}
         </div>
         <div className={fieldClass(errors.fieldCompletionDate)}>
@@ -737,11 +760,12 @@ const STAGE_SECTION_GROUPS: Record<ProjectWorkflowStage, string> = {
 const READINESS_RING_RADIUS = 21;
 const READINESS_RING_LENGTH = 2 * Math.PI * READINESS_RING_RADIUS;
 
-function ProjectTeamCyclesCategory({ mission, loading, editable, allowCycleChanges, onPlanningMutated }: {
+function ProjectTeamCyclesCategory({ mission, loading, editable, allowCycleChanges, mobilizationConfirmed = false, onPlanningMutated }: {
   mission: PlanningMission | null;
   loading: boolean;
   editable: boolean;
   allowCycleChanges: boolean;
+  mobilizationConfirmed?: boolean;
   onPlanningMutated: () => void | Promise<void>;
 }) {
   return <ProjectWorkflowCategory
@@ -755,7 +779,7 @@ function ProjectTeamCyclesCategory({ mission, loading, editable, allowCycleChang
     data-project-workflow-team-cycles-section
   >
     {mission
-      ? <MissionAllocationModal mission={mission} open embedded readOnly={!editable} allowCycleChanges={allowCycleChanges} onPlanningMutated={onPlanningMutated} />
+      ? <MissionAllocationModal mission={mission} open embedded readOnly={!editable} allowCycleChanges={allowCycleChanges} mobilizationConfirmed={mobilizationConfirmed} onPlanningMutated={onPlanningMutated} />
       : <p className="project-workflow-category-note">{loading ? 'Carregando programação da equipe…' : 'Não foi possível carregar a programação da equipe.'}</p>}
   </ProjectWorkflowCategory>;
 }
@@ -824,6 +848,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
         : <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><ProjectWorkflowBooleanChoice value={item.answer} label={item.label} disabled={stageSaving || !workflow.permissions.canEdit} onSelect={answer => { if (item.answer !== answer) stagePatch({ action: 'critical', version: workflow.version, key: item.key, answer }); }} /></article>)}
     </ProjectWorkflowCategory>
   );
+  const renderMobilizationDates = () => <ProjectWorkflowCategory title="Mobilização efetiva" description="Confirme a data em que o projeto mobilizou. A saída prevista não encerra o ciclo." area="Operações" status={workflow.actualMobilizationDate ? 'Confirmada' : 'Confirmação pendente'} complete={Boolean(workflow.actualMobilizationDate)} initiallyOpen><MobilizationDatesForm workflow={workflow} mission={initialTeam} saving={stageSaving} onPatch={stagePatch} /></ProjectWorkflowCategory>;
   const renderAnalysisMonitoring = (includeCritical = true) => (
     <>
       <ProjectWorkflowDocumentationTracking workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
@@ -900,7 +925,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
 
   let stageContent: ReactNode;
   if (isLegacySkippedStage) {
-    stageContent = <><section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="check" /><strong>Não se aplica ao fluxo resumido legado.</strong><p>Esta etapa foi dispensada quando a gestão começou diretamente em {WORKFLOW_STAGE_LABELS[workflow.legacySummaryEntryStage!]}.</p></section>{activeStage === 'EXECUTION' ? <ProjectWorkflowCategory title="Histórico da execução" description="Consulta aos RDOs, relatórios, escopo e avanço físico da missão." area="Execução" status="Consulta"><ProjectExecutionDashboard projectId={workflow.projectId} missionId={initialTeam?.id} readOnly /></ProjectWorkflowCategory> : null}</>;
+    stageContent = <>{activeStage === 'MOBILIZATION' ? renderMobilizationDates() : null}<section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="check" /><strong>Não se aplica ao fluxo resumido legado.</strong><p>Esta etapa foi dispensada quando a gestão começou diretamente em {WORKFLOW_STAGE_LABELS[workflow.legacySummaryEntryStage!]}.</p></section>{activeStage === 'EXECUTION' ? <ProjectWorkflowCategory title="Histórico da execução" description="Consulta aos RDOs, relatórios, escopo e avanço físico da missão." area="Execução" status="Consulta"><ProjectExecutionDashboard projectId={workflow.projectId} missionId={initialTeam?.id} readOnly /></ProjectWorkflowCategory> : null}</>;
   } else if (isFutureStage) {
     stageContent = <section className="project-workflow-stage-empty"><ProjectWorkflowIcon name="lock" /><strong>Esta etapa ainda não foi iniciada.</strong><p>Conclua a etapa atual para liberar os controles de {WORKFLOW_STAGE_LABELS[activeStage].toLocaleLowerCase('pt-BR')}.</p></section>;
   } else if (activeStage === 'HANDOVER') {
@@ -915,7 +940,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     stageContent = <><ProjectWorkflowResourceConflicts workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowTeamPlanningCard workflow={workflow} initialTeam={initialTeam} saving={stageSaving} canManageMission={canManageMission} onPatch={stagePatch} onOpenTeamProgramming={onOpenTeamProgramming} /><ProjectWorkflowEquipmentPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowSupplyPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /><ProjectWorkflowLogisticsPlanningCard workflow={workflow} saving={stageSaving} onPatch={stagePatch} /></>;
   } else if (activeStage === 'PREPARATION' || activeStage === 'MOBILIZATION') {
     // Sem "Pronto para mobilizar": a Mobilização mostra as mesmas frentes da Preparação até o projeto avançar.
-    stageContent = renderPreparation();
+    stageContent = <>{activeStage === 'MOBILIZATION' ? renderMobilizationDates() : null}{renderPreparation()}</>;
   } else if (activeStage === 'EXECUTION') {
     stageContent = <><MobilizationGate workflow={workflow} /><ProjectWorkflowCategory title="Dashboard de execução" description="Escopo, avanço físico, RDOs, assinaturas e desvios da obra." area="Execução" status={isCurrentStage ? 'Acompanhamento ativo' : 'Etapa concluída'}><ProjectExecutionDashboard projectId={workflow.projectId} missionId={initialTeam?.id} canManageTargets={canManageMission} readOnly={!isCurrentStage} /></ProjectWorkflowCategory></>;
   } else if (activeStage === 'DEMOBILIZATION') {
@@ -937,7 +962,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
   if (!isLegacySkippedStage && !isFutureStage && canViewProjectTeamCycles(activeStage)) {
     const teamEditable = isCurrentStage && (workflow.stage === 'MOBILIZATION' || canManageProjectTeamCycles(workflow.stage)) && canManageMission && !saving;
     stageContent = <>
-      <ProjectTeamCyclesCategory mission={planningMission} loading={planningMissionLoading} editable={teamEditable} allowCycleChanges={activeStage === 'EXECUTION'} onPlanningMutated={onTeamCyclesMutated} />
+      <ProjectTeamCyclesCategory mission={planningMission} loading={planningMissionLoading} editable={teamEditable} allowCycleChanges={activeStage === 'EXECUTION'} mobilizationConfirmed={Boolean(workflow.actualMobilizationDate)} onPlanningMutated={onTeamCyclesMutated} />
       {stageContent}
     </>;
   }

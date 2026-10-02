@@ -23,7 +23,7 @@ function completeMission(overrides = {}) {
     executionStartDate: new Date('2026-09-11T00:00:00Z'),
     executionEndDate: new Date('2026-09-20T00:00:00Z'),
     returnDate: null,
-    plan: { id: 'plan-1', revision: 4 },
+    plan: { id: 'plan-1', kind: 'OFFICIAL', status: 'ACTIVE', revision: 4 },
     project: { id: 'project-1', code: 'P-1', name: 'Projeto', mobilizationDate: new Date('2026-09-10T00:00:00Z'), demobilizationDate: null },
     cycles: [],
     demands: [{ jobRoleId: 'role-1', requiredCount: 1 }],
@@ -37,6 +37,7 @@ function fakeDatabase(mission = completeMission()) {
   const database = {
     efetivoMissionPlan: {
       findFirst: async () => state.mission,
+      findUnique: async () => state.mission,
       findMany: async () => [],
       update: async input => {
         state.updates.push(input);
@@ -59,7 +60,8 @@ function fakeDatabase(mission = completeMission()) {
         return state.mission.project;
       }
     },
-    efetivoPlan: { update: async () => { state.planBumps += 1; return state.mission.plan; } },
+    efetivoMissionCycle: { update: async ({ where, data }) => Object.assign(state.mission.cycles.find(cycle => cycle.id === where.id), data) },
+    efetivoPlan: { findUnique: async () => state.mission.plan, update: async () => { state.planBumps += 1; return state.mission.plan; } },
     efetivoAuditEvent: { create: async input => { state.audits.push(input.data); return input.data; } }
   };
   return { database, state };
@@ -78,14 +80,15 @@ test('etapa do workflow possui projeção operacional única', () => {
   assert.equal(missionStageForProjectWorkflow('WAITING_PLANNING'), null);
 });
 
-test('desmobilização atualiza retorno sem alterar equipe ou ciclos', async () => {
+test('desmobilização efetiva encerra o último ciclo e preserva a equipe e o início registrado', async () => {
   const cycles = [{ id: 'cycle-1', mobilizationDate: new Date('2026-09-10T00:00:00Z') }];
-  const allocations = [{ id: 'allocation-1', jobRoleId: 'role-1', deletedAt: null, cycles: [{ id: 'allocation-cycle-1' }] }];
+  const allocations = [{ id: 'allocation-1', jobRoleId: 'role-1', deletedAt: null, cycles: [{ id: 'allocation-cycle-1', mobilizationDate: '2026-09-10', demobilizationDate: '2026-09-20' }] }];
   const mission = completeMission({ stage: 'FINAL_MEASUREMENT', cycles, allocations });
   mission.project.mobilizationDate = null;
   const { database, state } = fakeDatabase(mission);
   const result = await synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-22', { actorUserId: 'leader-1' });
   assert.equal(result.returnDate.toISOString().slice(0, 10), '2026-09-22');
+  assert.equal(state.mission.cycles[0].demobilizationDate.toISOString().slice(0, 10), '2026-09-22');
   assert.deepEqual(state.mission.cycles, cycles);
   assert.deepEqual(state.mission.allocations, allocations);
   assert.equal(state.projectUpdates[0].data.mobilizationDate.toISOString().slice(0, 10), '2026-09-10');

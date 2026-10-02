@@ -15,7 +15,9 @@ test('filtro de sobreposição contempla desmobilização vazia com fim previsto
   assert.deepEqual(missionEndsOnOrAfter(position), {
     OR: [
       { returnDate: { gte: position } },
-      { returnDate: null, executionEndDate: { gte: position } }
+      { returnDate: null, executionEndDate: { gte: position } },
+      { cycles: { some: { demobilizationDate: { gte: position } } } },
+      { cycles: { some: { mobilizationDate: { gte: position } } } }
     ]
   });
 });

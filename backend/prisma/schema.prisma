@@ -1053,6 +1053,7 @@ model ProjectWorkflow {
   plannerUserId                      String?
   acceptedAt                         DateTime?
   plannedMobilizationDate            DateTime?                              @db.Date
+  actualMobilizationDate             DateTime?                              @db.Date
   isCritical                         Boolean?
   executedAtHeadquarters             Boolean?
   preparationLeadTimeDays            Int                                    @default(15)
@@ -1566,6 +1567,7 @@ model EfetivoMissionPlan {
 model EfetivoMissionCycle {
   id                 String             @id @default(cuid())
   missionId          String
+  isDefault          Boolean            @default(false)
   mobilizationDate   DateTime           @db.Date
   demobilizationDate DateTime?          @db.Date
   createdByUserId    String?

@@ -138,7 +138,7 @@ test('desmobilização integra coluna, datas e 15 controles ao Kanban único', (
   assert.match(modal, /Logística de retorno/);
   assert.match(modal, /Retorno de ativos/);
   assert.match(modal, /Mobilização no cronograma/);
-  assert.match(modal, /project\.mobilizationDate \|\| mission\?\.mobilizationDate/);
+  assert.match(modal, /workflow\.actualMobilizationDate \|\| project\.mobilizationDate/);
   assert.match(modal, /Salvar datas efetivas/);
   assert.match(modal, /Iniciar desmobilização/);
   assert.match(board, /projectWorkflowNextStagePreview/);

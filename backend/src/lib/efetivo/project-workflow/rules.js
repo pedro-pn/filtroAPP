@@ -958,7 +958,13 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   if (target === 'MOBILIZATION' || target === 'EXECUTION') {
     // Sem "Pronto para mobilizar" não há autorização manual: o gate de mobilização sem bloqueios já libera a
     // entrada em Mobilização (ou, na Sede, direto em Execução) e o retorno da Desmobilização para a Execução.
-    return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
+    const issues = projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
+    const skippedMobilization = workflow.legacySummaryEntryStage
+      && PROJECT_WORKFLOW_STAGES.indexOf(workflow.legacySummaryEntryStage) >= PROJECT_WORKFLOW_STAGES.indexOf('EXECUTION');
+    if (target === 'EXECUTION' && !isHeadquartersWorkflow(workflow) && !skippedMobilization && !workflow.actualMobilizationDate) {
+      issues.push('Confirmar a data de mobilização efetiva na etapa Mobilização');
+    }
+    return issues;
   }
   return [];
 }

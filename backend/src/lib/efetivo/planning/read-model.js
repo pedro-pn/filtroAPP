@@ -5,7 +5,7 @@ import { businessDatesInclusive, holidayDateSet } from './business-days.js';
 import { getActiveOfficialPlan, resolvePlanningDatabase } from './plan-context.js';
 import { buildVacationAlert } from './vacation-alerts.js';
 import { loadCorporateCalendar } from '../../calendar/corporate-calendar.js';
-import { missionEndsOnOrAfter } from './mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from './mission-period.js';
 import { missionCycles } from './allocation-period.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { jobRoleFamilyKey, jobRoleFamilyName } from '../../collaborators/job-role-service.js';
@@ -119,7 +119,7 @@ export async function loadPlanningProjection({ date, returnDate = null, planId =
         planId: plan.id,
         deletedAt: null,
         project: efetivoProjectWhere(),
-        mobilizationDate: { lte: utcDate(endDate) },
+        ...missionStartsOnOrBefore(utcDate(endDate)),
         ...missionEndsOnOrAfter(utcDate(startDate))
       },
       include: missionReadInclude

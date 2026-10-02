@@ -69,12 +69,12 @@
 
 /* Theme compatibility for the mission/scenario/productivity dialogs that
    still use the existing form layout. No dependence on the page ancestor. */
-.modal-card.efetivo-modal :where(.efetivo-modal-header, .efetivo-modal-body, .efetivo-modal-footer) {
+.modal-card.efetivo-modal:not(:where(.project-workflow-modal)) :where(.efetivo-modal-header, .efetivo-modal-body, .efetivo-modal-footer) {
   background: var(--surface);
   color: var(--ink);
 }
 
-.modal-card.efetivo-modal :where(h2, h3, h4, label, legend) {
+.modal-card.efetivo-modal:not(:where(.project-workflow-modal)) :where(h2, h3, h4, label, legend) {
   color: var(--ink);
 }
 

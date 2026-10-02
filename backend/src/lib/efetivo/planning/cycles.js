@@ -25,9 +25,10 @@ function cyclePeriod(payload, mission) {
   const startDate = parseDateKey(payload.mobilizationDate);
   const endDate = payload.demobilizationDate
     ? parseDateKey(payload.demobilizationDate)
-    : bounds.endDate;
+    : bounds.endDate < startDate ? startDate : bounds.endDate;
   const period = { startDate, endDate };
-  if (!allocationPeriodWithinMission(period, mission)) {
+  const actualCycle = mission.plan?.kind === 'OFFICIAL' && ['EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(mission.stage);
+  if (startDate > endDate || (actualCycle ? startDate < bounds.startDate : !allocationPeriodWithinMission(period, mission))) {
     throw planningError('O ciclo deve ficar dentro das datas gerais da missão.', {
       code: 'CYCLE_OUTSIDE_MISSION_PERIOD'
     });
@@ -103,7 +104,7 @@ async function requireCycleMission(tx, missionId) {
 
 function ensureInsideProjectCycle(mission, period) {
   const inside = missionCycles(mission).some(cycle => (
-    period.startDate >= cycle.startDate && period.endDate <= cycle.endDate
+    period.startDate >= cycle.startDate && (cycle.isOpen || period.endDate <= cycle.endDate)
   ));
   if (!inside) {
     throw planningError('O ciclo individual deve ficar dentro de um único ciclo ativo do projeto.', {
@@ -194,6 +195,9 @@ export async function updateMissionCycle(missionId, cycleId, payload, context = 
     await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
     const existing = mission.cycles.find(cycle => cycle.id === cycleId);
     if (!existing) throw notFound('Ciclo da missão não encontrado.');
+    if (existing.isDefault && parseDateKey(payload.mobilizationDate) !== parseDateKey(existing.mobilizationDate)) {
+      throw planningError('Corrija a mobilização efetiva na etapa Mobilização do projeto.', { code: 'DEFAULT_CYCLE_MOBILIZATION_REQUIRES_CONFIRMATION' });
+    }
     const period = validateUpdatedCycle(mission.cycles, existing, payload, mission, `O projeto ${mission.project.code}`);
     const proposedCycles = mission.cycles.map(cycle => cycle.id === cycleId ? { ...cycle, ...storedCycle(payload) } : cycle);
     ensureIndividualCyclesInsideProject(mission, proposedCycles);
@@ -205,6 +209,39 @@ export async function updateMissionCycle(missionId, cycleId, payload, context = 
     });
     return cycle;
   });
+}
+
+/** Confirms the actual first mobilization without copying the scheduled end into a cycle. */
+export async function confirmOfficialMissionMobilization(tx, projectId, mobilizationDate, context = {}) {
+  const found = await tx.efetivoMissionPlan.findFirst({
+    where: { projectId, deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+    select: { id: true }
+  });
+  if (!found) throw planningError('A programação oficial é necessária para confirmar a mobilização.', { code: 'PROJECT_WORKFLOW_OFFICIAL_MISSION_REQUIRED' });
+  const mission = await requireCycleMission(tx, found.id);
+  await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
+  const existing = mission.cycles.find(cycle => cycle.isDefault) || mission.cycles[0];
+  const payload = { mobilizationDate, demobilizationDate: existing?.demobilizationDate || null };
+  const end = parseDateKey(mission.returnDate || mission.executionEndDate);
+  const proposedMission = { ...mission, mobilizationDate, executionEndDate: end < mobilizationDate ? mobilizationDate : mission.executionEndDate };
+  // The confirmed date may differ from the forecast; existing history still must fit.
+  const proposedCycles = existing
+    ? mission.cycles.map(cycle => cycle.id === existing.id ? { ...cycle, ...storedCycle(payload) } : cycle)
+    : [{ ...storedCycle(payload), isDefault: true }];
+  proposedMission.cycles = proposedCycles;
+  const period = existing
+    ? validateUpdatedCycle(proposedCycles, existing, payload, proposedMission, `O projeto ${mission.project.code}`)
+    : cyclePeriod(payload, proposedMission);
+  ensureIndividualCyclesInsideProject(proposedMission, proposedCycles);
+  await validateInheritedAllocationsForPeriod(tx, proposedMission, period);
+  const cycle = existing
+    ? await tx.efetivoMissionCycle.update({ where: { id: existing.id }, data: { ...storedCycle(payload), isDefault: true } })
+    : await tx.efetivoMissionCycle.create({ data: { missionId: mission.id, ...storedCycle(payload), isDefault: true, createdByUserId: context.actorUserId || null } });
+  await finishCycleMutation(tx, mission, context, {
+    action: 'MISSION_MOBILIZATION_CONFIRM', entityType: 'MISSION_CYCLE', entityId: cycle.id,
+    summary: `Mobilização efetiva confirmada para ${mission.project.code}.`, beforeData: existing || null, afterData: cycle
+  });
+  return cycle;
 }
 
 export async function createAllocationCycle(missionId, allocationId, payload, context = {}, dependencies = {}) {

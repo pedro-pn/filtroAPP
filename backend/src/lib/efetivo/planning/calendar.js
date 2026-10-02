@@ -1,7 +1,7 @@
 import { parseDateKey, periodsOverlap } from './date-only.js';
 import { conflictDescriptor } from './errors.js';
 import { allocationPeriods, missionCycles } from './allocation-period.js';
-import { missionEndsOnOrAfter } from './mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from './mission-period.js';
 import { resolvePlanningDatabase, getActiveOfficialPlan } from './plan-context.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { jobRoleFamilyKey } from '../../collaborators/job-role-service.js';
@@ -29,7 +29,7 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
         deletedAt: null,
         project: efetivoProjectWhere(),
         scheduleStatus: 'CONFIRMED',
-        mobilizationDate: { lte: utcDate(endDate) },
+        ...missionStartsOnOrBefore(utcDate(endDate)),
         ...missionEndsOnOrAfter(utcDate(startDate)),
         ...(roleIds ? { demands: { some: { jobRoleId: { in: roleIds } } } } : {})
       },

@@ -1,7 +1,7 @@
 import { parseDateKey, periodsOverlap } from './date-only.js';
 import { conflictDescriptor, conflictError } from './errors.js';
 import { allocationPeriods } from './allocation-period.js';
-import { missionEndsOnOrAfter } from './mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from './mission-period.js';
 
 export async function lockCollaborator(tx, collaboratorId) {
   if (typeof tx?.$queryRawUnsafe === 'function') {
@@ -109,7 +109,7 @@ export async function loadCollaboratorConflictData(tx, collaboratorId, period, p
           deletedAt: null,
           project: { deletedAt: null },
           scheduleStatus: 'CONFIRMED',
-          mobilizationDate: { lte: new Date(`${parseDateKey(period.endDate)}T00:00:00.000Z`) },
+          ...missionStartsOnOrBefore(new Date(`${parseDateKey(period.endDate)}T00:00:00.000Z`)),
           ...missionEndsOnOrAfter(new Date(`${parseDateKey(period.startDate)}T00:00:00.000Z`))
         }
       },

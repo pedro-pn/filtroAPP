@@ -1,6 +1,6 @@
 import { corporateDateKey, loadCorporateCalendar } from '../calendar/corporate-calendar.js';
 import { allocationPeriod } from '../efetivo/planning/allocation-period.js';
-import { missionEndsOnOrAfter } from '../efetivo/planning/mission-period.js';
+import { missionStartsOnOrBefore, missionEndsOnOrAfter } from '../efetivo/planning/mission-period.js';
 
 function utcDate(value) {
   return new Date(`${corporateDateKey(value)}T00:00:00.000Z`);
@@ -47,7 +47,7 @@ export async function markMissionsAffectedByAbsence(database, collaboratorId, pe
       mission: {
         deletedAt: null,
         scheduleStatus: { not: 'CANCELLED' },
-        mobilizationDate: { lte: utcDate(period.endDate) },
+        ...missionStartsOnOrBefore(utcDate(period.endDate)),
         ...missionEndsOnOrAfter(utcDate(period.startDate))
       }
     },
@@ -55,7 +55,8 @@ export async function markMissionsAffectedByAbsence(database, collaboratorId, pe
       missionId: true,
       mobilizationDate: true,
       demobilizationDate: true,
-      mission: { select: { mobilizationDate: true, executionEndDate: true, returnDate: true } }
+      cycles: true,
+      mission: { select: { mobilizationDate: true, executionEndDate: true, returnDate: true, cycles: true } }
     }
   });
   const missionIds = [...new Set(allocations
@@ -199,11 +200,11 @@ export async function checkWorkforceAvailability(database, input) {
         mission: {
           deletedAt: null,
           scheduleStatus: 'CONFIRMED',
-          mobilizationDate: { lte: utcDate(endDate) },
+          ...missionStartsOnOrBefore(utcDate(endDate)),
           ...missionEndsOnOrAfter(utcDate(startDate))
         }
       },
-      include: { mission: true }
+      include: { cycles: true, mission: { include: { cycles: true } } }
     }),
     loadCorporateCalendar(database, startDate, endDate)
   ]);

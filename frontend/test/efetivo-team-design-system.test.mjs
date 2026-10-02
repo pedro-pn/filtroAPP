@@ -26,30 +26,37 @@ test('gestão de equipe mantém ciclos herdados/individuais e respeita somente c
         {id:'inherited',collaboratorId:'ana',jobRoleId:'role',collaborator:{id:'ana',name:'Ana'},cycles:[],mobilizationDate:null,demobilizationDate:null},
         {id:'individual',collaboratorId:'bruno',jobRoleId:'role',collaborator:{id:'bruno',name:'Bruno'},allowMissionOverlap:true,cycles:[{id:'own',mobilizationDate:'2026-09-05',demobilizationDate:null}]}
       ]};
-    for (const mode of ['manager','viewer','empty','closed']) await t.test(mode, () => {
+    for (const mode of ['manager','viewer','empty','closed','embedded-manager','embedded-viewer','embedded-open']) await t.test(mode, () => {
+      const embedded = mode.startsWith('embedded-');
+      const manager = mode === 'manager' || mode === 'embedded-manager' || mode === 'embedded-open';
+      const viewer = mode === 'viewer' || mode === 'embedded-viewer';
       const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
       try {
         const html=renderToStaticMarkup(createElement(QueryClientProvider,{client},createElement(ToastContext.Provider,{value:{showToast(){}}},
-          createElement(MissionAllocationModal,{open:mode!=='closed',canManage:mode==='manager',mission:mode==='empty'?{...mission,allocations:[],cycles:[]}:mission,onClose(){}}))));
+          createElement(MissionAllocationModal,{open:mode!=='closed',embedded,canManage:manager,mission:mode==='empty'?{...mission,allocations:[],cycles:[]}:mode==='embedded-open'?{...mission,cycles:cycles.map(cycle=>({...cycle,demobilizationDate:null}))}:mission,onClose(){}}))));
         if(mode==='closed') { assert.equal(html,''); return; }
         assert.ok(html.includes('Ciclos do projeto'));
         assert.ok(html.includes('Equipe e alocações'));
         assert.match(html, /role="group" aria-labelledby="mission-allocated-team-title"/);
         assert.ok(html.includes('Equipe alocada'));
-        assert.equal(html.includes('Adicionar colaboradores'),mode==='manager');
+        assert.equal(html.includes('Adicionar colaboradores'),manager);
         if(mode==='empty') { assert.ok(html.includes('Nenhuma pessoa alocada')); return; }
         assert.match(html, /class="efetivo-team-cycle-summary"/);
         assert.match(html, /data-cycle-state="open"/);
-        assert.match(html, /data-cycle-state="closed"/);
+        if (mode==='embedded-open') { assert.doesNotMatch(html, /data-cycle-state="closed"/); assert.ok(html.includes('Desmobilização prevista: 30/09/2026')); } else assert.match(html, /data-cycle-state="closed"/);
         assert.ok(html.includes('Segue os ciclos do projeto'));
         assert.ok(html.includes('Ciclos individuais'));
         assert.ok(html.includes('Em aberto'));
-        assert.ok(html.includes('Encerrado'));
+        assert.equal(html.includes('Encerrado'), mode!=='embedded-open');
         assert.ok(html.includes('Sobreposição confirmada'));
-        for(const label of ['Personalizar ciclos','Novo ciclo individual','Remover Ana da equipe','Remover ciclo']) assert.equal(html.includes(label),mode==='manager',label);
-        assert.equal(html.includes('Somente consulta'),mode==='viewer');
-        if(mode==='viewer') assert.doesNotMatch(html,/<input|<select/);
-        assert.doesNotMatch(html,/class="(?:primary-button|secondary-button|danger-button|mini-btn)/);
+        for(const label of ['Personalizar ciclos','Novo ciclo individual','Remover Ana da equipe','Remover ciclo']) assert.equal(html.includes(label),manager,label);
+        assert.equal(html.includes('Somente consulta'),viewer);
+        if(viewer) assert.doesNotMatch(html,/<input|<select/);
+        if(embedded && manager) {
+          assert.match(html,/class="secondary-button"/);
+          assert.match(html,/class="danger-button"[^>]*>Remover da equipe<\/button>/);
+          assert.doesNotMatch(html,/class="fv-button/);
+        } else assert.doesNotMatch(html,/class="(?:primary-button|secondary-button|danger-button|mini-btn)/);
       } finally {client.clear();}
     });
   } finally {await server.close();}
