@@ -5,6 +5,7 @@ import {
 import { decodableSignatureImageDataUrl } from '../signatures/common.js';
 import { recordDocumentEvent } from './audit.js';
 import { MAX_SIGNATURE_IMAGE_BYTES } from './image-limits.js';
+import { beginDocumentFinalization, scheduleDocumentFinalization } from './finalization.js';
 import { resolveInviteByToken } from './invites.js';
 
 function httpError(message, statusCode, code) {
@@ -52,7 +53,7 @@ function numericField(field) {
 }
 
 export function publicInvitePayload(invite) {
-  const signers = Array.isArray(invite.document?.signers) ? invite.document.signers : [];
+  const signers = (Array.isArray(invite.document?.signers) ? invite.document.signers : []).filter(signer => signer.status !== 'REVOGADO');
   const signed = signers.filter(signer => signer.status === 'ASSINADO').length;
   const documentStatus = invite.document.status;
   return {
@@ -130,15 +131,6 @@ export async function loadInvite(client, token, evidence = {}, { now = new Date(
   return publicInvitePayload(invite);
 }
 
-async function advisoryDocumentLock(tx, documentId) {
-  if (typeof tx.$queryRawUnsafe === 'function') {
-    await tx.$queryRawUnsafe(
-      'SELECT pg_advisory_xact_lock(hashtext($1), 0)::text AS lock_result',
-      documentId
-    );
-  }
-}
-
 export async function confirmSignature(client, token, input, evidence = {}, dependencies = {}) {
   const signerName = String(input?.signerName || '').trim();
   if (signerName.length < 2 || signerName.length > 160) {
@@ -204,34 +196,10 @@ export async function confirmSignature(client, token, input, evidence = {}, depe
       evidence
     });
 
-    await advisoryDocumentLock(tx, invite.document.id);
-    const remaining = await tx.signatureDocumentSigner.count({
-      where: {
-        documentId: invite.document.id,
-        isRequired: true,
-        status: { not: 'ASSINADO' }
-      }
-    });
     let documentStatus = invite.document.status;
-    if (remaining === 0) {
-      const transition = await tx.signatureDocument.updateMany({
-        where: { id: invite.document.id, status: 'AGUARDANDO_ASSINATURAS' },
-        data: {
-          status: 'FINALIZANDO',
-          finalizationClaimedAt: null,
-          finalizationNextAttemptAt: now,
-          finalizationLastError: null
-        }
-      });
-      if (transition.count === 1) {
-        transitionedToFinalizing = true;
-        documentStatus = 'FINALIZANDO';
-        await recordDocumentEvent(tx, {
-          document: invite.document,
-          action: 'FINALIZACAO_INICIADA',
-          description: 'Todas as assinaturas foram recebidas; finalização iniciada.'
-        });
-      }
+    transitionedToFinalizing = await beginDocumentFinalization(tx, invite.document, { now });
+    if (transitionedToFinalizing) {
+      documentStatus = 'FINALIZANDO';
     }
     return {
       success: true,
@@ -242,20 +210,7 @@ export async function confirmSignature(client, token, input, evidence = {}, depe
   });
 
   if (transitionedToFinalizing) {
-    const scheduleFinalization = dependencies.scheduleFinalization || setImmediate;
-    try {
-      scheduleFinalization(async () => {
-        try {
-          const finalize = dependencies.processFinalization
-            || (await import('./jobs.js')).processDocumentFinalization;
-          await finalize(client, preflight.document.id);
-        } catch {
-          // O job durável retoma a finalização; a assinatura já foi aceita.
-        }
-      });
-    } catch {
-      // A assinatura já foi aceita; o job durável fará a finalização.
-    }
+    scheduleDocumentFinalization(client, preflight.document.id, dependencies);
   }
   return result;
 }

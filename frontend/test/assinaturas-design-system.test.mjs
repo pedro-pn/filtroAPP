@@ -55,7 +55,9 @@ test('biblioteca de Assinaturas renderiza estados, recortes e todos os status no
           }
           assert.equal(html.includes('Recorte carregado'), state !== 'ready');
           assert.equal(html.includes('assinaturas-library__load-more'), state !== 'ready');
-          assert.doesNotMatch(html, />Carregar mais documentos<\/button>/);
+          assert.equal(html.includes('Carregar mais documentos</'), ['partial', 'loading-more'].includes(state));
+          assert.equal(html.includes('Há mais documentos nesta lista.'), state === 'partial');
+          if (state === 'loading-more') assert.match(html, /<button[^>]*aria-controls="signature-document-results"[^>]*disabled=""/);
           assert.equal(html.includes('Carregando mais documentos...'), state === 'loading-more');
           assert.equal(html.includes('Não foi possível carregar mais documentos.'), state === 'load-more-error');
         } else {
@@ -85,7 +87,7 @@ test('migração mantém navegação e API e isola o upload compacto dos consumi
   assert.match(shell, /accountPageStateFromPath\(location\)/);
   assert.match(page, /normalizeSignatureSearchParams\(params\)/);
   assert.match(page, /signatureDocumentSearchParams\(params, id, initialTab\)/);
-  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, arquivados: archived \? 1 : undefined \}\)/);
+  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, arquivados: archived \|\| params.get\('list'\) === 'archived' \? 1 : undefined \}\)/);
   assert.doesNotMatch(library, /useQuery|useMutation|localStorage|fetch\(/);
   assert.match(modal, /appearance="design-system"/);
   assert.match(modal, /fullscreenOnMobile=\{false\}/);

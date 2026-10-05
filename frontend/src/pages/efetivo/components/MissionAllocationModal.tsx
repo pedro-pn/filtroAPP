@@ -82,6 +82,8 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
   const addCycleTrigger = useRef<HTMLButtonElement | null>(null);
   const canManageTeam = canManage ?? !readOnly;
   const canChangeCycles = canManageTeam && allowCycleChanges;
+  const canEditCycles = canManageTeam && (allowCycleChanges || mission?.stage === 'MOBILIZATION');
+  const independentIndividualDates = ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(mission?.stage || '');
   const requestedPeriod = mission && !allowCycleChanges ? missionBounds(mission) : period;
   const validPeriod = Boolean(mission && requestedPeriod.mobilizationDate
     && requestedPeriod.mobilizationDate >= missionBounds(mission).mobilizationDate
@@ -107,11 +109,13 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
     }
     if (!canChangeCycles) {
       setAddingCycleAllocationId(null);
-      setEditingCycle(null);
       setPendingDelete(null);
+    }
+    if (!canEditCycles) {
+      setEditingCycle(null);
       setPendingInactiveAction(null);
     }
-  }, [canManageTeam, canChangeCycles]);
+  }, [canManageTeam, canChangeCycles, canEditCycles]);
 
   useEffect(() => {
     if (!open || editingCycle || !editCycleTrigger.current) return;
@@ -220,16 +224,16 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
     } else action(false);
   };
   const cycleEditor = (scope: 'MISSION' | 'ALLOCATION', cycle: MobilizationCycle, allocationId?: string) => {
-    const active = canChangeCycles && editingCycle?.scope === scope && editingCycle.cycleId === cycle.id;
+    const active = (scope === 'ALLOCATION' ? canEditCycles : canChangeCycles) && editingCycle?.scope === scope && editingCycle.cycleId === cycle.id;
     if (!active) return null;
     return <div className="efetivo-team-cycle-editor">
-      <MissionPeriodFields id={'edit-cycle-' + cycle.id} value={editingCycle.draft} min={bounds.mobilizationDate} max={mission.stage === 'EXECUTION' ? undefined : bounds.demobilizationDate} optionalEnd disabled={busy}
+      <MissionPeriodFields id={'edit-cycle-' + cycle.id} value={editingCycle.draft} min={scope === 'ALLOCATION' && independentIndividualDates ? '' : bounds.mobilizationDate} max={mission.stage === 'EXECUTION' || (scope === 'ALLOCATION' && independentIndividualDates) ? undefined : bounds.demobilizationDate} optionalEnd disabled={busy}
         startDisabled={scope === 'MISSION' && cycle.isDefault}
         onChange={draft => setEditingCycle(current => current ? { ...current, draft } : current)} />
       <div className="efetivo-team-actions">
         <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={() => setEditingCycle(null)}>Cancelar</Button>
         <Button workflowAppearance={embedded} variant="primary" size="sm" loading={updateCycle.isPending} disabled={busy || !validCycle(editingCycle.draft)} onClick={() => confirmInactiveCycle(allocationId, allowInactiveCollaborator => updateCycle.mutate({ editing: { ...editingCycle, allocationId }, allowInactiveCollaborator }))}>
-          {cycle.demobilizationDate ? 'Salvar ciclo' : 'Registrar desmobilização'}
+          {scope === 'ALLOCATION' || cycle.demobilizationDate ? 'Salvar ciclo' : 'Registrar desmobilização'}
         </Button>
       </div>
     </div>;
@@ -243,9 +247,9 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
         </div>
         <p>{cycle.isDefault && !mobilizationConfirmed ? 'Mobilização prevista: ' : ''}{displayDateOnly(cycle.mobilizationDate)} a {cycle.demobilizationDate ? displayDateOnly(cycle.demobilizationDate) : 'desmobilização não registrada'}</p>
       </div>
-      {canChangeCycles && !inherited ? <div className="efetivo-team-actions">
-        <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={event => { editCycleTrigger.current = event.currentTarget; setEditingCycle({ scope: allocation ? 'ALLOCATION' : 'MISSION', allocationId: allocation?.id, cycleId: cycle.id, draft: cycleDraft(cycle) }); }}>{cycle.demobilizationDate ? 'Editar' : 'Registrar desmobilização'}</Button>
-        {allocation ? (embedded ? <Button workflowAppearance variant="danger" disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })}>Remover ciclo</Button> : <RemoveIconButton label={`Remover ciclo ${index + 1}`} disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })} />) : null}
+      {(allocation ? canEditCycles : canChangeCycles) && !inherited ? <div className="efetivo-team-actions">
+        <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={event => { editCycleTrigger.current = event.currentTarget; setEditingCycle({ scope: allocation ? 'ALLOCATION' : 'MISSION', allocationId: allocation?.id, cycleId: cycle.id, draft: cycleDraft(cycle) }); }}>{allocation || cycle.demobilizationDate ? 'Editar' : 'Registrar desmobilização'}</Button>
+        {allocation && canChangeCycles ? (embedded ? <Button workflowAppearance variant="danger" disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })}>Remover ciclo</Button> : <RemoveIconButton label={`Remover ciclo ${index + 1}`} disabled={busy} onClick={() => setPendingDelete({ allocationId: allocation.id, cycle, collaboratorName: allocation.collaborator?.name || 'Colaborador' })} />) : null}
       </div> : null}
       {!inherited ? cycleEditor(allocation ? 'ALLOCATION' : 'MISSION', cycle, allocation?.id) : null}
     </article>
@@ -308,8 +312,8 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                   {allocation.collaborator?.isActive === false ? <Badge tone="warning">Colaborador inativo</Badge> : null}
                   {allocation.allowMissionOverlap ? <Badge tone="warning">Sobreposição confirmada</Badge> : null}
                   {canManageTeam ? <div className="efetivo-team-actions">
-                    {canChangeCycles ? inherited ? <Button workflowAppearance={embedded} variant="secondary" size="sm" loading={initializeCycles.isPending && initializeCycles.variables === allocation.id} disabled={busy} onClick={() => initializeCycles.mutate(allocation.id)}>Personalizar ciclos</Button>
-                      : <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy || Boolean(openCycle)} onClick={event => { addCycleTrigger.current = event.currentTarget; setAddingCycleAllocationId(allocation.id); setAllocationCycleDraft(emptyPeriod()); }}>Novo ciclo individual</Button> : null}
+                    {canEditCycles && inherited ? <Button workflowAppearance={embedded} variant="secondary" size="sm" loading={initializeCycles.isPending && initializeCycles.variables === allocation.id} disabled={busy} onClick={() => initializeCycles.mutate(allocation.id)}>Personalizar ciclos</Button>
+                      : canChangeCycles && !inherited ? <Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy || Boolean(openCycle)} onClick={event => { addCycleTrigger.current = event.currentTarget; setAddingCycleAllocationId(allocation.id); setAllocationCycleDraft(emptyPeriod()); }}>Novo ciclo individual</Button> : null}
                     {embedded ? <Button workflowAppearance variant="danger" aria-label={`Remover ${allocation.collaborator?.name || 'colaborador'} da equipe`} loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)}>Remover da equipe</Button> : <RemoveIconButton label={`Remover ${allocation.collaborator?.name || 'colaborador'} da equipe`} loading={remove.isPending && remove.variables === allocation.id} disabled={busy} onClick={() => remove.mutate(allocation.id)} />}
                   </div> : null}
                   <div className="efetivo-team-cycle-list">
@@ -317,7 +321,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                       : <p className="efetivo-team-help">Período de participação: {displayDateOnly(allocationPeriod.startDate)} a {displayDateOnly(allocationPeriod.endDate)}.<br />Nenhum ciclo {inherited ? 'do projeto' : 'individual'} registrado.</p>}
                   </div>
                   {adding ? <div className="efetivo-team-cycle-editor">
-                    <MissionPeriodFields id={'new-person-cycle-' + allocation.id} value={allocationCycleDraft} min={bounds.mobilizationDate} max={mission.stage === 'EXECUTION' ? undefined : bounds.demobilizationDate} startLabel="Nova mobilização" optionalEnd disabled={busy} onChange={setAllocationCycleDraft} />
+                    <MissionPeriodFields id={'new-person-cycle-' + allocation.id} value={allocationCycleDraft} min={independentIndividualDates ? '' : bounds.mobilizationDate} max={independentIndividualDates ? undefined : bounds.demobilizationDate} startLabel="Nova mobilização" optionalEnd disabled={busy} onChange={setAllocationCycleDraft} />
                     <div className="efetivo-team-actions"><Button workflowAppearance={embedded} variant="secondary" size="sm" disabled={busy} onClick={() => setAddingCycleAllocationId(null)}>Cancelar</Button><Button workflowAppearance={embedded} variant="primary" size="sm" loading={createPersonCycle.isPending} disabled={busy || !validCycle(allocationCycleDraft)} onClick={() => confirmInactiveCycle(allocation.id, allowInactiveCollaborator => createPersonCycle.mutate({ allocationId: allocation.id, draft: allocationCycleDraft, allowInactiveCollaborator }))}>Adicionar ciclo</Button></div>
                   </div> : null}
                   {canChangeCycles && openCycle ? <Alert tone="warning" role="status">{allocation.collaborator?.name} ainda está mobilizado. Registre a desmobilização antes de criar outro ciclo.</Alert> : null}
@@ -368,7 +372,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
           });
         }}
       /> : null}
-      <ConfirmDialog appearance="design-system" open={canChangeCycles && Boolean(pendingInactiveAction)} title="Registrar histórico de colaboradores inativos?" description="Este ciclo inclui colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão." highlight={pendingInactiveAction?.names.join(', ')} confirmLabel="Confirmar e salvar" confirmDisabled={busy} danger={false} onConfirm={() => { if (!canChangeCycles || busy) return; const action = pendingInactiveAction; setPendingInactiveAction(null); action?.confirm(); }} onCancel={() => setPendingInactiveAction(null)} />
+      <ConfirmDialog appearance="design-system" open={canEditCycles && Boolean(pendingInactiveAction)} title="Registrar histórico de colaboradores inativos?" description="Este ciclo inclui colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão." highlight={pendingInactiveAction?.names.join(', ')} confirmLabel="Confirmar e salvar" confirmDisabled={busy} danger={false} onConfirm={() => { if (!canEditCycles || busy) return; const action = pendingInactiveAction; setPendingInactiveAction(null); action?.confirm(); }} onCancel={() => setPendingInactiveAction(null)} />
       <ConfirmDialog appearance="design-system" open={canChangeCycles && Boolean(pendingDelete)} title="Remover este ciclo individual?" description="O período deixará de contar como mobilizado. Se este for o último ciclo próprio, o colaborador voltará a seguir os ciclos gerais do projeto." highlight={pendingDelete ? `${pendingDelete.collaboratorName} · ${displayDateOnly(pendingDelete.cycle.mobilizationDate)}` : undefined} confirmLabel={deletePersonCycle.isPending ? 'Removendo…' : 'Remover ciclo'} confirmDisabled={busy} danger onConfirm={() => canChangeCycles && !busy && pendingDelete && deletePersonCycle.mutate({ allocationId: pendingDelete.allocationId, cycleId: pendingDelete.cycle.id })} onCancel={() => { if (!busy) setPendingDelete(null); }} />
     </>
   );

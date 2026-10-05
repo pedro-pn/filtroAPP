@@ -56,6 +56,23 @@
   min-width: 0;
 }
 
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__load-more {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  text-align: center;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__load-more p {
+  margin: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__sentinel {
+  width: 100%;
+  min-height: var(--space-1);
+}
+
 :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document > .fv-card__body {
   display: grid;
   min-width: 0;

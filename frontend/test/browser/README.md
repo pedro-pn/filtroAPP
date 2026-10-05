@@ -7,6 +7,25 @@ isolated Playwright CLI session, then run:
 playwright-cli run-code --filename frontend/test/browser/search-race.js
 ```
 
+For planning dialogs, open `/test/browser/planning-signatures.html`. The fixture
+uses the production team panel inside the planning modal with a simulated API.
+Check adding a collaborator, editing the first open individual cycle to a day
+before the general cycle, and saving with no demobilization date. The general
+cycle and the other collaborators must keep their dates. Add `?stage=mobilization`
+to check editing without exposing new mobilization cycles.
+
+For signature navigation, open the same fixture with
+`?mode=signatures&q=contrato&status=CONCLUIDO&tab=archived`. Open the document,
+reload it and click Voltar: the search, status and archived list must be preserved.
+All data and writes in this fixture are simulated.
+
+For signature pagination, open the fixture with
+`?mode=signatures&pagination=1&status=CONCLUIDO`, then run
+`playwright-cli run-code --filename frontend/test/browser/signature-pagination.js`.
+The regression checks all 47 completed documents across three pages, filter changes,
+mobile scrolling, a next-page failure/retry, and manual loading when the automatic
+observer is unavailable. Pending and archived documents remain in their own lists.
+
 Run the CLI command from the repository root, using the same session that opened
 the fixture. The fixture uses real React and React Query, with manually resolved
 HTTP responses. It deliberately ignores transport cancellation to also test the

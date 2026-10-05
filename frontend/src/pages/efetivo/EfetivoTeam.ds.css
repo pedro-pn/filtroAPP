@@ -1,8 +1,8 @@
 @import './EfetivoDialogs.css';
 
-/* DS portals follow insertion order. The legacy 1100 layer would otherwise
-   cover the shared confirmation dialog opened above the team selector. */
-.fv-modal-backdrop.efetivo-team-availability-backdrop { z-index: var(--z-overlay); }
+/* Clear project planning (1000) and team management (1100), while keeping
+   shared confirmations (1200) above the collaborator selector. */
+.fv-modal-backdrop.efetivo-team-availability-backdrop { z-index: 1150; }
 
 /* Scoped composition of shared controls: a single scroll region per dialog. */
 .efetivo-team-v2 { min-width: 0; }

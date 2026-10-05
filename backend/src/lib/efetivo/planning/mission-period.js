@@ -24,7 +24,11 @@ export function missionEndsOnOrAfter(value) {
       { returnDate: { gte: value } },
       { returnDate: null, executionEndDate: { gte: value } },
       { cycles: { some: { demobilizationDate: { gte: value } } } },
-      { cycles: { some: { mobilizationDate: { gte: value } } } }
+      { cycles: { some: { mobilizationDate: { gte: value } } } },
+      { allocations: { some: { deletedAt: null, cycles: { some: { OR: [
+        { demobilizationDate: { gte: value } },
+        { mobilizationDate: { gte: value } }
+      ] } } } } }
     ]
   };
 }
@@ -32,6 +36,7 @@ export function missionEndsOnOrAfter(value) {
 export function missionStartsOnOrBefore(value) {
   return { AND: [{ OR: [
     { mobilizationDate: { lte: value } },
-    { cycles: { some: { mobilizationDate: { lte: value } } } }
+    { cycles: { some: { mobilizationDate: { lte: value } } } },
+    { allocations: { some: { deletedAt: null, cycles: { some: { mobilizationDate: { lte: value } } } } } }
   ] }] };
 }

@@ -15,8 +15,10 @@ import {
   archiveDocument,
   assertUserDeletionImpactReady,
   cancelDocument,
+  documentProgress,
   restoreArchivedDocument,
   restoreDeletedDocument,
+  revokeDocumentInvite,
   softDeleteDocument,
   userDeletionImpact,
   validateByCode
@@ -118,6 +120,7 @@ function lifecycleClient(document) {
       async update({ data }) { applyLifecycleData(document, data); return document; },
       async updateMany({ where, data }) {
         if (where.id !== document.id) return { count: 0 };
+        if (where.status && where.status !== document.status) return { count: 0 };
         if (where.filesPurgedAt === null && document.filesPurgedAt !== null) return { count: 0 };
         applyLifecycleData(document, data);
         return { count: 1 };
@@ -125,6 +128,13 @@ function lifecycleClient(document) {
       async findMany() { return [document]; }
     },
     signatureDocumentSigner: {
+      async count({ where }) {
+        return document.signers.filter(signer => {
+          if (where.isRequired === true && signer.isRequired === false) return false;
+          if (typeof where.status === 'string') return signer.status === where.status;
+          return !where.status.notIn.includes(signer.status);
+        }).length;
+      },
       async updateMany({ where, data }) {
         const candidates = document.signers.filter(signer => {
           if (where.id && signer.id !== where.id) return false;
@@ -191,6 +201,51 @@ test('cancelamento revoga pendentes e preserva assinatura já registrada', async
   assert.equal(document.signers[0].invalidationReason, 'DOCUMENTO_CANCELADO');
   assert.equal(document.signers[1].status, 'ASSINADO');
   assert.equal(document.signers[1].signedAt instanceof Date, true);
+});
+
+for (const status of ['PENDENTE', 'VISUALIZADO', 'EXPIRADO', 'REVOGADO']) {
+  test(`revogar o último convite ${status} inicia finalização, mantém a assinatura e é idempotente`, async () => {
+    const document = lifecycleDocument();
+    document.signers[0].status = status;
+    const signed = structuredClone(document.signers[1]);
+    const { client, audits } = lifecycleClient(document);
+    let scheduled;
+    let finalizations = 0;
+    const dependencies = {
+      scheduleFinalization: callback => { scheduled = callback; },
+      processFinalization: async () => { finalizations += 1; }
+    };
+    await revokeDocumentInvite(client, document.id, 'pending', document.ownerUserId, dependencies);
+    assert.equal(document.status, 'FINALIZANDO');
+    assert.equal(document.signers[0].status, 'REVOGADO');
+    assert.deepEqual(document.signers[1], signed);
+    assert.deepEqual(documentProgress(document), { signed: 1, total: 1 });
+    assert.equal(typeof scheduled, 'function');
+    await scheduled();
+    await revokeDocumentInvite(client, document.id, 'pending', document.ownerUserId, dependencies);
+    assert.equal(audits.filter(event => event.action === 'FINALIZACAO_INICIADA').length, 1);
+    assert.equal(finalizations, 1);
+  });
+}
+
+test('revogação mantém pendência enquanto outro assinante ativo falta, e não conclui sem assinatura', async () => {
+  for (const mode of ['outro-pendente', 'nenhuma-assinatura', 'todos-revogados']) {
+    const document = lifecycleDocument();
+    if (mode === 'outro-pendente') document.signers.push({ id: 'third', documentId: document.id, name: 'Carlos', status: 'EXPIRADO', isRequired: true });
+    else document.signers[1].status = mode === 'todos-revogados' ? 'REVOGADO' : 'PENDENTE';
+    const { client } = lifecycleClient(document);
+    await revokeDocumentInvite(client, document.id, 'pending', document.ownerUserId, { scheduleFinalization() { assert.fail('não deve agendar finalização'); } });
+    assert.equal(document.status, 'AGUARDANDO_ASSINATURAS');
+  }
+});
+
+test('revogação não altera documentos cancelados, preserva assinatura realizada e exige o proprietário', async () => {
+  const document = lifecycleDocument({ status: 'CANCELADO' });
+  const { client } = lifecycleClient(document);
+  await revokeDocumentInvite(client, document.id, 'pending', document.ownerUserId, { scheduleFinalization() { assert.fail(); } });
+  assert.equal(document.status, 'CANCELADO');
+  await assert.rejects(revokeDocumentInvite(client, document.id, 'signed', document.ownerUserId), /já registrada/);
+  await assert.rejects(revokeDocumentInvite(client, document.id, 'pending', 'other-owner'), error => error.statusCode === 404);
 });
 
 test('exclusão bloqueia FINALIZANDO e restauração reemite só convites invalidados pela exclusão', async () => {
