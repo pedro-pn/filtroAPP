@@ -106,6 +106,7 @@ export default function App() {
         <Route path="/assinaturas/assinar" element={<AssinaturasPublicSignPage />} />
         <Route path="/validar-assinatura/:validationCode" element={<SignatureValidationPage />} />
         <Route path="/validar-documento/:validationCode" element={<SignatureValidationPage source="standalone" />} />
+        <Route path="/validar-epi/:validationCode" element={<SignatureValidationPage source="epi" />} />
 
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<RootRedirect />} />

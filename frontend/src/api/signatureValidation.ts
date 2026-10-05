@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, epiApiPath } from './client';
 
 export interface SignatureValidationPayload {
   status: 'VALID' | 'SUPERSEDED' | 'REJECTED' | 'UNAVAILABLE' | 'INVALID';
@@ -6,6 +6,17 @@ export interface SignatureValidationPayload {
   sourceDocumentHash?: string | null;
   finalDocumentHash?: string | null;
   finalPdfCreatedAt?: string | null;
+  signatureImageHash?: string | null;
+  epi?: {
+    collaboratorName: string;
+    records: Array<{
+      epiName: string;
+      ca: string;
+      quantity: number;
+      lendDate: string;
+      devolutionDate?: string | null;
+    }>;
+  };
   report?: {
     id: string;
     reportType: string;
@@ -47,6 +58,13 @@ export async function getStandaloneSignatureValidation(validationCode: string) {
 export async function getSignatureValidation(validationCode: string) {
   const response = await apiClient.get<SignatureValidationPayload>(
     `/reports/validate-signature/${encodeURIComponent(validationCode)}`
+  );
+  return response.data;
+}
+
+export async function getEpiSignatureValidation(validationCode: string) {
+  const response = await apiClient.get<SignatureValidationPayload>(
+    epiApiPath(`/validate-signature/${encodeURIComponent(validationCode)}`)
   );
   return response.data;
 }

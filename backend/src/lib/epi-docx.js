@@ -7,6 +7,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { effectiveEpiRole } from './epi/collaborators.js';
+import { appendEpiEvidencePages, sortedEpiRecords } from './epi/evidence-pdf.js';
 import { parseSignatureImageDataUrl } from './signatures/common.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 
@@ -320,8 +321,7 @@ function clearRemainingPlaceholders(xml) {
 
 export async function buildEpiDocx(collaborator, options = {}) {
   const source = options.redactCollaboratorFields ? redactedEpiCollaboratorForPublicPdf(collaborator) : collaborator;
-  const records = [...(source.epiRecords || [])]
-    .sort((a, b) => new Date(a.lendDate).getTime() - new Date(b.lendDate).getTime());
+  const records = sortedEpiRecords(source.epiRecords);
   const createdAt = records[0]?.createdAt || source.createdAt || new Date();
   const buffer = await fs.readFile(templatePath);
   const zip = new AdmZip(buffer);
@@ -366,9 +366,13 @@ export async function saveEpiPdf(collaborator, options = {}) {
   const pdfPath = path.join(dir, `${baseName}.pdf`);
   await fs.writeFile(docxPath, bytes);
   await convertDocxToPdf(docxPath, pdfPath);
+  const evidence = await appendEpiEvidencePages(await fs.readFile(pdfPath), collaborator);
+  await fs.writeFile(pdfPath, evidence.bytes);
   return {
     docxPath,
     pdfPath,
-    fileName: `${baseName}.pdf`
+    fileName: `${baseName}.pdf`,
+    sourceDocumentHash: evidence.sourceDocumentHash,
+    signedPdfHash: evidence.signedPdfHash
   };
 }

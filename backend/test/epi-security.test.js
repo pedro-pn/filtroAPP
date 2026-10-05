@@ -47,7 +47,10 @@ const privacyAcceptance = {
 const testPdfArtifact = async () => ({
   signedPdfPath: '/tmp/epi-signed-test.pdf',
   signedPdfHash: 'signed-pdf-hash',
-  signedPdfFileName: 'signed-test.pdf'
+  signedPdfFileName: 'signed-test.pdf',
+  validationCode: 'a'.repeat(24),
+  sourceDocumentHash: 'b'.repeat(64),
+  signatureImageHash: 'c'.repeat(64)
 });
 
 test('public EPI signature schema rejects missing or stale privacy notice version', () => {
@@ -532,6 +535,9 @@ test('public EPI confirmation persists trusted proxy signer IP evidence and audi
   assert.equal(updates[0].data.signedPdfPath, '/tmp/epi-signed-test.pdf');
   assert.equal(updates[0].data.signedPdfHash, 'signed-pdf-hash');
   assert.equal(updates[0].data.signedPdfFileName, 'signed-test.pdf');
+  assert.equal(updates[0].data.validationCode, 'a'.repeat(24));
+  assert.equal(updates[0].data.sourceDocumentHash, 'b'.repeat(64));
+  assert.equal(updates[0].data.signatureImageHash, 'c'.repeat(64));
   assert.equal(updates[0].data.ipAddress, '8.8.8.8');
   assert.equal(updates[0].data.userAgent, 'Unit Test Browser');
   assert.equal(updates[0].data.privacyNoticeVersion, 'signature_epi_v1');

@@ -2965,6 +2965,9 @@ model EpiSignatureRequest {
   signedPdfPath           String?
   signedPdfHash           String?
   signedPdfFileName       String?
+  validationCode          String?                       @unique
+  sourceDocumentHash      String?
+  signatureImageHash      String?
   ipAddress               String?
   userAgent               String?
   privacyNoticeAcceptedAt DateTime?
