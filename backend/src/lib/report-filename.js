@@ -1,3 +1,5 @@
+export const REPORT_FILE_SUFFIX = Symbol('reportFileSuffix');
+
 function safeText(value) {
   if (value == null) return '';
   const text = String(value);
@@ -131,5 +133,6 @@ export function buildReportFileBaseName(report) {
 
 export function buildReportFileName(report, extension) {
   const ext = String(extension || '').replace(/^\./, '');
-  return `${buildReportFileBaseName(report)}${ext ? `.${ext}` : ''}`;
+  const suffix = report?.[REPORT_FILE_SUFFIX] ? ` - ${safePath(report[REPORT_FILE_SUFFIX])}` : '';
+  return `${buildReportFileBaseName(report)}${suffix}${ext ? `.${ext}` : ''}`;
 }

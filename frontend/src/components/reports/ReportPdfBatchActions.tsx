@@ -1,8 +1,13 @@
 import { downloadReportsBatch } from '../../api/reports';
+import { useAuth } from '../../auth/AuthContext';
+import { useReportMutations } from '../../hooks/useReports';
+import { reportRegenerationMessage } from '../../utils/reportRegeneration';
+import { useState } from 'react';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { Button } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
+import { ReportReissueDialog } from './ReportReissueDialog';
 
 type ReportPdfBatchActionsProps = {
   reports: ReportSummary[];
@@ -18,9 +23,29 @@ export function ReportPdfBatchActions({
   appearance = 'legacy'
 }: ReportPdfBatchActionsProps) {
   const showToast = useToast();
+  const { user } = useAuth();
+  const reportMutations = useReportMutations();
+  const [reissueIds, setReissueIds] = useState<string[]>([]);
+  const [progress, setProgress] = useState('');
   const visibleIds = reports.map(report => report.id);
   const selectedVisibleIds = selectedIds.filter(id => visibleIds.includes(id));
   const hasSelection = selectedVisibleIds.length > 0;
+
+  async function handleReissue() {
+    const result = await reportMutations.regenerateReports.mutateAsync({
+      ids: reissueIds,
+      onProgress: (completed, total) => setProgress(`${completed}/${total}`)
+    });
+    onSelectionChange(selectedIds.filter(id => !result.savedIds.includes(id)));
+    setReissueIds([]);
+    setProgress('');
+    showToast(reportRegenerationMessage(result), result.errors.length || result.warnings.length ? 'error' : 'success');
+  }
+
+  const reissueDialog = <ReportReissueDialog count={reissueIds.length} submitting={reportMutations.regenerateReports.isPending} progress={progress} onConfirm={() => void handleReissue()} onCancel={() => setReissueIds([])} />;
+  const reissueButton = user?.accountType === 'ADMIN' && hasSelection ? (
+    <Button variant="secondary" size="sm" aria-label="Reemitir os relatórios selecionados" loading={reportMutations.regenerateReports.isPending} onClick={() => setReissueIds(selectedVisibleIds)}>Reemitir</Button>
+  ) : null;
 
   async function handleDownload() {
     if (!selectedVisibleIds.length) {
@@ -103,9 +128,11 @@ export function ReportPdfBatchActions({
               >
                 {downloadLabel}
               </Button>
+              {reissueButton}
             </>
           ) : null}
         </div>
+        {reissueDialog}
       </div>
     );
   }
@@ -140,9 +167,11 @@ export function ReportPdfBatchActions({
             >
               {downloadLabel}
             </button>
+            {reissueButton}
           </>
         ) : null}
       </div>
+      {reissueDialog}
     </div>
   );
 }
