@@ -85,13 +85,17 @@ export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreErr
       </div>
       {!loading && !error && data?.nextCursor ? (
         <div className="assinaturas-library__load-more">
-          <InfiniteScrollSentinel hasMore={!loadMoreError} isLoading={loadingMore} onLoadMore={onLoadMore} />
-          {loadingMore ? <div role="status" aria-live="polite">Carregando mais documentos...</div> : null}
+          <InfiniteScrollSentinel className="assinaturas-library__sentinel" hasMore={!loadMoreError} isLoading={loadingMore} onLoadMore={onLoadMore} />
           {loadMoreError ? (
             <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: onLoadMore }}>
               Não foi possível carregar mais documentos.
             </Alert>
-          ) : null}
+          ) : (
+            <>
+              <p role="status" aria-live="polite">{loadingMore ? 'Carregando mais documentos...' : 'Há mais documentos nesta lista. Role para carregar ou use o botão abaixo.'}</p>
+              <Button variant="secondary" loading={loadingMore} disabled={loadingMore} aria-controls="signature-document-results" onClick={onLoadMore}>Carregar mais documentos</Button>
+            </>
+          )}
         </div>
       ) : null}
     </section>

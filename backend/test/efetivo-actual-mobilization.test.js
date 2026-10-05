@@ -47,11 +47,13 @@ test('corrigir a mobilização atualiza somente o ciclo padrão, preservando cic
   assert.equal(mission.cycles[0].mobilizationDate.toISOString().slice(0, 10), '2026-10-09');
 });
 
-test('correção que excluiria o histórico individual é bloqueada antes de gravar', async () => {
+test('correção geral mantém o histórico individual mesmo quando as datas diferem', async () => {
   const { mission, database } = fixture();
   mission.allocations.push({ id: 'allocation', collaborator: { name: 'Pessoa' }, cycles: [{ id: 'own', mobilizationDate: '2026-10-10', demobilizationDate: '2026-10-12' }] });
-  await assert.rejects(confirmOfficialMissionMobilization(database, 'project', '2026-10-11'), error => error.code === 'ALLOCATION_CYCLE_OUTSIDE_PROJECT_CYCLE');
-  assert.equal(mission.cycles[0].mobilizationDate, '2026-10-10');
+  const before = structuredClone(mission.allocations);
+  await confirmOfficialMissionMobilization(database, 'project', '2026-10-11');
+  assert.equal(mission.cycles[0].mobilizationDate.toISOString().slice(0, 10), '2026-10-11');
+  assert.deepEqual(mission.allocations, before);
 });
 
 test('edição de ciclo exige que a data padrão seja corrigida pela confirmação do projeto', async () => {

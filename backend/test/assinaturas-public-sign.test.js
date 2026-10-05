@@ -84,7 +84,7 @@ function signingClient(token, { remainingAfterSignature = 0 } = {}) {
     },
     async $transaction(operation) { return operation(client); }
   };
-  client.signatureDocumentSigner.count = async () => remainingAfterSignature;
+  client.signatureDocumentSigner.count = async ({ where }) => where.status === 'ASSINADO' ? 1 : remainingAfterSignature;
   return { client, state };
 }
 
@@ -110,6 +110,12 @@ test('payload público contém só o próprio assinante e progresso agregado', (
   assert.deepEqual(payload.document.progress, { signed: 1, total: 2 });
   assert.equal(JSON.stringify(payload).includes('maria@example.com'), false);
   assert.equal(JSON.stringify(payload).includes('signer-2'), false);
+});
+
+test('convites revogados não contam como pendências no progresso público', () => {
+  const active = invite();
+  active.document.signers[0].status = 'REVOGADO';
+  assert.deepEqual(publicInvitePayload(active).document.progress, { signed: 1, total: 1 });
 });
 
 test('imagem inválida é rejeitada antes de abrir transação', async () => {
@@ -185,6 +191,20 @@ test('falha ao agendar a finalização não transforma assinatura aceita em erro
   assert.equal(result.documentStatus, 'FINALIZANDO');
   assert.equal(state.invite.status, 'ASSINADO');
   assert.deepEqual(state.audits.map(item => item.action), ['ASSINATURA_REALIZADA', 'FINALIZACAO_INICIADA']);
+});
+
+test('assinatura recebida depois da revogação de outro convite também inicia finalização', async () => {
+  const token = 'e'.repeat(64);
+  const { client, state } = signingClient(token);
+  state.invite.document.signers.push({ id: 'revoked', status: 'REVOGADO', isRequired: true });
+  client.signatureDocumentSigner.count = async ({ where }) => state.invite.document.signers.filter(signer =>
+    typeof where.status === 'string' ? signer.status === where.status : !where.status.notIn.includes(signer.status)).length;
+  const result = await confirmSignature(client, token, {
+    signerName: 'Maria Silva', signatureImageDataUrl: validSignatureImageDataUrl,
+    privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_avulsa_v1'
+  }, {}, { now: new Date('2026-08-28T15:00:00Z'), scheduleFinalization() {} });
+  assert.equal(result.documentStatus, 'FINALIZANDO');
+  assert.equal(state.transitions, 1);
 });
 
 test('superfície pública usa header, sem segredo em URL, e respostas privadas não entram em cache', async () => {

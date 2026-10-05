@@ -20,7 +20,12 @@ function utcDate(value) {
   return value ? new Date(`${parseDateKey(value)}T00:00:00.000Z`) : null;
 }
 
-function cyclePeriod(payload, mission) {
+function hasActualIndividualCycles(mission) {
+  return mission.plan?.kind === 'OFFICIAL'
+    && ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(mission.stage);
+}
+
+function cyclePeriod(payload, mission, individual = false) {
   const bounds = missionPeriod(mission);
   const startDate = parseDateKey(payload.mobilizationDate);
   const endDate = payload.demobilizationDate
@@ -28,7 +33,9 @@ function cyclePeriod(payload, mission) {
     : bounds.endDate < startDate ? startDate : bounds.endDate;
   const period = { startDate, endDate };
   const actualCycle = mission.plan?.kind === 'OFFICIAL' && ['EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(mission.stage);
-  if (startDate > endDate || (actualCycle ? startDate < bounds.startDate : !allocationPeriodWithinMission(period, mission))) {
+  // Actual individual dates can differ from the project's general cycle.
+  const independent = individual && hasActualIndividualCycles(mission);
+  if (startDate > endDate || (!independent && (actualCycle ? startDate < bounds.startDate : !allocationPeriodWithinMission(period, mission)))) {
     throw planningError('O ciclo deve ficar dentro das datas gerais da missão.', {
       code: 'CYCLE_OUTSIDE_MISSION_PERIOD'
     });
@@ -60,10 +67,10 @@ export function assertCycleCreationStage(mission) {
   }
 }
 
-export function validateNewCycle(cycles, payload, mission, label) {
+export function validateNewCycle(cycles, payload, mission, label, individual = false) {
   const openCycle = cycles.find(cycle => !cycle.demobilizationDate);
   if (openCycle) openCycleError(label, openCycle);
-  const period = cyclePeriod(payload, mission);
+  const period = cyclePeriod(payload, mission, individual);
   const overlapping = cycles.find(cycle => periodsOverlap(period, {
     startDate: parseDateKey(cycle.mobilizationDate),
     endDate: parseDateKey(cycle.demobilizationDate || missionPeriod(mission).endDate)
@@ -74,12 +81,12 @@ export function validateNewCycle(cycles, payload, mission, label) {
   return period;
 }
 
-function validateUpdatedCycle(cycles, existing, payload, mission, label) {
+function validateUpdatedCycle(cycles, existing, payload, mission, label, individual = false) {
   if (!payload.demobilizationDate) {
     const otherOpen = cycles.find(cycle => cycle.id !== existing.id && !cycle.demobilizationDate);
     if (otherOpen) openCycleError(label, otherOpen);
   }
-  const period = cyclePeriod(payload, mission);
+  const period = cyclePeriod(payload, mission, individual);
   const overlapping = cycles.find(cycle => cycle.id !== existing.id && periodsOverlap(period, {
     startDate: parseDateKey(cycle.mobilizationDate),
     endDate: parseDateKey(cycle.demobilizationDate || missionPeriod(mission).endDate)
@@ -103,6 +110,7 @@ async function requireCycleMission(tx, missionId) {
 }
 
 function ensureInsideProjectCycle(mission, period) {
+  if (hasActualIndividualCycles(mission)) return;
   const inside = missionCycles(mission).some(cycle => (
     period.startDate >= cycle.startDate && (cycle.isOpen || period.endDate <= cycle.endDate)
   ));
@@ -129,6 +137,7 @@ async function validateCollaboratorPeriod(tx, mission, allocation, period, allow
 }
 
 function ensureIndividualCyclesInsideProject(mission, proposedCycles) {
+  if (hasActualIndividualCycles(mission)) return;
   const projectPeriods = missionCycles({ ...mission, cycles: proposedCycles });
   for (const allocation of mission.allocations || []) {
     if (!allocation.cycles?.length) continue;
@@ -253,7 +262,7 @@ export async function createAllocationCycle(missionId, allocationId, payload, co
     const allocation = mission.allocations.find(item => item.id === allocationId && !item.deletedAt);
     if (!allocation) throw notFound('Alocação não encontrada.');
     const label = allocation.collaborator?.name || 'O colaborador';
-    const period = validateNewCycle(allocation.cycles || [], payload, mission, label);
+    const period = validateNewCycle(allocation.cycles || [], payload, mission, label, true);
     ensureInsideProjectCycle(mission, period);
     await validateCollaboratorPeriod(tx, mission, allocation, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoAllocationCycle.create({
@@ -272,7 +281,8 @@ export async function initializeAllocationCycles(missionId, allocationId, contex
   return runPlanningTransaction(database, async tx => {
     const mission = await requireCycleMission(tx, missionId);
     await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
-    assertCycleCreationStage(mission);
+    // Personalizing existing history does not create a new mobilization.
+    if (mission.stage !== 'MOBILIZATION') assertCycleCreationStage(mission);
     const allocation = mission.allocations.find(item => item.id === allocationId && !item.deletedAt);
     if (!allocation) throw notFound('Alocação não encontrada.');
     if (allocation.cycles?.length) return allocation.cycles;
@@ -306,7 +316,7 @@ export async function updateAllocationCycle(missionId, allocationId, cycleId, pa
     const existing = (allocation.cycles || []).find(cycle => cycle.id === cycleId);
     if (!existing) throw notFound('Ciclo individual não encontrado.');
     const label = allocation.collaborator?.name || 'O colaborador';
-    const period = validateUpdatedCycle(allocation.cycles, existing, payload, mission, label);
+    const period = validateUpdatedCycle(allocation.cycles, existing, payload, mission, label, true);
     ensureInsideProjectCycle(mission, period);
     await validateCollaboratorPeriod(tx, mission, allocation, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoAllocationCycle.update({ where: { id: cycleId }, data: storedCycle(payload) });

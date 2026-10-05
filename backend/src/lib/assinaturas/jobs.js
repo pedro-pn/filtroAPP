@@ -9,6 +9,7 @@ import { safeDocumentPathPart } from '../documents/storage.js';
 import { recordDocumentEvent } from './audit.js';
 import { purgeDocumentFiles, sourcePdfBuffer } from './document.js';
 import { buildFinalPdfBytes } from './final-pdf.js';
+import { beginDocumentFinalization } from './finalization.js';
 import { processSignatureFilePurges } from './file-quarantine.js';
 import { expireOverdueInvites } from './invites.js';
 import { purgePreviews } from './preview.js';
@@ -131,7 +132,7 @@ export async function processDocumentFinalization(client, documentId, {
       await recordDocumentEvent(tx, {
         document,
         action: 'DOCUMENTO_CONCLUIDO',
-        description: 'Documento concluído com todas as assinaturas.'
+        description: 'Documento concluído com todas as assinaturas obrigatórias ativas.'
       });
       if (document.owner?.email && document.owner.notifySignaturesByEmail !== false) {
         await tx.signatureDocumentCompletionNotification.upsert({
@@ -187,7 +188,21 @@ export async function processDocumentFinalization(client, documentId, {
   }
 }
 
-export async function processPendingFinalizations(client = prisma, { now = new Date() } = {}) {
+export async function processPendingFinalizations(client = prisma, { now = new Date(), ...dependencies } = {}) {
+  // Recover published documents left pending by an earlier invite revocation.
+  const ready = await client.signatureDocument.findMany({
+    where: {
+      status: 'AGUARDANDO_ASSINATURAS', deletedAt: null,
+      signers: {
+        some: { status: 'ASSINADO' },
+        none: { isRequired: true, status: { notIn: ['ASSINADO', 'REVOGADO'] } }
+      }
+    },
+    select: { id: true }, orderBy: { updatedAt: 'asc' }, take: 10
+  });
+  for (const document of ready) {
+    await client.$transaction(tx => beginDocumentFinalization(tx, document, { now }));
+  }
   const documents = await client.signatureDocument.findMany({
     where: {
       status: 'FINALIZANDO',
@@ -202,7 +217,7 @@ export async function processPendingFinalizations(client = prisma, { now = new D
   });
   let completed = 0;
   for (const document of documents) {
-    const result = await processDocumentFinalization(client, document.id, { now }).catch(() => null);
+    const result = await processDocumentFinalization(client, document.id, { now, ...dependencies }).catch(() => null);
     if (result?.status === 'CONCLUIDO') completed += 1;
   }
   return { found: documents.length, completed };

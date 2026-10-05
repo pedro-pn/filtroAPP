@@ -8,8 +8,7 @@ import { MAX_SIGNATURE_IMAGE_DATA_URL_LENGTH } from '../../lib/assinaturas/image
 import {
   recoverInviteLink,
   renewInvite,
-  resolveInviteByToken,
-  revokeInvite
+  resolveInviteByToken
 } from '../../lib/assinaturas/invites.js';
 import { resendInviteEmail, sendInviteEmail } from '../../lib/assinaturas/notifications.js';
 import { renderPage, renderSignedPage } from '../../lib/assinaturas/preview.js';
@@ -26,6 +25,7 @@ import {
   replaceSigners,
   restoreArchivedDocument,
   restoreDeletedDocument,
+  revokeDocumentInvite,
   softDeleteDocument,
   unpublishDocument,
   validateByCode
@@ -285,16 +285,7 @@ router.post('/documentos/:id/assinantes/:signerId/renovar', asyncHandler(async (
 }));
 
 router.post('/documentos/:id/assinantes/:signerId/revogar', asyncHandler(async (req, res) => {
-  const result = await prisma.$transaction(async tx => {
-    const document = await documentForOwnerOrThrow(tx, req.params.id, ownerId(req), { include: { signers: true } });
-    const signer = document.signers.find(item => item.id === req.params.signerId);
-    if (!signer) {
-      const error = new Error('Assinante não encontrado.');
-      error.statusCode = 404;
-      throw error;
-    }
-    return revokeInvite(tx, document, signer, { actorUserId: ownerId(req) });
-  });
+  const result = await revokeDocumentInvite(prisma, req.params.id, req.params.signerId, ownerId(req));
   return res.json({ id: result.id, status: result.status, revokedAt: result.revokedAt });
 }));
 

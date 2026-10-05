@@ -19,7 +19,8 @@ import {
 } from '../src/lib/assinaturas/final-pdf.js';
 import {
   persistFinalBytes,
-  processDocumentFinalization
+  processDocumentFinalization,
+  processPendingFinalizations
 } from '../src/lib/assinaturas/jobs.js';
 import {
   createStandaloneValidationCode,
@@ -164,6 +165,49 @@ test('builder recusa hash-base divergente e gera PDF com evidências', async () 
   const finalPdfSource = await fs.readFile(new URL('../src/lib/assinaturas/final-pdf.js', import.meta.url), 'utf8');
   assert.match(finalPdfSource, /ASSINATURA ELETRONICA - FILTROVALI/);
   assert.match(finalPdfSource, /LOGO_COLORIDO\.png/);
+});
+
+test('PDF concluído contém apenas a assinatura realizada, ignorando campos e evidência do convite revogado', async () => {
+  const source = await PDFDocument.create();
+  source.addPage([612, 792]);
+  const sourceBytes = Buffer.from(await source.save());
+  const signed = { id: 'signed', name: 'Maria Silva', status: 'ASSINADO', signatureImageDataUrl, signedAt: new Date('2026-08-28T12:00:00Z') };
+  const field = { signerId: 'signed', pageNumber: 1, x: 0.1, y: 0.2, width: 0.3, height: 0.1 };
+  const snapshot = {
+    title: 'Contrato', sourceDocumentHash: createHash('sha256').update(sourceBytes).digest('hex'),
+    signers: [signed, { id: 'revoked', name: 'Carlos Revogado', status: 'REVOGADO', signatureImageDataUrl: null }],
+    fields: [field, { ...field, signerId: 'revoked', y: 0.4 }]
+  };
+  const actual = await PDFDocument.load(await buildFinalPdfBytes(snapshot, sourceBytes));
+  const expected = await PDFDocument.load(await buildFinalPdfBytes({ ...snapshot, signers: [signed], fields: [field] }, sourceBytes));
+  assert.equal(actual.getPageCount(), 2);
+  for (let index = 0; index < 2; index++) {
+    assert.equal(pageContent(actual, actual.getPages()[index]), pageContent(expected, expected.getPages()[index]));
+  }
+});
+
+test('job recupera documentos já presos em pendência depois da revogação e conclui o PDF', async () => {
+  const document = finalizingDocument({ status: 'AGUARDANDO_ASSINATURAS', deletedAt: null,
+    signers: [{ status: 'ASSINADO', isRequired: true }, { status: 'REVOGADO', isRequired: true }] });
+  const { client, state } = finalizationClient(document);
+  client.signatureDocumentSigner = { count: async ({ where }) => document.signers.filter(signer =>
+    typeof where.status === 'string' ? signer.status === where.status : !where.status.notIn.includes(signer.status)).length };
+  client.signatureDocument.findMany = async ({ where }) => {
+    if (where.status !== document.status) return [];
+    if (where.status === 'AGUARDANDO_ASSINATURAS') {
+      assert.deepEqual(where.signers, { some: { status: 'ASSINADO' }, none: { isRequired: true, status: { notIn: ['ASSINADO', 'REVOGADO'] } } });
+    }
+    return [{ id: document.id }];
+  };
+  const result = await processPendingFinalizations(client, {
+    loadSource: async () => Buffer.from('source'), buildBytes: async () => Buffer.from('signed-pdf'),
+    persistBytes: async () => ({ relativePath: 'Assinaturas/Assinados/document-assinado.pdf', hash: 'final-hash' }),
+    deliverCompletion: async () => {}
+  });
+  assert.deepEqual(result, { found: 1, completed: 1 });
+  assert.equal(document.status, 'CONCLUIDO');
+  assert.equal(document.finalStoragePath, 'Assinaturas/Assinados/document-assinado.pdf');
+  assert.equal(state.audits.filter(event => event.action === 'DOCUMENTO_CONCLUIDO').length, 1);
 });
 
 test('builder assina a página 100 e preserva o documento completo com evidências', async () => {

@@ -23,15 +23,15 @@ async function loadModule(modulePath) {
   }
 }
 
-test('navegação preserva somente query params compatíveis com lista e detalhe', async () => {
-  const { normalizeSignatureSearchParams, signatureDocumentSearchParams } = await loadModule('/src/pages/assinaturas/utils/navigation.ts');
+test('navegação mantém filtros da biblioteca durante a preparação e o acompanhamento', async () => {
+  const { normalizeSignatureSearchParams, signatureDocumentSearchParams, signatureLibrarySearchParams } = await loadModule('/src/pages/assinaturas/utils/navigation.ts');
   assert.equal(
     normalizeSignatureSearchParams(new URLSearchParams('tab=archived&status=CONCLUIDO&q=contrato')).toString(),
     'tab=archived&status=CONCLUIDO&q=contrato'
   );
   assert.equal(
     normalizeSignatureSearchParams(new URLSearchParams('doc=doc-1&tab=setup&page=3&q=oculto&status=RASCUNHO')).toString(),
-    'doc=doc-1&tab=setup&page=3'
+    'doc=doc-1&tab=setup&page=3&q=oculto&status=RASCUNHO'
   );
   assert.equal(
     normalizeSignatureSearchParams(new URLSearchParams('doc=doc-1&tab=audit&page=3')).toString(),
@@ -39,16 +39,27 @@ test('navegação preserva somente query params compatíveis com lista e detalhe
   );
   assert.equal(
     normalizeSignatureSearchParams(new URLSearchParams('doc=doc-1&tab=archived&page=0')).toString(),
-    'doc=doc-1&tab=details'
+    'doc=doc-1&tab=details&list=archived'
   );
   assert.equal(
     signatureDocumentSearchParams(new URLSearchParams('q=abc&status=RASCUNHO&page=4'), 'doc-2').toString(),
-    'doc=doc-2&tab=details'
+    'q=abc&status=RASCUNHO&doc=doc-2&tab=details'
   );
   assert.equal(
     signatureDocumentSearchParams(new URLSearchParams('q=abc&status=RASCUNHO&page=4'), 'doc-2', 'setup').toString(),
-    'doc=doc-2&tab=setup&page=1'
+    'q=abc&status=RASCUNHO&doc=doc-2&tab=setup&page=1'
   );
+  for (const archived of [false, true]) {
+    for (const tab of ['setup', 'details', 'audit']) {
+      const library = new URLSearchParams('q=contrato&status=CONCLUIDO');
+      if (archived) library.set('tab', 'archived');
+      const opened = normalizeSignatureSearchParams(signatureDocumentSearchParams(library, 'doc-1', tab));
+      const reloaded = normalizeSignatureSearchParams(new URLSearchParams(opened.toString()));
+      assert.equal(reloaded.get('q'), 'contrato');
+      assert.equal(reloaded.get('status'), 'CONCLUIDO');
+      assert.equal(signatureLibrarySearchParams(reloaded).toString(), library.toString());
+    }
+  }
 });
 
 test('rascunho abre na configuração e publicação persiste campos pendentes', async () => {

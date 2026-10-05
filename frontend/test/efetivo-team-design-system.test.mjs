@@ -86,7 +86,7 @@ test('seleção e gestão compartilham campos, tema, ações compactas e o contr
   assert.match(fields,/max=\{max\}/);
   assert.match(fields,/required=\{!optionalEnd\}/);
   const css=read('EfetivoTeam.ds.css');
-  assert.match(css,/\.fv-modal-backdrop\.efetivo-team-availability-backdrop\s*\{\s*z-index: var\(--z-overlay\);/);
+  assert.match(css,/\.fv-modal-backdrop\.efetivo-team-availability-backdrop\s*\{\s*z-index: 1150;/);
   assert.match(css,/efetivo-team-actions\s*\{[^}]*flex-wrap: nowrap;[^}]*overflow: visible;/);
   assert.doesNotMatch(css,/!important|#[0-9a-f]{3,8}\b/i);
 });
