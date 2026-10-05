@@ -7,7 +7,7 @@ import type { ProgressHistoryPoint } from '../../api/acompanhamentoComercial';
 import { formatDateOnly } from '../../utils/dateOnly';
 import { AppIcon } from '../icons/AppIcon';
 import { Card } from '../ui/ds';
-import { weeklyValueLabel } from './weeklyTargetPresentation';
+import { attendanceBalanceLabel, weeklyValueLabel } from './weeklyTargetPresentation';
 
 const numberFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
@@ -23,7 +23,7 @@ export function MissionWeeklyProgressSummaryCard({ owner, progressHistory }: {
   const currentWeek = weekStartKey(corporateToday())!;
   const current = targetsQuery.data ? buildWeeklyProgressComparison({
     targets: targetsQuery.data.targets,
-    progressHistory: progressHistory ?? targetsQuery.data.progressHistory ?? [], serviceHistory: targetsQuery.data.serviceHistory ?? []
+    progressHistory: progressHistory ?? targetsQuery.data.progressHistory ?? [], serviceHistory: targetsQuery.data.serviceHistory ?? [], attendanceHistory: targetsQuery.data.attendanceHistory ?? []
   }).find(row => row.weekStartDate === currentWeek) : null;
   const planned = current?.plannedValue ?? null;
   const actual = current?.actualValue ?? null;
@@ -38,6 +38,10 @@ export function MissionWeeklyProgressSummaryCard({ owner, progressHistory }: {
   } else if (targetsQuery.isError) {
     valueLabel = 'Indisponível';
     detailLabel = 'Não foi possível carregar a meta semanal';
+  } else if (current?.metric === 'COLLABORATORS') {
+    valueLabel = current.status === 'BELOW' ? 'Fora da meta' : current.status === 'ON_TARGET' ? 'Dentro da meta'
+      : current.status === 'PLANNED' ? 'Aguardando dias de trabalho' : 'Presença pendente';
+    detailLabel = `${weeklyValueLabel(planned, metric)} · ${attendanceBalanceLabel(current.cumulativeAttendance?.differenceValue ?? null)} · ${weekLabel}`;
   } else if (current?.mixedUnits && current.achievementPct != null) {
     valueLabel = `${numberFormat.format(current.achievementPct)}% da meta`;
     detailLabel = `Por serviço · ${weekLabel}`;

@@ -1,0 +1,51 @@
+async page => {
+  const fixtureUrl = page.url().split('/test/')[0] + '/test/browser/weekly-progress.html?attendance=true';
+  await page.clock.setFixedTime(new Date('2026-09-29T12:00:00Z'));
+  await page.goto(fixtureUrl);
+  const panel = page.getByRole('region', { name: 'Metas semanais de avanço', exact: true });
+  const current = panel.locator('.mission-weekly-progress-current');
+  const balance = current.locator('.mission-weekly-attendance-balance');
+  const waitForText = async (locator, value) => {
+    await locator.filter({ hasText: value }).waitFor();
+  };
+  await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
+  await panel.getByLabel('Medida da meta').selectOption('COLLABORATORS');
+  await panel.getByLabel('Colaboradores previstos por dia').fill('6');
+  for (const day of ['Terça', 'Quarta', 'Quinta', 'Sexta']) await panel.getByLabel(day, { exact: true }).uncheck();
+  if (await panel.getByLabel('Base de cálculo').count()) throw new Error('Presença pediu base de produção.');
+  if (await panel.getByRole('button', { name: 'Adicionar cenário', exact: true }).count()) throw new Error('Presença expôs condições de serviços.');
+  await panel.getByRole('button', { name: 'Salvar meta', exact: true }).click();
+  await waitForText(balance, 'Superávit de 2 presenças');
+  await waitForText(current.locator('.mission-weekly-status').first(), 'Dentro da meta');
+  if (!(await balance.textContent()).includes('6 presenças') || !(await balance.textContent()).includes('8 presenças')) throw new Error('Totais acumulados incorretos.');
+
+  await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
+  if (await panel.getByLabel('Colaboradores previstos por dia').inputValue() !== '6') throw new Error('Valor diário não foi preservado.');
+  if (await panel.getByLabel('Terça', { exact: true }).isChecked()) throw new Error('Dias de trabalho não foram preservados.');
+  await panel.getByLabel('Terça', { exact: true }).check();
+  await panel.getByRole('button', { name: 'Salvar meta', exact: true }).click();
+  await waitForText(balance, 'Saldo pendente de RDO');
+  await page.getByRole('button', { name: 'Registrar quatro colaboradores no segundo dia', exact: true }).click();
+  await waitForText(balance, 'Saldo zero');
+  await waitForText(current.locator('.mission-weekly-status').first(), 'Abaixo da meta');
+  if (!(await balance.textContent()).includes('12 presenças')) throw new Error('O exemplo de 8 + 4 não acumulou 12 presenças.');
+  const daily = current.locator('.mission-weekly-goal-results > div');
+  if (!(await daily.nth(0).textContent()).includes('8 de 6 colaboradores')) throw new Error('Dia de superávit ausente.');
+  if (!(await daily.nth(1).textContent()).includes('4 de 6 colaboradores')) throw new Error('Dia de déficit ausente.');
+  await waitForText(daily.nth(0), 'Acumulado: Superávit de 2 presenças');
+  await waitForText(daily.nth(1), 'Acumulado: Saldo zero');
+  if (await panel.getByText('3 versões', { exact: true }).count()) throw new Error('A atualização do RDO criou uma revisão da meta.');
+  await page.getByRole('button', { name: 'Registrar dois colaboradores no segundo dia', exact: true }).click();
+  await waitForText(balance, 'Déficit de 2 presenças');
+  await page.getByRole('button', { name: 'Trocar área', exact: true }).click();
+  await waitForText(balance, 'Déficit de 2 presenças');
+  await page.getByRole('button', { name: 'Alternar permissão', exact: true }).click();
+  if (await panel.getByRole('button', { name: /Definir|Editar|Excluir/ }).count()) throw new Error('Visualizador recebeu controles de alteração.');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await panel.getByText('Presença por dia · menor efetivo diário', { exact: true }).click();
+  if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error('A meta de presença transbordou no celular.');
+  await page.getByRole('button', { name: 'Remover RDOs de presença', exact: true }).click();
+  await waitForText(balance, 'Saldo pendente de RDO');
+  await waitForText(current.locator('.mission-weekly-status').first(), 'Sem dados suficientes');
+  return 'Meta diária, dias de trabalho, superávit +2, saldo zero, déficit -2, recálculo do RDO, histórico, permissões e celular passaram.';
+}

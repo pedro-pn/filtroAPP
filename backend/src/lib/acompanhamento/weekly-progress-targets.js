@@ -11,9 +11,10 @@ const conditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('SERVICE_SET'), serviceTypes: z.array(z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'])).min(1).max(4) }).strict()
 ]);
 export const weeklyTargetDefinitionSchema = z.object({
-  metric: z.enum(['PCT_POINTS', 'M', 'L', 'UN']),
-  basis: z.enum(['WEEK_TOTAL', 'PER_PRODUCTIVE_DAY']).default('WEEK_TOTAL'),
+  metric: z.enum(['PCT_POINTS', 'M', 'L', 'UN', 'COLLABORATORS']),
+  basis: z.enum(['WEEK_TOTAL', 'PER_PRODUCTIVE_DAY', 'PER_WORKDAY']).default('WEEK_TOTAL'),
   referenceDayHours: preciseValue.pipe(z.number().min(0.01).max(24)).optional(),
+  workdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
   scenarios: z.array(z.object({
     name: z.string().trim().min(1).max(100),
     condition: conditionSchema,
@@ -24,6 +25,17 @@ export const weeklyTargetDefinitionSchema = z.object({
   }).strict()).min(1).max(20)
 }).strict().superRefine((definition, ctx) => {
   const fail = message => ctx.addIssue({ code: 'custom', message });
+  if (definition.metric === 'COLLABORATORS') {
+    const scenario = definition.scenarios[0];
+    if (definition.basis !== 'PER_WORKDAY' || definition.referenceDayHours != null || !definition.workdays
+      || new Set(definition.workdays).size !== definition.workdays.length || definition.scenarios.length !== 1
+      || scenario.condition.kind !== 'ALWAYS' || scenario.goals.length !== 1 || scenario.goals[0].serviceType != null
+      || !Number.isInteger(scenario.goals[0].value) || scenario.goals[0].value < 1) {
+      fail('Defina uma quantidade inteira positiva de colaboradores por dia, os dias de trabalho e uma única meta geral, sem vínculo com serviços ou horas produtivas.');
+    }
+  } else if (definition.basis === 'PER_WORKDAY' || definition.workdays != null) {
+    fail('Os dias de trabalho e a base diária de presença são exclusivos da meta de colaboradores.');
+  }
   const conditions = new Set();
   for (const scenario of definition.scenarios) {
     const { condition, goals } = scenario;
