@@ -331,7 +331,7 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
           endDate={initial.returnDate || executionEndDate}
           loading={rolesLoading}
           disabled={saving}
-          allowIndividualPeriods={false}
+          allowIndividualPeriods
           autoOpen
           minSelected={1}
           onCancel={onClose}

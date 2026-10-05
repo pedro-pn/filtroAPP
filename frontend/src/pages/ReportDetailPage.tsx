@@ -1059,7 +1059,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </Card>
       ) : null}
 
-      <Card className="rdo-form-card report-services-step" title={TEXT.services}>
+      <section className="report-services-step" aria-label={TEXT.services}>
+        <h2 className="rdo-services-title">{TEXT.services}</h2>
         {form.services.length ? (
           <div className="admin-stack">
             {form.services.map((service, index) => (
@@ -1199,11 +1200,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             </Button>
           </div>
         ) : null}
-      </Card>
+      </section>
 
       {!serviceReportMode && !manualReport ? (
       <div className="rdo-form-grid rdo-form-grid--finalization rdo-edit-finalization">
-        <Card className="rdo-form-card rdo-form-card--overtime" title="Horas extras">
+        <Card className="rdo-form-card rdo-form-card--overtime" title="Horas extras" actions={showOvertimeApproval ? (
+          <Switch
+            containerClassName="overtime-review-toggle"
+            label={acceptOvertime ? 'Aceitar hora extra' : 'Não aceitar hora extra'}
+            checked={acceptOvertime}
+            disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+            onChange={event => setAcceptOvertime(event.target.checked)}
+          />
+        ) : undefined}>
           {collaboratorOvertimeSummary ? (
             <Alert
               tone={collaboratorOvertimeSummary.totalOvertimeMinutes > 0 ? 'warning' : 'info'}
@@ -1216,12 +1225,6 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             <div className="overtime-review-inline">
               <div className="overtime-review-main">
                 <Alert tone="warning" title={`Hora extra identificada: ${formatMinutes(overtimeApproval.total)}`} />
-                <Switch
-                  label={acceptOvertime ? 'Aceitar hora extra' : 'Não aceitar hora extra'}
-                  checked={acceptOvertime}
-                  disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
-                  onChange={event => setAcceptOvertime(event.target.checked)}
-                />
               </div>
               {!acceptOvertime ? (
                 <Alert tone="danger" className="overtime-review-warning">

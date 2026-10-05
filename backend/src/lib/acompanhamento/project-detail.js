@@ -393,6 +393,14 @@ function purchaseDivisionWhere(division) {
   ] };
 }
 
+export function buildProjectCalendarPeriod({ division = null, startDate = null, referenceDate = new Date() } = {}) {
+  const activeStartDate = division?.mobilizationDate ?? division?.startDate ?? startDate;
+  return {
+    startDate: activeStartDate,
+    elapsed: activeStartDate ? Math.max(0, diffCalendarDays(activeStartDate, referenceDate) ?? 0) : null
+  };
+}
+
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true,
@@ -652,8 +660,9 @@ export async function getProjectDetail(projectId, {
     })
     .sort((a, b) => b.days - a.days);
 
-  const activeStartDate = division?.startDate ?? row.startDate;
-  const elapsedCorridos = activeStartDate ? Math.max(0, diffCalendarDays(activeStartDate, projectReferenceDate) ?? 0) : null;
+  const { startDate: activeStartDate, elapsed: elapsedCorridos } = buildProjectCalendarPeriod({
+    division, startDate: row.startDate, referenceDate: projectReferenceDate
+  });
   const diasCorridos = {
     elapsed: elapsedCorridos,
     planned: plannedDays,

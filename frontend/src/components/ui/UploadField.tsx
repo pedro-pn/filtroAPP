@@ -1,10 +1,12 @@
 import { BrandLoading } from '../brand/BrandLoading';
-import { RotateCcw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { GripVertical, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
 import { prepareImageForUpload } from '../../utils/imageUpload';
+import { moveUpload } from '../../utils/uploadOrder';
 import { AppIcon } from '../icons/AppIcon';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PhotoCaptureButton } from './PhotoCaptureButton';
@@ -42,6 +44,9 @@ interface UploadPreviewListItemProps {
   appearance?: 'legacy' | 'design-system';
   onRemove: (index: number) => void;
   removed?: boolean;
+  reorderHandle?: ReactNode;
+  dragging?: boolean;
+  dropTarget?: boolean;
 }
 
 function fileToDataUrl(file: File) {
@@ -80,7 +85,7 @@ function uploadFileKey(file: UploadPreviewFile) {
   return rawFileUrl(file) || `${file.fileName}-${file.mimeType || ''}`;
 }
 
-export function UploadPreviewListItem({ disabled, file, index, appearance = 'legacy', onRemove, removed = false }: UploadPreviewListItemProps) {
+export function UploadPreviewListItem({ disabled, file, index, appearance = 'legacy', onRemove, removed = false, reorderHandle, dragging = false, dropTarget = false }: UploadPreviewListItemProps) {
   const [href, setHref] = useState('');
   const source = rawFileUrl(file);
 
@@ -108,7 +113,8 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
   }, [source]);
 
   return (
-    <div className={`upload-list-item ${removed ? 'removed' : ''}`}>
+    <div className={`upload-list-item ${removed ? 'removed' : ''} ${reorderHandle ? 'upload-list-item--reorderable' : ''}`} data-upload-index={index} data-dragging={dragging || undefined} data-drop-target={dropTarget || undefined}>
+      {reorderHandle}
       {href && isImageFile(file) ? (
         <a
           className="upload-list-preview"
@@ -164,12 +170,22 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
 
 export function UploadField({ label, value, projectId, disabled = false, appearance = 'legacy', onChange }: UploadFieldProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const pointerDrag = useRef<{ from: number; to: number; x: number; y: number; active: boolean; preview: string; width: number } | null>(null);
+  const [reordering, setReordering] = useState<{ from: number; to: number; x: number; y: number; preview: string; width: number } | null>(null);
+  const [orderAnnouncement, setOrderAnnouncement] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ index: number; ref: string; fileName: string } | null>(null);
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
+
+  function reorder(from: number, to: number) {
+    if (disabled || isUploading || removeTarget || from === to || to < 0 || to >= value.length) return;
+    onChange(moveUpload(value, from, to));
+    setOrderAnnouncement(`${value[from].fileName}: posição ${to + 1} de ${value.length}.`);
+  }
 
   async function handleFiles(files: ArrayLike<File> | null) {
     const selected = Array.from(files || []);
@@ -272,18 +288,81 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
         <div className="upload-previous-note">Estas fotos foram adicionadas anteriormente neste serviço. Se removidas, sairão do relatório.</div>
       ) : null}
       {value.length ? (
-        <div className="upload-list">
+        <div className="upload-list" ref={listRef}>
+          {!disabled && value.length > 1 ? <p className="upload-order-help">Arraste pelo ícone para ordenar as fotos no relatório. Use as setas do teclado com o ícone selecionado.</p> : null}
+          <span className="visually-hidden" role="status" aria-live="polite">{orderAnnouncement}</span>
           {value.map((file, index) => (
             <UploadPreviewListItem
               key={uploadFileKey(file)}
-              disabled={disabled}
+              disabled={disabled || isUploading || Boolean(reordering)}
               file={file}
               index={index}
               appearance={appearance}
               onRemove={removeFile}
+              dragging={reordering?.from === index}
+              dropTarget={reordering?.to === index && reordering.from !== index}
+              reorderHandle={!disabled && value.length > 1 ? <button
+                type="button"
+                className="upload-reorder-handle"
+                aria-label={`Reordenar ${file.fileName}, posição ${index + 1} de ${value.length}`}
+                title="Arraste para reordenar ou use as setas do teclado"
+                disabled={isUploading || Boolean(removeTarget)}
+                onKeyDown={event => {
+                  if (event.key === 'Escape') {
+                    pointerDrag.current = null;
+                    setReordering(null);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    reorder(index, index + (event.key === 'ArrowUp' ? -1 : 1));
+                  }
+                }}
+                onPointerDown={event => {
+                  if (event.button !== 0) return;
+                  const row = event.currentTarget.closest<HTMLElement>('[data-upload-index]');
+                  pointerDrag.current = {
+                    from: index, to: index, x: event.clientX, y: event.clientY, active: false,
+                    preview: row?.querySelector('img')?.currentSrc || '',
+                    width: Math.min(row?.getBoundingClientRect().width || 280, 320, window.innerWidth - 16)
+                  };
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={event => {
+                  const drag = pointerDrag.current;
+                  if (!drag) return;
+                  if (!drag.active && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 5) return;
+                  drag.active = true;
+                  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-upload-index]');
+                  if (target && listRef.current?.contains(target)) drag.to = Number(target.dataset.uploadIndex);
+                  setReordering({ from: drag.from, to: drag.to, x: event.clientX, y: event.clientY, preview: drag.preview, width: drag.width });
+                }}
+                onPointerUp={() => {
+                  const drag = pointerDrag.current;
+                  pointerDrag.current = null;
+                  setReordering(null);
+                  if (drag?.active) reorder(drag.from, drag.to);
+                }}
+                onPointerCancel={() => { pointerDrag.current = null; setReordering(null); }}
+                onLostPointerCapture={() => { pointerDrag.current = null; setReordering(null); }}
+              ><GripVertical aria-hidden="true" /><span aria-hidden="true">{index + 1}</span></button> : undefined}
             />
           ))}
         </div>
+      ) : null}
+      {reordering && typeof document !== 'undefined' ? createPortal(
+        <div
+          className={`upload-drag-ghost ${appearance === 'design-system' ? 'fv-ds' : ''}`}
+          aria-hidden="true"
+          style={{
+            width: reordering.width,
+            left: Math.max(8, Math.min(reordering.x + 12, window.innerWidth - reordering.width - 8)),
+            top: Math.max(8, Math.min(reordering.y + 12, window.innerHeight - 80))
+          }}
+        >
+          {reordering.preview ? <img src={reordering.preview} alt="" draggable={false} /> : <GripVertical />}
+          <span>{value[reordering.from]?.fileName}</span>
+        </div>, document.body
       ) : null}
       <ConfirmDialog
         open={Boolean(removeTarget)}

@@ -1,4 +1,66 @@
 /* Mantém a ação de restauração independente do botão legado de texto. */
+.upload-order-help {
+  margin: 0;
+  color: var(--muted, var(--mu));
+  font-size: var(--text-xs);
+}
+
+.upload-list-item .upload-reorder-handle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, var(--mu));
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.upload-reorder-handle svg { width: 18px; height: 18px; }
+.upload-reorder-handle:active { cursor: grabbing; }
+.upload-reorder-handle:focus-visible { outline: 2px solid var(--brand, var(--g)); outline-offset: 2px; }
+.upload-reorder-handle:disabled { cursor: default; opacity: .5; }
+.upload-list-item[data-dragging] { opacity: .5; }
+.upload-list-item[data-drop-target] { outline: 2px solid var(--brand, var(--g)); outline-offset: 1px; }
+
+.upload-drag-ghost {
+  position: fixed;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--brand, var(--g));
+  border-radius: var(--radius-md);
+  background: var(--surface, var(--wh));
+  color: var(--ink, var(--tx));
+  box-shadow: var(--shadow-e3);
+  opacity: .9;
+  pointer-events: none;
+  user-select: none;
+}
+
+.upload-drag-ghost img {
+  width: var(--space-12);
+  height: var(--space-12);
+  flex: none;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.upload-drag-ghost span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 :where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button {
   flex: 0 0 var(--fv-button-height);
   width: var(--fv-button-height);

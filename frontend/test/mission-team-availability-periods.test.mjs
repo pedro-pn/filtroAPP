@@ -160,6 +160,24 @@ test('missão nova, missão sem ciclos e ciclo aberto continuam bloqueando féri
   }
 });
 
+test('colaborador de férias durante parte da missão pode entrar antes ou depois, inclusive na equipe inicial', async () => {
+  const absences = [absence()];
+  for (const [mobilizationDate, demobilizationDate] of [['2026-10-01', '2026-10-09'], ['2026-10-21', '2026-10-31']]) {
+    const currentMission = mission({ cycles: [] });
+    const allocationPeriods = [{ collaboratorId: person.id, mobilizationDate, demobilizationDate }];
+    for (const selectedMission of [null, currentMission]) {
+      const result = availability(selectedMission, absences, [], { allocationPeriods });
+      assert.equal(result.columns.AVAILABLE.length, 1);
+      assert.equal(result.columns.ON_VACATION.length, 0);
+      await assert.doesNotReject(resolveSelectedMissionTeam(database(currentMission, absences), {
+        scheduleStatus: 'CONFIRMED', collaboratorIds: [person.id],
+        mobilizationDate: currentMission.mobilizationDate, executionEndDate: currentMission.executionEndDate,
+        allocationPeriods
+      }, currentMission.planId, selectedMission?.id, { mission: selectedMission }));
+    }
+  }
+});
+
 test('datas individuais e desmobilização após a execução delimitam o bloqueio na edição', () => {
   const currentMission = mission({ cycles: [], executionEndDate: '2026-10-25', returnDate: '2026-10-31' });
   assert.equal(availability(currentMission, [absence('2026-10-30', '2026-10-31')]).columns.ON_VACATION.length, 1);

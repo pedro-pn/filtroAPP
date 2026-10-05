@@ -66,7 +66,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   onCancel?: () => void;
 }) {
   const [open, setOpen] = useState(autoOpen);
-  const closeDialog = () => { setOpen(false); onCancel?.(); };
+  const closeDialog = () => { setOpen(false); setEditingPeriod(null); onCancel?.(); };
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState<CollaboratorActivityFilter>('ACTIVE');
@@ -74,6 +74,8 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   const [draftIds, setDraftIds] = useState<string[]>(selectedIds);
   const [overlapConfirmationIds, setOverlapConfirmationIds] = useState<string[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState<AllocationPeriodDraft | null>(null);
+  const editingCollaboratorId = editingPeriod?.collaboratorId;
   const validPeriod = Boolean(/^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate);
   const collaborators = useQuery({
     queryKey: ['efetivo-mission-team-collaborators', startDate, 'include-inactive'],
@@ -93,6 +95,9 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   useEffect(() => {
     if (open) setDraftIds(selectedIds);
   }, [open, selectedIds]);
+  useEffect(() => {
+    if (editingCollaboratorId) document.getElementById('mission-team-candidate-mobilization')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [editingCollaboratorId]);
 
   const options = useMemo(() => {
     const result = (collaborators.data || []).filter(item => !excludedIds.includes(item.id));
@@ -119,7 +124,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     collaborator.id,
     missionTeamCollaboratorPeriods({ mission, collaboratorId: collaborator.id, startDate, endDate, allocationPeriods, singleSelection })
   ])), [allocationPeriods, endDate, mission, options, singleSelection, startDate]);
-  const { columns, otherUnavailable } = useMemo(() => validPeriod
+  const { columns, otherUnavailable, unavailable } = useMemo(() => validPeriod
     ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id, periodsByCollaboratorId)
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
   [absences.data, endDate, mission?.id, missions.data, options, periodsByCollaboratorId, startDate, validPeriod]);
@@ -142,6 +147,10 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   const inactivePeople = filterMissionTeamCollaborators(filterCollaboratorsByActivity(options, 'INACTIVE'), search)
     .filter(person => !roleFilter || person.jobRoleId === roleFilter);
   const inactiveDraftIds = options.filter(person => person.isActive === false && draftIds.includes(person.id)).map(person => person.id);
+  const blockedDraftIds = new Set([
+    ...columns.ON_VACATION.map(entry => entry.collaborator.id),
+    ...unavailable.filter(entry => entry.collaborator.isActive !== false).map(entry => entry.collaborator.id)
+  ].filter(id => draftIds.includes(id)));
   const existingConfirmedOverlapIds = mission?.allocations
     .filter(allocation => allocation.allowMissionOverlap)
     .map(allocation => allocation.collaboratorId) || [];
@@ -151,7 +160,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
       && otherMission.allocations.some(allocation => allocation.collaboratorId === id
         && periodsByCollaboratorId.get(id)?.some(period => allocationOverlapsPeriod(allocation, otherMission, period.startDate, period.endDate)))));
   const applyTeam = (confirmedIds: string[] = [], confirmedInactiveIds: string[] = []) => {
-    if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected) return;
+    if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected || blockedDraftIds.size || editingPeriod) return;
     onChange(draftIds, [...new Set([
       ...existingConfirmedOverlapIds.filter(id => draftIds.includes(id)),
       ...confirmedIds
@@ -161,7 +170,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     setOpen(false);
   };
   const requestApplyTeam = () => {
-    if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected) return;
+    if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected || blockedDraftIds.size || editingPeriod) return;
     if (overlappingDraftIds.length || inactiveDraftIds.length) {
       setOverlapConfirmationIds(overlappingDraftIds);
       setInactiveConfirmationIds(inactiveDraftIds);
@@ -211,7 +220,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
         panelClassName="efetivo-dialog efetivo-team-v2 efetivo-team-selection-dialog"
         footer={<>
           <Button variant="secondary" size="sm" onClick={closeDialog}>Cancelar</Button>
-          <Button variant="primary" size="sm" disabled={disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected} onClick={requestApplyTeam}>{singleSelection ? 'Adicionar à equipe' : 'Aplicar equipe'}</Button>
+          <Button variant="primary" size="sm" disabled={disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected || blockedDraftIds.size > 0 || Boolean(editingPeriod)} onClick={requestApplyTeam}>{singleSelection ? 'Adicionar à equipe' : 'Aplicar equipe'}</Button>
         </>}>
         <div className="efetivo-team-stack">
           <p className="efetivo-dialog-description" id="mission-team-dialog-description">{validPeriod ? displayDateOnly(startDate) + ' a ' + displayDateOnly(endDate) + ' · ' : ''}Pessoas já alocadas podem ser selecionadas mediante confirmação.</p>
@@ -226,6 +235,15 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
             </Field>
           </div>
           <p className="efetivo-team-selection-count" role="status">{draftIds.length} selecionado(s)</p>
+          {blockedDraftIds.size ? <Alert tone="warning">Há colaboradores selecionados com férias ou outra indisponibilidade no período. Ajuste as datas individuais ou remova-os da seleção.</Alert> : null}
+          {editingPeriod ? <section className="efetivo-team-section" aria-label="Definir período individual">
+            <header><h4>Período de {options.find(person => person.id === editingPeriod.collaboratorId)?.name}</h4><p>Informe as datas em que o colaborador participará da missão. A disponibilidade será calculada para esse período.</p></header>
+            <MissionPeriodFields id="mission-team-candidate" value={editingPeriod} min={startDate} max={endDate} endLabel="Saída da missão" disabled={disabled} onChange={value => setEditingPeriod(current => current ? { ...current, ...value } : current)} />
+            <div className="efetivo-team-actions">
+              <Button variant="secondary" size="sm" onClick={() => setEditingPeriod(null)}>Cancelar datas</Button>
+              <Button variant="primary" size="sm" disabled={disabled || !editingPeriod.mobilizationDate || !editingPeriod.demobilizationDate || editingPeriod.mobilizationDate < startDate || editingPeriod.demobilizationDate > endDate || editingPeriod.mobilizationDate > editingPeriod.demobilizationDate} onClick={() => { updateAllocationPeriod(editingPeriod.collaboratorId, editingPeriod); setEditingPeriod(null); }}>Aplicar datas individuais</Button>
+            </div>
+          </section> : null}
           {plannedRoles?.length ? <p className="efetivo-team-help" aria-label="Cobertura dos cargos planejados">{coverage.rows.map(row => `${row.role.name}: ${row.selected}/${row.role.requiredCount}`).join(' · ')}</p> : null}
           {draftIds.length < minSelected ? <p className="efetivo-team-help">Selecione ao menos {minSelected} colaborador(es) para aplicar a equipe.</p> : null}
           {!validPeriod ? <EmptyState title="Informe o período da missão" description="Preencha a mobilização e o fim da execução para calcular quais colaboradores estarão disponíveis." />
@@ -263,6 +281,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                         <div className="efetivo-team-stack">
                           {entries.length ? entries.map(entry => {
                             const selected = draftIds.includes(entry.collaborator.id);
+                            const individualPeriod = allocationPeriods.find(period => period.collaboratorId === entry.collaborator.id);
                             const hasOperationalRole = Boolean(entry.collaborator.jobRoleId && operationalRoleIds.has(entry.collaborator.jobRoleId));
                             const hasMissionOverlap = status === 'AWAITING_MOBILIZATION' || status === 'MOBILIZED';
                             const selectable = status !== 'ON_VACATION' && entry.collaborator.isActive && hasOperationalRole;
@@ -274,6 +293,8 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                               {entry.mission ? <p className="efetivo-team-help">{entry.mission.project.code} · {entry.mission.project.name}<br />Mobilização em {displayDateOnly(entry.mission.mobilizationDate)}</p> : null}
                               {hasMissionOverlap ? <p className="efetivo-team-warning">Exige confirmação de sobreposição.</p> : null}
                               {entry.absence ? <p className="efetivo-team-help">Férias no período · até {displayDateOnly(entry.absence.endDate)}</p> : null}
+                              {!singleSelection && allowIndividualPeriods && hasOperationalRole && !mission?.allocations.find(allocation => allocation.collaboratorId === entry.collaborator.id)?.cycles?.length ? <Button variant="secondary" size="sm" disabled={disabled} onClick={() => setEditingPeriod(individualPeriod || { collaboratorId: entry.collaborator.id, mobilizationDate: startDate, demobilizationDate: endDate })}>Definir período individual</Button> : null}
+                              {individualPeriod ? <p className="efetivo-team-help">Participação: {displayDateOnly(individualPeriod.mobilizationDate)} a {displayDateOnly(individualPeriod.demobilizationDate)}</p> : null}
                               {status === 'AVAILABLE' && !hasOperationalRole ? <p className="efetivo-team-help">Sem função operacional vinculada</p> : null}
                               {plannedRoles?.length && !plannedIds.has(entry.collaborator.jobRoleId || '') ? <p className="efetivo-team-help">Cargo fora do planejamento desta obra</p> : null}
                             </Card>;

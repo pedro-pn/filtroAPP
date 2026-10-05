@@ -57,6 +57,19 @@
   gap: var(--space-3);
 }
 
+.rdo-edit-form .rdo-form-card--overtime .fv-card__header {
+  align-items: center;
+}
+
+.rdo-edit-form .rdo-form-card--overtime .fv-card__actions {
+  margin-inline-start: auto;
+}
+
+.rdo-edit-form .rdo-form-card--overtime .overtime-review-toggle {
+  width: auto;
+  gap: var(--space-2);
+}
+
 .rdo-edit-actions {
   position: sticky;
   inset-block-end: var(--space-3);

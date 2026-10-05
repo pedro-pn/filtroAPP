@@ -8,7 +8,8 @@
 .acp-tracking-division-row { display: grid; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); }
 .acp-tracking-division-system-list { border-top: var(--border-width) solid var(--line); padding-inline-start: var(--space-3); }
 .acp-tracking-division-system-list .acp-tracking-division-row + .acp-tracking-division-row { border-top: var(--border-width) solid var(--line); }
-.acp-tracking-division-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); min-width: 0; }
+.acp-tracking-division-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: var(--space-3); min-width: 0; }
+.acp-tracking-division-fields .fv-field { align-content: start; }
 .acp-tracking-division-fields > * { min-width: 0; }
 .acp-tracking-division-input-row { display: flex; align-items: stretch; gap: var(--space-1); min-width: 0; }
 .acp-tracking-division-input-row .fv-control-shell { flex: 1; min-width: 0; }

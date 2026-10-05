@@ -84,14 +84,14 @@ test('campos de serviço mantêm agrupamento temático e leituras responsivas', 
   assert.match(css, /\.rdo-form-page \.service-notes-field textarea \{/);
 });
 
-test('agrupamento temático fica plano e compacto apenas no mobile', () => {
+test('agrupamento temático fica plano e compacto no mobile', () => {
   const css = source('src/pages/collaborator/NewReportPage.css');
   const mobileStart = css.indexOf('@media (max-width: 767.98px)');
   const mobileEnd = css.indexOf('@media (min-width: 768px)', mobileStart);
   const mobileBlock = css.slice(mobileStart, mobileEnd);
 
   assert.ok(mobileStart >= 0 && mobileEnd > mobileStart);
-  assert.match(mobileBlock, /\.rdo-form-page \.report-services-step,[\s\S]*?padding: var\(--space-3\)/);
+  assert.match(mobileBlock, /\.rdo-form-page \.report-services-step \{[\s\S]*?--rdo-services-padding: var\(--space-2\)/);
   assert.match(mobileBlock, /\.rdo-form-page \.rdo-service-section \{[\s\S]*?padding: 0/);
   assert.match(mobileBlock, /border: 0/);
   assert.match(mobileBlock, /background: transparent/);
