@@ -7,6 +7,7 @@ import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
+import { canRegenerateReport, reportRegenerationMessage } from '../../utils/reportRegeneration';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { isReportManuallyReleased, toggleReportClientRelease } from '../../utils/reportClientRelease';
@@ -22,6 +23,7 @@ import { accountPageStateFromPath, navigationStateFromLocation } from '../../aut
 import { rdoPath, rdoReportDetailPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportTypeBadge } from '../../components/reports/ReportTypeBadge';
+import { ReportReissueDialog } from '../../components/reports/ReportReissueDialog';
 import { ManagerReportListing } from '../../components/reports/manager/ManagerReportListing';
 import { ManagerReportTypeSortButton } from '../../components/reports/manager/ManagerReportTypeSortButton';
 import { AppIcon } from '../../components/icons/AppIcon';
@@ -266,6 +268,8 @@ export function GestorPage() {
   const [manualReportCollaboratorPrompts, setManualReportCollaboratorPrompts] = useState<ManualReportCollaboratorReplicationPrompt[]>([]);
   const [physicalSignatureReport, setPhysicalSignatureReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+  const [regenerationProgress, setRegenerationProgress] = useState('');
+  const [reissueTargetIds, setReissueTargetIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [archivedReportsProjectId, setArchivedReportsProjectId] = useState<string | null>(null);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>(initialUiPrefs.closedArchivedTypeKeys);
@@ -1550,6 +1554,9 @@ export function GestorPage() {
               DOCX
             </Button>
           ) : null}
+          {user?.accountType === 'ADMIN' && canRegenerateReport(report) ? (
+            <Button variant="secondary" size="sm" disabled={reportMutations.regenerateReports.isPending} onClick={() => setReissueTargetIds([report.id])}>Reemitir</Button>
+          ) : null}
           {linkedServiceReport && (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project.clientCnpj && !report.project.managerOnly ? (
             <Button
               variant="secondary"
@@ -1602,6 +1609,9 @@ export function GestorPage() {
             </button>
           ) : null}
         </span>
+        {user?.accountType === 'ADMIN' && canRegenerateReport(report) ? (
+          <button className="mini-btn alt" type="button" disabled={reportMutations.regenerateReports.isPending} onClick={() => setReissueTargetIds([report.id])}>Reemitir</button>
+        ) : null}
         {linkedServiceReport && (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project.clientCnpj && !report.project.managerOnly ? (
           <button
             className="mini-btn alt"
@@ -1651,10 +1661,38 @@ export function GestorPage() {
     );
   }
 
+  async function handleRegenerateReports(ids: string[]) {
+    if (!ids.length || reportMutations.regenerateReports.isPending) return;
+    try {
+      const result = await reportMutations.regenerateReports.mutateAsync({
+        ids,
+        onProgress: (completed, total) => setRegenerationProgress(`${completed}/${total}`)
+      });
+      setSelectedReportIds(current => current.filter(id => !result.savedIds.includes(id)));
+      showToast(reportRegenerationMessage(result), result.errors.length || result.warnings.length ? 'error' : 'success');
+    } finally {
+      setRegenerationProgress('');
+      setReissueTargetIds([]);
+    }
+  }
+
   function renderBatchReportActions(reports: ReportSummary[], forceDesignSystem = false) {
     const visibleIds = reports.map((report) => report.id);
     const selectedVisibleCount = selectedReportIds.filter((id) => visibleIds.includes(id)).length;
     const hasSelectedVisible = selectedVisibleCount > 0;
+    const regenerateButton = user?.accountType === 'ADMIN' && hasSelectedVisible ? (
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-label="Reemitir os relatórios selecionados"
+        loading={reportMutations.regenerateReports.isPending}
+        loadingLabel={`Reemitindo ${regenerationProgress}`}
+        onClick={() => setReissueTargetIds(selectedReportIds.filter(id => visibleIds.includes(id)))}
+      >
+        <span className="report-batch-action-label report-batch-action-label--full">Reemitir</span>
+        <span className="report-batch-action-label report-batch-action-label--compact">Reemitir</span>
+      </Button>
+    ) : null;
 
     if (reportListingTab || forceDesignSystem) {
       return (
@@ -1681,6 +1719,7 @@ export function GestorPage() {
                   <span className="report-batch-action-label report-batch-action-label--full">Baixar DOCX</span>
                   <span className="report-batch-action-label report-batch-action-label--compact">DOCX</span>
                 </Button>
+                {regenerateButton}
               </>
             ) : null}
           </div>
@@ -1710,6 +1749,7 @@ export function GestorPage() {
                 <span className="report-batch-action-label report-batch-action-label--full">Baixar DOCX</span>
                 <span className="report-batch-action-label report-batch-action-label--compact">DOCX</span>
               </button>
+              {regenerateButton}
             </>
           ) : null}
         </div>
@@ -4351,6 +4391,13 @@ export function GestorPage() {
         </p>
       </Modal>
 
+      <ReportReissueDialog
+        count={reissueTargetIds.length}
+        submitting={reportMutations.regenerateReports.isPending}
+        progress={regenerationProgress}
+        onConfirm={() => void handleRegenerateReports(reissueTargetIds)}
+        onCancel={() => setReissueTargetIds([])}
+      />
       <ConfirmDialog
         open={Boolean(removeProjectTarget)}
         appearance="design-system"

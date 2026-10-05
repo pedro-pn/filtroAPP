@@ -20,6 +20,8 @@ import { useConfirmDialog } from '../components/ui/useConfirmDialog';
 import { PhotoCaptureNovelty } from '../components/reports/PhotoCaptureNovelty';
 import { ReportDdsSummarySection } from '../components/reports/ReportDdsSummarySection';
 import { ReportDetailActions } from '../components/reports/ReportDetailActions';
+import { ReportReissueDialog } from '../components/reports/ReportReissueDialog';
+import { canRegenerateReport, reportRegenerationMessage } from '../utils/reportRegeneration';
 import { AppIcon } from '../components/icons/AppIcon';
 import {
   buildManualReportOperationalData,
@@ -464,6 +466,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
   const [invalidSystemTypeServiceId, setInvalidSystemTypeServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [reissueOpen, setReissueOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
   const [acceptOvertime, setAcceptOvertime] = useState(() => reportAcceptsOvertime(report));
@@ -479,6 +482,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const canReview = canReviewRdoReports(user);
   const canEditSequence = canReview && !readOnly && !manualReport;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
+
+  async function handleReissue() {
+    const result = await reportMutations.regenerateReports.mutateAsync({ ids: [report.id] });
+    setReissueOpen(false);
+    showToast(reportRegenerationMessage(result), result.errors.length || result.warnings.length ? 'error' : 'success');
+  }
 
   useEffect(() => {
     setForm(reportToForm(report));
@@ -1296,6 +1305,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               DOCX
             </Button>
           ) : null}
+          {user?.accountType === 'ADMIN' && canRegenerateReport(report) ? (
+            <Button variant="secondary" type="button" loading={reportMutations.regenerateReports.isPending} onClick={() => setReissueOpen(true)}>Reemitir</Button>
+          ) : null}
           {canReview && canApproveInEditor ? (
             <Button
               variant="primary"
@@ -1373,6 +1385,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             </div>
       </Modal>
       <PhotoCaptureNovelty user={user} placement="rdo-edit" enabled={!readOnly} />
+      <ReportReissueDialog count={reissueOpen ? 1 : 0} submitting={reportMutations.regenerateReports.isPending} onConfirm={() => void handleReissue()} onCancel={() => setReissueOpen(false)} />
       {confirmDialog}
     </div>
   );

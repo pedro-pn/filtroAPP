@@ -344,7 +344,7 @@ function internalCanAccessProjectScope(auth, project) {
 
 // CLIENT continua restrito a relatório aprovado/visível: não enxerga foto de
 // relatório pendente, mesmo que o arquivo esteja na pasta de um projeto que ele vê.
-async function authorizeClientStoredFile(req, normalizedPath) {
+async function authorizeReportStoredFile(req, normalizedPath) {
   const candidateIds = await candidateReportIdsForUpload(normalizedPath);
   if (!candidateIds.length) return false;
 
@@ -370,14 +370,18 @@ export async function authorizeStoredFile(req, normalizedPath) {
   if (!hasModuleRole(user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
 
   if (user.role === 'CLIENT') {
-    return authorizeClientStoredFile(req, normalizedPath);
+    return authorizeReportStoredFile(req, normalizedPath);
   }
 
   // Usuário interno: autoriza por escopo de projeto.
   const project = await projectForUploadPath(normalizedPath);
   if (project && internalCanAccessProjectScope(req.auth, project)) return true;
 
-  // Fallback para arquivos fora de pasta de projeto (legados) ou ainda em rascunho.
+  // Fotos de relatórios pendentes e pastas anteriores a uma renomeação também
+  // são autorizadas pelo vínculo persistido do anexo com o relatório.
+  if (await authorizeReportStoredFile(req, normalizedPath)) return true;
+
+  // Fallback para arquivos ainda em rascunho.
   return hasModuleRole(user, RDO_INTERNAL_ROLES) && await canAccessDraftUpload(req.auth, normalizedPath);
 }
 

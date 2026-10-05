@@ -113,6 +113,7 @@ import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-m
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
 import historicalServicesRouter from './historical-services.js';
 import { registerReportReleaseRoutes } from './report-release-routes.js';
+import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
 
@@ -6334,6 +6335,15 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   grantReportUploadAccess(req.auth, item);
   res.json(await withDerivedServiceReportParentMeta(item));
 }));
+
+registerReportRegenerationRoutes(router, { database: prisma, include,
+  isUnavailable: isReportUnavailable,
+  generatePdf: generateReportPdfAsset,
+  writeMetadata: writePdfCacheMetadata,
+  pdfTarget: generatedReportPdfTarget,
+  shouldCreateSignatureRound: report => shouldCreateInternalSignatureRound(report, { allowLinkedServiceReport: true }),
+  notifySignatureRound: ({ report, tokens }) => deliverIssuedSignatureRequestEmails(report, tokens)
+});
 
 router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), asyncHandler(async (req, res) => {
   const abortController = new AbortController();

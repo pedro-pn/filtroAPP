@@ -290,6 +290,33 @@ function stubAuthenticatedCollaborator(t) {
   });
 }
 
+test('report reissue endpoint rejects non-ADM reviewers before reading or changing reports', async t => {
+  const originalSession = prisma.userSession.findUnique;
+  const originalReport = prisma.report.findUniqueOrThrow;
+  prisma.userSession.findUnique = async () => {
+    const session = managerSession();
+    session.user.accountType = 'INTERNAL';
+    return session;
+  };
+  prisma.report.findUniqueOrThrow = async () => assert.fail('non-ADM must not access regeneration');
+  t.after(() => {
+    prisma.userSession.findUnique = originalSession;
+    prisma.report.findUniqueOrThrow = originalReport;
+  });
+  const response = await dispatchApp('POST', '/api/rdo/reports/report-1/regenerate', {});
+  assert.equal(response.statusCode, 403);
+});
+
+test('report reissue endpoint protects signed and deleted reports for ADM accounts', async t => {
+  stubAuthenticatedManager(t);
+  const originalReport = prisma.report.findUniqueOrThrow;
+  t.after(() => { prisma.report.findUniqueOrThrow = originalReport; });
+  prisma.report.findUniqueOrThrow = async () => activeReport({ status: 'SIGNED' });
+  assert.equal((await dispatchApp('POST', '/api/rdo/reports/report-1/regenerate', {})).statusCode, 409);
+  prisma.report.findUniqueOrThrow = async () => activeReport({ deletedAt: new Date() });
+  assert.equal((await dispatchApp('POST', '/api/rdo/reports/report-1/regenerate', {})).statusCode, 404);
+});
+
 function stubReportGroupBy(t, groups = [{
   projectId: 'project-1',
   reportType: ReportType.RDO,
