@@ -29,6 +29,10 @@ export function AssinaturasPage() {
   const parsedPage = Number(params.get('page'));
   const detailPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const listQuery = useSignatureDocuments({ q: query || undefined, status: status || undefined, arquivados: archived ? 1 : undefined });
+  const listData = listQuery.data ? {
+    items: listQuery.data.pages.flatMap(page => page.items),
+    nextCursor: listQuery.data.pages.at(-1)?.nextCursor || null
+  } : undefined;
   const documentQuery = useSignatureDocument(selectedId);
   const mutations = useAssinaturaMutations();
 
@@ -121,9 +125,11 @@ export function AssinaturasPage() {
               />
         ) : (
           <DocumentLibrary
-            data={listQuery.data}
+            data={listData}
             loading={listQuery.isLoading}
-            error={listQuery.isError}
+            error={listQuery.isLoadingError}
+            loadingMore={listQuery.isFetchingNextPage}
+            loadMoreError={listQuery.isFetchNextPageError}
             archived={archived}
             query={query}
             status={status}
@@ -136,6 +142,7 @@ export function AssinaturasPage() {
               setParams(next, { replace: true });
             }}
             onRetry={() => void listQuery.refetch()}
+            onLoadMore={() => void listQuery.fetchNextPage()}
             onNew={() => setNewOpen(true)}
             onOpen={document => openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details')}
           />
