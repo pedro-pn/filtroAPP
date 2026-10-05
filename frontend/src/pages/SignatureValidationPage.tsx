@@ -2,7 +2,7 @@ import { useState, type DragEvent } from 'react';
 import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
-import { getSignatureValidation, getStandaloneSignatureValidation } from '../api/signatureValidation';
+import { getEpiSignatureValidation, getSignatureValidation, getStandaloneSignatureValidation } from '../api/signatureValidation';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { Alert, Card, Skeleton, StatusPill, type SemanticTone } from '../components/ui/ds';
 import { useToast } from '../components/ui/ToastContext';
@@ -41,7 +41,7 @@ async function sha256File(file: File) {
     .join('');
 }
 
-export function SignatureValidationPage({ source = 'report' }: { source?: 'report' | 'standalone' }) {
+export function SignatureValidationPage({ source = 'report' }: { source?: 'report' | 'standalone' | 'epi' }) {
   const { validationCode = '' } = useParams();
   const showToast = useToast();
   const [fileHash, setFileHash] = useState('');
@@ -51,7 +51,10 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
 
   const validationQuery = useQuery({
     queryKey: ['signature-validation', source, validationCode],
-    queryFn: () => source === 'standalone' ? getStandaloneSignatureValidation(validationCode) : getSignatureValidation(validationCode),
+    queryFn: () => {
+      if (source === 'epi') return getEpiSignatureValidation(validationCode);
+      return source === 'standalone' ? getStandaloneSignatureValidation(validationCode) : getSignatureValidation(validationCode);
+    },
     enabled: !!validationCode
   });
 
@@ -124,10 +127,37 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
                 <div><dt>Concluído em</dt><dd>{formatSignatureDateTime(payload.completedAt)}</dd></div>
               </dl>
             ) : null}
+            {payload.epi ? (
+              <>
+                <dl className="rdo-public-details">
+                  <div><dt>Código</dt><dd>{payload.validationCode}</dd></div>
+                  <div><dt>Documento</dt><dd>Ficha de Controle de EPIs</dd></div>
+                  <div><dt>Colaborador</dt><dd>{payload.epi.collaboratorName}</dd></div>
+                  <div><dt>Assinado em</dt><dd>{formatSignatureDateTime(payload.completedAt)}</dd></div>
+                </dl>
+                <div className="signature-validation-signers">
+                  <div className="section-subtitle">EPIs abrangidos por esta assinatura</div>
+                  {payload.epi.records.map((record, index) => (
+                    <div className="det-row" key={index}>
+                      <span className="det-label">{record.epiName} · CA {record.ca || '-'} · Qtd. {record.quantity}</span>
+                      <span className="det-val">
+                        Fornecimento: {formatDateOnlyPtBr(record.lendDate)}
+                        {record.devolutionDate ? ` · Devolução: ${formatDateOnlyPtBr(record.devolutionDate)}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="rdo-public-footnote">
+                  A comparação abaixo verifica o PDF preservado desta solicitação de assinatura.
+                  Uma ficha consolidada emitida depois, com outros EPIs ou assinaturas, possui um hash diferente.
+                </p>
+              </>
+            ) : null}
             {expectedHash ? (
               <div className="signature-validation-hashes">
                 <div><span className="detail-label">Hash PDF final esperado</span><span className="detail-value">{expectedHash}</span></div>
                 <div><span className="detail-label">Hash PDF-base</span><span className="detail-value">{payload.sourceDocumentHash || '-'}</span></div>
+                {payload.signatureImageHash ? <div><span className="detail-label">Hash da assinatura visual</span><span className="detail-value">{payload.signatureImageHash}</span></div> : null}
               </div>
             ) : null}
             {payload.signers?.length ? (
@@ -183,7 +213,9 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
               </div>
             ) : null}
             <p className="rdo-public-footnote">
-              Dados técnicos completos, como IP e user-agent integrais, ficam disponíveis apenas no painel autenticado do gestor.
+              {source === 'epi'
+                ? 'O anexo do PDF assinado contém os dados de auditoria registrados para esta assinatura.'
+                : 'Dados técnicos completos, como IP e user-agent integrais, ficam disponíveis apenas no painel autenticado do gestor.'}
             </p>
           </>
         ) : null}

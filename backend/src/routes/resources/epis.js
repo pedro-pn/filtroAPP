@@ -13,6 +13,7 @@ import {
   roleNameForEpiRequest
 } from '../../lib/epi/collaborators.js';
 import { saveEpiPdf } from '../../lib/epi-docx.js';
+import { epiSignatureImageHash } from '../../lib/epi/evidence-pdf.js';
 import { sortJobRolesByName } from '../../lib/job-roles/index.js';
 import {
   decodableSignatureImageDataUrl,
@@ -334,8 +335,20 @@ async function collaboratorForDocument(collaboratorId, options = {}, tx = prisma
           signatureRequest: {
             select: {
               id: true,
+              status: true,
+              createdAt: true,
+              signedAt: true,
               signatureImageDataUrl: true,
-              signatureSignerName: true
+              signatureSignerName: true,
+              validationCode: true,
+              sourceDocumentHash: true,
+              signatureImageHash: true,
+              signedPdfHash: true,
+              ipAddress: true,
+              userAgent: true,
+              privacyNoticeAcceptedAt: true,
+              privacyNoticeVersion: true,
+              auditLogs: { orderBy: { createdAt: 'asc' } }
             }
           }
         }
@@ -349,7 +362,8 @@ async function findRequestByToken(rawToken, tx = prisma) {
     where: { tokenHash: tokenHash(rawToken) },
     include: {
       collaborator: { include: { jobRole: true, epiProfile: { include: { roleOverrideJobRole: true } } } },
-      records: { orderBy: [{ lendDate: 'asc' }, { createdAt: 'asc' }] }
+      records: { orderBy: [{ lendDate: 'asc' }, { createdAt: 'asc' }] },
+      auditLogs: { orderBy: { createdAt: 'asc' } }
     }
   });
 }
@@ -680,6 +694,7 @@ async function sendCollaboratorPdf(res, collaboratorId, options = {}) {
   });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(file.fileName));
+  res.setHeader('X-Content-SHA256', file.signedPdfHash);
   res.send(await fs.readFile(file.pdfPath));
 }
 
@@ -689,6 +704,7 @@ export function publicPdfCacheKey(request) {
     .join('|');
   const collaboratorStamp = [
     request.collaborator?.id || request.collaboratorId || '',
+    request.collaborator?.name || '',
     request.jobRoleIdSnapshot || '',
     roleNameForEpiRequest(request),
     request.roleSourceSnapshot || ''
@@ -700,11 +716,20 @@ function signedPdfHash(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function signedPdfSnapshotCollaborator(request, { signerName, signatureImageDataUrl, signedAt }) {
+function signedPdfSnapshotCollaborator(request, { signerName, signatureImageDataUrl, signedAt, evidence, privacyNoticeVersion, validationCode }) {
   const signatureRequest = {
+    ...request,
     id: request.id,
+    status: 'SIGNED',
+    signedAt,
     signatureImageDataUrl,
-    signatureSignerName: signerName
+    signatureSignerName: signerName,
+    signatureImageHash: epiSignatureImageHash(signatureImageDataUrl),
+    ipAddress: evidence?.ipAddress || null,
+    userAgent: evidence?.userAgent || null,
+    privacyNoticeVersion,
+    privacyNoticeAcceptedAt: privacyNoticeVersion ? signedAt : null,
+    validationCode
   };
   return {
     ...request.collaborator,
@@ -713,6 +738,7 @@ function signedPdfSnapshotCollaborator(request, { signerName, signatureImageData
     epiDocumentRoleSourceSnapshot: request.roleSourceSnapshot,
     epiRecords: (request.records || []).map(record => ({
       ...record,
+      signatureImageDataUrl: null,
       signedAt,
       signatureSignerName: signerName,
       signatureRequest
@@ -720,13 +746,17 @@ function signedPdfSnapshotCollaborator(request, { signerName, signatureImageData
   };
 }
 
-export async function createSignedPublicPdfArtifact(request, { signerName, signatureImageDataUrl, signedAt }) {
-  const file = await saveEpiPdf(signedPdfSnapshotCollaborator(request, { signerName, signatureImageDataUrl, signedAt }), {
+export async function createSignedPublicPdfArtifact(request, signing, { savePdf = saveEpiPdf } = {}) {
+  const validationCode = crypto.randomBytes(18).toString('base64url');
+  const file = await savePdf(signedPdfSnapshotCollaborator(request, { ...signing, validationCode }), {
     variantLabel: 'Assinado',
     redactCollaboratorFields: true
   });
   const bytes = await fs.readFile(file.pdfPath);
   return {
+    validationCode,
+    sourceDocumentHash: file.sourceDocumentHash,
+    signatureImageHash: epiSignatureImageHash(signing.signatureImageDataUrl),
     signedPdfPath: file.pdfPath,
     signedPdfHash: signedPdfHash(bytes),
     signedPdfFileName: file.fileName
@@ -804,6 +834,42 @@ async function sendPublicRequestPdf(res, request) {
   res.send(await fs.readFile(file.pdfPath));
 }
 
+export async function publicEpiValidationPayload(validationCode, client = prisma) {
+  if (!/^[A-Za-z0-9_-]{24}$/.test(String(validationCode || ''))) return { status: 'INVALID' };
+  const request = await client.epiSignatureRequest.findUnique({
+    where: { validationCode },
+    select: {
+      status: true, validationCode: true, sourceDocumentHash: true,
+      signedPdfHash: true, signatureImageHash: true, signedAt: true,
+      signatureSignerName: true,
+      collaborator: { select: { name: true } },
+      records: {
+        orderBy: [{ lendDate: 'asc' }, { createdAt: 'asc' }],
+        select: { epiName: true, ca: true, quantity: true, lendDate: true, devolutionDate: true }
+      }
+    }
+  });
+  if (!request) return { status: 'INVALID' };
+  if (request.status !== 'SIGNED' || !request.signedPdfHash || !request.signedAt || !request.records.length) {
+    return { status: 'UNAVAILABLE' };
+  }
+  return {
+    status: 'VALID',
+    validationCode: request.validationCode,
+    sourceDocumentHash: request.sourceDocumentHash,
+    finalDocumentHash: request.signedPdfHash,
+    signatureImageHash: request.signatureImageHash,
+    completedAt: request.signedAt,
+    epi: { collaboratorName: request.collaborator.name, records: request.records },
+    signers: [{ name: request.signatureSignerName || 'Não registrado', status: 'SIGNED', signedAt: request.signedAt }]
+  };
+}
+
+router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await publicEpiValidationPayload(req.params.validationCode));
+}));
+
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const evidence = signatureEvidenceFromRequest(req);
   let request = await findRequestByToken(req.params.token);
@@ -862,7 +928,9 @@ export async function confirmPublicEpiSignatureRequest({
   const signedPdfArtifact = await pdfArtifactFactory(preflightRequest, {
     signerName: data.signerName,
     signatureImageDataUrl: data.signatureImageDataUrl,
-    signedAt
+    signedAt,
+    evidence,
+    privacyNoticeVersion: data.privacyNoticeVersion
   });
 
   const signed = await client.$transaction(async tx => {
@@ -882,6 +950,12 @@ export async function confirmPublicEpiSignatureRequest({
     }
     if (status === 'SIGNED') {
       return request;
+    }
+
+    if (publicPdfCacheKey(request) !== publicPdfCacheKey(preflightRequest)) {
+      const error = new Error('A solicitação foi alterada durante a geração do PDF. Abra o link novamente.');
+      error.statusCode = 409;
+      throw error;
     }
 
     const result = await tx.epiRecord.updateMany({
@@ -939,6 +1013,9 @@ export async function confirmPublicEpiSignatureRequest({
         signedPdfPath: signedPdfArtifact.signedPdfPath || null,
         signedPdfHash: signedPdfArtifact.signedPdfHash || null,
         signedPdfFileName: signedPdfArtifact.signedPdfFileName || null,
+        validationCode: signedPdfArtifact.validationCode || null,
+        sourceDocumentHash: signedPdfArtifact.sourceDocumentHash || null,
+        signatureImageHash: signedPdfArtifact.signatureImageHash || null,
         ipAddress: evidence.ipAddress || null,
         userAgent: evidence.userAgent || null,
         privacyNoticeAcceptedAt: data.privacyNoticeAccepted === true && data.privacyNoticeVersion ? signedAt : null,
