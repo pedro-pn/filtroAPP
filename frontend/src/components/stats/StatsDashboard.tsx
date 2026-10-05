@@ -3237,7 +3237,9 @@ function MonthlyAllocationDashboard({
       if (result.skipped) {
         setMessage(result.reason === 'no_recipients'
           ? 'Nenhum destinatário ativo cadastrado.'
-          : 'Envio não realizado.');
+          : result.reason === 'already_processed'
+            ? 'Este mês já foi enviado ou tem um envio em andamento.'
+            : 'Envio não realizado.');
         return;
       }
       const parts = [];
@@ -3249,6 +3251,9 @@ function MonthlyAllocationDashboard({
       }
       if ((result.failed || 0) > 0) {
         parts.push(`${result.failed} destinatário${result.failed === 1 ? '' : 's'} com falha no envio.`);
+      }
+      if ((result.pending || 0) > (result.failed || 0)) {
+        parts.push(`${result.pending} destinatário${result.pending === 1 ? '' : 's'} ainda sem envio concluído.`);
       }
       setMessage(parts.join(' ') || 'Nenhum novo e-mail foi enviado.');
     } catch (error) {

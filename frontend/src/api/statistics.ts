@@ -166,6 +166,7 @@ export interface SendAllocationReportResponse {
   sent: number;
   skippedExisting?: number;
   failed?: number;
+  pending?: number;
   allocationCount?: number;
 }
 
