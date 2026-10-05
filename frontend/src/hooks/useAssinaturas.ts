@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   archiveSignatureDocument,
@@ -23,9 +23,11 @@ import {
 } from '../api/assinaturas';
 
 export function useSignatureDocuments(filters: Record<string, string | number | boolean | undefined>) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['assinaturas', 'list', filters],
-    queryFn: () => listSignatureDocuments(filters)
+    queryFn: ({ pageParam }) => listSignatureDocuments({ ...filters, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => lastPage.nextCursor || undefined
   });
 }
 
