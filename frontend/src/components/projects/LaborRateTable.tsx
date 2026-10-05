@@ -88,13 +88,13 @@ export function LaborRateTable() {
         columns={[
           { key: 'name', header: 'Colaborador', render: ({ r }) => r.name },
           { key: 'role', header: 'Cargo', render: ({ r }) => r.role ?? '—' },
-          { key: 'normal', header: 'Normais', render: ({ view }) => fmtHoras(view.normalHoras) },
-          { key: 'he70', header: 'HE 70%', render: ({ view }) => fmtHoras(view.he70Horas) },
-          { key: 'he100', header: 'HE 100%', render: ({ view }) => fmtHoras(view.he100Horas) },
-          { key: 'monthly', header: 'Custo mensal', render: ({ view }) => view.hasCostProfile ? brl(view.totalMensal) : 'cargo sem custo' },
-          { key: 'sede', header: 'Sede', render: ({ view }) => view.hasCostProfile ? custoCell(view.idle.sede) : '—' },
-          { key: 'folga', header: 'Folga', render: ({ view }) => view.hasCostProfile ? custoCell(view.idle.folga) : '—' },
-          { key: 'hourly', header: 'Custo/hora', render: ({ view }) => view.hasCostProfile ? <strong>{brl(view.custoHora)}</strong> : '—' }
+          { key: 'normal', sortValue: ({ view }) => view.normalHoras, header: 'Normais', render: ({ view }) => fmtHoras(view.normalHoras) },
+          { key: 'he70', sortValue: ({ view }) => view.he70Horas, header: 'HE 70%', render: ({ view }) => fmtHoras(view.he70Horas) },
+          { key: 'he100', sortValue: ({ view }) => view.he100Horas, header: 'HE 100%', render: ({ view }) => fmtHoras(view.he100Horas) },
+          { key: 'monthly', sortValue: ({ view }) => view.hasCostProfile ? view.totalMensal : null, header: 'Custo mensal', render: ({ view }) => view.hasCostProfile ? brl(view.totalMensal) : 'cargo sem custo' },
+          { key: 'sede', sortValue: ({ view }) => view.hasCostProfile ? view.idle.sede.cost : null, header: 'Sede', render: ({ view }) => view.hasCostProfile ? custoCell(view.idle.sede) : '—' },
+          { key: 'folga', sortValue: ({ view }) => view.hasCostProfile ? view.idle.folga.cost : null, header: 'Folga', render: ({ view }) => view.hasCostProfile ? custoCell(view.idle.folga) : '—' },
+          { key: 'hourly', sortValue: ({ view }) => view.hasCostProfile ? view.custoHora : null, header: 'Custo/hora', render: ({ view }) => view.hasCostProfile ? <strong>{brl(view.custoHora)}</strong> : '—' }
         ]}
         mobile={{ renderItem: ({ r, view }) => ({
           title: r.name,

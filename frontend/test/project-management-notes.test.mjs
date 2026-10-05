@@ -40,7 +40,8 @@ test('somente gestores podem abrir a edição das divisões do acompanhamento', 
   const detail = await readSource('src/components/projects/ProjectDetailDashboard.tsx');
 
   assert.match(board, /canManageDivisions=\{canManageGroups\}/);
-  assert.match(detail, /canManageDivisions \? <Button[^>]*onClick=\{\(\) => setTrackingDivisionsOpen\(true\)\}/);
+  assert.match(detail, /canManageDivisions \? <Button[^>]*onClick=\{\(\) => \{[^}]*setTrackingDivisionsOpen\(true\)/);
+  assert.match(detail, /canManageDivisions && trackingDivisionsOpen && projectId && trackingDivisions \? <ProjectTrackingDivisionsPanel/);
 });
 
 test('dashboard usa a equipe planejada como fallback antes do primeiro RDO', async () => {

@@ -1,3 +1,4 @@
+import { SortableTable } from '../../../components/ui/SortableTable';
 import { useQuery } from '@tanstack/react-query';
 
 import { getEfetivoCollaboratorDetail, type EfetivoPeriod } from '../../../api/efetivo';
@@ -41,14 +42,14 @@ export function ProductivityCollaboratorDetail({ collaboratorId, period, onClose
                 <MetricCard label="Meses analisados" value={query.data.colaborador.mesesAnalisados.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} />
               </div>
               <div className="efetivo-table-wrap efetivo-productivity-detail__table">
-                <table className="efetivo-table efetivo-detail-table">
+                <SortableTable className="efetivo-table efetivo-detail-table">
                   <thead>
                     <tr><th>Mês</th><th>HH normais</th><th>HE excluídas</th><th>Distância da referência</th><th>Situação</th></tr>
                   </thead>
                   <tbody>
                     {query.data.meses.map(month => (
                       <tr key={month.mes}>
-                        <td data-label="Mês">{monthLabel(month.mes)}</td>
+                        <td data-label="Mês" data-sort-value={month.mes}>{monthLabel(month.mes)}</td>
                         <td data-label="HH normais">{hours(month.hhNormais)}</td>
                         <td data-label="HE excluídas">{hours(month.heExcluidas)}</td>
                         <td data-label="Distância da referência">{hours(month.distanciaReferencia)}</td>
@@ -60,7 +61,7 @@ export function ProductivityCollaboratorDetail({ collaboratorId, period, onClose
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </SortableTable>
               </div>
             </>
           ) : null}

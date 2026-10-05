@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { getMissionGroupInvoices, getProjectInvoices, type ProjectInvoice, type TrackingDivision } from '../../api/acompanhamentoComercial';
 import { AppIcon } from '../icons/AppIcon';
 import { HelpTip } from '../ui/HelpTip';
-import { Alert, Badge, Button, Card, DataTable, EmptyState, Pagination, Skeleton, type DataTableColumn, type SemanticTone } from '../ui/ds';
+import { Alert, Badge, Button, Card, DataTable, EmptyState, Pagination, Skeleton, sortTableRows, type DataTableColumn, type DataTableSort, type SemanticTone } from '../ui/ds';
 import './ProjectInvoicesSection.ds.css';
 
 const PAGE_SIZE = 10;
@@ -33,6 +33,7 @@ function ReceiptStatus({ invoice }: { invoice: ProjectInvoice }) {
 export function ProjectInvoicesSection({ projectId, groupId, division }: { projectId?: string; groupId?: string; division?: TrackingDivision | null }) {
   const titleId = useId();
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<DataTableSort | null>(null);
   const query = useQuery({
     queryKey: ['project-invoices', groupId ? 'group' : 'project', groupId || projectId],
     queryFn: () => groupId ? getMissionGroupInvoices(groupId) : getProjectInvoices(projectId!),
@@ -48,22 +49,22 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
   const visibleTotal = visibleInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
   const pages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
-  const invoices = visibleInvoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const columns: DataTableColumn<ProjectInvoice>[] = [
-    { key: 'number', header: 'Nota fiscal', rowHeader: true, render: invoice => <span className="acp-invoices-ds__cell">
+    { key: 'number', sortValue: invoice => invoice.number, header: 'Nota fiscal', rowHeader: true, render: invoice => <span className="acp-invoices-ds__cell">
       <strong>{invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} {invoice.number}</strong>
       {invoice.series ? <small>Série {invoice.series}</small> : null}
     </span> },
-    { key: 'issuedAt', header: 'Emissão', render: invoice => <time dateTime={invoice.issuedAt}>{formatDate(invoice.issuedAt)}</time> },
+    { key: 'issuedAt', sortValue: invoice => invoice.issuedAt, header: 'Emissão', render: invoice => <time dateTime={invoice.issuedAt}>{formatDate(invoice.issuedAt)}</time> },
     ...(groupId ? [{ key: 'project', header: 'Missão', render: (invoice: ProjectInvoice) => <span className="acp-invoices-ds__wrap">{invoice.project.code} · {invoice.project.name}</span> }] : []),
-    { key: 'customer', header: 'Tomador / cliente', render: invoice => <span className="acp-invoices-ds__cell">
+    { key: 'customer', sortValue: invoice => invoice.customerName, header: 'Tomador / cliente', render: invoice => <span className="acp-invoices-ds__cell">
       <span>{invoice.customerName || 'Não informado'}</span>
       {invoice.customerCnpj ? <small>{invoice.customerCnpj}</small> : null}
       {invoice.customerDiffers ? <small>Tomador diferente do cadastro do projeto</small> : null}
     </span> },
-    { key: 'amount', header: 'Valor bruto', align: 'right', numeric: true, render: invoice => <strong className="acp-invoices-ds__amount">{brl(invoice.amount)}</strong> },
-    { key: 'receipt', header: <HelpTip help="Situação dos títulos a receber da nota no Omie. O valor bruto faturado pode incluir retenções; ele não representa o valor líquido depositado.">Recebimento</HelpTip>, render: invoice => <ReceiptStatus invoice={invoice} /> }
+    { key: 'amount', sortValue: invoice => invoice.amount, header: 'Valor bruto', align: 'right', numeric: true, render: invoice => <strong className="acp-invoices-ds__amount">{brl(invoice.amount)}</strong> },
+    { key: 'receipt', sortValue: invoice => RECEIPT[invoice.receiptStatus]?.label, header: <HelpTip help="Situação dos títulos a receber da nota no Omie. O valor bruto faturado pode incluir retenções; ele não representa o valor líquido depositado.">Recebimento</HelpTip>, render: invoice => <ReceiptStatus invoice={invoice} /> }
   ];
+  const invoices = sortTableRows(visibleInvoices, columns, sort).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return <Card padding="sm" className="acp-invoices-ds" data-acp-project-invoices>
     <details open>
@@ -99,7 +100,8 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
           </Alert> : null}
           {visibleInvoices.length === 0 ? <EmptyState title="Nenhuma nota fiscal faturada"
             description={`Nenhuma nota encontrada para ${groupId ? 'as missões deste grupo' : 'este projeto'} na última consulta.`} />
-            : <DataTable rows={invoices} columns={columns} getRowId={invoice => invoice.id}
+            : <DataTable rows={invoices} columns={columns.map(column => ({ ...column, sortable: true }))} getRowId={invoice => invoice.id}
+              sort={sort} onSortChange={next => { setSort(next); setPage(1); }}
               ariaLabel="Histórico de notas fiscais faturadas" density="compact" mobileBreakpoint="xl"
               mobile={{ renderItem: invoice => ({
                 title: `${invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} ${invoice.number}`,

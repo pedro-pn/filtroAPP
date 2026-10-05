@@ -200,6 +200,22 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       const timeline = render(story.ProjectTimelineCard, { data: detail });
       assert.match(timeline, /2 dias antes do previsto/);
       assert.match(timeline, /30\/09\/2026/);
+      const divisionTimeline = render(story.ProjectTimelineCard, { data: {
+        ...detail,
+        division: { key: 'escopo-a', startDate: '2026-09-10', endDate: '2026-10-03', mobilizationDate: '2026-09-04' },
+        footer: { mobilizationDate: '2026-09-04', startDate: '2026-09-10', expectedEndDate: '2026-10-03', projectedEndByPace: null }
+      } });
+      assert.match(divisionTimeline, /Linha do tempo da divisão/);
+      assert.match(divisionTimeline, /Mobilização do escopo<\/span><strong>04\/09\/2026/);
+      assert.match(divisionTimeline, /Início do escopo<\/span><strong>10\/09\/2026/);
+      assert.match(divisionTimeline, /Fim do escopo<\/span><strong>03\/10\/2026/);
+      assert.doesNotMatch(divisionTimeline, /30\/08\/2026|01\/09\/2026|30\/09\/2026/);
+      const noScopeEnd = render(story.ProjectTimelineCard, { data: {
+        ...detail, division: { key: 'escopo-a', startDate: '2026-09-10', endDate: null, mobilizationDate: null }
+      } });
+      assert.match(noScopeEnd, /Fim do escopo<\/span><strong>—/);
+      assert.match(noScopeEnd, /Mobilização do escopo<\/span><strong>—/);
+      assert.match(noScopeEnd, /Início do escopo<\/span><strong>10\/09\/2026/);
       const time = render(story.ProjectTimeSnapshot, {
         data: detail,
         onOpenStandbyHistory() {},

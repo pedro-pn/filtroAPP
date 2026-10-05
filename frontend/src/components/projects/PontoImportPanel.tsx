@@ -94,10 +94,10 @@ export function PontoSyncHistoryTable({ runs, loading = false }: { runs: PontoMa
           </div>
         ) },
         { key: 'trigger', header: 'Origem', render: run => pontoMaisSyncTriggerLabel(run.trigger) },
-        { key: 'period', header: 'Período', render: run => `${fmtDate(run.periodStart)} – ${fmtDate(run.periodEnd)}` },
-        { key: 'records', header: 'Registros', render: run => `${run.workDaysRead} jornadas · ${run.timeCardsRead} batidas` },
-        { key: 'links', header: 'Vínculos', render: run => `${run.collaboratorsMatched} vinculados · ${run.pendingCount} pendência(s)` },
-        { key: 'completed', header: 'Concluída', render: run => fmtDateTime(run.completedAt) }
+        { key: 'period', sortValue: run => run.periodStart, header: 'Período', render: run => `${fmtDate(run.periodStart)} – ${fmtDate(run.periodEnd)}` },
+        { key: 'records', sortValue: run => run.workDaysRead, header: 'Registros', render: run => `${run.workDaysRead} jornadas · ${run.timeCardsRead} batidas` },
+        { key: 'links', sortValue: run => run.collaboratorsMatched, header: 'Vínculos', render: run => `${run.collaboratorsMatched} vinculados · ${run.pendingCount} pendência(s)` },
+        { key: 'completed', sortValue: run => run.completedAt, header: 'Concluída', render: run => fmtDateTime(run.completedAt) }
       ]}
       mobile={{ renderItem: run => ({
         title: `${fmtDate(run.periodStart)} – ${fmtDate(run.periodEnd)}`,
@@ -137,10 +137,10 @@ export function PontoCurrentDataHistoryTable({
             <span>{item.fileName}</span>
           </div>
         ) },
-        { key: 'period', header: 'Período', render: item => `${fmtDate(item.periodStart)} – ${fmtDate(item.periodEnd)}` },
-        { key: 'people', header: 'Colab.', render: item => `${item.collaboratorsMatched}/${item.collaboratorsTotal}` },
+        { key: 'period', sortValue: run => run.periodStart, header: 'Período', render: item => `${fmtDate(item.periodStart)} – ${fmtDate(item.periodEnd)}` },
+        { key: 'people', sortValue: item => item.collaboratorsMatched, header: 'Colab.', render: item => `${item.collaboratorsMatched}/${item.collaboratorsTotal}` },
         { key: 'rows', header: 'Linhas', render: item => item.rowsRead },
-        { key: 'updated', header: 'Atualizado', render: item => fmtDate(item.createdAt) }
+        { key: 'updated', sortValue: item => item.createdAt, header: 'Atualizado', render: item => fmtDate(item.createdAt) }
       ]}
       rowActions={isManager ? item => item.source !== 'PONTOMAIS_API' ? (
         <Button variant="danger" size="sm" onClick={() => onDelete(item)} aria-label={`Excluir importação ${item.fileName}`}>

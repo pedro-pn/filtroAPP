@@ -1,3 +1,4 @@
+import { SortableTable } from '../../../components/ui/SortableTable';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -160,7 +161,7 @@ export function ProductivityBoard({ canManage }: Props) {
         </div>
         {data.colaboradores.length ? (
           <div className="efetivo-table-wrap">
-            <table className="efetivo-table">
+            <SortableTable className="efetivo-table">
               <thead>
                 <tr>
                   <th>Colaborador</th>
@@ -182,7 +183,7 @@ export function ProductivityBoard({ canManage }: Props) {
                     <td data-label="Média mensal">{hours(collaborator.mediaMensal)}</td>
                     <td data-label="HE excluídas">{hours(collaborator.heExcluidas)}</td>
                     <td data-label="Meses analisados">{collaborator.mesesAnalisados.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>
-                    <td data-label="Improdutividade">
+                    <td data-label="Improdutividade" data-sort-value={collaborator.improdutividade}>
                       <strong>{percent(collaborator.improdutividade)}</strong>
                       {collaborator.mesesComFerias.length ? <span className="efetivo-vacation-note">Férias: {collaborator.mesesComFerias.map(monthLabel).join(', ')}</span> : null}
                     </td>
@@ -192,7 +193,7 @@ export function ProductivityBoard({ canManage }: Props) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         ) : <EmptyState title="Nenhum colaborador elegível no período." />}
       </Card>

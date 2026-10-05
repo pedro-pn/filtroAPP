@@ -30,6 +30,7 @@ export {
   type ProgressStepsProps
 } from './ProgressSteps';
 export { DataTable, type DataTableProps } from './listings/DataTable';
+export { sortTableRows } from './listings/sortRows';
 export {
   FilterBar,
   type ActiveFilter,

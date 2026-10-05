@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -141,7 +142,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
 
       {filteredRows.length ? (
         <div className="equip-table-wrap stock-summary-table-wrap stock-table-wrap">
-          <table className="equip-table stock-summary-table">
+          <SortableTable className="equip-table stock-summary-table">
             <thead>
               <tr>
                 <th>Código</th>
@@ -165,7 +166,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                   <Fragment key={row.item.id}>
                     <tr className="stock-summary-item-row" onClick={() => toggle(row.item.id)}>
                       <td>{row.item.code}</td>
-                      <td>
+                      <td data-sort-value={row.item.name}>
                         <button
                           className="stock-summary-product-button"
                           type="button"
@@ -183,8 +184,8 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                       <td>{row.item.category?.name || '-'}</td>
                       <td>{typeLabel(row.item.type)}</td>
                       <td>{row.item.unitLabel}</td>
-                      <td>{row.balance}</td>
-                      <td>{row.item.minQuantity || '-'}</td>
+                      <td data-sort-value={Number(row.balance)}>{row.balance}</td>
+                      <td data-sort-value={Number(row.item.minQuantity)}>{row.item.minQuantity || '-'}</td>
                       <td>
                         <div className="stock-summary-status">
                           {badges.map(label => <Badge key={label} tone={label === 'Vencendo' ? 'warning' : 'danger'}>{label}</Badge>)}
@@ -192,7 +193,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                           {!badges.length && row.item.isActive ? <Badge tone="success">Regular</Badge> : null}
                         </div>
                       </td>
-                      <td>
+                      <td data-sort-value={row.item.name}>
                         <button
                           className="mini-btn alt stock-summary-detail-button"
                           type="button"
@@ -229,7 +230,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                             ) : null}
                             <div className="sec">Lotes com saldo</div>
                             <div className="equip-table-wrap stock-summary-batches-wrap">
-                              <table className="equip-table stock-summary-batches-table">
+                              <SortableTable className="equip-table stock-summary-batches-table">
                                 <thead>
                                   <tr>
                                     <th>Lote</th>
@@ -244,10 +245,10 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                                   {row.batches.map(batch => (
                                     <tr key={batch.id}>
                                       <td data-label="Lote">{batch.lotNumber || 'Avulso'}</td>
-                                      <td data-label="Validade">{formatDateOnlyPtBr(batch.expiryDate)}</td>
+                                      <td data-label="Validade" data-sort-value={batch.expiryDate}>{formatDateOnlyPtBr(batch.expiryDate)}</td>
                                       <td data-label="NF">{batch.nfNumber || '-'}</td>
                                       <td data-label="Fornecedor">{batch.supplier || '-'}</td>
-                                      <td data-label="Saldo">{batch.balance} {row.item.unitLabel}</td>
+                                      <td data-label="Saldo" data-sort-value={Number(batch.balance)}>{batch.balance} {row.item.unitLabel}</td>
                                       <td data-label="Status">{batchStatus(batch)}</td>
                                     </tr>
                                   ))}
@@ -255,7 +256,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                                     <tr><td colSpan={6}>Nenhum lote com saldo disponível.</td></tr>
                                   ) : null}
                                 </tbody>
-                              </table>
+                              </SortableTable>
                             </div>
                           </div>
                         </td>
@@ -265,7 +266,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                 );
               })}
             </tbody>
-          </table>
+          </SortableTable>
         </div>
       ) : null}
     </section>

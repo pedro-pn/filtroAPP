@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 
 import type { ReportSummary } from '../../../types/domain';
 import { formatDateOnlyPtBr } from '../../../utils/dateOnly';
@@ -10,7 +10,9 @@ import {
   Badge,
   DataTable,
   StatusPill,
+  sortTableRows,
   type DataTableColumn,
+  type DataTableSort,
   type DataTableProps,
   type StatusToneMap
 } from '../../ui/ds';
@@ -479,6 +481,7 @@ export function ManagerReportListing({
   selectable = true,
   layout = 'responsive'
 }: ManagerReportListingProps) {
+  const [columnSort, setColumnSort] = useState<DataTableSort | null>(null);
   const ariaLabel = `Relatórios ${reportType} do projeto ${projectLabel}`;
   const visibleReportIds = new Set(reports.map((report) => report.id));
   const selectedVisibleIds = selectedReportIds.filter((id) =>
@@ -505,11 +508,13 @@ export function ManagerReportListing({
     {
       key: 'details',
       header: 'Informações',
+      sortValue: report => report.reportDate,
       render: (report) => <ReportSummaryDetails report={report} />
     },
     {
       key: 'status',
       header: 'Status',
+      sortValue: report => reportStatus(report).label,
       render: (report) => <ReportStatus report={report} />
     }
   ];
@@ -544,7 +549,7 @@ export function ManagerReportListing({
       <DataTable<ReportSummary>
         className="rdo-manager-listing"
         onClick={handleRowClick}
-        rows={reports}
+        rows={sortTableRows(reports, columns, columnSort)}
         columns={columns}
         getRowId={(report) => report.id}
         getRowClassName={() => 'rel-item rdo-manager-listing__row'}
@@ -552,8 +557,13 @@ export function ManagerReportListing({
         density="comfortable"
         mobileBreakpoint="xl"
         layout={layout}
-        sort={{ key: 'report', direction: sortDirection }}
-        onSortChange={onSortChange}
+        sort={columnSort ?? { key: 'report', direction: sortDirection }}
+        onSortChange={next => {
+          if (next.key === 'report') {
+            setColumnSort(null);
+            onSortChange();
+          } else setColumnSort(next);
+        }}
         selection={selectable ? {
           selectedRowIds: selectedVisibleIds,
           onSelectionChange: (rowIds) => {

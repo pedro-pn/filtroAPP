@@ -1,3 +1,4 @@
+import { SortableTable } from '../ui/SortableTable';
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
@@ -76,6 +77,7 @@ export function ProjectDetailDashboard({
   const queryClient = useQueryClient();
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
+  const [trackingDivisionToEdit, setTrackingDivisionToEdit] = useState<string | undefined>();
   const [trackingDivisionKey, setTrackingDivisionKey] = useState('');
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [progressScopeKey, setProgressScopeKey] = useState('');
@@ -333,10 +335,18 @@ export function ProjectDetailDashboard({
         <Button type="button" size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button>
         {canManage && !isGroup ? (
           <div className="acp-detail-bar-actions">
-            <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => setScheduleProject({ projectId: projectId!, code: h.code })}>
-              Editar cronograma
-            </Button>
-            {canManageDivisions ? <Button type="button" size="sm" variant="secondary" onClick={() => setTrackingDivisionsOpen(true)}>
+            {!activeDivisionKey || canManageDivisions ? <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => {
+              if (activeDivisionKey) {
+                setTrackingDivisionToEdit(activeDivisionKey);
+                setTrackingDivisionsOpen(true);
+              } else setScheduleProject({ projectId: projectId!, code: h.code });
+            }}>
+              {activeDivisionKey ? 'Editar cronograma da divisão' : 'Editar cronograma'}
+            </Button> : null}
+            {canManageDivisions ? <Button type="button" size="sm" variant="secondary" onClick={() => {
+              setTrackingDivisionToEdit(undefined);
+              setTrackingDivisionsOpen(true);
+            }}>
               Divisões do acompanhamento
             </Button> : null}
           </div>
@@ -354,7 +364,7 @@ export function ProjectDetailDashboard({
           <div className="acp-detail-header-meta">
             {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
             <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span>
-            <span>Início <strong>{fmtDate(data.footer.startDate)}</strong></span>
+            <span>{data.division ? 'Início do escopo' : 'Início'} <strong>{fmtDate(data.footer.startDate)}</strong></span>
             {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
           </div>
           {data.alerts.length > 0 ? (
@@ -444,9 +454,13 @@ export function ProjectDetailDashboard({
         </nav>
       ) : null}
       {data.division ? <Card padding="sm" className="acp-tracking-period" aria-label="Período da divisão">
-        Período: {fmtDate(data.division.startDate)} até {data.division.endDate ? fmtDate(data.division.endDate) : 'hoje'}
-        <span>Mobilização inicial: {fmtDate(data.division.mobilizationDate || data.division.startDate)}</span>
+        <span>Início do escopo: {fmtDate(data.division.startDate)}</span>
+        <span>Fim do escopo: {data.division.endDate ? fmtDate(data.division.endDate) : 'Não informado · período até hoje'}</span>
+        <span>Mobilização do escopo: {fmtDate(data.division.mobilizationDate)}</span>
       </Card> : null}
+      {data.division && !data.division.mobilizationDate ? <Alert tone="warning" title="Informe a mobilização do escopo.">
+        Preencha a data no cronograma da divisão para calcular os dias corridos e a apropriação dos colaboradores.
+      </Alert> : null}
 
       <ProjectDetailOverview
         data={data}
@@ -830,7 +844,7 @@ export function ProjectDetailDashboard({
           ) : (
             <>
               <div className="acp-detail-equips-table-wrap">
-                <table className="acp-detail-equips-table">
+                <SortableTable className="acp-detail-equips-table">
                   <caption className="sr-only">Equipamentos na obra</caption>
                   <thead><tr>
                     <th scope="col">Equipamento</th>
@@ -839,15 +853,15 @@ export function ProjectDetailDashboard({
                   </tr></thead>
                   <tbody>{equipamentos.map((equipment, index) => (
                     <tr key={`${equipment.code ?? equipment.name}-${index}`}>
-                      <th scope="row">
+                      <th scope="row" data-sort-value={`${equipment.code ?? ""} ${equipment.name}`}>
                         {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
                         <span>{equipment.name}</span>
                       </th>
-                      <td>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
-                      <td>{fmtDate(equipment.since)}</td>
+                      <td data-sort-value={equipment.days}>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
+                      <td data-sort-value={equipment.since}>{fmtDate(equipment.since)}</td>
                     </tr>
                   ))}</tbody>
-                </table>
+                </SortableTable>
               </div>
               <ul className="acp-detail-equips-mobile" aria-label="Equipamentos na obra">
                 {equipamentos.map((equipment, index) => (
@@ -889,7 +903,7 @@ export function ProjectDetailDashboard({
       />
 
       {canManageDivisions && trackingDivisionsOpen && projectId && trackingDivisions ? <ProjectTrackingDivisionsPanel
-        projectId={projectId} data={trackingDivisions} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
+        projectId={projectId} data={trackingDivisions} selectedDivisionKey={trackingDivisionToEdit} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
       {canManageDivisions && trackingDivisionsOpen && projectId && !trackingDivisions ? <Modal open onClose={() => setTrackingDivisionsOpen(false)}
         appearance="design-system" title="Divisões do acompanhamento" size="sm">
         {trackingDivisionsError ? <Alert tone="danger" title="Não foi possível carregar as divisões."

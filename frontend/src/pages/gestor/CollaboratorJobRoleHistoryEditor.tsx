@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import type { CollaboratorJobRoleHistoryPayload } from '../../api/collaborators';
@@ -120,17 +121,17 @@ export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPen
 
       {history.length ? (
         <div className="efetivo-table-wrap">
-          <table className="efetivo-table collaborator-role-history-table">
+          <SortableTable className="efetivo-table collaborator-role-history-table">
             <thead><tr><th>Vigência</th><th>Cargo</th><th>Observação</th><th>Ações</th></tr></thead>
             <tbody>{history.map(entry => (
               <tr key={entry.id}>
-                <td data-label="Vigência">{dateLabel(entry.effectiveDate)}</td>
+                <td data-label="Vigência" data-sort-value={entry.effectiveDate}>{dateLabel(entry.effectiveDate)}</td>
                 <td data-label="Cargo"><strong>{entry.jobRole.name}</strong></td>
                 <td data-label="Observação">{entry.note || '—'}</td>
                 <td data-label="Ações"><div className="admin-actions"><button className="mini-btn alt" type="button" disabled={isPending} onClick={() => startEdit(entry)}>Editar</button><button className="mini-btn danger" type="button" disabled={isPending || history.length <= 1} title={history.length <= 1 ? 'O único registro de cargo não pode ser excluído.' : undefined} onClick={() => setRemoveTarget(entry)}>Excluir</button></div></td>
               </tr>
             ))}</tbody>
-          </table>
+          </SortableTable>
         </div>
       ) : <p className="placeholder-copy">Nenhum histórico de cargo cadastrado.</p>}
       <ConfirmDialog

@@ -1,3 +1,4 @@
+import { SortableTable } from '../ui/SortableTable';
 import { BrandLoading } from '../brand/BrandLoading';
 import {
   Fragment,
@@ -827,6 +828,7 @@ function DesignSystemServiceItemsTable({
   const columns: DataTableColumn<AggregatedItem>[] = [
     {
       key: 'equipment',
+      sortValue: item => [item.equipmentName, item.system].filter(Boolean).join(' - '),
       header: 'Equipamento / Sistema',
       rowHeader: true,
       render: (item) => <ServiceItemLabel item={item} />
@@ -839,6 +841,7 @@ function DesignSystemServiceItemsTable({
     },
     {
       key: 'measurement',
+      sortValue: item => type === 'filtragem' ? item.volumeOleoLiters : totalTubeLength(item.tubesByDiameter),
       header: measurementLabel,
       render: (item) => <ServiceItemMeasurement item={item} type={type} />
     }
@@ -976,7 +979,7 @@ function ServicesSection({
                   </div>
                 </details>
               ) : (
-                <table className="stats-svc-items-table">
+                <SortableTable className="stats-svc-items-table">
                   <thead>
                     <tr>
                       <th>Equipamento / Sistema</th>
@@ -991,17 +994,17 @@ function ServicesSection({
                   <tbody>
                     {items.map((item) => (
                       <tr key={item.key}>
-                        <td>
+                        <td data-sort-value={[item.equipmentName, item.system].filter(Boolean).join(" - ")}>
                           <ServiceItemLabel item={item} />
                         </td>
                         <td>{item.count}</td>
-                        <td>
+                        <td data-sort-value={type === "filtragem" ? item.volumeOleoLiters : totalTubeLength(item.tubesByDiameter)}>
                           <ServiceItemMeasurement item={item} type={type} />
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </SortableTable>
               ))}
           </>
         );
@@ -1184,6 +1187,7 @@ function DesignSystemDailyReportTable({
   const columns: DataTableColumn<StatsDailyReport>[] = [
     {
       key: 'date',
+      sortValue: report => report.reportDate,
       header: 'Data',
       rowHeader: true,
       render: (report) => formatDateOnlyPtBr(report.reportDate)
@@ -1249,6 +1253,7 @@ function DesignSystemDailyReportTable({
     },
     {
       key: 'services',
+      sortValue: report => Object.keys(report.services).map(type => SERVICE_LABELS[type] || type).join(', '),
       header: 'Serviços',
       render: (report) => <RdoServiceSummary services={report.services} />
     }
@@ -1407,7 +1412,7 @@ function ProjectDailyDetail({
 
   return (
     <div className="stats-byproject-detail" id={detailId}>
-      <table className="stats-daily-table">
+      <SortableTable className="stats-daily-table">
         <thead>
           <tr>
             <th>Data</th>
@@ -1432,7 +1437,7 @@ function ProjectDailyDetail({
                   key={rdo.reportId}
                   className={hasSvcs ? 'stats-daily-row--has-svcs' : ''}
                 >
-                  <td>{dateStr}</td>
+                  <td data-sort-value={rdo.reportDate}>{dateStr}</td>
                   <td>{rdo.sequenceNumber ?? '-'}</td>
                   <td>{rdo.status === 'SIGNED' ? 'Assinado' : 'Aprovado'}</td>
                   <td>{fmtMin(rdo.daytimeWorkedMinutes)}</td>
@@ -1453,7 +1458,7 @@ function ProjectDailyDetail({
             );
           })}
         </tbody>
-      </table>
+      </SortableTable>
     </div>
   );
 }
@@ -2664,7 +2669,7 @@ function ReportTypeTable({ rows }: { rows: StatsOverviewProject[] }) {
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table className="stats-ov-type-table">
+      <SortableTable className="stats-ov-type-table">
         <thead>
           <tr>
             <th>Projeto</th>
@@ -2682,18 +2687,18 @@ function ReportTypeTable({ rows }: { rows: StatsOverviewProject[] }) {
                   <span className="stats-ov-type-name">{row.name}</span>
                 </td>
                 {usedTypes.map(t => (
-                  <td key={t} className="stats-ov-type-num">
+                  <td key={t} className="stats-ov-type-num" data-sort-value={row.reportCounts[t] ?? 0}>
                     {row.reportCounts[t]
                       ? <strong>{row.reportCounts[t]}</strong>
                       : <span className="stats-ov-type-zero">—</span>}
                   </td>
                 ))}
-                <td className="stats-ov-type-num stats-ov-type-total">{total || '—'}</td>
+                <td className="stats-ov-type-num stats-ov-type-total" data-sort-value={total}>{total || '—'}</td>
               </tr>
             );
           })}
         </tbody>
-      </table>
+      </SortableTable>
     </div>
   );
 }
@@ -2994,7 +2999,7 @@ function AllocationTable({ collaborators }: { collaborators: AllocationReportCol
 
   return (
     <div className="stats-alloc-table-wrap">
-      <table className="stats-alloc-table">
+      <SortableTable className="stats-alloc-table">
         <thead>
           <tr>
             <th>Colaborador</th>
@@ -3007,11 +3012,11 @@ function AllocationTable({ collaborators }: { collaborators: AllocationReportCol
             <tr key={collaborator.collaboratorId || collaborator.collaboratorName}>
               <td className="stats-alloc-person">{collaborator.collaboratorName}</td>
               <td>{collaborator.collaboratorRole || '-'}</td>
-              <td><AllocationDayList days={collaborator.days} /></td>
+              <td data-sort-value={collaborator.days.length}><AllocationDayList days={collaborator.days} /></td>
             </tr>
           ))}
         </tbody>
-      </table>
+      </SortableTable>
     </div>
   );
 }
@@ -3074,6 +3079,7 @@ function DesignSystemAllocationTable({
     },
     {
       key: 'allocations',
+      sortValue: collaborator => collaborator.days.length,
       header: 'Alocações do mês',
       render: (collaborator) => (
         <DesignSystemAllocationDayList days={collaborator.days} />

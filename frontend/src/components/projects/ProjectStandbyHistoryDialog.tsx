@@ -32,9 +32,9 @@ export function StandbyHistoryTable({ entries }: { entries: ProjectStandbyHistor
     mobileBreakpoint="md"
     emptyState={<EmptyState title="Nenhum registro de standby" description="Este projeto ainda não possui tempo de standby registrado." />}
     columns={[
-      { key: 'date', header: 'Dia', rowHeader: true, render: entry => formatDate(entry.date) },
-      { key: 'time', header: 'Horas em standby', align: 'right', render: entry => formatMinutes(entry.standbyMinutes) },
-      { key: 'people', header: 'Nº de colaboradores', align: 'right', render: entry => entry.collaboratorCount ?? 'Não informado' },
+      { key: 'date', sortValue: entry => entry.date, header: 'Dia', rowHeader: true, render: entry => formatDate(entry.date) },
+      { key: 'time', sortValue: entry => entry.standbyMinutes, header: 'Horas em standby', align: 'right', render: entry => formatMinutes(entry.standbyMinutes) },
+      { key: 'people', sortValue: entry => entry.collaboratorCount, header: 'Nº de colaboradores', align: 'right', render: entry => entry.collaboratorCount ?? 'Não informado' },
       { key: 'reason', header: 'Motivo', render: entry => entry.reason || 'Não informado' }
     ]}
     mobile={{ renderItem: entry => ({

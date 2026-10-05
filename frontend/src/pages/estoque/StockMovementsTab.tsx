@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -271,7 +272,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
 
       {movements.length ? (
         <div className="equip-table-wrap stock-movements-table-wrap stock-table-wrap">
-          <table className="equip-table stock-movements-table">
+          <SortableTable className="equip-table stock-movements-table">
             <thead>
               <tr>
                 <th>Data</th>
@@ -289,7 +290,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
             <tbody>
               {movements.map(movement => (
                 <tr key={movement.id}>
-                  <td data-label="Data">{formatDate(movement.date)}</td>
+                  <td data-label="Data" data-sort-value={movement.date}>{formatDate(movement.date)}</td>
                   <td data-label="Tipo"><Badge tone={movement.type === 'SAIDA' ? 'warning' : 'success'}>{typeLabel(movement.type)}</Badge></td>
                   <td data-label="Motivo">{reasonLabel(movement.reason)}</td>
                   <td data-label="Item">
@@ -297,11 +298,11 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
                     <span className="stock-table-muted">{movement.item.name}</span>
                   </td>
                   <td data-label="Lote">{movement.batch.lotNumber || 'Avulso'}</td>
-                  <td data-label="Quantidade">{movement.quantity} {movement.item.unitLabel}</td>
+                  <td data-label="Quantidade" data-sort-value={Number(movement.quantity)}>{movement.quantity} {movement.item.unitLabel}</td>
                   <td data-label="Projeto">{movementProjectLabel(movement)}</td>
                   <td data-label="NF">{movement.nfNumber || '-'}</td>
                   <td data-label="Autor">{movement.createdBy?.name || '-'}</td>
-                  <td data-label="Status">
+                  <td data-label="Status" data-sort-value={movement.reversalOfId ? "Estorno" : movement.reversedById ? "Estornada" : "Ativa"}>
                     <div className="stock-table-status">
                       {movement.reversalOfId ? <Badge tone="info">Estorno</Badge> : null}
                       {movement.reversedById ? <Badge tone="neutral">Estornada</Badge> : null}
@@ -320,7 +321,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
         </div>
       ) : null}
 
