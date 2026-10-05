@@ -12,7 +12,7 @@ test('editor de RDO reutiliza os elementos visuais do formulário principal', ()
   assert.match(page, /<PageHeader\b/);
   assert.match(page, /className="fv-ds rdo-form-page rdo-edit-page"/);
   assert.match(page, /className="rdo-form-stage rdo-edit-form"/);
-  assert.match(page, /<Card className="rdo-form-card report-services-step"/);
+  assert.match(page, /<section className="report-services-step"/);
   assert.match(page, /className="rdo-service-card"/);
   assert.match(page, /aria-label="Equipamento e sistema"/);
   assert.match(page, /aria-label="Equipe do serviço"/);

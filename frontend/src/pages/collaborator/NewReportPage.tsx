@@ -1237,7 +1237,8 @@ function SiteRdoFormPage() {
             ) : null}
           </Card>
         ) : null}
-        <Card className="rdo-form-card report-services-step" title={TEXT.services} data-invalid-target="services:empty">
+        <section className="report-services-step" aria-label={TEXT.services} data-invalid-target="services:empty">
+          <h2 className="rdo-services-title">{TEXT.services}</h2>
           {services.length ? (
             <div className="admin-stack">
               {services.map((service, index) => (
@@ -1376,7 +1377,7 @@ function SiteRdoFormPage() {
               {TEXT.addService}
             </Button>
           </div>
-        </Card>
+        </section>
         </div>
         ) : null}
 

@@ -64,6 +64,8 @@ export function validateDivisionRows(candidates, rows) {
     seen.add(row.key);
     if (!validDay(row.startDate) || (row.endDate != null && !validDay(row.endDate))) throw new Error('Informe datas válidas para a divisão.');
     if (row.endDate && row.endDate < row.startDate) throw new Error('A data final deve ser igual ou posterior ao início.');
+    if (row.mobilizationDate != null && !validDay(row.mobilizationDate)) throw new Error('Informe uma data válida para a mobilização inicial.');
+    if (row.endDate && row.mobilizationDate && row.mobilizationDate > row.endDate) throw new Error('A mobilização inicial deve ser igual ou anterior à data final.');
     const planned = {};
     for (const field of ['plannedCost', 'plannedRevenue', 'plannedHours', 'plannedDays']) {
       const value = row[field];
@@ -71,7 +73,7 @@ export function validateDivisionRows(candidates, rows) {
       planned[field] = value ?? null;
     }
     if (planned.plannedDays != null && !Number.isInteger(planned.plannedDays)) throw new Error('Dias previstos devem ser inteiros.');
-    return { key: row.key, startDate: row.startDate, endDate: row.endDate ?? null, ...planned };
+    return { key: row.key, startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate: row.mobilizationDate ?? null, ...planned };
   });
 }
 
@@ -110,6 +112,7 @@ export function storedDivisionRows(candidates, services, storedRows) {
       key,
       startDate: rows.map(row => row.startDate).sort()[0],
       endDate: rows.some(row => !row.endDate) ? null : rows.map(row => row.endDate).sort().at(-1),
+      mobilizationDate: rows.map(row => row.mobilizationDate || row.startDate).sort()[0],
       ...planned
     });
   }

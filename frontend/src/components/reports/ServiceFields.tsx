@@ -3,6 +3,7 @@ import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibit
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
+import { serviceUploadLabels, updateServiceUploadGroup } from '../../utils/serviceUploadGroups';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { cleaningModePatch } from '../../utils/cleaningMeasurement';
 
@@ -128,14 +129,6 @@ type StoredUploadRecord = UploadedFile & {
   publicUrl?: string;
 };
 
-const uploadLabelAliases: Record<string, string[]> = {
-  'Foto do laudo': ['Foto do laudo', 'Foto do laudo do contador']
-};
-
-function uploadLabels(label: string) {
-  return uploadLabelAliases[label] || [label];
-}
-
 function uploadFileNameFromUrl(value: string) {
   const pathPart = value.split('?')[0].split('#')[0].replace(/\\/g, '/');
   const name = pathPart.split('/').filter(Boolean).pop();
@@ -203,7 +196,7 @@ function normalizeUploadFiles(value: unknown, label: string): UploadedFile[] {
 
 function getGroup(data: Record<string, unknown>, label: string): UploadedFile[] {
   const groups = Array.isArray(data.__uploads__) ? (data.__uploads__ as UploadGroup[]) : [];
-  const labels = uploadLabels(label);
+  const labels = serviceUploadLabels(label);
   const group = groups.find(g => labels.includes(g.label));
   if (group) return normalizeUploadFiles(group.files, group.label || label);
 
@@ -220,10 +213,7 @@ function setGroup(
   label: string,
   files: UploadedFile[]
 ) {
-  const groups = Array.isArray(data.__uploads__) ? (data.__uploads__ as UploadGroup[]) : [];
-  const labels = uploadLabels(label);
-  const filtered = groups.filter(g => !labels.includes(g.label));
-  onChange({ __uploads__: files.length ? [...filtered, { label, files }] : filtered });
+  onChange(updateServiceUploadGroup(data, label, files));
 }
 
 function getStrings(value: unknown): string[] {
