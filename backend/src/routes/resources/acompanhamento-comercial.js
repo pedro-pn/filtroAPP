@@ -33,6 +33,7 @@ import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanha
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
 import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetReferenceDayHours } from '../../lib/acompanhamento/weekly-progress-targets.js';
 import { loadWeeklyServiceHistory } from '../../lib/acompanhamento/weekly-service-history.js';
+import { loadWeeklyAttendanceHistory } from '../../lib/acompanhamento/weekly-attendance-history.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { getMissionGroupDetail } from '../../lib/acompanhamento/project-detail-groups.js';
 import { createMissionGroup, dissolveMissionGroup, listMissionGroups, loadActiveMissionGroups, MissionGroupError, updateMissionGroup } from '../../lib/acompanhamento/mission-groups.js';
@@ -66,7 +67,9 @@ for (const [path, ownerKey, param] of [
     const progressHistory = ownerKey === 'projectId' && req.query.history === 'true'
       ? (await computeProgressHistoryForProjects([req.params[param]])).get(req.params[param]) ?? [] : undefined;
     const serviceHistory = req.query.services === 'true' ? await loadWeeklyServiceHistory({ [ownerKey]: req.params[param] }) : undefined;
-    res.json({ targets, defaultReferenceDayHours, ...(progressHistory ? { progressHistory } : {}), ...(serviceHistory ? { serviceHistory } : {}) });
+    const attendanceHistory = req.query.services === 'true' && targets.some(target => target.definition?.metric === 'COLLABORATORS')
+      ? await loadWeeklyAttendanceHistory(owner) : undefined;
+    res.json({ targets, defaultReferenceDayHours, ...(progressHistory ? { progressHistory } : {}), ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) });
   }));
   router.put(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
     res.json(await saveWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {

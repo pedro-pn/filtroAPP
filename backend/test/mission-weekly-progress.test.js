@@ -418,3 +418,21 @@ test('revisões físicas guardam condições e jornada de referência, são idem
   assert.equal(records[3].plannedPctPoints, 10);
   assert.equal(records[3].definition, undefined);
 });
+
+test('meta de presença salva mínimo e dias de trabalho em revisões preservadas', async () => {
+  const client = database();
+  const definition = { metric: 'COLLABORATORS', basis: 'PER_WORKDAY', workdays: [1, 2, 3, 4, 5],
+    scenarios: [scenario('Meta geral', { kind: 'ALWAYS' }, [goal(5)])] };
+  const input = { weekStartDate: payload.weekStartDate, expectedRevision: 0, definition };
+  const saved = await saveWeeklyProgressTarget({ projectId: 'p1' }, input, { client, ...actor });
+  assert.deepEqual(saved.definition, definition);
+  assert.equal(saved.plannedPctPoints, null);
+  assert.equal((await saveWeeklyProgressTarget({ projectId: 'p1' }, { ...input, expectedRevision: 1 }, { client, ...actor })).revision, 1);
+  await saveWeeklyProgressTarget({ projectId: 'p1' }, { ...input, expectedRevision: 1,
+    definition: { ...definition, workdays: [1, 2, 3, 4, 5, 6], scenarios: [scenario('Meta geral', { kind: 'ALWAYS' }, [goal(6)])] } }, { client, ...actor });
+  const records = await listWeeklyProgressTargets({ projectId: 'p1' }, { client });
+  assert.equal(records.length, 2);
+  assert.deepEqual(records[0].definition, definition);
+  assert.equal(records[1].definition.scenarios[0].goals[0].value, 6);
+  assert.deepEqual(records[1].definition.workdays, [1, 2, 3, 4, 5, 6]);
+});

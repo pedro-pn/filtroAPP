@@ -76,6 +76,21 @@ previous values and the deletion's author/time in history. It never falls back
 to an earlier target revision. Recreating a target continues that revision history.
 Deletes and saves use the same optimistic revision check in both areas.
 
+Daily attendance targets use the distinct collaborators recorded in each RDO,
+including enabled night shifts, independently of service progress, hours or job
+role. Select the contracted workdays for each week (Monday to Friday initially).
+Each elapsed workday must meet the minimum; surplus on another day does not
+change its daily status. Missing RDOs leave attendance pending, while a recorded
+RDO with an empty team counts zero. Imported teams inferred from a point workbook
+require confirmation. The cumulative balance adds attendance minus the daily
+minimum across all weeks with attendance targets, using each week's latest active
+revision and selected days. For a minimum of six, eight people produce +2 and
+four on the next day bring the balance to zero. Daily statuses remain independent
+of the balance. Missing RDOs leave the cumulative balance pending. Run
+`playwright-cli run-code --filename frontend/test/browser/weekly-attendance.js`
+in the same fixture to check registration, daily results, surplus/deficit,
+recalculation, access permissions and mobile layout.
+
 Backend deployment requires the `20261002103000_flexible_weekly_targets` and
 `20261002150000_weekly_target_deletion` Prisma migrations before starting the
 updated API. Existing percentage targets are preserved.

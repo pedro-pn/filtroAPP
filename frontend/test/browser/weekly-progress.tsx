@@ -15,6 +15,7 @@ import '../../src/styles/variables.css';
 import '../../src/styles/base.css';
 
 const week = weekStartKey(corporateToday())!;
+const attendanceFixture = new URLSearchParams(window.location.search).get('attendance') === 'true';
 const shift = (days: number) => new Date(new Date(`${week}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const history = [{ date: shift(-7), progressPct: 30 }, { date: week, progressPct: 40 }];
 const weekdayParts = (new URLSearchParams(window.location.search).get('workdayHours') ?? '08:00').split(':').map(Number);
@@ -29,6 +30,7 @@ let conflictNext = false;
 let serviceMode: 'single' | 'pair' | 'oil' = 'pair';
 let productiveMultiplier = 1;
 let missingBase = false;
+let presenceMode: 'surplus' | 'balanced' | 'deficit' | 'missing' = 'surplus';
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 apiClient.defaults.adapter = async config => {
   const response = data => ({ config, status: 200, statusText: 'OK', headers: {}, data });
@@ -49,7 +51,10 @@ apiClient.defaults.adapter = async config => {
   const production = serviceMode === 'oil' ? serviceHistory.slice(2) : serviceMode === 'single' ? serviceHistory.slice(0, 1) : serviceHistory.slice(0, 2);
   const productivity = missingBase ? [] : production.map(point => ({ date: point.date, serviceType: point.serviceType, quantities: { M: 0, L: 0, UN: 0 },
     productivePersonMinutes: (point.serviceType === 'FILTRAGEM' ? 10 : serviceMode === 'single' ? 15 : point.serviceType === 'LIMPEZA_QUIMICA' ? 9 : 6) * 480 * productiveMultiplier, productivityIssues: [] }));
-  return response({ targets: stored.slice(), defaultReferenceDayHours, progressHistory: history, serviceHistory: [...production, ...productivity] });
+  const crew = (count: number) => Array.from({ length: count }, (_, index) => `c${index}`);
+  const attendanceHistory = presenceMode === 'surplus' ? [{ date: week, collaboratorIds: crew(8) }]
+    : presenceMode === 'missing' ? [] : [{ date: week, collaboratorIds: crew(8) }, { date: shift(1), collaboratorIds: crew(presenceMode === 'balanced' ? 4 : 2) }];
+  return response({ targets: stored.slice(), defaultReferenceDayHours, progressHistory: history, serviceHistory: [...production, ...productivity], attendanceHistory });
 };
 
 function Fixture() {
@@ -66,6 +71,9 @@ function Fixture() {
     <button onClick={() => { serviceMode = 'oil'; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Usar filtragem</button>
     <button onClick={() => { productiveMultiplier = 1.5; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Atualizar tempo produtivo do RDO</button>
     <button onClick={() => { missingBase = true; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Remover base produtiva do RDO</button>
+    {attendanceFixture ? <><button onClick={() => { presenceMode = 'balanced'; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Registrar quatro colaboradores no segundo dia</button>
+    <button onClick={() => { presenceMode = 'deficit'; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Registrar dois colaboradores no segundo dia</button>
+    <button onClick={() => { presenceMode = 'missing'; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Remover RDOs de presença</button></> : null}
     <p>Área atual: {area}</p>
     <div className="fv-ds acp-overview"><div className="acp-overview-kpis">
       <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={Gauge} /></div><span>Ritmo necessário</span><strong>12 m/semana</strong><small>Escopo total</small></Card>

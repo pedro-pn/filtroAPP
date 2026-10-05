@@ -30,13 +30,14 @@ function addDays(key, days) {
 
 const round = value => Math.round((value + Number.EPSILON) * 100) / 100;
 
-export const WEEKLY_TARGET_METRICS = { PCT_POINTS: 'Avanço percentual (p.p.)', M: 'Metragem (m)', L: 'Volume filtrado / óleo (L)', UN: 'Unidades de sistema (un)' };
+export const WEEKLY_TARGET_METRICS = { PCT_POINTS: 'Avanço percentual (p.p.)', M: 'Metragem (m)', L: 'Volume filtrado / óleo (L)', UN: 'Unidades de sistema (un)', COLLABORATORS: 'Colaboradores presentes por dia' };
+export const WEEKLY_TARGET_WORKDAYS = { 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta', 6: 'Sábado', 0: 'Domingo' };
 export const WEEKLY_TARGET_SERVICES = { LIMPEZA_QUIMICA: 'Limpeza química', TESTE_PRESSAO: 'Teste de pressão', FLUSHING: 'Flushing', FILTRAGEM: 'Filtragem' };
-export const weeklyTargetUnit = metric => ({ PCT_POINTS: 'p.p.', M: 'm', L: 'L', UN: 'un' }[metric]);
+export const weeklyTargetUnit = metric => ({ PCT_POINTS: 'p.p.', M: 'm', L: 'L', UN: 'un', COLLABORATORS: 'colab./dia' }[metric]);
 
 export function weeklyTargetGoalMetric(metric, goal, condition) {
   const serviceType = goal.serviceType ?? (condition?.kind === 'SERVICE_SET' && condition.serviceTypes.length === 1 ? condition.serviceTypes[0] : null);
-  return metric !== 'PCT_POINTS' && serviceType === 'FILTRAGEM' ? 'L' : metric;
+  return metric !== 'PCT_POINTS' && metric !== 'COLLABORATORS' && serviceType === 'FILTRAGEM' ? 'L' : metric;
 }
 
 export function weeklyTargetDefinition(target) {
@@ -47,6 +48,46 @@ export function weeklyTargetDefinition(target) {
 
 function comparisonStatus(differences) {
   return differences.some(value => value < 0) ? 'BELOW' : differences.some(value => value > 0) ? 'ABOVE' : 'ON_TARGET';
+}
+
+// Presença é verificada em cada dia contratado. O menor efetivo diário resume
+// a semana sem permitir que excedentes de outros dias compensem uma falta.
+function compareAttendanceTarget({ target, week, today, attendancePoints, previousAttendance }) {
+  const definition = weeklyTargetDefinition(target);
+  const scenario = definition.scenarios[0], goal = scenario.goals[0];
+  let cumulativeDifferenceValue = previousAttendance.differenceValue ?? 0;
+  let cumulativeComplete = previousAttendance.differenceValue != null;
+  const dailyAttendance = Array.from({ length: 7 }, (_, index) => addDays(week, index))
+    .filter(date => (definition.workdays ?? [1, 2, 3, 4, 5]).includes(new Date(`${date}T00:00:00Z`).getUTCDay()))
+    .map(date => {
+      const points = attendancePoints.filter(point => point.date === date);
+      const attendanceIssues = [...new Set(points.flatMap(point => point.attendanceIssues ?? []))];
+      const actualValue = date > today || !points.length || attendanceIssues.length ? null
+        : new Set(points.flatMap(point => point.collaboratorIds)).size;
+      const differenceValue = actualValue == null ? null : actualValue - goal.value;
+      if (date <= today) {
+        if (differenceValue == null) cumulativeComplete = false;
+        else cumulativeDifferenceValue += differenceValue;
+      }
+      return { date, plannedValue: goal.value, actualValue, differenceValue, attendanceIssues,
+        cumulativeDifferenceValue: date > today || !cumulativeComplete ? null : cumulativeDifferenceValue,
+        status: date > today ? 'PLANNED' : actualValue == null ? 'NO_DATA' : differenceValue < 0 ? 'BELOW' : 'ON_TARGET' };
+    });
+  const elapsed = dailyAttendance.filter(day => day.date <= today);
+  const complete = elapsed.length > 0 && elapsed.every(day => day.actualValue != null);
+  const actualValue = complete ? Math.min(...elapsed.map(day => day.actualValue)) : null;
+  const differenceValue = actualValue == null ? null : actualValue - goal.value;
+  const status = !elapsed.length ? 'PLANNED' : elapsed.some(day => day.status === 'BELOW') ? 'BELOW' : !complete ? 'NO_DATA' : 'ON_TARGET';
+  const cumulativePlannedValue = previousAttendance.plannedValue + elapsed.length * goal.value;
+  const cumulativeActualValue = previousAttendance.actualValue != null && elapsed.every(day => day.actualValue != null)
+    ? previousAttendance.actualValue + elapsed.reduce((sum, day) => sum + day.actualValue, 0) : null;
+  return { metric: 'COLLABORATORS', mixedUnits: false, basis: 'PER_WORKDAY', plannedValue: goal.value, actualValue, differenceValue,
+    cumulativeAttendance: { plannedValue: cumulativePlannedValue, actualValue: cumulativeActualValue,
+      differenceValue: cumulativeActualValue == null ? null : cumulativeActualValue - cumulativePlannedValue },
+    achievementPct: actualValue == null ? null : actualValue / goal.value * 100,
+    goals: [{ ...goal, metric: 'COLLABORATORS', plannedValue: goal.value, actualValue, differenceValue,
+      personDays: null, productiveHours: null, productivityIssues: [], actualRate: null }],
+    dailyAttendance, activeServiceTypes: [], scenarioName: scenario.name, status };
 }
 
 function compareTarget({ target, week, currentWeek, actualPctPoints, servicePoints }) {
@@ -98,7 +139,7 @@ function compareTarget({ target, week, currentWeek, actualPctPoints, servicePoin
 
 // O histórico contém avanço acumulado. A meta compara somente o ganho da semana,
 // carregando o último acumulado por semanas sem medições e preservando regressões.
-export function buildWeeklyProgressComparison({ targets = [], progressHistory = [], serviceHistory = [], today = corporateToday() } = {}) {
+export function buildWeeklyProgressComparison({ targets = [], progressHistory = [], serviceHistory = [], attendanceHistory = [], today = corporateToday() } = {}) {
   const currentWeek = weekStartKey(today);
   if (!currentWeek) return [];
   const latestTargets = new Map();
@@ -113,6 +154,8 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
   const weeks = new Set([...latestTargets.keys(), currentWeek]);
   const servicePoints = serviceHistory.map(point => ({ ...point, date: dateOnlyKey(point.date) }))
     .filter(point => point.date && point.date <= today).sort((a, b) => a.date.localeCompare(b.date));
+  const attendancePoints = attendanceHistory.map(point => ({ ...point, date: dateOnlyKey(point.date) }))
+    .filter(point => point.date && point.date <= today);
   if (servicePoints.length) {
     for (let week = weekStartKey(servicePoints[0].date); week <= currentWeek; week = addDays(week, 7)) weeks.add(week);
   }
@@ -121,6 +164,7 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
   }
   let pointIndex = 0;
   let accumulated = 0;
+  let accumulatedAttendance = { plannedValue: 0, actualValue: 0, differenceValue: 0 };
   return [...weeks].sort().map(week => {
     while (pointIndex < points.length && points[pointIndex].date < week) accumulated = Number(points[pointIndex++].progressPct);
     const before = accumulated;
@@ -128,13 +172,16 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
     while (pointIndex < points.length && points[pointIndex].date <= weekEndDate) accumulated = Number(points[pointIndex++].progressPct);
     const latest = latestTargets.get(week);
     const target = latest?.isDeleted ? null : latest ?? null;
-    const comparison = target ? compareTarget({ target, week, currentWeek, actualPctPoints: week > currentWeek || !points.length ? null : round(accumulated - before), servicePoints }) : null;
+    const comparison = !target ? null : weeklyTargetDefinition(target).metric === 'COLLABORATORS'
+      ? compareAttendanceTarget({ target, week, today, attendancePoints, previousAttendance: accumulatedAttendance })
+      : compareTarget({ target, week, currentWeek, actualPctPoints: week > currentWeek || !points.length ? null : round(accumulated - before), servicePoints });
+    if (comparison?.cumulativeAttendance) accumulatedAttendance = comparison.cumulativeAttendance;
     const plannedPctPoints = comparison?.metric === 'PCT_POINTS' ? comparison.plannedValue : null;
     const actualPctPoints = week > currentWeek || !points.length ? null : round(accumulated - before);
     const differencePctPoints = plannedPctPoints != null && actualPctPoints != null ? round(actualPctPoints - plannedPctPoints) : null;
     return { weekStartDate: week, weekEndDate, plannedPctPoints, actualPctPoints, differencePctPoints,
       metric: 'PCT_POINTS', mixedUnits: false, basis: 'WEEK_TOTAL', plannedValue: null, actualValue: actualPctPoints, differenceValue: null, achievementPct: null,
-      goals: [], activeServiceTypes: [], scenarioName: null, ...comparison,
+      goals: [], dailyAttendance: [], cumulativeAttendance: null, activeServiceTypes: [], scenarioName: null, ...comparison,
       status: comparison?.status ?? 'NO_TARGET', inProgress: week === currentWeek, target };
   }).reverse();
 }
