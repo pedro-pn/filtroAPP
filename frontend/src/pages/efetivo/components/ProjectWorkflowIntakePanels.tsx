@@ -22,6 +22,7 @@ import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedul
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
+import { QualityDocumentModels } from './QualityDocumentModels';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 
@@ -436,7 +437,13 @@ function DocumentationTypeCard({ category, workflow, saving, onPatch }: {
   };
   return (
     <article className={`project-workflow-documentation-type is-${category.required === true ? 'required' : category.required === false ? 'not-required' : 'unanswered'}`}>
-      <header><div><h5>{category.label}</h5><p>{category.description}</p></div><ProjectWorkflowBooleanChoice value={category.required} label={`Necessidade de ${category.label.toLocaleLowerCase('pt-BR')}`} disabled={saving || !workflow.permissions.canEdit} onSelect={required => onPatch({ action: 'documentation_category', version: workflow.version, type: category.type, required })} /></header>
+      <header>
+        <div><h5>{category.label}</h5><p>{category.description}</p></div>
+        <div className="project-workflow-documentation-type-actions">
+          {category.type === 'QUALITY' ? <QualityDocumentModels /> : null}
+          <ProjectWorkflowBooleanChoice value={category.required} label={`Necessidade de ${category.label.toLocaleLowerCase('pt-BR')}`} disabled={saving || !workflow.permissions.canEdit} onSelect={required => onPatch({ action: 'documentation_category', version: workflow.version, type: category.type, required })} />
+        </div>
+      </header>
       {category.required === true ? <div className="project-workflow-documentation-items">
         <div className="project-workflow-documentation-add"><div className="field-group"><label htmlFor={`documentation-add-${category.type}`}>{category.nameLabel}</label><input id={`documentation-add-${category.type}`} value={newName} disabled={saving || !workflow.permissions.canEdit} placeholder={`Ex.: ${category.type === 'EXAM' ? 'Audiometria' : category.type === 'TRAINING' ? 'APR específica' : category.type === 'QUALITY' ? 'RCPU' : category.type === 'CERTIFICATION' ? 'Calibração de equipamento' : 'Instrução de trabalho'}`} onChange={event => setNewName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); create(); } }} /></div><Button type="button" variant="mini" disabled={saving || !workflow.permissions.canEdit || !newName.trim()} onClick={create}>Adicionar</Button></div>
         {activeRequirements.length ? activeRequirements.map(item => <DocumentationRequirementEditor item={item} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={item.id} />) : <p className="project-workflow-category-note">Adicione cada {category.singularLabel} que precisa ser acompanhado.</p>}
