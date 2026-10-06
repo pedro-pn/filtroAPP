@@ -16,7 +16,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
     const visuals = await server.ssrLoadModule('/src/components/projects/ProjectDetailVisuals.tsx');
     const costs = await server.ssrLoadModule('/src/components/projects/ProjectDetailCosts.tsx');
     const { ProjectDetailPeople } = await server.ssrLoadModule('/src/components/projects/ProjectDetailPeople.tsx');
-    const { ProjectDetailOverview } = await server.ssrLoadModule('/src/components/projects/ProjectDetailOverview.tsx');
+    const { ProjectDetailOverview, ProjectDetailServiceComposition } = await server.ssrLoadModule('/src/components/projects/ProjectDetailOverview.tsx');
     const story = await server.ssrLoadModule('/src/components/projects/ProjectDetailStory.tsx');
     const { ProgressHistoryChart } = await server.ssrLoadModule('/src/components/projects/ProjectDetailHistory.tsx');
     const { ProjectScopeDailyTable } = await server.ssrLoadModule('/src/components/projects/ProjectScopeDailyTable.tsx');
@@ -130,32 +130,28 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       ] });
       assert.match(dayWithoutQuantity, /Sem produção física medida neste dia/);
     });
-    await t.test('novo resumo usa valores reais, preserva permissões e lida com dados ausentes', () => {
-      const props = { data: { ...detail, canViewProjectFinancials: true }, progressPct: detail.avancoPct,
-        progressHistory: detail.progressHistory, target: detail.requiredWeeklyProgress, filterLabel: '', teamCount: 2, deviationCount: 3 };
-      const html = render(ProjectDetailOverview, props);
-      for (const value of ['125 m/semana', '105% do previsto', '625 m', 'de 1.000 m previstos', '28/09/2026', '3', 'Limpeza química']) assert.ok(html.includes(value), value);
-      assert.match(html, /Histórico do avanço/);
-      assert.match(html, /Avanço de 01\/09 até 09\/09/);
-      assert.match(html, /Gastos e faturamento/);
-      const restricted = render(ProjectDetailOverview, { ...props, data: { ...detail, canViewProjectFinancials: false } });
-      assert.match(restricted, /105% do previsto/);
-      assert.match(restricted, /Gastos do projeto/);
-      assert.doesNotMatch(restricted, /notas fiscais e impostos/i);
-      const empty = render(ProjectDetailOverview, { ...props, data: { ...detail, alerts: [], footer: { mobilizationDate: null, startDate: null, expectedEndDate: null, projectedEndByPace: null }, consumo: { ...detail.consumo, previsto: null } }, progressHistory: [], target: undefined, progressPct: null, deviationCount: null });
-      assert.match(empty, /Sem histórico/);
-      assert.match(empty, /Sem meta calculada/);
-      assert.doesNotMatch(empty, /NaN|Infinity/);
-      const legacyScope = render(ProjectDetailOverview, { ...props, target: undefined, fallbackServices: [{ serviceType: 'FILTRAGEM', weight: 100, executionPct: 40, systems: [{ systemType: 'OLEO', unit: 'L', plannedQty: 5000, realizedQty: 2000, pct: 40 }] }] });
+    await t.test('gráfico e composição usam o recorte real sem recriar a visão geral', () => {
+      const chart = render(ProjectDetailOverview, { progressHistory: detail.progressHistory, filterLabel: 'Tubulação' });
+      assert.match(chart, /Histórico do avanço/);
+      assert.match(chart, /Acumulado · Tubulação/);
+      assert.match(chart, /Avanço de 01\/09 até 09\/09/);
+      assert.doesNotMatch(chart, /Visão geral|Leitura rápida|Ritmo necessário/);
+      assert.match(render(ProjectDetailOverview, { progressHistory: [], filterLabel: '' }), /Sem histórico/);
+      const html = render(ProjectDetailServiceComposition, { target: detail.requiredWeeklyProgress });
+      for (const value of ['625 m', 'de 1.000 m previstos', 'Limpeza química', 'Composição do avanço']) assert.ok(html.includes(value), value);
+      const legacyScope = render(ProjectDetailServiceComposition, { fallbackServices: [{ serviceType: 'FILTRAGEM', weight: 100, executionPct: 40, systems: [{ systemType: 'OLEO', unit: 'L', plannedQty: 5000, realizedQty: 2000, pct: 40 }] }] });
       assert.match(legacyScope, /Filtragem/);
       assert.match(legacyScope, /2\.000 L/);
       assert.match(legacyScope, /de 5\.000 L previstos/);
-      const over = render(ProjectDetailOverview, { ...props, target: { ...detail.requiredWeeklyProgress, services: [{ ...detail.requiredWeeklyProgress.services[0], executionPct: 108 }] } });
+      const over = render(ProjectDetailServiceComposition, { target: { ...detail.requiredWeeklyProgress, services: [{ ...detail.requiredWeeklyProgress.services[0], executionPct: 108 }] } });
       assert.match(over, /108%/);
       assert.match(over, /width:100%/);
+      const empty = render(ProjectDetailServiceComposition, {});
+      assert.match(empty, /Ainda não há composição de avanço/);
+      assert.doesNotMatch(empty, /NaN|Infinity/);
     });
     await t.test('resumo em unidades mostra cada equipamento cadastrado com quantidade e avanço', () => {
-      const html = render(ProjectDetailOverview, {
+      const html = render(ProjectDetailServiceComposition, {
         data: detail, progressPct: 60, filterLabel: '', teamCount: 2, deviationCount: null,
         target: { status: 'UNAVAILABLE', services: [{
           serviceType: 'LIMPEZA_QUIMICA', executionPct: 60, systems: [
@@ -177,7 +173,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.equal(serviceCards.length, 2);
     });
     await t.test('resumo de missões mescladas mostra equipamento em unidades e serviço em metros', () => {
-      const html = render(ProjectDetailOverview, {
+      const html = render(ProjectDetailServiceComposition, {
         data: detail, progressPct: 45, filterLabel: '', teamCount: 2, deviationCount: null,
         fallbackProgress: { hasScope: true, progressPct: 45, scopeGroups: [{
           scopeName: 'Principal', services: [{ serviceType: 'LIMPEZA_QUIMICA', executionPct: 45, systems: [
@@ -223,8 +219,11 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       });
       assert.match(time, /9 \/ 30/);
       assert.match(time, /260h/);
-      assert.match(time, /2 dias/);
-      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 4);
+      assert.match(time, /1 dia/);
+      assert.match(time, /Dias úteis/);
+      assert.match(time, /Último RDO/);
+      assert.match(time, /09\/09\/2026/);
+      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 5);
       assert.match(time, /acp-story-hours-meter/);
       assert.match(time, /Normais 220h/);
       assert.match(time, /HE 40h/);
@@ -295,7 +294,7 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   const main = source('ProjectDetailDashboard.tsx');
   assert.match(main, /className="fv-ds acp-detail"/);
   assert.match(main, /Os dados exibidos podem estar desatualizados/);
-  for (const state of ['planningContextError', 'qualityDeviationQueries', 'projectNotesLoadError']) assert.ok(main.includes(state));
+  for (const state of ['planningContext', 'qualityDeviationQueries', 'projectNotesLoadError']) assert.ok(main.includes(state));
   assert.match(main, /acompanhamentoRefreshQueryOptions/);
   assert.match(main, /if \(!canManageManualCosts \|\| isGroup \|\| createManualCostMutation.isPending\) return/);
   assert.match(main, /if \(!canManageProjectNotes \|\| isGroup \|\| !content \|\| createProjectNoteMutation.isPending\) return/);
@@ -305,7 +304,8 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   }
   assert.match(main, /<ProjectReportsDialog/);
   assert.match(main, /<ProjectDetailOverview/);
-  assert.match(main, /<ProjectTimelineCard/);
+  assert.doesNotMatch(main, /<ProjectTimelineCard|Prazos com contexto/);
+  assert.match(main, /<PlannedScopeView/);
   assert.doesNotMatch(main, /Conferir cálculo de dias e horas|Detalhar metas e composição do avanço/);
   assert.match(source('ProjectDetailOverview.tsx'), /id="acp-progress"/);
   assert.match(main, /<ProjectFinancialSnapshot data=\{data\}>[\s\S]*data-acp-manual-costs[\s\S]*<\/ProjectFinancialSnapshot>/);

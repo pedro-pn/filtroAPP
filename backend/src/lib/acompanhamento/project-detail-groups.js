@@ -476,6 +476,8 @@ export function groupProjectDetails(group, memberDetails = []) {
       planned: plannedCorridos,
       pct: ratioPct(elapsedCorridos, plannedCorridos)
     },
+    businessDays: sumValues(details, item => item.detail.businessDays),
+    stoppedDays: sumValues(details, item => item.detail.stoppedDays),
     diasTrabalhados: {
       worked: workedDays,
       planned: plannedWorkedDays,

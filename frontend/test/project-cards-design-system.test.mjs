@@ -30,7 +30,8 @@ test('cards de acompanhamento preservam informações, ações e agrupamentos no
       assert.match(html, /fv-card/); assert.doesNotMatch(html, /acp-pcard|role="button"/);
       assert.match(html, /fv-card--surface-action/);
       assert.match(html, /aria-label="Abrir projeto 4069"/);
-      assert.doesNotMatch(html, /Detalhes|Abrir detalhes/);
+      assert.match(html, /aria-expanded="false"[\s\S]*Detalhes do card/);
+      assert.match(html, /acp-detail-disclosure-content" hidden=""/);
       assert.match(html, /aria-label="Arquivar no acompanhamento: 4069"/);
       assert.match(html, /fv-button__label">Arquivar<\/span>/);
       assert.match(html, /fv-badge--multiline/); assert.doesNotMatch(html, /fv-alert/);

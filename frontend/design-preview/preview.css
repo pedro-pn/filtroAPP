@@ -1,0 +1,71 @@
+/* Only spacing, grouping and expansion. Product styles come from the app. */
+@font-face { font-family: 'Inter Variable'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('./assets/inter-latin.woff2') format('woff2'); }
+body { margin: 0; }
+.preview-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); padding-bottom: var(--space-3); border-bottom: var(--border-width) solid var(--line); }
+.preview-controls > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.preview-controls small { color: var(--muted); font-size: var(--text-xs); }
+.preview-disclosure { min-width: 0; }
+.preview-disclosure:not(.is-compact) > .fv-button { width: 100%; justify-content: space-between; }
+.preview-disclosure-content:not([hidden]) { display: grid; gap: var(--space-4); margin-top: var(--space-4); min-width: 0; }
+.preview-disclosure-content[hidden] { display: none; }
+.preview-priorities { display: grid; gap: var(--space-4); align-items: start; min-width: 0; }
+.preview-priorities > .fv-card { min-width: 0; padding: var(--space-4); }
+.preview-priorities > .fv-card > .fv-card__body { padding: 0; }
+.preview-priorities .acp-story-time { container-type: inline-size; }
+.preview-priorities .acp-story-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.preview-priorities .acp-story-card-head { flex-wrap: wrap; }
+.preview-priorities .preview-last-rdo { padding: var(--space-3); }
+.preview-priorities .preview-last-rdo > .fv-card__body { padding: 0; }
+.preview-reorganized .acp-overview { gap: var(--space-4); }
+.preview-reorganized .acp-overview-heading { align-items: center; }
+.preview-reorganized .acp-story-time-actions { flex-wrap: wrap; }
+.preview-section { min-width: 0; }
+.preview-section-summary { display: flex; align-items: start; justify-content: space-between; gap: var(--space-2); min-height: var(--space-10); cursor: pointer; list-style: none; color: var(--ink); }
+.preview-section-summary::-webkit-details-marker { display: none; }
+.preview-section-summary:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-sm); }
+.preview-section-heading { flex: 1 1 auto; min-width: 0; }
+.preview-section-heading .acp-detail-section-head { padding-top: 0; }
+.preview-section-chevron { flex: 0 0 auto; margin-top: var(--space-1); color: var(--brand-text); transition: transform var(--duration-fast) var(--ease-standard); }
+.preview-section[open] > .preview-section-summary > .preview-section-chevron { transform: rotate(90deg); }
+.preview-section-content { display: grid; gap: var(--space-4); min-width: 0; margin-top: var(--space-3); }
+.preview-reorganized .acp-detail :is(.acp-detail-section-head h2, .preview-section-heading h2, .preview-section-heading h3, .preview-section-heading h4, .preview-section-heading > strong, .preview-section-heading .acp-detail-sub, .preview-section-heading .mission-weekly-progress-head > strong, .acp-detail-summary, .acp-invoices-ds__heading-copy > strong) { font-size: var(--text-lg); font-weight: var(--font-semibold); line-height: var(--leading-lg); }
+.preview-reorganized .acp-detail .preview-section-subtitle { color: var(--muted); font-size: var(--text-sm); font-weight: var(--font-regular); line-height: var(--leading-sm); letter-spacing: normal; text-transform: none; }
+.preview-services > .fv-card__body { padding: var(--space-4); }
+.preview-services .acp-overview-services { gap: var(--space-3); }
+.preview-services .acp-overview-service-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.preview-services .acp-overview-service > .fv-card__body { padding: var(--space-3); gap: var(--space-2); }
+.preview-services .acp-overview-service-quantity > strong { font-size: var(--text-lg); }
+.preview-services .acp-overview-service-foot span { font-size: var(--text-xs); }
+.preview-priorities .acp-story-time .acp-overview-main { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.preview-priorities .acp-overview-chart { padding: var(--space-3); }
+.preview-priorities .acp-overview-chart > .fv-card__body,
+.preview-priorities .preview-services > .fv-card__body { padding: 0; }
+.preview-priorities .acp-overview-card-head { flex-wrap: wrap; align-items: start; gap: var(--space-2); }
+.preview-priorities .acp-overview-card-head > span { text-align: start; }
+.preview-priorities .preview-services .acp-overview-service { padding: var(--space-2); }
+.preview-priorities .preview-services .acp-overview-service > .fv-card__body { padding: 0; gap: var(--space-2); }
+.preview-priorities .preview-services .acp-overview-service-quantity > strong { font-size: var(--text-md); }
+.preview-priorities .preview-services .acp-overview-service-head { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); gap: var(--space-1); align-items: start; }
+.preview-priorities .preview-services .acp-overview-service-icon { width: var(--space-6); height: var(--space-6); }
+.preview-priorities .preview-services .acp-overview-service-head > strong { min-width: 0; }
+.preview-priorities .preview-services .acp-overview-service-head > b { grid-column: 2; justify-self: start; }
+@container (min-width: 420px) {
+  .preview-priorities .acp-story-time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.preview-financial { display: grid; gap: var(--space-4); container-type: inline-size; min-width: 0; }
+.preview-financial > .fv-card__body { padding: 0; }
+.preview-reorganized #acp-financial { grid-template-columns: minmax(0, 1fr); }
+.preview-financial-grid { display: grid; gap: var(--space-4); align-items: start; min-width: 0; }
+.preview-financial .preview-financial-grid > .fv-card { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.preview-financial .preview-financial-grid > .fv-card > .fv-card__body { padding: 0; }
+.preview-financial .preview-financial-grid > .fv-card + .fv-card { border-top: var(--border-width) solid var(--line); padding-top: var(--space-4); }
+.preview-financial .acp-invoices-ds__heading-copy { flex-basis: 100%; }
+.preview-financial .acp-invoices-ds__total { text-align: start; }
+.preview-financial .fv-mobile-list__items { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 900px) {
+  .preview-financial-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .preview-financial .preview-financial-grid > .fv-card + .fv-card { border-top: 0; padding-top: 0; border-left: var(--border-width) solid var(--line); padding-left: var(--space-4); }
+}
+@media (min-width: 1100px) {
+  .preview-priorities { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, .75fr); }
+}

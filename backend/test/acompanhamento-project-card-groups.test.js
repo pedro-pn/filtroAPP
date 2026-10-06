@@ -231,3 +231,14 @@ test('groupProjectCards does not mutate individual card objects and preserves me
   assert.deepEqual(cards, before);
   assert.deepEqual(result[0].members.map(member => member.projectId), ['p1', 'p2']);
 });
+
+
+test('grupo soma dias corridos, úteis e parados dos membros visíveis', () => {
+  const result = groupProjectCards([
+    { ...card(), elapsedDays: 9, businessDays: 7, stoppedDays: 1 },
+    { ...card({ projectId: 'p2', code: '1002' }), elapsedDays: 14, businessDays: 10, stoppedDays: 3 }
+  ], [group()])[0];
+  assert.equal(result.elapsedDays, 23);
+  assert.equal(result.businessDays, 17);
+  assert.equal(result.stoppedDays, 4);
+});

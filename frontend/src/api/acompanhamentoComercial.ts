@@ -758,6 +758,9 @@ export interface ProjectCard {
   reportArchivedAt: string | null;
   category: ProjectCardCategory;
   workedDays: number;
+  elapsedDays?: number | null;
+  businessDays?: number | null;
+  stoppedDays?: number | null;
   totalDays: number | null;
   daysConsumedPct: number | null;
   workedHours: WorkedHoursProgress;
@@ -989,6 +992,8 @@ export interface ProjectDetail {
     planned: number | null;
     pct: number | null;
   };
+  businessDays?: number | null;
+  stoppedDays?: number | null;
   diasTrabalhados: {
     worked: number;
     planned: number | null;

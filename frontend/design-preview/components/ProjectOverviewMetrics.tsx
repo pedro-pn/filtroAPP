@@ -1,11 +1,14 @@
-import type { ProjectCardItem } from '../../api/acompanhamentoComercial';
-import { HelpTip } from '../ui/HelpTip';
-import { ProgressBar } from '../ui/ds';
-import { ProjectDetailDisclosure } from './ProjectDetailDisclosure';
-import { brl, fmtHours, pct } from './projectCardFormatting';
+// Cópia isolada para prévia. Fonte: frontend/src/components/projects/ProjectOverviewMetrics.tsx
+import { PreviewDisclosure } from '../PreviewDisclosure';
+import { previewTimeFacts } from '../previewData';
+import type { ProjectCardItem } from '../../src/api/acompanhamentoComercial';
+import { HelpTip } from '../../src/components/ui/HelpTip';
+import { ProgressBar } from '../../src/components/ui/ds';
+import { brl, fmtHours, pct } from '../../src/components/projects/projectCardFormatting';
 
 export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
   const hours = card.workedHours;
+  const time = previewTimeFacts(card.code);
   const hasOffshore = card.laborCostBase != null && card.laborCost != null && Math.round(card.laborCost) !== Math.round(card.laborCostBase);
   const taxes = card.presumedProfitTaxes;
   const taxHelp = taxes ? `${taxes.basisSource === 'OMIE_INVOICED'
@@ -29,12 +32,12 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
         segments={[{ value: hours?.normalPct ?? null }, { value: hours?.overtimePct ?? null, tone: 'warning' }]} />
     </div>
     <dl className="acp-project__pair">
-      <div><dt>Dias corridos</dt><dd>{card.elapsedDays ?? '—'}</dd></div>
-      <div><dt>Dias parados</dt><dd>{card.stoppedDays ?? '—'}</dd></div>
-      <div><dt>Dias úteis</dt><dd>{card.businessDays ?? '—'}</dd></div>
+      <div><dt>Dias corridos</dt><dd>{time.elapsed}</dd></div>
+      <div><dt>Dias parados</dt><dd>{time.standby}</dd></div>
+      <div><dt>Dias úteis</dt><dd>{time.weekdays}</dd></div>
       <div><dt>Colaboradores em obra</dt><dd>{card.collaboratorsCount}</dd></div>
     </dl>
-    <ProjectDetailDisclosure label="Detalhes do card" compact>
+    <PreviewDisclosure label="Detalhes do card" compact>
       {card.additionalPlannedCost != null && Math.abs(card.additionalPlannedCost) > 0.005 ? (
         <p className="acp-project__secondary">Original: {brl(card.originalPlannedCost)} · Adicional: {brl(card.additionalPlannedCost)}</p>
       ) : null}
@@ -49,6 +52,7 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
       </dl> : null}
       <p className="acp-project__secondary">Normais: {fmtHours(hours?.normalWorkedHours ?? 0)}{hours?.normalPct != null ? ` (${pct(hours.normalPct)})` : ''}
         {' · '}HE: {fmtHours(hours?.overtimeWorkedHours ?? 0)}{hours?.overtimePct != null ? ` (${pct(hours.overtimePct)})` : ''}</p>
-    </ProjectDetailDisclosure>
+      <dl className="acp-project__facts"><div><dt>Colaboradores em obra</dt><dd>{card.collaboratorsCount}</dd></div></dl>
+    </PreviewDisclosure>
   </div>;
 }

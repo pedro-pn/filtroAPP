@@ -1,23 +1,24 @@
-import { BrandLoading } from '../brand/BrandLoading';
+// Cópia isolada para prévia. Fonte: frontend/src/components/projects/ProjectReportsDialog.tsx
+import { BrandLoading } from '../../src/components/brand/BrandLoading';
 import { lazy, Suspense, useMemo, useState } from 'react';
 
-import { downloadReportPdf } from '../../api/reports';
-import type { MissionGroupMemberSummary } from '../../api/acompanhamentoComercial';
-import { useAuth } from '../../auth/AuthContext';
-import { hasAnyModuleRole } from '../../auth/rolePath';
-import { useAccumulatedReportsPage } from '../../hooks/useReports';
-import type { ReportSummary } from '../../types/domain';
-import { downloadBlob } from '../../utils/download';
-import { reportDownloadFileName } from '../../utils/reportFileName';
-import { GroupedReportList } from '../reports/GroupedReportList';
-import { ReportSummaryCard } from '../reports/ReportSummaryCard';
-import { Modal } from '../ui/Modal';
-import { Button, EmptyState, Field, Select, Skeleton } from '../ui/ds';
-import { useToast } from '../ui/ToastContext';
-import './ProjectReportsDialog.css';
+import { downloadReportPdf } from '../../src/api/reports';
+import type { MissionGroupMemberSummary } from '../../src/api/acompanhamentoComercial';
+import { useAuth } from '../../src/auth/AuthContext';
+import { hasAnyModuleRole } from '../../src/auth/rolePath';
+import { useAccumulatedReportsPage } from '../../src/hooks/useReports';
+import type { ReportSummary } from '../../src/types/domain';
+import { downloadBlob } from '../../src/utils/download';
+import { reportDownloadFileName } from '../../src/utils/reportFileName';
+import { GroupedReportList } from '../../src/components/reports/GroupedReportList';
+import { ReportSummaryCard } from '../../src/components/reports/ReportSummaryCard';
+import { Modal } from '../../src/components/ui/Modal';
+import { Button, EmptyState, Field, Select, Skeleton } from '../../src/components/ui/ds';
+import { useToast } from '../../src/components/ui/ToastContext';
+import '../../src/components/projects/ProjectReportsDialog.css';
 
 const REPORT_PAGE_SIZE = 30;
-const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer').then(module => ({ default: module.PdfCanvasViewer })));
+const PdfCanvasViewer = lazy(() => import('../../src/components/projects/PdfCanvasViewer').then(module => ({ default: module.PdfCanvasViewer })));
 
 interface PdfPreview {
   report: ReportSummary;

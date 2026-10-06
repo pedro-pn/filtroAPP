@@ -7,6 +7,7 @@
  * distintos e status do último dia (trabalhado / parado por standby de jornada cheia).
  */
 
+import { countStoppedReportDays, projectElapsedDays } from './project-time-summary.js';
 import { listCommercialDashboard } from './access-import.js';
 import { computeAlerts } from './alerts.js';
 import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
@@ -196,6 +197,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
     if (!agg.has(id)) {
       agg.set(id, {
         dates: new Set(),
+        reportDays: new Map(),
         collabs: new Set(),
         lastReport: null,
         normalWorkedMinutes: 0,
@@ -210,6 +212,9 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
     if (!a.lastReport || new Date(r.reportDate) > new Date(a.lastReport.reportDate)) a.lastReport = r;
     const dayCollaboratorIds = dayCollaboratorIdsByReport.get(r.id) || [];
     const metrics = reportPersonTimeMetrics(r, dayCollaboratorIds);
+    const reportDay = a.reportDays.get(dateKey(r.reportDate)) || { statusStandbyMin: 0, reportDate: r.reportDate };
+    reportDay.statusStandbyMin += metrics.standbyDurationMinutes;
+    a.reportDays.set(dateKey(r.reportDate), reportDay);
     a.overtimeWorkedMinutes += metrics.overtimeWorkedMinutes;
     a.normalWorkedMinutes += metrics.normalWorkedMinutes;
     for (const collaboratorId of reportAllCollaboratorIds(r, dayCollaboratorIds)) {
@@ -222,6 +227,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
   return rows.map(row => {
     const a = agg.get(row.projectId) || {
       dates: new Set(),
+      reportDays: new Map(),
       collabs: new Set(),
       lastReport: null,
       normalWorkedMinutes: 0,
@@ -233,6 +239,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
     const plannedDays = toNum(row.plannedDays);
     const expectedEndDate = row.startDate && plannedDays ? addCalendarDays(row.startDate, plannedDays) : null;
     const lastDay = lastDayStatus(a.lastReport, projById.get(row.projectId));
+    const stoppedDays = countStoppedReportDays(a.reportDays, date => journeyMinutes(projById.get(row.projectId), date));
     const projectReferenceDate = row.archived && lastDay.date ? new Date(lastDay.date) : now;
 
     // Tempo de cada equipamento na obra: da saída até o "final do projeto"
@@ -294,6 +301,8 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
         progressPct: row.progressPct ?? null
       }),
       workedDays,
+      ...projectElapsedDays(row.startDate, projectReferenceDate),
+      stoppedDays,
       totalDays,
       daysConsumedPct,
       workedHours,

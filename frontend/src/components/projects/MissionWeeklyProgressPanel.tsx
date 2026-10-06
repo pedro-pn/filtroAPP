@@ -15,6 +15,8 @@ import { WeeklyTargetEditor } from './WeeklyTargetEditor';
 import { newScenario, onlyFilteringGoals, scenarioToDraft, type TargetDraft } from './weeklyTargetDraft';
 import { WeeklyGoalResults, WeeklyTargetConfiguration } from './WeeklyTargetDisplay';
 import { attendanceBalanceLabel, weeklyValueLabel } from './weeklyTargetPresentation';
+import { ProjectDetailSection } from './ProjectDetailSection';
+import { ProjectDetailDisclosure } from './ProjectDetailDisclosure';
 import './mission-weekly-progress.css';
 
 const STATUS_LABEL: Record<WeeklyProgressComparison['status'], string> = {
@@ -26,17 +28,19 @@ function comparisonValue(row: WeeklyProgressComparison, key: 'plannedValue' | 'a
     <small key={goal.serviceType}>{WEEKLY_TARGET_SERVICES[goal.serviceType!]}: {weeklyValueLabel(goal[key], goal.metric, key === 'differenceValue')}</small>) : null}{showScenario && row.scenarioName ? <small>{row.scenarioName}</small> : null}</div>;
 }
 
-export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage = false, workflowAppearance = false }: {
+export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage = false, workflowAppearance = false, compact = false }: {
   owner: WeeklyTargetOwner;
   progressHistory?: ProgressHistoryPoint[];
   canManage?: boolean;
   workflowAppearance?: boolean;
+  compact?: boolean;
 }) {
   const id = useId();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<TargetDraft | null>(null);
   const [error, setError] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [showDetails, setShowDetails] = useState(!compact);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyTargetDeleteInput | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const targetsQuery = useQuery({
@@ -47,6 +51,8 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   const targets = targetsQuery.data?.targets ?? [];
   const rows = buildWeeklyProgressComparison({ targets, progressHistory: progressHistory ?? targetsQuery.data?.progressHistory ?? [], serviceHistory: targetsQuery.data?.serviceHistory ?? [], attendanceHistory: targetsQuery.data?.attendanceHistory ?? [] });
   const currentWeek = weekStartKey(corporateToday())!;
+  const closedWithTarget = rows.filter(row => !row.inProgress && row.weekStartDate < currentWeek && ['ON_TARGET', 'ABOVE', 'BELOW'].includes(row.status));
+  const achieved = closedWithTarget.filter(row => ['ON_TARGET', 'ABOVE'].includes(row.status)).length;
   const current = rows.find(row => row.weekStartDate === currentWeek)!;
   const hasAttendance = draft?.metric === 'COLLABORATORS' || rows.some(row => row.metric === 'COLLABORATORS');
   const plannedHeading = hasAttendance ? 'Previsto' : 'Avanço previsto';
@@ -122,68 +128,79 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   }
 
   return <section className="fv-ds mission-weekly-progress" aria-label="Metas semanais de avanço" onClick={event => event.stopPropagation()}>
-    <header className="mission-weekly-progress-head">
-      <strong>{hasAttendance ? 'Metas da semana' : 'Meta semanal de avanço'}</strong>
-      {canManage ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || busy} onClick={() => editWeek(currentWeek)}>Definir meta</Button> : null}
-    </header>
-    <p className="mission-weekly-progress-hint">{hasAttendance
+    <ProjectDetailSection collapsible={compact} label={hasAttendance ? 'Metas da semana' : 'Meta semanal de avanço'} header={<>
+      <header className="mission-weekly-progress-head">
+        <strong>{hasAttendance ? 'Metas da semana' : 'Meta semanal de avanço'}</strong>
+        {compact && targetsQuery.isSuccess ? <span className="mission-weekly-status status-on_target" data-acp-weekly-wins>{achieved} de {closedWithTarget.length} semanas com meta atingida</span> : null}
+        {canManage ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || busy} onClick={() => editWeek(currentWeek)}>Definir meta</Button> : null}
+      </header>
+
+    </>}>
+      {!compact ? <p className="mission-weekly-progress-hint">{hasAttendance
       ? 'Segunda a domingo · Metas de avanço em p.p., metros, litros ou unidades de sistema; ou quantidade mínima de colaboradores presentes por dia de trabalho. Valores de produção gerais, por serviço ou por colaborador produtivo/dia.'
-      : 'Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.'}</p>
-    {targetsQuery.isPending ? <p role="status"><BrandLoading label="Carregando metas semanais" inline size="sm" /></p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
-      <div className="mission-weekly-progress-current">
-        <span>Semana de {formatDateOnly(currentWeek)} · Em andamento</span>
-        <dl>
-          <div><dt>{current.metric === 'COLLABORATORS' ? 'Previsto por dia' : 'Previsto'}</dt><dd>{current.mixedUnits ? comparisonValue(current, 'plannedValue') : weeklyValueLabel(current.plannedValue, current.metric)}</dd></div>
-          <div><dt>{current.metric === 'COLLABORATORS' ? 'Menor efetivo diário' : 'Realizado'}</dt><dd>{current.mixedUnits ? comparisonValue(current, 'actualValue') : weeklyValueLabel(current.actualValue, current.metric)}</dd></div>
-          <div><dt>Diferença</dt><dd>{current.mixedUnits ? comparisonValue(current, 'differenceValue') : weeklyValueLabel(current.differenceValue, current.metric, true)}</dd></div>
-        </dl>
-        <span className={`mission-weekly-status status-${current.status.toLowerCase()}`}>{STATUS_LABEL[current.status]}</span>
-        {current.cumulativeAttendance ? <div className="mission-weekly-attendance-balance">
-          <strong>Presença acumulada</strong>
+      : 'Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.'}</p> : null}
+      {targetsQuery.isPending ? <p role="status"><BrandLoading label="Carregando metas semanais" inline size="sm" /></p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
+        <ProjectDetailDisclosure disabled={!compact} label="Consultar a semana atual" compact><div className="mission-weekly-progress-current">
+          <span>Semana de {formatDateOnly(currentWeek)} · Em andamento</span>
           <dl>
-            <div><dt>Previsto acumulado</dt><dd>{current.cumulativeAttendance.plannedValue} presenças</dd></div>
-            <div><dt>Realizado acumulado</dt><dd>{current.cumulativeAttendance.actualValue == null ? '—' : `${current.cumulativeAttendance.actualValue} presenças`}</dd></div>
-            <div><dt>Saldo acumulado</dt><dd>{attendanceBalanceLabel(current.cumulativeAttendance.differenceValue)}</dd></div>
+            <div><dt>{current.metric === 'COLLABORATORS' ? 'Previsto por dia' : 'Previsto'}</dt><dd>{current.mixedUnits ? comparisonValue(current, 'plannedValue') : weeklyValueLabel(current.plannedValue, current.metric)}</dd></div>
+            <div><dt>{current.metric === 'COLLABORATORS' ? 'Menor efetivo diário' : 'Realizado'}</dt><dd>{current.mixedUnits ? comparisonValue(current, 'actualValue') : weeklyValueLabel(current.actualValue, current.metric)}</dd></div>
+            <div><dt>Diferença</dt><dd>{current.mixedUnits ? comparisonValue(current, 'differenceValue') : weeklyValueLabel(current.differenceValue, current.metric, true)}</dd></div>
           </dl>
-          <p className="mission-weekly-progress-hint">Cada colaborador em um dia conta como uma presença. O saldo soma excedentes e faltas desde a primeira semana com meta de presença, nos dias selecionados já ocorridos. Dias sem meta não entram; a avaliação diária continua independente.</p>
-        </div> : null}
-        {current.metric !== 'PCT_POINTS' ? <WeeklyGoalResults row={current} showBalance={false} /> : null}
-        {current.target?.definition ? <details><summary>Regras cadastradas para a semana</summary><WeeklyTargetConfiguration target={current.target} /></details> : null}
-      </div>
-      {draft && canManage ? <form className="mission-weekly-progress-form" onSubmit={submit}>
-        <Field id={`${id}-week`} label="Semana" required helperText="Selecione um dia; a semana começa na segunda-feira."><Input type="date" required value={draft.weekStartDate} disabled={busy} onChange={event => {
-          const week = weekStartKey(event.target.value) ?? '';
-          setDraft(currentDraft => currentDraft ? { ...currentDraft, weekStartDate: week,
-            expectedRevision: week && week !== currentDraft.weekStartDate ? latestFor(week)?.revision ?? 0 : currentDraft.expectedRevision } : null);
-          setError('');
-        }} /></Field>
-        <WeeklyTargetEditor id={id} draft={draft} disabled={busy} onChange={setDraft} />
-        <div className="mission-weekly-progress-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="primary" type="submit" size="sm" disabled={busy}>{save.isPending ? 'Salvando…' : 'Salvar meta'}</Button><Button workflowAppearance={workflowAppearance} workflowVariant="mini" type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { setDraft(null); setError(''); }}>Cancelar</Button></div>
-      </form> : null}
-      {error ? <Alert tone="danger">{error}</Alert> : null}
-      <div className="mission-weekly-progress-table" role="region" aria-label="Comparativo semanal de avanço" tabIndex={0}>
-        <SortableTable>
-          <thead><tr><th scope="col">Semana</th><th scope="col">{plannedHeading}</th><th scope="col">{actualHeading}</th><th scope="col">Diferença</th><th scope="col">Situação</th><th scope="col">Meta registrada</th>{canManage ? <th scope="col">Ação</th> : null}</tr></thead>
-          <tbody>{(showAll ? rows : rows.slice(0, 12)).map(row => {
-            const revisions = targets.filter(target => target.weekStartDate === row.weekStartDate).sort((a, b) => b.revision - a.revision);
-            return <tr key={row.weekStartDate}>
-              <th scope="row" data-sort-value={row.weekStartDate}>{formatDateOnly(row.weekStartDate)}<small>até {formatDateOnly(row.weekEndDate)}{row.inProgress ? ' · Em andamento' : ''}</small></th>
-              <td data-label={plannedHeading} data-sort-value={row.plannedValue}>{comparisonValue(row, 'plannedValue', true)}</td><td data-label={actualHeading} data-sort-value={row.actualValue}><div>{comparisonValue(row, 'actualValue')}{row.metric === 'COLLABORATORS' ? <details><summary>Presença por dia · menor efetivo diário</summary><WeeklyGoalResults row={row} /></details> : null}</div></td><td data-label="Diferença" data-sort-value={row.differenceValue}><div>{comparisonValue(row, 'differenceValue')}{row.cumulativeAttendance ? <small>Acumulado: {attendanceBalanceLabel(row.cumulativeAttendance.differenceValue)}</small> : null}</div></td>
-              <td data-label="Situação"><span className={`mission-weekly-status status-${row.status.toLowerCase()}`}>{STATUS_LABEL[row.status]}</span></td>
-              <td data-label="Meta registrada" data-sort-value={revisions[0]?.createdAt}>{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : '—'}</td>
-              {canManage ? <td data-label="Ação"><div className="mission-weekly-row-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={busy} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button>{row.target ? <Button workflowAppearance={workflowAppearance} workflowVariant="danger" size="sm" variant="danger" disabled={busy} aria-label={`Excluir meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => {
-                setDeleteError('');
-                setDeleteTarget({ weekStartDate: row.weekStartDate, expectedRevision: row.target!.revision });
-              }}>Excluir</Button> : null}</div></td> : null}
-            </tr>;
-          })}</tbody>
-        </SortableTable>
-      </div>
-      {rows.length > 12 ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar últimas 12 semanas' : `Ver todas as ${rows.length} semanas`}</Button> : null}
-      <p className="mission-weekly-progress-hint">{hasAttendance
+          <span className={`mission-weekly-status status-${current.status.toLowerCase()}`}>{STATUS_LABEL[current.status]}</span>
+          {current.cumulativeAttendance ? <div className="mission-weekly-attendance-balance">
+            <strong>Presença acumulada</strong>
+            <dl>
+              <div><dt>Previsto acumulado</dt><dd>{current.cumulativeAttendance.plannedValue} presenças</dd></div>
+              <div><dt>Realizado acumulado</dt><dd>{current.cumulativeAttendance.actualValue == null ? '—' : `${current.cumulativeAttendance.actualValue} presenças`}</dd></div>
+              <div><dt>Saldo acumulado</dt><dd>{attendanceBalanceLabel(current.cumulativeAttendance.differenceValue)}</dd></div>
+            </dl>
+            <p className="mission-weekly-progress-hint">Cada colaborador em um dia conta como uma presença. O saldo soma excedentes e faltas desde a primeira semana com meta de presença, nos dias selecionados já ocorridos. Dias sem meta não entram; a avaliação diária continua independente.</p>
+          </div> : null}
+          {current.metric !== 'PCT_POINTS' ? <WeeklyGoalResults row={current} showBalance={false} /> : null}
+          {current.target?.definition ? <details><summary>Regras cadastradas para a semana</summary><WeeklyTargetConfiguration target={current.target} /></details> : null}
+        </div></ProjectDetailDisclosure>
+        {draft && canManage ? <form className="mission-weekly-progress-form" onSubmit={submit}>
+          <Field id={`${id}-week`} label="Semana" required helperText="Selecione um dia; a semana começa na segunda-feira."><Input type="date" required value={draft.weekStartDate} disabled={busy} onChange={event => {
+            const week = weekStartKey(event.target.value) ?? '';
+            setDraft(currentDraft => currentDraft ? { ...currentDraft, weekStartDate: week,
+              expectedRevision: week && week !== currentDraft.weekStartDate ? latestFor(week)?.revision ?? 0 : currentDraft.expectedRevision } : null);
+            setError('');
+          }} /></Field>
+          <WeeklyTargetEditor id={id} draft={draft} disabled={busy} onChange={setDraft} />
+          <div className="mission-weekly-progress-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="primary" type="submit" size="sm" disabled={busy}>{save.isPending ? 'Salvando…' : 'Salvar meta'}</Button><Button workflowAppearance={workflowAppearance} workflowVariant="mini" type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { setDraft(null); setError(''); }}>Cancelar</Button></div>
+        </form> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        {compact ? <Button size="sm" variant="secondary" workflowAppearance={workflowAppearance} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{showDetails ? 'Recolher detalhes e edição' : 'Detalhes e edição das metas'}</Button> : null}
+        <div className="mission-weekly-progress-table" role="region" aria-label="Comparativo semanal de avanço" tabIndex={0}>
+          <SortableTable>
+            <thead><tr><th scope="col">Semana</th><th scope="col">{plannedHeading}</th><th scope="col">{actualHeading}</th><th scope="col">Diferença</th><th scope="col">Situação</th>{showDetails ? <th scope="col">Meta registrada</th> : null}{canManage && showDetails ? <th scope="col" data-sortable="false">Ação</th> : null}</tr></thead>
+            <tbody>{(showAll ? rows : rows.slice(0, 12)).map(row => {
+              const revisions = targets.filter(target => target.weekStartDate === row.weekStartDate).sort((a, b) => b.revision - a.revision);
+              return <tr key={row.weekStartDate}>
+                <th scope="row" data-sort-value={row.weekStartDate}>{formatDateOnly(row.weekStartDate)}<small>até {formatDateOnly(row.weekEndDate)}{row.inProgress ? ' · Em andamento' : ''}</small></th>
+                <td data-label={plannedHeading} data-sort-value={row.plannedValue}>{comparisonValue(row, 'plannedValue', true)}</td><td data-label={actualHeading} data-sort-value={row.actualValue}><div>{comparisonValue(row, 'actualValue')}{row.metric === 'COLLABORATORS' ? <details><summary>Presença por dia · menor efetivo diário</summary><WeeklyGoalResults row={row} /></details> : null}</div></td><td data-label="Diferença" data-sort-value={row.differenceValue}><div>{comparisonValue(row, 'differenceValue')}{row.cumulativeAttendance ? <small>Acumulado: {attendanceBalanceLabel(row.cumulativeAttendance.differenceValue)}</small> : null}</div></td>
+                <td data-label="Situação"><span className={`mission-weekly-status status-${compact && row.inProgress && row.status === 'BELOW' ? 'planned' : row.status.toLowerCase()}`}>{!compact ? STATUS_LABEL[row.status] : row.inProgress && row.status === 'BELOW' ? 'Em andamento' : ['ON_TARGET', 'ABOVE'].includes(row.status) ? 'Meta atingida' : row.status === 'BELOW' ? 'Meta não atingida' : STATUS_LABEL[row.status]}</span></td>
+                {showDetails ? <td data-label="Meta registrada" data-sort-value={revisions[0]?.createdAt}>{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : '—'}</td> : null}
+                {canManage && showDetails ? <td data-label="Ação"><div className="mission-weekly-row-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={busy} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button>{row.target ? <Button workflowAppearance={workflowAppearance} workflowVariant="danger" size="sm" variant="danger" disabled={busy} aria-label={`Excluir meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => {
+                  setDeleteError('');
+                  setDeleteTarget({ weekStartDate: row.weekStartDate, expectedRevision: row.target!.revision });
+                }}>Excluir</Button> : null}</div></td> : null}
+              </tr>;
+            })}</tbody>
+          </SortableTable>
+        </div>
+        {rows.length > 12 ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar últimas 12 semanas' : `Ver todas as ${rows.length} semanas`}</Button> : null}
+        <ProjectDetailDisclosure disabled={!compact} label="Como a meta é calculada" compact>
+      {compact ? <p className="mission-weekly-progress-hint">{hasAttendance
+      ? 'Segunda a domingo · Metas de avanço em p.p., metros, litros ou unidades de sistema; ou quantidade mínima de colaboradores presentes por dia de trabalho. Valores de produção gerais, por serviço ou por colaborador produtivo/dia.'
+      : 'Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.'}</p> : null}
+        <p className="mission-weekly-progress-hint">{hasAttendance
         ? 'Diferença = realizado − previsto. Quantidades físicas usam serviços finalizados. Os cenários também consideram serviços em andamento nos RDOs. Metas por colaborador produtivo/dia usam as horas de serviço divididas pela jornada de referência. Metas de presença comparam a equipe do RDO com a quantidade mínima em cada dia selecionado; o resumo mostra o menor efetivo diário e dias sem RDO ficam pendentes. A semana atual está em andamento e é recalculada conforme os RDOs.'
         : 'Diferença = realizado − previsto. Quantidades físicas usam serviços finalizados. Os cenários também consideram serviços em andamento nos RDOs. Metas por colaborador/dia usam as horas produtivas registradas no RDO, por serviço, divididas pela jornada de referência. Cada serviço deve cumprir sua meta. A semana atual ainda está em andamento e é recalculada conforme os RDOs.'}</p>
-    </>}
+        </ProjectDetailDisclosure>
+      </>}
+    </ProjectDetailSection>
     <ConfirmDialog open={Boolean(deleteTarget) && canManage} appearance="design-system" title="Excluir meta semanal"
       description="A semana ficará sem meta definida. As versões anteriores e o registro da exclusão permanecerão no histórico."
       highlight={deleteTarget ? `Semana de ${formatDateOnly(deleteTarget.weekStartDate)}` : undefined}

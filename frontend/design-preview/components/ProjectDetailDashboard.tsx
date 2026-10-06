@@ -1,4 +1,5 @@
-import { SortableTable } from '../ui/SortableTable';
+// Cópia isolada para prévia. Fonte: frontend/src/components/projects/ProjectDetailDashboard.tsx
+import { PreviewSection } from '../PreviewSection';
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
@@ -19,40 +20,38 @@ import {
   type ProjectDetailCollaborator,
   type ProjectManagementNote,
   type MissionGroupLaborAllocationMode,
-} from '../../api/acompanhamentoComercial';
-import { listProjectQualityDeviations, type ProjectDeviation } from '../../api/qualidade';
-import { qualityDeviationProjects } from './projectQualityDeviations';
-import { Modal } from '../ui/Modal';
-import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
-import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
-import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
-import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
-import { ProjectLaborPolicyNovelty } from './ProjectLaborPolicyNovelty';
-import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
-import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
+} from '../../src/api/acompanhamentoComercial';
+import { listProjectQualityDeviations, type ProjectDeviation } from '../../src/api/qualidade';
+import { qualityDeviationProjects } from '../../src/components/projects/projectQualityDeviations';
+import { Modal } from '../../src/components/ui/Modal';
+import { ProjectScheduleEditor, type ScheduleEditorHandle } from '../../src/components/projects/ProjectScheduleEditor';
+import { ProjectAdditionalProposalsNovelty } from '../../src/components/projects/ProjectAdditionalProposalsNovelty';
+import { ProjectCollaboratorHoursDialog } from '../../src/components/projects/ProjectCollaboratorHoursDialog';
+import { ProjectManualCostNovelty } from '../../src/components/projects/ProjectManualCostNovelty';
+import { ProjectLaborPolicyNovelty } from '../../src/components/projects/ProjectLaborPolicyNovelty';
+import { ProjectQualityDeviationsNovelty } from '../../src/components/projects/ProjectQualityDeviationsNovelty';
+import { ProjectProgressHistoryNovelty } from '../../src/components/projects/ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
-import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
+import { ProjectRomaneiosDialog } from '../../src/components/projects/ProjectRomaneiosDialog';
 import { ProjectInvoicesSection } from './ProjectInvoicesSection';
-import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
-import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
-import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
-import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
+import { ProjectStandbyHistoryDialog } from '../../src/components/projects/ProjectStandbyHistoryDialog';
+import { ProjectTrackingDivisionsPanel } from '../../src/components/projects/ProjectTrackingDivisionsPanel';
+import { ProjectStandbyHistoryNovelty } from '../../src/components/projects/ProjectStandbyHistoryNovelty';
+import { ProjectWeeklyTargetNovelty } from '../../src/components/projects/ProjectWeeklyTargetNovelty';
 import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
-import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
-import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
-import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
-import { AppIcon } from '../icons/AppIcon';
+import type { WeeklyTargetOwner } from '../../src/api/weeklyProgressTargets';
+import { acompanhamentoRefreshQueryOptions } from '../../src/components/projects/acompanhamentoRefresh';
+import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../../src/components/ui/ds';
+import { AppIcon } from '../../src/components/icons/AppIcon';
 import { ArrowLeft, CalendarDays } from 'lucide-react';
-import { ProjectDetailPeople } from './ProjectDetailPeople';
-import { ProjectDetailTaxes } from './ProjectDetailCosts';
+import { ProjectDetailPeople } from '../../src/components/projects/ProjectDetailPeople';
+import { ProjectDetailTaxes } from '../../src/components/projects/ProjectDetailCosts';
 import { ProjectDetailOverview, ProjectDetailServiceComposition } from './ProjectDetailOverview';
 import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectTimeSnapshot } from './ProjectDetailStory';
-import { PlannedScopeView, RequiredWeeklyProgressCard } from './ProjectDetailVisuals';
-import { ProjectScopeDailyTable } from './ProjectScopeDailyTable';
-import { brl, fmtDate, fmtDateTime, fmtPct, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from './projectDetailModel';
-import { ProjectDetailSection } from './ProjectDetailSection';
-import './ProjectDetailDashboard.ds.css';
-import type { AuthUser } from '../../types/auth';
+import { ProjectScopeDailyTable } from '../../src/components/projects/ProjectScopeDailyTable';
+import { brl, fmtDate, fmtDateTime, fmtPct, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from '../../src/components/projects/projectDetailModel';
+import '../../src/components/projects/ProjectDetailDashboard.ds.css';
+import type { AuthUser } from '../../src/types/auth';
 
 const equipmentNameCollator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
@@ -77,10 +76,8 @@ export function ProjectDetailDashboard({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [scopeOpen, setScopeOpen] = useState(false);
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
-  const [trackingDivisionToEdit, setTrackingDivisionToEdit] = useState<string | undefined>();
   const [trackingDivisionKey, setTrackingDivisionKey] = useState('');
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [progressScopeKey, setProgressScopeKey] = useState('');
@@ -321,6 +318,8 @@ export function ProjectDetailDashboard({
       custoHoraEstimadoRdo: null, custoDeslocamento: null
     })) : data.colaboradores;
   const canAddManualCost = canManageManualCosts && !isGroup && Boolean(projectId);
+  const deviationCount = qualityDeviationQueries.length > 0 && qualityDeviationQueries.every(query => query.isSuccess)
+    ? qualityDeviationQueries.reduce((count, query) => count + (query.data?.length ?? 0), 0) : null;
   const hasAdditionalProposalContribution = (data.budgetBreakdown?.additionals ?? []).some(item => (
     hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
   ));
@@ -334,21 +333,12 @@ export function ProjectDetailDashboard({
     <div className="fv-ds acp-detail">
       <div className="acp-detail-bar">
         <Button type="button" size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button>
-        <Button type="button" size="sm" variant="secondary" aria-haspopup="dialog" data-acp-weekly-progress-target onClick={() => setScopeOpen(true)}>Consultar escopo</Button>
         {canManage && !isGroup ? (
           <div className="acp-detail-bar-actions">
-            {!activeDivisionKey || canManageDivisions ? <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => {
-              if (activeDivisionKey) {
-                setTrackingDivisionToEdit(activeDivisionKey);
-                setTrackingDivisionsOpen(true);
-              } else setScheduleProject({ projectId: projectId!, code: h.code });
-            }}>
-              {activeDivisionKey ? 'Editar cronograma da divisão' : 'Editar cronograma'}
-            </Button> : null}
-            {canManageDivisions ? <Button type="button" size="sm" variant="secondary" onClick={() => {
-              setTrackingDivisionToEdit(undefined);
-              setTrackingDivisionsOpen(true);
-            }}>
+            <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => setScheduleProject({ projectId: projectId!, code: h.code })}>
+              Editar cronograma
+            </Button>
+            {canManageDivisions ? <Button type="button" size="sm" variant="secondary" onClick={() => setTrackingDivisionsOpen(true)}>
               Divisões do acompanhamento
             </Button> : null}
           </div>
@@ -366,7 +356,7 @@ export function ProjectDetailDashboard({
           <div className="acp-detail-header-meta">
             {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
             <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span>
-            <span>{data.division ? 'Início do escopo' : 'Início'} <strong>{fmtDate(data.footer.startDate)}</strong></span>
+            <span>Início <strong>{fmtDate(data.footer.startDate)}</strong></span>
             {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
           </div>
           {data.alerts.length > 0 ? (
@@ -456,19 +446,14 @@ export function ProjectDetailDashboard({
         </nav>
       ) : null}
       {data.division ? <Card padding="sm" className="acp-tracking-period" aria-label="Período da divisão">
-        <span>Início do escopo: {fmtDate(data.division.startDate)}</span>
-        <span>Fim do escopo: {data.division.endDate ? fmtDate(data.division.endDate) : 'Não informado · período até hoje'}</span>
-        <span>Mobilização do escopo: {fmtDate(data.division.mobilizationDate)}</span>
+        Período: {fmtDate(data.division.startDate)} até {data.division.endDate ? fmtDate(data.division.endDate) : 'hoje'}
       </Card> : null}
-      {data.division && !data.division.mobilizationDate ? <Alert tone="warning" title="Informe a mobilização do escopo.">
-        Preencha a data no cronograma da divisão para calcular os dias corridos e a apropriação dos colaboradores.
-      </Alert> : null}
 
-      <div className="acp-detail-priorities">
-        <ProjectFinancialSnapshot data={data}>
-          {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
-            <div className="acp-detail-manual-costs" data-acp-manual-costs>
-              <ProjectDetailSection label="Custos manuais" header={<>
+      <div className="preview-priorities">
+          <ProjectFinancialSnapshot data={data}>
+            {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
+              <div className="acp-detail-manual-costs" data-acp-manual-costs>
+<PreviewSection label="Custos manuais" header={<>
                 <div className="acp-detail-manual-costs-head">
                   <div className="acp-detail-sub">Custos manuais</div>
                   {canAddManualCost ? (
@@ -484,7 +469,7 @@ export function ProjectDetailDashboard({
                     </Button>
                   ) : null}
                 </div>
-              </>}>
+</>}>
                 {manualCosts.length > 0 ? (
                   <ul className="acp-detail-manual-cost-list">
                     {manualCosts.map(cost => (
@@ -557,50 +542,89 @@ export function ProjectDetailDashboard({
                     </div>
                   </form>
                 ) : null}
-              </ProjectDetailSection>
+</PreviewSection>
 
-            </div>
-          ) : null}
-        </ProjectFinancialSnapshot>
-        <ProjectTimeSnapshot
-          progressPanel={
-            <ProjectDetailOverview
-              progressHistory={shownProgressHistory}
-              chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
-              filterLabel={progressFilterLabel}
-              filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
-                <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
-                  <Field id="acp-progress-scope" label="Escopo" optionalText="">
-                    <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
-                      <option value="">Todos os escopos</option>
-                      {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
-                    </Select>
-                  </Field>
-                  <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
-                    <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
-                      <option value="">Todos os equipamentos</option>
-                      {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
-                    </Select>
-                  </Field>
-                </div>
-              ) : null}
-            />
-          }
-          data={data}
-          onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
-          reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
-            <ProjectReportsDialog
-              projectId={isGroup ? undefined : projectId}
-              groupMembers={isGroup ? data.group?.members : undefined}
-              missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
-            />
-          ) : null}
-        />
-        <ProjectDetailServiceComposition
-          target={shownRequiredWeeklyProgress}
-          fallbackProgress={isGroup ? data.progressBreakdown : undefined}
-          fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
-        />
+              </div>
+            ) : null}
+          </ProjectFinancialSnapshot>
+      <ProjectTimeSnapshot
+        progressPanel={
+      <ProjectDetailOverview
+        data={data}
+        progressPct={shownAvancoPct}
+        progressHistory={shownProgressHistory}
+        chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
+        target={shownRequiredWeeklyProgress}
+        fallbackProgress={isGroup ? data.progressBreakdown : undefined}
+        fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+        filterLabel={progressFilterLabel}
+        teamCount={collaborators.length}
+        teamIsPlanned={showingPlannedCollaborators}
+        deviationCount={deviationCount}
+        weeklyTargetOwner={weeklyTargetOwner}
+        weeklyProgressHistory={weeklyProgressHistory}
+        filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
+          <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
+            <Field id="acp-progress-scope" label="Escopo" optionalText="">
+              <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
+                <option value="">Todos os escopos</option>
+                {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+            <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
+              <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
+                <option value="">Todos os equipamentos</option>
+                {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
+      />
+
+        }
+        data={data}
+        onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
+        reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
+          <ProjectReportsDialog
+            projectId={isGroup ? undefined : projectId}
+            groupMembers={isGroup ? data.group?.members : undefined}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
+          />
+        ) : null}
+      />
+
+      <ProjectDetailServiceComposition
+        data={data}
+        progressPct={shownAvancoPct}
+        progressHistory={shownProgressHistory}
+        chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
+        target={shownRequiredWeeklyProgress}
+        fallbackProgress={isGroup ? data.progressBreakdown : undefined}
+        fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+        filterLabel={progressFilterLabel}
+        teamCount={collaborators.length}
+        teamIsPlanned={showingPlannedCollaborators}
+        deviationCount={deviationCount}
+        weeklyTargetOwner={weeklyTargetOwner}
+        weeklyProgressHistory={weeklyProgressHistory}
+        filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
+          <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
+            <Field id="acp-progress-scope" label="Escopo" optionalText="">
+              <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
+                <option value="">Todos os escopos</option>
+                {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+            <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
+              <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
+                <option value="">Todos os equipamentos</option>
+                {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
+      />
+
       </div>
 
       <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators} onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} />
@@ -610,24 +634,24 @@ export function ProjectDetailDashboard({
           key={groupId || projectId}
           owner={weeklyTargetOwner}
           progressHistory={weeklyProgressHistory}
-          compact
           canManage={canManageProjectNotes}
         />
       </Card> : null}
 
-      {data.canViewProjectFinancials ? <Card padding="sm" className="acp-detail-financial" id="acp-financial">
-        <ProjectDetailSection label="Gastos e retorno" header={<>
-          <div className="acp-detail-section-head">
-            <p>Financeiro</p><h2>Gastos e retorno</h2>
-            <span>Faturamento, impostos e notas fiscais do projeto.</span>
-          </div>
-        </>}>
-          <div className="acp-detail-financial-grid" data-acp-detail-financial-grid>
-            <ProjectBillingSnapshot data={data} />
-            <ProjectDetailTaxes data={data} />
-            <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} />
-          </div>
-        </ProjectDetailSection>
+      {data.canViewProjectFinancials ? <Card padding="sm" className="preview-financial" id="acp-financial">
+<PreviewSection label="Gastos e retorno" header={<>
+        <div className="acp-detail-section-head">
+          <p>Financeiro</p><h2>Gastos e retorno</h2>
+          <span>Faturamento, impostos e notas fiscais do projeto.</span>
+        </div>
+</>}>
+        <div className="preview-financial-grid" data-preview-financial-grid>
+          <ProjectBillingSnapshot data={data} />
+          <ProjectDetailTaxes data={data} />
+          <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} />
+        </div>
+
+</PreviewSection>
       </Card> : null}
 
       <div className="acp-detail-section-head" id="acp-quality">
@@ -746,56 +770,56 @@ export function ProjectDetailDashboard({
 
       {!isGroup ? (
         <Card padding="sm" className="acp-detail-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
-          <ProjectDetailSection label="Notas da gestão" header={<>
-            <div className="acp-detail-notes-head">
-              <h3 id="acp-project-notes-title">Notas da gestão</h3>
-              <Badge tone="neutral">{projectNotes.length} {projectNotes.length === 1 ? 'nota' : 'notas'}</Badge>
-            </div>
+<PreviewSection label="Notas da gestão" header={<>
+          <div className="acp-detail-notes-head">
+            <h3 id="acp-project-notes-title">Notas da gestão</h3>
+            <Badge tone="neutral">{projectNotes.length} {projectNotes.length === 1 ? 'nota' : 'notas'}</Badge>
+          </div>
 
-          </>}>
-            {canManageProjectNotes ? (
-              <form className="acp-detail-note-form" onSubmit={submitProjectNote}>
-                <Field id="acp-project-note-content" label="Nova nota" optionalText="" className="acp-detail-note-field">
-                  <Textarea
-                    value={projectNoteContent}
-                    onChange={event => setProjectNoteContent(event.target.value)}
-                    maxLength={2000}
-                    rows={3}
-                    placeholder="Adicionar uma nota…"
-                    disabled={createProjectNoteMutation.isPending}
-                  />
-                </Field>
-                <Button
-                  type="submit"
-                  size="sm" variant="primary"
-                  disabled={!projectNoteContent.trim() || createProjectNoteMutation.isPending}
-                >
-                  {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
-                </Button>
-              </form>
-            ) : null}
+</>}>
+          {canManageProjectNotes ? (
+            <form className="acp-detail-note-form" onSubmit={submitProjectNote}>
+              <Field id="acp-project-note-content" label="Nova nota" optionalText="" className="acp-detail-note-field">
+                <Textarea
+                  value={projectNoteContent}
+                  onChange={event => setProjectNoteContent(event.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Adicionar uma nota…"
+                  disabled={createProjectNoteMutation.isPending}
+                />
+              </Field>
+              <Button
+                type="submit"
+                size="sm" variant="primary"
+                disabled={!projectNoteContent.trim() || createProjectNoteMutation.isPending}
+              >
+                {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
+              </Button>
+            </form>
+          ) : null}
 
-            {projectNoteError ? <Alert tone="danger">{projectNoteError}</Alert> : null}
-            {projectNotesLoadError ? (
-              <Alert tone="warning" title="Não foi possível carregar as notas." action={<Button size="sm" variant="secondary" onClick={() => void refetchNotes()}>Tentar novamente</Button>} />
-            ) : projectNotesLoading ? (
-              <Skeleton height={64} />
-            ) : projectNotes.length === 0 ? (
-              <div className="acp-detail-muted">Nenhuma nota adicionada.</div>
-            ) : (
-              <ol className="acp-detail-note-list">
-                {projectNotes.map(note => (
-                  <li key={note.id}>
-                    <div className="acp-detail-note-meta">
-                      <strong>{note.author.name}</strong>
-                      <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
-                    </div>
-                    <p>{note.content}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </ProjectDetailSection>
+          {projectNoteError ? <Alert tone="danger">{projectNoteError}</Alert> : null}
+          {projectNotesLoadError ? (
+            <Alert tone="warning" title="Não foi possível carregar as notas." action={<Button size="sm" variant="secondary" onClick={() => void refetchNotes()}>Tentar novamente</Button>} />
+          ) : projectNotesLoading ? (
+            <Skeleton height={64} />
+          ) : projectNotes.length === 0 ? (
+            <div className="acp-detail-muted">Nenhuma nota adicionada.</div>
+          ) : (
+            <ol className="acp-detail-note-list">
+              {projectNotes.map(note => (
+                <li key={note.id}>
+                  <div className="acp-detail-note-meta">
+                    <strong>{note.author.name}</strong>
+                    <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
+                  </div>
+                  <p>{note.content}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+</PreviewSection>
 
         </Card>
       ) : null}
@@ -816,7 +840,7 @@ export function ProjectDetailDashboard({
           ) : (
             <>
               <div className="acp-detail-equips-table-wrap">
-                <SortableTable className="acp-detail-equips-table">
+                <table className="acp-detail-equips-table">
                   <caption className="sr-only">Equipamentos na obra</caption>
                   <thead><tr>
                     <th scope="col">Equipamento</th>
@@ -825,15 +849,15 @@ export function ProjectDetailDashboard({
                   </tr></thead>
                   <tbody>{equipamentos.map((equipment, index) => (
                     <tr key={`${equipment.code ?? equipment.name}-${index}`}>
-                      <th scope="row" data-sort-value={`${equipment.code ?? ""} ${equipment.name}`}>
+                      <th scope="row">
                         {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
                         <span>{equipment.name}</span>
                       </th>
-                      <td data-sort-value={equipment.days}>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
-                      <td data-sort-value={equipment.since}>{fmtDate(equipment.since)}</td>
+                      <td>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
+                      <td>{fmtDate(equipment.since)}</td>
                     </tr>
                   ))}</tbody>
-                </SortableTable>
+                </table>
               </div>
               <ul className="acp-detail-equips-mobile" aria-label="Equipamentos na obra">
                 {equipamentos.map((equipment, index) => (
@@ -875,7 +899,7 @@ export function ProjectDetailDashboard({
       />
 
       {canManageDivisions && trackingDivisionsOpen && projectId && trackingDivisions ? <ProjectTrackingDivisionsPanel
-        projectId={projectId} data={trackingDivisions} selectedDivisionKey={trackingDivisionToEdit} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
+        projectId={projectId} data={trackingDivisions} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
       {canManageDivisions && trackingDivisionsOpen && projectId && !trackingDivisions ? <Modal open onClose={() => setTrackingDivisionsOpen(false)}
         appearance="design-system" title="Divisões do acompanhamento" size="sm">
         {trackingDivisionsError ? <Alert tone="danger" title="Não foi possível carregar as divisões."
@@ -891,12 +915,6 @@ export function ProjectDetailDashboard({
         onClose={() => setHoursDetail(null)}
       />
 
-      <Modal open={scopeOpen} onClose={() => setScopeOpen(false)} title="Escopo do projeto" appearance="design-system" size="lg">
-        <div className="fv-ds acp-detail-scope">
-          <PlannedScopeView scope={data.plannedScope} />
-          <RequiredWeeklyProgressCard target={shownRequiredWeeklyProgress} />
-        </div>
-      </Modal>
       <Modal open={scheduleProject !== null} onClose={closeSchedule} appearance="design-system" size="lg"
         panelClassName="acp-schedule-modal" title={`Cronograma — Missão ${scheduleProject?.code ?? h.code}`}
         footer={<div className="acp-schedule-modal__actions">

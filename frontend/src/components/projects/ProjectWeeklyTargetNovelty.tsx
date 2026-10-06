@@ -57,7 +57,7 @@ export function ProjectWeeklyTargetNovelty({ user, enabled, onSeen }: ProjectWee
           element: WEEKLY_TARGET_SELECTOR,
           popover: {
             title: 'Ritmo necessário',
-            description: 'O indicador mostra a necessidade semanal em metros, unidades ou litros para o recorte selecionado.',
+            description: 'Abra Consultar escopo para ver a necessidade semanal em metros, unidades ou litros para o recorte selecionado.',
             side: 'bottom',
             align: 'start'
           }
@@ -68,7 +68,7 @@ export function ProjectWeeklyTargetNovelty({ user, enabled, onSeen }: ProjectWee
       markAcompanhamentoWeeklyTargetNoveltySeen(noveltyUser);
       driver({
         showProgress: true,
-        nextBtnText: 'Ver indicador',
+        nextBtnText: 'Ver consulta',
         prevBtnText: 'Voltar',
         doneBtnText: 'Entendi',
         allowClose: true,

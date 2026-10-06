@@ -502,3 +502,13 @@ test('grouped planned scope preserves the umbrella name instead of merging equal
   assert.deepEqual(result.plannedScope.services.map(service => service.scopeName), ['Principal', 'Adicional']);
   assert.deepEqual(result.plannedScope.services.map(service => service.systems[0].quantity), [100, 100]);
 });
+
+
+test('detalhe do grupo soma dias úteis e parados sem usar só os últimos dias', () => {
+  const result = groupProjectDetails(group(), group().members.map((member, index) => ({
+    projectId: member.projectId, member,
+    detail: { ...detail(), businessDays: index ? 10 : 7, stoppedDays: index ? 3 : 1 }
+  })));
+  assert.equal(result.businessDays, 17);
+  assert.equal(result.stoppedDays, 4);
+});

@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": { "allowJs": true },
+  "include": ["preview.tsx", "previewData.ts", "PreviewDisclosure.tsx", "PreviewSection.tsx", "components/*.tsx", "../src/vite-env.d.ts"]
+}
