@@ -3,13 +3,17 @@ import { HelpTip } from '../ui/HelpTip';
 import { Alert, Badge, Button, Card, DataTable } from '../ui/ds';
 import { brl, fmtDate, fmtHours } from './projectDetailModel';
 
-export function ProjectDetailPeople({ data, isGroup, collaborators = data.colaboradores, showingPlannedCollaborators = false, onSelect }: {
+export function ProjectDetailPeople({ data, isGroup, collaborators = data.colaboradores, showingPlannedCollaborators = false, onSelect, onSelectRates }: {
   data: ProjectDetail;
   isGroup: boolean;
   collaborators?: ProjectDetailCollaborator[];
   showingPlannedCollaborators?: boolean;
   onSelect: (collaborator: ProjectDetailCollaborator, source: 'POINT' | 'REPORT') => void;
+  onSelectRates: (collaborator: ProjectDetailCollaborator) => void;
 }) {
+  const name = (c: ProjectDetailCollaborator) => <Button variant="link" size="sm" multiline
+    aria-haspopup="dialog" aria-label={`Consultar valor por hora de ${c.name}`}
+    onClick={() => onSelectRates(c)}>{c.name}</Button>;
   const hours = (c: ProjectDetailCollaborator) => (
     c.horasApropriadas != null && c.horasApropriadas > 0 ? (
       <Button size="sm" variant="secondary" onClick={() => onSelect(c, 'POINT')}
@@ -51,7 +55,7 @@ export function ProjectDetailPeople({ data, isGroup, collaborators = data.colabo
         className="acp-detail-people" density="compact" mobileBreakpoint="xl"
         emptyState="Nenhum colaborador nos relatórios de execução."
         columns={[
-          { key: 'name', sortValue: c => c.name, header: 'Nome', rowHeader: true, render: c => <>{c.name}{showingPlannedCollaborators ? <Badge tone="info">Planejado</Badge> : null}</> },
+          { key: 'name', sortValue: c => c.name, header: 'Nome', rowHeader: true, render: c => <>{name(c)}{showingPlannedCollaborators ? <Badge tone="info">Planejado</Badge> : null}</> },
           { key: 'role', header: 'Cargo' },
           { key: 'hours', header: <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul como referência e não entra no custo. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>, sortValue: c => c.horasApropriadas != null && c.horasApropriadas > 0 ? c.horasApropriadas : c.horas, render: hours, align: 'right' },
           { key: 'cost', sortValue: c => c.custo, header: <HelpTip help="Parcela do custo total do colaborador atribuída ao projeto no período do ponto.">Custo apropriado</HelpTip>, render: c => brl(c.custo), align: 'right' },
@@ -59,7 +63,7 @@ export function ProjectDetailPeople({ data, isGroup, collaborators = data.colabo
           { key: 'travel', sortValue: c => c.horasDeslocamento, header: <HelpTip help="Horas apropriadas em dias marcados como viagem. O valor abaixo é a parcela proporcional do custo apropriado e não representa um custo adicional.">Deslocamento</HelpTip>, render: travel, align: 'right' },
         ]}
         mobile={{ renderItem: c => ({
-          title: c.name, subtitle: c.role,
+          title: name(c), subtitle: c.role,
           metadata: [
             { label: 'Horas apropriadas', value: hours(c) },
             { label: 'Custo apropriado', value: brl(c.custo) },
@@ -78,12 +82,12 @@ export function ProjectDetailPeople({ data, isGroup, collaborators = data.colabo
         <DataTable rows={collaborators} getRowId={rowId} ariaLabel="Jornada dos relatórios"
           density="compact" mobileBreakpoint="md"
           columns={[
-            { key: 'name', sortValue: c => c.name, header: 'Nome', rowHeader: true },
+            { key: 'name', sortValue: c => c.name, header: 'Nome', rowHeader: true, render: name },
             { key: 'hours', header: isGroup ? 'Jornada sem sobreposição' : 'Jornada dos relatórios', sortValue: c => c.horas, render: c => fmtHours(c.horas), align: 'right' },
             ...(isGroup ? [{ key: 'sum', sortValue: (c: ProjectDetailCollaborator) => c.horasLancadas, header: 'Soma por missão', render: overlap, align: 'right' as const }] : []),
           ]}
           mobile={{ renderItem: c => ({
-            title: c.name,
+            title: name(c),
             metadata: [
               { label: isGroup ? 'Sem sobreposição' : 'Jornada dos relatórios', value: fmtHours(c.horas) },
               ...(isGroup ? [{ label: 'Soma por missão', value: overlap(c) }] : []),

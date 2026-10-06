@@ -98,6 +98,21 @@ function detail(overrides = {}) {
   };
 }
 
+test('grupo preserva o vínculo do colaborador e mantém homônimos separados', () => {
+  const members = group().members;
+  const entries = members.map(member => ({
+    projectId: member.projectId, member,
+    detail: detail({ colaboradores: [
+      { ...detail().colaboradores[0], collaboratorId: 'ana-1' },
+      { ...detail().colaboradores[0], collaboratorId: 'ana-2' }
+    ] })
+  }));
+  const people = groupProjectDetails(group(), entries).colaboradores;
+  assert.equal(people.length, 2);
+  assert.deepEqual(people.map(person => person.collaboratorId), ['ana-1', 'ana-2']);
+  assert.ok(people.every(person => person.horasApropriadas === 6));
+});
+
 test('grupo soma RDOs assinados e totais apenas das missões com detalhe visível', () => {
   const members = group().members;
   const entries = members.map((member, index) => ({

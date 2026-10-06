@@ -1,5 +1,6 @@
 /*
  * Motor de custo — perfis de custo, parâmetros versionados e simulador.
+ *   GET  /api/acompanhamento/custo/colaboradores/:id/valor-hora referências por cenário
  *   GET  /api/acompanhamento/custo/perfis                 lista perfis + parâmetros vigentes
  *   PUT  /api/acompanhamento/custo/perfis/:key/parametros nova vigência de parâmetros (gestor)
  *   POST /api/acompanhamento/custo/simular                { profileKey|params, inputs } -> custo
@@ -12,12 +13,31 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { computeMonthlyCost } from '../../lib/acompanhamento/cost-engine.js';
+import { buildCollaboratorHourlyRates } from '../../lib/acompanhamento/collaborator-hourly-rates.js';
+import { getRoleParamsResolver } from '../../lib/acompanhamento/labor-cost.js';
 import { getAnnualCollaboratorCosts, setAnnualCollaboratorCosts } from '../../lib/acompanhamento/settings.js';
 import prisma from '../../lib/prisma.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
-import { requireAcompanhamentoManager, requireAuth, requireHubAdmin } from '../../middleware/auth.js';
+import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
 const router = Router();
+
+router.get('/colaboradores/:collaboratorId/valor-hora', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  const referenceDate = z.iso.date().optional().parse(req.query.date) || new Date().toISOString().slice(0, 10);
+  const collaborator = await prisma.collaborator.findUnique({
+    where: { id: req.params.collaboratorId },
+    select: {
+      id: true, name: true,
+      jobRole: { select: { id: true, name: true } },
+      jobRoleHistory: {
+        select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } }
+      }
+    }
+  });
+  if (!collaborator) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+  const [roleParams, annualCosts] = await Promise.all([getRoleParamsResolver(), getAnnualCollaboratorCosts()]);
+  res.json(buildCollaboratorHourlyRates({ collaborator, referenceDate, roleParams, annualCosts }));
+}));
 
 async function latestParams(key) {
   const profile = await prisma.costProfile.findUnique({

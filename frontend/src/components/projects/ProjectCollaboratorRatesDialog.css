@@ -1,0 +1,4 @@
+.acp-collaborator-rates { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-collaborator-rates__context, .acp-collaborator-rates__explanation { margin: 0; font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
+.acp-collaborator-rates__context { color: var(--ink); font-weight: var(--font-semibold); }
+.acp-collaborator-rates__explanation { color: var(--muted); }
