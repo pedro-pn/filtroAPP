@@ -6,6 +6,7 @@ import { DS_ICONS } from '../../components/ui/ds/icons';
 import { useToast } from '../../components/ui/ToastContext';
 import { useAuth } from '../../auth/AuthContext';
 import { useAssinaturaMutations, useSignatureDocument, useSignatureDocuments } from '../../hooks/useAssinaturas';
+import { hasUnseenSignatures, useSignatureUpdates } from '../../hooks/useSignatureUpdates';
 import { DocumentLibrary } from './components/DocumentLibrary';
 import { AssinaturasAppShell } from './AssinaturasAppShell';
 import { DocumentDetailView } from './components/DocumentDetailView';
@@ -13,6 +14,12 @@ import { NewDocumentModal } from './components/NewDocumentModal';
 import { AssinaturasTutorial } from './AssinaturasTutorial';
 import { normalizeSignatureSearchParams, signatureDocumentSearchParams, signatureLibrarySearchParams } from './utils/navigation';
 import './AssinaturasPage.ds.css';
+
+// O histórico já recebe a alteração antes de o React concluir a navegação.
+// Ler a URL aqui evita perder um filtro ao alterar outro logo em seguida.
+function currentSearchParams() {
+  return new URLSearchParams(window.location.search);
+}
 
 export function AssinaturasPage() {
   const showToast = useToast();
@@ -23,18 +30,25 @@ export function AssinaturasPage() {
   const selectedId = params.get('doc') || '';
   const query = params.get('q') || '';
   const status = params.get('status') || '';
+  const dateFrom = params.get('dateFrom') || '';
+  const dateTo = params.get('dateTo') || '';
+  const { viewed, markViewed } = useSignatureUpdates(user?.id || '');
   const requestedTab = params.get('tab');
   const detailTab = requestedTab === 'setup' || requestedTab === 'audit' ? requestedTab : 'details';
   const archived = !selectedId && requestedTab === 'archived';
   const parsedPage = Number(params.get('page'));
   const detailPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-  const listQuery = useSignatureDocuments({ q: query || undefined, status: status || undefined, arquivados: archived || params.get('list') === 'archived' ? 1 : undefined });
+  const listQuery = useSignatureDocuments({ q: query || undefined, status: status || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, arquivados: archived || params.get('list') === 'archived' ? 1 : undefined });
   const listData = listQuery.data ? {
     items: listQuery.data.pages.flatMap(page => page.items),
     nextCursor: listQuery.data.pages.at(-1)?.nextCursor || null
   } : undefined;
   const documentQuery = useSignatureDocument(selectedId);
   const mutations = useAssinaturaMutations();
+
+  useEffect(() => {
+    if (selectedId && documentQuery.data) markViewed(selectedId, documentQuery.data.progress.signed);
+  }, [selectedId, documentQuery.data, markViewed]);
 
   useEffect(() => {
     const next = normalizeSignatureSearchParams(params);
@@ -58,22 +72,32 @@ export function AssinaturasPage() {
   }, [detailTab, documentQuery.data, params, selectedId, setParams]);
 
   function setParam(name: string, value: string) {
-    const next = new URLSearchParams(params);
+    const next = currentSearchParams();
     if (value) next.set(name, value); else next.delete(name);
     if (name !== 'doc') next.delete('page');
     setParams(next, { replace: true });
   }
 
+  function setDateFilter(name: 'dateFrom' | 'dateTo', value: string) {
+    const next = currentSearchParams();
+    if (value) next.set(name, value); else next.delete(name);
+    const other = name === 'dateFrom' ? 'dateTo' : 'dateFrom';
+    const otherValue = next.get(other);
+    if (value && otherValue && (name === 'dateFrom' ? value > otherValue : value < otherValue)) next.set(other, value);
+    next.delete('page');
+    setParams(next, { replace: true });
+  }
+
   function openDocument(id: string, initialTab: 'details' | 'setup' | 'audit' = 'details') {
-    setParams(signatureDocumentSearchParams(params, id, initialTab));
+    setParams(signatureDocumentSearchParams(currentSearchParams(), id, initialTab));
   }
 
   function closeDocument() {
-    setParams(signatureLibrarySearchParams(params));
+    setParams(signatureLibrarySearchParams(currentSearchParams()));
   }
 
   function setDetailTab(tab: 'details' | 'setup' | 'audit') {
-    const next = new URLSearchParams(params);
+    const next = currentSearchParams();
     next.set('tab', tab);
     if (tab !== 'setup') next.delete('page');
     else if (!next.has('page')) next.set('page', '1');
@@ -81,7 +105,7 @@ export function AssinaturasPage() {
   }
 
   function setDetailPage(page: number) {
-    const next = new URLSearchParams(params);
+    const next = currentSearchParams();
     next.set('page', String(Math.max(1, page)));
     next.set('tab', 'setup');
     setParams(next, { replace: true });
@@ -129,18 +153,26 @@ export function AssinaturasPage() {
             archived={archived}
             query={query}
             status={status}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            newSignatures={listData?.items.filter(document => !document.isArchived && document.status !== 'CANCELADO' && hasUnseenSignatures(document, viewed)) || []}
             onQueryChange={value => setParam('q', value)}
             onStatusChange={value => setParam('status', value)}
+            onDateFromChange={value => setDateFilter('dateFrom', value)}
+            onDateToChange={value => setDateFilter('dateTo', value)}
             onArchiveChange={value => setParam('tab', value ? 'archived' : '')}
             onClearFilters={() => {
-              const next = new URLSearchParams(params);
-              next.delete('q'); next.delete('status'); next.delete('page');
+              const next = currentSearchParams();
+              next.delete('q'); next.delete('status'); next.delete('dateFrom'); next.delete('dateTo'); next.delete('page');
               setParams(next, { replace: true });
             }}
             onRetry={() => void listQuery.refetch()}
             onLoadMore={() => void listQuery.fetchNextPage()}
             onNew={() => setNewOpen(true)}
-            onOpen={document => openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details')}
+            onOpen={document => {
+              markViewed(document.id, document.signedCount);
+              openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details');
+            }}
           />
         )}
         <NewDocumentModal open={newOpen} submitting={mutations.create.isPending} onClose={() => setNewOpen(false)} onSubmit={create} />

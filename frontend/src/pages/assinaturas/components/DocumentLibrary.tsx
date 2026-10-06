@@ -1,6 +1,7 @@
 import type { SignatureDocumentCard, SignatureDocumentList } from '../../../api/assinaturas';
 import { AppIcon } from '../../../components/icons/AppIcon';
 import { InfiniteScrollSentinel } from '../../../components/ui/InfiniteScrollSentinel';
+import { DateInput } from '../../../components/ui/DateInput';
 import { Alert, Button, EmptyState, Field, FilterBar, MetricCard, SearchInput, Select, Skeleton } from '../../../components/ui/ds';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { PageHeader } from '../../../layout/PageHeader';
@@ -16,8 +17,13 @@ interface DocumentLibraryProps {
   archived: boolean;
   query: string;
   status: string;
+  dateFrom?: string;
+  dateTo?: string;
+  newSignatures?: SignatureDocumentCard[];
   onQueryChange: (value: string) => void;
   onStatusChange: (value: string) => void;
+  onDateFromChange: (value: string) => void;
+  onDateToChange: (value: string) => void;
   onArchiveChange: (value: boolean) => void;
   onClearFilters: () => void;
   onRetry: () => void;
@@ -26,9 +32,16 @@ interface DocumentLibraryProps {
   onOpen: (document: SignatureDocumentCard) => void;
 }
 
-export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreError, archived, query, status, onQueryChange, onStatusChange, onArchiveChange, onClearFilters, onRetry, onLoadMore, onNew, onOpen }: DocumentLibraryProps) {
+export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreError, archived, query, status, dateFrom = '', dateTo = '', newSignatures = [], onQueryChange, onStatusChange, onDateFromChange, onDateToChange, onArchiveChange, onClearFilters, onRetry, onLoadMore, onNew, onOpen }: DocumentLibraryProps) {
   const items = data?.items || [];
-  const filtered = Boolean(query || status);
+  const filtered = Boolean(query || status || dateFrom || dateTo);
+  const highlighted = archived ? [] : newSignatures;
+  const highlightedIds = new Set(highlighted.map(document => document.id));
+  const remaining = items.filter(document => !highlightedIds.has(document.id));
+  const inProgress = remaining.filter(document => document.status !== 'CONCLUIDO');
+  const recentlySigned = remaining.filter(document => document.status === 'CONCLUIDO')
+    .sort((a, b) => (b.completedAt || b.createdAt).localeCompare(a.completedAt || a.createdAt));
+  const formatDate = (value: string) => value.split('-').reverse().join('/');
   const selectedStatusLabel = Object.entries(signatureDocumentStatusLabels).find(([value]) => value === status)?.[1] || status;
   return (
     <section className="fv-ds assinaturas-library" aria-label="Biblioteca de documentos">
@@ -43,21 +56,36 @@ export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreErr
       </div>
       <FilterBar
         className="assinaturas-library__filters"
-        label="Busca e status dos documentos"
+        label="Busca, status e data dos documentos"
         resultsId="signature-document-results"
         search={<SearchInput value={query} onChange={onQueryChange} label="Buscar documentos" placeholder="Buscar por título ou arquivo" />}
         actions={
+          <>
           <Field id="signature-status-filter" label="Status" optionalText={null}>
             <Select value={status} onChange={event => onStatusChange(event.target.value)}>
               <option value="">Todos</option>
               {Object.entries(signatureDocumentStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </Field>
+          <Field id="signature-date-from-filter" label="Criado a partir de" optionalText={null}>
+            <span className="fv-control-shell fv-control-shell--md">
+              <DateInput id="signature-date-from-filter-control" className="fv-input" value={dateFrom} max={dateTo || undefined} onCommit={onDateFromChange} />
+            </span>
+          </Field>
+          <Field id="signature-date-to-filter" label="Criado até" optionalText={null}>
+            <span className="fv-control-shell fv-control-shell--md">
+              <DateInput id="signature-date-to-filter-control" className="fv-input" value={dateTo} min={dateFrom || undefined} onCommit={onDateToChange} />
+            </span>
+          </Field>
+          </>
         }
         activeFilters={[
           ...(query ? [{ id: 'query', label: `Busca: ${query}`, onRemove: () => onQueryChange('') }] : []),
-          ...(status ? [{ id: 'status', label: `Status: ${selectedStatusLabel}`, onRemove: () => onStatusChange('') }] : [])
+          ...(status ? [{ id: 'status', label: `Status: ${selectedStatusLabel}`, onRemove: () => onStatusChange('') }] : []),
+          ...(dateFrom ? [{ id: 'dateFrom', label: `Criado a partir de: ${formatDate(dateFrom)}`, onRemove: () => onDateFromChange('') }] : []),
+          ...(dateTo ? [{ id: 'dateTo', label: `Criado até: ${formatDate(dateTo)}`, onRemove: () => onDateToChange('') }] : [])
         ]}
+        clearPlacement="chips"
         onClear={filtered ? onClearFilters : undefined}
       />
       {!loading && !error && data ? (
@@ -73,12 +101,32 @@ export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreErr
         ) : error ? (
           <EmptyState variant="error" title="Não foi possível carregar os documentos." action={{ label: 'Tentar novamente', onClick: onRetry }} />
         ) : items.length ? (
-          <div className="signature-document-list">{items.map(document => <DocumentCard key={document.id} document={document} onOpen={() => onOpen(document)} />)}</div>
+          <div className="assinaturas-library__sections">
+            {inProgress.length ? (
+              <section aria-label={archived ? 'Documentos arquivados' : 'Documentos em andamento'}>
+                <h2>{archived ? 'Documentos arquivados' : 'Documentos em andamento'}</h2>
+                <div className="signature-document-list">{inProgress.map(document => <DocumentCard key={document.id} document={document} onOpen={() => onOpen(document)} />)}</div>
+              </section>
+            ) : null}
+            {highlighted.length ? (
+              <section className="assinaturas-library__new-signatures" aria-label="Novas assinaturas">
+                <h2>Novas assinaturas</h2>
+                <p>Documentos com assinaturas que você ainda não abriu.</p>
+                <div className="signature-document-list">{highlighted.map(document => <DocumentCard key={document.id} document={document} onOpen={() => onOpen(document)} />)}</div>
+              </section>
+            ) : null}
+            {recentlySigned.length ? (
+              <section aria-label="Assinados recentemente">
+                <h2>Assinados recentemente</h2>
+                <div className="signature-document-list">{recentlySigned.map(document => <DocumentCard key={document.id} document={document} onOpen={() => onOpen(document)} />)}</div>
+              </section>
+            ) : null}
+          </div>
         ) : (
           <EmptyState
             variant={filtered ? 'search' : archived ? 'default' : 'create'}
             title={filtered ? 'Nenhum documento encontrado.' : archived ? 'Nenhum documento arquivado.' : 'Nenhum documento ainda.'}
-            description={filtered ? 'Ajuste a busca ou o status para encontrar o documento.' : archived ? 'Os documentos arquivados aparecerão aqui.' : 'Envie um PDF para iniciar a coleta de assinaturas.'}
+            description={filtered ? 'Ajuste a busca, o status ou as datas para encontrar o documento.' : archived ? 'Os documentos arquivados aparecerão aqui.' : 'Envie um PDF para iniciar a coleta de assinaturas.'}
             action={filtered ? { label: 'Limpar filtros', onClick: onClearFilters } : archived ? undefined : { label: 'Novo documento', onClick: onNew }}
           />
         )}

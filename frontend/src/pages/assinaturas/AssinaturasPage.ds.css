@@ -33,9 +33,60 @@
 
 :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
   align-items: end;
   gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters {
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__clear {
+  flex: 0 0 auto;
+  margin-inline-start: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__sections,
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__sections > section {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__sections {
+  gap: var(--space-5);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__sections > section > h2 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__new-signatures {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--brand);
+  border-radius: var(--radius-lg);
+  background: var(--brand-softer);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__new-signatures > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 
 :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__actions,
@@ -228,7 +279,26 @@
   }
 
   :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__main {
-    grid-template-columns: minmax(0, 1fr);
+    display: contents;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__search {
+    order: 0;
+    min-width: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__chips {
+    order: 1;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__actions {
+    order: 2;
+    margin-block-start: var(--space-2);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__actions > .fv-field:first-child {
+    grid-column: 1 / -1;
   }
 
   :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__tabs {
