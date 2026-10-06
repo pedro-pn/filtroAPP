@@ -878,6 +878,7 @@ export interface ManualProjectCostPayload {
 }
 
 export interface ProjectDetailCollaborator {
+  collaboratorId?: string | null;
   name: string;
   role: string;
   /** Indica que a pessoa veio do planejamento do Efetivo, antes do primeiro RDO. */

@@ -242,6 +242,7 @@ async function getReportLaborCostEstimates(project, hoursByCollaborator) {
 }
 
 export function buildProjectDetailCollaborator({
+  collaboratorId = null,
   name = '',
   role = '',
   rate = null,
@@ -279,6 +280,7 @@ export function buildProjectDetailCollaborator({
     : [];
 
   return {
+    collaboratorId,
     name: name || rate?.name || '—',
     role: role || rate?.role || '—',
     // Jornada informada nos RDOs. Em grupos, ela sera deduplicada por pessoa e data.
@@ -606,6 +608,7 @@ export async function getProjectDetail(projectId, {
     const rate = ratesById.get(collaboratorId) || null;
     const alloc = projectAllocation(collaboratorId);
     collabMap.set(collaboratorId, buildProjectDetailCollaborator({
+      collaboratorId,
       name,
       role,
       rate,

@@ -107,6 +107,7 @@ test('buildPlannedRoleCounts omite cargos previstos sem colaborador corresponden
 
 test('buildProjectDetailCollaborator separa apropriação financeira da jornada dos RDOs', () => {
   const result = buildProjectDetailCollaborator({
+    collaboratorId: 'ana-1',
     name: 'Ana',
     role: 'Operadora',
     allocation: { cost: 212.5, hours: 4.25, travelHours: 1.5 },
@@ -119,6 +120,7 @@ test('buildProjectDetailCollaborator separa apropriação financeira da jornada 
   });
 
   assert.deepEqual(result, {
+    collaboratorId: 'ana-1',
     name: 'Ana',
     role: 'Operadora',
     horas: 10.5,

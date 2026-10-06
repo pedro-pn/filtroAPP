@@ -203,8 +203,10 @@ function combineCollaborators(details) {
     for (const item of detail.colaboradores ?? []) {
       const name = item.name || '—';
       const role = item.role || '—';
-      const key = `${normalizeKey(name)}|${normalizeKey(role)}`;
+      const personKey = item.collaboratorId ? `id:${item.collaboratorId}` : `name:${normalizeKey(name)}`;
+      const key = `${personKey}|${normalizeKey(role)}`;
       const existing = byPerson.get(key) ?? {
+        collaboratorId: item.collaboratorId ?? null,
         name,
         role,
         horasLancadas: 0,
@@ -301,6 +303,7 @@ function combineCollaborators(details) {
         ? item.custo / item.horasApropriadas
         : null;
       return {
+        collaboratorId: item.collaboratorId,
         name: item.name,
         role: item.role,
         horas,
