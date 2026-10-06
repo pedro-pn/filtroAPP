@@ -8,6 +8,7 @@ import type { ReportSummary } from '../../types/domain';
 import { clientCanSignReport, clientSignerPrefillNameForReport } from '../../utils/clientSignature';
 import { downloadBlob } from '../../utils/download';
 import { reportDownloadFileName } from '../../utils/reportFileName';
+import { canRegenerateReport, reportRegenerationMessage } from '../../utils/reportRegeneration';
 import { REPORT_DETAIL_TEXT as TEXT } from '../../pages/reportDetailText';
 import { PrivacyNotice } from '../privacy/PrivacyNotice';
 import { Modal } from '../ui/Modal';
@@ -15,6 +16,7 @@ import { ReasonDialog } from '../ui/ReasonDialog';
 import { useToast } from '../ui/ToastContext';
 import { Button, Input, Textarea } from '../ui/ds';
 import { SignatureDialog } from './SignatureDialog';
+import { ReportReissueDialog } from './ReportReissueDialog';
 
 function isManualUploadedReport(report: ReportSummary) {
   const special = report.specialConditions;
@@ -37,6 +39,7 @@ export function ReportDetailActions({ report, role }: { report: ReportSummary; r
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
+  const [reissueOpen, setReissueOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [sequenceEditOpen, setSequenceEditOpen] = useState(false);
   const [sequenceEditValue, setSequenceEditValue] = useState('');
@@ -46,6 +49,12 @@ export function ReportDetailActions({ report, role }: { report: ReportSummary; r
   const canDownloadDocx = role === 'MANAGER' && !manualReport;
   const canClientSign = role === 'CLIENT' && clientCanSignReport(report, user, hasActiveClientRejection(report));
   const canEditSequence = role === 'MANAGER' && report.status !== 'SIGNED';
+
+  async function handleRegenerate() {
+    const result = await reportMutations.regenerateReports.mutateAsync({ ids: [report.id] });
+    setReissueOpen(false);
+    showToast(reportRegenerationMessage(result), result.errors.length || result.warnings.length ? 'error' : 'success');
+  }
 
   async function handleDownload(format: 'pdf' | 'docx') {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
@@ -130,6 +139,9 @@ export function ReportDetailActions({ report, role }: { report: ReportSummary; r
         ) : null}
         <Button variant="primary" size="sm" type="button" onClick={() => void handleDownload('pdf')}>PDF</Button>
         {canDownloadDocx ? <Button variant="secondary" size="sm" type="button" onClick={() => void handleDownload('docx')}>DOCX</Button> : null}
+        {user?.accountType === 'ADMIN' && canRegenerateReport(report) ? (
+          <Button variant="secondary" size="sm" type="button" loading={reportMutations.regenerateReports.isPending} onClick={() => setReissueOpen(true)}>Reemitir</Button>
+        ) : null}
         {canEditSequence ? <Button variant="secondary" size="sm" type="button" disabled={reportMutations.updateSequence.isPending} onClick={openSequenceEdit}>Alterar nº</Button> : null}
         {canClientSign ? (
           <>
@@ -138,6 +150,7 @@ export function ReportDetailActions({ report, role }: { report: ReportSummary; r
           </>
         ) : null}
       </div>
+      <ReportReissueDialog count={reissueOpen ? 1 : 0} submitting={reportMutations.regenerateReports.isPending} onConfirm={() => void handleRegenerate()} onCancel={() => setReissueOpen(false)} />
       <ReasonDialog open={clientRejectOpen} title={TEXT.rejectClient} description={TEXT.rejectClientPrompt} label="Motivo" confirmLabel={TEXT.rejectClient} requiredMessage={TEXT.rejectClientRequired} isSubmitting={reportMutations.clientReview.isPending} appearance="design-system" onCancel={() => setClientRejectOpen(false)} onConfirm={reason => void handleClientReject(reason)} />
       <SignatureDialog
         open={signatureOpen}

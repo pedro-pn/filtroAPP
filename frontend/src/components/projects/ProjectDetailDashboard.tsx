@@ -447,6 +447,7 @@ export function ProjectDetailDashboard({
       ) : null}
       {data.division ? <Card padding="sm" className="acp-tracking-period" aria-label="Período da divisão">
         Período: {fmtDate(data.division.startDate)} até {data.division.endDate ? fmtDate(data.division.endDate) : 'hoje'}
+        <span>Mobilização inicial: {fmtDate(data.division.mobilizationDate || data.division.startDate)}</span>
       </Card> : null}
 
       <div className="acp-detail-priorities">

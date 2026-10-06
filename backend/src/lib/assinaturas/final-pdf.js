@@ -287,6 +287,11 @@ async function appendEvidencePages(pdf, snapshot, sourceHash, imageCache, fonts)
 }
 
 export async function buildFinalPdfBytes(snapshot, sourceBytes) {
+  const revokedIds = new Set((snapshot.signers || []).filter(signer => signer.status === 'REVOGADO').map(signer => signer.id));
+  snapshot = { ...snapshot,
+    signers: (snapshot.signers || []).filter(signer => !revokedIds.has(signer.id)),
+    fields: (snapshot.fields || []).filter(field => !revokedIds.has(field.signerId))
+  };
   const sourceHash = sha256(sourceBytes);
   if (!snapshot?.sourceDocumentHash || sourceHash !== snapshot.sourceDocumentHash) {
     throw httpError('A integridade do PDF original não pôde ser confirmada.', 409);

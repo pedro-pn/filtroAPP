@@ -1,5 +1,6 @@
 import type { SignatureDocumentCard, SignatureDocumentList } from '../../../api/assinaturas';
 import { AppIcon } from '../../../components/icons/AppIcon';
+import { InfiniteScrollSentinel } from '../../../components/ui/InfiniteScrollSentinel';
 import { Alert, Button, EmptyState, Field, FilterBar, MetricCard, SearchInput, Select, Skeleton } from '../../../components/ui/ds';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { PageHeader } from '../../../layout/PageHeader';
@@ -10,6 +11,8 @@ interface DocumentLibraryProps {
   data?: SignatureDocumentList;
   loading: boolean;
   error: boolean;
+  loadingMore: boolean;
+  loadMoreError: boolean;
   archived: boolean;
   query: string;
   status: string;
@@ -18,11 +21,12 @@ interface DocumentLibraryProps {
   onArchiveChange: (value: boolean) => void;
   onClearFilters: () => void;
   onRetry: () => void;
+  onLoadMore: () => void;
   onNew: () => void;
   onOpen: (document: SignatureDocumentCard) => void;
 }
 
-export function DocumentLibrary({ data, loading, error, archived, query, status, onQueryChange, onStatusChange, onArchiveChange, onClearFilters, onRetry, onNew, onOpen }: DocumentLibraryProps) {
+export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreError, archived, query, status, onQueryChange, onStatusChange, onArchiveChange, onClearFilters, onRetry, onLoadMore, onNew, onOpen }: DocumentLibraryProps) {
   const items = data?.items || [];
   const filtered = Boolean(query || status);
   const selectedStatusLabel = Object.entries(signatureDocumentStatusLabels).find(([value]) => value === status)?.[1] || status;
@@ -79,7 +83,21 @@ export function DocumentLibrary({ data, loading, error, archived, query, status,
           />
         )}
       </div>
-      {!loading && !error && data?.nextCursor ? <Alert tone="info">Exibindo um recorte dos documentos. Use a busca ou o status para localizar outros resultados.</Alert> : null}
+      {!loading && !error && data?.nextCursor ? (
+        <div className="assinaturas-library__load-more">
+          <InfiniteScrollSentinel className="assinaturas-library__sentinel" hasMore={!loadMoreError} isLoading={loadingMore} onLoadMore={onLoadMore} />
+          {loadMoreError ? (
+            <Alert tone="danger" action={{ label: 'Tentar novamente', onClick: onLoadMore }}>
+              Não foi possível carregar mais documentos.
+            </Alert>
+          ) : (
+            <>
+              <p role="status" aria-live="polite">{loadingMore ? 'Carregando mais documentos...' : 'Há mais documentos nesta lista. Role para carregar ou use o botão abaixo.'}</p>
+              <Button variant="secondary" loading={loadingMore} disabled={loadingMore} aria-controls="signature-document-results" onClick={onLoadMore}>Carregar mais documentos</Button>
+            </>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

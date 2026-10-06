@@ -10,6 +10,7 @@ import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
+import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink } from '../../lib/reports/collaborator-access.js';
 import { optimizeImageForReport } from '../../lib/stored-image.js';
 import {
   hasTransientUploadAccess,
@@ -121,23 +122,6 @@ export function resolveStoredFilePath(rawPath) {
   return null;
 }
 
-function collaboratorHasAuthorizedProjectLink(auth, project) {
-  return Array.isArray(project?.authorizedUsers)
-    && project.authorizedUsers.some(link => link.userId === auth.user?.id);
-}
-
-function collaboratorCanAccessReportProject(auth, project) {
-  return !!(
-    project?.isActive
-    && !project.deletedAt
-    && !project.managerOnly
-    && (
-      project.visibleToCollaborators
-      || collaboratorHasAuthorizedProjectLink(auth, project)
-    )
-  );
-}
-
 export function canAccessReport(auth, report) {
   if (!hasModuleRole(auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
   if (report?.deletedAt) return false;
@@ -148,7 +132,7 @@ export function canAccessReport(auth, report) {
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
   if (report.createdByUserId === auth.user.id) return true;
-  const collabId = auth.rawUser?.collaboratorId;
+  const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
   if (collaboratorHasAuthorizedProjectLink(auth, report.project)) return true;
   if (collabId && Array.isArray(report.collaborators)) {
@@ -339,6 +323,7 @@ async function projectForUploadPath(normalizedPath) {
       deletedAt: true,
       managerOnly: true,
       visibleToCollaborators: true,
+      operatorId: true,
       authorizedUsers: { select: { userId: true } }
     }
   });
@@ -359,7 +344,7 @@ function internalCanAccessProjectScope(auth, project) {
 
 // CLIENT continua restrito a relatório aprovado/visível: não enxerga foto de
 // relatório pendente, mesmo que o arquivo esteja na pasta de um projeto que ele vê.
-async function authorizeClientStoredFile(req, normalizedPath) {
+async function authorizeReportStoredFile(req, normalizedPath) {
   const candidateIds = await candidateReportIdsForUpload(normalizedPath);
   if (!candidateIds.length) return false;
 
@@ -385,14 +370,18 @@ export async function authorizeStoredFile(req, normalizedPath) {
   if (!hasModuleRole(user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
 
   if (user.role === 'CLIENT') {
-    return authorizeClientStoredFile(req, normalizedPath);
+    return authorizeReportStoredFile(req, normalizedPath);
   }
 
   // Usuário interno: autoriza por escopo de projeto.
   const project = await projectForUploadPath(normalizedPath);
   if (project && internalCanAccessProjectScope(req.auth, project)) return true;
 
-  // Fallback para arquivos fora de pasta de projeto (legados) ou ainda em rascunho.
+  // Fotos de relatórios pendentes e pastas anteriores a uma renomeação também
+  // são autorizadas pelo vínculo persistido do anexo com o relatório.
+  if (await authorizeReportStoredFile(req, normalizedPath)) return true;
+
+  // Fallback para arquivos ainda em rascunho.
   return hasModuleRole(user, RDO_INTERNAL_ROLES) && await canAccessDraftUpload(req.auth, normalizedPath);
 }
 
@@ -479,7 +468,7 @@ router.delete('/file', requireRdoInternal, asyncHandler(async (req, res) => {
 
   const project = await projectForUploadPath(target);
   const isManagerOrCoordinator = ['MANAGER', 'COORDINATOR'].includes(req.auth.user.role);
-  if (!isManagerOrCoordinator && !(project && internalCanAccessProjectScope(req.auth, project))) {
+  if (!isManagerOrCoordinator && !(project?.isActive && internalCanAccessProjectScope(req.auth, project))) {
     return res.status(403).json({ error: 'Você não tem permissão para excluir esta imagem.' });
   }
 

@@ -22,6 +22,11 @@
 .mission-weekly-goal-results { display: grid; gap: var(--space-3); }
 .mission-weekly-goal-results > div { display: grid; gap: var(--space-1); padding-block-start: var(--space-2); border-top: 1px solid var(--line); }
 .mission-weekly-goal-results small { color: var(--muted); }
+.mission-weekly-attendance-balance { display: grid; gap: var(--space-3); min-width: 0; padding-block-start: var(--space-3); border-top: 1px solid var(--line); }
+.mission-weekly-attendance-balance dd { font-size: var(--text-base); }
+.mission-weekly-workdays { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.mission-weekly-workdays legend { padding-inline: var(--space-2); font-weight: var(--font-semibold); }
+.mission-weekly-workdays > p { grid-column: 1 / -1; }
 .mission-weekly-progress-current details { font-size: var(--text-sm); overflow-wrap: anywhere; }
 .mission-weekly-progress-current summary { cursor: pointer; color: var(--brand-text); }
 .mission-weekly-progress-table { max-height: 420px; min-width: 0; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-md); }

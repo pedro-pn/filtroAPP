@@ -30,6 +30,7 @@
 .acp-tracking-tabs button[aria-pressed="false"]:hover { background: var(--surface-2); color: var(--ink); }
 .acp-tracking-tabs button:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
 .acp-tracking-period { color: var(--muted); font-size: var(--text-sm); font-weight: var(--font-semibold); }
+.acp-tracking-period .fv-card__body { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
 .acp-detail h1, .acp-detail h2, .acp-detail h3, .acp-detail p { margin: 0; }
 .acp-detail h1 { font-size: clamp(var(--text-2xl), 2.6vw, 34px); line-height: 1.16; }
 .acp-detail h3 { font-size: var(--text-base); }

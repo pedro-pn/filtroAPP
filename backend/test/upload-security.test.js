@@ -103,16 +103,94 @@ function stubUploadManagerSession(t) {
 function stubProjectScope(t, project) {
   const originalProjectFindUnique = prisma.project.findUnique;
   const originalDraftFindMany = prisma.reportDraft.findMany;
+  const originalAttachmentFindMany = prisma.reportAttachment.findMany;
   prisma.project.findUnique = async args => {
-    if (project && args?.where?.code === project.code) return project;
+    if (project && args?.where?.code === project.code) {
+      return Object.fromEntries(Object.keys(args.select).map(key => [key, project[key]]));
+    }
     return null;
   };
   prisma.reportDraft.findMany = async () => [];
+  prisma.reportAttachment.findMany = async () => [];
   t.after(() => {
     prisma.project.findUnique = originalProjectFindUnique;
     prisma.reportDraft.findMany = originalDraftFindMany;
+    prisma.reportAttachment.findMany = originalAttachmentFindMany;
   });
 }
+
+test('pending report photos outside the project folder remain accessible to reviewers', async t => {
+  const project = {
+    id: 'project-1', code: 'P-100', name: 'Nome atualizado', isActive: true,
+    deletedAt: null, managerOnly: false, visibleToCollaborators: false, authorizedUsers: []
+  };
+  stubProjectScope(t, project);
+  const originalReportFindMany = prisma.report.findMany;
+  t.after(() => { prisma.report.findMany = originalReportFindMany; });
+  prisma.reportAttachment.findMany = async args => {
+    assert.ok(args.where.storagePath.in.some(value => value.includes('foto.jpg')));
+    return [{ reportId: 'pending-report', reportService: null }];
+  };
+  const report = { id: 'pending-report', status: 'PENDING', deletedAt: null, project, collaborators: [] };
+  prisma.report.findMany = async args => {
+    assert.deepEqual(args.where.id.in, ['pending-report']);
+    assert.equal(args.where.deletedAt, null);
+    assert.equal(args.where.project.deletedAt, null);
+    return [report];
+  };
+  for (const filePath of ['foto.jpg', 'Missão P-100 - Nome anterior/rdo/foto.jpg']) {
+    assert.equal(await authorizeStoredFile({ auth: managerAuth }, filePath), true);
+    assert.equal(await authorizeStoredFile({ auth: {
+      user: { id: 'reviewer', role: 'COORDINATOR', moduleRoles: ['rdo:coordinator'] }
+    } }, filePath), true);
+  }
+  const collaboratorAuth = {
+    user: { id: 'other-user', role: 'COLLABORATOR', collaboratorId: 'collab-2', moduleRoles: ['rdo:collaborator'] }
+  };
+  assert.equal(await authorizeStoredFile({ auth: collaboratorAuth }, 'foto.jpg'), false);
+  project.deletedAt = new Date();
+  assert.equal(await authorizeStoredFile({ auth: managerAuth }, 'foto.jpg'), false);
+});
+
+test('pending service photos authorize through their report attachment relationship', async t => {
+  stubProjectScope(t, null);
+  const originalReportFindMany = prisma.report.findMany;
+  t.after(() => { prisma.report.findMany = originalReportFindMany; });
+  prisma.reportAttachment.findMany = async () => [{ reportId: null, reportService: { reportId: 'pending-service-report' } }];
+  prisma.report.findMany = async args => {
+    assert.deepEqual(args.where.id.in, ['pending-service-report']);
+    return [{ id: 'pending-service-report', status: 'PENDING', project: { deletedAt: null }, deletedAt: null }];
+  };
+  assert.equal(await authorizeStoredFile({ auth: managerAuth }, 'foto-servico.jpg'), true);
+});
+
+test('pending photo endpoint serves image bytes for authenticated ADM review', async t => {
+  stubUploadManagerSession(t);
+  stubProjectScope(t, null);
+  const originalReportsDir = env.reportsDir;
+  const originalReportFindMany = prisma.report.findMany;
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pending-photo-preview-'));
+  env.reportsDir = root;
+  const bytes = Buffer.from(validPngDataUrl.split(',')[1], 'base64');
+  await fsPromises.writeFile(path.join(root, 'foto-pendente.png'), bytes);
+  prisma.reportAttachment.findMany = async () => [{ reportId: 'pending-report' }];
+  prisma.report.findMany = async () => [{ id: 'pending-report', status: 'PENDING', deletedAt: null, project: { deletedAt: null } }];
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    env.reportsDir = originalReportsDir;
+    prisma.report.findMany = originalReportFindMany;
+    await fsPromises.rm(root, { recursive: true, force: true });
+  });
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/rdo/uploads/file/foto-pendente.png`, {
+    headers: { Authorization: `Bearer ${bearerToken}` }
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /image\/png/);
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+});
 
 test('stored upload access rejects soft-deleted reports and projects', () => {
   assert.equal(
@@ -221,6 +299,97 @@ test('escopo de projeto: gestor acessa qualquer arquivo de projeto que enxerga',
     await authorizeStoredFile({ auth: managerAuth }, 'Missão P-100 - Projeto Seguro/rdo/foto.jpg'),
     true
   );
+});
+
+test('archived report uploads are readable only by project leaders or authorized users', () => {
+  const auth = {
+    user: {
+      id: 'user-archive', role: 'COLLABORATOR', collaboratorId: 'collab-archive',
+      moduleRoles: ['rdo:collaborator']
+    }
+  };
+  const report = {
+    id: 'report-archive', createdByUserId: 'another-user',
+    project: {
+      isActive: false, visibleToCollaborators: true, managerOnly: false,
+      operatorId: 'collab-archive', authorizedUsers: []
+    },
+    collaborators: []
+  };
+  assert.equal(canAccessReport(auth, report), true);
+  report.project.operatorId = 'another-collaborator';
+  report.createdByUserId = auth.user.id;
+  report.collaborators = [{ collaboratorId: auth.user.collaboratorId }];
+  assert.equal(canAccessReport(auth, report), false);
+  report.project.visibleToCollaborators = false;
+  report.project.authorizedUsers = [{ userId: auth.user.id }];
+  assert.equal(canAccessReport(auth, report), true);
+  report.project.managerOnly = true;
+  assert.equal(canAccessReport(auth, report), false);
+});
+
+test('archived project images allow leaders and authorized users while retaining visibility restrictions', async t => {
+  const project = {
+    id: 'project-archive', code: 'P-ARCHIVE', name: 'Projeto Arquivado',
+    isActive: false, deletedAt: null, managerOnly: false, visibleToCollaborators: true,
+    operatorId: 'collab-archive', authorizedUsers: []
+  };
+  stubProjectScope(t, project);
+  const auth = {
+    user: {
+      id: 'user-archive', role: 'COLLABORATOR', collaboratorId: 'collab-archive',
+      moduleRoles: ['rdo:collaborator']
+    }
+  };
+  const filePath = 'Missão P-ARCHIVE - Projeto Arquivado/rdo/foto.jpg';
+  assert.equal(await authorizeStoredFile({ auth }, filePath), true);
+  project.operatorId = 'another-collaborator';
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+  project.authorizedUsers = [{ userId: auth.user.id }];
+  project.visibleToCollaborators = false;
+  assert.equal(await authorizeStoredFile({ auth }, filePath), true);
+  project.authorizedUsers = [{ userId: 'another-user' }];
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+  project.authorizedUsers = [{ userId: auth.user.id }];
+  project.managerOnly = true;
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+  project.managerOnly = false;
+  project.deletedAt = new Date();
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+});
+
+test('collaborators cannot delete images from archived projects even when linked', async t => {
+  const project = {
+    id: 'project-archive', code: 'P-ARCHIVE', name: 'Projeto Arquivado',
+    isActive: false, deletedAt: null, managerOnly: false, visibleToCollaborators: true,
+    operatorId: 'collab-archive', authorizedUsers: []
+  };
+  stubProjectScope(t, project);
+  const originalSessionFindUnique = prisma.userSession.findUnique;
+  const originalAttachmentFindMany = prisma.reportAttachment.findMany;
+  prisma.userSession.findUnique = async () => ({
+    id: 'session-archive', expiresAt: new Date(Date.now() + 60_000),
+    user: {
+      id: 'user-archive', username: 'archive-collaborator', role: 'COLLABORATOR',
+      accountType: 'INTERNAL', isActive: true, collaboratorId: 'collab-archive',
+      moduleRoles: [{ role: 'RDO_COLLABORATOR' }]
+    }
+  });
+  prisma.reportAttachment.findMany = async () => { throw new Error('archived image deletion must not run'); };
+  t.after(() => {
+    prisma.userSession.findUnique = originalSessionFindUnique;
+    prisma.reportAttachment.findMany = originalAttachmentFindMany;
+  });
+  for (const link of [
+    { operatorId: 'collab-archive', authorizedUsers: [] },
+    { operatorId: 'another-collaborator', authorizedUsers: [{ userId: 'user-archive' }] }
+  ]) {
+    Object.assign(project, link);
+    const response = await dispatchApp('DELETE', '/api/uploads/file', {
+      storagePath: 'Missão P-ARCHIVE - Projeto Arquivado/rdo/foto.jpg'
+    });
+    assert.equal(response.statusCode, 403);
+  }
 });
 
 test('escopo de projeto: colaborador negado para arquivo de outro projeto', async t => {

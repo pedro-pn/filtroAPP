@@ -59,6 +59,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
     const definition = target && !target.isDeleted ? weeklyTargetDefinition(target) : null;
     setDraft({ weekStartDate: week, metric: definition?.metric ?? 'PCT_POINTS', basis: definition?.basis ?? 'WEEK_TOTAL',
       referenceDayHours: String(definition?.referenceDayHours ?? targetsQuery.data?.defaultReferenceDayHours ?? ''),
+      workdays: definition?.workdays ?? [1, 2, 3, 4, 5],
       scenarios: definition ? definition.scenarios.map(scenarioToDraft) : [newScenario()], expectedRevision: target?.revision ?? 0 });
     setError('');
   };

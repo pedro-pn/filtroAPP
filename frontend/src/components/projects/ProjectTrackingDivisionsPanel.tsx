@@ -7,8 +7,8 @@ import { Modal } from '../ui/Modal';
 import { Alert, Button, EmptyState, Field, Input, Switch } from '../ui/ds';
 import './ProjectTrackingDivisionsPanel.ds.css';
 
-type Draft = { enabled: boolean; startDate: string; endDate: string; plannedCost: string; plannedRevenue: string; plannedHours: string; plannedDays: string };
-const emptyDraft = (): Draft => ({ enabled: false, startDate: '', endDate: '', plannedCost: '', plannedRevenue: '', plannedHours: '', plannedDays: '' });
+type Draft = { enabled: boolean; startDate: string; endDate: string; mobilizationDate: string; plannedCost: string; plannedRevenue: string; plannedHours: string; plannedDays: string };
+const emptyDraft = (): Draft => ({ enabled: false, startDate: '', endDate: '', mobilizationDate: '', plannedCost: '', plannedRevenue: '', plannedHours: '', plannedDays: '' });
 const plannedFields: ReadonlyArray<readonly [TrackingDivisionPlannedField, string]> = [
   ['plannedCost', 'Custo previsto (R$)'],
   ['plannedRevenue', 'Receita prevista (R$)'],
@@ -19,6 +19,7 @@ const plannedFields: ReadonlyArray<readonly [TrackingDivisionPlannedField, strin
 function draftFromRows(rows: TrackingDivision[]): Record<string, Draft> {
   return Object.fromEntries(rows.map(row => [row.key, {
     enabled: true, startDate: row.startDate, endDate: row.endDate ?? '',
+    mobilizationDate: row.mobilizationDate ?? '',
     plannedCost: row.plannedCost == null ? '' : String(row.plannedCost),
     plannedRevenue: row.plannedRevenue == null ? '' : String(row.plannedRevenue),
     plannedHours: row.plannedHours == null ? '' : String(row.plannedHours),
@@ -96,6 +97,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
       if (!item?.enabled) continue;
       if (!item.startDate) { setError(`Informe a data inicial de ${candidate.label}.`); return; }
       if (item.endDate && item.endDate < item.startDate) { setError(`Confira a data final de ${candidate.label}.`); return; }
+      if (item.endDate && item.mobilizationDate > item.endDate) { setError(`Confira a mobilização inicial de ${candidate.label}.`); return; }
       const planned = Object.fromEntries(plannedFields.map(([field]) => {
         const percentage = percentDraft[candidate.key]?.[field];
         if (percentage === undefined) return [field, numeric(item[field])];
@@ -113,6 +115,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
         setError(`Dias previstos devem ser inteiros em ${candidate.label}.`); return;
       }
       rows.push({ key: candidate.key, startDate: item.startDate, endDate: item.endDate || null,
+        mobilizationDate: item.mobilizationDate || null,
         plannedCost: planned.plannedCost, plannedRevenue: planned.plannedRevenue,
         plannedHours: planned.plannedHours, plannedDays: planned.plannedDays });
     }
@@ -138,6 +141,9 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
         </Field>
         <Field id={fieldId('end')} label="Fim" optionalText="Opcional">
           <Input size="sm" type="date" min={item.startDate || undefined} disabled={save.isPending} value={item.endDate} onChange={event => update(candidate.key, { endDate: event.target.value })} />
+        </Field>
+        <Field id={fieldId('mobilization')} label="Mobilização inicial" optionalText="Opcional" helperText="Início da contagem dos dias corridos. Se vazio, usa a data de início.">
+          <Input size="sm" type="date" max={item.endDate || undefined} disabled={save.isPending} value={item.mobilizationDate} onChange={event => update(candidate.key, { mobilizationDate: event.target.value })} />
         </Field>
         {plannedFields.map(([field, label]) => {
           const percentage = percentDraft[candidate.key]?.[field];

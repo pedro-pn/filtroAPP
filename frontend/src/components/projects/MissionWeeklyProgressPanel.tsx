@@ -13,7 +13,7 @@ import { formatDateOnly } from '../../utils/dateOnly';
 import { WeeklyTargetEditor } from './WeeklyTargetEditor';
 import { newScenario, onlyFilteringGoals, scenarioToDraft, type TargetDraft } from './weeklyTargetDraft';
 import { WeeklyGoalResults, WeeklyTargetConfiguration } from './WeeklyTargetDisplay';
-import { weeklyValueLabel } from './weeklyTargetPresentation';
+import { attendanceBalanceLabel, weeklyValueLabel } from './weeklyTargetPresentation';
 import { ProjectDetailSection } from './ProjectDetailSection';
 import { ProjectDetailDisclosure } from './ProjectDetailDisclosure';
 import './mission-weekly-progress.css';
@@ -48,17 +48,21 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
     staleTime: 30_000
   });
   const targets = targetsQuery.data?.targets ?? [];
-  const rows = buildWeeklyProgressComparison({ targets, progressHistory: progressHistory ?? targetsQuery.data?.progressHistory ?? [], serviceHistory: targetsQuery.data?.serviceHistory ?? [] });
+  const rows = buildWeeklyProgressComparison({ targets, progressHistory: progressHistory ?? targetsQuery.data?.progressHistory ?? [], serviceHistory: targetsQuery.data?.serviceHistory ?? [], attendanceHistory: targetsQuery.data?.attendanceHistory ?? [] });
   const currentWeek = weekStartKey(corporateToday())!;
   const closedWithTarget = rows.filter(row => !row.inProgress && row.weekStartDate < currentWeek && ['ON_TARGET', 'ABOVE', 'BELOW'].includes(row.status));
   const achieved = closedWithTarget.filter(row => ['ON_TARGET', 'ABOVE'].includes(row.status)).length;
   const current = rows.find(row => row.weekStartDate === currentWeek)!;
+  const hasAttendance = draft?.metric === 'COLLABORATORS' || rows.some(row => row.metric === 'COLLABORATORS');
+  const plannedHeading = hasAttendance ? 'Previsto' : 'Avanço previsto';
+  const actualHeading = hasAttendance ? 'Realizado' : 'Avanço realizado';
   const latestFor = (week: string) => targets.filter(target => target.weekStartDate === week).sort((a, b) => b.revision - a.revision)[0];
   const editWeek = (week: string) => {
     const target = latestFor(week);
     const definition = target && !target.isDeleted ? weeklyTargetDefinition(target) : null;
     setDraft({ weekStartDate: week, metric: definition?.metric ?? 'PCT_POINTS', basis: definition?.basis ?? 'WEEK_TOTAL',
       referenceDayHours: String(definition?.referenceDayHours ?? targetsQuery.data?.defaultReferenceDayHours ?? ''),
+      workdays: definition?.workdays ?? [1, 2, 3, 4, 5],
       scenarios: definition ? definition.scenarios.map(scenarioToDraft) : [newScenario()], expectedRevision: target?.revision ?? 0 });
     setError('');
   };
@@ -101,6 +105,10 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
     if (!draft || !canManage || busy) return;
     const scenarios = draft.scenarios.map(scenario => ({ name: scenario.name, condition: scenario.condition, goals: scenario.goals.map(goal => ({ serviceType: goal.serviceType, value: Number(goal.value.replace(',', '.')) })) }));
     const referenceDayHours = Number(draft.referenceDayHours.replace(',', '.'));
+    if (draft.metric === 'COLLABORATORS' && (!draft.workdays.length || scenarios.some(scenario => scenario.goals.some(goal => !Number.isInteger(goal.value) || goal.value < 1)))) {
+      setError('Informe uma quantidade inteira positiva de colaboradores e selecione ao menos um dia de trabalho.');
+      return;
+    }
     if (!draft.weekStartDate || draft.scenarios.some(scenario => !scenario.name.trim() || !scenario.goals.length
       || scenario.goals.some(goal => !goal.value.trim()) || (scenario.condition.kind === 'SERVICE_SET' && !scenario.condition.serviceTypes.length))
       || scenarios.some(scenario => scenario.goals.some(goal => !Number.isFinite(goal.value) || goal.value < 0
@@ -114,29 +122,41 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
     save.mutate(draft.metric === 'PCT_POINTS'
       ? { weekStartDate: draft.weekStartDate, plannedPctPoints: scenarios[0].goals[0].value, expectedRevision: draft.expectedRevision }
       : { weekStartDate: draft.weekStartDate, definition: { metric: onlyFilteringGoals(draft) ? 'L' : draft.metric, basis: draft.basis,
+        ...(draft.metric === 'COLLABORATORS' ? { workdays: draft.workdays } : {}),
         ...(draft.basis === 'PER_PRODUCTIVE_DAY' ? { referenceDayHours } : {}), scenarios }, expectedRevision: draft.expectedRevision });
   }
 
   return <section className="fv-ds mission-weekly-progress" aria-label="Metas semanais de avanço" onClick={event => event.stopPropagation()}>
-    <ProjectDetailSection collapsible={compact} label="Meta semanal de avanço" header={<>
+    <ProjectDetailSection collapsible={compact} label={hasAttendance ? 'Metas da semana' : 'Meta semanal de avanço'} header={<>
       <header className="mission-weekly-progress-head">
-        <strong>Meta semanal de avanço</strong>
+        <strong>{hasAttendance ? 'Metas da semana' : 'Meta semanal de avanço'}</strong>
         {compact && targetsQuery.isSuccess ? <span className="mission-weekly-status status-on_target" data-acp-weekly-wins>{achieved} de {closedWithTarget.length} semanas com meta atingida</span> : null}
         {canManage ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || busy} onClick={() => editWeek(currentWeek)}>Definir meta</Button> : null}
       </header>
 
     </>}>
-      {!compact ? <p className="mission-weekly-progress-hint">Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.</p> : null}
+      {!compact ? <p className="mission-weekly-progress-hint">{hasAttendance
+      ? 'Segunda a domingo · Metas de avanço em p.p., metros, litros ou unidades de sistema; ou quantidade mínima de colaboradores presentes por dia de trabalho. Valores de produção gerais, por serviço ou por colaborador produtivo/dia.'
+      : 'Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.'}</p> : null}
       {targetsQuery.isPending ? <p role="status"><BrandLoading label="Carregando metas semanais" inline size="sm" /></p> : targetsQuery.isError ? <Alert tone="warning" title="Não foi possível carregar as metas." action={<Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => targetsQuery.refetch()}>Tentar novamente</Button>} /> : <>
         <ProjectDetailDisclosure disabled={!compact} label="Consultar a semana atual" compact><div className="mission-weekly-progress-current">
           <span>Semana de {formatDateOnly(currentWeek)} · Em andamento</span>
           <dl>
-            <div><dt>Previsto</dt><dd>{current.mixedUnits ? comparisonValue(current, 'plannedValue') : weeklyValueLabel(current.plannedValue, current.metric)}</dd></div>
-            <div><dt>Realizado</dt><dd>{current.mixedUnits ? comparisonValue(current, 'actualValue') : weeklyValueLabel(current.actualValue, current.metric)}</dd></div>
+            <div><dt>{current.metric === 'COLLABORATORS' ? 'Previsto por dia' : 'Previsto'}</dt><dd>{current.mixedUnits ? comparisonValue(current, 'plannedValue') : weeklyValueLabel(current.plannedValue, current.metric)}</dd></div>
+            <div><dt>{current.metric === 'COLLABORATORS' ? 'Menor efetivo diário' : 'Realizado'}</dt><dd>{current.mixedUnits ? comparisonValue(current, 'actualValue') : weeklyValueLabel(current.actualValue, current.metric)}</dd></div>
             <div><dt>Diferença</dt><dd>{current.mixedUnits ? comparisonValue(current, 'differenceValue') : weeklyValueLabel(current.differenceValue, current.metric, true)}</dd></div>
           </dl>
           <span className={`mission-weekly-status status-${current.status.toLowerCase()}`}>{STATUS_LABEL[current.status]}</span>
-          {current.metric !== 'PCT_POINTS' ? <WeeklyGoalResults row={current} /> : null}
+          {current.cumulativeAttendance ? <div className="mission-weekly-attendance-balance">
+            <strong>Presença acumulada</strong>
+            <dl>
+              <div><dt>Previsto acumulado</dt><dd>{current.cumulativeAttendance.plannedValue} presenças</dd></div>
+              <div><dt>Realizado acumulado</dt><dd>{current.cumulativeAttendance.actualValue == null ? '—' : `${current.cumulativeAttendance.actualValue} presenças`}</dd></div>
+              <div><dt>Saldo acumulado</dt><dd>{attendanceBalanceLabel(current.cumulativeAttendance.differenceValue)}</dd></div>
+            </dl>
+            <p className="mission-weekly-progress-hint">Cada colaborador em um dia conta como uma presença. O saldo soma excedentes e faltas desde a primeira semana com meta de presença, nos dias selecionados já ocorridos. Dias sem meta não entram; a avaliação diária continua independente.</p>
+          </div> : null}
+          {current.metric !== 'PCT_POINTS' ? <WeeklyGoalResults row={current} showBalance={false} /> : null}
           {current.target?.definition ? <details><summary>Regras cadastradas para a semana</summary><WeeklyTargetConfiguration target={current.target} /></details> : null}
         </div></ProjectDetailDisclosure>
         {draft && canManage ? <form className="mission-weekly-progress-form" onSubmit={submit}>
@@ -153,12 +173,12 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
         {compact ? <Button size="sm" variant="secondary" workflowAppearance={workflowAppearance} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{showDetails ? 'Recolher detalhes e edição' : 'Detalhes e edição das metas'}</Button> : null}
         <div className="mission-weekly-progress-table" role="region" aria-label="Comparativo semanal de avanço" tabIndex={0}>
           <table>
-            <thead><tr><th scope="col">Semana</th><th scope="col">Avanço previsto</th><th scope="col">Avanço realizado</th><th scope="col">Diferença</th><th scope="col">Situação</th>{showDetails ? <th scope="col">Meta registrada</th> : null}{canManage && showDetails ? <th scope="col">Ação</th> : null}</tr></thead>
+            <thead><tr><th scope="col">Semana</th><th scope="col">{plannedHeading}</th><th scope="col">{actualHeading}</th><th scope="col">Diferença</th><th scope="col">Situação</th>{showDetails ? <th scope="col">Meta registrada</th> : null}{canManage && showDetails ? <th scope="col">Ação</th> : null}</tr></thead>
             <tbody>{(showAll ? rows : rows.slice(0, 12)).map(row => {
               const revisions = targets.filter(target => target.weekStartDate === row.weekStartDate).sort((a, b) => b.revision - a.revision);
               return <tr key={row.weekStartDate}>
                 <th scope="row">{formatDateOnly(row.weekStartDate)}<small>até {formatDateOnly(row.weekEndDate)}{row.inProgress ? ' · Em andamento' : ''}</small></th>
-                <td data-label="Avanço previsto">{comparisonValue(row, 'plannedValue', true)}</td><td data-label="Avanço realizado">{comparisonValue(row, 'actualValue')}</td><td data-label="Diferença">{comparisonValue(row, 'differenceValue')}</td>
+                <td data-label={plannedHeading}>{comparisonValue(row, 'plannedValue', true)}</td><td data-label={actualHeading}><div>{comparisonValue(row, 'actualValue')}{row.metric === 'COLLABORATORS' ? <details><summary>Presença por dia · menor efetivo diário</summary><WeeklyGoalResults row={row} /></details> : null}</div></td><td data-label="Diferença"><div>{comparisonValue(row, 'differenceValue')}{row.cumulativeAttendance ? <small>Acumulado: {attendanceBalanceLabel(row.cumulativeAttendance.differenceValue)}</small> : null}</div></td>
                 <td data-label="Situação"><span className={`mission-weekly-status status-${compact && row.inProgress && row.status === 'BELOW' ? 'planned' : row.status.toLowerCase()}`}>{!compact ? STATUS_LABEL[row.status] : row.inProgress && row.status === 'BELOW' ? 'Em andamento' : ['ON_TARGET', 'ABOVE'].includes(row.status) ? 'Meta atingida' : row.status === 'BELOW' ? 'Meta não atingida' : STATUS_LABEL[row.status]}</span></td>
                 {showDetails ? <td data-label="Meta registrada">{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : '—'}</td> : null}
                 {canManage && showDetails ? <td data-label="Ação"><div className="mission-weekly-row-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={busy} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button>{row.target ? <Button workflowAppearance={workflowAppearance} workflowVariant="danger" size="sm" variant="danger" disabled={busy} aria-label={`Excluir meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => {
@@ -171,8 +191,12 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
         </div>
         {rows.length > 12 ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar últimas 12 semanas' : `Ver todas as ${rows.length} semanas`}</Button> : null}
         <ProjectDetailDisclosure disabled={!compact} label="Como a meta é calculada" compact>
-      {compact ? <p className="mission-weekly-progress-hint">Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.</p> : null}
-        <p className="mission-weekly-progress-hint">Diferença = realizado − previsto. Quantidades físicas usam serviços finalizados. Os cenários também consideram serviços em andamento nos RDOs. Metas por colaborador/dia usam as horas produtivas registradas no RDO, por serviço, divididas pela jornada de referência. Cada serviço deve cumprir sua meta. A semana atual ainda está em andamento e é recalculada conforme os RDOs.</p>
+      {compact ? <p className="mission-weekly-progress-hint">{hasAttendance
+      ? 'Segunda a domingo · Metas de avanço em p.p., metros, litros ou unidades de sistema; ou quantidade mínima de colaboradores presentes por dia de trabalho. Valores de produção gerais, por serviço ou por colaborador produtivo/dia.'
+      : 'Segunda a domingo · Metas em p.p., metros, litros ou unidades de sistema. Valores gerais, por tipo de serviço ou por colaborador produtivo/dia. De 30% para 40% = 10 p.p.'}</p> : null}
+        <p className="mission-weekly-progress-hint">{hasAttendance
+        ? 'Diferença = realizado − previsto. Quantidades físicas usam serviços finalizados. Os cenários também consideram serviços em andamento nos RDOs. Metas por colaborador produtivo/dia usam as horas de serviço divididas pela jornada de referência. Metas de presença comparam a equipe do RDO com a quantidade mínima em cada dia selecionado; o resumo mostra o menor efetivo diário e dias sem RDO ficam pendentes. A semana atual está em andamento e é recalculada conforme os RDOs.'
+        : 'Diferença = realizado − previsto. Quantidades físicas usam serviços finalizados. Os cenários também consideram serviços em andamento nos RDOs. Metas por colaborador/dia usam as horas produtivas registradas no RDO, por serviço, divididas pela jornada de referência. Cada serviço deve cumprir sua meta. A semana atual ainda está em andamento e é recalculada conforme os RDOs.'}</p>
         </ProjectDetailDisclosure>
       </>}
     </ProjectDetailSection>

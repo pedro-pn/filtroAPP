@@ -290,6 +290,33 @@ function stubAuthenticatedCollaborator(t) {
   });
 }
 
+test('report reissue endpoint rejects non-ADM reviewers before reading or changing reports', async t => {
+  const originalSession = prisma.userSession.findUnique;
+  const originalReport = prisma.report.findUniqueOrThrow;
+  prisma.userSession.findUnique = async () => {
+    const session = managerSession();
+    session.user.accountType = 'INTERNAL';
+    return session;
+  };
+  prisma.report.findUniqueOrThrow = async () => assert.fail('non-ADM must not access regeneration');
+  t.after(() => {
+    prisma.userSession.findUnique = originalSession;
+    prisma.report.findUniqueOrThrow = originalReport;
+  });
+  const response = await dispatchApp('POST', '/api/rdo/reports/report-1/regenerate', {});
+  assert.equal(response.statusCode, 403);
+});
+
+test('report reissue endpoint protects signed and deleted reports for ADM accounts', async t => {
+  stubAuthenticatedManager(t);
+  const originalReport = prisma.report.findUniqueOrThrow;
+  t.after(() => { prisma.report.findUniqueOrThrow = originalReport; });
+  prisma.report.findUniqueOrThrow = async () => activeReport({ status: 'SIGNED' });
+  assert.equal((await dispatchApp('POST', '/api/rdo/reports/report-1/regenerate', {})).statusCode, 409);
+  prisma.report.findUniqueOrThrow = async () => activeReport({ deletedAt: new Date() });
+  assert.equal((await dispatchApp('POST', '/api/rdo/reports/report-1/regenerate', {})).statusCode, 404);
+});
+
 function stubReportGroupBy(t, groups = [{
   projectId: 'project-1',
   reportType: ReportType.RDO,
@@ -456,10 +483,10 @@ test('GET /reports applies status and project activity filters before pagination
   assert.deepEqual(response.json.items.map(item => item.id), ['report-filtered']);
 });
 
-test('GET /reports does not let collaborator projectActive=false override active project policy', async t => {
+test('GET /reports lists archived reports only for led or authorized collaborator projects', async t => {
   stubAuthenticatedCollaborator(t);
   stubReportListTransaction(t);
-  stubReportGroupBy(t, [], []);
+  stubReportGroupBy(t);
   const originals = {
     userFindUnique: prisma.user.findUnique,
     reportFindMany: prisma.report.findMany,
@@ -470,17 +497,29 @@ test('GET /reports does not let collaborator projectActive=false override active
     return { collaboratorId: 'collab-1' };
   };
   prisma.report.findMany = async args => {
-    assert.equal(args.where.project.isActive, true);
-    assert.equal(args.where.project.id, '__NO_MATCH__');
+    assert.equal(args.where.project.isActive, false);
+    assert.equal(args.where.project.id, undefined);
     assert.equal(args.where.project.deletedAt, null);
+    assert.equal(args.where.project.managerOnly, false);
+    assert.equal(args.where.deletedAt, null);
+    assert.deepEqual(args.where.status, { in: ['APPROVED', 'SIGNED'] });
+    assert.deepEqual(args.where.project.OR, [
+      { visibleToCollaborators: true, operatorId: 'collab-1' },
+      { authorizedUsers: { some: { userId: 'user-collab' } } }
+    ]);
     assert.equal(args.skip, 0);
     assert.equal(args.take, 25);
-    return [];
+    return [activeReport({
+      id: 'report-archived',
+      status: ReportStatus.APPROVED,
+      project: { ...activeReport().project, isActive: false, operatorId: 'collab-1' }
+    })];
   };
   prisma.report.count = async args => {
-    assert.equal(args.where.project.isActive, true);
-    assert.equal(args.where.project.id, '__NO_MATCH__');
-    return 0;
+    assert.equal(args.where.project.isActive, false);
+    assert.equal(args.where.project.id, undefined);
+    assert.equal(args.where.project.OR.length, 2);
+    return 1;
   };
   t.after(() => {
     prisma.user.findUnique = originals.userFindUnique;
@@ -495,8 +534,15 @@ test('GET /reports does not let collaborator projectActive=false override active
   );
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json.items, []);
-  assert.equal(response.json.pagination.total, 0);
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-archived']);
+  assert.equal(response.json.pagination.total, 1);
+  assert.deepEqual(response.json.groups, [{ projectId: 'project-1', reportType: 'RDO', total: 1 }]);
+  assert.equal(response.json.meta.projectTotal, 1);
+  const countsResponse = await dispatchApp('POST', '/api/reports/counts', {
+    queries: [{ mine: 'true', projectActive: 'false', statuses: ['APPROVED', 'SIGNED'] }]
+  });
+  assert.equal(countsResponse.statusCode, 200);
+  assert.deepEqual(countsResponse.json.totals, [1]);
 });
 
 test('GET /reports applies normalized multi-term search before pagination for internal roles', async t => {
@@ -730,6 +776,39 @@ test('collaborator direct report route allows explicit authorized user on hidden
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json.id, 'report-hidden');
+});
+
+test('collaborator can open archived linked reports but cannot edit, undo edits or remove services', async t => {
+  stubAuthenticatedCollaborator(t);
+  const originalFindUniqueOrThrow = prisma.report.findUniqueOrThrow;
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async () => { throw new Error('archived report writes must not run'); };
+  t.after(() => {
+    prisma.report.findUniqueOrThrow = originalFindUniqueOrThrow;
+    prisma.$transaction = originalTransaction;
+  });
+
+  for (const projectLink of [
+    { visibleToCollaborators: true, operatorId: 'collab-1', authorizedUsers: [] },
+    { visibleToCollaborators: false, operatorId: 'other-collab', authorizedUsers: [{ userId: 'user-collab' }] }
+  ]) {
+    const report = activeReport({
+      createdByUserId: 'user-collab',
+      project: { ...activeReport().project, isActive: false, ...projectLink }
+    });
+    prisma.report.findUniqueOrThrow = async () => report;
+    const getResponse = await dispatchApp('GET', '/api/reports/report-1', undefined);
+    assert.equal(getResponse.statusCode, 200);
+    assert.equal(getResponse.json.project.isActive, false);
+    const putResponse = await dispatchApp('PUT', '/api/reports/report-1', reportPayload({
+      projectId: 'project-1', status: undefined
+    }));
+    assert.equal(putResponse.statusCode, 403);
+    const undoResponse = await dispatchApp('POST', '/api/reports/report-1/cancel-edit', {});
+    assert.equal(undoResponse.statusCode, 403);
+    const deleteResponse = await dispatchApp('DELETE', '/api/reports/report-1/services/service-1', undefined);
+    assert.equal(deleteResponse.statusCode, 403);
+  }
 });
 
 test('PATCH report status rejects reports under soft-deleted projects before mutation', async t => {

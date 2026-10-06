@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { WeeklyProgressTarget, WeeklyTargetInput, WeeklyTargetDeleteInput, WeeklyServiceHistoryPoint } from '../../../shared/modules/mission-weekly-progress.js';
+import type { WeeklyProgressTarget, WeeklyTargetInput, WeeklyTargetDeleteInput, WeeklyServiceHistoryPoint, WeeklyAttendanceHistoryPoint } from '../../../shared/modules/mission-weekly-progress.js';
 import type { ProgressHistoryPoint } from './acompanhamentoComercial';
 
 export type WeeklyTargetOwner = { area: 'acompanhamento'; projectId: string; groupId?: never; missionId?: never }
@@ -13,7 +13,7 @@ export function weeklyTargetPath(owner: WeeklyTargetOwner) {
 }
 
 export async function listWeeklyProgressTargets(owner: WeeklyTargetOwner, includeHistory = false) {
-  return (await apiClient.get<{ targets: WeeklyProgressTarget[]; defaultReferenceDayHours?: number | null; progressHistory?: ProgressHistoryPoint[]; serviceHistory?: WeeklyServiceHistoryPoint[] }>(weeklyTargetPath(owner), {
+  return (await apiClient.get<{ targets: WeeklyProgressTarget[]; defaultReferenceDayHours?: number | null; progressHistory?: ProgressHistoryPoint[]; serviceHistory?: WeeklyServiceHistoryPoint[]; attendanceHistory?: WeeklyAttendanceHistoryPoint[] }>(weeklyTargetPath(owner), {
     params: { ...(includeHistory ? { history: 'true' } : {}), services: 'true' }
   })).data;
 }

@@ -2965,6 +2965,9 @@ model EpiSignatureRequest {
   signedPdfPath           String?
   signedPdfHash           String?
   signedPdfFileName       String?
+  validationCode          String?                       @unique
+  sourceDocumentHash      String?
+  signatureImageHash      String?
   ipAddress               String?
   userAgent               String?
   privacyNoticeAcceptedAt DateTime?
@@ -3150,7 +3153,7 @@ model AllocationReportDelivery {
   recipientCount Int      @default(0)
   status         String   @default("SENT")
   error          String?
-  sentAt         DateTime @default(now())
+  sentAt         DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

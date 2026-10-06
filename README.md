@@ -328,6 +328,18 @@ Manutenção e Produção usa permissões individuais de emissão (`SITE_RDO`, `
 - Relatório de alocação de colaboradores
 - Recuperação de senha e troca de e-mail
 
+O relatório mensal de alocação é processado no dia 1º em `America/Sao_Paulo`,
+referente ao mês anterior. A rotina verifica a data a cada hora e na inicialização
+do worker. O envio manual também exige um mês encerrado; a consulta e o PDF
+continuam disponíveis para o mês atual. Destinatários em `ERROR` podem ser
+retomados sem repetir envios em `SENT`. Registros em `CLAIMED` não são retomados
+automaticamente, pois um envio pode ter sido aceito pelo SMTP antes de uma falha
+na gravação no banco.
+
+O status mensal é `SENT` quando todos os destinatários ativos têm envio concluído,
+`SENT_WITH_ERRORS` quando apenas parte foi concluída e `ERROR` quando nenhum foi
+concluído. `SENT` registra o envio ao SMTP, sem confirmar recebimento na caixa postal.
+
 ### Usuários e Contas
 
 - Gerenciamento de usuários, colaboradores e papéis por módulo pelo gestor
@@ -785,6 +797,23 @@ npm run repair:report-file-paths
 npm run retention:dry-run
 npm run retention:apply
 ```
+
+Para recuperar relatórios mensais pendentes, aplique as migrations e publique o
+backend/worker atualizado. Execute na pasta `backend`, com o ambiente da VPS:
+
+```bash
+# Consulta os envios concluídos e pendentes, sem alterar registros ou enviar e-mails
+node scripts/retry-allocation-monthly-report.js 2026-08 2026-09
+
+# Retoma destinatários novos ou em ERROR e recalcula o status mensal
+node scripts/retry-allocation-monthly-report.js 2026-08 2026-09 --apply
+```
+
+A recuperação também confere os destinatários quando o mês está incorretamente
+marcado como `SENT`. Se um mês continuar pendente, o comando encerra com erro
+antes de iniciar o próximo. Para um registro preso em `CLAIMED`, confira os logs
+do worker e o rastreamento do Microsoft 365 antes de decidir se o envio precisa
+ser retomado. O comando preserva os registros anteriores de envio concluído.
 
 ---
 

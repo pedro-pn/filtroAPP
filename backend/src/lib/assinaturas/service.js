@@ -12,10 +12,12 @@ import {
 } from './access.js';
 import { recordDocumentEvent } from './audit.js';
 import { sourcePdfBuffer } from './document.js';
+import { beginDocumentFinalization, scheduleDocumentFinalization } from './finalization.js';
 import {
   issueInvites,
   reissueInviteAfterDelete,
-  revokeAllPending
+  revokeAllPending,
+  revokeInvite
 } from './invites.js';
 import { queueInviteEmails } from './notifications.js';
 import { signatureOperationLog } from './observability.js';
@@ -188,9 +190,23 @@ export function validatePublishableSnapshot(document) {
 }
 
 export function documentProgress(document) {
-  const signers = Array.isArray(document?.signers) ? document.signers : [];
+  const signers = (Array.isArray(document?.signers) ? document.signers : []).filter(signer => signer.status !== 'REVOGADO');
   const signed = signers.filter(signer => signer.status === 'ASSINADO').length;
   return { signed, total: signers.length };
+}
+
+export async function revokeDocumentInvite(client, documentId, signerId, ownerUserId, dependencies = {}) {
+  const now = dependencies.now || new Date();
+  const { signer, finalizing } = await client.$transaction(async tx => {
+    const document = await documentForOwnerOrThrow(tx, documentId, ownerUserId, { include: { signers: true } });
+    const existing = document.signers.find(item => item.id === signerId);
+    if (!existing) throw httpError('Assinante não encontrado.', 404);
+    const signer = await revokeInvite(tx, document, existing, { actorUserId: ownerUserId, now });
+    const finalizing = await beginDocumentFinalization(tx, document, { actorUserId: ownerUserId, now });
+    return { signer, finalizing };
+  });
+  if (finalizing) scheduleDocumentFinalization(client, documentId, dependencies);
+  return signer;
 }
 
 function ownerSignerPayload(signer) {

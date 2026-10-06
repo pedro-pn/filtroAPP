@@ -16,6 +16,7 @@ import {
   setServiceReportClientRelease,
   uploadPhysicalSignedReport,
   requestReportSignature,
+  regenerateReport,
   updateManualReportData,
   updateReport,
   updateReportSequence,
@@ -34,6 +35,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 import { matchesSearch, reportSearchParts } from '../utils/search';
 import { queryKeys } from './queryKeys';
+import { regenerateSelectedReports } from '../utils/reportRegeneration';
 import { useDebouncedValue } from './useDebouncedValue';
 
 interface LoadMoreReportGroupOptions {
@@ -730,6 +732,18 @@ export function useReportMutations() {
   const reportStorageUserId = user?.id || user?.username || null;
   const clearAccumulatedReportsCache = () => clearAccumulatedReportsSnapshots(reportStorageUserId);
   const updateAccumulatedReportsCache = (report: ReportSummary) => updateAccumulatedReportsSnapshots(report, reportStorageUserId);
+  const regenerateMutation = useMutation({
+    mutationFn: ({ ids, onProgress }: { ids: string[]; onProgress?: (completed: number, total: number) => void }) =>
+      regenerateSelectedReports(ids, regenerateReport, onProgress),
+    onSuccess: result => {
+      if (!result.savedIds.length) return;
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      result.savedIds.forEach(id => {
+        queryClient.invalidateQueries({ queryKey: ['report', id] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(id) });
+      });
+    }
+  });
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
     onSuccess: report => {
@@ -914,6 +928,7 @@ export function useReportMutations() {
   });
 
   return {
+    regenerateReports: regenerateMutation,
     createReport: createMutation,
     createServiceOnlyReports: createServiceOnlyMutation,
     uploadManualReport: uploadManualReportMutation,

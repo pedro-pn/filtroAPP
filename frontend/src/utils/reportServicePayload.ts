@@ -1,5 +1,6 @@
 import type { Collaborator, Equipment, ReportServiceInput, Unit } from '../types/domain';
 import { cleaningSystemQuantity } from './cleaningMeasurement';
+import { serviceUploadLabels } from './serviceUploadGroups';
 
 export const serviceTypeMap: Record<string, string> = {
   LIMPEZA: 'limpeza',
@@ -169,6 +170,12 @@ function commonExtraData(
     delete extraData['Material do equipamento'];
   }
   extraData.__uploads__ = normalizePersistedUploads(extraData.__uploads__);
+  if (Array.isArray(extraData.__uploads__)) {
+    for (const group of extraData.__uploads__) {
+      if (!group || typeof group !== 'object' || typeof group.label !== 'string' || !Array.isArray(group.files)) continue;
+      for (const label of serviceUploadLabels(group.label)) extraData[label] = group.files;
+    }
+  }
   return extraData;
 }
 

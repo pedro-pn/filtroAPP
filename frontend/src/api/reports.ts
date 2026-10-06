@@ -323,6 +323,10 @@ export async function downloadReportsBatch(ids: string[], format: 'pdf' | 'docx'
   return response.data;
 }
 
+export async function regenerateReport(id: string) {
+  return (await apiClient.post<{ id: string; warning?: string }>(rdoApiPath(`/reports/${id}/regenerate`))).data;
+}
+
 export async function downloadReportPdf(id: string) {
   const response = await apiClient.get<Blob>(rdoApiPath(`/reports/${id}/pdf`), {
     params: { _ts: Date.now() },

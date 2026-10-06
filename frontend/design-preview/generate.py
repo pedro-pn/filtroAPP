@@ -112,6 +112,8 @@ emit('ProjectInvoicesSection.tsx', s)
 # Metas reais: histórico e regras continuam funcionando; só as colunas de consulta
 # e os textos de ajuda ficam recolhidos. Os cálculos vêm do módulo de produção.
 s = source('MissionWeeklyProgressPanel.tsx')
+# O editor compartilhado agora exige os dias de trabalho também no rascunho.
+s = s.replace('      scenarios: definition ?', '      workdays: definition?.workdays ?? [1, 2, 3, 4, 5],\n      scenarios: definition ?')
 s = "import { PreviewSection } from '../PreviewSection';\nimport { PreviewDisclosure } from '../PreviewDisclosure';\n" + s
 s = s.replace('      <div className="mission-weekly-progress-current">', '      <PreviewDisclosure label="Consultar a semana atual" compact><div className="mission-weekly-progress-current">').replace('      </div>\n      {draft && canManage', '      </div></PreviewDisclosure>\n      {draft && canManage')
 s = s.replace('  const [showAll, setShowAll] = useState(false);', '  const [showAll, setShowAll] = useState(false);\n  const [showDetails, setShowDetails] = useState(false);')

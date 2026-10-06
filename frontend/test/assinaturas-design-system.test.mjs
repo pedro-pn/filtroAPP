@@ -21,9 +21,9 @@ test('biblioteca de Assinaturas renderiza estados, recortes e todos os status no
       progressLabel: i === 0 ? 'Sem assinantes' : '1 de 3 assinaturas', hasExpiredInvites: i === 1,
       createdAt: '2026-09-10T12:00:00Z', completedAt: i === 3 ? '2026-09-10T13:00:00Z' : null
     }));
-    const base = { data: { items, nextCursor: null }, loading: false, error: false, archived: false, query: '', status: '',
-      onQueryChange() {}, onStatusChange() {}, onArchiveChange() {}, onClearFilters() {}, onRetry() {}, onNew() {}, onOpen() {} };
-    for (const state of ['ready', 'loading', 'error', 'empty', 'archived', 'filtered', 'partial']) {
+    const base = { data: { items, nextCursor: null }, loading: false, error: false, loadingMore: false, loadMoreError: false, archived: false, query: '', status: '',
+      onQueryChange() {}, onStatusChange() {}, onArchiveChange() {}, onClearFilters() {}, onRetry() {}, onLoadMore() {}, onNew() {}, onOpen() {} };
+    for (const state of ['ready', 'loading', 'error', 'empty', 'archived', 'filtered', 'partial', 'loading-more', 'load-more-error']) {
       await t.test(state, () => {
         const props = { ...base };
         if (state === 'loading') props.loading = true;
@@ -31,7 +31,9 @@ test('biblioteca de Assinaturas renderiza estados, recortes e todos os status no
         if (['empty', 'archived', 'filtered'].includes(state)) props.data = { items: [], nextCursor: null };
         if (state === 'archived') props.archived = true;
         if (state === 'filtered') { props.query = 'Não existe'; props.status = 'CONCLUIDO'; }
-        if (state === 'partial') props.data = { items, nextCursor: 'cursor' };
+        if (['partial', 'loading-more', 'load-more-error'].includes(state)) props.data = { items, nextCursor: 'cursor' };
+        if (state === 'loading-more') props.loadingMore = true;
+        if (state === 'load-more-error') props.loadMoreError = true;
         const html = renderToStaticMarkup(createElement(DocumentLibrary, props));
         assert.match(html, /fv-ds assinaturas-library/);
         assert.match(html, /aria-label="Buscar documentos"/);
@@ -41,7 +43,7 @@ test('biblioteca de Assinaturas renderiza estados, recortes e todos os status no
         if (state === 'loading' || state === 'error') {
           assert.match(html, state === 'loading' ? /fv-skeleton/ : /Tentar novamente/);
           assert.doesNotMatch(html, /fv-metric-card|data-signature-document/);
-        } else if (state === 'ready' || state === 'partial') {
+        } else if (['ready', 'partial', 'loading-more', 'load-more-error'].includes(state)) {
           assert.equal((html.match(/data-signature-document=/g) || []).length, 5);
           assert.equal((html.match(/<progress/g) || []).length, 4);
           assert.match(html, /Há links expirados/);
@@ -51,7 +53,13 @@ test('biblioteca de Assinaturas renderiza estados, recortes e todos os status no
           for (const [card] of html.matchAll(/<button[^>]*data-signature-document=[\s\S]*?<\/button>/g)) {
             assert.equal((card.match(/<button/g) || []).length, 1, 'sem botões aninhados nos cards');
           }
-          assert.equal(html.includes('Recorte carregado'), state === 'partial');
+          assert.equal(html.includes('Recorte carregado'), state !== 'ready');
+          assert.equal(html.includes('assinaturas-library__load-more'), state !== 'ready');
+          assert.equal(html.includes('Carregar mais documentos</'), ['partial', 'loading-more'].includes(state));
+          assert.equal(html.includes('Há mais documentos nesta lista.'), state === 'partial');
+          if (state === 'loading-more') assert.match(html, /<button[^>]*aria-controls="signature-document-results"[^>]*disabled=""/);
+          assert.equal(html.includes('Carregando mais documentos...'), state === 'loading-more');
+          assert.equal(html.includes('Não foi possível carregar mais documentos.'), state === 'load-more-error');
         } else {
           assert.match(html, /fv-empty-state/);
           assert.match(html, state === 'filtered' ? /Nenhum documento encontrado/ : state === 'archived' ? /Nenhum documento arquivado/ : /Nenhum documento ainda/);
@@ -79,7 +87,7 @@ test('migração mantém navegação e API e isola o upload compacto dos consumi
   assert.match(shell, /accountPageStateFromPath\(location\)/);
   assert.match(page, /normalizeSignatureSearchParams\(params\)/);
   assert.match(page, /signatureDocumentSearchParams\(params, id, initialTab\)/);
-  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, arquivados: archived \? 1 : undefined \}\)/);
+  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, arquivados: archived \|\| params.get\('list'\) === 'archived' \? 1 : undefined \}\)/);
   assert.doesNotMatch(library, /useQuery|useMutation|localStorage|fetch\(/);
   assert.match(modal, /appearance="design-system"/);
   assert.match(modal, /fullscreenOnMobile=\{false\}/);

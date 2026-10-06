@@ -1,6 +1,7 @@
 import { computeProgressHistoryForProjects } from '../../acompanhamento/avanco.js';
 import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetError, weeklyTargetReferenceDayHours } from '../../acompanhamento/weekly-progress-targets.js';
 import { loadWeeklyServiceHistory } from '../../acompanhamento/weekly-service-history.js';
+import { loadWeeklyAttendanceHistory } from '../../acompanhamento/weekly-attendance-history.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { resolvePlanningDatabase } from './plan-context.js';
 
@@ -23,7 +24,9 @@ export async function getMissionWeeklyProgressTargets(missionId, dependencies = 
   ]);
   const serviceHistory = dependencies.includeServices
     ? await (dependencies.loadServices ?? loadWeeklyServiceHistory)(owner, { client }) : undefined;
-  return { targets, defaultReferenceDayHours, progressHistory: histories.get(owner.projectId) ?? [], ...(serviceHistory ? { serviceHistory } : {}) };
+  const attendanceHistory = dependencies.includeServices && targets.some(target => target.definition?.metric === 'COLLABORATORS')
+    ? await (dependencies.loadAttendance ?? loadWeeklyAttendanceHistory)(owner, { client }) : undefined;
+  return { targets, defaultReferenceDayHours, progressHistory: histories.get(owner.projectId) ?? [], ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) };
 }
 
 export async function saveMissionWeeklyProgressTarget(missionId, payload, context = {}, dependencies = {}) {

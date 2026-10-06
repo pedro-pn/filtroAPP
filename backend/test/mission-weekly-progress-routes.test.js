@@ -12,6 +12,7 @@ const missionPath = '/api/efetivo/planning/missions/m1/weekly-targets';
 test('APIs das duas áreas compartilham metas, validam entradas e preservam permissões de leitura', async t => {
   let manager = true;
   let productiveEndTime = '16:00';
+  let attendanceCrew = ['c1'];
   const records = [];
   const originals = [];
   const stub = (model, method, fn) => {
@@ -42,7 +43,7 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   stub(prisma.report, 'findMany', async ({ where }) => {
     assert.deepEqual(where, { projectId: { in: ['p1'] }, reportType: 'RDO', deletedAt: null });
     return [{ reportType: 'RDO', reportDate: '2026-09-28', arrivalTime: '08:00', departureTime: '16:00', lunchBreak: 'sem intervalo',
-      collaborators: [{ collaboratorId: 'c1', jobRoleSnapshot: { isOperational: true } }],
+      collaborators: attendanceCrew.map(collaboratorId => ({ collaboratorId, jobRoleSnapshot: { isOperational: true } })),
       services: [{ serviceType: 'Filtragem', startTime: '08:00', endTime: productiveEndTime, extraData: { serviceCollaboratorIds: ['c1'] } }] }];
   });
   stub(prisma.missionWeeklyProgressTarget, 'findFirst', async ({ where }) => records.filter(row => row.projectId === where.projectId && row.groupId === where.groupId && +row.weekStartDate === +where.weekStartDate).sort((a, b) => b.revision - a.revision)[0] ?? null);
@@ -124,6 +125,22 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   assert.equal((await request('PUT', projectPath, { ...payload, expectedRevision: 4 })).data.revision, 5);
   assert.equal(compare((await request('GET', missionPath)).data).plannedValue, 10);
 
+  const presence = { metric: 'COLLABORATORS', basis: 'PER_WORKDAY', workdays: [1],
+    scenarios: [{ name: 'Meta geral', condition: { kind: 'ALWAYS' }, goals: [{ serviceType: null, value: 2 }] }] };
+  assert.equal((await request('PUT', projectPath, { weekStartDate: payload.weekStartDate, expectedRevision: 5, definition: presence })).status, 200);
+  const attendanceProject = await request('GET', `${projectPath}?services=true`);
+  assert.deepEqual(attendanceProject.data.attendanceHistory, [{ date: '2026-09-28', collaboratorIds: ['c1'], attendanceIssues: [] }]);
+  assert.equal(compare(attendanceProject.data).status, 'BELOW');
+  assert.equal(compare(attendanceProject.data).cumulativeAttendance.differenceValue, -1);
+  assert.deepEqual((await request('GET', `${missionPath}?services=true`)).data.attendanceHistory, attendanceProject.data.attendanceHistory);
+  attendanceCrew = ['c1', 'c2', 'c3'];
+  const attendanceUpdated = await request('GET', `${projectPath}?services=true`);
+  assert.equal(compare(attendanceUpdated.data).status, 'ON_TARGET');
+  assert.equal(compare(attendanceUpdated.data).cumulativeAttendance.differenceValue, 1);
+  assert.deepEqual(attendanceUpdated.data.targets, attendanceProject.data.targets);
+  assert.equal((await request('PUT', groupPath, { weekStartDate: payload.weekStartDate, expectedRevision: 2, definition: presence })).status, 200);
+  assert.equal(compare((await request('GET', `${groupPath}?services=true`)).data).cumulativeAttendance.differenceValue, 1);
+
   manager = false;
   assert.equal((await request('GET', projectPath)).status, 200);
   assert.equal((await request('GET', groupPath)).status, 200);
@@ -133,5 +150,5 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   assert.equal((await request('DELETE', projectPath, { ...deletion, expectedRevision: 5 })).status, 403);
   assert.equal((await request('DELETE', groupPath, deletion)).status, 403);
   assert.equal((await request('DELETE', missionPath, { ...deletion, expectedRevision: 5 })).status, 403);
-  assert.equal(records.length, 7);
+  assert.equal(records.length, 9);
 });

@@ -1070,6 +1070,7 @@ export interface TrackingDivision {
   key: string;
   startDate: string;
   endDate: string | null;
+  mobilizationDate?: string | null;
   plannedCost: number | null;
   plannedRevenue: number | null;
   plannedHours: number | null;

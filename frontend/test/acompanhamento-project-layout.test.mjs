@@ -67,5 +67,25 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     assert.match(legacy, /Gestora/);
     assert.match(legacy, /Definir meta/);
     assert.doesNotMatch(legacy, /semanas com meta atingida|Detalhes e edição das metas/);
+
+    const attendanceTargets = [-7, 0].map((days, index) => ({
+      id: `attendance-${index}`, weekStartDate: shift(days), revision: 1,
+      author: { name: 'Gestora' }, createdAt: `${shift(days)}T12:00:00Z`,
+      definition: { metric: 'COLLABORATORS', basis: 'PER_WORKDAY', workdays: [1],
+        scenarios: [{ name: 'Equipe mínima', condition: { kind: 'ALWAYS' }, goals: [{ value: 6 }] }] }
+    }));
+    client.setQueryData(['mission-weekly-targets', '/acompanhamento/comercial/projetos/p/metas-semanais', false], {
+      targets: attendanceTargets,
+      attendanceHistory: [-7, 0].map((days, index) => ({ date: shift(days),
+        collaboratorIds: Array.from({ length: index ? 4 : 8 }, (_, person) => `person-${person}`) }))
+    });
+    for (const compact of [true, false]) {
+      const attendance = render(MissionWeeklyProgressPanel, { owner: { area: 'acompanhamento', projectId: 'p' }, progressHistory, compact });
+      for (const value of ['Metas da semana', 'Previsto por dia', 'Menor efetivo diário', 'Presença acumulada', 'Presença por dia', 'Superávit de 2 presenças', 'Saldo zero']) {
+        assert.ok(attendance.includes(value), value);
+      }
+      assert.doesNotMatch(attendance, /Definir meta|>Editar<|>Excluir</);
+      if (compact) assert.match(attendance, /1 de 1 semanas com meta atingida/);
+    }
   } finally { client.clear(); await server.close(); }
 });

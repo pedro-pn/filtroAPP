@@ -7,6 +7,25 @@ isolated Playwright CLI session, then run:
 playwright-cli run-code --filename frontend/test/browser/search-race.js
 ```
 
+For planning dialogs, open `/test/browser/planning-signatures.html`. The fixture
+uses the production team panel inside the planning modal with a simulated API.
+Check adding a collaborator, editing the first open individual cycle to a day
+before the general cycle, and saving with no demobilization date. The general
+cycle and the other collaborators must keep their dates. Add `?stage=mobilization`
+to check editing without exposing new mobilization cycles.
+
+For signature navigation, open the same fixture with
+`?mode=signatures&q=contrato&status=CONCLUIDO&tab=archived`. Open the document,
+reload it and click Voltar: the search, status and archived list must be preserved.
+All data and writes in this fixture are simulated.
+
+For signature pagination, open the fixture with
+`?mode=signatures&pagination=1&status=CONCLUIDO`, then run
+`playwright-cli run-code --filename frontend/test/browser/signature-pagination.js`.
+The regression checks all 47 completed documents across three pages, filter changes,
+mobile scrolling, a next-page failure/retry, and manual loading when the automatic
+observer is unavailable. Pending and archived documents remain in their own lists.
+
 Run the CLI command from the repository root, using the same session that opened
 the fixture. The fixture uses real React and React Query, with manually resolved
 HTTP responses. It deliberately ignores transport cancellation to also test the
@@ -56,6 +75,21 @@ an immutable deletion revision and leaves the week without a target, retaining
 previous values and the deletion's author/time in history. It never falls back
 to an earlier target revision. Recreating a target continues that revision history.
 Deletes and saves use the same optimistic revision check in both areas.
+
+Daily attendance targets use the distinct collaborators recorded in each RDO,
+including enabled night shifts, independently of service progress, hours or job
+role. Select the contracted workdays for each week (Monday to Friday initially).
+Each elapsed workday must meet the minimum; surplus on another day does not
+change its daily status. Missing RDOs leave attendance pending, while a recorded
+RDO with an empty team counts zero. Imported teams inferred from a point workbook
+require confirmation. The cumulative balance adds attendance minus the daily
+minimum across all weeks with attendance targets, using each week's latest active
+revision and selected days. For a minimum of six, eight people produce +2 and
+four on the next day bring the balance to zero. Daily statuses remain independent
+of the balance. Missing RDOs leave the cumulative balance pending. Run
+`playwright-cli run-code --filename frontend/test/browser/weekly-attendance.js`
+in the same fixture to check registration, daily results, surplus/deficit,
+recalculation, access permissions and mobile layout.
 
 Backend deployment requires the `20261002103000_flexible_weekly_targets` and
 `20261002150000_weekly_target_deletion` Prisma migrations before starting the

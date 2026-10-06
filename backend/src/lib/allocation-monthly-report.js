@@ -15,6 +15,10 @@ const __dirname = path.dirname(__filename);
 const logoColorPath = path.resolve(__dirname, '../../assets/Logo/LOGO_COLORIDO.png');
 const JOB_INTERVAL_MS = 60 * 60 * 1000;
 const ALLOCATION_STATUSES = ['APPROVED', 'SIGNED'];
+const REPORT_TIME_ZONE = 'America/Sao_Paulo';
+const reportCalendarFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: REPORT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+});
 
 function asRecord(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -53,7 +57,13 @@ async function claimRecipientDelivery({ yearMonth, email, client }) {
     });
     return true;
   } catch (error) {
-    if (error?.code === 'P2002') return false;
+    if (error?.code === 'P2002') {
+      const retry = await client.allocationReportRecipientDelivery.updateMany({
+        where: { yearMonth, email, status: 'ERROR' },
+        data: { status: 'CLAIMED', error: null, sentAt: null, claimedAt: new Date() }
+      });
+      return retry.count === 1;
+    }
     throw error;
   }
 }
@@ -99,9 +109,28 @@ function monthLabel(yearMonth) {
   return start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
+function reportCalendar(now) {
+  const parts = Object.fromEntries(reportCalendarFormatter.formatToParts(now).map(part => [part.type, part.value]));
+  return { yearMonth: `${parts.year}-${parts.month}`, day: Number(parts.day) };
+}
+
 export function previousYearMonth(now = new Date()) {
-  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}`;
+  const current = monthStart(reportCalendar(now).yearMonth);
+  const previous = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() - 1, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function assertClosedMonth(yearMonth, now) {
+  if (!validateYearMonth(yearMonth)) {
+    const error = new Error('Mês inválido. Use o formato YYYY-MM.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (yearMonth >= reportCalendar(now).yearMonth) {
+    const error = new Error('O relatório mensal só pode ser enviado após o fechamento do mês em America/Sao_Paulo.');
+    error.statusCode = 409;
+    throw error;
+  }
 }
 
 function collaboratorSnapshot(value) {
@@ -458,13 +487,37 @@ export async function buildMonthlyAllocationPdf(data) {
   return Buffer.from(await pdf.save());
 }
 
-export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail, client = prisma } = {}) {
-  const recipientRows = await client.allocationReportRecipient.findMany({
+async function activeRecipients(client) {
+  return uniqueRecipientsByEmail(await client.allocationReportRecipient.findMany({
     where: { isActive: true },
     select: { email: true, name: true },
     orderBy: { email: 'asc' }
-  });
-  const recipients = uniqueRecipientsByEmail(recipientRows);
+  }));
+}
+
+async function recipientDeliveryState(yearMonth, recipients, client) {
+  const rows = recipients.length ? await client.allocationReportRecipientDelivery.findMany({
+    where: { yearMonth, email: { in: recipients.map(recipient => recipient.email) } },
+    select: { email: true, status: true }
+  }) : [];
+  const delivered = rows.filter(row => row.status === 'SENT').length;
+  const pending = recipients.length - delivered;
+  return {
+    recipientCount: recipients.length,
+    delivered,
+    pending,
+    status: delivered === 0 ? 'ERROR' : (pending > 0 ? 'SENT_WITH_ERRORS' : 'SENT')
+  };
+}
+
+export async function previewMonthlyAllocationDelivery({ yearMonth, now = new Date(), client = prisma } = {}) {
+  assertClosedMonth(yearMonth, now);
+  return recipientDeliveryState(yearMonth, await activeRecipients(client), client);
+}
+
+export async function sendMonthlyAllocationReport({ yearMonth, now = new Date(), mailer = sendMail, client = prisma } = {}) {
+  assertClosedMonth(yearMonth, now);
+  const recipients = await activeRecipients(client);
   if (recipients.length === 0) return { skipped: true, reason: 'no_recipients', sent: 0 };
 
   const data = await buildMonthlyAllocationSummary({ yearMonth, client });
@@ -481,12 +534,16 @@ export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail
   for (const recipient of recipients) {
     const claimed = await claimRecipientDelivery({ yearMonth, email: recipient.email, client });
     if (!claimed) {
-      skippedExisting += 1;
+      const existing = await client.allocationReportRecipientDelivery.findUnique({
+        where: { yearMonth_email: { yearMonth, email: recipient.email } },
+        select: { status: true }
+      });
+      if (existing?.status === 'SENT') skippedExisting += 1;
       continue;
     }
 
     try {
-      await mailer({
+      const delivery = await mailer({
         to: recipient.email,
         ...template,
         attachments: [{
@@ -495,8 +552,10 @@ export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail
           contentType: 'application/pdf'
         }]
       });
-      await markRecipientDelivery({ yearMonth, email: recipient.email, client, status: 'SENT' });
-      sent += 1;
+      if (delivery?.skipped) throw new Error(`Envio não realizado: ${delivery.reason || 'mailer_skipped'}.`);
+      if (Array.isArray(delivery?.accepted) && !delivery.accepted.some(email => normalizeEmail(email) === recipient.email)) {
+        throw new Error('O servidor SMTP não aceitou o destinatário.');
+      }
     } catch (error) {
       failed += 1;
       await markRecipientDelivery({
@@ -507,7 +566,12 @@ export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail
         error: errorMessage(error)
       }).catch(() => {});
       console.error(`Falha ao enviar relatório mensal de alocação para ${recipient.email}.`, error);
+      continue;
     }
+
+    // Se o SMTP aceitou mas a gravação falhou, mantenha CLAIMED para evitar um reenvio duplicado.
+    await markRecipientDelivery({ yearMonth, email: recipient.email, client, status: 'SENT' });
+    sent += 1;
   }
 
   return {
@@ -515,11 +579,12 @@ export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail
     sent,
     skippedExisting,
     failed,
+    ...await recipientDeliveryState(yearMonth, recipients, client),
     allocationCount: data.summary.allocationCount
   };
 }
 
-async function claimDelivery(yearMonth, client) {
+async function claimDelivery(yearMonth, client, now) {
   const existing = await client.allocationReportDelivery.findUnique({ where: { yearMonth } });
   if (!existing) {
     try {
@@ -532,26 +597,29 @@ async function claimDelivery(yearMonth, client) {
       throw error;
     }
   }
-  if (existing.status === 'ERROR') {
-    const claimed = await client.allocationReportDelivery.updateMany({
-      where: { yearMonth, status: 'ERROR' },
-      data: { status: 'CLAIMED', error: null }
-    });
-    return claimed.count === 1;
+  if (existing.status === 'CLAIMED') return false;
+  if (existing.status === 'SENT') {
+    const state = await previewMonthlyAllocationDelivery({ yearMonth, now, client });
+    if (state.pending === 0) return false;
   }
-  return false;
+  const claimed = await client.allocationReportDelivery.updateMany({
+    where: { yearMonth, status: existing.status },
+    data: { status: 'CLAIMED', error: null }
+  });
+  return claimed.count === 1;
 }
 
-export async function processMonthlyAllocationReport({ now = new Date(), client = prisma, mailer = sendMail, missingMailerConfig = getMissingMailerConfig() } = {}) {
-  if (now.getDate() !== 1) return { skipped: true, reason: 'not_first_day' };
+export async function processMonthlyAllocationReport({ yearMonth: requestedMonth, now = new Date(), client = prisma, mailer = sendMail, missingMailerConfig = getMissingMailerConfig() } = {}) {
+  if (!requestedMonth && reportCalendar(now).day !== 1) return { skipped: true, reason: 'not_first_day' };
+  const yearMonth = requestedMonth ?? previousYearMonth(now);
+  assertClosedMonth(yearMonth, now);
   if (missingMailerConfig.length) return { skipped: true, reason: 'missing_mailer_config', missingMailerConfig };
 
-  const yearMonth = previousYearMonth(now);
-  const claimed = await claimDelivery(yearMonth, client);
+  const claimed = await claimDelivery(yearMonth, client, now);
   if (!claimed) return { skipped: true, reason: 'already_processed', yearMonth };
 
   try {
-    const result = await sendMonthlyAllocationReport({ yearMonth, client, mailer });
+    const result = await sendMonthlyAllocationReport({ yearMonth, now, client, mailer });
     if (result.skipped && result.reason === 'no_recipients') {
       await client.allocationReportDelivery.delete({ where: { yearMonth } }).catch(() => {});
       return { yearMonth, ...result };
@@ -559,18 +627,21 @@ export async function processMonthlyAllocationReport({ now = new Date(), client 
     await client.allocationReportDelivery.update({
       where: { yearMonth },
       data: {
-        status: result.failed ? 'SENT_WITH_ERRORS' : (result.skipped ? 'SKIPPED' : 'SENT'),
-        recipientCount: (result.sent || 0) + (result.skippedExisting || 0) + (result.failed || 0),
-        error: result.failed ? `${result.failed} destinatário(s) com falha no envio.` : (result.skipped ? result.reason : null),
-        sentAt: new Date()
+        status: result.status,
+        recipientCount: result.recipientCount,
+        error: result.pending ? `${result.pending} destinatário(s) com falha ou envio pendente.` : null,
+        sentAt: result.delivered > 0 ? new Date() : null
       }
     });
     return { yearMonth, ...result };
   } catch (error) {
+    const state = await previewMonthlyAllocationDelivery({ yearMonth, now, client }).catch(() => null);
     await client.allocationReportDelivery.update({
       where: { yearMonth },
       data: {
-        status: 'ERROR',
+        status: state?.status || 'ERROR',
+        ...(state ? { recipientCount: state.recipientCount } : {}),
+        sentAt: state?.delivered > 0 ? new Date() : null,
         error: errorMessage(error)
       }
     }).catch(() => {});
@@ -582,7 +653,7 @@ export function startMonthlyAllocationReportJob() {
   const run = () => {
     runTrackedJob('monthly-allocation-report', processMonthlyAllocationReport, {
       lockTtlMs: JOB_INTERVAL_MS * 2,
-      metadata: { intervalMs: JOB_INTERVAL_MS }
+      metadata: { intervalMs: JOB_INTERVAL_MS, timeZone: REPORT_TIME_ZONE }
     }).catch(error => {
       console.error('Falha no job de relatório mensal de alocação.', error);
     });

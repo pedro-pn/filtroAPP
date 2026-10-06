@@ -1,7 +1,7 @@
 import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { buildMonthlyAllocationPdf, buildMonthlyAllocationSummary, sendMonthlyAllocationReport, validateYearMonth } from '../../lib/allocation-monthly-report.js';
+import { buildMonthlyAllocationPdf, buildMonthlyAllocationSummary, processMonthlyAllocationReport, validateYearMonth } from '../../lib/allocation-monthly-report.js';
 import prisma from '../../lib/prisma.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
@@ -883,7 +883,7 @@ router.post('/allocation-report/send', requireAuth, requireRdoStats, asyncHandle
     return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
   }
 
-  const result = await sendMonthlyAllocationReport({ yearMonth });
+  const result = await processMonthlyAllocationReport({ yearMonth });
   res.json({ yearMonth, ...result });
 }));
 

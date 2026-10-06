@@ -11,7 +11,7 @@ import { AssinaturasAppShell } from './AssinaturasAppShell';
 import { DocumentDetailView } from './components/DocumentDetailView';
 import { NewDocumentModal } from './components/NewDocumentModal';
 import { AssinaturasTutorial } from './AssinaturasTutorial';
-import { normalizeSignatureSearchParams, signatureDocumentSearchParams } from './utils/navigation';
+import { normalizeSignatureSearchParams, signatureDocumentSearchParams, signatureLibrarySearchParams } from './utils/navigation';
 import './AssinaturasPage.ds.css';
 
 export function AssinaturasPage() {
@@ -28,7 +28,11 @@ export function AssinaturasPage() {
   const archived = !selectedId && requestedTab === 'archived';
   const parsedPage = Number(params.get('page'));
   const detailPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-  const listQuery = useSignatureDocuments({ q: query || undefined, status: status || undefined, arquivados: archived ? 1 : undefined });
+  const listQuery = useSignatureDocuments({ q: query || undefined, status: status || undefined, arquivados: archived || params.get('list') === 'archived' ? 1 : undefined });
+  const listData = listQuery.data ? {
+    items: listQuery.data.pages.flatMap(page => page.items),
+    nextCursor: listQuery.data.pages.at(-1)?.nextCursor || null
+  } : undefined;
   const documentQuery = useSignatureDocument(selectedId);
   const mutations = useAssinaturaMutations();
 
@@ -65,11 +69,7 @@ export function AssinaturasPage() {
   }
 
   function closeDocument() {
-    const next = new URLSearchParams(params);
-    next.delete('doc');
-    next.delete('tab');
-    next.delete('page');
-    setParams(next);
+    setParams(signatureLibrarySearchParams(params));
   }
 
   function setDetailTab(tab: 'details' | 'setup' | 'audit') {
@@ -121,9 +121,11 @@ export function AssinaturasPage() {
               />
         ) : (
           <DocumentLibrary
-            data={listQuery.data}
+            data={listData}
             loading={listQuery.isLoading}
-            error={listQuery.isError}
+            error={listQuery.isLoadingError}
+            loadingMore={listQuery.isFetchingNextPage}
+            loadMoreError={listQuery.isFetchNextPageError}
             archived={archived}
             query={query}
             status={status}
@@ -136,6 +138,7 @@ export function AssinaturasPage() {
               setParams(next, { replace: true });
             }}
             onRetry={() => void listQuery.refetch()}
+            onLoadMore={() => void listQuery.fetchNextPage()}
             onNew={() => setNewOpen(true)}
             onOpen={document => openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details')}
           />
