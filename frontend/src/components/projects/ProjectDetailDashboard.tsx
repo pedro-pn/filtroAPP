@@ -592,6 +592,7 @@ export function ProjectDetailDashboard({
             <ProjectReportsDialog
               projectId={isGroup ? undefined : projectId}
               groupMembers={isGroup ? data.group?.members : undefined}
+              signedReportDateFrom={data.division?.startDate}
               missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
             />
           ) : null}

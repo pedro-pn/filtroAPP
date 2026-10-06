@@ -5,6 +5,7 @@ export interface ReportFilters {
   status?: string;
   statuses?: string[];
   projectId?: string;
+  reportDateFrom?: string;
   createdBy?: string;
   createdByUserId?: string;
   mine?: boolean;

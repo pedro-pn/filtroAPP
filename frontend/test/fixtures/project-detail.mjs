@@ -4,6 +4,7 @@ export const detail = {
   avancoMethod: 'SCOPE', avancoPct: 62.5,
   diasCorridos: { elapsed: 9, planned: 30, pct: 30 },
   diasTrabalhados: { worked: 7, planned: 20, pct: 35 },
+  rdoSignatures: { signed: 5, total: 8 },
   consumo: { gasto: 75000, omie: 60000, pago: 45000, previstoPagar: 15000, estoque: 10000, manual: 5000, previsto: 100000, previstoOriginal: 80000, previstoAdicional: 20000, pct: 75 },
   faturamento: { previsto: '150000', previstoOriginal: '120000', previstoAdicional: '30000', realizado: '130000', notas: 2 },
   budgetBreakdown: {

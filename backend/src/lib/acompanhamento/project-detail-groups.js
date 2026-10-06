@@ -483,6 +483,10 @@ export function groupProjectDetails(group, memberDetails = []) {
       planned: plannedWorkedDays,
       pct: ratioPct(workedDays, plannedWorkedDays)
     },
+    rdoSignatures: {
+      signed: sumValues(details, item => item.detail.rdoSignatures?.signed, { nullWhenEmpty: false }),
+      total: sumValues(details, item => item.detail.rdoSignatures?.total, { nullWhenEmpty: false })
+    },
     proposalPercentage: null,
     fullPlannedDays: sumValues(details, item => item.detail.fullPlannedDays ?? item.detail.diasCorridos?.planned),
     fullWorkedDays: sumValues(details, item => item.detail.fullWorkedDays ?? item.detail.diasTrabalhados?.planned),

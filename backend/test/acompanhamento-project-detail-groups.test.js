@@ -29,6 +29,7 @@ function detail(overrides = {}) {
     avancoMethod: overrides.avancoMethod ?? 'RDO',
     diasCorridos: overrides.diasCorridos ?? { elapsed: 4, planned: 10, pct: 40 },
     diasTrabalhados: overrides.diasTrabalhados ?? { worked: 3, planned: 8, pct: 38 },
+    rdoSignatures: overrides.rdoSignatures ?? { signed: 2, total: 3 },
     consumo: overrides.consumo ?? {
       gasto: 50,
       omie: 40,
@@ -96,6 +97,20 @@ function detail(overrides = {}) {
     }
   };
 }
+
+test('grupo soma RDOs assinados e totais apenas das missões com detalhe visível', () => {
+  const members = group().members;
+  const entries = members.map((member, index) => ({
+    projectId: member.projectId, member,
+    detail: detail({ rdoSignatures: index ? { signed: 1, total: 4 } : { signed: 2, total: 3 } })
+  }));
+  assert.deepEqual(groupProjectDetails(group(), entries).rdoSignatures, { signed: 3, total: 7 });
+  assert.deepEqual(groupProjectDetails(group(), [entries[0], { ...entries[1], detail: null }]).rdoSignatures,
+    { signed: 2, total: 3 });
+  assert.deepEqual(groupProjectDetails(group(), entries.map(entry => ({
+    ...entry, detail: detail({ rdoSignatures: { signed: 0, total: 0 } })
+  }))).rdoSignatures, { signed: 0, total: 0 });
+});
 
 test('histórico diário agrupado preserva quantidades físicas de cada missão', () => {
   const grouped = groupProjectDetails(group(), [
