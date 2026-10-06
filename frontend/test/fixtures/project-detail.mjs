@@ -17,6 +17,7 @@ export const detail = {
   manualCosts: [{ id: 'c1', projectId: 'p1', projectCode: '4069', description: 'Transporte complementar para mobilização da equipe', amount: 5000, costDate: '2026-09-07', createdAt: '2026-09-07T12:00:00Z', createdBy: { name: 'Gestor de acompanhamento' }, note: 'Deslocamento de equipamentos e material de apoio.' }],
   progressHistory: [{ date: '2026-09-01T12:00:00Z', progressPct: 10 }, { date: '2026-09-05T12:00:00Z', progressPct: 35 }, { date: '2026-09-09T12:00:00Z', progressPct: 62.5 }],
   requiredWeeklyProgress: { status: 'REQUIRED', remainingPctPoints: 37.5, requiredPctPointsPerWeek: 12.5, services: [{ serviceType: 'LIMPEZA_QUIMICA', executionPct: 62.5, systems: [{ systemType: 'TUBULACAO', unit: 'M', plannedQty: 1000, realizedQty: 625, remainingQty: 375, requiredQtyPerWeek: 125, status: 'REQUIRED' }] }] },
+  businessDays: 7, stoppedDays: 1,
   standby: { count: 2, minutes: 180 },
   ultimosDias: ['TRABALHADO', 'STANDBY', 'PARADO'].map((status, i) => ({ date: `2026-09-0${i + 7}T12:00:00Z`, status, workedMinutes: status === 'PARADO' ? 0 : 480, standbyMinutes: status === 'TRABALHADO' ? 0 : 120 })),
   overtimeMinutes: 2400,

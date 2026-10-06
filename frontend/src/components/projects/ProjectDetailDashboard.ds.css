@@ -271,3 +271,57 @@
 @media (max-width: 639.98px) {
   .acp-detail .acp-det-romaneios-action > .fv-button { width: 100%; }
 }
+
+/* Reorganized project dashboard. */
+.acp-detail-priorities { display: grid; gap: var(--space-4); align-items: start; min-width: 0; }
+.acp-detail-priorities > .fv-card { min-width: 0; padding: var(--space-4); }
+.acp-detail-priorities > .fv-card > .fv-card__body { padding: 0; }
+.acp-detail-priorities .acp-story-time { container-type: inline-size; }
+.acp-detail-priorities .acp-story-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.acp-detail-priorities .acp-story-card-head { flex-wrap: wrap; }
+.acp-detail-priorities .acp-detail-last-rdo { padding: var(--space-3); }
+.acp-detail-priorities .acp-detail-last-rdo > .fv-card__body { padding: 0; }
+.acp-overview { gap: var(--space-4); }
+.acp-overview-heading { align-items: center; }
+.acp-story-time-actions { flex-wrap: wrap; }
+.acp-detail :is(.acp-detail-section-head h2, .acp-detail-section-heading h2, .acp-detail-section-heading h3, .acp-detail-section-heading h4, .acp-detail-section-heading > strong, .acp-detail-section-heading .acp-detail-sub, .acp-detail-section-heading .mission-weekly-progress-head > strong, .acp-detail-summary, .acp-invoices-ds__heading-copy > strong) { font-size: var(--text-lg); font-weight: var(--font-semibold); line-height: var(--leading-lg); }
+.acp-detail .acp-detail-section-subtitle { color: var(--muted); font-size: var(--text-sm); font-weight: var(--font-regular); line-height: var(--leading-sm); letter-spacing: normal; text-transform: none; }
+.acp-detail-services > .fv-card__body { padding: var(--space-4); }
+.acp-detail-services .acp-overview-services { gap: var(--space-3); }
+.acp-detail-services .acp-overview-service-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.acp-detail-services .acp-overview-service > .fv-card__body { padding: var(--space-3); gap: var(--space-2); }
+.acp-detail-services .acp-overview-service-quantity > strong { font-size: var(--text-lg); }
+.acp-detail-services .acp-overview-service-foot span { font-size: var(--text-xs); }
+.acp-detail-priorities .acp-story-time .acp-overview-main { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.acp-detail-priorities .acp-overview-chart { padding: var(--space-3); }
+.acp-detail-priorities .acp-overview-chart > .fv-card__body,
+.acp-detail-priorities .acp-detail-services > .fv-card__body { padding: 0; }
+.acp-detail-priorities .acp-overview-card-head { flex-wrap: wrap; align-items: start; gap: var(--space-2); }
+.acp-detail-priorities .acp-overview-card-head > span { text-align: start; }
+.acp-detail-priorities .acp-detail-services .acp-overview-service { padding: var(--space-2); }
+.acp-detail-priorities .acp-detail-services .acp-overview-service > .fv-card__body { padding: 0; gap: var(--space-2); }
+.acp-detail-priorities .acp-detail-services .acp-overview-service-quantity > strong { font-size: var(--text-md); }
+.acp-detail-priorities .acp-detail-services .acp-overview-service-head { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); gap: var(--space-1); align-items: start; }
+.acp-detail-priorities .acp-detail-services .acp-overview-service-icon { width: var(--space-6); height: var(--space-6); }
+.acp-detail-priorities .acp-detail-services .acp-overview-service-head > strong { min-width: 0; }
+.acp-detail-priorities .acp-detail-services .acp-overview-service-head > b { grid-column: 2; justify-self: start; }
+@container (min-width: 420px) {
+  .acp-detail-priorities .acp-story-time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.acp-detail-financial { display: grid; gap: var(--space-4); container-type: inline-size; min-width: 0; }
+.acp-detail-financial > .fv-card__body { padding: 0; }
+#acp-financial { grid-template-columns: minmax(0, 1fr); }
+.acp-detail-financial-grid { display: grid; gap: var(--space-4); align-items: start; min-width: 0; }
+.acp-detail-financial .acp-detail-financial-grid > .fv-card { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.acp-detail-financial .acp-detail-financial-grid > .fv-card > .fv-card__body { padding: 0; }
+.acp-detail-financial .acp-detail-financial-grid > .fv-card + .fv-card { border-top: var(--border-width) solid var(--line); padding-top: var(--space-4); }
+.acp-detail-financial .acp-invoices-ds__heading-copy { flex-basis: 100%; }
+.acp-detail-financial .acp-invoices-ds__total { text-align: start; }
+.acp-detail-financial .fv-mobile-list__items { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 900px) {
+  .acp-detail-financial-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .acp-detail-financial .acp-detail-financial-grid > .fv-card + .fv-card { border-top: 0; padding-top: 0; border-left: var(--border-width) solid var(--line); padding-left: var(--space-4); }
+}
+@media (min-width: 1100px) {
+  .acp-detail-priorities { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, .75fr); }
+}

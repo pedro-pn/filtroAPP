@@ -9,6 +9,7 @@
  *  - Standby cobrindo a jornada cheia do dia = dia "parado".
  */
 
+import { countStoppedReportDays, projectElapsedDays, reportDayStatus } from './project-time-summary.js';
 import { listCommercialDashboard } from './access-import.js';
 import { scaleProposalValue } from './proposal-percentage.js';
 import { computeAlerts } from './alerts.js';
@@ -334,20 +335,13 @@ export function buildProjectAppropriationDays(rate = null, projectId = null) {
   }).sort((left, right) => left.data.localeCompare(right.data));
 }
 
-// Status do dia a partir do standby agregado vs jornada cheia.
-function dayStatus(standbyMin, journeyMin) {
-  if (standbyMin > 0 && journeyMin > 0 && standbyMin >= journeyMin) return 'PARADO';
-  if (standbyMin > 0) return 'STANDBY';
-  return 'TRABALHADO';
-}
-
 export function buildRecentReportDays(byDay, project, limit = 10) {
   return [...byDay.entries()]
     .sort((a, b) => new Date(a[1].reportDate) - new Date(b[1].reportDate))
     .slice(-limit)
     .map(([key, day]) => ({
       date: key,
-      status: dayStatus(day.statusStandbyMin, journeyMinutes(project, day.reportDate)),
+      status: reportDayStatus(day.statusStandbyMin, journeyMinutes(project, day.reportDate)),
       workedMinutes: day.workedMin,
       standbyMinutes: day.standbyMin
     }));
@@ -654,6 +648,8 @@ export async function getProjectDetail(projectId, {
 
   const activeStartDate = division?.startDate ?? row.startDate;
   const elapsedCorridos = activeStartDate ? Math.max(0, diffCalendarDays(activeStartDate, projectReferenceDate) ?? 0) : null;
+  const { businessDays } = projectElapsedDays(activeStartDate, projectReferenceDate);
+  const stoppedDays = countStoppedReportDays(byDay, date => journeyMinutes(project, date));
   const diasCorridos = {
     elapsed: elapsedCorridos,
     planned: plannedDays,
@@ -734,6 +730,8 @@ export async function getProjectDetail(projectId, {
     },
     alerts,
     diasCorridos,
+    businessDays,
+    stoppedDays,
     diasTrabalhados,
     proposalPercentage: division ? null : row.proposalPercentage ?? 100,
     fullPlannedDays: division ? null : toNum(row.fullPlannedDays ?? row.plannedDays),

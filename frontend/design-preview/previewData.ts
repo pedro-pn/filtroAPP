@@ -37,6 +37,7 @@ const primary: ProjectDetail = {
   diasCorridos: { elapsed: 29, planned: 50, pct: 58 },
   diasTrabalhados: { worked: 20, planned: 36, pct: 55.6 },
   standby: { count: 4, minutes: 1440 },
+  businessDays: 21, stoppedDays: 4,
   progressHistory: history,
   dailyProgressHistory: history.slice(1).map(point => ({ ...point, services: [{ serviceType: 'LIMPEZA_QUIMICA', progressPct: point.progressPct, quantities: [{ unit: 'M', realizedQty: point.progressPct * 10 }] }] })),
   footer: { mobilizationDate: asIso(shift(week, -30)), startDate: asIso(shift(week, -28)), expectedEndDate: asIso(shift(week, 22)), projectedEndByPace: asIso(shift(week, 20)) },
@@ -50,6 +51,7 @@ for (const [id, code, name, progress, spent] of [
 ] as const) {
   const time = previewTimeFacts(code);
   details[id] = { ...structuredClone(primary), header: { ...primary.header, code, clientName: name, proposalCode: `PROP-2026-${code}` }, avancoPct: progress,
+    businessDays: time.weekdays, stoppedDays: time.standby,
     diasCorridos: { ...primary.diasCorridos, elapsed: time.elapsed }, standby: { ...primary.standby, count: time.standby },
     consumo: { ...primary.consumo, gasto: spent * 1000 - 30000, omie: spent * 1000 - 45000 },
     alerts: id === 'p2' ? [{ code: 'STANDBY', level: 'warn', label: 'Missão em stand-by' }] : [],
@@ -60,6 +62,7 @@ const names = { p1: 'Limpeza do circuito hidráulico', p2: 'Filtragem e teste de
 let cards: ProjectCard[] = Object.entries(details).map(([projectId, d]) => ({
   kind: 'PROJECT', projectId, code: d.header.code, name: names[projectId as keyof typeof names], clientName: d.header.clientName,
   canViewProjectFinancials: true, archived: false, archivedInReports: false, archivedInAcompanhamento: false, reviewed: false, reviewedAt: null, reportArchivedAt: null, category: 'ANDAMENTO',
+  elapsedDays: d.diasCorridos.elapsed, businessDays: d.businessDays, stoppedDays: d.stoppedDays,
   workedDays: d.diasTrabalhados.worked, totalDays: d.diasTrabalhados.planned, daysConsumedPct: d.diasTrabalhados.pct,
   workedHours: d.workedHours, progressPct: d.avancoPct, progressMethod: 'RDO', plannedCost: d.consumo.previsto,
   originalPlannedCost: d.consumo.previstoOriginal, additionalPlannedCost: d.consumo.previstoAdicional,

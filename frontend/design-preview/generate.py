@@ -1,15 +1,18 @@
-"""Gera cópias isoladas dos componentes atuais, mudando só a organização da prévia."""
+"""Regera a referência aprovada a partir da revisão original, antes da integração."""
 from pathlib import Path
 import os
 import re
+import subprocess
 
 root = Path(__file__).resolve().parents[1]
 originals = root / 'src/components/projects'
 target = root / 'design-preview/components'
 target.mkdir(exist_ok=True)
 
+REFERENCE_REVISION = 'f7b259bc8103f1433f9fafd60a94068bce68dd33'
+
 def source(name):
-    return (originals / name).read_text()
+    return subprocess.check_output(['git', 'show', f'{REFERENCE_REVISION}:frontend/src/components/projects/{name}'], cwd=root, text=True)
 
 def fold(text, header_marker, body_marker, end_marker, label, offset=0, default_open=True):
     start = text.index(header_marker, offset)
@@ -225,4 +228,4 @@ s = fold(s, '          <div className="acp-detail-notes-head">', '          {can
 # Apenas seus cards brancos (desvios, notas, equipamentos e avanço diário)
 # preservam os controles individuais de recolher/expandir.
 emit('ProjectDetailDashboard.tsx', s, ('./ProjectDetailOverview', './ProjectDetailStory', './MissionWeeklyProgressPanel', './ProjectReportsDialog', './ProjectInvoicesSection', '../PreviewSection'))
-print('Prévia gerada a partir dos componentes atuais. Nenhum arquivo de produção foi alterado.')
+print('Referência aprovada gerada a partir da revisão original. Nenhum arquivo de produção foi alterado.')

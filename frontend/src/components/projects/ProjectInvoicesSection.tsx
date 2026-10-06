@@ -100,7 +100,7 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
           {visibleInvoices.length === 0 ? <EmptyState title="Nenhuma nota fiscal faturada"
             description={`Nenhuma nota encontrada para ${groupId ? 'as missões deste grupo' : 'este projeto'} na última consulta.`} />
             : <DataTable rows={invoices} columns={columns} getRowId={invoice => invoice.id}
-              ariaLabel="Histórico de notas fiscais faturadas" density="compact" mobileBreakpoint="xl"
+              ariaLabel="Histórico de notas fiscais faturadas" layout="cards" density="compact" mobileBreakpoint="xl"
               mobile={{ renderItem: invoice => ({
                 title: `${invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} ${invoice.number}`,
                 subtitle: invoice.series ? `Série ${invoice.series}` : undefined,
@@ -111,7 +111,7 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
                   ...(groupId ? [{ label: 'Missão', value: `${invoice.project.code} · ${invoice.project.name}` }] : []),
                   { label: 'Tomador / cliente', value: invoice.customerName || 'Não informado' },
                   ...(invoice.customerCnpj ? [{ label: 'CNPJ', value: invoice.customerCnpj }] : []),
-                  ...(invoice.customerDiffers ? [{ label: 'Cadastro', value: 'Tomador diferente do projeto' }] : [])
+                  ...(invoice.customerDiffers ? [{ label: 'Cadastro', value: 'Tomador diferente do cadastro do projeto' }] : [])
                 ]
               }) }} />}
           {pages > 1 ? <Pagination page={currentPage} total={visibleInvoices.length} pageSize={PAGE_SIZE}

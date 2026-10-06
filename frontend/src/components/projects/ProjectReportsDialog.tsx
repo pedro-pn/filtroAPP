@@ -113,7 +113,7 @@ export function ProjectReportsDialog({
       <Button
         type="button"
         size="sm"
-        variant="secondary"
+        variant="primary"
         className="acp-mission-reports-trigger"
         onClick={() => setOpen(true)}
       >

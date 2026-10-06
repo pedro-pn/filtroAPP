@@ -1,11 +1,13 @@
 # Prévia da reorganização do acompanhamento
 
-Esta versão parte da tela real. O botão **Tela atual** monta o `ProjectCardsBoard`
-e o `ProjectDetailDashboard` de produção. **Reorganizada** monta cópias isoladas
-com os mesmos dados, estilos, consultas e controles. As rotas de produção não
-importam nenhum arquivo desta pasta.
+O botão **App integrado** monta o `ProjectCardsBoard` e o
+`ProjectDetailDashboard` de produção, que agora incorporam a organização aprovada.
+**Prévia aprovada** mantém a referência isolada para comparação. As rotas de
+produção não importam nenhum arquivo desta pasta. A prévia abre o app integrado
+por padrão, usando somente dados ilustrativos.
 
-A folha adicional ajusta agrupamento, espaçamento, títulos e expansão de conteúdo.
+A folha adicional estiliza os controles da prévia e a referência aprovada.
+A organização integrada usa as folhas de estilo dos componentes de produção.
 Cabeçalho verde, AppShell, navegação, tipografia, cores, cartões, gráficos,
 alertas, tabelas, formulários e modais vêm dos arquivos atuais do app.
 
@@ -44,9 +46,12 @@ alertas, tabelas, formulários e modais vêm dos arquivos atuais do app.
 
 `previewData.ts` adapta a fixture já existente em `test/fixtures/project-detail.mjs`
 para vários projetos e semanas. O adapter do Axios responde localmente a todas
-as consultas e gravações da prévia, sem chamar a API real. Dias úteis são valores
-ilustrativos adicionais; a fonte e as regras reais deverão ser confirmadas ao
-integrar esse indicador ao app. Nenhuma regra de cálculo de produção foi alterada.
+as consultas e gravações da prévia, sem chamar a API real. Os números desta pasta
+continuam ilustrativos. No app real, a API retorna dias
+corridos e úteis no período do projeto (segunda a sexta, sem descontar feriados),
+respeitando o fim de uma divisão e o último RDO de um projeto arquivado. Dias
+parados contam datas distintas com standby cobrindo a jornada completa, em todo
+o histórico. Grupos somam os indicadores das missões, como os dias existentes.
 
 ## Abrir e gerar
 
@@ -58,14 +63,15 @@ npm run dev -- --port 5191
 
 - Dashboard reorganizado: <http://localhost:5191/design-preview/index.html>
 - Pela rede local da máquina atual: <http://10.10.0.132:5191/design-preview/index.html>
-- Tela atual: <http://localhost:5191/design-preview/index.html?version=atual>
+- Referência aprovada: <http://localhost:5191/design-preview/index.html?version=referencia>
 - Cards: <http://localhost:5191/design-preview/index.html?view=cards>
 
 Nesta máquina, o Windows tem a regra `Filtrovali-Preview-LAN-5191` para permitir
 TCP 5191 somente da rede `10.10.0.0/24`. O WSL em modo espelhado importa essa
 regra do Windows. O servidor precisa estar rodando para os links funcionarem.
 
-Para regenerar as cópias a partir dos componentes de produção:
+Para regenerar a referência aprovada, o script lê os componentes da revisão
+original `f7b259bc`, antes da integração. Ele não altera os arquivos de produção:
 
 ```sh
 python3 design-preview/generate.py

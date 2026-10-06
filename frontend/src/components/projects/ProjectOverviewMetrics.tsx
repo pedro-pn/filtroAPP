@@ -1,6 +1,7 @@
 import type { ProjectCardItem } from '../../api/acompanhamentoComercial';
 import { HelpTip } from '../ui/HelpTip';
 import { ProgressBar } from '../ui/ds';
+import { ProjectDetailDisclosure } from './ProjectDetailDisclosure';
 import { brl, fmtHours, pct } from './projectCardFormatting';
 
 export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
@@ -18,6 +19,22 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
         <div><dt>Previsto</dt><dd>{brl(card.plannedCost)}</dd></div>
         <div><dt>Realizado</dt><dd>{brl(card.realizedCost)}</dd></div>
       </dl>
+
+    </div>
+    <div className="acp-project__section">
+      <ProgressBar label="Dias trabalhados" value={card.daysConsumedPct}
+        valueLabel={`${card.workedDays} / ${card.totalDays ?? '—'}${card.daysConsumedPct != null ? ` · ${pct(card.daysConsumedPct)}` : ''}`} />
+      <ProgressBar label="HH trabalhados" value={hours?.totalPct ?? null}
+        valueLabel={`${fmtHours(hours?.totalWorkedHours ?? 0)} / ${fmtHours(hours?.plannedTotalHours)}${hours?.totalPct != null ? ` · ${pct(hours.totalPct)}` : ''}`}
+        segments={[{ value: hours?.normalPct ?? null }, { value: hours?.overtimePct ?? null, tone: 'warning' }]} />
+    </div>
+    <dl className="acp-project__pair">
+      <div><dt>Dias corridos</dt><dd>{card.elapsedDays ?? '—'}</dd></div>
+      <div><dt>Dias parados</dt><dd>{card.stoppedDays ?? '—'}</dd></div>
+      <div><dt>Dias úteis</dt><dd>{card.businessDays ?? '—'}</dd></div>
+      <div><dt>Colaboradores em obra</dt><dd>{card.collaboratorsCount}</dd></div>
+    </dl>
+    <ProjectDetailDisclosure label="Detalhes do card" compact>
       {card.additionalPlannedCost != null && Math.abs(card.additionalPlannedCost) > 0.005 ? (
         <p className="acp-project__secondary">Original: {brl(card.originalPlannedCost)} · Adicional: {brl(card.additionalPlannedCost)}</p>
       ) : null}
@@ -30,16 +47,8 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
         </> : null}
         {card.stockCost > 0 ? <div><dt>Estoque quím./filtros</dt><dd>{brl(card.stockCost)}</dd></div> : null}
       </dl> : null}
-    </div>
-    <div className="acp-project__section">
-      <ProgressBar label="Dias trabalhados" value={card.daysConsumedPct}
-        valueLabel={`${card.workedDays} / ${card.totalDays ?? '—'}${card.daysConsumedPct != null ? ` · ${pct(card.daysConsumedPct)}` : ''}`} />
-      <ProgressBar label="Horas trabalhadas" value={hours?.totalPct ?? null}
-        valueLabel={`${fmtHours(hours?.totalWorkedHours ?? 0)} / ${fmtHours(hours?.plannedTotalHours)}${hours?.totalPct != null ? ` · ${pct(hours.totalPct)}` : ''}`}
-        segments={[{ value: hours?.normalPct ?? null }, { value: hours?.overtimePct ?? null, tone: 'warning' }]} />
       <p className="acp-project__secondary">Normais: {fmtHours(hours?.normalWorkedHours ?? 0)}{hours?.normalPct != null ? ` (${pct(hours.normalPct)})` : ''}
         {' · '}HE: {fmtHours(hours?.overtimeWorkedHours ?? 0)}{hours?.overtimePct != null ? ` (${pct(hours.overtimePct)})` : ''}</p>
-      <dl className="acp-project__facts"><div><dt>Colaboradores em obra</dt><dd>{card.collaboratorsCount}</dd></div></dl>
-    </div>
+    </ProjectDetailDisclosure>
   </div>;
 }

@@ -45,7 +45,7 @@ const navigation: NavigationModel = { groups: [
 
 function Preview() {
   const params = new URLSearchParams(window.location.search);
-  const [current, setCurrent] = useState(params.get('version') === 'atual');
+  const [current, setCurrent] = useState(params.get('version') !== 'referencia');
   const [listing, setListing] = useState(params.get('view') === 'cards');
   const Board = current ? CurrentProjectCardsBoard : ReorganizedProjectCardsBoard;
   return <MemoryRouter key={`${current}-${listing}`} initialEntries={[`/acompanhamento?section=projetos${listing ? '' : '&project=p1'}`]}>
@@ -53,8 +53,8 @@ function Preview() {
       breadcrumb={[{ label: 'Filtrovali', href: '/modulos' }, { label: 'Acompanhamento', href: '/acompanhamento' }, { label: 'Projetos' }]}
       profile={{ name: 'Gestor de exemplo', description: 'Prévia com dados ilustrativos', initials: 'GE' }}>
       <div className="fv-ds preview-controls"><div><Badge tone="info">Prévia</Badge><small>Mesmos dados e componentes do app</small></div><div>
-        <Button size="sm" variant={current ? 'primary' : 'secondary'} aria-pressed={current} onClick={() => setCurrent(true)}>Tela atual</Button>
-        <Button size="sm" variant={!current ? 'primary' : 'secondary'} aria-pressed={!current} onClick={() => setCurrent(false)}>Reorganizada</Button>
+        <Button size="sm" variant={current ? 'primary' : 'secondary'} aria-pressed={current} onClick={() => setCurrent(true)}>App integrado</Button>
+        <Button size="sm" variant={!current ? 'primary' : 'secondary'} aria-pressed={!current} onClick={() => setCurrent(false)}>Prévia aprovada</Button>
         <Button size="sm" aria-pressed={listing} onClick={() => setListing(!listing)}>{listing ? 'Ver dashboard' : 'Comparar cards'}</Button>
       </div></div>
       <div className={current ? 'preview-current' : 'preview-reorganized'}><Board canManage canManageGroups canManageManualCosts canManageProjectNotes /></div>
