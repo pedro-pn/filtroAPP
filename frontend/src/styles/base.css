@@ -6491,8 +6491,9 @@ a.upload-list-name {
   height: 16px;
   background: #fff;
   border-radius: 50%;
-  top: 3px;
+  top: 50%;
   left: 3px;
+  transform: translateY(-50%);
   transition: .2s;
 }
 
@@ -6501,7 +6502,7 @@ a.upload-list-name {
 }
 
 .tog input:checked + .tog-sl::after {
-  transform: translateX(18px);
+  transform: translate(18px, -50%);
 }
 
 .overtime-review-inline {
