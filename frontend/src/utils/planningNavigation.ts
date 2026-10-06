@@ -18,7 +18,7 @@ const PARAMS_BY_SECTION: Record<EfetivoPlanningSection, string[]> = {
 
 // Mantém o período de disponibilidade enquanto o usuário navega entre as
 // seções do módulo, mesmo quando a seção atual não usa esses parâmetros.
-const PERSISTENT_MODULE_PARAMS = ['date', 'final'];
+const PERSISTENT_MODULE_PARAMS = ['date', 'final', 'disponibilidadeView'];
 
 export function setPlanningSectionParams(current: URLSearchParams, section: EfetivoPlanningSection) {
   const next = new URLSearchParams(current);

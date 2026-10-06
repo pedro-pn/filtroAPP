@@ -72,21 +72,22 @@ export function EfetivoPage() {
   const currentSection = SECTIONS.find(item => item.id === section) || SECTIONS[0];
 
   const updateParam = useCallback((key: string, value?: string, replace = true) => {
-    setSearchParams(current => { const next = new URLSearchParams(current); if (value) next.set(key, value); else next.delete(key); return next; }, { replace });
+    const next = new URLSearchParams(window.location.search);
+    if (value) next.set(key, value); else next.delete(key);
+    setSearchParams(next, { replace });
   }, [setSearchParams]);
   const setPositionDate = useCallback((value: string) => {
-    setSearchParams(current => {
-      const next = new URLSearchParams(current);
-      if (value) next.set('date', value); else next.delete('date');
-      const final = next.get('final');
-      if (section === 'disponibilidade' && value && final && (final < value || final > addDateOnlyDays(value, 370))) {
-        next.set('final', addDateOnlyDays(value, 29));
-      }
-      return next;
-    }, { replace: true });
+    const next = new URLSearchParams(window.location.search);
+    if (value) next.set('date', value); else next.delete('date');
+    const final = next.get('final');
+    if (section === 'disponibilidade' && value && final && (final < value || final > addDateOnlyDays(value, 370))) {
+      next.set('final', addDateOnlyDays(value, 29));
+    }
+    setSearchParams(next, { replace: true });
   }, [section, setSearchParams]);
   const setSection = useCallback((nextSection: EfetivoPlanningSection) => {
-    setSearchParams(current => setPlanningSectionParams(current, nextSection), { replace: true });
+    // O blur do calendário pode confirmar uma data imediatamente antes do clique.
+    setSearchParams(setPlanningSectionParams(new URLSearchParams(window.location.search), nextSection), { replace: true });
   }, [setSearchParams]);
   // Links antigos com buscas na URL continuam abrindo o recorte correto. Depois
   // da leitura inicial, a busca fica no estado da sessão, como nos Relatórios.
@@ -107,11 +108,9 @@ export function EfetivoPage() {
   }, [setWorkflowSearch, updateParam, workflowPage]);
   // Atalhos entre painéis: troca de seção sem recarregar a página, preservando o parâmetro alvo.
   const goToSection = useCallback((nextSection: EfetivoPlanningSection, params: Record<string, string> = {}) => {
-    setSearchParams(current => {
-      const next = setPlanningSectionParams(current, nextSection);
-      for (const [key, value] of Object.entries(params)) next.set(key, value);
-      return next;
-    }, { replace: false });
+    const next = setPlanningSectionParams(new URLSearchParams(window.location.search), nextSection);
+    for (const [key, value] of Object.entries(params)) next.set(key, value);
+    setSearchParams(next, { replace: false });
   }, [setSearchParams]);
   return (
     <EfetivoAppShell currentSection={section} sections={SECTIONS}>

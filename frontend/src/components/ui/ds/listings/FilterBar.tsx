@@ -37,6 +37,7 @@ export interface FilterBarProps extends Omit<
   activeCount?: number;
   onClear?: () => void;
   clearLabel?: string;
+  clearPlacement?: 'main' | 'chips';
   actions?: ReactNode;
   disabled?: boolean;
   loading?: boolean;
@@ -59,6 +60,7 @@ export function FilterBar({
   activeCount,
   onClear,
   clearLabel = 'Limpar filtros',
+  clearPlacement = 'main',
   actions,
   disabled = false,
   loading = false,
@@ -138,6 +140,11 @@ export function FilterBar({
   const controls = children ? (
     <div className="fv-filter-bar__controls">{children}</div>
   ) : null;
+  const clearButton = onClear && resolvedActiveCount > 0 ? (
+    <Button className="fv-filter-bar__clear" variant="link" size="sm" disabled={disabled} onClick={onClear}>
+      {clearLabel}
+    </Button>
+  ) : null;
 
   return (
     <div
@@ -194,17 +201,7 @@ export function FilterBar({
           <div className="fv-filter-bar__actions">{actions}</div>
         ) : null}
 
-        {onClear && resolvedActiveCount > 0 ? (
-          <Button
-            className="fv-filter-bar__clear"
-            variant="link"
-            size="sm"
-            disabled={disabled}
-            onClick={onClear}
-          >
-            {clearLabel}
-          </Button>
-        ) : null}
+        {clearPlacement === 'main' || !activeFilters.length ? clearButton : null}
       </div>
 
       {activeFilters.length ? (
@@ -225,6 +222,7 @@ export function FilterBar({
               {filter.label}
             </Badge>
           ))}
+          {clearPlacement === 'chips' ? clearButton : null}
         </div>
       ) : null}
 

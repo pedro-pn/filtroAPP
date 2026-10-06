@@ -176,6 +176,8 @@ router.get('/documentos', asyncHandler(async (req, res) => {
   const result = await listDocuments(prisma, ownerId(req), {
     status: req.query.status,
     q: req.query.q,
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo,
     archived: req.query.arquivados === '1',
     cursor: req.query.cursor,
     limit: req.query.limit

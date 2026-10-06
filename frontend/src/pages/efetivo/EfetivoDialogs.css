@@ -54,7 +54,7 @@
 }
 .efetivo-dialog.project-workflow-checklist-dialog { --fv-modal-width: 720px; }
 .efetivo-dialog.project-workflow-checklist-dialog .fv-modal__body { display: grid; gap: var(--space-3); }
-.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-dialog-list { max-height: min(58dvh, 540px); overflow-y: auto; }
+.efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-dialog-list { display: grid; grid-auto-rows: max-content; gap: var(--space-3); min-width: 0; max-height: min(58dvh, 540px); overflow-y: auto; }
 .efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; min-height: 0; gap: var(--space-2); border-color: var(--line); background: var(--surface-2); color: var(--ink); }
 .efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item > span { min-width: 0; align-self: center; }
 .efetivo-dialog.project-workflow-checklist-dialog .project-workflow-checklist-item .project-workflow-documentation-choice { grid-column: 2; margin: 0; justify-self: end; }
