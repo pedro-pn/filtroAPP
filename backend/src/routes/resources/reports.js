@@ -102,7 +102,7 @@ import {
 } from '../../lib/reports/manual-operational-data.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
-import { createReportPdfAccessChecker, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
+import { createReportPdfAccessChecker, reportDateFromWhere, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
 import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink } from '../../lib/reports/collaborator-access.js';
 export { collaboratorCanAccessReportProject } from '../../lib/reports/collaborator-access.js';
 import { createProjectSystemsRouter } from './project-systems.js';
@@ -5694,7 +5694,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
 // listagem (`GET /`) e os contadores (`POST /counts`) usem exatamente a mesma lógica de filtro
 // e visibilidade por papel — assim o total dos badges nunca diverge da lista paginada.
 async function buildReportListWhere(auth, query) {
-  const where = { deletedAt: null, project: activeReportProjectWhere(), reportType: { notIn: [...OPERATIONAL_REPORT_TYPES] } };
+  const where = { deletedAt: null, project: activeReportProjectWhere(), reportType: { notIn: [...OPERATIONAL_REPORT_TYPES] }, ...reportDateFromWhere(query.reportDateFrom) };
   const statusFilter = parseReportStatusFilter(query);
   const searchTerm = parseReportSearchTerm(query);
   const usingReviewQueueFilter = applyReportReviewQueueFilter(where, query.reviewQueue);

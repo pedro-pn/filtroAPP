@@ -7,9 +7,23 @@ import {
   buildProjectAppropriationDays,
   buildProjectDetailCollaborator,
   buildProjectReportHours,
+  buildRdoSignatureSummary,
   buildRecentReportDays
 } from '../src/lib/acompanhamento/project-detail.js';
 import { isSalaryCategory } from '../src/lib/acompanhamento/salary.js';
+
+test('assinaturas contam RDOs de todos os estados, sem outros tipos ou excluídos', () => {
+  const reports = ['PENDING', 'RETURNED', 'APPROVED', 'SIGNED', 'SIGNED'].map((status, index) => ({
+    id: `rdo-${index}`, reportType: 'RDO', status, reportDate: '2026-10-01'
+  }));
+  reports.push(
+    { reportType: 'RLQ', status: 'SIGNED' },
+    { reportType: 'RTP', status: 'APPROVED' },
+    { reportType: 'RDO', status: 'SIGNED', deletedAt: '2026-10-02' }
+  );
+  assert.deepEqual(buildRdoSignatureSummary(reports), { signed: 2, total: 5 });
+  assert.deepEqual(buildRdoSignatureSummary([]), { signed: 0, total: 0 });
+});
 
 test('isSalaryCategory: reconhece categorias de folha/mão de obra (acentos e caixa)', () => {
   assert.equal(isSalaryCategory('Salários e ordenados'), true);

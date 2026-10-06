@@ -9,6 +9,7 @@ import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { reportDownloadFileName } from '../../utils/reportFileName';
+import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { GroupedReportList } from '../reports/GroupedReportList';
 import { ReportSummaryCard } from '../reports/ReportSummaryCard';
 import { Modal } from '../ui/Modal';
@@ -39,15 +40,18 @@ function resolveProjectReportsMission(
 export function ProjectReportsDialog({
   projectId,
   missionLabel,
-  groupMembers
+  groupMembers,
+  signedReportDateFrom
 }: {
   projectId?: string;
   missionLabel: string;
   groupMembers?: MissionGroupMemberSummary[];
+  signedReportDateFrom?: string | null;
 }) {
   const { user } = useAuth();
   const showToast = useToast();
   const [open, setOpen] = useState(false);
+  const [signedOnly, setSignedOnly] = useState(false);
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
@@ -56,10 +60,11 @@ export function ProjectReportsDialog({
   const { missions, reportProjectId } = resolveProjectReportsMission(projectId, groupMembers, selectedProjectId);
   const filters = useMemo(() => ({
     summary: true,
-    statuses: ['APPROVED', 'SIGNED'],
+    statuses: signedOnly ? ['SIGNED'] : ['APPROVED', 'SIGNED'],
+    ...(signedOnly && signedReportDateFrom ? { reportDateFrom: signedReportDateFrom } : {}),
     projectId: reportProjectId,
     pageSize: REPORT_PAGE_SIZE
-  }), [reportProjectId]);
+  }), [reportProjectId, signedOnly, signedReportDateFrom]);
   const reportsQuery = useAccumulatedReportsPage(filters, canViewReports && open && Boolean(reportProjectId));
   const titleId = `project-reports-title-${reportProjectId}`;
   const pdfTitleId = `project-report-pdf-title-${reportProjectId}`;
@@ -115,16 +120,27 @@ export function ProjectReportsDialog({
         size="sm"
         variant="primary"
         className="acp-mission-reports-trigger"
-        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        onClick={() => { setSignedOnly(false); setOpen(true); }}
       >
         Ver relatórios
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className="acp-mission-reports-trigger"
+        aria-haspopup="dialog"
+        onClick={() => { setSignedOnly(true); setOpen(true); }}
+      >
+        Abrir assinados
       </Button>
       <Modal
         open={open && !pdfPreview}
         onClose={closeReports}
         closeOnBackdrop
         appearance="design-system"
-        title="Relatórios da missão"
+        title={signedOnly ? 'Relatórios assinados da missão' : 'Relatórios da missão'}
         size="lg"
         fullscreenOnMobile={false}
         ariaLabelledBy={titleId}
@@ -132,6 +148,9 @@ export function ProjectReportsDialog({
       >
         <div className="acp-mission-reports-dialog">
           <p className="acp-mission-reports-context">{missionLabel}</p>
+          {signedOnly && signedReportDateFrom ? (
+            <p className="acp-mission-reports-context">A partir de {formatDateOnlyPtBr(signedReportDateFrom)}</p>
+          ) : null}
           {groupMembers ? (
             <div className="acp-mission-reports-filter">
               <Field id={`project-reports-mission-${reportProjectId}`} label="Missão">
@@ -159,12 +178,16 @@ export function ProjectReportsDialog({
                 </Button>
               </div>
             ) : reportsQuery.items.length === 0 ? (
-              <EmptyState title="Nenhum relatório disponível" description="Esta missão ainda não possui relatório aprovado ou assinado." />
+              <EmptyState title="Nenhum relatório disponível" description={signedOnly
+                ? signedReportDateFrom
+                  ? 'Nenhum relatório assinado a partir da data de início deste escopo.'
+                  : 'Esta missão ainda não possui relatório assinado.'
+                : 'Esta missão ainda não possui relatório aprovado ou assinado.'} />
             ) : (
               <GroupedReportList
                 appearance="design-system"
                 defaultTypeCollapsed
-                key={reportProjectId}
+                key={`${reportProjectId}-${signedOnly}-${filters.reportDateFrom ?? ''}`}
                 reports={reportsQuery.items}
                 archived={false}
                 onLoadMoreType={reportsQuery.loadMoreGroup}

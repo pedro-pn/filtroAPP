@@ -402,6 +402,14 @@ export function buildProjectTimelineDates({ division = null, startDate = null, m
     : { mobilizationDate, startDate };
 }
 
+export function buildRdoSignatureSummary(reports = []) {
+  const rdos = reports.filter(report => report.reportType === 'RDO' && !report.deletedAt);
+  return {
+    signed: rdos.filter(report => report.status === 'SIGNED').length,
+    total: rdos.length
+  };
+}
+
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true,
@@ -443,6 +451,7 @@ export async function getProjectDetail(projectId, {
         id: true,
         projectId: true,
         reportType: true,
+        status: true,
         sequenceNumber: true,
         reportDate: true, specialConditions: true, totalOvertimeMinutes: true,
         daytimeCount: true,
@@ -749,6 +758,7 @@ export async function getProjectDetail(projectId, {
     businessDays,
     stoppedDays,
     diasTrabalhados,
+    rdoSignatures: buildRdoSignatureSummary(queriedReports),
     proposalPercentage: division ? null : row.proposalPercentage ?? 100,
     fullPlannedDays: division ? null : toNum(row.fullPlannedDays ?? row.plannedDays),
     fullWorkedDays: division ? null : toNum(row.fullWorkedDays ?? row.workedDays),

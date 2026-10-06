@@ -994,6 +994,10 @@ export interface ProjectDetail {
   };
   businessDays?: number | null;
   stoppedDays?: number | null;
+  rdoSignatures?: {
+    signed: number;
+    total: number;
+  };
   diasTrabalhados: {
     worked: number;
     planned: number | null;

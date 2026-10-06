@@ -18,6 +18,7 @@ test('relatórios permanecem na execução em projeto individual e grupo mesclad
   assert.match(source, /<Modal open=\{scopeOpen\}[\s\S]*?<PlannedScopeView/);
   assert.match(source, /isGroup \? Boolean\(data\.group\?\.members\.some\(member => member\.visible !== false\)\) : Boolean\(projectId\)/);
   assert.match(source, /groupMembers=\{isGroup \? data\.group\?\.members : undefined\}/);
+  assert.match(source, /signedReportDateFrom=\{data\.division\?\.startDate\}/);
 });
 
 test('diálogo exige papel de gestor ou coordenador do módulo RDO', async () => {
@@ -61,7 +62,7 @@ test('diálogo replica os cards aprovados em modo consulta e oferece somente aç
   const dialogSource = await readSource('src/components/projects/ProjectReportsDialog.tsx');
   const cardSource = await readSource('src/components/reports/ReportSummaryCard.tsx');
 
-  assert.match(dialogSource, /statuses: \['APPROVED', 'SIGNED'\]/);
+  assert.match(dialogSource, /statuses: signedOnly \? \['SIGNED'\] : \['APPROVED', 'SIGNED'\]/);
   assert.match(dialogSource, /projectId: reportProjectId/);
   assert.match(dialogSource, /<GroupedReportList/);
   assert.match(dialogSource, /defaultTypeCollapsed/);
@@ -104,4 +105,21 @@ test('visualizador usa PDF.js localmente e permite baixar o arquivo autenticado'
   assert.match(viewerSource, /getDocument\(\{ data \}\)/);
   assert.match(viewerSource, /page\.render\(/);
   assert.match(viewerSource, /Página \{pageNumber\} de \{pageCount \|\| '—'\}/);
+});
+
+test('cache de relatórios assinados exclui datas anteriores ao início do escopo', async () => {
+  const source = await readSource('src/hooks/useReports.ts');
+  const tree = ts.createSourceFile('useReports.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const filter = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'reportMatchesAccumulatedReportsFilters');
+  assert.ok(filter);
+  const code = ts.transpileModule(`${filter.getText(tree)}\nreportMatchesAccumulatedReportsFilters;`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  const matches = runInNewContext(code, { reportMatchesSearch: () => true });
+  const filters = { projectId: 'p1', statuses: ['SIGNED'], reportDateFrom: '2026-09-10' };
+  const report = { projectId: 'p1', status: 'SIGNED', reportDate: '2026-09-09T23:59:59.999Z' };
+  assert.equal(matches(report, filters), false);
+  assert.equal(matches({ ...report, reportDate: '2026-09-10T00:00:00.000Z' }, filters), true);
+  assert.equal(matches({ ...report, reportDate: '2026-09-20T12:00:00.000Z' }, filters), true);
+  assert.equal(matches(report, { ...filters, reportDateFrom: undefined }), true);
 });

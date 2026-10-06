@@ -223,7 +223,11 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.match(time, /Dias úteis/);
       assert.match(time, /Último RDO/);
       assert.match(time, /09\/09\/2026/);
-      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 5);
+      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 6);
+      assert.match(time, /RDOs assinados<\/span><strong>5 \/ 8/);
+      assert.match(time, /Assinados \/ total de RDOs/);
+      const zeroRdos = render(story.ProjectTimeSnapshot, { data: { ...detail, rdoSignatures: { signed: 0, total: 0 } } });
+      assert.match(zeroRdos, /RDOs assinados<\/span><strong>0 \/ 0/);
       assert.match(time, /acp-story-hours-meter/);
       assert.match(time, /Normais 220h/);
       assert.match(time, /HE 40h/);
