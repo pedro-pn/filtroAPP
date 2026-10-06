@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type HTMLAttributes,
   type ReactNode
 } from 'react';
@@ -15,6 +16,8 @@ import { Skeleton } from '../Skeleton';
 import { Spinner } from '../Spinner';
 import { joinClassNames } from '../utils';
 import { MobileList } from './MobileList';
+import { sortTableRows } from './sortRows';
+import { tableSortText } from '../../../../utils/tableSort';
 import type {
   DataTableColumn,
   DataTableDensity,
@@ -160,6 +163,13 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   const mobileViewport = useListingMobileViewport(mobileBreakpoint);
   const isMobile = layout === 'cards' || mobileViewport;
+  const [localSort, setLocalSort] = useState<DataTableSort | null>(null);
+  const activeSort = onSortChange ? sort : localSort ?? sort;
+  const displayedRows = useMemo(
+    () => onSortChange ? rows : sortTableRows(rows, columns, activeSort),
+    [rows, columns, activeSort, onSortChange]
+  );
+  const sortableColumns = columns.filter(column => column.sortable !== false);
   const selectedIds = selection?.selectedRowIds ?? EMPTY_ROW_IDS;
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectableRows = selection
@@ -196,12 +206,14 @@ export function DataTable<T>({
   }
 
   function handleSort(column: DataTableColumn<T>) {
-    if (!column.sortable || !onSortChange || disabled) return;
-    onSortChange({
+    if (column.sortable === false || disabled) return;
+    const nextSort: DataTableSort = {
       key: column.key,
       direction:
-        sort?.key === column.key && sort.direction === 'asc' ? 'desc' : 'asc'
-    });
+        activeSort?.key === column.key && activeSort.direction === 'asc' ? 'desc' : 'asc'
+    };
+    if (onSortChange) onSortChange(nextSort);
+    else setLocalSort(nextSort);
   }
 
   const mobileRenderItem = (row: T, index: number) => {
@@ -256,9 +268,30 @@ export function DataTable<T>({
       ) : null}
 
       {isMobile ? (
+        <>
+        {sortableColumns.length ? <div className="fv-data-table__mobile-sort">
+          <label>
+            Ordenar por
+            <select aria-label={`Ordenar ${ariaLabel} por coluna`} disabled={disabled}
+              value={activeSort?.key ?? ''}
+              onChange={event => {
+                const column = sortableColumns.find(candidate => candidate.key === event.target.value);
+                if (column) handleSort(column);
+              }}>
+              <option value="" disabled>Selecionar coluna</option>
+              {sortableColumns.map(column => <option key={column.key} value={column.key}>{tableSortText(column.header)}</option>)}
+            </select>
+          </label>
+          <button type="button" className="fv-data-table__sort" disabled={disabled || !activeSort}
+            aria-label={`Alternar ordem de ${ariaLabel}`}
+            onClick={() => {
+              const column = sortableColumns.find(candidate => candidate.key === activeSort?.key);
+              if (column) handleSort(column);
+            }}>{activeSort?.direction === 'desc' ? 'Decrescente ↓' : 'Crescente ↑'}</button>
+        </div> : null}
         <MobileList
           className="fv-data-table__mobile"
-          items={rows}
+          items={displayedRows}
           getItemId={getRowId}
           renderItem={mobileRenderItem}
           selection={selection}
@@ -271,6 +304,7 @@ export function DataTable<T>({
           disabled={disabled}
           ariaLabel={mobile.ariaLabel ?? ariaLabel}
         />
+        </>
       ) : (
         <div className="fv-data-table__desktop" inert={disabled || undefined}>
           <table className="fv-data-table__table" aria-label={ariaLabel}>
@@ -305,17 +339,17 @@ export function DataTable<T>({
                   </th>
                 ) : null}
                 {columns.map((column) => {
-                  const isActiveSort = sort?.key === column.key;
+                  const isActiveSort = activeSort?.key === column.key;
                   const ariaSort = isActiveSort
-                    ? sort?.direction === 'asc'
+                    ? activeSort?.direction === 'asc'
                       ? 'ascending'
                       : 'descending'
-                    : column.sortable
+                    : column.sortable !== false
                       ? 'none'
                       : undefined;
                   const sortIcon = !isActiveSort
                     ? DS_ICONS.sort
-                    : sort?.direction === 'asc'
+                    : activeSort?.direction === 'asc'
                       ? DS_ICONS.sortAscending
                       : DS_ICONS.sortDescending;
 
@@ -329,12 +363,12 @@ export function DataTable<T>({
                       scope="col"
                       aria-sort={ariaSort}
                     >
-                      {column.sortable ? (
+                      {column.sortable !== false ? (
                         <button
                           className="fv-data-table__sort"
                           type="button"
-                          disabled={disabled || !onSortChange}
-                          aria-label={column.sortLabel}
+                          disabled={disabled}
+                          aria-label={column.sortLabel ?? `${tableSortText(column.header)}: ordenar em ordem ${isActiveSort && activeSort?.direction === 'asc' ? 'decrescente' : 'crescente'}`}
                           onClick={() => handleSort(column)}
                         >
                           <span>{column.header}</span>
@@ -384,7 +418,7 @@ export function DataTable<T>({
                   </td>
                 </tr>
               ) : (
-                rows.map((row, rowIndex) => {
+                displayedRows.map((row, rowIndex) => {
                   const rowId = getRowId(row);
                   const isSelectable =
                     Boolean(selection) &&

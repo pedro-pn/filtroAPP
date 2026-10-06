@@ -1,0 +1,25 @@
+.fv-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.fv-table-sort:hover {
+  color: var(--primary);
+}
+.fv-table-sort:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--primary));
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.fv-table-sort > span:last-child {
+  flex-shrink: 0;
+}

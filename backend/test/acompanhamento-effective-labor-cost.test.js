@@ -95,7 +95,7 @@ test('mobilização em 20/09 inclui dez dias de custo antes do primeiro RDO de 3
   assert.equal(detail.horasDeslocamento, 0);
 
   const division = divisionLaborAllocation({ pontoImport: {}, byCollaboratorId }, 'p1', {
-    startDate: '2026-09-20', endDate: '2026-09-29'
+    startDate: '2026-09-20', mobilizationDate: '2026-09-20', endDate: '2026-09-29'
   });
   near(division.total.hours, 88);
   assert.ok(division.total.laborCost > 0);

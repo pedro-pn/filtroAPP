@@ -152,9 +152,9 @@ export function StockItemsTab({ isManager }: Props) {
   }
 
   const columns: DataTableColumn<StockItem>[] = [
-    { key: 'item', header: 'Item', rowHeader: true, render: item => <div className="stock-table-identity"><strong>{item.code} · {item.name}</strong><small>{itemSubtitle(item) || typeLabel(item.type)}</small></div> },
+    { key: 'item', sortValue: item => `${item.code} ${item.name}`, header: 'Item', rowHeader: true, render: item => <div className="stock-table-identity"><strong>{item.code} · {item.name}</strong><small>{itemSubtitle(item) || typeLabel(item.type)}</small></div> },
     { key: 'category', header: 'Categoria', render: item => item.category?.name || 'Sem categoria' },
-    { key: 'unit', header: 'Unidade / mínimo', render: item => <><strong>{item.unitLabel}</strong>{item.minQuantity ? <small className="stock-table-muted">Mín. {item.minQuantity}</small> : null}</> },
+    { key: 'unit', sortValue: item => item.unitLabel, header: 'Unidade / mínimo', render: item => <><strong>{item.unitLabel}</strong>{item.minQuantity ? <small className="stock-table-muted">Mín. {item.minQuantity}</small> : null}</> },
     { key: 'location', header: 'Local', render: item => item.location || '—' },
     { key: 'documents', header: 'Documentos', render: renderDocuments },
     { key: 'status', header: 'Situação', render: item => <Badge tone={item.isActive ? 'success' : 'danger'}>{item.isActive ? 'Ativo' : 'Inativo'}</Badge> }

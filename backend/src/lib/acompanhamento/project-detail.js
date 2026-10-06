@@ -36,7 +36,7 @@ import { getAnnualCollaboratorCosts } from './settings.js';
 import { isSalaryCategory } from './salary.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
-import { dateInDivision, divisionDateWhere } from './tracking-divisions.js';
+import { dateInDivision, divisionDateWhere, divisionLaborPeriod } from './tracking-divisions.js';
 import { getProjectInvoices } from './project-invoices.js';
 
 function toNum(value) {
@@ -274,7 +274,7 @@ export function buildProjectDetailCollaborator({
       relatorios: reportSourcesByDate.get(data) || []
     }));
   const diasApropriados = projectId && rate
-    ? buildProjectAppropriationDays(rate, projectId).filter(day => dateInDivision(day.data, division))
+    ? buildProjectAppropriationDays(rate, projectId).filter(day => dateInDivision(day.data, divisionLaborPeriod(division)))
     : [];
 
   return {
@@ -357,11 +357,12 @@ export function buildRecentReportDays(byDay, project, limit = 10) {
 // pelas horas apropriadas em cada dia do mesmo mês para obter o recorte.
 export function divisionLaborAllocation(labor, projectId, division) {
   if (!division) return { total: labor.byProjectId.get(projectId) ?? null, byCollaboratorId: null };
-  if (!labor.pontoImport) return { total: null, byCollaboratorId: new Map() };
+  if (!labor.pontoImport || !division.mobilizationDate) return { total: null, byCollaboratorId: new Map() };
+  const period = divisionLaborPeriod(division);
   const byCollaboratorId = new Map();
   const total = { laborCost: 0, laborCostBase: 0, hours: 0 };
   for (const [id, rate] of labor.byCollaboratorId ?? []) {
-    const days = buildProjectAppropriationDays(rate, projectId).filter(day => dateInDivision(day.data, division));
+    const days = buildProjectAppropriationDays(rate, projectId).filter(day => dateInDivision(day.data, period));
     if (!days.length) continue;
     const alloc = { cost: 0, costBase: 0, hours: 0, travelHours: 0 };
     for (const month of rate.months ?? []) {
@@ -394,11 +395,17 @@ function purchaseDivisionWhere(division) {
 }
 
 export function buildProjectCalendarPeriod({ division = null, startDate = null, referenceDate = new Date() } = {}) {
-  const activeStartDate = division?.mobilizationDate ?? division?.startDate ?? startDate;
+  const activeStartDate = division ? division.mobilizationDate ?? null : startDate;
   return {
     startDate: activeStartDate,
     elapsed: activeStartDate ? Math.max(0, diffCalendarDays(activeStartDate, referenceDate) ?? 0) : null
   };
+}
+
+export function buildProjectTimelineDates({ division = null, startDate = null, mobilizationDate = null } = {}) {
+  return division
+    ? { mobilizationDate: division.mobilizationDate ?? null, startDate: division.startDate }
+    : { mobilizationDate, startDate };
 }
 
 export async function getProjectDetail(projectId, {
@@ -493,8 +500,8 @@ export async function getProjectDetail(projectId, {
     custo: laborAgg?.laborCost ?? null, // com adicional offshore
     custoBase: laborAgg?.laborCostBase ?? null, // sem offshore
     horas: laborAgg?.hours ?? null,
-    periodStart: division?.startDate ?? labor.periodStart ?? null,
-    periodEnd: division?.endDate ?? labor.periodEnd ?? null
+    periodStart: division ? division.mobilizationDate ?? null : labor.periodStart ?? null,
+    periodEnd: division ? division.endDate ?? new Date().toISOString().slice(0, 10) : labor.periodEnd ?? null
   };
 
   // --- Custos (Omie), excluindo salários ---
@@ -692,7 +699,7 @@ export async function getProjectDetail(projectId, {
     reports
   );
 
-  const expectedEndDate = division?.endDate ?? (activeStartDate && plannedDays ? addCalendarDays(activeStartDate, plannedDays) : null);
+  const expectedEndDate = division ? division.endDate ?? null : (activeStartDate && plannedDays ? addCalendarDays(activeStartDate, plannedDays) : null);
   const avancoPct = projectProgress.progressPct ?? null;
   const projectedEndByPace = (activeStartDate && elapsedCorridos && elapsedCorridos > 0 && avancoPct && avancoPct > 0)
     ? addCalendarDays(activeStartDate, elapsedCorridos * (100 / avancoPct))
@@ -788,8 +795,7 @@ export async function getProjectDetail(projectId, {
     equipamentos,
     division: integralDivision ?? null,
     footer: {
-      mobilizationDate: division ? null : project?.mobilizationDate ?? null,
-      startDate: activeStartDate ?? null,
+      ...buildProjectTimelineDates({ division, startDate: row.startDate, mobilizationDate: project?.mobilizationDate }),
       expectedEndDate,
       projectedEndByPace
     }

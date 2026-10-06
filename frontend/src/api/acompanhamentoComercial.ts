@@ -1072,6 +1072,8 @@ export interface TrackingDivision {
   plannedDays: number | null;
 }
 
+export type TrackingDivisionInput = Omit<TrackingDivision, 'mobilizationDate'> & { mobilizationDate: string };
+
 export interface TrackingDivisionCandidate {
   key: string;
   kind: 'SCOPE' | 'EQUIPMENT';
@@ -1092,8 +1094,13 @@ export async function getTrackingDivisions(projectId: string): Promise<TrackingD
   return data;
 }
 
-export async function saveTrackingDivisions(projectId: string, divisions: TrackingDivision[]): Promise<TrackingDivisionsResponse> {
+export async function saveTrackingDivisions(projectId: string, divisions: TrackingDivisionInput[]): Promise<TrackingDivisionsResponse> {
   const { data } = await apiClient.put<TrackingDivisionsResponse>(`/acompanhamento/comercial/projetos/${projectId}/divisoes`, { divisions });
+  return data;
+}
+
+export async function saveTrackingDivision(projectId: string, division: TrackingDivisionInput): Promise<TrackingDivisionsResponse> {
+  const { data } = await apiClient.patch<TrackingDivisionsResponse>(`/acompanhamento/comercial/projetos/${projectId}/divisoes`, { division });
   return data;
 }
 

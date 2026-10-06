@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { useMemo } from 'react';
 
 import type { EquipmentCategory } from '../../api/equipamentos';
@@ -81,7 +82,7 @@ export function CategoryManager({ categories, linkedCategoryIds, reportTypesByCa
         </div>
       ) : (
         <div className="equip-category-manager__table-wrap">
-          <table className="equip-category-manager__table">
+          <SortableTable className="equip-category-manager__table">
             <thead><tr><th scope="col">Categoria</th><th scope="col">Configurações</th><th scope="col">Relatórios</th><th scope="col">Ações</th></tr></thead>
             <tbody>
               {ordered.map(category => (
@@ -93,7 +94,7 @@ export function CategoryManager({ categories, linkedCategoryIds, reportTypesByCa
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
         </div>
       ))}
     </section>

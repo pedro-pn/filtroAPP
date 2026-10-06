@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { getProjectDetail, getPlannedScope, saveTrackingDivisions, type TrackingDivision, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
+import { getProjectDetail, getPlannedScope, saveTrackingDivision, saveTrackingDivisions, type TrackingDivision, type TrackingDivisionInput, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
 import { percentageForProjectValue, percentageOfProjectTotal, type TrackingDivisionPlannedField } from '../../utils/trackingDivisionPercentage';
 import { Modal } from '../ui/Modal';
 import { Alert, Button, EmptyState, Field, Input, Switch } from '../ui/ds';
@@ -38,15 +38,21 @@ function formatPlannedValue(field: TrackingDivisionPlannedField, value: number):
   return `${value.toLocaleString('pt-BR')}${field === 'plannedHours' ? ' h' : ' dias'}`;
 }
 
-export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
+export function ProjectTrackingDivisionsPanel({ projectId, data, selectedDivisionKey, onClose }: {
   projectId: string;
   data: TrackingDivisionsResponse;
+  selectedDivisionKey?: string;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Record<string, Draft>>(() => draftFromRows(data.divisions));
   const [percentDraft, setPercentDraft] = useState<Record<string, Partial<Record<TrackingDivisionPlannedField, string>>>>({});
   const [error, setError] = useState<string | null>(null);
+  const candidates = data.candidates.flatMap(scope => [scope, ...(scope.equipments ?? [])]);
+  const selectedCandidate = candidates.find(candidate => candidate.key === selectedDivisionKey);
+  const visibleScopes = selectedDivisionKey
+    ? data.candidates.filter(scope => scope.key === selectedDivisionKey || scope.equipments?.some(item => item.key === selectedDivisionKey))
+    : data.candidates;
   const { data: projectTotal, isPending: projectTotalLoading, isError: projectTotalError } = useQuery({
     queryKey: ['project-detail', projectId],
     queryFn: () => getProjectDetail(projectId)
@@ -59,7 +65,12 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
     plannedDays: projectTotal?.fullPlannedDays ?? projectTotal?.diasCorridos.planned ?? null
   };
   const save = useMutation({
-    mutationFn: (rows: TrackingDivision[]) => saveTrackingDivisions(projectId, rows),
+    mutationFn: (rows: TrackingDivisionInput[]) => {
+      if (!selectedDivisionKey) return saveTrackingDivisions(projectId, rows);
+      const row = rows.find(item => item.key === selectedDivisionKey);
+      if (!row) throw new Error('Divisão não encontrada.');
+      return saveTrackingDivision(projectId, row);
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['tracking-divisions', projectId] }),
@@ -91,13 +102,15 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const rows: TrackingDivision[] = [];
-    for (const candidate of data.candidates.flatMap(scope => [scope, ...(scope.equipments ?? [])])) {
+    const rows: TrackingDivisionInput[] = [];
+    for (const candidate of candidates) {
+      if (selectedDivisionKey && candidate.key !== selectedDivisionKey) continue;
       const item = draft[candidate.key];
       if (!item?.enabled) continue;
-      if (!item.startDate) { setError(`Informe a data inicial de ${candidate.label}.`); return; }
-      if (item.endDate && item.endDate < item.startDate) { setError(`Confira a data final de ${candidate.label}.`); return; }
-      if (item.endDate && item.mobilizationDate > item.endDate) { setError(`Confira a mobilização inicial de ${candidate.label}.`); return; }
+      if (!item.startDate) { setError(`Informe o início do escopo de ${candidate.label}.`); return; }
+      if (!item.mobilizationDate) { setError(`Informe a mobilização do escopo de ${candidate.label}.`); return; }
+      if (item.endDate && item.endDate < item.startDate) { setError(`Confira o fim do escopo de ${candidate.label}.`); return; }
+      if (item.endDate && item.mobilizationDate > item.endDate) { setError(`Confira a mobilização do escopo de ${candidate.label}.`); return; }
       const planned = Object.fromEntries(plannedFields.map(([field]) => {
         const percentage = percentDraft[candidate.key]?.[field];
         if (percentage === undefined) return [field, numeric(item[field])];
@@ -115,7 +128,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
         setError(`Dias previstos devem ser inteiros em ${candidate.label}.`); return;
       }
       rows.push({ key: candidate.key, startDate: item.startDate, endDate: item.endDate || null,
-        mobilizationDate: item.mobilizationDate || null,
+        mobilizationDate: item.mobilizationDate,
         plannedCost: planned.plannedCost, plannedRevenue: planned.plannedRevenue,
         plannedHours: planned.plannedHours, plannedDays: planned.plannedDays });
     }
@@ -128,22 +141,22 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
       .findIndex(entry => entry.key === candidate.key);
     const fieldId = (field: string) => `acp-division-${index}-${field}`;
     return <div className="acp-tracking-division-row" key={candidate.key}>
-      <Switch
+      {!selectedDivisionKey ? <Switch
         checked={item.enabled}
         disabled={save.isPending}
         label={candidate.kind === 'SCOPE' ? 'Aba do escopo' : candidate.label}
         description={candidate.kind === 'EQUIPMENT' ? `${candidate.systemCount ?? 0} sistema${candidate.systemCount === 1 ? '' : 's'} agrupado${candidate.systemCount === 1 ? '' : 's'}` : undefined}
         onChange={event => update(candidate.key, { enabled: event.target.checked })}
-      />
+      /> : null}
       {item.enabled ? <div className="acp-tracking-division-fields">
-        <Field id={fieldId('start')} label="Início" required>
+        <Field id={fieldId('start')} label="Início do escopo" required helperText="Data de corte para considerar os gastos e faturamentos deste escopo. Preencha manualmente.">
           <Input size="sm" type="date" required disabled={save.isPending} value={item.startDate} onChange={event => update(candidate.key, { startDate: event.target.value })} />
         </Field>
-        <Field id={fieldId('end')} label="Fim" optionalText="Opcional">
+        <Field id={fieldId('end')} label="Fim do escopo" optionalText="Opcional" helperText="Fim deste escopo. Se vazio, considera até hoje, sem usar o fim do projeto completo.">
           <Input size="sm" type="date" min={item.startDate || undefined} disabled={save.isPending} value={item.endDate} onChange={event => update(candidate.key, { endDate: event.target.value })} />
         </Field>
-        <Field id={fieldId('mobilization')} label="Mobilização inicial" optionalText="Opcional" helperText="Início da contagem dos dias corridos. Se vazio, usa a data de início.">
-          <Input size="sm" type="date" max={item.endDate || undefined} disabled={save.isPending} value={item.mobilizationDate} onChange={event => update(candidate.key, { mobilizationDate: event.target.value })} />
+        <Field id={fieldId('mobilization')} label="Mobilização do escopo" required helperText="Início da contagem dos dias corridos e da apuração dos colaboradores alocados neste escopo. Preencha manualmente.">
+          <Input size="sm" type="date" required max={item.endDate || undefined} disabled={save.isPending} value={item.mobilizationDate} onChange={event => update(candidate.key, { mobilizationDate: event.target.value })} />
         </Field>
         {plannedFields.map(([field, label]) => {
           const percentage = percentDraft[candidate.key]?.[field];
@@ -183,23 +196,24 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, onClose }: {
     </div>;
   }
 
-  return <Modal open onClose={onClose} appearance="design-system" title="Divisões do acompanhamento" size="lg"
+  return <Modal open onClose={onClose} appearance="design-system" title={selectedDivisionKey ? `Cronograma da divisão — ${selectedCandidate?.label ?? 'Divisão'}` : 'Divisões do acompanhamento'} size="lg"
     panelClassName="acp-tracking-divisions-panel" fullscreenOnMobile={false} closeOnEscape={!save.isPending}
     footer={<div className="acp-tracking-divisions-actions">
       <Button type="button" size="sm" variant="secondary" onClick={onClose} disabled={save.isPending}>Cancelar</Button>
-      <Button type="submit" size="sm" form="acp-tracking-divisions-form" loading={save.isPending}>Salvar divisões</Button>
+      <Button type="submit" size="sm" form="acp-tracking-divisions-form" loading={save.isPending}>{selectedDivisionKey ? 'Salvar divisão' : 'Salvar divisões'}</Button>
     </div>}>
     <form id="acp-tracking-divisions-form" className="acp-tracking-divisions-form" onSubmit={submit}>
-      <p className="acp-tracking-divisions-intro">Ative as abas desejadas por escopo e equipamento do cliente. Os sistemas de cada equipamento ficam agrupados. Em cada meta, use o botão % para calcular pelo total do projeto. Dias calculados são arredondados para o inteiro mais próximo. Sem data final, o período vai até hoje.</p>
+      <p className="acp-tracking-divisions-intro">{selectedDivisionKey ? 'Edite as datas e metas desta divisão. Sem data final, o período vai até hoje.' : 'Ative as abas desejadas por escopo e equipamento do cliente. Os sistemas de cada equipamento ficam agrupados. Em cada meta, use o botão % para calcular pelo total do projeto. Dias calculados são arredondados para o inteiro mais próximo. Sem data final, o período vai até hoje.'}</p>
+      <p className="acp-tracking-divisions-intro">As datas de cada divisão são independentes das datas do projeto completo e das demais divisões.</p>
       <p className="acp-tracking-divisions-intro">Cadastre os valores integrais das metas. O percentual da proposta definido no cronograma será aplicado aos indicadores de cada divisão.</p>
-      {data.candidates.length ? data.candidates.map(scope => <section className="acp-tracking-division-scope" key={scope.key}>
+      {visibleScopes.length ? visibleScopes.map(scope => <section className="acp-tracking-division-scope" key={scope.key}>
           <div className="acp-tracking-division-scope-head">
             <h3>{scope.label}</h3>
             <small>{scope.equipments?.length ?? 0} equipamento{scope.equipments?.length === 1 ? '' : 's'}</small>
           </div>
-          {fields(scope)}
-          {(scope.equipments ?? []).length ? <div className="acp-tracking-division-system-list">
-            {(scope.equipments ?? []).map(fields)}
+          {!selectedDivisionKey || scope.key === selectedDivisionKey ? fields(scope) : null}
+          {(scope.equipments ?? []).some(item => !selectedDivisionKey || item.key === selectedDivisionKey) ? <div className="acp-tracking-division-system-list">
+            {(scope.equipments ?? []).filter(item => !selectedDivisionKey || item.key === selectedDivisionKey).map(fields)}
           </div> : null}
         </section>) : <EmptyState title="Nenhum escopo cadastrado" description="Cadastre o escopo previsto no cronograma para criar divisões." />}
       {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}

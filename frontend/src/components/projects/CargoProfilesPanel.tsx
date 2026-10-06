@@ -163,10 +163,10 @@ export function CargoProfilesPanel() {
             rows={history}
             getRowId={entry => `${entry.effectiveDate}-${entry.updatedAt ?? ''}`}
             columns={[
-              { key: 'date', header: 'Vigente desde', render: entry => fmtDate(entry.effectiveDate) },
+              { key: 'date', sortValue: entry => entry.effectiveDate, header: 'Vigente desde', render: entry => fmtDate(entry.effectiveDate) },
               { key: 'model', header: 'Modelo', render: entry => modelLabel(entry.params?.baseModel, models) },
               { key: 'salary', header: 'Salário base', render: entry => moneyParam(entry, 'salarioBase') },
-              { key: 'saved', header: 'Salvo em', render: entry => fmtDateTime(entry.updatedAt) }
+              { key: 'saved', sortValue: entry => entry.updatedAt, header: 'Salvo em', render: entry => fmtDateTime(entry.updatedAt) }
             ]}
             mobile={{ renderItem: entry => ({
               title: fmtDate(entry.effectiveDate),

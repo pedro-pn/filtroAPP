@@ -40,7 +40,7 @@ export function PlannedHoursReview({ plan, disabled, canManage, onResolve }: {
               { key: 'kind', header: 'Horas', rowHeader: true, render: kind => labels[kind] },
               { key: 'manual', header: 'Manual', render: kind => plan.manual ? hours(plan.manual[kind]) : 'Não cadastrado' },
               { key: 'commercial', header: 'Comercial', render: kind => hours(plan.commercial![kind]) },
-              { key: 'difference', header: 'Diferença', render: kind => {
+              { key: 'difference', header: 'Diferença', sortValue: kind => plan.differences.find(item => item.kind === kind)?.hours, render: kind => {
                 const difference = plan.differences.find(item => item.kind === kind);
                 return <>{difference ? `${hours(difference.hours)}${difference.percent == null ? '' : ` (${difference.percent.toLocaleString('pt-BR')}%)`}` : '—'}{plan.pending && difference?.significant ? ' ⚠' : ''}</>;
               } }

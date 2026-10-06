@@ -1,3 +1,4 @@
+import { SortableTable } from '../ui/SortableTable';
 import type { DailyProgressPoint } from '../../api/acompanhamentoComercial';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { Card } from '../ui/ds';
@@ -81,7 +82,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
         {rows.length === 0 ? <p className="acp-scope-daily__empty">Ainda não há avanço diário registrado para este recorte.</p>
         : measures.length === 0 ? <p className="acp-scope-daily__empty">Sem quantitativos de execução por serviço para este recorte.</p> : <>
           <div className="acp-scope-daily__table-wrap">
-            <table>
+            <SortableTable>
               <caption className="sr-only">Produção diária por serviço e avanço acumulado do escopo</caption>
               <thead><tr>
                 <th scope="col">Data</th>
@@ -93,7 +94,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
                 <th scope="col">Avanço acumulado</th>
               </tr></thead>
               <tbody>{rows.map(({ point, services, totals }) => <tr key={point.date}>
-                <th scope="row">{formatDateOnlyPtBr(point.date)}</th>
+                <th scope="row" data-sort-value={point.date}>{formatDateOnlyPtBr(point.date)}</th>
                 <td>{weekdayFormatter.format(validDate(point.date)!)}</td>
                 {services.map((value, index) => <td key={`${measures[index].serviceType}:${measures[index].unit}`}>
                   {value == null ? '—' : formatQuantity(value)}
@@ -104,9 +105,9 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
                     {value == null ? '—' : formatQuantity(value)}
                   </td>;
                 })}
-                <td className="acp-scope-daily__total">{fmtPct(point.progressPct)}</td>
+                <td className="acp-scope-daily__total" data-sort-value={point.progressPct}>{fmtPct(point.progressPct)}</td>
               </tr>)}</tbody>
-            </table>
+            </SortableTable>
           </div>
           <div className="acp-scope-daily__mobile" aria-label="Avanço diário em cartões">
             {rows.map(({ point, services, totals }) => {

@@ -114,9 +114,9 @@ export function ProjectCollaboratorHoursContent({ collaborator, source = 'POINT'
               mobileBreakpoint="md"
               emptyState={<EmptyState title="Nenhuma jornada de relatório encontrada" description="Este colaborador ainda não tem jornada registrada em RDO." />}
               columns={[
-                { key: 'date', header: 'Data', rowHeader: true, render: day => fmtDate(day.data) },
+                { key: 'date', sortValue: day => day.data, header: 'Data', rowHeader: true, render: day => fmtDate(day.data) },
                 { key: 'reports', header: 'Relatórios de origem', render: reportSources },
-                { key: 'hours', header: 'Jornada considerada', render: day => <strong>{fmtHours(day.horas)}</strong>, align: 'right' }
+                { key: 'hours', sortValue: day => day.horas, header: 'Jornada considerada', render: day => <strong>{fmtHours(day.horas)}</strong>, align: 'right' }
               ]}
               mobile={{ renderItem: day => ({
                 title: fmtDate(day.data),
@@ -134,11 +134,11 @@ export function ProjectCollaboratorHoursContent({ collaborator, source = 'POINT'
             mobileBreakpoint="md"
             emptyState={<EmptyState title="Nenhum dia apropriado encontrado" description="Não há horas do ponto atribuídas a este colaborador nesta missão." />}
             columns={[
-              { key: 'date', header: 'Data', rowHeader: true, render: day => fmtDate(day.data) },
+              { key: 'date', sortValue: day => day.data, header: 'Data', rowHeader: true, render: day => fmtDate(day.data) },
               { key: 'rdos', header: 'RDO', render: pointSources },
-              { key: 'normal', header: 'Normais', render: day => fmtHours(day.horasNormais), align: 'right' },
-              { key: 'overtime', header: 'Extras', render: day => fmtHours(day.horasExtras), align: 'right' },
-              { key: 'total', header: 'Total', render: day => <strong>{fmtHours(day.horas)}</strong>, align: 'right' },
+              { key: 'normal', sortValue: day => day.horasNormais, header: 'Normais', render: day => fmtHours(day.horasNormais), align: 'right' },
+              { key: 'overtime', sortValue: day => day.horasExtras, header: 'Extras', render: day => fmtHours(day.horasExtras), align: 'right' },
+              { key: 'total', sortValue: day => day.horas, header: 'Total', render: day => <strong>{fmtHours(day.horas)}</strong>, align: 'right' },
               { key: 'context', header: 'Contexto', render: day => day.semAtividade ? <Badge tone="neutral">Dia sem atividade/viagem</Badge> : day.emViagem ? <Badge tone="warning">Em viagem</Badge> : 'Obra' }
             ]}
             mobile={{ renderItem: day => ({
