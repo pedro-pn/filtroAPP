@@ -1,0 +1,964 @@
+// Cópia isolada para prévia. Fonte: frontend/src/components/projects/ProjectDetailDashboard.tsx
+import { PreviewSection } from '../PreviewSection';
+import { useRef, useState, type FormEvent } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Controller, useForm } from 'react-hook-form';
+
+import {
+  createProjectManagementNote,
+  createManualProjectCost,
+  deleteManualProjectCost,
+  getMissionGroupDetail,
+  getProjectPlanningContext,
+  getProjectDetail,
+  getProjectProgress,
+  getTrackingDivisions,
+  listProjectManagementNotes,
+  updateMissionGroupLaborPolicy,
+  type ManualProjectCost,
+  type ManualProjectCostPayload,
+  type ProjectDetailCollaborator,
+  type ProjectManagementNote,
+  type MissionGroupLaborAllocationMode,
+} from '../../src/api/acompanhamentoComercial';
+import { listProjectQualityDeviations, type ProjectDeviation } from '../../src/api/qualidade';
+import { qualityDeviationProjects } from '../../src/components/projects/projectQualityDeviations';
+import { Modal } from '../../src/components/ui/Modal';
+import { ProjectScheduleEditor, type ScheduleEditorHandle } from '../../src/components/projects/ProjectScheduleEditor';
+import { ProjectAdditionalProposalsNovelty } from '../../src/components/projects/ProjectAdditionalProposalsNovelty';
+import { ProjectCollaboratorHoursDialog } from '../../src/components/projects/ProjectCollaboratorHoursDialog';
+import { ProjectManualCostNovelty } from '../../src/components/projects/ProjectManualCostNovelty';
+import { ProjectLaborPolicyNovelty } from '../../src/components/projects/ProjectLaborPolicyNovelty';
+import { ProjectQualityDeviationsNovelty } from '../../src/components/projects/ProjectQualityDeviationsNovelty';
+import { ProjectProgressHistoryNovelty } from '../../src/components/projects/ProjectProgressHistoryNovelty';
+import { ProjectReportsDialog } from './ProjectReportsDialog';
+import { ProjectRomaneiosDialog } from '../../src/components/projects/ProjectRomaneiosDialog';
+import { ProjectInvoicesSection } from './ProjectInvoicesSection';
+import { ProjectStandbyHistoryDialog } from '../../src/components/projects/ProjectStandbyHistoryDialog';
+import { ProjectTrackingDivisionsPanel } from '../../src/components/projects/ProjectTrackingDivisionsPanel';
+import { ProjectStandbyHistoryNovelty } from '../../src/components/projects/ProjectStandbyHistoryNovelty';
+import { ProjectWeeklyTargetNovelty } from '../../src/components/projects/ProjectWeeklyTargetNovelty';
+import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
+import type { WeeklyTargetOwner } from '../../src/api/weeklyProgressTargets';
+import { acompanhamentoRefreshQueryOptions } from '../../src/components/projects/acompanhamentoRefresh';
+import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../../src/components/ui/ds';
+import { AppIcon } from '../../src/components/icons/AppIcon';
+import { ArrowLeft, CalendarDays } from 'lucide-react';
+import { ProjectDetailPeople } from '../../src/components/projects/ProjectDetailPeople';
+import { ProjectDetailTaxes } from '../../src/components/projects/ProjectDetailCosts';
+import { ProjectDetailOverview, ProjectDetailServiceComposition } from './ProjectDetailOverview';
+import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectTimeSnapshot } from './ProjectDetailStory';
+import { ProjectScopeDailyTable } from '../../src/components/projects/ProjectScopeDailyTable';
+import { brl, fmtDate, fmtDateTime, fmtPct, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from '../../src/components/projects/projectDetailModel';
+import '../../src/components/projects/ProjectDetailDashboard.ds.css';
+import type { AuthUser } from '../../src/types/auth';
+
+const equipmentNameCollator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+
+// Dashboard detalhado de um projeto (aberto ao clicar num card da aba Projetos).
+export function ProjectDetailDashboard({
+  projectId,
+  groupId,
+  canManage = false,
+  canManageDivisions = false,
+  canManageManualCosts = false,
+  canManageProjectNotes = false,
+  progressHistoryNoveltyUser = null,
+  onBack
+}: {
+  projectId?: string;
+  groupId?: string;
+  canManage?: boolean;
+  canManageDivisions?: boolean;
+  canManageManualCosts?: boolean;
+  canManageProjectNotes?: boolean;
+  progressHistoryNoveltyUser?: Pick<AuthUser, 'id'> | null;
+  onBack: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
+  const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
+  const [trackingDivisionKey, setTrackingDivisionKey] = useState('');
+  const [scheduleDirty, setScheduleDirty] = useState(false);
+  const [progressScopeKey, setProgressScopeKey] = useState('');
+  const [progressEquipmentKey, setProgressEquipmentKey] = useState('');
+  const [progressHistoryNoveltyActive, setProgressHistoryNoveltyActive] = useState(true);
+  const [weeklyTargetNoveltyActive, setWeeklyTargetNoveltyActive] = useState(true);
+  const [manualCostNoveltyActive, setManualCostNoveltyActive] = useState(true);
+  const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
+  const [qualityDeviationsNoveltyActive, setQualityDeviationsNoveltyActive] = useState(true);
+  const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
+  const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
+  const [standbyHistoryOpen, setStandbyHistoryOpen] = useState(false);
+  const [hoursDetail, setHoursDetail] = useState<{
+    collaborator: ProjectDetailCollaborator;
+    source: 'POINT' | 'REPORT';
+  } | null>(null);
+  const [expandedQualityDeviationIds, setExpandedQualityDeviationIds] = useState<Set<string>>(() => new Set());
+  const [manualCostFormOpen, setManualCostFormOpen] = useState(false);
+  const [manualCostError, setManualCostError] = useState<string | null>(null);
+  const [laborPolicyError, setLaborPolicyError] = useState<string | null>(null);
+  const [deletingManualCostId, setDeletingManualCostId] = useState<string | null>(null);
+  const [projectNoteContent, setProjectNoteContent] = useState('');
+  const [projectNoteError, setProjectNoteError] = useState<string | null>(null);
+  const { control, register, handleSubmit, reset, formState: { errors } } = useForm<ManualCostFormValues>({
+    defaultValues: manualCostFormDefaultValues,
+    resolver: manualCostFormResolver
+  });
+  const scheduleRef = useRef<ScheduleEditorHandle>(null);
+  const isGroup = Boolean(groupId);
+  const { data: trackingDivisions, isLoading: trackingDivisionsLoading, isError: trackingDivisionsError, refetch: reloadTrackingDivisions } = useQuery({
+    queryKey: ['tracking-divisions', projectId],
+    queryFn: () => getTrackingDivisions(projectId!),
+    enabled: !isGroup && Boolean(projectId),
+    ...acompanhamentoRefreshQueryOptions
+  });
+  const activeDivisionKey = trackingDivisions?.divisions.some(item => item.key === trackingDivisionKey) ? trackingDivisionKey : '';
+  const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])];
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: detailKey,
+    queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!, activeDivisionKey),
+    ...acompanhamentoRefreshQueryOptions
+  });
+  const projectNotesKey = ['project-management-notes', projectId] as const;
+  const {
+    data: projectNotes = [],
+    isLoading: projectNotesLoading,
+    isError: projectNotesLoadError,
+    refetch: refetchNotes
+  } = useQuery<ProjectManagementNote[]>({
+    queryKey: projectNotesKey,
+    queryFn: () => listProjectManagementNotes(projectId!),
+    enabled: !isGroup && Boolean(projectId)
+  });
+  const { data: projectProgress } = useQuery({
+    queryKey: ['project-progress', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])],
+    queryFn: () => getProjectProgress(projectId!, activeDivisionKey),
+    enabled: !isGroup && Boolean(projectId),
+    ...acompanhamentoRefreshQueryOptions
+  });
+  const planningReferenceDate = data?.header.lastRdoDate?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const { data: planningContext } = useQuery({
+    queryKey: ['acompanhamento-planning-context', projectId, planningReferenceDate],
+    queryFn: () => getProjectPlanningContext(projectId!, planningReferenceDate),
+    enabled: !isGroup && Boolean(projectId && data)
+  });
+  const deviationProjects = qualityDeviationProjects(data, projectId, isGroup);
+  const qualityDeviationQueries = useQueries({
+    queries: deviationProjects.map(deviationProject => ({
+      queryKey: ['qualidade', 'project-deviations', deviationProject.projectId],
+      queryFn: () => listProjectQualityDeviations(deviationProject.projectId)
+    }))
+  });
+  function toggleQualityDeviation(id: string) {
+    setExpandedQualityDeviationIds(current => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  const refreshCostViews = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: detailKey }),
+      queryClient.invalidateQueries({ queryKey: ['project-detail'] }),
+      queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
+      queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+      queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] })
+    ]);
+  };
+  const createManualCostMutation = useMutation({
+    mutationFn: (payload: ManualProjectCostPayload) => {
+      if (!projectId) throw new Error('Abra uma missão individual para adicionar custo manual.');
+      return createManualProjectCost(projectId, payload);
+    },
+    onSuccess: async () => {
+      setManualCostError(null);
+      reset(manualCostFormDefaultValues);
+      setManualCostFormOpen(false);
+      await refreshCostViews();
+    },
+    onError: (error: unknown) => {
+      setManualCostError(mutationErrorMessage(error, 'Não foi possível adicionar o custo manual.'));
+    }
+  });
+  const deleteManualCostMutation = useMutation({
+    mutationFn: (cost: ManualProjectCost) => deleteManualProjectCost(cost.projectId, cost.id),
+    onMutate: (cost) => {
+      setManualCostError(null);
+      setDeletingManualCostId(cost.id);
+    },
+    onSuccess: async () => {
+      await refreshCostViews();
+    },
+    onError: (error: unknown) => {
+      setManualCostError(mutationErrorMessage(error, 'Não foi possível remover o custo manual.'));
+    },
+    onSettled: () => setDeletingManualCostId(null)
+  });
+  const laborPolicyMutation = useMutation({
+    mutationFn: ({ laborAllocationMode, primaryLaborProjectId }: {
+      laborAllocationMode: MissionGroupLaborAllocationMode;
+      primaryLaborProjectId: string | null;
+    }) => updateMissionGroupLaborPolicy(groupId!, { laborAllocationMode, primaryLaborProjectId }),
+    onSuccess: async () => {
+      setLaborPolicyError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-groups'] }),
+        queryClient.invalidateQueries({ queryKey: ['ponto-pontomais-pending'] }),
+        queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] })
+      ]);
+    },
+    onError: (error: unknown) => {
+      setLaborPolicyError(mutationErrorMessage(error, 'Não foi possível atualizar a apropriação de mão de obra.'));
+    }
+  });
+  const createProjectNoteMutation = useMutation({
+    mutationFn: (content: string) => {
+      if (!projectId) throw new Error('Abra uma missão individual para adicionar a nota.');
+      return createProjectManagementNote(projectId, content);
+    },
+    onSuccess: (note) => {
+      queryClient.setQueryData<ProjectManagementNote[]>(projectNotesKey, current => [note, ...(current ?? [])]);
+      setProjectNoteContent('');
+      setProjectNoteError(null);
+    },
+    onError: (error: unknown) => {
+      setProjectNoteError(mutationErrorMessage(error, 'Não foi possível adicionar a nota.'));
+    }
+  });
+  const submitManualCost = handleSubmit(values => {
+    if (!canManageManualCosts || isGroup || createManualCostMutation.isPending) return;
+    setManualCostError(null);
+    createManualCostMutation.mutate(manualCostFormValuesToPayload(values));
+  });
+
+  function submitProjectNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = projectNoteContent.trim();
+    if (!canManageProjectNotes || isGroup || !content || createProjectNoteMutation.isPending) return;
+    setProjectNoteError(null);
+    createProjectNoteMutation.mutate(content);
+  }
+
+  function closeSchedule() {
+    setScheduleProject(null);
+    setScheduleDirty(false);
+  }
+
+  function openManualCostForm() {
+    setManualCostError(null);
+    setManualCostFormOpen(true);
+  }
+
+  function closeManualCostForm() {
+    setManualCostError(null);
+    reset(manualCostFormDefaultValues);
+    setManualCostFormOpen(false);
+  }
+
+  if (!data) {
+    return (
+      <div className="fv-ds acp-detail">
+        <div><Button size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button></div>
+        {isError ? (
+          <Alert tone="danger" title={isGroup ? 'Não foi possível carregar o agrupamento.' : 'Não foi possível carregar o projeto.'}
+            action={<Button size="sm" variant="secondary" onClick={() => void refetch()}>Tentar novamente</Button>}>
+            Tente novamente para consultar os dados.
+          </Alert>
+        ) : isLoading ? (
+          <div className="acp-detail-loading" role="status" aria-label="Carregando detalhe do projeto">
+
+            <div className="acp-detail-loading-grid"><Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} /></div>
+          </div>
+        ) : <EmptyState title="Projeto indisponível" description="Volte à lista para selecionar outro projeto." />}
+      </div>
+    );
+  }
+
+  const h = data.header;
+  const group = data.group;
+  const equipamentos = [...(data.equipamentos ?? [])].sort((a, b) =>
+    equipmentNameCollator.compare(a.name, b.name) || equipmentNameCollator.compare(a.code ?? '', b.code ?? '')
+  );
+  // Avanço por Escopo e/ou equipamento do cliente: o recorte troca o percentual, o ritmo e o
+  // histórico. A combinação escolhida aponta para um recorte já calculado pelo backend.
+  const progressFilters = isGroup ? null : data.progressFilters ?? null;
+  const progressScopes = progressFilters?.scopes ?? [];
+  const progressEquipments = progressFilters?.equipments ?? [];
+  const activeScopeKey = progressScopes.some(item => item.key === progressScopeKey) ? progressScopeKey : '';
+  const activeEquipmentKey = progressEquipments.some(item => item.key === progressEquipmentKey) ? progressEquipmentKey : '';
+  const combinationAvailable = (scopeKey: string, equipmentKey: string) =>
+    (!scopeKey && !equipmentKey) || progressFilters?.lookup[`${scopeKey}|${equipmentKey}`] !== undefined;
+  const sliceIndex = progressFilters?.lookup[`${activeScopeKey}|${activeEquipmentKey}`];
+  const selectedProgressSlice = progressFilters && typeof sliceIndex === 'number' ? progressFilters.slices[sliceIndex] : null;
+  const progressFilterLabel = [
+    progressScopes.find(item => item.key === activeScopeKey)?.name,
+    progressEquipments.find(item => item.key === activeEquipmentKey)?.name
+  ].filter(Boolean).join(' · ');
+  const shownAvancoPct = selectedProgressSlice ? selectedProgressSlice.avancoPct : data.avancoPct;
+  const shownProgressHistory = selectedProgressSlice ? selectedProgressSlice.progressHistory : data.progressHistory;
+  const shownDailyProgressHistory = selectedProgressSlice ? selectedProgressSlice.dailyProgressHistory : data.dailyProgressHistory;
+  const shownRequiredWeeklyProgress = selectedProgressSlice ? selectedProgressSlice.requiredWeeklyProgress : data.requiredWeeklyProgress;
+  const changeProgressScope = (scopeKey: string) => {
+    setProgressScopeKey(scopeKey);
+    if (!combinationAvailable(scopeKey, activeEquipmentKey)) setProgressEquipmentKey('');
+  };
+  const manualCosts = data.manualCosts ?? [];
+  const plannedCollaborators = planningContext?.collaborators ?? [];
+  const showingPlannedCollaborators = !data.header.lastRdoDate && plannedCollaborators.length > 0;
+  const collaborators: ProjectDetailCollaborator[] = showingPlannedCollaborators
+    ? plannedCollaborators.map(collaborator => ({
+      name: collaborator.name, role: collaborator.jobRole.name, horas: 0, horasLancadas: 0,
+      horasApropriadas: null, horasDeslocamento: 0, diasApropriados: [], sobreposicaoHoras: 0,
+      horasRelatoriosPorData: [], custo: null, custoHora: null, custoEstimadoRdo: null,
+      custoHoraEstimadoRdo: null, custoDeslocamento: null
+    })) : data.colaboradores;
+  const canAddManualCost = canManageManualCosts && !isGroup && Boolean(projectId);
+  const deviationCount = qualityDeviationQueries.length > 0 && qualityDeviationQueries.every(query => query.isSuccess)
+    ? qualityDeviationQueries.reduce((count, query) => count + (query.data?.length ?? 0), 0) : null;
+  const hasAdditionalProposalContribution = (data.budgetBreakdown?.additionals ?? []).some(item => (
+    hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
+  ));
+  const weeklyTargetOwner: WeeklyTargetOwner | null = groupId
+    ? { area: 'acompanhamento', groupId }
+    : projectId ? { area: 'acompanhamento', projectId } : null;
+  const weeklyProgressHistory = activeDivisionKey ? undefined : data.progressHistory ?? [];
+
+  return (
+    <>
+    <div className="fv-ds acp-detail">
+      <div className="acp-detail-bar">
+        <Button type="button" size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button>
+        {canManage && !isGroup ? (
+          <div className="acp-detail-bar-actions">
+            <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => setScheduleProject({ projectId: projectId!, code: h.code })}>
+              Editar cronograma
+            </Button>
+            {canManageDivisions ? <Button type="button" size="sm" variant="secondary" onClick={() => setTrackingDivisionsOpen(true)}>
+              Divisões do acompanhamento
+            </Button> : null}
+          </div>
+        ) : null}
+      </div>
+
+      {isError ? <Alert tone="warning" title="Não foi possível atualizar o projeto."
+        action={<Button size="sm" variant="secondary" onClick={() => void refetch()}>Tentar novamente</Button>}>
+        Os dados exibidos podem estar desatualizados.
+      </Alert> : null}
+      <Card padding="sm" className="acp-detail-header">
+        <div className="acp-detail-hero-copy">
+          <p className="acp-detail-eyebrow">Acompanhamento · {isGroup ? 'Grupo' : 'Missão'} {h.code}</p>
+          <h1>{h.clientName || `${isGroup ? 'Grupo' : 'Missão'} ${h.code}`}</h1>
+          <div className="acp-detail-header-meta">
+            {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
+            <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span>
+            <span>Início <strong>{fmtDate(data.footer.startDate)}</strong></span>
+            {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
+          </div>
+          {data.alerts.length > 0 ? (
+            <div className="acp-detail-alerts">
+              {data.alerts.map((a, i) => <Badge key={i} tone={a.level === 'danger' ? 'danger' : 'warning'} multiline>{a.label}</Badge>)}
+            </div>
+          ) : null}
+        </div>
+        <div className="acp-detail-hero-progress">
+          <span>Avanço · {progressFilterLabel || 'Escopo total'}</span>
+          <strong>{fmtPct(shownAvancoPct)}</strong>
+          <div className="acp-detail-hero-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, shownAvancoPct ?? 0))}%` }} /></div>
+          <small>{shownAvancoPct == null ? 'Aguardando medição do escopo' : 'Meta do escopo: 100%'}</small>
+        </div>
+        {data.group ? (
+          <div className="acp-detail-group-members" aria-label="Missões unificadas">
+            {data.group.members.map(member => (
+              <span key={member.projectId}>
+                <strong>{member.code}</strong>
+                {member.name || member.clientName ? <em>{member.name || member.clientName}</em> : null}
+                {member.progressPct != null ? <small>{member.progressPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% de avanço</small> : null}
+                {member.proposalPercentage != null && member.proposalPercentage !== 100 ? <small>Proposta considerada: {member.proposalPercentage.toLocaleString('pt-BR')}%</small> : null}
+                {canManage ? (
+                  <Button
+                    type="button"
+                    size="sm" variant="secondary" className="acp-detail-group-schedule"
+                    onClick={() => setScheduleProject({ projectId: member.projectId, code: member.code })}
+                  >
+                    Cronograma
+                  </Button>
+                ) : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </Card>
+
+      {isGroup && group && canManageDivisions ? (
+        <Card padding="sm" className="acp-detail-group-policy">
+          <details data-acp-labor-policy>
+            <summary className="acp-detail-summary">Apropriação da mão de obra</summary>
+            <div className="acp-detail-group-policy__content">
+              {laborPolicyError ? <Alert tone="danger">{laborPolicyError}</Alert> : null}
+              <div className="acp-detail-group-policy__fields">
+                <Field id={`group-labor-mode-${group.id}`} label="Regra do grupo" optionalText=""
+                  helperText={group.laborAllocationMode === 'SHARED_EXECUTION'
+                    ? 'Cada RDO confirmado recebe a jornada integral do Ponto Mais; a folha mensal continua única.'
+                    : group.laborAllocationMode === 'CONSOLIDATE_PRIMARY'
+                      ? 'Os RDOs deste grupo são apropriados uma única vez na missão principal.'
+                      : 'O agrupamento não altera a regra de apropriação da jornada.'}>
+                  <Select size="sm" value={group.laborAllocationMode || 'VISUAL_ONLY'} disabled={laborPolicyMutation.isPending}
+                    onChange={event => {
+                      const mode = event.target.value as MissionGroupLaborAllocationMode;
+                      laborPolicyMutation.mutate({ laborAllocationMode: mode,
+                        primaryLaborProjectId: mode === 'CONSOLIDATE_PRIMARY'
+                          ? group.primaryLaborProjectId || group.members[0]?.projectId || null : null });
+                    }}>
+                    <option value="VISUAL_ONLY">Somente mesclar o card</option>
+                    <option value="SHARED_EXECUTION">Repetir jornada em cada missão</option>
+                    <option value="CONSOLIDATE_PRIMARY">Consolidar em uma missão principal</option>
+                  </Select>
+                </Field>
+                {group.laborAllocationMode === 'CONSOLIDATE_PRIMARY' ? (
+                  <Field id={`group-labor-primary-${group.id}`} label="Missão principal" optionalText="">
+                    <Select size="sm" value={group.primaryLaborProjectId || group.members[0]?.projectId || ''}
+                      disabled={laborPolicyMutation.isPending}
+                      onChange={event => laborPolicyMutation.mutate({ laborAllocationMode: 'CONSOLIDATE_PRIMARY', primaryLaborProjectId: event.target.value || null })}>
+                      {group.members.map(member => <option key={member.projectId} value={member.projectId}>{member.code} — {member.name || member.clientName || 'Missão'}</option>)}
+                    </Select>
+                  </Field>
+                ) : null}
+              </div>
+            </div>
+          </details>
+        </Card>
+      ) : null}
+
+      {!isGroup && trackingDivisions && trackingDivisions.divisions.length > 0 ? (
+        <nav className="acp-tracking-tabs" aria-label="Divisões do acompanhamento">
+          <button type="button" aria-pressed={!activeDivisionKey} onClick={() => setTrackingDivisionKey('')}>Projeto completo</button>
+          {trackingDivisions.candidates.flatMap(scope => [scope, ...(scope.equipments ?? [])])
+            .filter(candidate => trackingDivisions.divisions.some(item => item.key === candidate.key))
+            .map(candidate => <button key={candidate.key} type="button" aria-pressed={activeDivisionKey === candidate.key}
+              onClick={() => setTrackingDivisionKey(candidate.key)}>
+              {candidate.kind === 'SCOPE' ? `Escopo: ${candidate.label}` : `${candidate.scopeName || 'Sem escopo definido'}: ${candidate.label.replace(/^Unidade Geradora\s+/i, 'UG ')}`}
+            </button>)}
+        </nav>
+      ) : null}
+      {data.division ? <Card padding="sm" className="acp-tracking-period" aria-label="Período da divisão">
+        Período: {fmtDate(data.division.startDate)} até {data.division.endDate ? fmtDate(data.division.endDate) : 'hoje'}
+      </Card> : null}
+
+      <div className="preview-priorities">
+          <ProjectFinancialSnapshot data={data}>
+            {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
+              <div className="acp-detail-manual-costs" data-acp-manual-costs>
+<PreviewSection label="Custos manuais" header={<>
+                <div className="acp-detail-manual-costs-head">
+                  <div className="acp-detail-sub">Custos manuais</div>
+                  {canAddManualCost ? (
+                    <Button
+                      type="button"
+                      size="sm" variant="secondary" className="acp-detail-manual-cost-toggle"
+                      aria-controls="acp-manual-cost-form"
+                      aria-expanded={manualCostFormOpen}
+                      data-acp-manual-cost-add
+                      onClick={manualCostFormOpen ? closeManualCostForm : openManualCostForm}
+                    >
+                      {manualCostFormOpen ? 'Cancelar' : 'Adicionar custo'}
+                    </Button>
+                  ) : null}
+                </div>
+</>}>
+                {manualCosts.length > 0 ? (
+                  <ul className="acp-detail-manual-cost-list">
+                    {manualCosts.map(cost => (
+                      <li key={cost.id}>
+                        <div>
+                          <strong>{cost.description}</strong>
+                          <span>
+                            {isGroup && cost.projectCode ? `Missão ${cost.projectCode} · ` : ''}
+                            {fmtDate(cost.costDate ?? cost.createdAt)}
+                            {cost.createdBy?.name ? ` · ${cost.createdBy.name}` : ''}
+                          </span>
+                          {cost.note ? <em>{cost.note}</em> : null}
+                        </div>
+                        <div className="acp-detail-manual-cost-actions">
+                          <strong>{brl(cost.amount)}</strong>
+                          {canManageManualCosts ? (
+                            <Button
+                              type="button"
+                              size="sm" variant="danger"
+                              disabled={deleteManualCostMutation.isPending && deletingManualCostId === cost.id}
+                              onClick={() => deleteManualCostMutation.mutate(cost)}
+                            >
+                              {deleteManualCostMutation.isPending && deletingManualCostId === cost.id ? 'Removendo…' : 'Excluir'}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="acp-detail-muted">Nenhum custo manual lançado.</div>
+                )}
+                {manualCostError ? <Alert tone="danger">{manualCostError}</Alert> : null}
+
+                {canAddManualCost && manualCostFormOpen ? (
+                  <form id="acp-manual-cost-form" className="acp-detail-manual-cost-form" onSubmit={submitManualCost}>
+                    <Field id="acp-manual-cost-description" label="Descrição" required errorText={errors.description?.message}>
+                      <Input {...register('description')} maxLength={120} />
+                    </Field>
+                    <Field id="acp-manual-cost-amount" label="Valor" required errorText={errors.amount?.message}>
+                      <Controller
+                        name="amount"
+                        control={control}
+                        render={({ field }) => (
+                          <Input
+                            name={field.name}
+                            ref={field.ref}
+                            value={field.value}
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            aria-invalid={Boolean(errors.amount)}
+                            required
+                            onBlur={field.onBlur}
+                            onChange={event => field.onChange(formatBrlCurrencyInput(event.target.value))}
+                          />
+                        )}
+                      />
+                    </Field>
+                    <Field id="acp-manual-cost-date" label="Data" errorText={errors.costDate?.message}>
+                      <Input {...register('costDate')} type="date" />
+                    </Field>
+                    <Field id="acp-manual-cost-note" label="Observação" className="acp-detail-form-wide" errorText={errors.note?.message}>
+                      <Textarea {...register('note')} maxLength={500} rows={3} />
+                    </Field>
+                    <div className="acp-detail-actions acp-detail-form-wide">
+                      <Button type="submit" size="sm" variant="primary" disabled={createManualCostMutation.isPending}>
+                        {createManualCostMutation.isPending ? 'Salvando…' : 'Adicionar custo'}
+                      </Button>
+                    </div>
+                  </form>
+                ) : null}
+</PreviewSection>
+
+              </div>
+            ) : null}
+          </ProjectFinancialSnapshot>
+      <ProjectTimeSnapshot
+        progressPanel={
+      <ProjectDetailOverview
+        data={data}
+        progressPct={shownAvancoPct}
+        progressHistory={shownProgressHistory}
+        chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
+        target={shownRequiredWeeklyProgress}
+        fallbackProgress={isGroup ? data.progressBreakdown : undefined}
+        fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+        filterLabel={progressFilterLabel}
+        teamCount={collaborators.length}
+        teamIsPlanned={showingPlannedCollaborators}
+        deviationCount={deviationCount}
+        weeklyTargetOwner={weeklyTargetOwner}
+        weeklyProgressHistory={weeklyProgressHistory}
+        filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
+          <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
+            <Field id="acp-progress-scope" label="Escopo" optionalText="">
+              <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
+                <option value="">Todos os escopos</option>
+                {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+            <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
+              <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
+                <option value="">Todos os equipamentos</option>
+                {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
+      />
+
+        }
+        data={data}
+        onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
+        reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
+          <ProjectReportsDialog
+            projectId={isGroup ? undefined : projectId}
+            groupMembers={isGroup ? data.group?.members : undefined}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
+          />
+        ) : null}
+      />
+
+      <ProjectDetailServiceComposition
+        data={data}
+        progressPct={shownAvancoPct}
+        progressHistory={shownProgressHistory}
+        chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
+        target={shownRequiredWeeklyProgress}
+        fallbackProgress={isGroup ? data.progressBreakdown : undefined}
+        fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+        filterLabel={progressFilterLabel}
+        teamCount={collaborators.length}
+        teamIsPlanned={showingPlannedCollaborators}
+        deviationCount={deviationCount}
+        weeklyTargetOwner={weeklyTargetOwner}
+        weeklyProgressHistory={weeklyProgressHistory}
+        filters={progressFilters && (progressScopes.length > 0 || progressEquipments.length > 0) ? (
+          <div className="acp-detail-progress-filters" aria-label="Filtrar avanço do projeto">
+            <Field id="acp-progress-scope" label="Escopo" optionalText="">
+              <Select size="sm" value={activeScopeKey} onChange={event => changeProgressScope(event.target.value)}>
+                <option value="">Todos os escopos</option>
+                {progressScopes.map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+            <Field id="acp-progress-equipment" label="Equipamento do cliente" optionalText="">
+              <Select size="sm" value={activeEquipmentKey} onChange={event => setProgressEquipmentKey(event.target.value)}>
+                <option value="">Todos os equipamentos</option>
+                {progressEquipments.filter(item => combinationAvailable(activeScopeKey, item.key)).map(item => <option key={item.key} value={item.key}>{item.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
+      />
+
+      </div>
+
+      <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators} onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} />
+
+      {weeklyTargetOwner ? <Card padding="sm" className="acp-detail-weekly-targets">
+        <MissionWeeklyProgressPanel
+          key={groupId || projectId}
+          owner={weeklyTargetOwner}
+          progressHistory={weeklyProgressHistory}
+          canManage={canManageProjectNotes}
+        />
+      </Card> : null}
+
+      {data.canViewProjectFinancials ? <Card padding="sm" className="preview-financial" id="acp-financial">
+<PreviewSection label="Gastos e retorno" header={<>
+        <div className="acp-detail-section-head">
+          <p>Financeiro</p><h2>Gastos e retorno</h2>
+          <span>Faturamento, impostos e notas fiscais do projeto.</span>
+        </div>
+</>}>
+        <div className="preview-financial-grid" data-preview-financial-grid>
+          <ProjectBillingSnapshot data={data} />
+          <ProjectDetailTaxes data={data} />
+          <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} />
+        </div>
+
+</PreviewSection>
+      </Card> : null}
+
+      <div className="acp-detail-section-head" id="acp-quality">
+        <p>Qualidade e gestão</p><h2>Desvios que pedem ação</h2>
+        <span>Impacto, situação e notas aparecem antes do texto completo.</span>
+      </div>
+
+      <div className={`acp-detail-quality-grid${isGroup ? ' is-group' : ''}`}>
+      {deviationProjects.length > 0 ? (
+        <Card padding="sm" className="acp-detail-block acp-detail-deviations" data-quality-project-deviations>
+          <details className="acp-detail-deviations-details" open>
+            <summary className="acp-detail-summary">Desvios</summary>
+            <div className="acp-detail-deviations-toolbar">
+              <a className="fv-button fv-button--secondary fv-button--sm" href="/qualidade?tab=registros">
+                <span className="fv-button__label">Abrir Qualidade</span>
+              </a>
+            </div>
+            <div className={`quality-deviation-projects${isGroup ? ' is-grouped' : ''}`}>
+          {deviationProjects.map((deviationProject, projectIndex) => {
+            const deviationQuery = qualityDeviationQueries[projectIndex];
+            const deviations: ProjectDeviation[] = deviationQuery?.data ?? [];
+            const projectLabel = deviationProject.name || deviationProject.clientName;
+            const titleId = `quality-deviation-project-${projectIndex}`;
+            return <section className="quality-deviation-project" key={deviationProject.projectId} aria-labelledby={isGroup ? titleId : undefined}>
+              {isGroup ? <div className="quality-deviation-project-head">
+                <h3 id={titleId}>Missão {deviationProject.code || 'sem código'}{projectLabel ? <span>{projectLabel}</span> : null}</h3>
+                {!deviationQuery?.isLoading && !deviationQuery?.isError ? <Badge tone="neutral">{deviations.length} {deviations.length === 1 ? 'desvio' : 'desvios'}</Badge> : null}
+              </div> : null}
+          {deviationQuery?.isError ? (
+            <Alert tone="warning" title="Não foi possível carregar os desvios."
+              action={<Button size="sm" variant="secondary" onClick={() => void deviationQuery.refetch()}>Tentar novamente</Button>} />
+          ) : deviationQuery?.isLoading ? <Skeleton height={64} /> : deviations.length === 0 ? (
+            <div className="acp-detail-muted">Nenhum desvio registrado.</div>
+          ) : (
+            <ul className="acp-detail-deviation-list">
+              {deviations.map(deviation => {
+                const expanded = expandedQualityDeviationIds.has(deviation.id);
+                const detailsId = `quality-deviation-${deviation.id}`;
+                return (
+                  <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
+                    <div className="acp-detail-deviation-row">
+                      <div className="acp-detail-deviation-main">
+                        <strong>{deviation.number}</strong>
+                        <span>{deviation.nature?.name || '—'}</span>
+                        <small>{fmtDate(deviation.eventDate)}</small>
+                      </div>
+                      <div className="acp-detail-deviation-meta">
+                        <Badge tone={deviation.impact === 'ALTO' ? 'danger' : deviation.impact === 'MEDIO' ? 'warning' : 'info'}>
+                          {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
+                        </Badge>
+                        <Badge tone="neutral" multiline>{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</Badge>
+                        <Badge tone={deviation.recurrent ? 'warning' : 'neutral'}>
+                          {deviation.occurrences12m}x 12m
+                        </Badge>
+                        <Button
+                          type="button"
+                          size="sm" variant="secondary" className="acp-detail-deviation-toggle"
+                          aria-expanded={expanded}
+                          aria-controls={detailsId}
+                          onClick={() => toggleQualityDeviation(deviation.id)}
+                        >
+                          {expanded ? 'Recolher' : 'Ver mais'}
+                        </Button>
+                      </div>
+                    </div>
+                    {expanded ? (
+                      <div id={detailsId} className="acp-detail-deviation-details">
+                        <dl className="acp-detail-deviation-fields">
+                          <div>
+                            <dt>Disposição</dt>
+                            <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
+                          </div>
+                          <div>
+                            <dt>Origem</dt>
+                            <dd>{deviation.origin || '—'}</dd>
+                          </div>
+                          {deviation.linkedRnc ? (
+                            <div>
+                              <dt>RNC vinculada</dt>
+                              <dd>{deviation.linkedRnc}</dd>
+                            </div>
+                          ) : null}
+                          {deviation.actionDeadline ? (
+                            <div>
+                              <dt>Prazo da ação</dt>
+                              <dd>{fmtDate(deviation.actionDeadline)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        <div className="acp-detail-deviation-text">
+                          <span>Descrição</span>
+                          <p>{deviation.description}</p>
+                        </div>
+                        {deviation.definedAction || deviation.actionOwner ? (
+                          <div className="acp-detail-deviation-text">
+                            <span>Ação definida</span>
+                            <p>
+                              {deviation.definedAction || '—'}
+                              {deviation.actionOwner ? ` · Responsável: ${deviation.actionOwner}` : ''}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          </section>;
+          })}
+            </div>
+          </details>
+        </Card>
+      ) : null}
+
+      {!isGroup ? (
+        <Card padding="sm" className="acp-detail-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
+<PreviewSection label="Notas da gestão" header={<>
+          <div className="acp-detail-notes-head">
+            <h3 id="acp-project-notes-title">Notas da gestão</h3>
+            <Badge tone="neutral">{projectNotes.length} {projectNotes.length === 1 ? 'nota' : 'notas'}</Badge>
+          </div>
+
+</>}>
+          {canManageProjectNotes ? (
+            <form className="acp-detail-note-form" onSubmit={submitProjectNote}>
+              <Field id="acp-project-note-content" label="Nova nota" optionalText="" className="acp-detail-note-field">
+                <Textarea
+                  value={projectNoteContent}
+                  onChange={event => setProjectNoteContent(event.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Adicionar uma nota…"
+                  disabled={createProjectNoteMutation.isPending}
+                />
+              </Field>
+              <Button
+                type="submit"
+                size="sm" variant="primary"
+                disabled={!projectNoteContent.trim() || createProjectNoteMutation.isPending}
+              >
+                {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
+              </Button>
+            </form>
+          ) : null}
+
+          {projectNoteError ? <Alert tone="danger">{projectNoteError}</Alert> : null}
+          {projectNotesLoadError ? (
+            <Alert tone="warning" title="Não foi possível carregar as notas." action={<Button size="sm" variant="secondary" onClick={() => void refetchNotes()}>Tentar novamente</Button>} />
+          ) : projectNotesLoading ? (
+            <Skeleton height={64} />
+          ) : projectNotes.length === 0 ? (
+            <div className="acp-detail-muted">Nenhuma nota adicionada.</div>
+          ) : (
+            <ol className="acp-detail-note-list">
+              {projectNotes.map(note => (
+                <li key={note.id}>
+                  <div className="acp-detail-note-meta">
+                    <strong>{note.author.name}</strong>
+                    <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
+                  </div>
+                  <p>{note.content}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+</PreviewSection>
+
+        </Card>
+      ) : null}
+      </div>
+
+      <div className="acp-detail-section-head" id="acp-resources">
+        <p>Recursos e rastreabilidade</p><h2>Equipamentos e escopo</h2>
+        <span>Recursos de campo e evidências de execução agrupados por assunto.</span>
+      </div>
+
+      <Card padding="sm" className="acp-detail-block">
+        <details className="acp-detail-equips-details" open>
+          <summary className="acp-detail-summary">
+            Equipamentos na obra ({equipamentos.length})
+          </summary>
+          {equipamentos.length === 0 ? (
+            <div className="acp-detail-muted">Nenhum equipamento em obra.</div>
+          ) : (
+            <>
+              <div className="acp-detail-equips-table-wrap">
+                <table className="acp-detail-equips-table">
+                  <caption className="sr-only">Equipamentos na obra</caption>
+                  <thead><tr>
+                    <th scope="col">Equipamento</th>
+                    <th scope="col">Tempo na obra</th>
+                    <th scope="col">Desde</th>
+                  </tr></thead>
+                  <tbody>{equipamentos.map((equipment, index) => (
+                    <tr key={`${equipment.code ?? equipment.name}-${index}`}>
+                      <th scope="row">
+                        {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                        <span>{equipment.name}</span>
+                      </th>
+                      <td>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
+                      <td>{fmtDate(equipment.since)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <ul className="acp-detail-equips-mobile" aria-label="Equipamentos na obra">
+                {equipamentos.map((equipment, index) => (
+                  <li key={`${equipment.code ?? equipment.name}-${index}`}>
+                    {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                    <strong>{equipment.name}</strong>
+                    <div className="acp-detail-equip-mobile-meta">
+                      <span><small>Tempo na obra</small><b>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</b></span>
+                      <span><small>Desde</small><b>{fmtDate(equipment.since)}</b></span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </details>
+        <div className="acp-det-romaneios-action">
+          <ProjectRomaneiosDialog
+            key={groupId || projectId}
+            projectId={projectId}
+            groupId={groupId}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code}`}
+          />
+        </div>
+      </Card>
+
+
+
+      <ProjectScopeDailyTable points={shownDailyProgressHistory} filterLabel={progressFilterLabel} />
+
+    </div>
+
+      <ProjectStandbyHistoryDialog
+        project={standbyHistoryOpen && !isGroup && projectId
+          ? { projectId, code: h.code }
+          : null}
+        division={data.division}
+        onClose={() => setStandbyHistoryOpen(false)}
+      />
+
+      {canManageDivisions && trackingDivisionsOpen && projectId && trackingDivisions ? <ProjectTrackingDivisionsPanel
+        projectId={projectId} data={trackingDivisions} onClose={() => setTrackingDivisionsOpen(false)} /> : null}
+      {canManageDivisions && trackingDivisionsOpen && projectId && !trackingDivisions ? <Modal open onClose={() => setTrackingDivisionsOpen(false)}
+        appearance="design-system" title="Divisões do acompanhamento" size="sm">
+        {trackingDivisionsError ? <Alert tone="danger" title="Não foi possível carregar as divisões."
+          action={<Button size="sm" variant="secondary" onClick={() => void reloadTrackingDivisions()}>Tentar novamente</Button>} />
+          : trackingDivisionsLoading ? <Skeleton variant="text" lines={3} label="Carregando divisões" /> : null}
+      </Modal> : null}
+
+      <ProjectCollaboratorHoursDialog
+        collaborator={hoursDetail?.collaborator ?? null}
+        source={hoursDetail?.source}
+        isGroup={isGroup}
+        onSourceChange={source => setHoursDetail(current => current ? { ...current, source } : null)}
+        onClose={() => setHoursDetail(null)}
+      />
+
+      <Modal open={scheduleProject !== null} onClose={closeSchedule} appearance="design-system" size="lg"
+        panelClassName="acp-schedule-modal" title={`Cronograma — Missão ${scheduleProject?.code ?? h.code}`}
+        footer={<div className="acp-schedule-modal__actions">
+          <Button variant="secondary" onClick={closeSchedule}>Cancelar</Button>
+          {canManage ? <Button variant="primary" disabled={!scheduleDirty} onClick={() => scheduleRef.current?.save()}>Salvar</Button> : null}
+        </div>}>
+        {scheduleProject ? <ProjectScheduleEditor key={scheduleProject.projectId} ref={scheduleRef}
+          projectId={scheduleProject.projectId} canManage={canManage} canManageProposal={canManageManualCosts} onDirtyChange={setScheduleDirty} /> : null}
+      </Modal>
+      <ProjectProgressHistoryNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={progressHistoryNoveltyActive}
+        onSeen={() => setProgressHistoryNoveltyActive(false)}
+      />
+      <ProjectWeeklyTargetNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={weeklyTargetNoveltyActive && !isGroup && Boolean(data.requiredWeeklyProgress)}
+        onSeen={() => setWeeklyTargetNoveltyActive(false)}
+      />
+      <ProjectManualCostNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={manualCostNoveltyActive && canAddManualCost}
+        onSeen={() => setManualCostNoveltyActive(false)}
+      />
+      <ProjectLaborPolicyNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={laborPolicyNoveltyActive && isGroup && canManageDivisions}
+        onSeen={() => setLaborPolicyNoveltyActive(false)}
+      />
+      <ProjectQualityDeviationsNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={qualityDeviationsNoveltyActive && deviationProjects.length > 0}
+        onSeen={() => setQualityDeviationsNoveltyActive(false)}
+      />
+      <ProjectAdditionalProposalsNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={additionalProposalsNoveltyActive && hasAdditionalProposalContribution}
+        onSeen={() => setAdditionalProposalsNoveltyActive(false)}
+      />
+      <ProjectStandbyHistoryNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={standbyHistoryNoveltyActive && !isGroup && Boolean(projectId)}
+        onSeen={() => setStandbyHistoryNoveltyActive(false)}
+      />
+    </>
+  );
+}
