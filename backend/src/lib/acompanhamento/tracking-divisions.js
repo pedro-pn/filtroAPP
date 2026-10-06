@@ -13,8 +13,13 @@ export function divisionKey(kind, scopeName, equipmentKey = null) {
   return JSON.stringify([kind, scopeName ?? null, equipmentKey]);
 }
 
+export function divisionLaborPeriod(division) {
+  return division ? { ...division, startDate: division.mobilizationDate ?? null } : null;
+}
+
 export function dateInDivision(value, division, now = new Date()) {
   if (!division) return true;
+  if (!validDay(division.startDate)) return false;
   const date = value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
   const today = now.toISOString().slice(0, 10);
   return date >= division.startDate && date <= (division.endDate && division.endDate < today ? division.endDate : today);
@@ -62,10 +67,10 @@ export function validateDivisionRows(candidates, rows) {
   return rows.map(row => {
     if (!allowed.has(row.key) || seen.has(row.key)) throw new Error('Divisão desconhecida ou repetida. Atualize o painel e tente novamente.');
     seen.add(row.key);
-    if (!validDay(row.startDate) || (row.endDate != null && !validDay(row.endDate))) throw new Error('Informe datas válidas para a divisão.');
-    if (row.endDate && row.endDate < row.startDate) throw new Error('A data final deve ser igual ou posterior ao início.');
-    if (row.mobilizationDate != null && !validDay(row.mobilizationDate)) throw new Error('Informe uma data válida para a mobilização inicial.');
-    if (row.endDate && row.mobilizationDate && row.mobilizationDate > row.endDate) throw new Error('A mobilização inicial deve ser igual ou anterior à data final.');
+    if (!validDay(row.startDate) || (row.endDate != null && !validDay(row.endDate))) throw new Error('Informe datas válidas para o início e o fim do escopo.');
+    if (row.endDate && row.endDate < row.startDate) throw new Error('O fim do escopo deve ser igual ou posterior ao início do escopo.');
+    if (!validDay(row.mobilizationDate)) throw new Error('Informe uma data válida para a mobilização do escopo.');
+    if (row.endDate && row.mobilizationDate > row.endDate) throw new Error('A mobilização do escopo deve ser igual ou anterior ao fim do escopo.');
     const planned = {};
     for (const field of ['plannedCost', 'plannedRevenue', 'plannedHours', 'plannedDays']) {
       const value = row[field];
@@ -73,7 +78,7 @@ export function validateDivisionRows(candidates, rows) {
       planned[field] = value ?? null;
     }
     if (planned.plannedDays != null && !Number.isInteger(planned.plannedDays)) throw new Error('Dias previstos devem ser inteiros.');
-    return { key: row.key, startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate: row.mobilizationDate ?? null, ...planned };
+    return { key: row.key, startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate: row.mobilizationDate, ...planned };
   });
 }
 
@@ -112,7 +117,7 @@ export function storedDivisionRows(candidates, services, storedRows) {
       key,
       startDate: rows.map(row => row.startDate).sort()[0],
       endDate: rows.some(row => !row.endDate) ? null : rows.map(row => row.endDate).sort().at(-1),
-      mobilizationDate: rows.map(row => row.mobilizationDate || row.startDate).sort()[0],
+      mobilizationDate: rows.every(row => validDay(row.mobilizationDate)) ? rows.map(row => row.mobilizationDate).sort()[0] : null,
       ...planned
     });
   }
@@ -136,6 +141,19 @@ export async function setTrackingDivisions(projectId, rows, client = prisma) {
   return client.$transaction(async tx => {
     const { candidates } = await getTrackingDivisions(projectId, tx);
     const divisions = validateDivisionRows(candidates, rows);
+    await tx.project.update({ where: { id: projectId }, data: { trackingDivisions: divisions } });
+    return { candidates, divisions };
+  });
+}
+
+export async function setTrackingDivision(projectId, row, client = prisma) {
+  return client.$transaction(async tx => {
+    const { candidates, divisions: current } = await getTrackingDivisions(projectId, tx);
+    const [division] = validateDivisionRows(candidates, [row]);
+    const exists = current.some(item => item.key === division.key);
+    const divisions = exists
+      ? current.map(item => item.key === division.key ? division : item)
+      : [...current, division];
     await tx.project.update({ where: { id: projectId }, data: { trackingDivisions: divisions } });
     return { candidates, divisions };
   });

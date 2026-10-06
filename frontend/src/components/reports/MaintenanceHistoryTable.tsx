@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { SortableTable } from '../ui/SortableTable';
 
 import {
   downloadMaintenanceDocument,
@@ -147,7 +148,7 @@ export function MaintenanceHistoryTable({
           <span>Ordene pelos títulos das colunas</span>
         </div>
         <div className="operational-table-scroll">
-          <table aria-label="Histórico de manutenção">
+          <SortableTable aria-label="Histórico de manutenção" key={`${sortBy}-${sortDirection}`}>
             <thead>
               <tr>
                 {sortableHeader('Data', 'maintenanceDate')}
@@ -167,7 +168,7 @@ export function MaintenanceHistoryTable({
                   <td className="operational-history-equipment">{record.equipment.name}</td>
                   <td>{categoryLabel(record)}</td>
                   <td>{record.responsibleNameSnapshot}</td>
-                  <td><MaintenanceServices record={record} /></td>
+                  <td data-sort-value={serviceLabels(record).join(', ')}><MaintenanceServices record={record} /></td>
                   <td className="operational-history-document">
                     {record.document ? (
                       <Button
@@ -185,7 +186,7 @@ export function MaintenanceHistoryTable({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
         </div>
       </Card>
 

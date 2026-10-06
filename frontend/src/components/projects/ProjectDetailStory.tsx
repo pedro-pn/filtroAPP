@@ -25,13 +25,13 @@ function pct(value: number | null) {
 export function ProjectTimelineCard({ data }: { data: ProjectDetail }) {
   const gap = dateGapDays(data.footer.projectedEndByPace, data.footer.expectedEndDate);
   const milestones = [
-    { label: 'Mobilização', date: data.footer.mobilizationDate, icon: HardHat },
-    { label: 'Início real', date: data.footer.startDate, icon: CalendarClock },
+    { label: data.division ? 'Mobilização do escopo' : 'Mobilização', date: data.division ? data.division.mobilizationDate : data.footer.mobilizationDate, icon: HardHat },
+    { label: data.division ? 'Início do escopo' : 'Início real', date: data.division ? data.division.startDate : data.footer.startDate, icon: CalendarClock },
     { label: 'Projeção pelo ritmo', date: data.footer.projectedEndByPace, icon: Hourglass },
-    { label: 'Término previsto', date: data.footer.expectedEndDate, icon: CalendarClock }
+    { label: data.division ? 'Fim do escopo' : 'Término previsto', date: data.division ? data.division.endDate : data.footer.expectedEndDate, icon: CalendarClock }
   ];
   return <Card padding="sm" className="acp-story-timeline" data-acp-timeline>
-    <div className="acp-story-card-head"><div><p>Linha do tempo da missão</p><h3>O projeto em relação ao cronograma</h3></div>
+    <div className="acp-story-card-head"><div><p>{data.division ? 'Linha do tempo da divisão' : 'Linha do tempo da missão'}</p><h3>{data.division ? 'A divisão em relação ao cronograma' : 'O projeto em relação ao cronograma'}</h3></div>
       <span className={`acp-story-status ${gap == null ? 'is-neutral' : gap > 0 ? 'is-warning' : 'is-success'}`}>
         {gap == null ? 'Sem projeção comparável' : gap > 0 ? `${gap} ${gap === 1 ? 'dia' : 'dias'} após o previsto` : gap < 0 ? `${Math.abs(gap)} ${gap === -1 ? 'dia' : 'dias'} antes do previsto` : 'Na data prevista'}
       </span>

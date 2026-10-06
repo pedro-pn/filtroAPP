@@ -19,6 +19,7 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     const { ProjectDetailDashboard } = await server.ssrLoadModule('/src/components/projects/ProjectDetailDashboard.tsx');
     const { ProjectOverviewMetrics } = await server.ssrLoadModule('/src/components/projects/ProjectOverviewMetrics.tsx');
     const { MissionWeeklyProgressPanel } = await server.ssrLoadModule('/src/components/projects/MissionWeeklyProgressPanel.tsx');
+    const { ProjectInvoicesSection } = await server.ssrLoadModule('/src/components/projects/ProjectInvoicesSection.tsx');
     const auth = { user: { id: 'u', moduleRoles: ['rdo:manager'] }, isAuthenticated: true };
     const render = (Component, props) => renderToStaticMarkup(createElement(QueryClientProvider, { client },
       createElement(AuthContext.Provider, { value: auth }, createElement(ToastContext.Provider, { value: { showToast() {} } },
@@ -41,6 +42,28 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     assert.match(viewer, /Consumo de gastos/);
     assert.doesNotMatch(viewer, /Gastos e retorno|Faturamentos realizados|Impostos do projeto|Adicionar custo|Editar cronograma|Definir meta/);
 
+    const invoice = (id, issuedAt, amount) => ({ id, number: id, type: 'NFSE', issuedAt, amount,
+      customerName: 'Cliente de teste', receiptStatus: 'OPEN', installmentCount: 1,
+      project: { code: '005719', name: 'Missão de teste' } });
+    client.setQueryData(['project-invoices', 'project', 'p'], {
+      lastSyncedAt: '2026-09-30T12:00:00Z', syncStatus: 'CURRENT', projectCount: 1, linkedProjectCount: 1,
+      invoices: [invoice('antes-do-escopo', '2026-09-04', 9999),
+        ...Array.from({ length: 12 }, (_, index) => invoice(`nota-${index + 1}`, '2026-09-15', 100))]
+    });
+    const invoices = render(ProjectInvoicesSection, { projectId: 'p', division: {
+      startDate: '2026-09-10', mobilizationDate: '2026-09-01', endDate: '2026-09-30'
+    } });
+    assert.match(invoices, /fv-data-table__mobile/);
+    assert.match(invoices, /Ordenar Histórico de notas fiscais faturadas por coluna/);
+    assert.match(invoices, /Alternar ordem de Histórico de notas fiscais faturadas/);
+    for (const label of ['Nota fiscal', 'Emissão', 'Tomador / cliente', 'Valor bruto', 'Recebimento']) {
+      assert.ok(invoices.includes(label), label);
+    }
+    assert.match(invoices, /12 notas fiscais/);
+    assert.match(invoices, /1\.200,00/);
+    assert.match(invoices, /Páginas de faturamentos/);
+    assert.doesNotMatch(invoices, /antes-do-escopo|NFS-e nota-11|NFS-e nota-12/);
+
     const card = render(ProjectOverviewMetrics, { card: {
       workedHours: detail.workedHours, progressPct: 62.5, costConsumedPct: 105,
       plannedCost: 100000, realizedCost: 105000, workedDays: 7, totalDays: 20,
@@ -61,11 +84,17 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     assert.match(compact, /2 de 3 semanas com meta atingida/);
     assert.match(compact, /Meta não atingida/);
     assert.match(compact, /Semana futura/);
+    assert.match(compact, /Semana: ordenar em ordem crescente/);
+    assert.match(compact, /Avanço previsto: ordenar em ordem crescente/);
+    assert.match(compact, /Avanço realizado: ordenar em ordem crescente/);
+    assert.match(compact, /Diferença: ordenar em ordem crescente/);
     assert.doesNotMatch(compact, /Meta registrada|>Ação<|>Editar<|>Excluir</);
     const legacy = render(MissionWeeklyProgressPanel, { owner: { area: 'acompanhamento', projectId: 'p' }, progressHistory, canManage: true });
     assert.match(legacy, /Meta registrada/);
     assert.match(legacy, /Gestora/);
     assert.match(legacy, /Definir meta/);
+    assert.match(legacy, /Meta registrada: ordenar em ordem crescente/);
+    assert.doesNotMatch(legacy, /Ação: ordenar/);
     assert.doesNotMatch(legacy, /semanas com meta atingida|Detalhes e edição das metas/);
 
     const attendanceTargets = [-7, 0].map((days, index) => ({

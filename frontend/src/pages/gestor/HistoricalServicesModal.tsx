@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,13 +32,13 @@ const actionLabels = { CREATE: 'Novo', SKIP: 'Já importado', CONFLICT: 'Conflit
 
 function MeasurementsTable({ items }: { items: HistoricalMeasurement[] }) {
   return <div className="historical-table-scroll" tabIndex={0} aria-label="Quantitativos do relatório">
-    <table className="historical-table">
+    <SortableTable className="historical-table">
       <thead><tr><th>Serviço</th><th>Equipamento do cliente</th><th>Sistema original</th><th>Diâmetro</th><th>Quantidade</th></tr></thead>
       <tbody>{items.map((item, index) => <tr key={index}>
         <td>{historicalServiceLabels[item.serviceType]}</td><td>{item.equipment}</td><td>{item.system}</td>
-        <td>{item.diameter ? `${item.diameter} ${item.diameterUnit || 'pol'}` : '—'}</td><td>{quantityText(item.quantity)} {item.unit}</td>
+        <td>{item.diameter ? `${item.diameter} ${item.diameterUnit || 'pol'}` : '—'}</td><td data-sort-value={Number(item.quantity)}>{quantityText(item.quantity)} {item.unit}</td>
       </tr>)}</tbody>
-    </table>
+    </SortableTable>
   </div>;
 }
 

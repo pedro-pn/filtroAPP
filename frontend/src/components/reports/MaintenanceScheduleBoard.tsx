@@ -1,3 +1,4 @@
+import { SortableTable } from '../ui/SortableTable';
 import type {
   MaintenanceScheduleItem,
   MaintenanceSchedulePage,
@@ -90,7 +91,7 @@ export function MaintenanceScheduleBoard({
           </header>
 
           <div className="operational-schedule-table">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>TAG</th>
@@ -114,8 +115,8 @@ export function MaintenanceScheduleBoard({
                   >
                     <td><strong>{item.equipment.code}</strong></td>
                     <td>{item.equipment.name}</td>
-                    <td>{dateLabel(item.lastMaintenanceDate)}</td>
-                    <td>{dateLabel(item.nextMaintenanceDate)}</td>
+                    <td data-sort-value={item.lastMaintenanceDate}>{dateLabel(item.lastMaintenanceDate)}</td>
+                    <td data-sort-value={item.nextMaintenanceDate}>{dateLabel(item.nextMaintenanceDate)}</td>
                     <td>
                       {statusPill(item)}
                       <div className="form-hint">{dueDetail(item)}</div>
@@ -123,7 +124,7 @@ export function MaintenanceScheduleBoard({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
 
           <div className="operational-schedule-cards">

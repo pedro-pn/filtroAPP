@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { useMemo, useState } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
@@ -85,7 +86,7 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
         </Field>
       </div>
       <div className="equip-table-wrap" data-equip-dashboard-table>
-        <table className="equip-table">
+        <SortableTable className="equip-table">
           <thead>
             <tr>
               <th>Código</th>
@@ -104,8 +105,8 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
                   <td data-label="Código">{item.code}</td>
                   <td data-label="Nome">{item.name}</td>
                   <td data-label="Categoria">{categoryById.get(item.categoryId)?.name || '—'}</td>
-                  <td data-label="Calibração">{formatDate(item.calibratedAt)}</td>
-                  <td data-label="Vencimento">{formatDate(item.expiresAt)}</td>
+                  <td data-label="Calibração" data-sort-value={item.calibratedAt}>{formatDate(item.calibratedAt)}</td>
+                  <td data-label="Vencimento" data-sort-value={item.expiresAt}>{formatDate(item.expiresAt)}</td>
                   <td data-label="Status">{itemStatus === 'none' ? '—' : <Badge tone={statusTone[itemStatus]} dot multiline>{statusLabel[itemStatus]}</Badge>}</td>
                 </tr>
               );
@@ -114,7 +115,7 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
               <tr><td colSpan={6} className="rel-meta">Nenhum equipamento encontrado.</td></tr>
             )}
           </tbody>
-        </table>
+        </SortableTable>
       </div>
     </section>
   );

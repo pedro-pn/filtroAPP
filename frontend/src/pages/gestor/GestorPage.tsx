@@ -2498,7 +2498,7 @@ export function GestorPage() {
       { key: 'client', header: 'Cliente', render: project => project.clientName || '—' },
       { key: 'operator', header: 'Responsável', render: project => project.operator?.name || 'Não informado' },
       { key: 'reports', header: 'Relatórios', numeric: true, render: project => activeProjectReportCountById.get(project.id) ?? '—' },
-      { key: 'updated', header: 'Atualização', render: project => formatDate(project.updatedAt || project.createdAt) },
+      { key: 'updated', header: 'Atualização', sortValue: project => project.updatedAt || project.createdAt, render: project => formatDate(project.updatedAt || project.createdAt) },
       { key: 'status', header: 'Situação', render: project => <Badge tone={projectRegistrationPending(project) ? 'warning' : commercialPendenciaByProject.has(project.id) ? 'warning' : 'success'}>{projectRegistrationPending(project) ? 'Revisar cadastro' : commercialPendenciaByProject.has(project.id) ? 'Revisão comercial' : 'Ativo'}</Badge> }
     ];
     const renderProjectActions = (project: Project) => <div className="rdo-project-table__actions">
@@ -2747,7 +2747,7 @@ export function GestorPage() {
       { key: 'project', header: 'Projeto', rowHeader: true, render: row => <strong>{projectTitle(row.project)}</strong> },
       { key: 'client', header: 'Cliente', render: row => row.project.clientName || '—' },
       { key: 'reports', header: 'Relatórios', numeric: true, render: row => row.reportTotal },
-      { key: 'updated', header: 'Atualização', render: row => formatDate(row.project.updatedAt || row.project.createdAt) },
+      { key: 'updated', header: 'Atualização', sortValue: row => row.project.updatedAt || row.project.createdAt, render: row => formatDate(row.project.updatedAt || row.project.createdAt) },
       { key: 'status', header: 'Situação', render: () => <Badge tone="neutral">Arquivado</Badge> }
     ];
     const renderArchivedDetails = ({ project, reportTotal }: ArchivedProjectRow) => projectDetailsExpanded(project.id) ? <div className="rdo-project-table__detail" id={`project-table-detail-${project.id}`}>{renderProjectCard(project, {

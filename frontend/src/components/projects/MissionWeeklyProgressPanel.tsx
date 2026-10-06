@@ -1,3 +1,4 @@
+import { SortableTable } from '../ui/SortableTable';
 import { BrandLoading } from '../brand/BrandLoading';
 import { useId, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -172,22 +173,22 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
         {error ? <Alert tone="danger">{error}</Alert> : null}
         {compact ? <Button size="sm" variant="secondary" workflowAppearance={workflowAppearance} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{showDetails ? 'Recolher detalhes e edição' : 'Detalhes e edição das metas'}</Button> : null}
         <div className="mission-weekly-progress-table" role="region" aria-label="Comparativo semanal de avanço" tabIndex={0}>
-          <table>
-            <thead><tr><th scope="col">Semana</th><th scope="col">{plannedHeading}</th><th scope="col">{actualHeading}</th><th scope="col">Diferença</th><th scope="col">Situação</th>{showDetails ? <th scope="col">Meta registrada</th> : null}{canManage && showDetails ? <th scope="col">Ação</th> : null}</tr></thead>
+          <SortableTable>
+            <thead><tr><th scope="col">Semana</th><th scope="col">{plannedHeading}</th><th scope="col">{actualHeading}</th><th scope="col">Diferença</th><th scope="col">Situação</th>{showDetails ? <th scope="col">Meta registrada</th> : null}{canManage && showDetails ? <th scope="col" data-sortable="false">Ação</th> : null}</tr></thead>
             <tbody>{(showAll ? rows : rows.slice(0, 12)).map(row => {
               const revisions = targets.filter(target => target.weekStartDate === row.weekStartDate).sort((a, b) => b.revision - a.revision);
               return <tr key={row.weekStartDate}>
-                <th scope="row">{formatDateOnly(row.weekStartDate)}<small>até {formatDateOnly(row.weekEndDate)}{row.inProgress ? ' · Em andamento' : ''}</small></th>
-                <td data-label={plannedHeading}>{comparisonValue(row, 'plannedValue', true)}</td><td data-label={actualHeading}><div>{comparisonValue(row, 'actualValue')}{row.metric === 'COLLABORATORS' ? <details><summary>Presença por dia · menor efetivo diário</summary><WeeklyGoalResults row={row} /></details> : null}</div></td><td data-label="Diferença"><div>{comparisonValue(row, 'differenceValue')}{row.cumulativeAttendance ? <small>Acumulado: {attendanceBalanceLabel(row.cumulativeAttendance.differenceValue)}</small> : null}</div></td>
+                <th scope="row" data-sort-value={row.weekStartDate}>{formatDateOnly(row.weekStartDate)}<small>até {formatDateOnly(row.weekEndDate)}{row.inProgress ? ' · Em andamento' : ''}</small></th>
+                <td data-label={plannedHeading} data-sort-value={row.plannedValue}>{comparisonValue(row, 'plannedValue', true)}</td><td data-label={actualHeading} data-sort-value={row.actualValue}><div>{comparisonValue(row, 'actualValue')}{row.metric === 'COLLABORATORS' ? <details><summary>Presença por dia · menor efetivo diário</summary><WeeklyGoalResults row={row} /></details> : null}</div></td><td data-label="Diferença" data-sort-value={row.differenceValue}><div>{comparisonValue(row, 'differenceValue')}{row.cumulativeAttendance ? <small>Acumulado: {attendanceBalanceLabel(row.cumulativeAttendance.differenceValue)}</small> : null}</div></td>
                 <td data-label="Situação"><span className={`mission-weekly-status status-${compact && row.inProgress && row.status === 'BELOW' ? 'planned' : row.status.toLowerCase()}`}>{!compact ? STATUS_LABEL[row.status] : row.inProgress && row.status === 'BELOW' ? 'Em andamento' : ['ON_TARGET', 'ABOVE'].includes(row.status) ? 'Meta atingida' : row.status === 'BELOW' ? 'Meta não atingida' : STATUS_LABEL[row.status]}</span></td>
-                {showDetails ? <td data-label="Meta registrada">{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : '—'}</td> : null}
+                {showDetails ? <td data-label="Meta registrada" data-sort-value={revisions[0]?.createdAt}>{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : '—'}</td> : null}
                 {canManage && showDetails ? <td data-label="Ação"><div className="mission-weekly-row-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={busy} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button>{row.target ? <Button workflowAppearance={workflowAppearance} workflowVariant="danger" size="sm" variant="danger" disabled={busy} aria-label={`Excluir meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => {
                   setDeleteError('');
                   setDeleteTarget({ weekStartDate: row.weekStartDate, expectedRevision: row.target!.revision });
                 }}>Excluir</Button> : null}</div></td> : null}
               </tr>;
             })}</tbody>
-          </table>
+          </SortableTable>
         </div>
         {rows.length > 12 ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar últimas 12 semanas' : `Ver todas as ${rows.length} semanas`}</Button> : null}
         <ProjectDetailDisclosure disabled={!compact} label="Como a meta é calculada" compact>

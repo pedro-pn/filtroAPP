@@ -1,3 +1,4 @@
+import { SortableTable } from '../../components/ui/SortableTable';
 import { useRef, type ChangeEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
@@ -149,7 +150,10 @@ export function EquipmentCategorySection({ category, items, total, isManager, on
         </div>
       ) : (
         <div className="equip-category-table-wrap">
-          <table className="equip-category-table">
+          <SortableTable className="equip-category-table" sortValues={items.map(item => [
+            item.code, item.name, item.hasCalibration ? statusLabel[calibrationStatus(item)] : 'Não se aplica',
+            Number(Boolean(item.calibrationCertificate)) + Number(Boolean(item.technicalDoc || item.technicalDocGenerated))
+          ])}>
             <caption className="fv-sr-only">Equipamentos da categoria {category.name}</caption>
             <colgroup><col className="equip-category-table__col-code" /><col className="equip-category-table__col-name" /><col className="equip-category-table__col-calibration" /><col className="equip-category-table__col-documents" /><col className="equip-category-table__col-actions" /></colgroup>
             <thead><tr><th scope="col">Código</th><th scope="col">Equipamento</th><th scope="col">Calibração</th><th scope="col">Documentos</th><th scope="col">Ações</th></tr></thead>
@@ -167,7 +171,7 @@ export function EquipmentCategorySection({ category, items, total, isManager, on
                 />
               ))}
             </tbody>
-          </table>
+          </SortableTable>
         </div>
       )}
     </section>

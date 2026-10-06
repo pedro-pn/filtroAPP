@@ -405,10 +405,11 @@
 
   display: grid;
   min-width: 0;
-  inline-size: auto;
-  max-inline-size: none;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
   gap: var(--space-4);
-  margin-inline: calc(-1 * var(--rdo-services-padding));
+  margin-inline: 0;
   padding: var(--rdo-services-padding);
   border-radius: var(--radius-lg);
   background: var(--surface);

@@ -51,6 +51,30 @@
 }
 
 /* Shared selection control */
+:where(.fv-ds, [data-fv-ds]) .fv-data-table__mobile-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-data-table__mobile-sort label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-data-table__mobile-sort select {
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
 :where(.fv-ds, [data-fv-ds]) .fv-listing-checkbox {
   display: inline-grid;
   width: var(--space-8);

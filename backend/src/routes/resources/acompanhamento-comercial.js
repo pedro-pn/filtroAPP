@@ -47,7 +47,7 @@ import { assertHistoricalProject } from '../../lib/reports/historical-services-s
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { createSystemReconciliationRouter } from './system-reconciliation.js';
 import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
-import { getTrackingDivisions, setTrackingDivisions } from '../../lib/acompanhamento/tracking-divisions.js';
+import { getTrackingDivisions, setTrackingDivision, setTrackingDivisions } from '../../lib/acompanhamento/tracking-divisions.js';
 import {
   CommercialAppBridgeError, receiveCommercialAppProposal,
   listCommercialAppRevisions, selectCommercialAppRevision
@@ -937,7 +937,7 @@ const trackingDivisionRowSchema = z.object({
   key: z.string().min(1).max(500),
   startDate: z.iso.date(),
   endDate: z.iso.date().nullable().optional(),
-  mobilizationDate: z.iso.date().nullable().optional(),
+  mobilizationDate: z.iso.date(),
   plannedCost: z.number().nonnegative().nullable().optional(),
   plannedRevenue: z.number().nonnegative().nullable().optional(),
   plannedHours: z.number().nonnegative().nullable().optional(),
@@ -952,6 +952,17 @@ router.put('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoMa
   try {
     const rows = z.array(trackingDivisionRowSchema).max(500).parse(req.body?.divisions);
     const result = await setTrackingDivisions(req.params.projectId, rows);
+    clearProjectDerivedCaches();
+    res.json(result);
+  } catch (error) {
+    res.status(error.message === 'Projeto não encontrado.' ? 404 : 400).json({ error: error.message });
+  }
+}));
+
+router.patch('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  try {
+    const row = trackingDivisionRowSchema.parse(req.body?.division);
+    const result = await setTrackingDivision(req.params.projectId, row);
     clearProjectDerivedCaches();
     res.json(result);
   } catch (error) {

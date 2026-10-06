@@ -109,9 +109,9 @@ export function MaintenanceReportListing({
       </div>
     },
     { key: 'owner', header: 'Responsável', render: item => itemOwner(item) },
-    { key: 'date', header: 'Data', render: item => itemDate(item) },
-    { key: 'activities', header: 'Atividades', render: item => itemActivities(item) },
-    { key: 'status', header: 'Status', render: item => <ItemStatus item={item} /> }
+    { key: 'date', sortValue: item => item.kind === "report" ? item.report.reportDate : item.record.maintenanceDate, header: 'Data', render: item => itemDate(item) },
+    { key: 'activities', sortValue: item => item.kind === "report" ? item.report.maintenanceRecords.length : item.record.selectedServices.length, header: 'Atividades', render: item => itemActivities(item) },
+    { key: 'status', sortValue: item => statusLabels[item.kind === "report" ? item.report.status : item.record.status], header: 'Status', render: item => <ItemStatus item={item} /> }
   ];
 
   return <DataTable

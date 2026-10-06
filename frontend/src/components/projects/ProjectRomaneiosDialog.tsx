@@ -33,9 +33,9 @@ export function RomaneioItemsCard({ romaneio }: { romaneio: ProjectRomaneio }) {
       emptyState={<EmptyState title="Este romaneio não possui itens" />}
       columns={[
         { key: 'code', header: 'Código', render: item => item.itemCode || '—' },
-        { key: 'name', header: 'Item', rowHeader: true, render: item => <span className="acp-romaneios-ds__item-name">{item.itemName}{item.isCustom ? <small>Item personalizado</small> : null}{item.isExtra ? <small>Entrada extra</small> : null}</span> },
+        { key: 'name', sortValue: item => item.itemName, header: 'Item', rowHeader: true, render: item => <span className="acp-romaneios-ds__item-name">{item.itemName}{item.isCustom ? <small>Item personalizado</small> : null}{item.isExtra ? <small>Entrada extra</small> : null}</span> },
         { key: 'category', header: 'Categoria', render: item => item.categoryName || '—' },
-        { key: 'quantity', header: 'Quantidade', align: 'right', render: item => `${formatQuantity(item.quantity)} ${item.unitLabel}` }
+        { key: 'quantity', sortValue: item => Number(item.quantity), header: 'Quantidade', align: 'right', render: item => `${formatQuantity(item.quantity)} ${item.unitLabel}` }
       ]}
       mobile={{ renderItem: item => ({
         title: item.itemName,

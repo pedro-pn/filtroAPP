@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { TableSortValue } from '../../../../utils/tableSort';
 
 export type ListingRowId = string | number;
 
@@ -47,6 +48,8 @@ export interface DataTableColumn<T> {
   render?: (row: T, index: number) => ReactNode;
   align?: DataTableAlign;
   sortable?: boolean;
+  /** Raw value for dates, numbers or cells containing several labels. */
+  sortValue?: (row: T) => TableSortValue;
   sortLabel?: string;
   numeric?: boolean;
   rowHeader?: boolean;
