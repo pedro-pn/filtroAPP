@@ -55,7 +55,7 @@ test('ComercialAPP entrega revisões de modo idempotente e só seleciona a nova 
       }
     });
     const first = payload(0);
-    const legacyFirst = { ...first, scope: [] };
+    const legacyFirst = { ...first, scope: first.proposalSnapshot.technicalServices };
     delete legacyFirst.estimateSummary;
     assert.equal((await receiveCommercialAppProposal(legacyFirst)).budgetStatus, 'SELECTED');
     assert.equal((await receiveCommercialAppProposal(first)).duplicate, true,

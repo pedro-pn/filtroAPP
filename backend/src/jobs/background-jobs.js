@@ -6,6 +6,7 @@ import { startDataRetentionJob } from '../lib/data-retention.js';
 import { startProjectWorkflowEmailAlertJob } from '../lib/efetivo/project-workflow/email-alerts.js';
 import { startOmieSyncJob } from '../lib/omie/sync.js';
 import { startOperationalAlertJob } from '../lib/operations/alerts.js';
+import { startCommercialProposalSyncJob } from '../lib/projects/commercial-proposal-sync.js';
 import { startPontoMaisSyncJob } from '../lib/pontomais/job.js';
 import { startReportApprovalPostProcessingJob } from '../lib/reports/jobs.js';
 import { syncRomaneioCatalog } from '../lib/romaneio-catalog.js';
@@ -26,6 +27,7 @@ export function startBackgroundJobs({ keepAlive = false } = {}) {
   startReportApprovalPostProcessingJob({ keepAlive });
   startAssinaturasJobs();
   startOperationalAlertJob();
+  startCommercialProposalSyncJob();
   syncRomaneioCatalog().catch(error => {
     console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);
   });

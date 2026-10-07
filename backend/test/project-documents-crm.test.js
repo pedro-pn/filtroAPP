@@ -59,3 +59,14 @@ test('referência CRM sem URL acessível permanece pendente', async () => {
   await upsertCrmProjectDocument(database, event('1', '2026-09-10T12:00:00Z', null));
   assert.equal(projectDocumentReadiness(hydrateDocument(state.documents[0])).reasonCode, 'CONTENT_UNAVAILABLE');
 });
+
+test('PDFs gerenciados pelo ComercialAPP também impedem alteração manual', async () => {
+  const { database, state } = createProjectDocumentsDatabase();
+  await upsertCrmProjectDocument(database, event('1'));
+  state.versions[0].source = 'SYSTEM';
+  state.versions[0].externalId = 'comercialapp:COMMERCIAL_PROPOSAL';
+  const document = state.documents[0];
+  await assert.rejects(updateProjectDocument('project_1', document.id, {
+    expectedVersion: document.version, title: 'Tentativa manual'
+  }, { isManager: true, user: { accountType: 'ADMIN' } }, { database }), error => error.code === 'CRM_DOCUMENT_READ_ONLY');
+});

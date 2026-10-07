@@ -6,6 +6,7 @@ import {
 } from '../acompanhamento/access-import.js';
 import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
+import { commercialProposalReference, commercialProposalSyncData } from './commercial-proposal-sync-state.js';
 
 const MISSING_REVISION_SENTINEL = -1;
 const INITIAL_COMMERCIAL_REVISION = 0;
@@ -69,6 +70,7 @@ export const projectIntakePublicSelect = {
   clientCnpj: true,
   contractCode: true,
   location: true,
+  commercialProposalSync: true,
   registrationPending: true
 };
 
@@ -95,6 +97,7 @@ export function projectIntakeCreateData(data) {
   delete projectData.revision;
   return {
     ...projectData,
+    ...commercialProposalSyncData({ proposalCode: String(contractToProposalCode(data.contractCode)), revisionNumber: data.revision }),
     isActive: true,
     visibleToCollaborators: true,
     managerOnly: false,
@@ -125,18 +128,48 @@ export function projectMatchesIntake(project, intake) {
   return PROJECT_INTAKE_COMPARISON_FIELDS.every(field => comparableProject[field] === intake[field]);
 }
 
-async function resolveExistingProject(project, intake, client) {
+async function resolveExistingProject(project, intake, client, attempts = 0) {
+  let status = 'already_exists';
   if (!projectMatchesIntake(project, intake)) {
-    throw new ProjectIntakeConflictError();
+    const previousReference = commercialProposalReference(project.contractCode);
+    const nextReference = commercialProposalReference(intake.contractCode);
+    const sameIdentity = PROJECT_INTAKE_COMPARISON_FIELDS.filter(field => field !== 'contractCode')
+      .every(field => normalizedComparableProject(project)[field] === intake[field]);
+    if (!sameIdentity || !previousReference || !nextReference ||
+        previousReference.proposalCode !== nextReference.proposalCode ||
+        nextReference.revisionNumber <= previousReference.revisionNumber) {
+      throw new ProjectIntakeConflictError();
+    }
+    const changed = await client.project.updateMany({
+      where: { id: project.id, contractCode: project.contractCode },
+      data: { contractCode: intake.contractCode, ...commercialProposalSyncData(nextReference, project.commercialProposalSync) }
+    });
+    const current = await client.project.findUnique({ where: { code: intake.code }, select: projectIntakePublicSelect });
+    if (!current) throw new ProjectIntakeConflictError();
+    if (changed.count !== 1 || current.contractCode !== intake.contractCode) {
+      if (attempts >= 2) throw new ProjectIntakeConflictError();
+      return resolveExistingProject(current, intake, client, attempts + 1);
+    }
+    project = current;
+    status = 'updated';
+  } else {
+    const syncData = project.commercialProposalSync ? {} : commercialProposalSyncData(
+      { proposalCode: String(contractToProposalCode(intake.contractCode)), revisionNumber: intake.revision },
+      project.commercialProposalSync
+    );
+    if (Object.keys(syncData).length) {
+      await client.project.update({ where: { id: project.id }, data: syncData });
+    }
   }
   clearProjectDerivedCaches();
   const commercialRevision = await selectProjectIntakeCommercialRevision(project, intake, client);
-  return projectIntakeResult('already_exists', project, commercialRevision);
+  return projectIntakeResult(status, project, commercialRevision);
 }
 
 function projectIntakeResult(status, project, commercialRevision) {
   const publicProject = { ...project, proposalCode: project.contractCode };
   delete publicProject.contractCode;
+  delete publicProject.commercialProposalSync;
   return { status, project: publicProject, commercialRevision };
 }
 
