@@ -990,6 +990,8 @@
 .efetivo-event-dot.type-folga { background: var(--warning-text); }
 .efetivo-calendar-legend .type-afastamento,
 .efetivo-event-dot.type-afastamento { background: var(--rd); }
+.efetivo-calendar-legend .type-fadiga_offshore,
+.efetivo-event-dot.type-fadiga_offshore { background: var(--warning-text); }
 
 .efetivo-calendar-grid {
   display: grid;
@@ -1023,6 +1025,7 @@
 .efetivo-calendar-events small.type-ferias { border-color: var(--bl); }
 .efetivo-calendar-events small.type-folga { border-color: var(--warning-text); }
 .efetivo-calendar-events small.type-afastamento { border-color: var(--rd); }
+.efetivo-calendar-events small.type-fadiga_offshore { border-color: var(--warning-text); }
 
 .efetivo-demand-summary {
   display: grid;
@@ -1170,6 +1173,7 @@
 [data-availability-status='AWAITING_MOBILIZATION'] { --stage: var(--warning); }
 [data-availability-status='MOBILIZED'] { --stage: var(--info); }
 [data-availability-status='ON_VACATION'] { --stage: var(--pu); }
+[data-availability-status='OFFSHORE_FATIGUE'] { --stage: var(--warning-text); }
 [data-availability-status='OTHER_UNAVAILABLE'] { --stage: var(--danger); }
 [data-availability-status='OUTSIDE_EMPLOYMENT'] { --stage: var(--muted); }
 
@@ -1361,7 +1365,7 @@
 .efetivo-period-risk-grid small { color: var(--mu); font-size: 11px; }
 .efetivo-period-risk-grid p { border-top: 1px solid #f3d6c2; color: var(--tx); font-size: 11px; line-height: 1.4; margin: 6px 0 0; padding-top: 7px; }
 .efetivo-period-clear { color: var(--mu); font-size: 12px; margin: 0; }
-.efetivo-period-board .efetivo-availability-kanban { grid-template-columns: repeat(5, minmax(180px, 1fr)); overflow-x: auto; }
+.efetivo-period-board .efetivo-availability-kanban { grid-template-columns: repeat(6, minmax(180px, 1fr)); overflow-x: auto; }
 .efetivo-period-person-counts { display: flex; flex-wrap: wrap; gap: 4px; }
 .efetivo-period-person-counts span { background: color-mix(in srgb, var(--stage) 12%, white); border-radius: 5px; color: var(--stage); font-size: 10px; font-weight: 700; padding: 4px 6px; }
 .efetivo-period-calendar { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 20px; width: 100%; }
@@ -1397,7 +1401,7 @@
 .efetivo-period-tooltip small { color: var(--mu); font-size: 11px; line-height: 1.4; }
 
 @media (max-width: 900px) {
-  .efetivo-period-board .efetivo-availability-kanban { grid-template-columns: repeat(5, minmax(210px, 1fr)); }
+  .efetivo-period-board .efetivo-availability-kanban { grid-template-columns: repeat(6, minmax(210px, 1fr)); }
 }
 @media (max-width: 640px) {
   .efetivo-period-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }

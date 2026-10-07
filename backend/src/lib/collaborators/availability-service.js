@@ -168,7 +168,7 @@ export async function listWorkforceAbsences(database, filters = {}) {
   return database.collaboratorAbsence.findMany({
     where: {
       deletedAt: null,
-      type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
+      type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
       ...(filters.collaboratorId ? { collaboratorId: filters.collaboratorId } : {}),
       ...(filters.startDate ? {
         startDate: { lte: utcDate(filters.endDate || filters.startDate) },

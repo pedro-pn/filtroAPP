@@ -223,7 +223,7 @@ export async function listPlanningAbsences(filters = {}, dependencies = {}) {
   return database.collaboratorAbsence.findMany({
     where: {
       deletedAt: null,
-      type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
+      type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
       ...(filters.collaboratorId ? { collaboratorId: filters.collaboratorId } : {}),
       ...(filters.startDate ? { startDate: { lte: utcDate(filters.endDate || filters.startDate) }, endDate: { gte: utcDate(filters.startDate) } } : {})
     },
