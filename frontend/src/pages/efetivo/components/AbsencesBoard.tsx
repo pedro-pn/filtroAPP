@@ -140,7 +140,7 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
                     <span>{absence.collaborator.role}</span>
                   </div>
                   <div>
-                    <span>{absence.type === 'FERIAS' ? 'Férias' : absence.type === 'FOLGA' ? 'Folga' : 'Afastamento'}</span>
+                    <span>{absence.type === 'FERIAS' ? 'Férias' : absence.type === 'FOLGA' ? 'Folga' : absence.type === 'FADIGA_OFFSHORE' ? 'Fadiga - offshore' : 'Afastamento'}</span>
                     <strong>{displayDate(absence.startDate)} a {displayDate(absence.endDate)}</strong>
                     {absence.note ? <small>{absence.note}</small> : null}
                   </div>

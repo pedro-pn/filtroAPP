@@ -225,6 +225,7 @@ enum CollaboratorAbsenceType {
   FERIAS
   FOLGA
   AFASTAMENTO
+  FADIGA_OFFSHORE
   ASO
   TREINAMENTO
 }

@@ -276,7 +276,7 @@ components:
       required: [collaboratorId, type, startDate, endDate]
       properties:
         collaboratorId: { type: string }
-        type: { type: string, enum: [FERIAS, FOLGA, AFASTAMENTO] }
+        type: { type: string, enum: [FERIAS, FOLGA, AFASTAMENTO, FADIGA_OFFSHORE] }
         startDate: { $ref: '#/components/schemas/DateOnly' }
         endDate: { $ref: '#/components/schemas/DateOnly' }
         note: { type: [string, 'null'], maxLength: 1000 }
