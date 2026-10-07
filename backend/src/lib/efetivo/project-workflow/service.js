@@ -76,6 +76,7 @@ const PROJECT_FIELDS = {
   name: true,
   clientName: true,
   clientEmailPrimary: true,
+  commercialProposalSync: true,
   location: true,
   mobilizationDate: true,
   demobilizationDate: true
@@ -1125,6 +1126,11 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       name: project.name,
       clientName: project.clientName,
       clientEmailPrimary: project.clientEmailPrimary,
+      commercialProposalSync: project.commercialProposalSync ? {
+        status: project.commercialProposalSync.status,
+        proposalCode: project.commercialProposalSync.proposalCode,
+        revisionNumber: project.commercialProposalSync.revisionNumber
+      } : null,
       location: project.location,
       mobilizationDate: dateKey(project.mobilizationDate),
       demobilizationDate: dateKey(project.demobilizationDate),

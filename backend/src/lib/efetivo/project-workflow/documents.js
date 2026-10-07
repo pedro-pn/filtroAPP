@@ -225,13 +225,14 @@ function assertProjectMutable(project) {
   }
 }
 
-function documentSource(document) {
-  return document?.currentVersion?.source || document?.versions?.[0]?.source || null;
+function externallyManagedDocument(document) {
+  const version = document?.currentVersion || document?.versions?.[0];
+  return version?.source === 'CRM' || version?.source === 'SYSTEM' && String(version.externalId || '').startsWith('comercialapp:');
 }
 
 function assertUserMutableDocument(document) {
-  if (documentSource(document) === 'CRM') {
-    throw error('Documentos recebidos do CRM são somente leitura no FiltroAPP.', 409, 'CRM_DOCUMENT_READ_ONLY');
+  if (externallyManagedDocument(document)) {
+    throw error('Documentos recebidos do Comercial ou CRM são somente leitura no FiltroAPP.', 409, 'CRM_DOCUMENT_READ_ONLY');
   }
 }
 
@@ -329,7 +330,7 @@ export function projectDocumentRequirements(documents = [], dependencies = {}) {
 }
 
 function versionPermissions(document, project, context) {
-  const mutable = project.workflow?.stage !== 'FINISHED' && documentSource(document) !== 'CRM';
+  const mutable = project.workflow?.stage !== 'FINISHED' && !externallyManagedDocument(document);
   const typeAllowed = allowedProjectDocumentTypes(project, context).includes(document.type);
   const canMutate = mutable && typeAllowed;
   return {
