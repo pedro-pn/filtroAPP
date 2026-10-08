@@ -170,6 +170,7 @@ function fakeDatabase() {
           supplyPlan: [],
           logisticsPlan: {},
           travelPlan: {},
+          preJobNotApplicable: false,
           preJobScheduledDate: null,
           preJobCompletedDate: null,
           qsmsVerified: null,
@@ -1227,6 +1228,64 @@ test('preparação acompanha equipe por colaborador e liberações do cliente co
   }, supplies, { database });
   assert.equal(result.workflow.preparationResources.materials.items[0].checks[0].status, 'PENDING');
   assert.equal(result.workflow.mobilizationGate.fronts.find(item => item.key === 'MATERIALS').status, 'BLOCKED');
+});
+
+test('pré-job não aplicável é salvo, pode ser desmarcado e permite avançar sem datas', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  state.workflow.preJobScheduledDate = null;
+  state.workflow.preJobCompletedDate = null;
+  let detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.equal(detail.workflow.preJob.notApplicable, false);
+  assert.equal(detail.workflow.mobilizationGate.ready, false);
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'pre_job', version: 1, notApplicable: true }, administrative, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
+  );
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'pre_job', version: 2, notApplicable: true }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_VERSION_CONFLICT'
+  );
+  detail = await updateProjectWorkflow('project-1', { action: 'pre_job', version: 1, notApplicable: true }, operations, { database });
+  assert.equal(state.workflow.preJobNotApplicable, true);
+  assert.equal(detail.workflow.preJob.notApplicable, true);
+  assert.equal(detail.workflow.preJob.scheduledDate, null);
+  assert.equal(detail.workflow.preJob.completedDate, null);
+  assert.equal(detail.workflow.preparationReadiness.percentage, 100);
+  assert.equal(detail.workflow.mobilizationGate.ready, true);
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_PRE_JOB');
+  assert.equal(state.events.at(-1).data.notApplicable, true);
+  detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.equal(detail.workflow.preJob.notApplicable, true);
+
+  detail = await updateProjectWorkflow('project-1', { action: 'pre_job', version: 2, notApplicable: false }, operations, { database });
+  assert.equal(detail.workflow.preJob.notApplicable, false);
+  assert.equal(detail.workflow.mobilizationGate.ready, false);
+  assert.equal(detail.workflow.mobilizationGate.preJob.blockers.length, 2);
+
+  detail = await updateProjectWorkflow('project-1', { action: 'pre_job', version: 3, notApplicable: true }, operations, { database });
+  detail = await updateProjectWorkflow('project-1', { action: 'stage', version: detail.workflow.version, stage: 'MOBILIZATION' }, leader, {
+    database,
+    now: new Date('2026-09-09T18:00:00Z'),
+    synchronizeOfficialMissionStage: async () => null
+  });
+  assert.equal(detail.workflow.stage, 'MOBILIZATION');
+  assert.equal(detail.workflow.mobilizationAuthorization.authorized, true);
+});
+
+test('alternar não aplicável preserva as datas já registradas do pré-job', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  for (const notApplicable of [true, false]) {
+    const detail = await updateProjectWorkflow('project-1', { action: 'pre_job', version: state.workflow.version, notApplicable }, operations, { database });
+    assert.equal(detail.workflow.preJob.notApplicable, notApplicable);
+    assert.equal(detail.workflow.preJob.scheduledDate, '2026-09-09');
+    assert.equal(detail.workflow.preJob.completedDate, '2026-09-10');
+    assert.equal(detail.workflow.mobilizationGate.ready, true);
+  }
 });
 
 test('preparação registra pré-job e viagem em campos estruturados com salvamento por área', async () => {

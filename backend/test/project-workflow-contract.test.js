@@ -5,6 +5,21 @@ import { z } from 'zod';
 
 import { makeProjectWorkflowSchemas } from '../../shared/schemas/project-workflow.js';
 
+test('pré-job aceita não aplicável sem exigir datas e mantém a validação dos campos', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  for (const notApplicable of [true, false]) {
+    const payload = { action: 'pre_job', version: 1, notApplicable };
+    assert.deepEqual(patch.parse(payload), payload);
+  }
+  for (const notApplicable of [null, 'true', 1]) {
+    assert.equal(patch.safeParse({ action: 'pre_job', version: 1, notApplicable }).success, false);
+  }
+  assert.equal(patch.safeParse({ action: 'pre_job', version: 1 }).success, false);
+  assert.equal(patch.safeParse({ action: 'pre_job', notApplicable: true }).success, false);
+  assert.equal(patch.safeParse({ action: 'pre_job', version: 1, scheduledDate: '2026-09-10' }).success, true);
+  assert.equal(patch.safeParse({ action: 'pre_job', version: 1, notApplicable: false, scheduledDate: '2026-09-10', completedDate: '2026-09-09' }).success, false);
+});
+
 test('mobilização exige uma data efetiva válida e aceita correção de etapa', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
   assert.equal(patch.safeParse({ action: 'mobilization', version: 1, mobilizationDate: '2026-09-10', correctionStage: 'MOBILIZATION' }).success, true);

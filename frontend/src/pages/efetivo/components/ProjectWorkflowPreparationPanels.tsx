@@ -153,17 +153,27 @@ export function ProjectWorkflowPreJobPanel({ workflow, saving, onPatch }: {
   return (
     <ProjectWorkflowCategory
       title="Pré-job"
-      description="Registre as datas de agendamento e realização. Cada alteração é salva automaticamente."
+      description="Registre o agendamento e a realização ou marque como não aplicável. Cada alteração é salva automaticamente."
       area="Operações"
       progress={progress}
-      status={preparationStatusLabel(progress)}
+      status={workflow.preJob.notApplicable ? 'Não aplicável' : preparationStatusLabel(progress)}
       complete={complete}
       data-project-workflow-pre-job
     >
       <div className="project-workflow-client-release-fields">
         <ProjectWorkflowStatusToggle
-          checked={Boolean(workflow.preJob.scheduledDate)}
+          checked={workflow.preJob.notApplicable}
           disabled={saving || !workflow.preJob.canEdit}
+          label="Não aplicável"
+          onChange={notApplicable => onPatch({
+            action: 'pre_job',
+            version: workflow.version,
+            notApplicable
+          })}
+        />
+        <ProjectWorkflowStatusToggle
+          checked={Boolean(workflow.preJob.scheduledDate)}
+          disabled={saving || !workflow.preJob.canEdit || workflow.preJob.notApplicable}
           label={`Agendado${workflow.preJob.scheduledDate ? ` em ${displayDateOnly(workflow.preJob.scheduledDate)}` : ''}`}
           onChange={checked => onPatch({
             action: 'pre_job',
@@ -174,7 +184,7 @@ export function ProjectWorkflowPreJobPanel({ workflow, saving, onPatch }: {
         />
         <ProjectWorkflowStatusToggle
           checked={Boolean(workflow.preJob.completedDate)}
-          disabled={saving || !workflow.preJob.canEdit || !workflow.preJob.scheduledDate}
+          disabled={saving || !workflow.preJob.canEdit || workflow.preJob.notApplicable || !workflow.preJob.scheduledDate}
           label={`Realizado${workflow.preJob.completedDate ? ` em ${displayDateOnly(workflow.preJob.completedDate)}` : ''}`}
           onChange={checked => onPatch({
             action: 'pre_job',

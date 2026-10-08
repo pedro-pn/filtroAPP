@@ -2735,7 +2735,8 @@ export function GestorPage() {
           project,
           projectReports: filteredProjectReports,
           reportTotal: groupedReportTotal || filteredProjectReports.length,
-          visible: filteredProjectReports.length > 0 || (!gestorSearch.trim() && projectMatches)
+          // A correspondência do projeto independe dos relatórios carregados na página atual.
+          visible: projectMatches || filteredProjectReports.length > 0
         };
       })
       .filter((item) => item.visible);

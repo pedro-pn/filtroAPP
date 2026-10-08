@@ -19,6 +19,14 @@ For signature navigation, open the same fixture with
 reload it and click Voltar: the search, status and archived list must be preserved.
 All data and writes in this fixture are simulated.
 
+For active and archived project search, open
+`/test/browser/gestor-project-search.html?tab=arquivados`, then run
+`playwright-cli run-code --filename frontend/test/browser/gestor-project-search.js`.
+The fixture mounts the production manager page and checks `5807 - VILLARIS`
+by code and name even when its reports have not been loaded, projects with no
+reports, report-only matches, empty results, clearing and restoring the search,
+and the active projects tab. All API responses are simulated.
+
 For signature pagination, open the fixture with
 `?mode=signatures&pagination=1&status=CONCLUIDO`, then run
 `playwright-cli run-code --filename frontend/test/browser/signature-pagination.js`.
