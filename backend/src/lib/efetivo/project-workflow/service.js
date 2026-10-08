@@ -564,6 +564,7 @@ function publicClientContactChecklist(workflow, context) {
 
 function publicPreJob(workflow, context) {
   return {
+    notApplicable: workflow?.preJobNotApplicable === true,
     scheduledDate: dateKey(workflow?.preJobScheduledDate),
     completedDate: dateKey(workflow?.preJobCompletedDate),
     canEdit: canEditPreparationAreaOrCorrect(workflow, ['efetivo:operations'], context)
@@ -1419,6 +1420,7 @@ async function applyPreJob(tx, workflow, payload) {
     });
   }
   const data = {};
+  if (Object.hasOwn(payload, 'notApplicable')) data.preJobNotApplicable = payload.notApplicable;
   if (Object.hasOwn(payload, 'scheduledDate')) data.preJobScheduledDate = payload.scheduledDate ? utcDate(payload.scheduledDate) : null;
   if (Object.hasOwn(payload, 'completedDate')) data.preJobCompletedDate = payload.completedDate ? utcDate(payload.completedDate) : null;
   await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });

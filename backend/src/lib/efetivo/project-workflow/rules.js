@@ -341,8 +341,9 @@ function clientReleaseProgress(workflow) {
 }
 
 function preJobProgress(workflow) {
-  const scheduled = Boolean(workflow?.preJobScheduledDate);
-  const completed = Boolean(workflow?.preJobCompletedDate);
+  const notApplicable = workflow?.preJobNotApplicable === true;
+  const scheduled = notApplicable || Boolean(workflow?.preJobScheduledDate);
+  const completed = notApplicable || Boolean(workflow?.preJobCompletedDate);
   const blockers = [];
   if (!scheduled) blockers.push({ key: 'PRE_JOB_SCHEDULED', label: 'Pré-job', reason: 'Informar a data do agendamento' });
   if (!completed) blockers.push({ key: 'PRE_JOB_COMPLETED', label: 'Pré-job', reason: 'Informar a data da realização' });

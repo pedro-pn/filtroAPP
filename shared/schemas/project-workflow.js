@@ -493,11 +493,12 @@ export function makeProjectWorkflowSchemas(z) {
     action: z.literal('pre_job'),
     version,
     correctionStage,
+    notApplicable: z.boolean().optional(),
     scheduledDate: dateOnly.nullable().optional(),
     completedDate: dateOnly.nullable().optional()
   }).strict().superRefine((value, ctx) => {
-    if (!Object.hasOwn(value, 'scheduledDate') && !Object.hasOwn(value, 'completedDate')) {
-      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma data do pré-job.' });
+    if (!Object.hasOwn(value, 'notApplicable') && !Object.hasOwn(value, 'scheduledDate') && !Object.hasOwn(value, 'completedDate')) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração do pré-job.' });
     }
     if (value.scheduledDate && value.completedDate && value.scheduledDate > value.completedDate) {
       ctx.addIssue({ code: 'custom', path: ['completedDate'], message: 'A realização não pode ser anterior ao agendamento.' });

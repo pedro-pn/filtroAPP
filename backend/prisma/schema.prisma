@@ -1091,6 +1091,7 @@ model ProjectWorkflow {
   supplyPlan                         Json                                   @default("[]")
   logisticsPlan                      Json                                   @default("{}")
   travelPlan                         Json                                   @default("{}")
+  preJobNotApplicable                Boolean                                @default(false)
   preJobScheduledDate                DateTime?                              @db.Date
   preJobCompletedDate                DateTime?                              @db.Date
   qsmsVerified                       Boolean?

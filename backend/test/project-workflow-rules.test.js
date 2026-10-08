@@ -390,6 +390,38 @@ test('planejamento completo libera Preparação e D-15 acompanha equipe nominal 
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning }, 'PREPARATION'), []);
 });
 
+test('pré-job não aplicável libera a preparação e o avanço, na Sede e em campo, sem dispensar outras frentes', () => {
+  for (const executedAtHeadquarters of [false, true]) {
+    const workflow = readyMobilizationWorkflow({ executedAtHeadquarters, preJobScheduledDate: null, preJobCompletedDate: null });
+    const target = executedAtHeadquarters ? 'EXECUTION' : 'MOBILIZATION';
+    assert.equal(projectWorkflowMobilizationGate(workflow).preJob.status, 'BLOCKED');
+    assert.ok(projectWorkflowTransitionIssues(workflow, target).length > 0);
+
+    workflow.preJobNotApplicable = true;
+    const readiness = projectWorkflowPreparationReadiness(workflow);
+    const preJob = readiness.sections.find(item => item.key === 'D15_PRE_JOB');
+    assert.equal(preJob.completed, preJob.total);
+    assert.equal(preJob.percentage, 100);
+    assert.equal(readiness.percentage, 100);
+    const gate = projectWorkflowMobilizationGate(workflow);
+    assert.equal(gate.preJob.status, 'READY');
+    assert.deepEqual(gate.preJob.blockers, []);
+    assert.equal(gate.ready, true);
+    assert.deepEqual(projectWorkflowTransitionIssues(workflow, target), []);
+
+    const notified = workflow.teamPreparation.members[0].checks.find(item => item.key === 'NOTIFIED');
+    notified.status = 'PENDING';
+    assert.equal(projectWorkflowMobilizationGate(workflow).ready, false);
+    assert.ok(projectWorkflowTransitionIssues(workflow, target).length > 0);
+    notified.status = 'DONE';
+
+    workflow.preJobNotApplicable = false;
+    assert.equal(projectWorkflowPreparationReadiness(workflow).sections.find(item => item.key === 'D15_PRE_JOB').completed, 0);
+    assert.equal(projectWorkflowMobilizationGate(workflow).preJob.blockers.length, 2);
+    assert.ok(projectWorkflowTransitionIssues(workflow, target).length > 0);
+  }
+});
+
 test('QSMS começa sem resposta e não exige o registro da verificação para liberar', () => {
   const workflow = readyMobilizationWorkflow({ qsmsVerified: null, qsmsVerificationNote: null });
   let qsms = projectWorkflowPreparationReadiness(workflow).sections.find(item => item.key === 'D15_QSMS');

@@ -549,7 +549,7 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
   return (
     <ProjectWorkflowCategory
       title={headquarters ? 'Gate de execução' : 'Gate de mobilização'}
-      description={headquarters ? 'As frentes obrigatórias e o pré-job precisam estar liberados para iniciar a execução na Sede.' : 'As frentes obrigatórias e o pré-job precisam estar liberados para mobilizar ou seguir em execução.'}
+      description={headquarters ? 'As frentes obrigatórias e o pré-job, quando aplicável, precisam estar liberados para iniciar a execução na Sede.' : 'As frentes obrigatórias e o pré-job, quando aplicável, precisam estar liberados para mobilizar ou seguir em execução.'}
       area="Liberação"
       group="Liberação"
       progress={{
@@ -567,7 +567,7 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
         <div className="project-workflow-gate-table-head" role="row"><span role="columnheader">Frente</span><span role="columnheader">Situação</span><span role="columnheader">Progresso</span></div>
         {workflow.mobilizationGate.fronts.map(front => <div className="project-workflow-gate-row" role="row" key={front.key}><strong role="cell">{front.label}</strong><span role="cell" className={front.status === 'READY' ? 'is-ready' : 'is-blocked'}>{front.status === 'READY' ? '🟢 Liberada' : '🔴 Pendente'}{front.optional ? ' · opcional' : ''}</span><span role="cell">{front.completed}/{front.total}</span></div>)}
       </div>
-      <div className={`project-workflow-pre-job-status is-${workflow.mobilizationGate.preJob.status.toLowerCase()}`}><strong>Pré-job</strong><span>{workflow.mobilizationGate.preJob.status === 'READY' ? '🟢 Realizado' : `🔴 ${workflow.mobilizationGate.preJob.completed}/${workflow.mobilizationGate.preJob.total}`}</span></div>
+      <div className={`project-workflow-pre-job-status is-${workflow.mobilizationGate.preJob.status.toLowerCase()}`}><strong>Pré-job</strong><span>{workflow.preJob.notApplicable ? '🟢 Não aplicável' : workflow.mobilizationGate.preJob.status === 'READY' ? '🟢 Realizado' : `🔴 ${workflow.mobilizationGate.preJob.completed}/${workflow.mobilizationGate.preJob.total}`}</span></div>
       {workflow.mobilizationGate.blockers.length ? <details><summary>{workflow.mobilizationGate.blockers.length} bloqueio(s) para {headquarters ? 'iniciar a execução' : 'mobilizar'}</summary><ul>{workflow.mobilizationGate.blockers.slice(0, 12).map((item, index) => <li key={`${item.front}-${item.key}-${index}`}>{item.label}: {item.reason}</li>)}</ul>{workflow.mobilizationGate.blockers.length > 12 ? <p>Existem mais {workflow.mobilizationGate.blockers.length - 12} bloqueio(s).</p> : null}</details> : null}
     </ProjectWorkflowCategory>
   );

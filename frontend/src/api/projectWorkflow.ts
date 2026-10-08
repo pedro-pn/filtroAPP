@@ -635,6 +635,7 @@ export interface ProjectWorkflow {
   headquartersSuggestion?: boolean | null;
   preparationLeadTimeDays: number;
   preJob: {
+    notApplicable: boolean;
     scheduledDate: string | null;
     completedDate: string | null;
     canEdit: boolean;
@@ -900,7 +901,7 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'client_attendance'; version: number; attendanceDate: string }
   | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo?: string | null; completed: boolean; completedAt: string | null; notificationEmail?: string; makeDefaultEmail?: boolean }
-  | { action: 'pre_job'; version: number; scheduledDate?: string | null; completedDate?: string | null }
+  | { action: 'pre_job'; version: number; notApplicable?: boolean; scheduledDate?: string | null; completedDate?: string | null }
   | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportMode?: ProjectWorkflowTeamTransportMode | null; teamTransportVehicleType?: string | null; teamTransportQuantity?: number | null; teamTransportMember?: { collaboratorId: string; mode: ProjectWorkflowTeamTransportMode | null; vehicleType: string | null }; teamTransportApplyAll?: true; freightDefined?: boolean | null; freightMode?: ProjectWorkflowTransportMode | null; freightVehicleType?: string | null; freightQuantity?: number | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
