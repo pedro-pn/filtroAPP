@@ -83,6 +83,9 @@ function projectFromPayload(payload = validPayload, overrides = {}) {
   return {
     id: 'project-1',
     ...projectFields,
+    commercialProposalSync: { requestId: 'test-intake', status: 'PENDING',
+      proposalCode: String(projectIntakeSchema.parse(payload).contractCode.match(/^\d+/)[0]),
+      revisionNumber: projectIntakeSchema.parse(payload).revision },
     registrationPending: true,
     ...overrides
   };
@@ -460,6 +463,50 @@ test('receiveProjectIntake rejects a divergent existing project without updating
       field
     );
   }
+});
+
+test('nova revisão do Prisma atualiza o vínculo e agenda a busca no mesmo projeto', async () => {
+  let project = projectFromPayload({ ...validPayload, revision: 1 });
+  const client = intakeClient({
+    async findUnique() { return structuredClone(project); },
+    async updateMany({ where, data }) {
+      assert.equal(where.contractCode, '3088 Rev. 1');
+      project = { ...project, ...data };
+      return { count: 1 };
+    }
+  });
+  const result = await receiveProjectIntake(validPayload, client);
+  assert.equal(result.status, 'updated');
+  assert.equal(result.project.id, 'project-1');
+  assert.equal(project.commercialProposalSync.revisionNumber, 2);
+  assert.equal(project.commercialProposalSync.status, 'PENDING');
+  assert.equal('commercialProposalSync' in result.project, false);
+  await assert.rejects(receiveProjectIntake({ ...validPayload, revision: 1 }, client), ProjectIntakeConflictError);
+});
+
+test('revisão concorrente mais nova não é substituída por um evento antigo', async () => {
+  let project = projectFromPayload({ ...validPayload, revision: 1 });
+  const client = intakeClient({
+    async findUnique() { return structuredClone(project); },
+    async updateMany() {
+      project = projectFromPayload({ ...validPayload, revision: 3 });
+      return { count: 0 };
+    }
+  });
+  await assert.rejects(receiveProjectIntake(validPayload, client), ProjectIntakeConflictError);
+  assert.equal(project.contractCode, '3088 Rev. 3');
+});
+
+test('reenvio do Prisma preserva a revisão escolhida manualmente para a busca', async () => {
+  const project = projectFromPayload(validPayload, {
+    commercialProposalSync: { requestId: 'manual-revision', status: 'SYNCED', proposalCode: '3088', revisionNumber: 4 }
+  });
+  const result = await receiveProjectIntake(validPayload, intakeClient({
+    async findUnique() { return project; },
+    async update() { throw new Error('replay must preserve manual revision'); }
+  }));
+  assert.equal(result.status, 'already_exists');
+  assert.equal(project.commercialProposalSync.revisionNumber, 4);
 });
 
 test('receiveProjectIntake treats an existing soft-deleted record as a reserved code', async () => {

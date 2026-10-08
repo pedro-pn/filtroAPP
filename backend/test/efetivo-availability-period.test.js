@@ -3,6 +3,23 @@ import test from 'node:test';
 
 import { buildAvailabilityPeriod } from '../src/lib/efetivo/planning/availability-period.js';
 
+test('fadiga offshore bloqueia o período inclusivo e recebe status e detalhe próprios', () => {
+  const projection = {
+    jobRoles: [{ id: 'r1', name: 'Operador', isOperational: true, isActive: true }],
+    collaborators: [{ id: 'c1', name: 'Ana', jobRoleId: 'r1', isActive: true }],
+    missions: [],
+    absences: [{ id: 'a1', collaboratorId: 'c1', type: 'FADIGA_OFFSHORE', startDate: '2026-09-02', endDate: '2026-09-03' }]
+  };
+  const result = buildAvailabilityPeriod({ startDate: '2026-09-01', endDate: '2026-09-04', projection });
+  assert.deepEqual(result.people[0].days, [
+    { date: '2026-09-01', status: 'AVAILABLE', detail: null },
+    { date: '2026-09-02', status: 'OFFSHORE_FATIGUE', detail: 'Fadiga - offshore' },
+    { date: '2026-09-03', status: 'OFFSHORE_FATIGUE', detail: 'Fadiga - offshore' },
+    { date: '2026-09-04', status: 'AVAILABLE', detail: null }
+  ]);
+  assert.deepEqual(result.roles[0].daily.map(day => day.free), [1, 0, 0, 1]);
+});
+
 test('vaga sem alocação não vira falta quando há colaborador livre do cargo', () => {
   const projection = {
     jobRoles: [{ id: 'r1', name: 'Operador', isOperational: true, isActive: true }],

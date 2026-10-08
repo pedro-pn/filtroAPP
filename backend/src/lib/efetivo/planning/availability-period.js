@@ -11,6 +11,7 @@ const STATUS = {
   STANDBY: 'AWAITING_MOBILIZATION',
   ALLOCATED: 'MOBILIZED',
   FERIAS: 'ON_VACATION',
+  FADIGA_OFFSHORE: 'OFFSHORE_FATIGUE',
   UNAVAILABLE: 'OTHER_UNAVAILABLE'
 };
 
@@ -116,7 +117,7 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
         date,
         status,
         detail: entry.absence
-          ? entry.absence.type === 'FERIAS' ? 'Férias' : entry.absence.type === 'FOLGA' ? 'Folga' : 'Afastamento'
+          ? entry.absence.type === 'FERIAS' ? 'Férias' : entry.absence.type === 'FOLGA' ? 'Folga' : entry.absence.type === 'FADIGA_OFFSHORE' ? 'Fadiga - offshore' : 'Afastamento'
           : entry.mission ? `${entry.mission.project?.code || ''} · ${entry.mission.project?.name || ''}`.trim() : null
       });
       people.set(collaborator.id, person);

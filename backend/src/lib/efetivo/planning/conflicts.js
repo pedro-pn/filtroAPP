@@ -95,7 +95,7 @@ export async function loadCollaboratorConflictData(tx, collaboratorId, period, p
       where: {
         collaboratorId,
         deletedAt: null,
-        type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
+        type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
         startDate: { lte: new Date(`${parseDateKey(period.endDate)}T00:00:00.000Z`) },
         endDate: { gte: new Date(`${parseDateKey(period.startDate)}T00:00:00.000Z`) }
       }

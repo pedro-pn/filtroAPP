@@ -49,7 +49,7 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
     database.collaboratorAbsence.findMany({
       where: {
         deletedAt: null,
-        type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
+        type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
         startDate: { lte: utcDate(endDate) },
         endDate: { gte: utcDate(startDate) },
         ...(roleIds ? { collaborator: { jobRoleId: { in: roleIds } } } : {})
@@ -80,7 +80,7 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
   const absenceEvents = absences.map(absence => ({
     id: absence.id,
     type: absence.type,
-    title: `${absence.type === 'FERIAS' ? 'Férias' : absence.type === 'FOLGA' ? 'Folga' : 'Afastamento'} · ${absence.collaborator.name}`,
+    title: `${absence.type === 'FERIAS' ? 'Férias' : absence.type === 'FOLGA' ? 'Folga' : absence.type === 'FADIGA_OFFSHORE' ? 'Fadiga - offshore' : 'Afastamento'} · ${absence.collaborator.name}`,
     startDate: parseDateKey(absence.startDate),
     endDate: parseDateKey(absence.endDate),
     jobRoleIds: [absence.collaborator.jobRoleId].filter(Boolean),

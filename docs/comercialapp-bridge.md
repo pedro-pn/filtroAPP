@@ -1,4 +1,80 @@
-# Receptor do ComercialAPP no Acompanhamento
+# Integração entre FiltroAPP e ComercialAPP
+
+## Busca de documentos e escopo iniciada pelo FiltroAPP
+
+Quando o PrismaCRM cria um projeto ou informa uma revisão superior da mesma
+proposta, o FiltroAPP agenda uma busca persistida no ComercialAPP. O mesmo
+acontece no cadastro manual do projeto, na alteração do vínculo da proposta e
+na escolha manual de uma revisão do orçamento (Access ou ComercialAPP).
+Salvar outros campos ou repetir um evento não refaz uma importação concluída
+nem desfaz uma revisão escolhida manualmente.
+
+```mermaid
+sequenceDiagram
+    participant Origem as PrismaCRM ou gestor
+    participant Filtro as FiltroAPP
+    participant Comercial as ComercialAPP
+    Origem->>Filtro: Criar projeto ou alterar proposta/revisão
+    Filtro->>Comercial: Consultar código e revisão exatos
+    Comercial-->>Filtro: Escopo e identificação dos dois PDFs
+    Filtro->>Comercial: Baixar PDF comercial e técnico
+    Filtro->>Filtro: Anexar no handover do Efetivo e importar escopo
+```
+
+Configure a origem HTTPS do ComercialAPP em `COMERCIALAPP_API_URL` no
+ambiente do FiltroAPP, sem caminho `/api`. Reutilize o segredo já compartilhado:
+`COMERCIALAPP_SERVICE_TOKEN` no FiltroAPP e `FILTROAPP_API_TOKEN` no ComercialAPP.
+Essas rotas usam o token de serviço do ambiente; não exigem token de usuário
+nem permissões da Central de API.
+
+O ComercialAPP oferece:
+
+- `GET /api/integrations/filtroapp/propostas/:code/revisoes/:revision`:
+  contrato versão 1 com escopo, levantamento da finalização e metadados dos PDFs.
+- `GET /api/integrations/filtroapp/propostas/:code/revisoes/:revision/documentos/:documentId`:
+  download autenticado do PDF daquela proposta/revisão.
+
+A proposta precisa estar finalizada e ter os PDFs comercial e técnico da mesma
+geração, correspondentes ao conteúdo atual. A consulta independe da aprovação
+no CRM. O FiltroAPP verifica código, revisão, CNPJ, vínculo do projeto quando
+informado, tamanho e SHA-256 dos arquivos. Não busca uma revisão diferente
+quando a solicitada estiver ausente. Cada PDF aceita até 10 MB, também sujeito
+ao limite de documentos configurado no FiltroAPP.
+
+Os arquivos ficam no armazenamento local do FiltroAPP, com versões imutáveis
+e acesso pelas permissões existentes do projeto. Aparecem em **Efetivo →
+Handover Comercial**, nos campos de proposta comercial e técnica, com código
+e revisão visíveis. Uma revisão nova mantém os PDFs anteriores no histórico;
+voltar a uma revisão já importada reutiliza suas versões. Os anexos da
+integração são somente leitura. A busca não confirma aceite comercial,
+não movimenta etapas e não troca a origem do orçamento.
+
+O escopo usa a mesma projeção estruturada descrita abaixo. Edições manuais são
+preservadas; serviços sem unidades ou quantidades seguras ficam como pendências
+na origem do escopo. Sem levantamento estruturado, os PDFs continuam disponíveis
+e o escopo exige conferência manual.
+
+O worker consulta a fila a cada minuto, em lotes de dois projetos, com trava
+compartilhada entre processos. Falhas e documentos ainda indisponíveis geram
+retentativas persistidas de um minuto até uma hora. Uma alteração de revisão
+substitui a solicitação anterior; respostas antigas são descartadas. Projetos
+inativos, excluídos ou encerrados não são importados. A interface informa quando
+os documentos da revisão ainda estão sendo aguardados.
+
+Para implantar, publique primeiro as rotas do ComercialAPP; aplique a migração
+`20261007190000_commercialapp_proposal_pull` no FiltroAPP e atualize API, worker
+e frontend. A fila permanece desabilitada enquanto a origem ou o token estiverem
+vazios. Projetos anteriores não são importados em massa: o reenvio idêntico do
+Prisma ou uma seleção/edição do vínculo inicializa a busca quando ela não existe.
+
+O teste `backend/test/commercial-proposal-pull.integration.test.js` usa os dois
+apps e bancos PostgreSQL isolados. Exige `DATABASE_URL=TEST_DATABASE_URL` com
+banco `filtroapp_bridge_test`, `COMMERCIALAPP_TEST_DATABASE_URL` com banco
+`comercialapp_test` e `COMMERCIALAPP_SOURCE_DIR` apontando para o checkout do
+ComercialAPP. Valida revisão nova e manual, histórico, idempotência, retentativa,
+resposta superada e rollback de banco/arquivos.
+
+## Receptor de propostas aprovadas no Acompanhamento
 
 Esta branch adiciona uma entrada de serviço isolada do importador Access.
 Configure `COMERCIALAPP_SERVICE_TOKEN` no `backend/.env` do FiltroAPP e use o

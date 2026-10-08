@@ -19,3 +19,10 @@ test('o limite maior não vaza para rotas parecidas', () => {
   assert.equal(jsonBodyLimitForRequest('POST', '/api/operational-reports-export'), '1mb');
   assert.equal(jsonBodyLimitForRequest('POST', '/api/rdo/reports'), '1mb');
 });
+
+test('extração manual aceita PDFs de 20 MB em base64 nos dois caminhos da API', () => {
+  for (const path of ['/api/reports/manual-extract', '/api/rdo/reports/manual-extract']) {
+    assert.equal(jsonBodyLimitForRequest('POST', path), '30mb');
+    assert.equal(jsonBodyLimitForRequest('POST', `${path}-other`), '1mb');
+  }
+});

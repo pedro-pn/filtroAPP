@@ -3,7 +3,7 @@ import { apiClient, type ApiClientError } from './client';
 export type DateOnly = string;
 export type MissionScheduleStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 export type MissionStage = 'STANDBY' | 'MOBILIZATION' | 'EXECUTION' | 'FINAL_MEASUREMENT' | 'FINISHED';
-export type AbsenceType = 'FERIAS' | 'FOLGA' | 'AFASTAMENTO';
+export type AbsenceType = 'FERIAS' | 'FOLGA' | 'AFASTAMENTO' | 'FADIGA_OFFSHORE';
 export type CollaboratorPlanningStatus = 'ALLOCATED' | 'UNAVAILABLE' | 'FREE' | 'OUTSIDE_EMPLOYMENT';
 
 export interface PlanningConflict {
@@ -197,7 +197,7 @@ export interface PlanningOverview {
   plannedHires: Array<{ id: string; quantity: number; availableFrom: DateOnly; jobRole: { id: string; name: string } }>;
 }
 
-export type PeriodAvailabilityStatus = 'AVAILABLE' | 'AWAITING_MOBILIZATION' | 'MOBILIZED' | 'ON_VACATION' | 'OTHER_UNAVAILABLE';
+export type PeriodAvailabilityStatus = 'AVAILABLE' | 'AWAITING_MOBILIZATION' | 'MOBILIZED' | 'ON_VACATION' | 'OFFSHORE_FATIGUE' | 'OTHER_UNAVAILABLE';
 
 export interface PlanningAvailabilityPeriod {
   startDate: DateOnly;

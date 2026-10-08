@@ -4,7 +4,8 @@ import test from 'node:test';
 import { addCalendarDays, eachDateInclusive, parseDateKey, periodsOverlap } from '../src/lib/efetivo/planning/date-only.js';
 import { conflictDescriptor, conflictError } from '../src/lib/efetivo/planning/errors.js';
 import { lockOfficialPlanningState } from '../src/lib/efetivo/planning/plan-context.js';
-import { absenceInputSchema, intervalQuerySchema, missionInputSchema } from '../src/lib/efetivo/planning/schemas.js';
+import { absenceInputSchema, absenceUpdateSchema, intervalQuerySchema, missionInputSchema } from '../src/lib/efetivo/planning/schemas.js';
+import { workforceAbsenceInputSchema, workforceAbsenceUpdateSchema } from '../src/lib/workforce/schemas.js';
 
 test('datas civis validam ano bissexto e rejeitam data impossível', () => {
   assert.equal(parseDateKey('2024-02-29'), '2024-02-29');
@@ -19,10 +20,15 @@ test('iteração UTC e sobreposição usam limites inclusivos', () => {
   assert.equal(periodsOverlap({ startDate: '2026-01-01', endDate: '2026-01-09' }, { startDate: '2026-01-10', endDate: '2026-01-11' }), false);
 });
 
-test('schemas liberam somente os três tipos de indisponibilidade definidos', () => {
+test('schemas liberam os quatro tipos de indisponibilidade na criação e edição', () => {
   const base = { collaboratorId: 'c1', startDate: '2026-01-01', endDate: '2026-01-02' };
-  for (const type of ['FERIAS', 'FOLGA', 'AFASTAMENTO']) assert.equal(absenceInputSchema.parse({ ...base, type }).type, type);
-  assert.equal(absenceInputSchema.safeParse({ ...base, type: 'ASO' }).success, false);
+  for (const schema of [absenceInputSchema, workforceAbsenceInputSchema]) {
+    for (const type of ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']) assert.equal(schema.parse({ ...base, type }).type, type);
+    assert.equal(schema.safeParse({ ...base, type: 'ASO' }).success, false);
+  }
+  for (const schema of [absenceUpdateSchema, workforceAbsenceUpdateSchema]) {
+    assert.equal(schema.parse({ type: 'FADIGA_OFFSHORE' }).type, 'FADIGA_OFFSHORE');
+  }
 });
 
 test('schema de missão exige campos completos e erro preserva conflito navegável', () => {

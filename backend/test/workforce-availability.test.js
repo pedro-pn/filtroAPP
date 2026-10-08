@@ -26,32 +26,35 @@ test('sobreposição é inclusiva e nova alocação permanece bloqueada', async 
   assert.equal(result.conflicts[0].policy, 'BLOCK');
 });
 
-test('ausência superveniente é salva e marca missão para replanejamento', async () => {
-  const calls = [];
-  const tx = {
-    collaborator: { findUnique: async () => ({ id: 'c1' }) },
-    collaboratorAbsence: {
-      findFirst: async () => null,
-      create: async input => ({ id: 'a1', version: 1, ...input.data })
-    },
-    efetivoMissionAllocation: { findMany: async () => [{
-      missionId: 'm1',
-      mobilizationDate: '2026-08-01',
-      demobilizationDate: '2026-08-20',
-      mission: { mobilizationDate: '2026-08-01', executionEndDate: '2026-08-30', returnDate: '2026-08-31' }
-    }] },
-    efetivoMissionPlan: { updateMany: async input => { calls.push(input); } },
-    workforceCalendarState: {
-      upsert: async () => ({ id: 'global', revision: 1 }),
-      update: async () => ({ id: 'global', revision: 2 })
-    }
-  };
-  const database = { ...tx, $transaction: callback => callback(tx) };
-  const result = await createWorkforceAbsence(database, {
-    collaboratorId: 'c1', type: 'FERIAS', startDate: '2026-08-10', endDate: '2026-08-12'
-  }, { actorUserId: 'u1' });
-  assert.deepEqual(result.affectedMissionIds, ['m1']);
-  assert.equal(calls[0].data.needsReplanning, true);
+test('ausência superveniente, inclusive fadiga offshore, é salva e marca missão para replanejamento', async () => {
+  for (const type of ['FERIAS', 'FADIGA_OFFSHORE']) {
+    const calls = [];
+    const tx = {
+      collaborator: { findUnique: async () => ({ id: 'c1' }) },
+      collaboratorAbsence: {
+        findFirst: async () => null,
+        create: async input => ({ id: 'a1', version: 1, ...input.data })
+      },
+      efetivoMissionAllocation: { findMany: async () => [{
+        missionId: 'm1',
+        mobilizationDate: '2026-08-01',
+        demobilizationDate: '2026-08-20',
+        mission: { mobilizationDate: '2026-08-01', executionEndDate: '2026-08-30', returnDate: '2026-08-31' }
+      }] },
+      efetivoMissionPlan: { updateMany: async input => { calls.push(input); } },
+      workforceCalendarState: {
+        upsert: async () => ({ id: 'global', revision: 1 }),
+        update: async () => ({ id: 'global', revision: 2 })
+      }
+    };
+    const database = { ...tx, $transaction: callback => callback(tx) };
+    const result = await createWorkforceAbsence(database, {
+      collaboratorId: 'c1', type, startDate: '2026-08-10', endDate: '2026-08-12'
+    }, { actorUserId: 'u1' });
+    assert.deepEqual(result.affectedMissionIds, ['m1']);
+    assert.equal(result.absence.type, type);
+    assert.equal(calls[0].data.needsReplanning, true);
+  }
 });
 
 test('ausência após a desmobilização individual não reabre pendência na missão', async () => {

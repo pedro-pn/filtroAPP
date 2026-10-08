@@ -12,6 +12,7 @@ import MDBReader from 'mdb-reader';
 
 import prisma from '../prisma.js';
 import { commercialDashboardCache } from '../resource-list-cache.js';
+import { commercialProposalSyncData } from '../projects/commercial-proposal-sync-state.js';
 import { computeProgressForProjects } from './avanco.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
@@ -741,7 +742,7 @@ export async function setProjectBudgetRevisionWithClient(client, projectId, codB
   }
   const project = await client.project.findUnique({
     where: { id: projectId },
-    select: { id: true, commercialProposalCode: true, contractCode: true, code: true }
+    select: { id: true, commercialProposalCode: true, contractCode: true, code: true, commercialProposalSync: true }
   });
   if (!project) throw new Error('Projeto não encontrado.');
   const codProp = projectProposalCode(project);
@@ -757,7 +758,9 @@ export async function setProjectBudgetRevisionWithClient(client, projectId, codB
     }
     await tx.project.update({
       where: { id: projectId },
-      data: { commercialProposalCode: String(codProp) }
+      data: { commercialProposalCode: String(codProp), ...commercialProposalSyncData(
+        { proposalCode: String(codProp), revisionNumber: proposal.nRev }, project.commercialProposalSync
+      ) }
     });
     return budget;
   };
