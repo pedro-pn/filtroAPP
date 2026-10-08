@@ -257,10 +257,21 @@ function documentCard(document) {
 
 export async function listDocuments(client, ownerUserId, filters = {}) {
   const limit = Math.min(50, Math.max(1, Number(filters.limit) || 20));
+  const dateFrom = filters.dateFrom ? z.iso.date().parse(filters.dateFrom) : undefined;
+  const dateTo = filters.dateTo ? z.iso.date().parse(filters.dateTo) : undefined;
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    throw httpError('A data final deve ser igual ou posterior à data inicial.');
+  }
+  // Dias completos no fuso usado pela interface, incluindo o último dia.
+  const createdAt = {
+    ...(dateFrom ? { gte: new Date(`${dateFrom}T00:00:00-03:00`) } : {}),
+    ...(dateTo ? { lt: new Date(new Date(`${dateTo}T00:00:00-03:00`).getTime() + 86_400_000) } : {})
+  };
   const where = {
     ...ownerListWhere(ownerUserId),
     archivedAt: filters.archived ? { not: null } : null,
     ...(filters.status ? { status: filters.status } : {}),
+    ...(dateFrom || dateTo ? { createdAt } : {}),
     ...(filters.q ? {
       OR: [
         { title: { contains: String(filters.q), mode: 'insensitive' } },

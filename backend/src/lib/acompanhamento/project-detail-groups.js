@@ -203,8 +203,10 @@ function combineCollaborators(details) {
     for (const item of detail.colaboradores ?? []) {
       const name = item.name || '—';
       const role = item.role || '—';
-      const key = `${normalizeKey(name)}|${normalizeKey(role)}`;
+      const personKey = item.collaboratorId ? `id:${item.collaboratorId}` : `name:${normalizeKey(name)}`;
+      const key = `${personKey}|${normalizeKey(role)}`;
       const existing = byPerson.get(key) ?? {
+        collaboratorId: item.collaboratorId ?? null,
         name,
         role,
         horasLancadas: 0,
@@ -301,6 +303,7 @@ function combineCollaborators(details) {
         ? item.custo / item.horasApropriadas
         : null;
       return {
+        collaboratorId: item.collaboratorId,
         name: item.name,
         role: item.role,
         horas,
@@ -482,6 +485,10 @@ export function groupProjectDetails(group, memberDetails = []) {
       worked: workedDays,
       planned: plannedWorkedDays,
       pct: ratioPct(workedDays, plannedWorkedDays)
+    },
+    rdoSignatures: {
+      signed: sumValues(details, item => item.detail.rdoSignatures?.signed, { nullWhenEmpty: false }),
+      total: sumValues(details, item => item.detail.rdoSignatures?.total, { nullWhenEmpty: false })
     },
     proposalPercentage: null,
     fullPlannedDays: sumValues(details, item => item.detail.fullPlannedDays ?? item.detail.diasCorridos?.planned),

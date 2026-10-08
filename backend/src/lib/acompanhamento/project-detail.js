@@ -242,6 +242,7 @@ async function getReportLaborCostEstimates(project, hoursByCollaborator) {
 }
 
 export function buildProjectDetailCollaborator({
+  collaboratorId = null,
   name = '',
   role = '',
   rate = null,
@@ -279,6 +280,7 @@ export function buildProjectDetailCollaborator({
     : [];
 
   return {
+    collaboratorId,
     name: name || rate?.name || '—',
     role: role || rate?.role || '—',
     // Jornada informada nos RDOs. Em grupos, ela sera deduplicada por pessoa e data.
@@ -402,6 +404,14 @@ export function buildProjectTimelineDates({ division = null, startDate = null, m
     : { mobilizationDate, startDate };
 }
 
+export function buildRdoSignatureSummary(reports = []) {
+  const rdos = reports.filter(report => report.reportType === 'RDO' && !report.deletedAt);
+  return {
+    signed: rdos.filter(report => report.status === 'SIGNED').length,
+    total: rdos.length
+  };
+}
+
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true,
@@ -443,6 +453,7 @@ export async function getProjectDetail(projectId, {
         id: true,
         projectId: true,
         reportType: true,
+        status: true,
         sequenceNumber: true,
         reportDate: true, specialConditions: true, totalOvertimeMinutes: true,
         daytimeCount: true,
@@ -597,6 +608,7 @@ export async function getProjectDetail(projectId, {
     const rate = ratesById.get(collaboratorId) || null;
     const alloc = projectAllocation(collaboratorId);
     collabMap.set(collaboratorId, buildProjectDetailCollaborator({
+      collaboratorId,
       name,
       role,
       rate,
@@ -749,6 +761,7 @@ export async function getProjectDetail(projectId, {
     businessDays,
     stoppedDays,
     diasTrabalhados,
+    rdoSignatures: buildRdoSignatureSummary(queriedReports),
     proposalPercentage: division ? null : row.proposalPercentage ?? 100,
     fullPlannedDays: division ? null : toNum(row.fullPlannedDays ?? row.plannedDays),
     fullWorkedDays: division ? null : toNum(row.fullWorkedDays ?? row.workedDays),

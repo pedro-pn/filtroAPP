@@ -5,6 +5,7 @@ export interface ReportFilters {
   status?: string;
   statuses?: string[];
   projectId?: string;
+  reportDateFrom?: string;
   createdBy?: string;
   createdByUserId?: string;
   mine?: boolean;
@@ -219,6 +220,28 @@ export interface ManualReportPdfReplacePayload {
   serviceSystem?: string;
   pdfDataUrl?: string;
   signatureMode?: ManualReportSignatureMode;
+}
+
+export interface ManualReportPdfExtraction {
+  fields: Partial<{
+    arrivalTime: string;
+    departureTime: string;
+    lunchBreak: string;
+    noturno: boolean;
+    noturnoStart: string;
+    noturnoEnd: string;
+    noturnoInterval: string;
+    standby: boolean;
+    standbyDuration: string;
+    standbyMotivo: string;
+  }>;
+  source: 'text' | 'ocr';
+  warnings: string[];
+}
+
+export async function extractManualReportPdf(pdfDataUrl: string): Promise<ManualReportPdfExtraction> {
+  const response = await apiClient.post<ManualReportPdfExtraction>(rdoApiPath('/reports/manual-extract'), { pdfDataUrl });
+  return response.data;
 }
 
 export async function uploadManualReport(payload: ManualReportUploadPayload) {

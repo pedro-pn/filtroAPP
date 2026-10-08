@@ -22,6 +22,7 @@ import { projectExecutionSchedule } from '../../../utils/projectExecutionSchedul
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
+import { QualityDocumentModels } from './QualityDocumentModels';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 
@@ -32,7 +33,12 @@ function signalStatus(confirmed: boolean, waitingLabel = 'Aguardando CRM') {
 function documentLink(document: ProjectDocument | undefined) {
   if (!document?.currentVersion) return null;
   const url = document.currentVersion.downloadUrl || document.currentVersion.externalUrl;
-  return url ? <a href={url} target="_blank" rel="noreferrer">Abrir anexo</a> : <span>{document.title}</span>;
+  return url ? <a href={url} target="_blank" rel="noreferrer">Abrir anexo{document.currentVersion.versionLabel ? ` · ${document.currentVersion.versionLabel}` : ''}</a> : <span>{document.title}</span>;
+}
+
+function handoverProposal(documents: ProjectDocument[], type: ProjectDocument['type']) {
+  const candidates = documents.filter(item => item.type === type && item.currentVersion && !item.archivedAt);
+  return candidates.find(item => item.currentVersion?.externalId?.startsWith('comercialapp:')) || candidates[0];
 }
 
 export function ProjectWorkflowHandoverSignals({ detail, documents }: {
@@ -40,16 +46,16 @@ export function ProjectWorkflowHandoverSignals({ detail, documents }: {
   documents: ProjectDocument[];
 }) {
   const workflow = detail.workflow!;
-  const commercialProposal = documents.find(item => item.type === 'COMMERCIAL_PROPOSAL' && item.currentVersion && !item.archivedAt);
-  const technicalProposal = documents.find(item => item.type === 'TECHNICAL_PROPOSAL' && item.currentVersion && !item.archivedAt);
+  const commercialProposal = handoverProposal(documents, 'COMMERCIAL_PROPOSAL');
+  const technicalProposal = handoverProposal(documents, 'TECHNICAL_PROPOSAL');
   const sourceDocuments = documents.filter(item => ['DRAWING', 'SPECIFICATION'].includes(item.type) && item.currentVersion && !item.archivedAt);
   const rows = [
     { label: 'Projeto criado no sistema', confirmed: true, detail: `${detail.project.code} · ${detail.project.name}` },
     { label: 'Líder de Projetos definido', confirmed: true, detail: workflow.leader.name },
     { label: 'Grupo de WhatsApp criado', confirmed: workflow.commercialWhatsappGroupCreated === true, detail: workflow.commercialWhatsappGroupUrl ? <a href={workflow.commercialWhatsappGroupUrl} target="_blank" rel="noreferrer">Abrir grupo</a> : 'Será atualizado pela integração comercial.' },
     { label: 'Participantes do handover incluídos', confirmed: workflow.commercialParticipantsIncluded === true, detail: workflow.commercialParticipantsIncluded === true ? 'Participantes informados pelo CRM.' : 'Será atualizado pela integração comercial.' },
-    { label: 'Proposta comercial', confirmed: Boolean(commercialProposal), detail: documentLink(commercialProposal) },
-    { label: 'Proposta técnica', confirmed: Boolean(technicalProposal), detail: documentLink(technicalProposal) },
+    { label: 'Proposta comercial', confirmed: Boolean(commercialProposal), detail: documentLink(commercialProposal), waitingLabel: 'Aguardando ComercialAPP' },
+    { label: 'Proposta técnica', confirmed: Boolean(technicalProposal), detail: documentLink(technicalProposal), waitingLabel: 'Aguardando ComercialAPP' },
     { label: 'Desenhos e especificações usados na proposta', confirmed: sourceDocuments.length > 0, detail: sourceDocuments.length ? `${sourceDocuments.length} anexo(s) disponível(is)` : null },
     { label: 'Contato responsável do cliente', confirmed: Boolean(workflow.commercialClientContactName || workflow.commercialClientContactEmail || detail.project.clientEmailPrimary), detail: [workflow.commercialClientContactName, workflow.commercialClientContactPhone, workflow.commercialClientContactEmail || detail.project.clientEmailPrimary].filter(Boolean).join(' · ') || 'Será atualizado pela integração comercial.' },
     { label: 'Previsão comercial de início', confirmed: Boolean(workflow.commercialExpectedStartDate), detail: workflow.commercialExpectedStartDate ? displayDateOnly(workflow.commercialExpectedStartDate) : 'Será preenchida pelo CRM.' },
@@ -66,8 +72,10 @@ export function ProjectWorkflowHandoverSignals({ detail, documents }: {
       data-project-workflow-handover-signals
     >
       <div className="project-workflow-signal-list">
-        {rows.map(row => <article className="project-workflow-signal" key={row.label}><div><strong>{row.label}</strong>{row.detail ? <span>{row.detail}</span> : null}</div>{signalStatus(row.confirmed)}</article>)}
+        {rows.map(row => <article className="project-workflow-signal" key={row.label}><div><strong>{row.label}</strong>{row.detail ? <span>{row.detail}</span> : null}</div>{signalStatus(row.confirmed, row.waitingLabel)}</article>)}
       </div>
+      {detail.project.commercialProposalSync && detail.project.commercialProposalSync.status !== 'SYNCED' ?
+        <small className="project-workflow-source-detail">Aguardando os documentos da proposta {detail.project.commercialProposalSync.proposalCode}, revisão {detail.project.commercialProposalSync.revisionNumber}, no ComercialAPP. A busca será repetida automaticamente.</small> : null}
       {workflow.commercialSourceUpdatedAt ? <small className="project-workflow-source-detail">Última atualização comercial: {new Date(workflow.commercialSourceUpdatedAt).toLocaleString('pt-BR')}</small> : null}
     </ProjectWorkflowCategory>
   );
@@ -436,7 +444,13 @@ function DocumentationTypeCard({ category, workflow, saving, onPatch }: {
   };
   return (
     <article className={`project-workflow-documentation-type is-${category.required === true ? 'required' : category.required === false ? 'not-required' : 'unanswered'}`}>
-      <header><div><h5>{category.label}</h5><p>{category.description}</p></div><ProjectWorkflowBooleanChoice value={category.required} label={`Necessidade de ${category.label.toLocaleLowerCase('pt-BR')}`} disabled={saving || !workflow.permissions.canEdit} onSelect={required => onPatch({ action: 'documentation_category', version: workflow.version, type: category.type, required })} /></header>
+      <header>
+        <div><h5>{category.label}</h5><p>{category.description}</p></div>
+        <div className="project-workflow-documentation-type-actions">
+          {category.type === 'QUALITY' ? <QualityDocumentModels /> : null}
+          <ProjectWorkflowBooleanChoice value={category.required} label={`Necessidade de ${category.label.toLocaleLowerCase('pt-BR')}`} disabled={saving || !workflow.permissions.canEdit} onSelect={required => onPatch({ action: 'documentation_category', version: workflow.version, type: category.type, required })} />
+        </div>
+      </header>
       {category.required === true ? <div className="project-workflow-documentation-items">
         <div className="project-workflow-documentation-add"><div className="field-group"><label htmlFor={`documentation-add-${category.type}`}>{category.nameLabel}</label><input id={`documentation-add-${category.type}`} value={newName} disabled={saving || !workflow.permissions.canEdit} placeholder={`Ex.: ${category.type === 'EXAM' ? 'Audiometria' : category.type === 'TRAINING' ? 'APR específica' : category.type === 'QUALITY' ? 'RCPU' : category.type === 'CERTIFICATION' ? 'Calibração de equipamento' : 'Instrução de trabalho'}`} onChange={event => setNewName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); create(); } }} /></div><Button type="button" variant="mini" disabled={saving || !workflow.permissions.canEdit || !newName.trim()} onClick={create}>Adicionar</Button></div>
         {activeRequirements.length ? activeRequirements.map(item => <DocumentationRequirementEditor item={item} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={item.id} />) : <p className="project-workflow-category-note">Adicione cada {category.singularLabel} que precisa ser acompanhado.</p>}

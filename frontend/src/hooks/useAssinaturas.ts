@@ -26,6 +26,7 @@ export function useSignatureDocuments(filters: Record<string, string | number | 
   return useInfiniteQuery({
     queryKey: ['assinaturas', 'list', filters],
     queryFn: ({ pageParam }) => listSignatureDocuments({ ...filters, cursor: pageParam }),
+    refetchInterval: 15_000,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => lastPage.nextCursor || undefined
   });
@@ -36,7 +37,7 @@ export function useSignatureDocument(id: string) {
     queryKey: ['assinaturas', 'doc', id],
     queryFn: () => getSignatureDocument(id),
     enabled: Boolean(id),
-    refetchInterval: query => query.state.data?.status === 'FINALIZANDO' ? 2_000 : false
+    refetchInterval: query => query.state.data?.status === 'FINALIZANDO' ? 2_000 : query.state.data?.status === 'AGUARDANDO_ASSINATURAS' ? 15_000 : false
   });
 }
 

@@ -5,13 +5,14 @@ import { Alert, EmptyState } from '../../../components/ui/ds';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { calendarBusyPeopleOnDay, calendarEventPeopleOnDay } from './calendarDayEvents';
 
-const typeLabel: Record<CalendarEvent['type'], string> = { MISSION: 'Missão', FERIAS: 'Férias', FOLGA: 'Folga', AFASTAMENTO: 'Afastamento' };
+const typeLabel: Record<CalendarEvent['type'], string> = { MISSION: 'Missão', FERIAS: 'Férias', FOLGA: 'Folga', AFASTAMENTO: 'Afastamento', FADIGA_OFFSHORE: 'Fadiga - offshore' };
 
 const conflictLabel: Record<string, string> = {
   DOUBLE_BOOKING: 'Duas missões confirmadas no mesmo período',
   ABSENCE_FERIAS: 'Férias sobrepostas à missão',
   ABSENCE_FOLGA: 'Folga sobreposta à missão',
-  ABSENCE_AFASTAMENTO: 'Afastamento sobreposto à missão'
+  ABSENCE_AFASTAMENTO: 'Afastamento sobreposto à missão',
+  ABSENCE_FADIGA_OFFSHORE: 'Fadiga - offshore sobreposta à missão'
 };
 
 export function CalendarDayDetail({ date, events, conflicts }: { date: string; events: CalendarEvent[]; conflicts: PlanningConflict[] }) {

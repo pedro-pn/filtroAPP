@@ -48,7 +48,7 @@ const steps: DriveStep[] = [
     element: '.signature-pdf-canvas',
     popover: {
       title: '3. Posicione os campos',
-      description: 'Selecione um assinante, toque ou clique no PDF e ajuste a caixa. Salve os campos antes de publicar.',
+      description: 'Toque ou clique no PDF e escolha o assinante nas opções ao lado. Com apenas um assinante, o campo é incluído diretamente. Ajuste a caixa e salve os campos antes de publicar.',
       side: 'top',
       align: 'start'
     }

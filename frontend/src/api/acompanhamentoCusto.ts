@@ -2,6 +2,26 @@ import { apiClient } from './client';
 
 export type CostParams = Record<string, number | Record<string, number>>;
 
+export type HourlyCostScenario = 'normal' | 'he70' | 'he100' | 'offshore' | 'viagem';
+
+export interface CollaboratorHourlyRates {
+  collaboratorId: string;
+  name: string;
+  role: string | null;
+  referenceDate: string;
+  available: boolean;
+  monthlyHours: number | null;
+  workingDays: number | null;
+  scenarios: Array<{ scenario: HourlyCostScenario; hourlyCost: number | null }>;
+}
+
+export async function getCollaboratorHourlyRates(collaboratorId: string, date: string): Promise<CollaboratorHourlyRates> {
+  const { data } = await apiClient.get<CollaboratorHourlyRates>(
+    `/acompanhamento/custo/colaboradores/${encodeURIComponent(collaboratorId)}/valor-hora`, { params: { date } }
+  );
+  return data;
+}
+
 export interface CostParameterHistoryEntry {
   effectiveDate: string;
   params: CostParams | null;

@@ -878,6 +878,7 @@ export interface ManualProjectCostPayload {
 }
 
 export interface ProjectDetailCollaborator {
+  collaboratorId?: string | null;
   name: string;
   role: string;
   /** Indica que a pessoa veio do planejamento do Efetivo, antes do primeiro RDO. */
@@ -994,6 +995,10 @@ export interface ProjectDetail {
   };
   businessDays?: number | null;
   stoppedDays?: number | null;
+  rdoSignatures?: {
+    signed: number;
+    total: number;
+  };
   diasTrabalhados: {
     worked: number;
     planned: number | null;

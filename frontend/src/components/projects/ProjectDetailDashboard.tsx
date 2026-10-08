@@ -26,6 +26,7 @@ import { Modal } from '../ui/Modal';
 import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
 import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
 import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
+import { ProjectCollaboratorRatesDialog } from './ProjectCollaboratorRatesDialog';
 import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
 import { ProjectLaborPolicyNovelty } from './ProjectLaborPolicyNovelty';
 import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
@@ -97,6 +98,7 @@ export function ProjectDetailDashboard({
     collaborator: ProjectDetailCollaborator;
     source: 'POINT' | 'REPORT';
   } | null>(null);
+  const [ratesCollaborator, setRatesCollaborator] = useState<ProjectDetailCollaborator | null>(null);
   const [expandedQualityDeviationIds, setExpandedQualityDeviationIds] = useState<Set<string>>(() => new Set());
   const [manualCostFormOpen, setManualCostFormOpen] = useState(false);
   const [manualCostError, setManualCostError] = useState<string | null>(null);
@@ -315,7 +317,7 @@ export function ProjectDetailDashboard({
   const showingPlannedCollaborators = !data.header.lastRdoDate && plannedCollaborators.length > 0;
   const collaborators: ProjectDetailCollaborator[] = showingPlannedCollaborators
     ? plannedCollaborators.map(collaborator => ({
-      name: collaborator.name, role: collaborator.jobRole.name, horas: 0, horasLancadas: 0,
+      collaboratorId: collaborator.id, name: collaborator.name, role: collaborator.jobRole.name, horas: 0, horasLancadas: 0,
       horasApropriadas: null, horasDeslocamento: 0, diasApropriados: [], sobreposicaoHoras: 0,
       horasRelatoriosPorData: [], custo: null, custoHora: null, custoEstimadoRdo: null,
       custoHoraEstimadoRdo: null, custoDeslocamento: null
@@ -592,6 +594,7 @@ export function ProjectDetailDashboard({
             <ProjectReportsDialog
               projectId={isGroup ? undefined : projectId}
               groupMembers={isGroup ? data.group?.members : undefined}
+              signedReportDateFrom={data.division?.startDate}
               missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
             />
           ) : null}
@@ -603,7 +606,8 @@ export function ProjectDetailDashboard({
         />
       </div>
 
-      <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators} onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} />
+      <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators}
+        onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} onSelectRates={setRatesCollaborator} />
 
       {weeklyTargetOwner ? <Card padding="sm" className="acp-detail-weekly-targets">
         <MissionWeeklyProgressPanel
@@ -890,6 +894,8 @@ export function ProjectDetailDashboard({
         onSourceChange={source => setHoursDetail(current => current ? { ...current, source } : null)}
         onClose={() => setHoursDetail(null)}
       />
+      <ProjectCollaboratorRatesDialog collaborator={ratesCollaborator} referenceDate={planningReferenceDate}
+        onClose={() => setRatesCollaborator(null)} />
 
       <Modal open={scopeOpen} onClose={() => setScopeOpen(false)} title="Escopo do projeto" appearance="design-system" size="lg">
         <div className="fv-ds acp-detail-scope">

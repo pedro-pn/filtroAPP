@@ -3843,7 +3843,7 @@ a {
   gap: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--g);
+  color: var(--brand-text);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 12px;
@@ -4097,10 +4097,10 @@ a {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
-  border: 1px solid var(--br);
+  border: 1px solid var(--control-border);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: #fafafa;
+  background: var(--surface-2);
   color: var(--tx);
 }
 
@@ -4109,10 +4109,10 @@ a {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
-  border: 1px solid var(--br);
+  border: 1px solid var(--control-border);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background-color: #fafafa;
+  background-color: var(--surface-2);
   color: var(--tx);
   resize: vertical;
 }
@@ -4130,8 +4130,8 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .field-group select:focus,
 .field-group textarea:focus {
   outline: none;
-  border-color: var(--g);
-  background-color: var(--wh);
+  border-color: var(--focus-ring);
+  background-color: var(--surface);
 }
 
 .password-input-wrap {
@@ -4238,8 +4238,8 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .primary-button {
   border: none;
   border-radius: var(--r);
-  background: var(--g);
-  color: var(--wh);
+  background: var(--brand);
+  color: var(--on-brand);
   padding: 8px 11px;
   font-weight: 700;
   cursor: pointer;
@@ -4260,14 +4260,14 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .filter-tab:focus-visible,
 .nav-tab:focus-visible,
 .stype-btn:focus-visible {
-  outline: 3px solid rgba(9, 90, 44, 0.35);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
 .secondary-button {
-  border: 1px solid var(--br);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r);
-  background: var(--wh);
+  background: var(--surface);
   color: var(--tx);
   padding: 7px 10px;
   font-weight: 600;
@@ -5031,15 +5031,15 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 }
 
 .inline-error {
-  background: #fff1f1;
-  color: #962b2b;
-  border: 1px solid rgba(180, 54, 54, 0.2);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-line);
 }
 
 .inline-success {
-  background: #effaf1;
-  color: #205c2f;
-  border: 1px solid rgba(48, 112, 58, 0.2);
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-line);
 }
 
 .modal-backdrop {
@@ -5064,9 +5064,10 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   max-height: calc(100dvh - 36px);
   box-sizing: border-box;
   overflow-y: auto;
-  border: 1px solid var(--br);
+  border: 1px solid var(--line);
   border-radius: var(--r);
-  background: var(--wh);
+  background: var(--surface);
+  color: var(--ink);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.24);
   padding: 18px;
 }
@@ -6490,8 +6491,9 @@ a.upload-list-name {
   height: 16px;
   background: #fff;
   border-radius: 50%;
-  top: 3px;
+  top: 50%;
   left: 3px;
+  transform: translateY(-50%);
   transition: .2s;
 }
 
@@ -6500,7 +6502,7 @@ a.upload-list-name {
 }
 
 .tog input:checked + .tog-sl::after {
-  transform: translateX(18px);
+  transform: translate(18px, -50%);
 }
 
 .overtime-review-inline {
@@ -6847,8 +6849,8 @@ textarea.pre {
 
 /* ── Mini buttons (paridade com .mini-btn do HTML) ── */
 .mini-btn {
-  background: var(--g);
-  color: var(--wh);
+  background: var(--brand);
+  color: var(--on-brand);
   border: none;
   border-radius: var(--rs);
   padding: 7px 10px;
@@ -6861,7 +6863,7 @@ textarea.pre {
 }
 
 .mini-btn:hover {
-  background: var(--gd);
+  background: var(--brand-hover);
 }
 
 .mini-btn:disabled {
@@ -6870,23 +6872,24 @@ textarea.pre {
 }
 
 .mini-btn.alt {
-  background: var(--wh);
+  background: var(--surface);
   color: var(--tx);
-  border: 1px solid var(--br);
+  border: 1px solid var(--line-strong);
 }
 
 .mini-btn.alt:hover {
-  background: #f0f7f2;
-  border-color: var(--g);
-  color: var(--g);
+  background: var(--brand-soft);
+  border-color: var(--brand-text);
+  color: var(--brand-text);
 }
 
 .mini-btn.danger {
-  background: var(--rd);
+  background: var(--danger);
+  color: var(--on-danger);
 }
 
 .mini-btn.danger:hover {
-  background: #a4101a;
+  background: var(--danger-hover);
 }
 
 /* Compactar botões dentro de toolbars de cards (paridade .mini-btn HTML) */
@@ -7157,8 +7160,8 @@ textarea.pre {
   padding: 12px;
   margin: 12px 0 0;
   max-width: 100%;
-  background: var(--wh);
-  border-top: .5px solid var(--br);
+  background: var(--surface);
+  border-top: .5px solid var(--line);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
 }
 

@@ -1,0 +1,52 @@
+.fv-modal-backdrop.quality-document-models-backdrop {
+  z-index: 1200;
+  align-items: center;
+  padding: var(--space-4);
+}
+
+.quality-document-models-description {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.quality-document-models-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quality-document-models-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.quality-document-models-list li > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.quality-document-models-list li span:not(.fv-button__label) {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.quality-document-models-list a {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.project-workflow-documentation-type-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

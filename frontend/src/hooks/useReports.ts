@@ -212,6 +212,7 @@ function reportMatchesAccumulatedReportsFilters(
   if (filters.reviewQueue && !(['PENDING', 'RETURNED'].includes(report.status) || (report.status !== 'SIGNED' && hasActiveClientRejection(report)))) return false;
   if (filters.projectActive !== undefined && report.project?.isActive !== filters.projectActive) return false;
   if (filters.projectId && report.projectId !== filters.projectId) return false;
+  if (filters.reportDateFrom && report.reportDate.slice(0, 10) < filters.reportDateFrom) return false;
   if (filters.reportType && report.reportType !== filters.reportType) return false;
   if (filters.createdByUserId && report.createdByUserId !== filters.createdByUserId) return false;
   if (filters.createdBy && report.createdByUserId !== filters.createdBy) return false;

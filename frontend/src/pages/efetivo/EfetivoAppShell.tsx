@@ -48,10 +48,14 @@ export function EfetivoAppShell({
           id: section.id,
           label: section.label,
           href: `${location.pathname}${query ? `?${query}` : ''}`,
+          onSelect: () => {
+            const latest = planningSectionHomeParams(new URLSearchParams(window.location.search), section.id);
+            navigate(`${location.pathname}?${latest.toString()}`);
+          },
           active: section.id === currentSection
         };
       }),
-    [currentSection, location.pathname, location.search, sections]
+    [currentSection, location.pathname, location.search, navigate, sections]
   );
   const navigation = useMemo(
     () =>
