@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { missionMovePendencies, normalizeMissionDemands, resolveMissionResponsible, syncMissionDemobilization, validateMissionChronology } from '../src/lib/efetivo/planning/mission-planning.js';
-import { missionInputSchema } from '../src/lib/efetivo/planning/schemas.js';
+import { missionInputSchema, missionUpdateInputSchema } from '../src/lib/efetivo/planning/schemas.js';
 
 test('cronologia aceita limites iguais e rejeita inversão', () => {
   assert.doesNotThrow(() => validateMissionChronology({ mobilizationDate: '2026-01-01', executionStartDate: '2026-01-01', executionEndDate: '2026-01-01', returnDate: '2026-01-01' }));
@@ -65,6 +65,25 @@ test('input não oferece mais situação de rascunho e valida períodos individu
     ...base,
     allocationPeriods: [{ collaboratorId: 'c1', mobilizationDate: '2026-08-31', demobilizationDate: '2026-09-20' }]
   }).success, false);
+});
+
+test('input de atualização mantém as validações estruturais dos períodos individuais', () => {
+  const base = {
+    projectId: 'p1', headquartersResponsibleUserId: 'u1', scheduleStatus: 'CONFIRMED',
+    mobilizationDate: '2026-10-22', executionStartDate: '2026-10-22', executionEndDate: '2026-11-30', returnDate: '2026-12-01',
+    collaboratorIds: ['c1']
+  };
+  const period = { collaboratorId: 'c1', mobilizationDate: '2026-09-25', demobilizationDate: '2026-12-01' };
+  assert.equal(missionUpdateInputSchema.safeParse({ ...base, allocationPeriods: [period] }).success, true);
+  assert.equal(missionInputSchema.safeParse({ ...base, allocationPeriods: [period] }).success, false);
+  for (const allocationPeriods of [
+    [{ ...period, collaboratorId: 'removed' }],
+    [{ ...period, mobilizationDate: '2026-02-30' }],
+    [{ ...period, demobilizationDate: '2026-09-24' }],
+    [period, period]
+  ]) {
+    assert.equal(missionUpdateInputSchema.safeParse({ ...base, allocationPeriods }).success, false);
+  }
 });
 
 test('líder usa nome e cargo canônicos do colaborador vinculado à conta', async () => {

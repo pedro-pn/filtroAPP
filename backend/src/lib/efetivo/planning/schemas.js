@@ -91,7 +91,7 @@ export const missionAllocationPeriodInputSchema = z.object({
   message: 'A desmobilização individual não pode ser anterior à mobilização.'
 });
 
-export const missionInputSchema = z.object({
+export const missionUpdateInputSchema = z.object({
   planId: idSchema.optional(),
   projectId: idSchema,
   scheduleStatus: editableMissionScheduleStatusSchema,
@@ -120,7 +120,14 @@ export const missionInputSchema = z.object({
         message: 'O período individual pertence a um colaborador que não está na equipe.'
       });
     }
-    const missionEndDate = value.returnDate || value.executionEndDate;
+  });
+});
+
+// Updates validate periods against persisted cycles in the planning service.
+// New missions have no history, so their input must fit the supplied dates.
+export const missionInputSchema = missionUpdateInputSchema.superRefine((value, context) => {
+  const missionEndDate = value.returnDate || value.executionEndDate;
+  value.allocationPeriods.forEach((period, index) => {
     if (period.mobilizationDate < value.mobilizationDate || period.demobilizationDate > missionEndDate) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

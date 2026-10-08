@@ -416,8 +416,11 @@ export async function updateMission(missionId, payload, context = {}, dependenci
       }
     }
     const responsible = await resolveMissionResponsible(tx, payload);
+    const preserveExistingPeriods = ['mobilizationDate', 'executionStartDate', 'executionEndDate', 'returnDate']
+      .every(field => payload[field] === undefined
+        || (payload[field] ? parseDateKey(payload[field]) : null) === (existing[field] ? parseDateKey(existing[field]) : null));
     const team = Array.isArray(payload.collaboratorIds)
-      ? await resolveSelectedMissionTeam(tx, payload, existing.planId, existing.id, { mission: missionForValidation })
+      ? await resolveSelectedMissionTeam(tx, payload, existing.planId, existing.id, { mission: missionForValidation, preserveExistingPeriods })
       : null;
     const demands = team?.demands || normalizeMissionDemands(payload.demands, payload.scheduleStatus);
     await validateDemandRoles(tx, demands);

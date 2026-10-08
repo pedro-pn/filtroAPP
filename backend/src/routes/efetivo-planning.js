@@ -86,6 +86,7 @@ import {
   intervalQuerySchema,
   jobRolePlanningInputSchema,
   missionInputSchema,
+  missionUpdateInputSchema,
   mobilizationCycleInputSchema,
   missionScheduleStatusSchema,
   missionStageSchema,
@@ -238,7 +239,7 @@ router.delete('/missions/:missionId/weekly-targets', requireEfetivoManager, asyn
 
 router.patch('/missions/:missionId', requireEfetivoManager, asyncHandler(async (req, res) => {
   const version = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
-  res.json(await updateMission(idSchema.parse(req.params.missionId), missionInputSchema.parse(req.body), { ...context(req), version }));
+  res.json(await updateMission(idSchema.parse(req.params.missionId), missionUpdateInputSchema.parse(req.body), { ...context(req), version }));
 }));
 
 router.delete('/missions/:missionId', requireEfetivoManager, asyncHandler(async (req, res) => {
