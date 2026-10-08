@@ -2,6 +2,7 @@ import { collectAllocationConflicts, lockCollaborator } from './conflicts.js';
 import { parseDateKey } from './date-only.js';
 import { conflictError, notFound, planningError } from './errors.js';
 import {
+  allocationPeriod,
   allocationPeriods,
   allocationPeriodWithinMission,
   maximumConcurrentAllocationCount
@@ -40,7 +41,7 @@ export function deriveSelectedMissionTeam(collaborators = [], scheduleStatus = '
   };
 }
 
-export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMissionId = null, { mission = null } = {}) {
+export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMissionId = null, { mission = null, preserveExistingPeriods = false } = {}) {
   const collaboratorIds = payload.collaboratorIds || [];
   const uniqueIds = [...new Set(collaboratorIds)];
   if (uniqueIds.length !== collaboratorIds.length) {
@@ -113,11 +114,27 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
     .map(item => [item.collaboratorId, item]));
   const existingByCollaboratorId = new Map(currentAllocations
     .map(allocation => [allocation.collaboratorId, allocation]));
+  const preservedCollaboratorIds = new Set();
   for (const allocation of team.allocations) {
     const existing = existingByCollaboratorId.get(allocation.collaboratorId);
     const requested = requestedPeriodByCollaboratorId.get(allocation.collaboratorId);
     allocation.cycles = existing?.cycles || [];
-    if (requested) {
+    const existingPeriod = existing ? allocationPeriod(existing, proposedMission) : null;
+    const unchangedPeriod = preserveExistingPeriods && existing && (!requested
+      || (parseDateKey(requested.mobilizationDate) === existingPeriod.startDate
+        && parseDateKey(requested.demobilizationDate) === existingPeriod.endDate));
+    if (requested && !unchangedPeriod && (parseDateKey(requested.mobilizationDate) < period.startDate
+      || parseDateKey(requested.demobilizationDate) > period.endDate)) {
+      throw planningError(`${byId.get(allocation.collaboratorId).name} possui período individual fora das datas da missão.`, {
+        code: 'ALLOCATION_OUTSIDE_MISSION_PERIOD'
+      });
+    }
+    if (unchangedPeriod) {
+      // Team edits keep recorded individual history, including dates preceding a revised forecast.
+      preservedCollaboratorIds.add(allocation.collaboratorId);
+      allocation.mobilizationDate = existing.mobilizationDate;
+      allocation.demobilizationDate = existing.demobilizationDate;
+    } else if (requested) {
       allocation.mobilizationDate = parseDateKey(requested.mobilizationDate) === period.startDate
         ? null : dateValue(requested.mobilizationDate);
       allocation.demobilizationDate = parseDateKey(requested.demobilizationDate) === period.endDate
@@ -139,7 +156,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
   const conflicts = ordered.flatMap(collaborator => {
     const teamAllocation = team.allocations.find(item => item.collaboratorId === collaborator.id);
     return allocationPeriods(teamAllocation, proposedMission).flatMap(collaboratorPeriod => {
-      if (!allocationPeriodWithinMission(collaboratorPeriod, proposedMission)) {
+      if (!preservedCollaboratorIds.has(collaborator.id) && !allocationPeriodWithinMission(collaboratorPeriod, proposedMission)) {
         throw planningError(`${collaborator.name} possui ciclo individual fora das novas datas da missão.`, {
           code: 'ALLOCATION_OUTSIDE_MISSION_PERIOD'
         });

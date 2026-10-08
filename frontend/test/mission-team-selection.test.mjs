@@ -85,6 +85,29 @@ test('remoção da equipe inicial envia datas válidas mesmo com ciclo padrão a
   }), [{ id: null, startDate: '2026-10-22', endDate: '2026-12-01', isOpen: false }]);
 });
 
+test('equipe inicial do projeto 5841 remove Messias mantendo períodos registrados na requisição', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const retainedIds = ['almir', 'carlos', 'daniel', 'luan'];
+  const mission = {
+    projectId: 'project-5841', headquartersResponsibleUserId: 'leader', scheduleStatus: 'CONFIRMED',
+    stage: 'STANDBY', mobilizationDate: '2026-10-22', executionStartDate: '2026-10-22',
+    executionEndDate: '2026-11-30', returnDate: '2026-12-01',
+    cycles: [{ id: 'default', isDefault: true, mobilizationDate: '2026-09-25', demobilizationDate: '2026-12-01' }],
+    allocations: [...retainedIds, 'messias'].map(collaboratorId => ({
+      collaboratorId, mobilizationDate: null, demobilizationDate: null,
+      cycles: [{ id: `cycle-${collaboratorId}`, mobilizationDate: '2026-09-25', demobilizationDate: '2026-12-01' }]
+    }))
+  };
+  const periods = mission.allocations.map(allocation => {
+    const period = team.missionTeamAllocationPeriod(allocation, mission);
+    return { collaboratorId: allocation.collaboratorId, mobilizationDate: period.startDate, demobilizationDate: period.endDate };
+  });
+  const allocationPeriods = team.synchronizeMissionAllocationPeriods(retainedIds, periods, mission.mobilizationDate, mission.returnDate);
+  const input = { ...mission, collaboratorIds: retainedIds, allocationPeriods };
+  assert.deepEqual(input.allocationPeriods.map(period => period.collaboratorId), retainedIds);
+  assert.ok(input.allocationPeriods.every(period => period.mobilizationDate === '2026-09-25'));
+});
+
 test('edição da equipe conserva datas individuais e ciclos confirmados', async () => {
   const team = await load('/src/utils/missionTeam.ts');
   const mission = {
