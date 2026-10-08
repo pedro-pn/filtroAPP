@@ -9,8 +9,7 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
 import { SearchCombobox } from '../../../components/ui/SearchCombobox';
 import { prefillDatesFromProject } from '../../../utils/missionPendencies';
-import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
-import { missionTeamScheduleStatus, resolveMissionTeamScheduleDates, selectedMissionCollaboratorIds, shiftDefaultMissionAllocationPeriods, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
+import { missionTeamAllocationPeriod, missionTeamScheduleStatus, resolveMissionTeamScheduleDates, selectedMissionCollaboratorIds, shiftDefaultMissionAllocationPeriods, synchronizeMissionAllocationPeriods, type InitialTeamContext } from '../../../utils/missionTeam';
 import { MissionTeamSelector } from './MissionTeamSelector';
 import '../EfetivoDialogs.css';
 import '../EfetivoMissions.ds.css';
@@ -70,7 +69,7 @@ function initialValues(mission: PlanningMission | null, project: PendingMissionP
     returnDate: schedule.returnDate,
     collaboratorIds: selectedMissionCollaboratorIds(mission),
     allocationPeriods: (mission?.allocations || []).map(allocation => {
-      const period = missionAllocationPeriod(allocation, mission!);
+      const period = missionTeamAllocationPeriod(allocation, mission!);
       return {
         collaboratorId: allocation.collaboratorId,
         mobilizationDate: period.startDate,

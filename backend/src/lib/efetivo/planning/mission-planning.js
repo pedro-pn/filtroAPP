@@ -1,4 +1,5 @@
 import { recordEfetivoAudit } from './audit.js';
+import { hasEditableDefaultMissionCycle } from '../../../../../shared/modules/mission-default-cycle.js';
 import { collectAllocationConflicts, ensureNoPlanningConflicts, loadCollaboratorConflictData, lockCollaborator } from './conflicts.js';
 import { parseDateKey } from './date-only.js';
 import { conflictError, notFound, planningError } from './errors.js';
@@ -9,7 +10,6 @@ import {
   missionCycles
 } from './allocation-period.js';
 import { resolveSelectedMissionTeam, syncSelectedMissionTeam } from './mission-team.js';
-import { missionEndDate } from './mission-period.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { assertProjectMobilizationAuthorized } from '../project-workflow/operational-gate.js';
 import {
@@ -405,15 +405,7 @@ export async function updateMission(missionId, payload, context = {}, dependenci
     if (context.version && existing.version !== context.version) throw conflictError('A missão foi alterada por outra pessoa.', [], 'MISSION_VERSION_CONFLICT');
     if (payload.projectId !== existing.projectId) throw conflictError('O projeto da programação não pode ser substituído.', [], 'MISSION_PROJECT_IMMUTABLE');
     if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, existing.project, payload.returnDate, payload.mobilizationDate);
-    const existingBounds = {
-      startDate: parseDateKey(existing.mobilizationDate),
-      endDate: missionEndDate(existing)
-    };
-    const defaultCycle = !existing.project?.workflow?.actualMobilizationDate
-      && existing.cycles?.length === 1 && (existing.cycles[0].isDefault ?? true)
-      && !existing.cycles[0].demobilizationDate
-      && parseDateKey(existing.cycles[0].mobilizationDate) === existingBounds.startDate
-      && parseDateKey(existing.cycles[0].demobilizationDate || existingBounds.endDate) === existingBounds.endDate;
+    const defaultCycle = hasEditableDefaultMissionCycle(existing);
     const missionForValidation = defaultCycle ? { ...existing, cycles: [] } : existing;
     if (!defaultCycle) {
       const proposedMission = { ...existing, ...payload };

@@ -25,6 +25,7 @@ export interface ProjectOption {
   location: string | null;
   mobilizationDate: string | null;
   demobilizationDate: string | null;
+  workflow?: { actualMobilizationDate: DateOnly | null } | null;
 }
 
 export interface PendingMissionProject extends ProjectOption {
