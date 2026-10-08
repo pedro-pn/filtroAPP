@@ -62,6 +62,53 @@ test('mudança da mobilização move o primeiro ciclo herdado sem alterar datas 
   ]);
 });
 
+test('remoção da equipe inicial envia datas válidas mesmo com ciclo padrão antigo do projeto 5841', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const mission = {
+    stage: 'STANDBY', mobilizationDate: '2026-10-22', executionStartDate: '2026-10-22',
+    executionEndDate: '2026-11-30', returnDate: '2026-12-01',
+    cycles: [{ id: 'default', isDefault: true, mobilizationDate: '2026-09-25', demobilizationDate: '2026-12-01' }],
+    allocations: ['messias', 'retained'].map(collaboratorId => ({
+      collaboratorId, mobilizationDate: null, demobilizationDate: null, cycles: []
+    }))
+  };
+  const periods = mission.allocations.map(allocation => {
+    const period = team.missionTeamAllocationPeriod(allocation, mission);
+    return { collaboratorId: allocation.collaboratorId, mobilizationDate: period.startDate, demobilizationDate: period.endDate };
+  });
+  const allocationPeriods = team.synchronizeMissionAllocationPeriods(['retained'], periods, mission.mobilizationDate, mission.returnDate);
+  assert.deepEqual(allocationPeriods, [{
+    collaboratorId: 'retained', mobilizationDate: '2026-10-22', demobilizationDate: '2026-12-01'
+  }]);
+  assert.deepEqual(team.missionTeamCollaboratorPeriods({
+    mission, collaboratorId: 'retained', startDate: mission.mobilizationDate, endDate: mission.returnDate, allocationPeriods
+  }), [{ id: null, startDate: '2026-10-22', endDate: '2026-12-01', isOpen: false }]);
+});
+
+test('edição da equipe conserva datas individuais e ciclos confirmados', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const mission = {
+    stage: 'STANDBY', mobilizationDate: '2026-10-22', executionEndDate: '2026-11-30', returnDate: '2026-12-01',
+    cycles: [{ id: 'default', isDefault: true, mobilizationDate: '2026-09-25', demobilizationDate: '2026-12-01' }]
+  };
+  const inherited = { mobilizationDate: null, demobilizationDate: null, cycles: [] };
+  assert.deepEqual(team.missionTeamAllocationPeriod({ ...inherited, mobilizationDate: '2026-10-23', demobilizationDate: '2026-11-20' }, mission), {
+    startDate: '2026-10-23', endDate: '2026-11-20'
+  });
+  assert.deepEqual(team.missionTeamAllocationPeriod({ ...inherited, cycles: [{ mobilizationDate: '2026-10-24', demobilizationDate: '2026-11-19' }] }, mission), {
+    startDate: '2026-10-24', endDate: '2026-11-19'
+  });
+  for (const historicalMission of [
+    { ...mission, project: { workflow: { actualMobilizationDate: '2026-09-25' } } },
+    { ...mission, stage: 'EXECUTION' },
+    { ...mission, cycles: [{ ...mission.cycles[0], demobilizationDate: '2026-11-15' }] },
+    { ...mission, cycles: [{ ...mission.cycles[0], isDefault: false }] },
+    { ...mission, cycles: [...mission.cycles, { id: 'second', mobilizationDate: '2026-12-03', demobilizationDate: '2026-12-10' }] }
+  ]) {
+    assert.equal(team.missionTeamAllocationPeriod(inherited, historicalMission).startDate, '2026-09-25');
+  }
+});
+
 test('edição da equipe preserva as datas oficiais quando a previsão do fluxo mudou', async () => {
   const team = await load('/src/utils/missionTeam.ts');
   const mission = {

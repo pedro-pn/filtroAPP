@@ -68,8 +68,7 @@ import {
   type PointerDragState
 } from '../../../utils/reorderDrag';
 import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
-import { missionAllocationPeriod } from '../../../utils/missionAllocationPeriod';
-import { selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
+import { missionTeamAllocationPeriod, selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
 import { InitialTeamAvailabilityModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
@@ -139,7 +138,7 @@ function missionInputFromExisting(mission: PlanningMission, scheduleStatus: Excl
     returnDate: mission.returnDate ? mission.returnDate.slice(0, 10) : null,
     collaboratorIds: selectedMissionCollaboratorIds(mission),
     allocationPeriods: mission.allocations.map(allocation => {
-      const period = missionAllocationPeriod(allocation, mission);
+      const period = missionTeamAllocationPeriod(allocation, mission);
       return { collaboratorId: allocation.collaboratorId, mobilizationDate: period.startDate, demobilizationDate: period.endDate };
     })
   };

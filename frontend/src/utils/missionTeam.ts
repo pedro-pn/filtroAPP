@@ -1,5 +1,6 @@
-import type { MissionScheduleStatus, PlanningMission } from '../api/efetivoPlanning';
-import { missionAllocationPeriods } from './missionAllocationPeriod';
+import { hasEditableDefaultMissionCycle } from '../../../shared/modules/mission-default-cycle.js';
+import type { MissionAllocation, MissionScheduleStatus, PlanningMission } from '../api/efetivoPlanning';
+import { missionAllocationPeriod, missionAllocationPeriods } from './missionAllocationPeriod';
 
 export type CollaboratorActivityFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
 
@@ -8,6 +9,13 @@ export type MissionAllocationPeriodDraft = {
   mobilizationDate: string;
   demobilizationDate: string;
 };
+
+/** An inherited planning period follows the schedule; individual history keeps its own dates. */
+export function missionTeamAllocationPeriod(allocation: MissionAllocation, mission: PlanningMission) {
+  const inheritsMission = !allocation.mobilizationDate && !allocation.demobilizationDate && !allocation.cycles?.length;
+  return missionAllocationPeriod(allocation, inheritsMission && hasEditableDefaultMissionCycle(mission)
+    ? { ...mission, cycles: [] } : mission);
+}
 
 /** Usa os mesmos períodos da inclusão individual ou da edição da equipe na API. */
 export function missionTeamCollaboratorPeriods({ mission, collaboratorId, startDate, endDate, allocationPeriods = [], singleSelection = false }: {
@@ -25,7 +33,8 @@ export function missionTeamCollaboratorPeriods({ mission, collaboratorId, startD
   }];
 
   const sourceMission = singleSelection ? mission : {
-    ...mission, mobilizationDate: startDate, executionEndDate: endDate, returnDate: endDate
+    ...mission, mobilizationDate: startDate, executionEndDate: endDate, returnDate: endDate,
+    cycles: hasEditableDefaultMissionCycle(mission) ? [] : mission.cycles
   };
   const defaultCycle = sourceMission.cycles?.find(cycle => cycle.isDefault);
   const missionStart = (defaultCycle?.mobilizationDate || sourceMission.mobilizationDate).slice(0, 10);

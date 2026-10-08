@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { updateMission } from '../src/lib/efetivo/planning/mission-planning.js';
+import { missionInputSchema } from '../src/lib/efetivo/planning/schemas.js';
 
 function fixture({ absences = [], individualCycles = [], missionCycles = null } = {}) {
   const plan = { id: 'plan', kind: 'SCENARIO', status: 'DRAFT', revision: 1 };
@@ -43,7 +44,9 @@ function fixture({ absences = [], individualCycles = [], missionCycles = null } 
     efetivoMissionAllocation: {
       findMany: async ({ where }) => where.missionId
         ? mission.allocations.map(allocation => ({ ...allocation, mission })) : [],
-      updateMany: async () => {},
+      updateMany: async ({ where }) => {
+        mission.allocations = mission.allocations.filter(allocation => where.collaboratorId?.notIn.includes(allocation.collaboratorId));
+      },
       upsert: async ({ update }) => Object.assign(mission.allocations[0], update)
     },
     efetivoAuditEvent: { create: async () => {} }
@@ -98,4 +101,73 @@ test('remobilização não pode substituir a data geral e excluir o histórico d
     ...payload, mobilizationDate: '2026-08-01', executionStartDate: '2026-08-01'
   }, {}, { database }), error => error.code === 'MISSION_CYCLE_OUTSIDE_MISSION_PERIOD' && /Gerenciar equipe/.test(error.message));
   assert.equal(writes.length, 0);
+});
+
+test('reprogramar Standby sincroniza também o ciclo padrão com desmobilização prevista preenchida', async () => {
+  const { mission, database, payload } = fixture({ missionCycles: [{
+    id: 'default', isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: '2026-08-20'
+  }] });
+  mission.stage = 'STANDBY';
+  const result = await updateMission(mission.id, {
+    ...payload, mobilizationDate: '2026-07-22', executionStartDate: '2026-07-22', returnDate: '2026-08-20',
+    allocationPeriods: [{ collaboratorId: 'person', mobilizationDate: '2026-07-22', demobilizationDate: '2026-08-20' }]
+  }, {}, { database });
+  assert.equal(result.cycles[0].mobilizationDate.toISOString().slice(0, 10), '2026-07-22');
+  assert.equal(result.cycles[0].demobilizationDate.toISOString().slice(0, 10), '2026-08-20');
+  assert.equal(result.allocations[0].mobilizationDate, null);
+  assert.equal(result.allocations[0].demobilizationDate, null);
+});
+
+test('remover pessoa da equipe em Standby recupera o ciclo padrão desatualizado do projeto 5841', async () => {
+  const { mission, database, payload } = fixture({ missionCycles: [{
+    id: 'default', isDefault: true, mobilizationDate: '2026-09-25', demobilizationDate: '2026-12-01'
+  }] });
+  const dates = {
+    mobilizationDate: '2026-10-22', executionStartDate: '2026-10-22', executionEndDate: '2026-11-30', returnDate: '2026-12-01'
+  };
+  Object.assign(mission, dates, { stage: 'STANDBY' });
+  mission.allocations.push({ ...mission.allocations[0], id: 'removed-allocation', collaboratorId: 'removed-person' });
+  const input = missionInputSchema.parse({
+    ...payload, ...dates,
+    allocationPeriods: [{ collaboratorId: 'person', mobilizationDate: dates.mobilizationDate, demobilizationDate: dates.returnDate }]
+  });
+  const result = await updateMission(mission.id, input, {}, { database });
+  assert.deepEqual(result.allocations.map(allocation => allocation.collaboratorId), ['person']);
+  assert.equal(result.cycles[0].mobilizationDate.toISOString().slice(0, 10), dates.mobilizationDate);
+  assert.equal(result.cycles[0].demobilizationDate.toISOString().slice(0, 10), dates.returnDate);
+  assert.equal(result.allocations[0].mobilizationDate, null);
+});
+
+test('reprogramação em Standby continua rejeitando ciclos individuais fora das novas datas', async () => {
+  const { mission, database, payload, writes } = fixture({
+    missionCycles: [{ id: 'default', isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: '2026-08-20' }],
+    individualCycles: [{ id: 'individual', mobilizationDate: '2026-07-06', demobilizationDate: '2026-07-20' }]
+  });
+  mission.stage = 'STANDBY';
+  await assert.rejects(updateMission(mission.id, {
+    ...payload, mobilizationDate: '2026-07-22', executionStartDate: '2026-07-22'
+  }, {}, { database }), error => error.code === 'ALLOCATION_OUTSIDE_MISSION_PERIOD');
+  assert.equal(writes.length, 0);
+  assert.equal(mission.cycles[0].mobilizationDate, '2026-07-06');
+});
+
+test('salvar equipe preserva o ciclo padrão quando a mobilização efetiva já foi confirmada', async () => {
+  const { mission, database, payload } = fixture({ missionCycles: [{
+    id: 'default', isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: '2026-08-20'
+  }] });
+  mission.stage = 'STANDBY';
+  mission.project.workflow = { actualMobilizationDate: '2026-07-06' };
+  await updateMission(mission.id, payload, {}, { database });
+  assert.equal(mission.cycles[0].mobilizationDate, '2026-07-06');
+  assert.equal(mission.cycles[0].demobilizationDate, '2026-08-20');
+});
+
+test('salvar equipe em Standby preserva encerramento manual diferente do fim previsto', async () => {
+  const { mission, database, payload } = fixture({ missionCycles: [{
+    id: 'default', isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: '2026-07-20'
+  }] });
+  mission.stage = 'STANDBY';
+  await updateMission(mission.id, payload, {}, { database });
+  assert.equal(mission.cycles[0].mobilizationDate, '2026-07-06');
+  assert.equal(mission.cycles[0].demobilizationDate, '2026-07-20');
 });
