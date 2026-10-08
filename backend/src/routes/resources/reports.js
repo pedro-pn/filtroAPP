@@ -100,9 +100,10 @@ import {
   manualReportOperationalDataSchema,
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
+import { decodeManualReportPdfDataUrl, extractManualReportPdfFields } from '../../lib/reports/manual-pdf-extraction.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
-import { createReportPdfAccessChecker, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
+import { createReportPdfAccessChecker, reportDateFromWhere, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
 import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink } from '../../lib/reports/collaborator-access.js';
 export { collaboratorCanAccessReportProject } from '../../lib/reports/collaborator-access.js';
 import { createProjectSystemsRouter } from './project-systems.js';
@@ -125,7 +126,6 @@ const REPORT_LIST_MAX_PAGE_SIZE = 100;
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 export const MANUAL_DERIVED_SERVICE_REPORT_EDIT_KEY = '__manualDerivedServiceReportEdit';
-const MANUAL_REPORT_MAX_PDF_BYTES = 20 * 1024 * 1024;
 const DERIVED_SERVICE_REPORT_TYPES = new Set([
   ReportType.RTP,
   ReportType.RLQ,
@@ -2217,33 +2217,6 @@ async function manualUploadedSourceVersion(report, client = prisma) {
     },
     orderBy: { versionNumber: 'desc' }
   });
-}
-
-function decodeManualReportPdfDataUrl(value) {
-  const match = String(value || '').match(/^data:application\/pdf;base64,([a-z0-9+/=\s]+)$/i);
-  if (!match) {
-    const error = new Error('Envie um PDF válido.');
-    error.statusCode = 400;
-    throw error;
-  }
-  const encoded = match[1].replace(/\s/g, '');
-  if (!encoded || encoded.length % 4 === 1) {
-    const error = new Error('PDF enviado está corrompido.');
-    error.statusCode = 400;
-    throw error;
-  }
-  const bytes = Buffer.from(encoded, 'base64');
-  if (!bytes.length || bytes.length > MANUAL_REPORT_MAX_PDF_BYTES) {
-    const error = new Error('PDF inválido ou maior que 20 MB.');
-    error.statusCode = 400;
-    throw error;
-  }
-  if (bytes.slice(0, 5).toString('latin1') !== '%PDF-') {
-    const error = new Error('Arquivo enviado não parece ser um PDF.');
-    error.statusCode = 400;
-    throw error;
-  }
-  return bytes;
 }
 
 function manualReportOriginalFileName(value) {
@@ -5694,7 +5667,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
 // listagem (`GET /`) e os contadores (`POST /counts`) usem exatamente a mesma lógica de filtro
 // e visibilidade por papel — assim o total dos badges nunca diverge da lista paginada.
 async function buildReportListWhere(auth, query) {
-  const where = { deletedAt: null, project: activeReportProjectWhere(), reportType: { notIn: [...OPERATIONAL_REPORT_TYPES] } };
+  const where = { deletedAt: null, project: activeReportProjectWhere(), reportType: { notIn: [...OPERATIONAL_REPORT_TYPES] }, ...reportDateFromWhere(query.reportDateFrom) };
   const statusFilter = parseReportStatusFilter(query);
   const searchTerm = parseReportSearchTerm(query);
   const usingReviewQueueFilter = applyReportReviewQueueFilter(where, query.reviewQueue);
@@ -5902,6 +5875,11 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
     fileName: archiveName,
     buffer: zip.toBuffer()
   });
+}));
+
+router.post('/manual-extract', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+  const data = manualReportUploadSchema.pick({ pdfDataUrl: true }).parse(req.body || {});
+  return res.json(await extractManualReportPdfFields(decodeManualReportPdfDataUrl(data.pdfDataUrl)));
 }));
 
 router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {

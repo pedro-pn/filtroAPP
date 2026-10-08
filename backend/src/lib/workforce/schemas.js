@@ -32,7 +32,7 @@ export const workforceAbsenceQuerySchema = z.object({
 
 const workforceAbsenceFieldsSchema = z.object({
   collaboratorId: z.string().trim().min(1),
-  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO']),
+  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']),
   startDate: dateOnlySchema,
   endDate: dateOnlySchema,
   note: z.string().trim().max(1000).nullable().optional()

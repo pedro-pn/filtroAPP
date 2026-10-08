@@ -52,13 +52,13 @@ const absenceQuerySchema = z.object({
 });
 const absenceCreateSchema = z.object({
   collaboratorId: collaboratorIdSchema,
-  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO']).default('FERIAS'),
+  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']).default('FERIAS'),
   startDate: dateOnlySchema,
   endDate: dateOnlySchema,
   note: z.string().trim().max(500).nullable().optional()
 });
 const absenceUpdateSchema = z.object({
-  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO']).optional(),
+  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']).optional(),
   startDate: dateOnlySchema.optional(),
   endDate: dateOnlySchema.optional(),
   note: z.string().trim().max(500).nullable().optional()

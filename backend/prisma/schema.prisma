@@ -225,6 +225,7 @@ enum CollaboratorAbsenceType {
   FERIAS
   FOLGA
   AFASTAMENTO
+  FADIGA_OFFSHORE
   ASO
   TREINAMENTO
 }
@@ -931,6 +932,8 @@ model Project {
   visibleToCollaborators         Boolean   @default(true)
   managerOnly                    Boolean   @default(false)
   registrationPending            Boolean   @default(false)
+  commercialProposalSync         Json?
+  commercialProposalSyncNextAttemptAt DateTime?
   inhibitionServiceEnabled       Boolean   @default(false)
   requireServiceReportSignatures Boolean   @default(false)
   offshore                       Boolean   @default(false) // projeto offshore: +transferência no custo de MO
@@ -1005,6 +1008,7 @@ model Project {
 
   @@index([deletedAt])
   @@index([registrationPending])
+  @@index([commercialProposalSyncNextAttemptAt])
   @@index([commercialProposalCode])
 }
 

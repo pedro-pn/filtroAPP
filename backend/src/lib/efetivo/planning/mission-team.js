@@ -64,7 +64,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
       where: {
         collaboratorId: { in: uniqueIds },
         deletedAt: null,
-        type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
+        type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
         startDate: { lte: dateValue(period.endDate) },
         endDate: { gte: dateValue(period.startDate) }
       }

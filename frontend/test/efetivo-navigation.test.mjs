@@ -57,11 +57,12 @@ test('período da disponibilidade persiste ao navegar por outras seções do mó
   );
   assert.equal(otherSection.get('date'), '2026-08-21');
   assert.equal(otherSection.get('final'), '2026-09-21');
-  assert.equal(otherSection.has('disponibilidadeView'), false);
+  assert.equal(otherSection.get('disponibilidadeView'), 'calendar');
 
   const availability = navigation.setPlanningSectionParams(otherSection, 'disponibilidade');
   assert.equal(availability.get('date'), '2026-08-21');
   assert.equal(availability.get('final'), '2026-09-21');
+  assert.equal(availability.get('disponibilidadeView'), 'calendar');
 });
 
 test('seção de colaboradores preserva colaborador, ausência e ano ao voltar', async () => {

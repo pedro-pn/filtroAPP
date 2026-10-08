@@ -97,6 +97,9 @@ export function ManualReportUploadFileCard({
           </>
         ) : null}
       </div>
+      {file.extractionWarnings?.length ? (
+        <div className="inline-warning" role="status">{file.extractionWarnings.join(' ')}</div>
+      ) : null}
       <ManualReportOperationalFields
         value={file}
         collaborators={collaborators}

@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
-import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
+import { reportDownloadFileName } from '../../utils/reportFileName';
 import { canRegenerateReport, reportRegenerationMessage } from '../../utils/reportRegeneration';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
@@ -15,7 +15,7 @@ import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { createPointerDragGhost, movePointerDragGhost, reorderIdFromPoint, reorderRowsById, scrollReorderContainerEdge, setReorderDragImage, type PointerDragState } from '../../utils/reorderDrag';
 
 import type { UserRole } from '../../types/auth';
-import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
+import { downloadReportDocx, downloadReportPdf, downloadReportsBatch, extractManualReportPdf } from '../../api/reports';
 import type { SurveyQuestionType } from '../../api/surveys';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -54,7 +54,7 @@ import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import type { CollaboratorFormState } from './CollaboratorForm';
 import { CollaboratorJobRoleHistoryEditor } from './CollaboratorJobRoleHistoryEditor';
-import { manualReportFileId, manualReportUploadListLabel, type ManualReportUploadFileState } from './manualReportUploadFile';
+import { readManualReportUploadFiles, manualReportUploadListLabel, type ManualReportUploadFileState } from './manualReportUploadFile';
 import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
 import { listDdsThemes } from '../../api/ddsThemes';
 import { listJobRoles } from '../../api/jobRoles';
@@ -265,6 +265,8 @@ export function GestorPage() {
   const [manualReportTarget, setManualReportTarget] = useState<ReportSummary | null>(null);
   const [manualReportModalOpen, setManualReportModalOpen] = useState(false);
   const [manualReportSubmitting, setManualReportSubmitting] = useState(false);
+  const [manualReportReading, setManualReportReading] = useState(false);
+  const manualReportReadInProgress = useRef(false);
   const [manualReportCollaboratorPrompts, setManualReportCollaboratorPrompts] = useState<ManualReportCollaboratorReplicationPrompt[]>([]);
   const [physicalSignatureReport, setPhysicalSignatureReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
@@ -1241,7 +1243,7 @@ export function GestorPage() {
   }
 
   function closeManualReportModal() {
-    if (manualReportSubmitting) return;
+    if (manualReportSubmitting || manualReportReadInProgress.current) return;
     resetManualReportModal();
   }
 
@@ -1298,6 +1300,7 @@ export function GestorPage() {
   }
 
   async function handleManualReportFiles(files: File[]) {
+    if (manualReportReadInProgress.current) return;
     if (!files.length) {
       setManualReportForm((current) => ({ ...current, files: [] }));
       setManualReportCollaboratorPrompts([]);
@@ -1320,28 +1323,21 @@ export function GestorPage() {
     const serviceEquipment = manualReportForm.serviceEquipment.trim();
     const serviceSystem = manualReportForm.serviceSystem.trim();
 
+    manualReportReadInProgress.current = true;
+    setManualReportReading(true);
     try {
-      const uploadFiles = await Promise.all(
-        files.map(async (file) => {
-          const metadata = manualReportMetadataFromFileName(file.name, manualReportForm.reportType);
-          return {
-            id: manualReportFileId(),
-            fileName: file.name,
-            pdfDataUrl: await fileToDataUrl(file),
-            sequenceNumber: metadata.sequenceNumber,
-            reportDate: metadata.reportDate || baseDate,
-            serviceEquipment,
-            serviceSystem,
-            ...emptyManualReportOperationalFields()
-          };
-        })
-      );
+      const uploadFiles = await readManualReportUploadFiles(files,
+        { reportType: manualReportForm.reportType, baseDate, serviceEquipment, serviceSystem },
+        { readDataUrl: fileToDataUrl, extract: extractManualReportPdf });
       setManualReportForm((current) => ({
         ...current,
         files: [...current.files, ...uploadFiles]
       }));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível ler os PDFs.', 'error');
+    } finally {
+      manualReportReadInProgress.current = false;
+      setManualReportReading(false);
     }
   }
 
@@ -1394,7 +1390,7 @@ export function GestorPage() {
 
   async function handleManualReportSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (manualReportSubmitting) return;
+    if (manualReportSubmitting || manualReportReadInProgress.current) return;
     if (!manualReportTarget && !manualReportForm.files.length) {
       showToast('Selecione ao menos um PDF.', 'error');
       return;
@@ -1954,7 +1950,7 @@ export function GestorPage() {
   function renderManualReportModal() {
     if (!manualReportModalOpen) return null;
     const replacing = Boolean(manualReportTarget);
-    const submitting = manualReportSubmitting || reportMutations.uploadManualReport.isPending || reportMutations.replaceManualReportPdf.isPending;
+    const submitting = manualReportReading || manualReportSubmitting || reportMutations.uploadManualReport.isPending || reportMutations.replaceManualReportPdf.isPending;
     const serviceReportSelected = manualReportForm.reportType !== 'RDO';
     const selectedPdfLabel = replacing ? manualReportForm.fileName : manualReportUploadListLabel(manualReportForm.files);
 
@@ -1972,7 +1968,7 @@ export function GestorPage() {
               Cancelar
             </Button>
             <Button variant="primary" size="sm" type="submit" form="manual-report-form" disabled={submitting || (replacing ? !manualReportForm.projectId : !manualReportForm.files.length)}>
-              {submitting ? 'Salvando...' : replacing ? 'Salvar alterações' : manualReportForm.files.length > 1 ? 'Adicionar relatórios' : 'Adicionar relatório'}
+              {manualReportReading ? 'Lendo PDFs...' : submitting ? 'Salvando...' : replacing ? 'Salvar alterações' : manualReportForm.files.length > 1 ? 'Adicionar relatórios' : 'Adicionar relatório'}
             </Button>
           </>
         }
@@ -1994,7 +1990,7 @@ export function GestorPage() {
             <select
               id="manual-report-type"
               value={manualReportForm.reportType}
-              disabled={replacing}
+              disabled={replacing || submitting}
               onChange={(event) => {
                 const reportType = event.target.value as ReportType;
                 setManualReportForm((current) => ({
@@ -2080,6 +2076,7 @@ export function GestorPage() {
               disabled={submitting}
             />
           </div>
+          {manualReportReading ? <div className="inline-success field-group-wide" role="status">Lendo os horários dos PDFs...</div> : null}
           {!replacing && manualReportForm.files.length ? (
             <div className="manual-report-file-list">
               {manualReportForm.files.map((file, index) => {

@@ -126,6 +126,39 @@ test('cadastro e edição preservam vários locais da obra e permitem removê-lo
   assert.equal(invalidLocation.statusCode, 400);
 });
 
+test('cadastro e revisão manual agendam os anexos sem desfazer uma revisão já selecionada', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  let project;
+  const tx = { project: {
+    create: async ({ data }) => (project = { ...data, id: 'manual-sync', operator: null, authorizedUsers: [], reportSequences: [] }),
+    findUniqueOrThrow: async () => project,
+    update: async ({ data }) => (project = { ...project, ...data })
+  } };
+  prisma.$transaction = async callback => callback(tx);
+  t.after(() => { prisma.$transaction = originalTransaction; });
+  const created = await dispatchApp('POST', '/api/projects', {
+    code: 'P-MANUAL', name: 'Projeto', clientName: 'Cliente', clientCnpj: '11222333000144',
+    contractCode: '3088 Rev. 2', location: 'Oficina'
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(project.commercialProposalSync.status, 'PENDING');
+  assert.equal(project.commercialProposalSync.revisionNumber, 2);
+  const requestId = project.commercialProposalSync.requestId;
+  await dispatchApp('PUT', '/api/projects/manual-sync', { name: 'Novo nome' });
+  assert.equal(project.commercialProposalSync.requestId, requestId);
+  project.commercialProposalSync = { ...project.commercialProposalSync, revisionNumber: 1 };
+  await dispatchApp('PUT', '/api/projects/manual-sync', { contractCode: '3088 Rev. 2', name: 'Outro nome' });
+  assert.equal(project.commercialProposalSync.revisionNumber, 1);
+  const updated = await dispatchApp('PUT', '/api/projects/manual-sync', { contractCode: '3088 Rev. 3' });
+  assert.equal(updated.statusCode, 200);
+  assert.equal(project.commercialProposalSync.revisionNumber, 3);
+  assert.notEqual(project.commercialProposalSync.requestId, requestId);
+  await dispatchApp('PUT', '/api/projects/manual-sync', { contractCode: 'SEM-PROPOSTA' });
+  assert.equal(project.commercialProposalSync, null);
+  assert.equal(project.commercialProposalSyncNextAttemptAt, null);
+});
+
 function stubAuthenticatedClient(t) {
   const originalFindUnique = prisma.userSession.findUnique;
   prisma.userSession.findUnique = async () => ({

@@ -162,7 +162,7 @@
   width: calc(var(--space-10) + var(--space-1));
   height: var(--space-6);
   align-items: center;
-  padding: var(--space-1);
+  padding: calc(var(--space-1) - var(--border-width));
   border: var(--border-width) solid var(--control-border);
   border-radius: var(--radius-pill);
   background: var(--surface-2);
@@ -172,6 +172,7 @@
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-switch__thumb {
+  flex-shrink: 0;
   width: var(--space-4);
   height: var(--space-4);
   border-radius: var(--radius-pill);

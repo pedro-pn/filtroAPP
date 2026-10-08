@@ -22,7 +22,7 @@ test('biblioteca de Assinaturas renderiza estados, recortes e todos os status no
       createdAt: '2026-09-10T12:00:00Z', completedAt: i === 3 ? '2026-09-10T13:00:00Z' : null
     }));
     const base = { data: { items, nextCursor: null }, loading: false, error: false, loadingMore: false, loadMoreError: false, archived: false, query: '', status: '',
-      onQueryChange() {}, onStatusChange() {}, onArchiveChange() {}, onClearFilters() {}, onRetry() {}, onLoadMore() {}, onNew() {}, onOpen() {} };
+      onQueryChange() {}, onStatusChange() {}, onDateFromChange() {}, onDateToChange() {}, onArchiveChange() {}, onClearFilters() {}, onRetry() {}, onLoadMore() {}, onNew() {}, onOpen() {} };
     for (const state of ['ready', 'loading', 'error', 'empty', 'archived', 'filtered', 'partial', 'loading-more', 'load-more-error']) {
       await t.test(state, () => {
         const props = { ...base };
@@ -86,8 +86,8 @@ test('migração mantém navegação e API e isola o upload compacto dos consumi
   assert.match(shell, /createNavigationModel/);
   assert.match(shell, /accountPageStateFromPath\(location\)/);
   assert.match(page, /normalizeSignatureSearchParams\(params\)/);
-  assert.match(page, /signatureDocumentSearchParams\(params, id, initialTab\)/);
-  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, arquivados: archived \|\| params.get\('list'\) === 'archived' \? 1 : undefined \}\)/);
+  assert.match(page, /signatureDocumentSearchParams\(currentSearchParams\(\), id, initialTab\)/);
+  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, dateFrom: dateFrom \|\| undefined, dateTo: dateTo \|\| undefined, arquivados: archived \|\| params.get\('list'\) === 'archived' \? 1 : undefined \}\)/);
   assert.doesNotMatch(library, /useQuery|useMutation|localStorage|fetch\(/);
   assert.match(modal, /appearance="design-system"/);
   assert.match(modal, /fullscreenOnMobile=\{false\}/);
