@@ -157,6 +157,35 @@ ser:
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d --build
 ```
 
+## Falhas de rede no build (`npm ci`)
+
+O build do frontend usa Node 24, exigido por `@zxing/library@0.23.0`.
+Os Dockerfiles usam BuildKit com cache persistente do npm e executam
+`deploy/npm-ci.sh`. O script aumenta as tentativas de download, evita as
+requisições de auditoria durante o build e repete a instalação até três
+vezes somente em falhas de rede, com pausas de 10 e 20 segundos.
+Erros de lockfile, dependências, autenticação ou integridade interrompem
+a instalação imediatamente. Falhas persistentes de rede também encerram
+o build com erro.
+
+Se ocorrer `ECONNRESET`, atualize o código no servidor e refaça o build.
+Para reduzir downloads simultâneos, execute os serviços em sequência:
+
+```bash
+COMPOSE_PARALLEL_LIMIT=1 docker compose --env-file backend/.env.production -f docker-compose.prod.yml build backend nginx worker
+```
+
+Após o build concluir, siga o fluxo de subida em produção acima. Se a
+falha persistir, verifique o acesso ao registry dentro de um container:
+
+```bash
+docker run --rm node:24-alpine npm ping --registry=https://registry.npmjs.org
+```
+
+Esse teste verifica a conexão inicial com o registry; não comprova que
+os downloads completos estejam estáveis. Investigue a rede de saída,
+o DNS ou o proxy do servidor se os downloads continuarem interrompidos.
+
 ## Gate de anexos e miniaturas
 
 Sempre que o deploy alterar uploads, anexos, `/relatorios`, miniaturas,

@@ -7,7 +7,9 @@ RUN apt-get update \
 WORKDIR /workspace/backend
 
 COPY backend/package*.json ./
-RUN npm ci
+COPY deploy/npm-ci.sh /usr/local/bin/filtrovali-npm-ci
+RUN --mount=type=cache,id=filtrovali-backend-npm,target=/root/.npm,sharing=locked \
+  sh /usr/local/bin/filtrovali-npm-ci
 
 COPY backend/prisma.config.ts ./prisma.config.ts
 COPY backend/prisma ./prisma

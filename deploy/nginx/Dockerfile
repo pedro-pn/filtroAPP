@@ -1,9 +1,11 @@
-FROM node:22-alpine AS frontend-build
+FROM node:24-alpine AS frontend-build
 
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm ci
+COPY deploy/npm-ci.sh /usr/local/bin/filtrovali-npm-ci
+RUN --mount=type=cache,id=filtrovali-frontend-npm,target=/root/.npm,sharing=locked \
+  sh /usr/local/bin/filtrovali-npm-ci
 
 COPY frontend/ ./
 COPY shared /app/shared
