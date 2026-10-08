@@ -57,7 +57,7 @@ export function OperationalCalendar({
           <strong>{displayDateOnly(date, { month: 'long', year: 'numeric' })}</strong>
           <div className="efetivo-segmented" role="group" aria-label="Visualização do calendário">{(['day', 'week', 'month'] as const).map(option => <button type="button" className={view === option ? 'active' : ''} aria-pressed={view === option} onClick={() => onViewChange(option)} key={option}>{option === 'day' ? 'Dia' : option === 'week' ? 'Semana' : 'Mês'}</button>)}</div>
         </div>
-        <div className="efetivo-calendar-legend"><span><i className="type-mission" />Missões</span><span><i className="type-ferias" />Férias</span><span><i className="type-folga" />Folgas</span><span><i className="type-afastamento" />Afastamentos</span></div>
+        <div className="efetivo-calendar-legend"><span><i className="type-mission" />Missões</span><span><i className="type-ferias" />Férias</span><span><i className="type-folga" />Folgas</span><span><i className="type-afastamento" />Afastamentos</span><span><i className="type-fadiga_offshore" />Fadiga - offshore</span></div>
         {query.isLoading ? <Skeleton variant="block" height={420} label="Carregando agenda" /> : query.isError ? <Alert tone="danger" title="Não foi possível carregar o calendário" action={{ label: 'Tentar novamente', onClick: () => query.refetch() }}>Verifique a conexão e tente novamente.</Alert> : (
           <>
           {view === 'month' ? <div className="efetivo-calendar-weekdays" aria-hidden="true">{WEEKDAY_LABELS.map(label => <span key={label}>{label}</span>)}</div> : null}
@@ -110,7 +110,7 @@ export function OperationalCalendar({
                       return <span className="efetivo-calendar-tooltip__event" key={`${event.type}-${event.id}`}>
                         <strong>{event.title}</strong>
                         <span>{displayDateOnly(event.startDate)} a {displayDateOnly(event.endDate)}</span>
-                        {event.type === 'MISSION' ? <span>{dayPeople.length ? dayPeople.map(person => person.name).join(' · ') : 'Sem colaboradores alocados'}{event.demand != null ? ` · ${dayPeople.length}/${event.demand} alocados` : ''}{event.demand != null && event.demand > dayPeople.length ? ` · ${event.demand - dayPeople.length} vagas` : ''}</span> : <span>{event.type === 'FERIAS' ? 'Férias' : event.type === 'FOLGA' ? 'Folga' : 'Afastamento'}</span>}
+                        {event.type === 'MISSION' ? <span>{dayPeople.length ? dayPeople.map(person => person.name).join(' · ') : 'Sem colaboradores alocados'}{event.demand != null ? ` · ${dayPeople.length}/${event.demand} alocados` : ''}{event.demand != null && event.demand > dayPeople.length ? ` · ${event.demand - dayPeople.length} vagas` : ''}</span> : <span>{event.type === 'FERIAS' ? 'Férias' : event.type === 'FOLGA' ? 'Folga' : event.type === 'FADIGA_OFFSHORE' ? 'Fadiga - offshore' : 'Afastamento'}</span>}
                       </span>;
                     }) : <span>Nenhum evento neste dia.</span>}
                     {matchingConflicts.length ? <span className="efetivo-calendar-tooltip__conflicts"><strong>{matchingConflicts.length} conflito{matchingConflicts.length === 1 ? '' : 's'}</strong>{matchingConflicts.map((conflict, index) => <span key={`${conflict.code}-${conflict.collaboratorId}-${index}`}>{conflict.collaboratorName} · {conflict.code === 'DOUBLE_BOOKING' ? 'Duas missões' : 'Sobreposição com ausência'}</span>)}</span> : null}

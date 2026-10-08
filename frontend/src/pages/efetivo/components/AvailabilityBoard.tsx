@@ -8,12 +8,13 @@ import { displayDateOnly, parseDateOnly } from '../../../utils/calendarGrid';
 import { buildCalendarBuckets, type CalendarBucket, type CalendarScale } from '../../../utils/availabilityCalendar';
 import { summarizeAvailabilityPeriod } from '../../../utils/availabilitySummary';
 
-const STATUSES: PeriodAvailabilityStatus[] = ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION', 'OTHER_UNAVAILABLE'];
+const STATUSES: PeriodAvailabilityStatus[] = ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION', 'OFFSHORE_FATIGUE', 'OTHER_UNAVAILABLE'];
 const STATUS_META: Record<PeriodAvailabilityStatus, { label: string; short: string; description: string }> = {
   AVAILABLE: { label: 'Disponíveis', short: 'Disponível', description: 'Livres durante todo o período' },
   AWAITING_MOBILIZATION: { label: 'Aguardando mobilização', short: 'Aguardando', description: 'Com missão em Stand by' },
   MOBILIZED: { label: 'Mobilizados', short: 'Mobilizado', description: 'Com alocação no período' },
   ON_VACATION: { label: 'De férias', short: 'Férias', description: 'Com férias no período' },
+  OFFSHORE_FATIGUE: { label: 'Fadiga - offshore', short: 'Fadiga - offshore', description: 'Indisponíveis por fadiga offshore no período' },
   OTHER_UNAVAILABLE: { label: 'Indisponíveis', short: 'Indisponível', description: 'Folga, afastamento ou fora do vínculo' }
 };
 const STATUS_COLOR: Record<PeriodAvailabilityStatus | 'OUTSIDE_EMPLOYMENT', string> = {
@@ -21,6 +22,7 @@ const STATUS_COLOR: Record<PeriodAvailabilityStatus | 'OUTSIDE_EMPLOYMENT', stri
   AWAITING_MOBILIZATION: 'var(--warning)',
   MOBILIZED: 'var(--info)',
   ON_VACATION: 'var(--pu)',
+  OFFSHORE_FATIGUE: 'var(--warning-text)',
   OTHER_UNAVAILABLE: 'var(--danger)',
   OUTSIDE_EMPLOYMENT: 'var(--muted)'
 };
@@ -28,7 +30,7 @@ const STATUS_COLOR: Record<PeriodAvailabilityStatus | 'OUTSIDE_EMPLOYMENT', stri
 type Person = PlanningAvailabilityPeriod['people'][number];
 
 function personStatus(person: Person, totalDays: number): PeriodAvailabilityStatus {
-  for (const status of ['MOBILIZED', 'ON_VACATION', 'AWAITING_MOBILIZATION', 'OTHER_UNAVAILABLE'] as const) {
+  for (const status of ['MOBILIZED', 'ON_VACATION', 'OFFSHORE_FATIGUE', 'AWAITING_MOBILIZATION', 'OTHER_UNAVAILABLE'] as const) {
     if (person.days.some(day => day.status === status)) return status;
   }
   return person.days.length < totalDays ? 'OTHER_UNAVAILABLE' : 'AVAILABLE';
@@ -124,6 +126,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
       AWAITING_MOBILIZATION: [],
       MOBILIZED: [],
       ON_VACATION: [],
+      OFFSHORE_FATIGUE: [],
       OTHER_UNAVAILABLE: []
     };
     for (const person of data?.people || []) grouped[personStatus(person, data?.days.length || 0)].push(person);

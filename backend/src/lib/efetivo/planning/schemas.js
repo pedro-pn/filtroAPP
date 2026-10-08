@@ -8,7 +8,7 @@ export const dateOnlySchema = z.string().regex(datePattern, 'Use o formato AAAA-
 
 export const idSchema = z.string().trim().min(1).max(100);
 export const hexColorSchema = z.string().regex(/^#[0-9a-f]{6}$/i, 'Informe uma cor hexadecimal válida.');
-export const absenceTypeSchema = z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO']);
+export const absenceTypeSchema = z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']);
 export const missionScheduleStatusSchema = z.enum(['DRAFT', 'CONFIRMED', 'CANCELLED']);
 export const editableMissionScheduleStatusSchema = z.enum(['CONFIRMED', 'CANCELLED']);
 export const missionStageSchema = z.enum(['STANDBY', 'MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED']);

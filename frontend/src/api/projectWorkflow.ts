@@ -65,6 +65,7 @@ export interface ProjectWorkflowProject {
   name: string;
   clientName: string;
   clientEmailPrimary?: string;
+  commercialProposalSync?: { status: string; proposalCode: string; revisionNumber: number } | null;
   location: string;
   mobilizationDate?: string | null;
   demobilizationDate?: string | null;

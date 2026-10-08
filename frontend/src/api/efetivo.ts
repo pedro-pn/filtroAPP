@@ -79,7 +79,7 @@ export interface EfetivoAbsence {
   id: string;
   collaboratorId: string;
   collaborator: { id: string; name: string; role: string };
-  type: 'FERIAS' | 'FOLGA' | 'AFASTAMENTO';
+  type: 'FERIAS' | 'FOLGA' | 'AFASTAMENTO' | 'FADIGA_OFFSHORE';
   startDate: string;
   endDate: string;
   note: string | null;
@@ -97,7 +97,7 @@ export interface WorkforceAbsenceResult {
 
 export interface EfetivoAbsencePayload {
   collaboratorId: string;
-  type?: 'FERIAS' | 'FOLGA' | 'AFASTAMENTO';
+  type?: 'FERIAS' | 'FOLGA' | 'AFASTAMENTO' | 'FADIGA_OFFSHORE';
   startDate: string;
   endDate: string;
   note?: string | null;

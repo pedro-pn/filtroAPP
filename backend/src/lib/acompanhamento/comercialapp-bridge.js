@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
 import { syncCommercialAppScope } from './commercialapp-scope.js';
+import { commercialProposalSyncData } from '../projects/commercial-proposal-sync-state.js';
 
 const decimal = z.number().finite().min(0).max(999999999999.99);
 const nonnegative = z.number().finite().min(0);
@@ -182,7 +183,9 @@ export async function receiveCommercialAppProposal(raw) {
           projectId: data.projectId, version: 1, ...budgetFields(proposal)
         } });
         await tx.project.update({ where: { id: data.projectId },
-          data: { commercialProposalCode: data.proposalCode } });
+          data: { commercialProposalCode: data.proposalCode, ...commercialProposalSyncData(
+            { proposalCode: data.proposalCode, revisionNumber: data.revisionNumber }, project.commercialProposalSync
+          ) } });
         await tx.commercialAppProposal.update({ where: { id: proposal.id },
           data: { selectionStatus: 'SELECTED', selectedAt: new Date() } });
         selected = true;
@@ -222,7 +225,12 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
     if (budget && budget.source !== 'COMERCIAL_APP' && !replaceLegacy) {
       throw new CommercialAppBridgeError(409, 'O orçamento atual vem do Access. Confirme a troca de origem para selecionar o ComercialAPP.');
     }
+    const project = await tx.project.findUnique({ where: { id: projectId }, select: { commercialProposalSync: true } });
+    const syncData = commercialProposalSyncData(
+      { proposalCode: proposal.proposalCode, revisionNumber: proposal.revisionNumber }, project.commercialProposalSync
+    );
     if (budget?.source === 'COMERCIAL_APP' && budget.commercialAppProposalId === externalId) {
+      if (Object.keys(syncData).length) await tx.project.update({ where: { id: projectId }, data: syncData });
       return { budgetStatus: 'SELECTED', duplicate: true,
         scopeImport: await syncCommercialAppScope(tx, projectId, proposal) };
     }
@@ -235,7 +243,7 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
       update: { ...budgetFields(proposal), selectedByUserId: userId, selectedAt: new Date() }
     });
     await tx.project.update({ where: { id: projectId },
-      data: { commercialProposalCode: proposal.proposalCode } });
+      data: { commercialProposalCode: proposal.proposalCode, ...syncData } });
     await tx.commercialAppProposal.update({ where: { id: proposal.id },
       data: { selectionStatus: 'SELECTED', selectedAt: new Date() } });
     const scopeImport = await syncCommercialAppScope(tx, projectId, proposal);

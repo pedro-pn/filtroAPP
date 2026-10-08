@@ -957,7 +957,7 @@ components:
       required: [id, type, title, startDate, endDate]
       properties:
         id: { type: string }
-        type: { type: string, enum: [MISSION, FERIAS, FOLGA, AFASTAMENTO] }
+        type: { type: string, enum: [MISSION, FERIAS, FOLGA, AFASTAMENTO, FADIGA_OFFSHORE] }
         title: { type: string }
         startDate: { $ref: '#/components/schemas/DateOnly' }
         endDate: { $ref: '#/components/schemas/DateOnly' }

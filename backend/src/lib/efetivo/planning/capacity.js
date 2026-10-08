@@ -19,7 +19,7 @@ export function isCollaboratorActiveOn(collaborator, value) {
 function indexAbsencesByCollaborator(absences) {
   const index = new Map();
   for (const absence of absences) {
-    if (absence.deletedAt || !['FERIAS', 'FOLGA', 'AFASTAMENTO'].includes(absence.type)) continue;
+    if (absence.deletedAt || !['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'].includes(absence.type)) continue;
     const periods = index.get(absence.collaboratorId) || [];
     periods.push({
       record: absence,

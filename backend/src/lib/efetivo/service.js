@@ -234,7 +234,7 @@ export async function listEfetivoAbsences(filters, dependencies = {}) {
   return database.collaboratorAbsence.findMany({
     where: {
       deletedAt: null,
-      type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] },
+      type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
       startDate: { lte: end },
       endDate: { gte: start },
       ...(filters.collaboratorId ? { collaboratorId: filters.collaboratorId } : {})
@@ -246,7 +246,7 @@ export async function listEfetivoAbsences(filters, dependencies = {}) {
 
 async function absenceConflicts(database, collaboratorId) {
   return database.collaboratorAbsence.findMany({
-    where: { collaboratorId, deletedAt: null, type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO'] } },
+    where: { collaboratorId, deletedAt: null, type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] } },
     select: { id: true, startDate: true, endDate: true, deletedAt: true }
   });
 }

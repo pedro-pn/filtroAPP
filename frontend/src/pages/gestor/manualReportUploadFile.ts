@@ -1,4 +1,6 @@
 import type { ManualReportOperationalFieldsValue } from '../../components/reports/ManualReportOperationalFields';
+import type { ManualReportPdfExtraction } from '../../api/reports';
+import { emptyManualReportOperationalFields } from '../../components/reports/manualReportOperationalData';
 import type { ReportType } from '../../types/domain';
 import { manualReportMetadataFromFileName } from '../../utils/reportFileName';
 
@@ -10,6 +12,38 @@ export interface ManualReportUploadFileState extends ManualReportOperationalFiel
   reportDate: string;
   serviceEquipment: string;
   serviceSystem: string;
+  extractionWarnings?: string[];
+}
+
+export async function readManualReportUploadFiles(
+  files: File[],
+  options: { reportType: ReportType; baseDate: string; serviceEquipment: string; serviceSystem: string },
+  dependencies: { readDataUrl: (file: File) => Promise<string>; extract: (pdfDataUrl: string) => Promise<ManualReportPdfExtraction> }
+): Promise<ManualReportUploadFileState[]> {
+  const result: ManualReportUploadFileState[] = [];
+  for (const file of files) {
+    const metadata = manualReportMetadataFromFileName(file.name, options.reportType);
+    const pdfDataUrl = await dependencies.readDataUrl(file);
+    let extraction: ManualReportPdfExtraction;
+    try {
+      extraction = await dependencies.extract(pdfDataUrl);
+    } catch {
+      extraction = { fields: {}, source: 'text', warnings: ['Não foi possível ler os horários deste PDF. Preencha os campos manualmente.'] };
+    }
+    result.push({
+      id: manualReportFileId(),
+      fileName: file.name,
+      pdfDataUrl,
+      sequenceNumber: metadata.sequenceNumber,
+      reportDate: metadata.reportDate || options.baseDate,
+      serviceEquipment: options.serviceEquipment,
+      serviceSystem: options.serviceSystem,
+      ...emptyManualReportOperationalFields(),
+      ...extraction.fields,
+      extractionWarnings: extraction.warnings
+    });
+  }
+  return result;
 }
 
 export function updateManualReportUploadFileType(

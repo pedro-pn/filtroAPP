@@ -4,6 +4,20 @@ import test from 'node:test';
 import { calculateDailyCapacity, calculateUtilization90Days } from '../src/lib/efetivo/planning/capacity.js';
 import { businessDatesInclusive, holidayDateSet, isBusinessDay } from '../src/lib/efetivo/planning/business-days.js';
 
+test('fadiga offshore reduz capacidade e dias disponíveis, respeitando exclusão lógica', () => {
+  const input = {
+    date: '2026-09-01', endDate: '2026-09-04',
+    jobRoles: [{ id: 'r1', name: 'Operador', isActive: true, isOperational: true }],
+    collaborators: [{ id: 'c1', name: 'Ana', jobRoleId: 'r1', isActive: true }],
+    absences: [{ id: 'a1', collaboratorId: 'c1', type: 'FADIGA_OFFSHORE', startDate: '2026-09-02', endDate: '2026-09-03' }]
+  };
+  assert.equal(calculateDailyCapacity({ ...input, date: '2026-09-02' }).totals.unavailable, 1);
+  assert.equal(calculateUtilization90Days(input).availablePersonDays, 2);
+  input.absences[0].deletedAt = new Date();
+  assert.equal(calculateDailyCapacity({ ...input, date: '2026-09-02' }).totals.free, 1);
+  assert.equal(calculateUtilization90Days(input).availablePersonDays, 4);
+});
+
 test('dia útil exclui fim de semana e feriado administrável', () => {
   const holidays = holidayDateSet([{ holidayDate: '2026-08-21', deletedAt: null }]);
   assert.equal(isBusinessDay('2026-08-21', holidays), false);

@@ -66,28 +66,30 @@ test('resolução recusa colaborador inativo e IDs duplicados', async () => {
   );
 });
 
-test('resolução bloqueia IDs em ordem estável e identifica conflito da pessoa', async () => {
-  const r1 = role('r1', 'Operador');
-  const people = [collaborator('c2', r1), collaborator('c1', r1)];
-  const locks = [];
-  const tx = {
-    $queryRawUnsafe: async (_query, id) => locks.push(id),
-    collaborator: { findMany: async () => people },
-    collaboratorAbsence: { findMany: async () => [{ id: 'a1', collaboratorId: 'c2', type: 'FERIAS', startDate: new Date('2026-09-03T00:00:00.000Z'), endDate: new Date('2026-09-04T00:00:00.000Z'), deletedAt: null }] },
-    efetivoMissionAllocation: { findMany: async () => [] }
-  };
+test('resolução bloqueia IDs em ordem estável e identifica férias ou fadiga offshore da pessoa', async () => {
+  for (const type of ['FERIAS', 'FADIGA_OFFSHORE']) {
+    const r1 = role('r1', 'Operador');
+    const people = [collaborator('c2', r1), collaborator('c1', r1)];
+    const locks = [];
+    const tx = {
+      $queryRawUnsafe: async (_query, id) => locks.push(id),
+      collaborator: { findMany: async () => people },
+      collaboratorAbsence: { findMany: async ({ where }) => where.type.in.includes(type) ? [{ id: 'a1', collaboratorId: 'c2', type, startDate: new Date('2026-09-03T00:00:00.000Z'), endDate: new Date('2026-09-04T00:00:00.000Z'), deletedAt: null }] : [] },
+      efetivoMissionAllocation: { findMany: async () => [] }
+    };
 
-  await assert.rejects(() => resolveSelectedMissionTeam(tx, {
-    collaboratorIds: ['c2', 'c1'],
-    scheduleStatus: 'CONFIRMED',
-    mobilizationDate: '2026-09-01',
-    returnDate: '2026-09-10'
-  }, 'plan-1'), error => {
-    assert.match(error.message, /Pessoa c2/);
-    assert.equal(error.conflicts[0].code, 'ABSENCE_FERIAS');
-    return true;
-  });
-  assert.deepEqual(locks, ['c1', 'c2']);
+    await assert.rejects(() => resolveSelectedMissionTeam(tx, {
+      collaboratorIds: ['c2', 'c1'],
+      scheduleStatus: 'CONFIRMED',
+      mobilizationDate: '2026-09-01',
+      returnDate: '2026-09-10'
+    }, 'plan-1'), error => {
+      assert.match(error.message, /Pessoa c2/);
+      assert.equal(error.conflicts[0].code, `ABSENCE_${type}`);
+      return true;
+    });
+    assert.deepEqual(locks, ['c1', 'c2']);
+  }
 });
 
 test('sincronização remove ausentes e restaura ou cria selecionados', async () => {

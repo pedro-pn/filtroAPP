@@ -11,6 +11,7 @@ import { ModuleRoleCodes } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
+import { commercialProposalReference, commercialProposalSyncData } from '../../lib/projects/commercial-proposal-sync-state.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
 
@@ -338,6 +339,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
     const created = await tx.project.create({
       data: {
         ...projectData,
+        ...commercialProposalSyncData(commercialProposalReference(projectData.contractCode)),
         authorizedUsers: {
           create: authorizedUserIds.map(userId => ({ userId }))
         },
@@ -437,6 +439,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
         clientSignerLastName: true,
         clientEmailCc: true,
         contractCode: true,
+        commercialProposalSync: true,
         location: true,
         managerOnly: true,
         registrationPending: true,
@@ -450,8 +453,16 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       await tx.projectAuthorizedUser.deleteMany({ where: { projectId: req.params.id } });
     }
 
+    const contractChanged = projectData.contractCode !== undefined && projectData.contractCode !== previousProject.contractCode;
+    const cnpjChanged = projectData.clientCnpj !== undefined && projectData.clientCnpj !== previousProject.clientCnpj;
+    const syncReference = !contractChanged && previousProject.commercialProposalSync
+      ? { proposalCode: previousProject.commercialProposalSync.proposalCode, revisionNumber: previousProject.commercialProposalSync.revisionNumber }
+      : commercialProposalReference(projectData.contractCode ?? previousProject.contractCode);
     const projectUpdateData = {
       ...projectData,
+      ...(contractChanged || cnpjChanged || projectData.contractCode !== undefined && !previousProject.commercialProposalSync
+        ? commercialProposalSyncData(syncReference, previousProject.commercialProposalSync, { force: cnpjChanged })
+        : {}),
       ...(previousProject.isActive && projectData.isActive === false
         ? { acompanhamentoReviewedAt: null, acompanhamentoReportArchivedAt: new Date() }
         : !previousProject.isActive && projectData.isActive === true

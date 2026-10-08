@@ -11,7 +11,7 @@ import '../EfetivoDialogs.css';
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe uma data válida.');
 const absenceFormSchema = z.object({
   collaboratorId: z.string().min(1, 'Selecione o colaborador.'),
-  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO']),
+  type: z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']),
   startDate: dateSchema,
   endDate: dateSchema,
   note: z.string().max(500, 'Use no máximo 500 caracteres.')
@@ -81,7 +81,7 @@ export function AbsenceFormModal({ open, absence, collaborators, saving, onClose
           note: values.note.trim() || null
         }))}
       >
-        <p className="efetivo-dialog-description" id="efetivo-absence-description">Férias, folga e afastamento bloqueiam a alocação no período inteiro.</p>
+        <p className="efetivo-dialog-description" id="efetivo-absence-description">Férias, folga, afastamento e fadiga - offshore bloqueiam a alocação no período inteiro.</p>
         <div className="efetivo-dialog-fields">
           <Field id="efetivo-absence-collaborator" label="Colaborador" required className="efetivo-dialog-wide" errorText={errors.collaboratorId?.message}>
             <Select size="sm" disabled={Boolean(absence) || saving} {...register('collaboratorId')}>
@@ -96,6 +96,7 @@ export function AbsenceFormModal({ open, absence, collaborators, saving, onClose
               <option value="FERIAS">Férias</option>
               <option value="FOLGA">Folga</option>
               <option value="AFASTAMENTO">Afastamento</option>
+              <option value="FADIGA_OFFSHORE">Fadiga - offshore</option>
             </Select>
           </Field>
           <Field id="efetivo-absence-start" label="Início" required errorText={errors.startDate?.message}>
