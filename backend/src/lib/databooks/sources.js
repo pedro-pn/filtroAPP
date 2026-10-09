@@ -108,7 +108,9 @@ export function selectDatabookSources(sources, options) {
   const photos = options.photos.map(selection => {
     const photo = choose(sources.photos, 'key', [selection.key], 'Foto')[0];
     if (!reportIds.has(photo.reportId)) throw databookError('A foto pertence a um relatório não selecionado.');
-    return { ...photo, ...selection };
+    // The schema supplies these fields in this order. JSONB may reorder their keys
+    // on read, so restore the original layout for already persisted fingerprints.
+    return { ...photo, key: selection.key, caption: selection.caption, tag: selection.tag, phase: selection.phase };
   });
   const products = options.products.map(selection => {
     const product = choose(sources.products, 'id', [selection.itemId], 'Produto')[0];
@@ -142,10 +144,17 @@ export function selectDatabookSources(sources, options) {
       externalUrl: document.currentVersion.externalUrl || null })), warnings
   };
   // Only selected sources participate: unrelated edits in another scope do not invalidate this stage.
-  const fingerprint = sha256(JSON.stringify({ project: snapshot.project,
+  const sourceState = { project: snapshot.project,
     reports: reports.map(report => ({ id: report.id, updatedAt: report.updatedAt, status: report.status,
       date: report.reportDate, services: report.services, specialConditions: report.specialConditions,
       versions: report.versions, reportSignatures: report.reportSignatures, clientReviews: report.clientReviews })),
-    photos, products, documents }));
-  return { reports, photos, products, documents, snapshot: JSON.parse(JSON.stringify(snapshot)), fingerprint };
+    photos, products, documents };
+  const legacyFingerprint = sha256(JSON.stringify(sourceState));
+  // Sort object keys only; array order is part of the curated evidence. A JSON
+  // replacer runs after toJSON, preserving Date/Prisma Decimal serialization.
+  const fingerprint = sha256(JSON.stringify(sourceState, (_key, value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]));
+  }));
+  return { reports, photos, products, documents, snapshot: JSON.parse(JSON.stringify(snapshot)), fingerprint, legacyFingerprint };
 }

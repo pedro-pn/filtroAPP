@@ -12,6 +12,8 @@ import { buildDatabookPackage } from './package.js';
 const LEASE_MS = 5 * 60 * 1000;
 let started = false;
 let busy = false;
+// Retry jobs saved by the previous version against the same complete source data.
+const sourceFingerprintMatches = (selection, expected) => selection.fingerprint === expected || selection.legacyFingerprint === expected;
 
 export async function claimDatabookJob(database, now = new Date()) {
   const runnable = { OR: [{ status: 'PENDING' }, { status: 'RUNNING', lockedAt: { lt: new Date(now.getTime() - LEASE_MS) } }] };
@@ -41,7 +43,7 @@ export async function generateDatabookJob(database, job, dependencies = {}) {
     if (!project) throw databookError('Projeto indisponível para emissão.', 409);
     const sources = await (dependencies.loadSources || loadDatabookSources)(database, project, job.options);
     const selection = selectDatabookSources(sources, job.options);
-    if (selection.fingerprint !== job.sourceFingerprint) throw databookError('As fontes mudaram após a preparação. Prepare uma nova revisão para conferir os dados.', 409);
+    if (!sourceFingerprintMatches(selection, job.sourceFingerprint)) throw databookError('As fontes mudaram após a preparação. Prepare uma nova revisão para conferir os dados.', 409);
     const missing = label => databookError(`Arquivo obrigatório indisponível: ${label}.`);
     const readReport = dependencies.readReport || (async summary => {
       const { reportDownloadInclude, getReportPdfDownload } = await import('../../routes/resources/reports.js');
@@ -77,7 +79,7 @@ export async function generateDatabookJob(database, job, dependencies = {}) {
     const result = await (dependencies.buildPackage || buildDatabookPackage)({ snapshot: job.snapshot, revision: job.revision,
       issuedAt: new Date(job.createdAt).toISOString(), author: job.createdByName, readReport, readPhoto, readFds, readDocument, onProgress: heartbeat });
     const refreshed = await (dependencies.loadSources || loadDatabookSources)(database, project, job.options);
-    if (selectDatabookSources(refreshed, job.options).fingerprint !== job.sourceFingerprint) throw databookError('As fontes mudaram durante a geração. Prepare uma nova revisão.', 409);
+    if (!sourceFingerprintMatches(selectDatabookSources(refreshed, job.options), job.sourceFingerprint)) throw databookError('As fontes mudaram durante a geração. Prepare uma nova revisão.', 409);
     if (leaseLost) throw databookError('A tarefa perdeu a reserva de processamento.', 409);
     await heartbeat(95);
     const writeFile = dependencies.writeFile || writeManagedDocumentFile;
