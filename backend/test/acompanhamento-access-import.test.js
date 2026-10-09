@@ -15,12 +15,44 @@ import {
   refreshSelectedProjectBudgetsFromProposals,
   setProjectBudgetRevisionWithClient,
   shouldRecordManualProgressHistory,
+  summarizeOmieRevenue,
   toCnpj,
   toDate,
   toInt,
   toNumber,
   toStr
 } from '../src/lib/acompanhamento/access-import.js';
+import { buildPresumedProfitTaxEstimate } from '../src/lib/acompanhamento/presumed-profit-taxes.js';
+
+test('faturamento soma ND no projeto 5775 e preserva a base fiscal para impostos', () => {
+  const fiscal = { projectId: '5775', valor: 290163.81, valorIss: 8704.91, aliquotaIss: 3, codigoLc116: '7.05', codigoTipoDocumento: 'NFS' };
+  const debitNotes = [19004.83, 14698.69, 22438.69, 3255.04]
+    .map(valor => ({ projectId: '5775', valor, codigoTipoDocumento: 'ND', valorIss: 999 }));
+  const fiscalOnly = summarizeOmieRevenue([fiscal]).get('5775');
+  const withND = summarizeOmieRevenue([fiscal, ...debitNotes,
+    { projectId: '5775', valor: 500, codigoTipoDocumento: 'ND', statusTitulo: 'CANCELADO' },
+    { projectId: 'outro', valor: 100, codigoTipoDocumento: 'ND' }]).get('5775');
+  assert.equal(withND.total, 349561.06);
+  assert.equal(withND.count, 5);
+  assert.equal(withND.fiscalTotal, 290163.81);
+  assert.equal(withND.iss, 8704.91);
+  assert.deepEqual(withND.invoices, fiscalOnly.invoices);
+  const taxes = summary => buildPresumedProfitTaxEstimate(400000, {
+    invoices: summary.invoices, invoicedAmount: summary.fiscalTotal, invoiceIss: summary.invoices.length ? summary.iss : null
+  });
+  assert.deepEqual(taxes(withND), taxes(fiscalOnly));
+});
+
+test('projeto com apenas ND tem faturamento gerencial e nenhuma nota na base fiscal', () => {
+  const summary = summarizeOmieRevenue([{ projectId: 'p', valor: 1000, codigoTipoDocumento: 'ND' }]).get('p');
+  assert.equal(summary.total, 1000);
+  assert.equal(summary.count, 1);
+  assert.equal(summary.fiscalTotal, 0);
+  assert.deepEqual(summary.invoices, []);
+  assert.deepEqual(buildPresumedProfitTaxEstimate(5000, {
+    invoices: summary.invoices, invoicedAmount: summary.fiscalTotal, invoiceIss: null
+  }), buildPresumedProfitTaxEstimate(5000));
+});
 
 test('setProjectBudgetRevisionWithClient reutiliza a seleção manual com um client transacional injetado', async () => {
   const calls = [];

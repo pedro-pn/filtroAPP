@@ -814,6 +814,33 @@ export async function removeProjectAdditionalProposal(projectId, codProp) {
   return { ok: true, deleted: result.count };
 }
 
+export function summarizeOmieRevenue(receivables) {
+  const byProject = new Map();
+  const addMoney = (a, b) => (Math.round(a * 100) + Math.round(b * 100)) / 100;
+  for (const receivable of receivables) {
+    const amount = toNumber(receivable.valor);
+    if (amount === null || amount <= 0 || /CANCELAD|^C$/i.test(toStr(receivable.statusTitulo) ?? '')) continue;
+    const projectId = receivable.projectId;
+    const current = byProject.get(projectId) ?? { total: 0, fiscalTotal: 0, iss: 0, count: 0, invoices: [] };
+    current.total = addMoney(current.total, amount);
+    current.count += 1;
+    // A ND compõe o faturamento gerencial; a base fiscal continua separada.
+    if (receivable.codigoTipoDocumento !== 'ND') {
+      const iss = toNumber(receivable.valorIss);
+      current.fiscalTotal = addMoney(current.fiscalTotal, amount);
+      current.iss = addMoney(current.iss, iss ?? 0);
+      current.invoices.push({
+        amount,
+        iss,
+        issRatePct: toNumber(receivable.aliquotaIss),
+        serviceTaxCode: receivable.codigoLc116 ?? receivable.codigoServico ?? null
+      });
+    }
+    byProject.set(projectId, current);
+  }
+  return byProject;
+}
+
 // Dashboard de acompanhamento: projetos cuja proposta bate com propostas importadas, com o
 // previsto (orçamento/revisão) e o realizado parcial (nº de RDOs = dias trabalhados, % prazo).
 export async function listCommercialDashboard({
@@ -863,6 +890,7 @@ async function listCommercialDashboardUncached({
     NOT: [{ statusTitulo: 'CANCELADO' }],
     OR: [
       { codigoTipoDocumento: 'NFS' },
+      { codigoTipoDocumento: 'ND' },
       {
         AND: [
           { OR: [{ codigoTipoDocumento: null }, { codigoTipoDocumento: '' }] },
@@ -926,6 +954,8 @@ async function listCommercialDashboardUncached({
       where: invoicedWhere,
       select: {
         projectId: true,
+        codigoTipoDocumento: true,
+        statusTitulo: true,
         valor: true,
         valorIss: true,
         aliquotaIss: true,
@@ -958,24 +988,7 @@ async function listCommercialDashboardUncached({
   const rdoByProject = new Map(rdoGroups.map(g => [g.projectId, g._count._all]));
   const realizedByProject = new Map(omieTotals.map(g => [g.projectId, g._sum.valor]));
   const realizedPaidByProject = new Map(omiePaid.map(g => [g.projectId, g._sum.valor]));
-  const invoicedByProject = new Map();
-  for (const receivable of omieReceivables) {
-    const amount = toNumber(receivable.valor);
-    if (amount === null || amount <= 0) continue;
-    const projectId = receivable.projectId;
-    const current = invoicedByProject.get(projectId) ?? { total: 0, iss: 0, count: 0, invoices: [] };
-    const iss = toNumber(receivable.valorIss);
-    current.total += amount;
-    current.iss += iss ?? 0;
-    current.count += 1;
-    current.invoices.push({
-      amount,
-      iss,
-      issRatePct: toNumber(receivable.aliquotaIss),
-      serviceTaxCode: receivable.codigoLc116 ?? receivable.codigoServico ?? null
-    });
-    invoicedByProject.set(projectId, current);
-  }
+  const invoicedByProject = summarizeOmieRevenue(omieReceivables);
 
   const rows = [];
   for (const project of projects) {
@@ -1037,8 +1050,8 @@ async function listCommercialDashboardUncached({
       presumedProfitTaxes: buildPresumedProfitTaxEstimate(salePrice, {
         components,
         invoices: invoiced?.invoices ?? null,
-        invoicedAmount: invoiced?.total ?? null,
-        invoiceIss: invoiced?.iss ?? null
+        invoicedAmount: invoiced?.fiscalTotal ?? null,
+        invoiceIss: invoiced?.invoices.length ? invoiced.iss : null
       }),
       ...applyProposalPercentage(budgetBreakdown.plannedTotalCost, project.proposalPercentage),
       originalPlannedTotalCost: budgetBreakdown.originalPlannedTotalCost,

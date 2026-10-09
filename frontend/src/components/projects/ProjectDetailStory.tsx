@@ -179,16 +179,16 @@ export function ProjectBillingSnapshot({ data }: { data: ProjectDetail }) {
   const invoiceCount = data.faturamento.notas ?? 0;
   return <Card padding="sm" className="acp-story-billing" data-acp-billing-snapshot>
     <ProjectDetailSection label="Faturamento e impostos" header={<>
-      <div className="acp-story-card-head"><div><h3>Faturamento e impostos</h3><p className="acp-detail-section-subtitle">Venda e notas sincronizadas</p></div><AppIcon icon={FileText} /></div>
+      <div className="acp-story-card-head"><div><h3>Faturamento e impostos</h3><p className="acp-detail-section-subtitle">Venda e documentos sincronizados</p></div><AppIcon icon={FileText} /></div>
     </>}>
       <div className="acp-story-billing-main"><span>Faturado no Omie</span><strong>{brl(invoiced)}</strong><small>de {brl(expected)} previstos</small></div>
       {expected != null && expected > 0 && invoiced != null ? <div className="acp-story-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, invoiced / expected * 100))}%` }} /></div> : null}
       <div className="acp-story-billing-facts">
-        <span><AppIcon icon={FileText} size="sm" /> Notas fiscais <strong>{invoiceCount}</strong></span>
+        <span><AppIcon icon={FileText} size="sm" /> Documentos <strong>{invoiceCount}</strong></span>
         {data.presumedProfitTaxes ? <span><AppIcon icon={Coins} size="sm" /> {data.presentation ? 'Impostos' : 'Impostos estimados'} <strong>{brl(data.presumedProfitTaxes.totalTax)}</strong></span> : null}
         <span><AppIcon icon={Wallet} size="sm" /> Venda prevista <strong>{brl(expected)}</strong></span>
       </div>
-      <p className="acp-story-caption">{invoiceCount ? 'Faturamento sincronizado no Omie; consulte as notas e o recebimento abaixo.' : 'Sem nota fiscal sincronizada para este projeto.'}</p>
+      <p className="acp-story-caption">{invoiceCount ? 'Faturamento sincronizado no Omie; consulte os documentos e o recebimento abaixo.' : 'Sem documento de faturamento sincronizado para este projeto.'}</p>
     </ProjectDetailSection>
   </Card>;
 }

@@ -38,6 +38,23 @@ test('projeto inexistente, excluído ou oculto não consulta notas', async () =>
   assert.equal(calls.length, 1);
 });
 
+test('consulta preserva identificação e recebimento de ND junto às notas fiscais', async () => {
+  const { db } = database();
+  const fiscalRows = db.omieInvoice.findMany;
+  db.omieInvoice.findMany = async args => [...await fiscalRows(args), {
+    id: 'ND:1', source: 'ND', codigoProjeto: '30', numero: 'ND 001', serie: null,
+    dataEmissao: new Date('2026-06-18T00:00:00Z'), valor: '19004.83',
+    clienteNome: 'Cliente da ND', clienteCnpj: '11.111.111/0001-11', receiptStatus: 'RECEIVED', installmentCount: 1
+  }];
+  const result = await getProjectInvoices('p1', { db });
+  assert.equal(result.count, 2);
+  assert.equal(result.total, 789360.43);
+  assert.equal(result.invoices[1].type, 'ND');
+  assert.equal(result.invoices[1].number, 'ND 001');
+  assert.equal(result.invoices[1].receiptStatus, 'RECEIVED');
+  assert.equal(result.invoices[1].customerDiffers, false);
+});
+
 test('ausência de vínculo não retorna notas de outras missões', async () => {
   const { db } = database();
   db.omieProject.findMany = async () => [];
