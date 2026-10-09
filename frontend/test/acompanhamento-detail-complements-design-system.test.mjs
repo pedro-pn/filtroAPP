@@ -57,6 +57,21 @@ test('faturamentos mantêm valores, recebimento, grupo e estados Omie na interfa
   assert.match(render(ProjectInvoicesSection, { projectId: 'p' }), /Consultando o histórico de faturamentos no Omie/);
 }));
 
+test('notas de débito aparecem identificadas na lista e entram no total', async () => fixture(async ({ server, client, render }) => {
+  const { ProjectInvoicesSection } = await server.ssrLoadModule('/src/components/projects/ProjectInvoicesSection.tsx');
+  client.setQueryData(['project-invoices', 'project', 'p'], {
+    invoices: [invoice('RECEIVED', 0), { ...invoice('RECEIVED', 1), id: 'ND:1', type: 'ND', number: 'ND 001', series: null, amount: 19004.83, installmentCount: 1 }],
+    total: 20239.39, count: 2, linkedProjectCount: 1, projectCount: 1,
+    lastSyncedAt: '2026-09-16T10:00:00.000Z', syncStatus: 'READY'
+  });
+  const html = render(ProjectInvoicesSection, { projectId: 'p' });
+  assert.match(html, /Nota de débito ND 001/);
+  assert.match(html, /2 documentos/);
+  assert.match(html, /20\.239,39/);
+  assert.match(html, /Inclui notas fiscais e notas de débito/);
+  assert.doesNotMatch(html, /NF-e ND 001|Sem notas canceladas, remessas ou notas de débito/);
+}));
+
 test('avanço usa apresentação DS só no detalhe e mantém percentual acima de 100%', async () => fixture(async ({ server, client, render }) => {
   const { ProjectProgressBreakdown } = await server.ssrLoadModule('/src/components/projects/ProjectProgressBreakdown.tsx');
   const service = { serviceType: 'TESTE_PRESSAO', weight: 100, executionPct: 120,

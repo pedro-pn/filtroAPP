@@ -23,7 +23,7 @@ function paymentStatus(titles, amount) {
 }
 
 // Snapshot independente dos filtros incrementais do espelho financeiro.
-// Cada nota usa o identificador fiscal Omie; parcelas nunca viram novas notas.
+// Notas fiscais usam o identificador fiscal Omie; NDs usam o título a receber.
 export function buildInvoiceSnapshot({ nfse, nfe, receivables, syncedAt = new Date() }) {
   const titles = [...new Map(receivables.map(row => [String(row.codigo_lancamento_omie), row])).values()]
     .filter(row => !/CANCELAD|^C$/i.test(text(row.status_titulo)));
@@ -94,6 +94,26 @@ export function buildInvoiceSnapshot({ nfse, nfe, receivables, syncedAt = new Da
     const { omieId, clientCode, os, titleIds, ...invoice } = row;
     const id = `${row.source}:${omieId}`;
     invoices.set(id, { id, ...invoice, receiptStatus: paymentStatus(matching, row.valor), installmentCount: matching.length, syncedAt });
+  }
+  const customers = new Map(candidates.filter(row => text(row.clientCode)).map(row => [text(row.clientCode), row]));
+  for (const title of titles) {
+    if (text(title.codigo_tipo_documento) !== 'ND') continue;
+    const codigoProjeto = text(title.codigo_projeto);
+    if (!codigoProjeto || codigoProjeto === '0') continue;
+    const omieId = text(title.codigo_lancamento_omie);
+    const numero = text(title.numero_documento_fiscal) || text(title.numero_documento) || omieId;
+    const dataEmissao = parseDate(title.data_emissao);
+    const valor = title.valor_documento == null ? NaN : Number(title.valor_documento);
+    if (!omieId || !dataEmissao || !Number.isFinite(valor) || valor < 0) {
+      throw new Error('Nota de débito com dados incompletos; histórico anterior preservado.');
+    }
+    const customer = customers.get(text(title.codigo_cliente_fornecedor));
+    const id = `ND:${omieId}`;
+    invoices.set(id, {
+      id, source: 'ND', codigoProjeto, numero, serie: null, dataEmissao, valor,
+      clienteNome: customer?.clienteNome ?? null, clienteCnpj: customer?.clienteCnpj ?? null,
+      receiptStatus: paymentStatus([title], valor), installmentCount: 1, syncedAt
+    });
   }
   return [...invoices.values()];
 }

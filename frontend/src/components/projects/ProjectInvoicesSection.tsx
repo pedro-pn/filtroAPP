@@ -21,6 +21,9 @@ const RECEIPT: Record<ProjectInvoice['receiptStatus'], { label: string; tone: Se
   OPEN: { label: 'A receber', tone: 'warning' },
   UNKNOWN: { label: 'Não informado', tone: 'neutral' }
 };
+const invoiceLabel = (invoice: ProjectInvoice) => invoice.type === 'ND'
+  ? `Nota de débito ${invoice.number}`
+  : `${invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} ${invoice.number}`;
 
 function ReceiptStatus({ invoice }: { invoice: ProjectInvoice }) {
   const receipt = RECEIPT[invoice.receiptStatus] ?? RECEIPT.UNKNOWN;
@@ -50,8 +53,8 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
   const pages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
   const columns: DataTableColumn<ProjectInvoice>[] = [
-    { key: 'number', sortValue: invoice => invoice.number, header: 'Nota fiscal', rowHeader: true, render: invoice => <span className="acp-invoices-ds__cell">
-      <strong>{invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} {invoice.number}</strong>
+    { key: 'number', sortValue: invoice => invoice.number, header: 'Documento', rowHeader: true, render: invoice => <span className="acp-invoices-ds__cell">
+      <strong>{invoiceLabel(invoice)}</strong>
       {invoice.series ? <small>Série {invoice.series}</small> : null}
     </span> },
     { key: 'issuedAt', sortValue: invoice => invoice.issuedAt, header: 'Emissão', render: invoice => <time dateTime={invoice.issuedAt}>{formatDate(invoice.issuedAt)}</time> },
@@ -62,7 +65,7 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
       {invoice.customerDiffers ? <small>Tomador diferente do cadastro do projeto</small> : null}
     </span> },
     { key: 'amount', sortValue: invoice => invoice.amount, header: 'Valor bruto', align: 'right', numeric: true, render: invoice => <strong className="acp-invoices-ds__amount">{brl(invoice.amount)}</strong> },
-    { key: 'receipt', sortValue: invoice => RECEIPT[invoice.receiptStatus]?.label, header: <HelpTip help="Situação dos títulos a receber da nota no Omie. O valor bruto faturado pode incluir retenções; ele não representa o valor líquido depositado.">Recebimento</HelpTip>, render: invoice => <ReceiptStatus invoice={invoice} /> }
+    { key: 'receipt', sortValue: invoice => RECEIPT[invoice.receiptStatus]?.label, header: <HelpTip help="Situação dos títulos a receber do documento no Omie. O valor bruto faturado pode incluir retenções; ele não representa o valor líquido depositado.">Recebimento</HelpTip>, render: invoice => <ReceiptStatus invoice={invoice} /> }
   ];
   const invoices = sortTableRows(visibleInvoices, columns, sort).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -72,10 +75,10 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
         <AppIcon className="acp-invoices-ds__chevron" icon={ChevronRight} size="sm" />
         <span className="acp-invoices-ds__heading-copy">
           <strong id={titleId}>Faturamentos realizados</strong>
-          <small>Notas fiscais emitidas no Omie{groupId ? ' para as missões do grupo' : ' para este projeto'}.</small>
+          <small>Notas fiscais e notas de débito do Omie{groupId ? ' para as missões do grupo' : ' para este projeto'}.</small>
         </span>
         {hasSnapshot && data ? <span className="acp-invoices-ds__total">
-          <small>{visibleInvoices.length} {visibleInvoices.length === 1 ? 'nota fiscal' : 'notas fiscais'} · total bruto</small>
+          <small>{visibleInvoices.length} {visibleInvoices.length === 1 ? 'documento' : 'documentos'} · total bruto</small>
           <strong>{brl(visibleTotal)}</strong>
         </span> : null}
       </summary>
@@ -98,13 +101,13 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
           {data.linkedProjectCount < data.projectCount ? <Alert tone="warning">
             {groupId ? 'Há missões deste grupo sem vínculo com um projeto no Omie.' : 'Este projeto ainda não possui vínculo com um projeto no Omie.'}
           </Alert> : null}
-          {visibleInvoices.length === 0 ? <EmptyState title="Nenhuma nota fiscal faturada"
-            description={`Nenhuma nota encontrada para ${groupId ? 'as missões deste grupo' : 'este projeto'} na última consulta.`} />
+          {visibleInvoices.length === 0 ? <EmptyState title="Nenhum faturamento encontrado"
+            description={`Nenhum documento encontrado para ${groupId ? 'as missões deste grupo' : 'este projeto'} na última consulta.`} />
             : <DataTable rows={invoices} columns={columns.map(column => ({ ...column, sortable: true }))} getRowId={invoice => invoice.id}
               sort={sort} onSortChange={next => { setSort(next); setPage(1); }}
-              ariaLabel="Histórico de notas fiscais faturadas" layout="cards" density="compact" mobileBreakpoint="xl"
+              ariaLabel="Histórico de faturamentos" layout="cards" density="compact" mobileBreakpoint="xl"
               mobile={{ renderItem: invoice => ({
-                title: `${invoice.type === 'NFSE' ? 'NFS-e' : 'NF-e'} ${invoice.number}`,
+                title: invoiceLabel(invoice),
                 subtitle: invoice.series ? `Série ${invoice.series}` : undefined,
                 status: <ReceiptStatus invoice={invoice} />,
                 value: brl(invoice.amount),
@@ -120,7 +123,7 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
             onPageChange={setPage} label="Páginas de faturamentos" /> : null}
           <footer className="acp-invoices-ds__foot">
             <span>Consulta de {new Date(data.lastSyncedAt!).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{data.syncStatus === 'UPDATING' || query.isFetching ? ' · Atualizando…' : ''}</span>
-            <span>Sem notas canceladas, remessas ou notas de débito. Faturamento pode ser parcial ou antecipado.</span>
+            <span>Inclui notas fiscais e notas de débito. Exclui documentos cancelados e remessas. Faturamento pode ser parcial ou antecipado.</span>
           </footer>
         </> : null}
       </div>

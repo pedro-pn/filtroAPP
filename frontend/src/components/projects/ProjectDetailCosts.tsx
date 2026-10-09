@@ -117,7 +117,7 @@ export function ProjectDetailTaxes({ data }: { data: ProjectDetail }) {
                     ) : null}
                     {hasOmieInvoice ? (
                       <>
-                        <div className="acp-detail-fact"><span className="acp-detail-muted">Faturado Omie ({data.faturamento.notas} NF)</span><span>{brl(invoicedRevenue)}</span></div>
+                        <div className="acp-detail-fact"><span className="acp-detail-muted">Faturado Omie ({data.faturamento.notas} documentos)</span><span>{brl(invoicedRevenue)}</span></div>
                       </>
                     ) : null}
                     <div className="acp-detail-fact">

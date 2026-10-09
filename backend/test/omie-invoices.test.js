@@ -22,12 +22,53 @@ test('nota parcelada é contada uma vez, com valor bruto e data fiscal preservad
   assert.equal(rows[0].dataEmissao.toISOString(), '2026-07-03T00:00:00.000Z');
 });
 
-test('canceladas, não faturadas, homologação e notas de débito não confirmam faturamento', () => {
+test('canceladas, não faturadas e homologação ficam fora; ND não comprova recebimento de NFS-e', () => {
   const rows = snapshot([
     invoice({ cStatusNFSe: 'C' }), invoice({ cStatusNFSe: 'N' }), invoice({ cAmbienteNFSe: 'H' }), invoice()
-  ], [title({ codigo_tipo_documento: 'ND' }), title({ codigo_lancamento_omie: 2, status_titulo: 'CANCELADO' })]);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].receiptStatus, 'UNKNOWN');
+  ], [title({ codigo_tipo_documento: 'ND', data_emissao: '03/07/2026' }), title({ codigo_lancamento_omie: 2, status_titulo: 'CANCELADO' })]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find(row => row.source === 'NFSE').receiptStatus, 'UNKNOWN');
+  assert.equal(rows.find(row => row.source === 'ND').receiptStatus, 'RECEIVED');
+});
+
+test('inclui as quatro notas de débito do projeto 5775 sem duplicar títulos nem a nota fiscal', () => {
+  const nd = [19004.83, 14698.69, 22438.69, 3255.04].map((amount, index) => title({
+    codigo_lancamento_omie: index + 100, codigo_tipo_documento: 'ND',
+    numero_documento_fiscal: `ND 00${index + 1}`, data_emissao: '18/06/2026', valor_documento: amount
+  }));
+  const rows = snapshot([invoice({ nValorNFSe: 290163.81, cRazaoDestinatario: 'Cliente da ND', cCNPJDestinatario: '12345678000199' })], [
+    title({ valor_documento: 290163.81 }), ...nd, ...nd
+  ]);
+  assert.equal(rows.length, 5);
+  assert.equal(rows.reduce((sum, row) => sum + Math.round(row.valor * 100), 0) / 100, 349561.06);
+  const debitNotes = rows.filter(row => row.source === 'ND');
+  assert.equal(debitNotes.reduce((sum, row) => sum + Math.round(row.valor * 100), 0) / 100, 59397.25);
+  assert.deepEqual(debitNotes.map(row => row.id), ['ND:100', 'ND:101', 'ND:102', 'ND:103']);
+  assert.ok(debitNotes.every(row => row.receiptStatus === 'RECEIVED' && row.installmentCount === 1
+    && row.clienteNome === 'Cliente da ND' && row.clienteCnpj === '12345678000199'));
+});
+
+test('ND funciona sem nota fiscal, preserva status e exclui títulos cancelados ou sem projeto', () => {
+  const debit = extra => title({ codigo_tipo_documento: 'ND', data_emissao: '18/06/2026', numero_documento_fiscal: 'ND 001', ...extra });
+  const rows = snapshot([], [
+    debit({ status_titulo: 'ATRASADO' }),
+    debit({ codigo_lancamento_omie: 2, status_titulo: 'A VENCER' }),
+    debit({ codigo_lancamento_omie: 3, status_titulo: 'RECEBIDO PARCIAL' }),
+    debit({ codigo_lancamento_omie: 4, status_titulo: 'CANCELADO' }),
+    debit({ codigo_lancamento_omie: 5, codigo_projeto: 0 })
+  ]);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows.map(row => row.receiptStatus), ['OVERDUE', 'OPEN', 'PARTIAL']);
+  assert.ok(rows.every(row => row.source === 'ND' && row.clienteNome === null));
+});
+
+test('ND sem número usa o documento ou o identificador do título; dados inválidos impedem publicação', () => {
+  const debit = extra => title({ codigo_tipo_documento: 'ND', data_emissao: '18/06/2026', numero_documento_fiscal: '', ...extra });
+  assert.equal(snapshot([], [debit({ numero_documento: 'Débito 10' })])[0].numero, 'Débito 10');
+  assert.equal(snapshot([], [debit({})])[0].numero, '1');
+  for (const extra of [{ data_emissao: '31/02/2026' }, { valor_documento: null }, { valor_documento: -1 }]) {
+    assert.throws(() => snapshot([], [debit(extra)]), /Nota de débito com dados incompletos/);
+  }
 });
 
 test('histórico fiscal antigo independe da presença no espelho incremental', () => {

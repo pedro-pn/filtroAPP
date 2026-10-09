@@ -54,12 +54,12 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
       startDate: '2026-09-10', mobilizationDate: '2026-09-01', endDate: '2026-09-30'
     } });
     assert.match(invoices, /fv-data-table__mobile/);
-    assert.match(invoices, /Ordenar Histórico de notas fiscais faturadas por coluna/);
-    assert.match(invoices, /Alternar ordem de Histórico de notas fiscais faturadas/);
-    for (const label of ['Nota fiscal', 'Emissão', 'Tomador / cliente', 'Valor bruto', 'Recebimento']) {
+    assert.match(invoices, /Ordenar Histórico de faturamentos por coluna/);
+    assert.match(invoices, /Alternar ordem de Histórico de faturamentos/);
+    for (const label of ['Documento', 'Emissão', 'Tomador / cliente', 'Valor bruto', 'Recebimento']) {
       assert.ok(invoices.includes(label), label);
     }
-    assert.match(invoices, /12 notas fiscais/);
+    assert.match(invoices, /12 documentos/);
     assert.match(invoices, /1\.200,00/);
     assert.match(invoices, /Páginas de faturamentos/);
     assert.doesNotMatch(invoices, /antes-do-escopo|NFS-e nota-11|NFS-e nota-12/);

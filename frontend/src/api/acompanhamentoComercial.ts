@@ -943,7 +943,7 @@ export interface ProjectDetailCollaborator {
 
 export interface ProjectInvoice {
   id: string;
-  type: 'NFSE' | 'NFE';
+  type: 'NFSE' | 'NFE' | 'ND';
   number: string;
   series: string | null;
   issuedAt: string;

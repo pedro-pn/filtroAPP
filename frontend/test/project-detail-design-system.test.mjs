@@ -40,7 +40,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
     await t.test('impostos continuam usando a base recebida da API sem recalcular tributos', () => {
       const html = render(costs.ProjectDetailTaxes, { data: detail });
       for (const value of ['130.000,00', '150.000,00', '12.500,00', '2.500,00', '7.150,00']) assert.ok(html.includes(value), value);
-      assert.match(html, /Faturado Omie \(2 NF\)/);
+      assert.match(html, /Faturado Omie \(2 documentos\)/);
       assert.equal(render(costs.ProjectDetailTaxes, { data: { ...detail, presumedProfitTaxes: null } }), '');
     });
     await t.test('metas, horas e progresso mantém quantidade exata mesmo acima de 100%', () => {
@@ -249,7 +249,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       for (const value of ['Compras Omie', 'Estoque', 'Custos manuais', 'Mão de obra']) assert.ok(costs.includes(value), value);
       const billing = render(story.ProjectBillingSnapshot, { data: detail });
       assert.match(billing, /R\$\s130\.000,00/);
-      assert.match(billing, /Notas fiscais/);
+      assert.match(billing, /Documentos/);
       const withoutDates = render(story.ProjectTimelineCard, { data: { ...detail, footer: { mobilizationDate: null, startDate: null, expectedEndDate: null, projectedEndByPace: null } } });
       assert.match(withoutDates, /Sem projeção comparável/);
       assert.doesNotMatch(withoutDates, /NaN|Infinity/);

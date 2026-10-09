@@ -3812,11 +3812,11 @@ model OmieReceivable {
   @@index([dataEmissao])
 }
 
-// Histórico fiscal validado, separado dos títulos/parcelas de contas a receber.
+// Histórico fiscal validado e notas de débito dos títulos a receber.
 // O vínculo usa o código Omie atual para acompanhar remapeamentos de projetos.
 model OmieInvoice {
   id               String   @id
-  source           String // NFSE | NFE
+  source           String // NFSE | NFE | ND
   codigoProjeto    String
   numero           String
   serie            String?
