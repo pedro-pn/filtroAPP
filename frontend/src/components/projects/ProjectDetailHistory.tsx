@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ProgressHistoryPoint } from '../../api/acompanhamentoComercial';
+import { isValidReportDate } from '../../../../shared/modules/report-date.js';
 import { clampPct, fmtDate, fmtPct, fmtShortDate } from './projectDetailModel';
 
 function normalizeHistory(points?: ProgressHistoryPoint[]) {
   return (points ?? [])
+    .filter(point => isValidReportDate(point.date))
     .map(point => {
       const time = new Date(point.date).getTime();
       const progressPct = Number(point.progressPct);

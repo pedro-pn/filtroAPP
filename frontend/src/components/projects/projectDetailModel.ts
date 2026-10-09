@@ -164,6 +164,7 @@ export function fmtDateTime(iso?: string | null) {
 }
 export function fmtShortDate(iso?: string | null) {
   if (!iso) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDateOnly(iso, '—').slice(0, 5);
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? '—'

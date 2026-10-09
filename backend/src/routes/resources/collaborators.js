@@ -15,7 +15,7 @@ import {
 } from '../../lib/collaborators/job-role-history.js';
 import prisma from '../../lib/prisma.js';
 import { COLLABORATOR_SIGNATURE_NOTICE_VERSION } from '../../lib/privacy-consent.js';
-import { collaboratorsCache } from '../../lib/resource-list-cache.js';
+import { clearCollaboratorDerivedCaches } from '../../lib/resource-list-cache.js';
 import { ensureCollaboratorSignatureDataUrl, isSignatureDataUrl, normalizeSignatureValue } from '../../lib/signature-image.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
@@ -228,7 +228,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
       }
       return collaboratorWithRoleHistory(tx, updated.id);
     });
-    collaboratorsCache.clear();
+    clearCollaboratorDerivedCaches();
     return res.status(200).json(item);
   }
   const item = await prisma.$transaction(async tx => {
@@ -249,7 +249,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
     }
     return collaboratorWithRoleHistory(tx, created.id);
   });
-  collaboratorsCache.clear();
+  clearCollaboratorDerivedCaches();
   res.status(201).json(item);
 }));
 
@@ -288,7 +288,7 @@ router.put('/:id', requireManager, asyncHandler(async (req, res) => {
     }
     return collaboratorWithRoleHistory(tx, updated.id);
   });
-  collaboratorsCache.clear();
+  clearCollaboratorDerivedCaches();
   res.json(item);
 }));
 
@@ -300,7 +300,7 @@ router.put('/:id/job-role-history/:historyId', requireManager, asyncHandler(asyn
     if (synced.changed) await markFutureAllocationsForReplanning(tx, collaborator.id, synced.collaborator.jobRoleId);
     return collaboratorWithRoleHistory(tx, collaborator.id);
   });
-  collaboratorsCache.clear();
+  clearCollaboratorDerivedCaches();
   res.json(item);
 }));
 
@@ -321,13 +321,13 @@ router.delete('/:id/job-role-history/:historyId', requireManager, asyncHandler(a
     if (synced.changed) await markFutureAllocationsForReplanning(tx, collaborator.id, synced.collaborator.jobRoleId);
     return collaboratorWithRoleHistory(tx, collaborator.id);
   });
-  collaboratorsCache.clear();
+  clearCollaboratorDerivedCaches();
   res.json(item);
 }));
 
 router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
   await prisma.collaborator.update({ where: { id: req.params.id }, data: { isActive: false } });
-  collaboratorsCache.clear();
+  clearCollaboratorDerivedCaches();
   res.status(204).end();
 }));
 

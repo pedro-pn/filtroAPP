@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
 
 export const HISTORICAL_CSV_MAX_BYTES = 500_000;
 export const HISTORICAL_MAX_ROWS = 2000;
@@ -83,6 +84,7 @@ function dateValue(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) {
     throw historicalError('Informe uma data válida em DD/MM/AAAA ou AAAA-MM-DD.');
   }
+  if (!isValidReportDate(date)) throw historicalError(REPORT_DATE_ERROR);
   return text;
 }
 

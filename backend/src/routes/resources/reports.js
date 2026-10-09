@@ -116,6 +116,7 @@ import historicalServicesRouter from './historical-services.js';
 import { registerReportReleaseRoutes } from './report-release-routes.js';
 import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
+import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
 import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
 
 const router = Router();
@@ -3428,7 +3429,7 @@ const schema = z.object({
   createdByUserId: z.string().min(1),
   reportType: z.nativeEnum(ReportType).default(ReportType.RDO),
   status: z.nativeEnum(ReportStatus).default(ReportStatus.PENDING),
-  reportDate: z.string().min(1),
+  reportDate: z.string().min(1).refine(isValidReportDate, REPORT_DATE_ERROR),
   arrivalTime: z.string().min(1),
   departureTime: z.string().min(1),
   lunchBreak: z.string().min(1),
@@ -3443,7 +3444,7 @@ const schema = z.object({
 const serviceOnlySchema = z.object({
   projectId: z.string().min(1),
   createdByUserId: z.string().min(1),
-  reportDate: z.string().min(1),
+  reportDate: z.string().min(1).refine(isValidReportDate, REPORT_DATE_ERROR),
   collaboratorIds: z.array(z.string()).default([]),
   services: z.array(serviceOnlyServiceSchema).min(1)
 });
@@ -3574,7 +3575,7 @@ const manualReportUploadSchema = z.object({
   projectId: z.string().min(1),
   reportType: z.nativeEnum(ReportType).default(ReportType.RDO),
   sequenceNumber: positiveIntSchema.optional(),
-  reportDate: z.string().min(1),
+  reportDate: z.string().min(1).refine(isValidReportDate, REPORT_DATE_ERROR),
   fileName: z.string().trim().max(240).optional(),
   serviceEquipment: z.string().trim().max(180).optional(),
   serviceSystem: z.string().trim().max(180).optional(),

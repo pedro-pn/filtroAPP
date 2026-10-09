@@ -130,6 +130,23 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       ] });
       assert.match(dayWithoutQuantity, /Sem produção física medida neste dia/);
     });
+    await t.test('gráfico da Reframax rejeita o ano 0027 e mantém pontos distribuídos em 2026', () => {
+      const html = render(ProgressHistoryChart, { points: [
+        { date: '0027-10-08', progressPct: 1 },
+        { date: '2026-07-25', progressPct: 3.5 },
+        { date: '2026-08-01', progressPct: 12.4 },
+        { date: '2026-10-09', progressPct: 106.9 }
+      ] });
+      assert.doesNotMatch(html, /0027/);
+      assert.match(html, /Avanço de 25\/07 até 09\/10/);
+      const positions = [...html.matchAll(/class="acp-detail-history-dot" cx="([^"]+)"/g)].map(([, x]) => Number(x));
+      assert.equal(positions.length, 3);
+      assert.ok(positions[1] > positions[0] + 10);
+      assert.ok(positions[2] > positions[1] + 100);
+      assert.match(render(ProgressHistoryChart, { points: [{ date: '0027-10-08', progressPct: 1 }] }), /Sem histórico/);
+      assert.equal(model.fmtShortDate('2026-07-06'), '06/07');
+      assert.equal(model.fmtShortDate('2026-10-09'), '09/10');
+    });
     await t.test('gráfico e composição usam o recorte real sem recriar a visão geral', () => {
       const chart = render(ProjectDetailOverview, { progressHistory: detail.progressHistory, filterLabel: 'Tubulação' });
       assert.match(chart, /Histórico do avanço/);

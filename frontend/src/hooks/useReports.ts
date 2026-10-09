@@ -37,6 +37,7 @@ import { matchesSearch, reportSearchParts } from '../utils/search';
 import { queryKeys } from './queryKeys';
 import { regenerateSelectedReports } from '../utils/reportRegeneration';
 import { useDebouncedValue } from './useDebouncedValue';
+import { loadedReportGroups, refreshAccumulatedReportPages } from '../utils/accumulatedReportRefresh';
 
 interface LoadMoreReportGroupOptions {
   projectId: string;
@@ -379,7 +380,18 @@ export function useAccumulatedReportsPage(
   const skipNextSnapshotWriteRef = useRef(false);
   const isCurrentScope = activeFiltersKey === storageKey;
   const effectivePage = isCurrentScope ? page : initialSnapshot?.page || 1;
-  const query = useReportsPage({ ...filters, page: effectivePage }, enabled && !isDebouncing, options);
+  const query = useQuery({
+    queryKey: ['reports', 'accumulated', { ...filters, page: effectivePage }, { userId: user?.id || 'anonymous' }],
+    queryFn: ({ signal }) => refreshAccumulatedReportPages(
+      filters,
+      effectivePage,
+      () => loadedReportGroups(itemsRef.current, groupLoadedCountsRef.current),
+      listReportsPage,
+      signal
+    ),
+    enabled: enabled && !isDebouncing,
+    ...options
+  });
   const requestScope = useMemo(() => ({ storageKey, enabled, controllers: new Map<string, AbortController>(), active: false }), [storageKey, enabled]);
   useLayoutEffect(() => {
     requestScope.active = enabled;
@@ -439,6 +451,8 @@ export function useAccumulatedReportsPage(
   useEffect(() => {
     const syncFromSnapshot = () => {
       const snapshot = readAccumulatedReportsSnapshot(activeStorageKeyRef.current);
+      // Ao invalidar o storage, mantém a janela visível até a consulta renová-la.
+      if (!snapshot) return;
       const nextItems = snapshot?.items || [];
       itemsRef.current = nextItems;
       setItems(nextItems);
@@ -454,47 +468,20 @@ export function useAccumulatedReportsPage(
   useEffect(() => {
     const data = query.data;
     if (!data || query.isPlaceholderData || !enabled || isDebouncing || activeFiltersKey !== storageKey) return;
-    const currentItems = itemsRef.current;
-    const mergedCoveredFirstPage = mergeCoveredFirstReportPage(currentItems, data.items, data.pagination.page);
-
     const groups = data.groups;
     if (groups) {
-      setGroupTotals(current => {
-        const next = data.pagination.page <= 1 && !mergedCoveredFirstPage ? {} : { ...current };
+      setGroupTotals(() => {
+        const next: Record<string, number> = {};
         groups.forEach(group => {
           next[`${group.projectId}-${group.reportType}`] = group.total;
         });
         return next;
       });
     }
-    if (data.pagination.page <= 1) {
-      const nextItems = mergedCoveredFirstPage || data.items;
-      itemsRef.current = nextItems;
-      setItems(nextItems);
-      return;
-    }
-
-    const seen = new Set(currentItems.map(report => report.id));
-    const existingProjectIds = new Set(currentItems.map(report => report.projectId));
-    const next = [...currentItems];
-    let appendedNewProject = false;
-    data.items.forEach(report => {
-      if (!existingProjectIds.has(report.projectId) && !seen.has(report.id)) {
-        seen.add(report.id);
-        next.push(report);
-        appendedNewProject = true;
-      }
-    });
-    itemsRef.current = next;
-    setItems(next);
-
-    const shouldAdvanceToNextProjectPage = !appendedNewProject
-      && data.items.length > 0
-      && data.pagination.page < data.pagination.totalPages;
-    if (shouldAdvanceToNextProjectPage) {
-      setPage(current => Math.max(current, data.pagination.page + 1));
-    }
-  }, [activeFiltersKey, enabled, isDebouncing, storageKey, query.data, query.isPlaceholderData]);
+    itemsRef.current = data.items;
+    setItems(data.items);
+    if (page > data.pagination.totalPages) setPage(Math.max(1, data.pagination.totalPages));
+  }, [activeFiltersKey, enabled, isDebouncing, storageKey, page, query.data, query.isPlaceholderData]);
 
   function loadMore() {
     if (!isCurrentScope || isDebouncing || query.isFetching || !pagination || pagination.page >= pagination.totalPages) return;

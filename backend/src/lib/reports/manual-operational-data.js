@@ -1,5 +1,6 @@
 import { ReportType } from '@prisma/client';
 import { z } from 'zod';
+import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
 
 import { calculateReportOvertime } from '../overtime.js';
 import { loadCorporateCalendar } from '../calendar/corporate-calendar.js';
@@ -84,7 +85,7 @@ function manualReportOperationalDataHasValues(data) {
 export const manualReportOperationalDataSchema = z.object({
   reportDate: z.preprocess(
     value => (value == null ? undefined : String(value).trim() || undefined),
-    z.string().min(1, 'Informe a data do relatório.').optional()
+    z.string().min(1, 'Informe a data do relatório.').refine(isValidReportDate, REPORT_DATE_ERROR).optional()
   ),
   arrivalTime: manualReportTimeSchema,
   departureTime: manualReportTimeSchema,

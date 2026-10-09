@@ -7,6 +7,7 @@ import {
   isServiceFinalized,
   buildProgress,
   buildProgressHistory,
+  compactWeeklyProgressHistory,
   buildDailyProgressHistory,
   buildRequiredWeeklyProgress,
   realizedReportWhere,
@@ -285,6 +286,47 @@ test('buildProgressHistory compacta avanço acumulado em pontos semanais', () =>
     { date: '2026-07-03', progressPct: 30 },
     { date: '2026-07-10', progressPct: 60 }
   ]);
+});
+
+test('histórico descarta o ano 0027 da Reframax e recupera a origem na data da missão', () => {
+  assert.deepEqual(compactWeeklyProgressHistory([
+    { date: '0027-10-08', progressPct: 1 },
+    { date: '2026-07-25', progressPct: 3.5 },
+    { date: '2026-08-01', progressPct: 12.4 },
+    { date: '2026-10-09', progressPct: 106.9 }
+  ], { startDate: '2026-07-06' }), [
+    { date: '2026-07-06', progressPct: 0 },
+    { date: '2026-07-25', progressPct: 3.5 },
+    { date: '2026-08-01', progressPct: 12.4 },
+    { date: '2026-10-09', progressPct: 106.9 }
+  ]);
+  assert.deepEqual(compactWeeklyProgressHistory([], { startDate: '0027-10-08' }), []);
+});
+
+test('proteger as datas do histórico não remove as quantidades já registradas', () => {
+  const planned = [{ serviceType: 'LIMPEZA_QUIMICA', weight: 1,
+    systems: [{ systemType: 'TUBULACAO', quantity: 100, unit: 'M' }] }];
+  const reports = [
+    { finalized: true, serviceType: 'limpeza', reportDate: '0027-10-08', extraData: { tubes: [{ c: '1', lengthUnit: 'm' }] } },
+    { finalized: true, serviceType: 'limpeza', reportDate: '2026-07-25', extraData: { tubes: [{ c: '20', lengthUnit: 'm' }] } }
+  ];
+  assert.deepEqual(buildProgressHistory(planned, reports, { startDate: '2026-07-06' }), [
+    { date: '2026-07-06', progressPct: 0 }, { date: '2026-07-25', progressPct: 21 }
+  ]);
+  const daily = buildDailyProgressHistory(planned, reports);
+  assert.equal(daily.length, 1);
+  assert.equal(daily[0].date, '2026-07-25');
+  assert.equal(daily[0].progressPct, 21);
+  assert.equal(daily[0].services[0].quantities[0].realizedQty, 21);
+});
+
+test('histórico manual ignora anos incompletos e inclui o avanço atual na data válida', () => {
+  const options = { startDate: '2026-07-06', manualProgressPct: 35, currentDate: '2026-10-09',
+    manualProgressHistory: [{ recordedAt: '0027-10-08', progressPct: 35 }] };
+  assert.deepEqual(buildProgressHistory([], [], options), [
+    { date: '2026-07-06', progressPct: 0 }, { date: '2026-10-09', progressPct: 35 }
+  ]);
+  assert.deepEqual(buildDailyProgressHistory([], [], options), [{ date: '2026-10-09', progressPct: 35 }]);
 });
 
 test('histórico diário preserva cada data e o avanço dos serviços sem duplicar relatório derivado', () => {

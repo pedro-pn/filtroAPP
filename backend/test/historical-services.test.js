@@ -44,7 +44,8 @@ test('CSV supports BOM, Excel separator, CRLF, quotes, embedded semicolons/newli
 });
 
 test('reports row errors and does not silently accept incomplete numbers, dates, units or repeated measurements', () => {
-  for (const invalid of [row.replace('01/01/2026', '31/02/2026'), row.replace(';35;m', ';35abc;m'),
+  for (const invalid of [row.replace('01/01/2026', '31/02/2026'), row.replace('01/01/2026', '08/10/0027'),
+    row.replace('01/01/2026', '2101-10-08'), row.replace(';35;m', ';35abc;m'),
     row.replace(';35;m', ';0;m'), row.replace(';35;m', ';-5;m'), row.replace(';35;m', ';35;L'),
     row.replace(';2;35', ';1/0;35'), row.replace('RLQ', 'RDO'), row.replace('Unidade Geradora 01', '')]) {
     assert.equal(parseHistoricalServicesCsv(`${header}\n${invalid}`).errors.length, 1, invalid);

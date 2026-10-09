@@ -463,6 +463,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const { confirm, confirmDialog } = useConfirmDialog();
   const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
+  const loadedFormRef = useRef(JSON.stringify(form));
+  const currentFormRef = useRef(form);
+  currentFormRef.current = form;
   const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
   const [invalidSystemTypeServiceId, setInvalidSystemTypeServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
@@ -490,7 +493,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   useEffect(() => {
-    setForm(reportToForm(report));
+    if (currentReportIdRef.current === report.id && JSON.stringify(currentFormRef.current) !== loadedFormRef.current) return;
+    const nextForm = reportToForm(report);
+    loadedFormRef.current = JSON.stringify(nextForm);
+    setForm(nextForm);
     // Descarta exclusões de fotos encenadas e não salvas ao (re)carregar o relatório.
     clearStagedUploadDeletions();
     if (currentReportIdRef.current !== report.id) {
@@ -657,13 +663,16 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
     const { navigateAfter = false, showSuccess = true } = options;
     try {
-      await reportMutations.updateManualReportData.mutateAsync({
+      const saved = await reportMutations.updateManualReportData.mutateAsync({
         id: report.id,
         payload: buildManualReportOperationalData(manualOperationalFormValue, report.reportType, {
           reportDate: form.reportDate,
           includeStandbyClear: true
         }) || {}
       });
+      const nextForm = reportToForm(saved);
+      loadedFormRef.current = JSON.stringify(nextForm);
+      setForm(nextForm);
       if (showSuccess) showToast(TEXT.saved, 'success');
       if (navigateAfter) navigate(reportBackPath, { replace: true, state: reportBackState });
       return true;
@@ -846,10 +855,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         payload.deleteUnfinalizedDerivedReports = deleteUnfinalizedDerivedReports;
       }
 
-      await reportMutations.updateReport.mutateAsync({
+      const saved = await reportMutations.updateReport.mutateAsync({
         id: report.id,
         payload
       });
+      const nextForm = reportToForm(saved);
+      loadedFormRef.current = JSON.stringify(nextForm);
+      setForm(nextForm);
       // Relatório salvo: efetiva a exclusão global das fotos removidas no editor.
       await flushStagedUploadDeletions();
       if (showSuccess) showToast(TEXT.saved, 'success');

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FormProvider,
   useFieldArray,
@@ -557,6 +557,7 @@ export function OperationalReportFormPage({
     Record<string, MaintenanceAttachment[]>
   >({});
   const editId = searchParams.get('editar');
+  const loadedEditIdRef = useRef<string | null>(null);
   const reviewMode = Boolean(
     editId && searchParams.get('revisao') === '1'
   );
@@ -682,7 +683,8 @@ export function OperationalReportFormPage({
   }, [editId, form, mode, reset, user?.id]);
 
   useEffect(() => {
-    if (!editQuery.data) return;
+    if (!editQuery.data || (loadedEditIdRef.current === editId && form.formState.isDirty)) return;
+    loadedEditIdRef.current = editId;
     if (standalone && 'equipmentId' in editQuery.data) {
       const record = editQuery.data;
       setExistingPhotosByRecord({ [record.id]: record.photos });
@@ -770,7 +772,7 @@ export function OperationalReportFormPage({
         }))
       });
     }
-  }, [editQuery.data, reset, standalone]);
+  }, [editId, editQuery.data, form.formState.isDirty, reset, standalone]);
 
   async function persistReport(values: OperationalReportFormValues) {
     if (standalone) {
