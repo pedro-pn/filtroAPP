@@ -38,6 +38,8 @@ interface GroupedReportListProps {
     context: GroupedReportCollectionContext
   ) => ReactNode;
   renderTypeActions?: (reports: ReportSummary[]) => React.ReactNode;
+  /** Ações do projeto (ex.: "Gerar Data Book"), exibidas ao lado do cabeçalho do grupo. */
+  renderProjectActions?: (project: { id: string; code: string; name: string }) => React.ReactNode;
   onLoadMoreType?: (params: {
     projectId: string;
     reportType: string;
@@ -141,6 +143,7 @@ export function GroupedReportList({
   renderReport,
   renderReportCollection,
   renderTypeActions,
+  renderProjectActions,
   onLoadMoreType,
   onEnsureTypePage,
   isTypePageReady,
@@ -297,6 +300,7 @@ export function GroupedReportList({
                 )}
               </span>
             </button>
+            {renderProjectActions ? <div className="project-group-actions">{renderProjectActions({ id: group.projectId, code: group.projectCode || '', name: group.projectName })}</div> : null}
 
             <div
               id={projectPanelId}

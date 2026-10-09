@@ -145,6 +145,10 @@ export function serializeStockItem(item) {
     filterMicron: item.filterMicron,
     unNumber: item.unNumber,
     casNumber: item.casNumber,
+    fdsSynonyms: Array.isArray(item.fdsSynonyms) ? item.fdsSynonyms : [],
+    fdsCode: item.fdsCode || null,
+    fdsRevision: item.fdsRevision || null,
+    fdsDate: item.fdsDate ? item.fdsDate.toISOString().slice(0, 10) : null,
     documents: Array.isArray(item.documents) ? item.documents.map(serializeStockItemDocument) : [],
     checklistEnabled: Boolean(item.checklistEnabled),
     checklistItems: item.checklistItems == null ? null : normalizeChecklistItems(item.checklistItems),
@@ -353,6 +357,16 @@ async function resolveStockCategoryIdForType(type, categoryId) {
   return { id: category?.id || null };
 }
 
+// Sinônimos e metadados da FDS (Data Book); filtros chegam aqui sempre vazios pelo schema.
+function fdsDataFromPayload(data) {
+  return {
+    fdsSynonyms: data.fdsSynonyms || [],
+    fdsCode: data.fdsCode || null,
+    fdsRevision: data.fdsRevision || null,
+    fdsDate: data.fdsDate ? new Date(`${data.fdsDate}T00:00:00.000Z`) : null
+  };
+}
+
 function itemDataFromPayload(data) {
   return {
     type: data.type,
@@ -369,6 +383,7 @@ function itemDataFromPayload(data) {
     filterMicron: data.filterMicron,
     unNumber: data.unNumber,
     casNumber: data.casNumber,
+    ...fdsDataFromPayload(data),
     checklistEnabled: data.checklistEnabled,
     checklistItems: data.checklistItems
   };
@@ -389,6 +404,7 @@ function itemUpdateDataFromPayload(data) {
     filterMicron: data.filterMicron,
     unNumber: data.unNumber,
     casNumber: data.casNumber,
+    ...fdsDataFromPayload(data),
     checklistEnabled: data.checklistEnabled,
     checklistItems: data.checklistItems
   };

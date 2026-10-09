@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.4.3",
+    "ajv": "^8.20.0",
     "prisma": "^7.10.0",
     "yaml": "^2.9.1"
   },

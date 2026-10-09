@@ -184,3 +184,16 @@ test('loadEnv enforces production security variables', () => {
     API_TOKEN_HASH_KEY_V1: 'curta'
   }), /API_TOKEN_HASH_KEY_V1/);
 });
+
+test('loadEnv configures the Data Book Python generator', () => {
+  const defaults = loadEnv({ DATABASE_URL: databaseUrl });
+  assert.equal(defaults.databookPython, 'python3');
+  assert.equal(defaults.databookTimeoutMs, 600000);
+  assert.equal(defaults.databookHunspell, 'hunspell');
+  assert.equal(defaults.databookHunspellDict, 'pt_BR');
+
+  const custom = loadEnv({ DATABASE_URL: databaseUrl, DATABOOK_PYTHON: '/opt/databook-venv/bin/python', DATABOOK_TIMEOUT_MS: '120000' });
+  assert.equal(custom.databookPython, '/opt/databook-venv/bin/python');
+  assert.equal(custom.databookTimeoutMs, 120000);
+  assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, DATABOOK_TIMEOUT_MS: '0' }));
+});

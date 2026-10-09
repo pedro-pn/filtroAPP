@@ -1,8 +1,15 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends libreoffice-writer fonts-dejavu-core ca-certificates \
+  && apt-get install -y --no-install-recommends libreoffice-writer fonts-dejavu-core ca-certificates python3 python3-venv hunspell hunspell-pt-br \
   && rm -rf /var/lib/apt/lists/*
+
+# Gerador do Data Book (Python: ReportLab + pypdf + Pillow) em venv próprio; as fontes vão em backend/databook/assets.
+COPY backend/databook/requirements.txt /tmp/databook-requirements.txt
+RUN python3 -m venv /opt/databook-venv \
+  && /opt/databook-venv/bin/pip install --no-cache-dir -r /tmp/databook-requirements.txt \
+  && rm /tmp/databook-requirements.txt
+ENV DATABOOK_PYTHON=/opt/databook-venv/bin/python
 
 WORKDIR /workspace/backend
 
@@ -19,6 +26,8 @@ COPY backend/src ./src
 COPY backend/scripts ./scripts
 COPY backend/data ./data
 COPY backend/assets ./assets
+COPY backend/databook/databook ./databook/databook
+COPY backend/databook/assets ./databook/assets
 COPY shared /workspace/shared
 RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
 COPY Modelos /workspace/Modelos

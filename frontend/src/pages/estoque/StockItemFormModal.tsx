@@ -33,6 +33,10 @@ interface StockItemFormValues {
   filterMicron: string;
   unNumber: string;
   casNumber: string;
+  fdsSynonyms: string;
+  fdsCode: string;
+  fdsRevision: string;
+  fdsDate: string;
 }
 
 const estoqueSchemas = makeEstoqueSchemas(z);
@@ -68,7 +72,11 @@ function formValuesToPayload(values: StockItemFormValues): StockItemPayload | St
     ...base,
     unitLabel: values.unitLabel,
     unNumber: optionalValue(values.unNumber),
-    casNumber: optionalValue(values.casNumber)
+    casNumber: optionalValue(values.casNumber),
+    fdsSynonyms: String(values.fdsSynonyms || '').split('\n').map(line => line.trim()).filter(Boolean),
+    fdsCode: optionalValue(values.fdsCode),
+    fdsRevision: optionalValue(values.fdsRevision),
+    fdsDate: optionalValue(values.fdsDate)
   };
 }
 
@@ -142,7 +150,11 @@ export function StockItemFormModal({ open, item, categories, saving, onClose, on
     filterKind: item?.filterKind || '',
     filterMicron: item?.filterMicron || '',
     unNumber: item?.unNumber || '',
-    casNumber: item?.casNumber || ''
+    casNumber: item?.casNumber || '',
+    fdsSynonyms: (item?.fdsSynonyms || []).join('\n'),
+    fdsCode: item?.fdsCode || '',
+    fdsRevision: item?.fdsRevision || '',
+    fdsDate: item?.fdsDate || ''
   }), [item]);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<StockItemFormValues>({
@@ -271,6 +283,28 @@ export function StockItemFormModal({ open, item, categories, saving, onClose, on
               <label htmlFor="stock-chemical-cas">Número CAS</label>
               <input id="stock-chemical-cas" type="text" disabled={saving} {...register('casNumber')} />
               {errors.casNumber ? <small className="field-error">{errors.casNumber.message}</small> : null}
+            </div>
+            <div className={`field-group${errors.fdsSynonyms ? ' field-invalid' : ''}`}>
+              <label htmlFor="stock-chemical-fds-synonyms">Nomes químicos no RLQ (Data Book)</label>
+              <textarea id="stock-chemical-fds-synonyms" rows={2} disabled={saving} aria-invalid={errors.fdsSynonyms ? true : undefined}
+                aria-describedby="stock-chemical-fds-synonyms-help" placeholder="Ex.: Carbonato de sódio" {...register('fdsSynonyms')} />
+              <small id="stock-chemical-fds-synonyms-help" className="muted">Um por linha. Liga o produto citado no RLQ a esta FDS no Data Book.</small>
+              {errors.fdsSynonyms ? <small className="field-error">{errors.fdsSynonyms.message}</small> : null}
+            </div>
+            <div className="equip-toggle-fields">
+              <div className="field-group">
+                <label htmlFor="stock-chemical-fds-code">Código da FDS</label>
+                <input id="stock-chemical-fds-code" type="text" disabled={saving} {...register('fdsCode')} />
+              </div>
+              <div className="field-group">
+                <label htmlFor="stock-chemical-fds-revision">Revisão da FDS</label>
+                <input id="stock-chemical-fds-revision" type="text" disabled={saving} {...register('fdsRevision')} />
+              </div>
+              <div className={`field-group${errors.fdsDate ? ' field-invalid' : ''}`}>
+                <label htmlFor="stock-chemical-fds-date">Data da revisão da FDS</label>
+                <input id="stock-chemical-fds-date" type="date" disabled={saving} aria-invalid={errors.fdsDate ? true : undefined} {...register('fdsDate')} />
+                {errors.fdsDate ? <small className="field-error">{errors.fdsDate.message}</small> : null}
+              </div>
             </div>
           </>
         )}

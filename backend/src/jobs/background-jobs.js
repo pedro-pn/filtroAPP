@@ -3,6 +3,7 @@ import { startMonthlyAllocationReportJob } from '../lib/allocation-monthly-repor
 import { startAssinaturasJobs } from '../lib/assinaturas/jobs.js';
 import { startCalibrationReminderJob } from '../lib/calibration-reminders.js';
 import { startDataRetentionJob } from '../lib/data-retention.js';
+import { startDatabookJob } from '../lib/databook/jobs.js';
 import { startProjectWorkflowEmailAlertJob } from '../lib/efetivo/project-workflow/email-alerts.js';
 import { startOmieSyncJob } from '../lib/omie/sync.js';
 import { startOperationalAlertJob } from '../lib/operations/alerts.js';
@@ -25,6 +26,7 @@ export function startBackgroundJobs({ keepAlive = false } = {}) {
   startOmieSyncJob();
   startPontoMaisSyncJob();
   startReportApprovalPostProcessingJob({ keepAlive });
+  startDatabookJob({ keepAlive });
   startAssinaturasJobs();
   startOperationalAlertJob();
   startCommercialProposalSyncJob();
