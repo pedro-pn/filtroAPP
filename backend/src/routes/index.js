@@ -22,6 +22,7 @@ import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
 import projectIntakeWebhookRouter from './resources/project-intake-webhook.js';
 import projectsRouter from './resources/projects.js';
+import databooksRouter from './resources/databooks.js';
 import qualidadeRouter from './resources/qualidade.js';
 import reportsRouter from './resources/reports.js';
 import romaneiosRouter from './resources/romaneios.js';
@@ -45,6 +46,7 @@ function mountRdoRoutes(targetRouter) {
   targetRouter.use('/job-roles', jobRolesRouter);
   targetRouter.use('/dds-themes', ddsThemesRouter);
   targetRouter.use('/projects', projectsRouter);
+  targetRouter.use('/projects/:projectId/databooks', databooksRouter);
   targetRouter.use('/project-segments', projectSegmentsRouter);
   targetRouter.use('/reports', reportsRouter);
   targetRouter.use('/operational-reports', operationalReportsRouter);

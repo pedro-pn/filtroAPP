@@ -1296,7 +1296,7 @@ function sendDownloadBuffer(res, { contentType, fileName, buffer }) {
   return res.end(buffer);
 }
 
-const include = {
+export const reportDownloadInclude = {
   project: {
     include: {
       operator: { include: { jobRole: true } },
@@ -1347,6 +1347,8 @@ const include = {
     }
   }
 };
+
+const include = reportDownloadInclude;
 
 const listSummarySelect = {
   id: true,
@@ -2823,7 +2825,7 @@ export async function resolveSignedPdf(report) {
   return { fileName, buffer };
 }
 
-async function getReportPdfDownload(report) {
+export async function getReportPdfDownload(report) {
   if (
     report.status === ReportStatus.APPROVED &&
     report.reportType === ReportType.RDO &&

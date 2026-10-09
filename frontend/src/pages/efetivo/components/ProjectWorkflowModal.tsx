@@ -37,6 +37,7 @@ import {
 import { ProjectExecutionDashboard } from './ProjectExecutionDashboard';
 import { MissionAllocationModal } from './MissionAllocationModal';
 import { ProjectCloseoutPanel } from './ProjectCloseoutPanel';
+import { ProjectDatabookButton } from '../../../components/projects/ProjectDatabookButton';
 import { ProjectPostJobPanel } from './ProjectPostJobPanel';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowStageRail } from './ProjectWorkflowStageRail';
@@ -904,6 +905,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
         complete={workflow.closeoutReadiness.percentage === 100}
       >
         <ProjectCloseoutPanel workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
+        <ProjectDatabookButton projectId={workflow.projectId} />
       </ProjectWorkflowCategory>
       <div className="project-workflow-planning-grid">{closeoutSections.map(([section, title, area]) => <WorkflowChecklistSection title={title} area={area} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={stageSaving} onPatch={stagePatch} key={section} />)}</div>
       <ProjectWorkflowCategory

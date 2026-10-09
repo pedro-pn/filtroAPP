@@ -1,4 +1,5 @@
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
+import { ProjectDatabookButton } from '../../components/projects/ProjectDatabookButton';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -2502,6 +2503,7 @@ export function GestorPage() {
       <Button variant="secondary" size="sm" type="button" onClick={() => toggleProjectEdit(project)}>{projectEditingId === project.id ? 'Fechar edição' : projectRegistrationPending(project) ? 'Revisar' : 'Editar'}</Button>
       <Button variant="secondary" size="sm" type="button" onClick={() => openProjectTeamDialog(project)}>Equipe</Button>
       <Button variant="secondary" size="sm" type="button" onClick={() => handleViewProjectReports(project)}>Relatórios</Button>
+      <ProjectDatabookButton projectId={project.id} />
       {!projectRegistrationPending(project) ? <Button variant="secondary" size="sm" type="button" onClick={() => openManualReportUpload(project.id)}>Upload antigo</Button> : null}
       <Button variant="secondary" size="sm" type="button" aria-expanded={projectDetailsExpanded(project.id)} aria-controls={`project-table-detail-${project.id}`} onClick={() => toggleProjectDetails(project)}>{projectDetailsExpanded(project.id) ? 'Ocultar' : 'Detalhes'}</Button>
       <Button variant="secondary" size="sm" type="button" onClick={() => handleProjectToggleArchive(project)}>Arquivar</Button>
@@ -2782,6 +2784,7 @@ export function GestorPage() {
               mobileBreakpoint="md"
               rowActions={({ project }) => <div className="rdo-project-table__actions">
                 <Button variant="secondary" size="sm" type="button" onClick={() => openArchivedReports(project)}>Relatórios</Button>
+                <ProjectDatabookButton projectId={project.id} />
                 <Button variant="secondary" size="sm" type="button" onClick={() => openManualReportUpload(project.id)}>Upload antigo</Button>
                 <Button variant="secondary" size="sm" type="button" aria-expanded={projectDetailsExpanded(project.id)} aria-controls={`project-table-detail-${project.id}`} onClick={() => toggleProjectDetails(project)}>{projectDetailsExpanded(project.id) ? 'Ocultar' : 'Detalhes'}</Button>
                 <Button variant="secondary" size="sm" type="button" onClick={() => handleProjectToggleArchive(project)}>Restaurar</Button>

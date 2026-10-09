@@ -32,6 +32,7 @@ import { ProjectLaborPolicyNovelty } from './ProjectLaborPolicyNovelty';
 import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
+import { ProjectDatabookButton } from './ProjectDatabookButton';
 import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
 import { ProjectInvoicesSection } from './ProjectInvoicesSection';
 import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
@@ -337,6 +338,7 @@ export function ProjectDetailDashboard({
       <div className="acp-detail-bar">
         <Button type="button" size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button>
         <Button type="button" size="sm" variant="secondary" aria-haspopup="dialog" data-acp-weekly-progress-target onClick={() => setScopeOpen(true)}>Consultar escopo</Button>
+        {projectId && !isGroup ? <ProjectDatabookButton projectId={projectId} /> : null}
         {canManage && !isGroup ? (
           <div className="acp-detail-bar-actions">
             {!activeDivisionKey || canManageDivisions ? <Button type="button" size="sm" variant="primary" iconLeft={<AppIcon icon={CalendarDays} />} onClick={() => {

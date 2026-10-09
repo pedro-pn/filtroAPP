@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { AppShell } from '../../layout/AppShell';
+import { ProjectDatabookHost } from '../../components/projects/ProjectDatabookButton';
 import { createNavigationModel } from '../../layout/navigationModel';
 import { hubModulesForUser } from '../hubModules';
 import { ACOMPANHAMENTO_SECTIONS, sectionHomeSearchParams, type AcompanhamentoSection } from './navigation';
@@ -48,6 +49,7 @@ export function AcompanhamentoAppShell({ children, section, isManager, pendencyT
       onLogout={async () => { await logout(); navigate('/', { replace: true }); }}
     >
       {children}
+      <ProjectDatabookHost />
     </AppShell>
   );
 }

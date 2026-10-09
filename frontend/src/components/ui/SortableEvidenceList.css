@@ -1,0 +1,8 @@
+.evidence-sort-list { display: grid; gap: var(--space-3); min-width: 0; }
+.evidence-sort-row { display: flex; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); min-width: 0; }
+.evidence-sort-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.evidence-sort-handle { align-self: flex-start; display: grid; justify-items: center; gap: var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--muted); min-height: 44px; min-width: 36px; cursor: grab; touch-action: none; }
+.evidence-sort-handle:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.evidence-sort-handle:disabled { opacity: .5; cursor: default; }
+.evidence-sort-placeholder { border-style: dashed; border-color: var(--brand); opacity: .45; }
+.evidence-sort-ghost { z-index: calc(var(--z-modal) + 1); box-shadow: var(--shadow-e3); opacity: .9; max-width: calc(100vw - 24px); }

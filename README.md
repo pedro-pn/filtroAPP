@@ -201,6 +201,14 @@ Manutenção e Produção usa permissões individuais de emissão (`SITE_RDO`, `
 - Campos obrigatórios de diâmetro e comprimento por tubulação (RDO)
 - Upload manual de RDO com dados operacionais (horas, equipes, colaboradores históricos)
 
+**Databook por etapa**
+- Ação **Databook** nos projetos ativos/arquivados, no detalhe do Acompanhamento e na documentação de fechamento do Efetivo.
+- Datas inicial/final editáveis, preenchidas pelo primeiro/último RDO não excluído; ambas as datas entram no recorte.
+- Seleção de relatórios aprovados, fotos com ordem/legenda/TAG/fase, produtos utilizados com FDS conferida e documentos técnicos.
+- Geração em background com progresso, recuperação e repetição de falhas; revisões anteriores ficam preservadas.
+- PDF consolidado e ZIP com originais, FDS integrais e manifesto SHA-256. A assinatura digital deve ser validada no PDF original.
+- [Validação e implantação manual](specs/033-project-databook/quickstart.md).
+
 **Portal do Cliente**
 - Acesso sem VPN via usuário CNPJ
 - Visualização de relatórios dos projetos vinculados
