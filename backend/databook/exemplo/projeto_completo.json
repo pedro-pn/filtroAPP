@@ -1,0 +1,870 @@
+{
+ "projeto": {
+  "missao": "Missão 9001 – UNIDADE EXEMPLO",
+  "cliente": "CLIENTE EXEMPLO S.A. (fictício)",
+  "cnpj": "00.000.000/0001-00",
+  "contrato": "9999 REV 0",
+  "local": "Terminal de exemplo – Macaé, RJ",
+  "servico": "Limpeza, Flushing e Teste de Pressão de Linhas Hidráulicas",
+  "doc": "DB-9001-02",
+  "rev": "1",
+  "emissao": "09/10/2026",
+  "empresa": "Filtrovali Serviços de Filtragem de Óleos Industriais e Limpeza de Tubulações Ltda",
+  "periodo": "01/10/2026 a 09/10/2026"
+ },
+ "escopo_total": 420,
+ "unidade_escopo": "m",
+ "acumulado_inicial": 72.5,
+ "ocorrencias_sms": 0,
+ "dados_tecnicos": [
+  [
+   "Equipamento",
+   "Linhas hidráulicas do guindaste e HPU"
+  ],
+  [
+   "Sistema",
+   "Hidráulico"
+  ],
+  [
+   "Material",
+   "Aço inox 316L"
+  ],
+  [
+   "Serviços",
+   "Limpeza química, limpeza mecânica, flushing e teste de pressão"
+  ],
+  [
+   "Unidades",
+   "ULQ 007 · UF 004 · UTH 003 · TV 002"
+  ],
+  [
+   "Contador de partículas",
+   "CP-03"
+  ],
+  [
+   "Jornada",
+   "Diurno 07:00 – 17:00 e noturno 18:00 – 06:00 (05 e 06/10)"
+  ],
+  [
+   "Efetivo",
+   "4 a 6 colaboradores"
+  ]
+ ],
+ "equipe": [
+  {
+   "nome": "Carlos Exemplo Souza",
+   "funcao": "Encarregado(a) de Operações III",
+   "observacao": "Líder"
+  },
+  {
+   "nome": "Ana Exemplo Lima",
+   "funcao": "Técnico(a) de Flushing",
+   "observacao": ""
+  },
+  {
+   "nome": "Bruno Exemplo Reis",
+   "funcao": "Assistente de Operações",
+   "observacao": ""
+  },
+  {
+   "nome": "Diego Exemplo Alves",
+   "funcao": "Assistente de Operações",
+   "observacao": "Turno noturno (05 e 06/10)"
+  }
+ ],
+ "etapas_produto": [
+  {
+   "etapa": "Montagem do sistema",
+   "produto": null
+  },
+  {
+   "etapa": "Teste de estanqueidade",
+   "produto": null
+  },
+  {
+   "etapa": "Fase ácida",
+   "produto": "Ácido cítrico"
+  },
+  {
+   "etapa": "Fase neutralizante",
+   "produto": "Carbonato de sódio"
+  },
+  {
+   "etapa": "Fase passivante",
+   "produto": "Nitrito de sódio"
+  },
+  {
+   "etapa": "Secagem",
+   "produto": null
+  },
+  {
+   "etapa": "Desmontagem do sistema",
+   "produto": null
+  },
+  {
+   "etapa": "Inspeção por boroscopia",
+   "produto": null
+  }
+ ],
+ "criterios_aceitacao": [
+  "A inspeção visual final, com lanterna e/ou vídeo boroscópio quando necessário, comprovar a eficiência da limpeza;",
+  "Não houver oleosidade, graxas, óxidos, carepas, borras de solda ou material livre no interior;",
+  "O spool apresentar aspecto interno em tom cinza claro/escuro, conforme a metalurgia;",
+  "As etapas de desengraxe, fase ácida, neutralização e passivação tiverem sido executadas (conforme a necessidade avaliada);",
+  "As extremidades forem seladas após a inspeção final para evitar recontaminação."
+ ],
+ "criterios_rtp": [
+  "Não apresentar vazamentos durante o teste;",
+  "A pressão de teste for aplicada conforme critério de projeto ou, na ausência de definição específica, até 1,2 ou 1,5 vezes a PMTA ou pressão designada;",
+  "A pressão for mantida pelo tempo exigido — mínimo de 1 hora para inspeção, salvo especificação diferente, e de 30 a 60 minutos após estabilização quando aplicável;",
+  "Não houver queda de pressão indicativa de vazamento;",
+  "As soldas e áreas adjacentes forem inspecionadas visualmente;",
+  "Os manômetros estiverem calibrados e posicionados conforme procedimento."
+ ],
+ "limites_rcpu": {
+  "iso": "16/14/11",
+  "nas": 7,
+  "umidade_ppm": 200
+ },
+ "revisoes": [
+  {
+   "rev": "0",
+   "data": "02/10/2026",
+   "descricao": "Emissão parcial (até 30/09)",
+   "elaborado": "Carlos Exemplo Souza",
+   "verificado": "Paula Exemplo Costa",
+   "aprovado": ""
+  },
+  {
+   "rev": "1",
+   "data": "09/10/2026",
+   "descricao": "Inclusão de 01/10 a 09/10",
+   "elaborado": "Carlos Exemplo Souza",
+   "verificado": "Paula Exemplo Costa",
+   "aprovado": ""
+  }
+ ],
+ "textos": {
+  "escopo": "Limpeza química e mecânica, flushing com controle de contaminação (ISO 4406 / NAS 1638) e umidade, e teste de pressão hidrostático das <b>linhas hidráulicas do guindaste e da HPU</b> (aço inox 316L) da unidade <b>UNIDADE EXEMPLO</b>.",
+  "base_calculo": "somando os metros de tubulação limpos, lavados (flushing) e testados conforme o quadro de progresso dos RDOs",
+  "kpi_rotulo_concluidos": "m concluídos (acumulado)",
+  "destaques_sms": [
+   "DDS realizados em todos os turnos, inclusive no turno noturno de 05 e 06/10.",
+   "Vazamento em conexão durante o RTP nº 3 (06/10): teste interrompido, conexão substituída e novo teste aprovado em 07/10 (RTP nº 4).",
+   "Sem registro de acidentes ou incidentes com pessoas no período."
+  ],
+  "consideracoes_finais": "No período foram concluídos os serviços previstos para as linhas do guindaste. A filtragem do reservatório da HPU foi reprovada em 07/10 (ISO 17/15/12, acima do limite de 16/14/11) e refeita em 08/10, com resultado conforme. Recomenda-se manter o sistema fechado e pressurizado até a partida."
+ },
+ "dias": [
+  {
+   "data": "01/10/2026",
+   "dia_semana": "quinta-feira",
+   "rdo": 5,
+   "resumo": "Mobilização na sala da HPU e montagem do sistema de flushing",
+   "jornada": "07:00 – 17:00",
+   "efetivo": 4,
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:15",
+    "tema": "Trabalho com fluidos pressurizados"
+   },
+   "atividades": [
+    {
+     "hora": "07:30",
+     "texto": "Liberação da PT e isolamento da área da HPU."
+    },
+    {
+     "hora": "09:00",
+     "texto": "Montagem das mangueiras e da unidade de flushing UF 004."
+    },
+    {
+     "hora": "16:30",
+     "texto": "Organização e limpeza da área (5S)."
+    }
+   ],
+   "servicos": [],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_01.jpg",
+     "origem": "RDO",
+     "numero": 5
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_02.jpg",
+     "origem": "RDO",
+     "numero": 5
+    }
+   ]
+  },
+  {
+   "data": "02/10/2026",
+   "dia_semana": "sexta-feira",
+   "rdo": 6,
+   "resumo": "Limpeza química da linha L-101 e limpeza mecânica do reservatório",
+   "jornada": "07:00 – 17:00",
+   "efetivo": 4,
+   "horas_extras": "01:00",
+   "comentario": "Hora extra para concluir a passivação",
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:20",
+    "tema": "Manuseio de produtos químicos e uso de EPI"
+   },
+   "atividades": [
+    {
+     "hora": null,
+     "texto": "Limpeza química da linha L-101 e limpeza mecânica do reservatório da HPU em paralelo."
+    }
+   ],
+   "servicos": [
+    {
+     "tipo": "RLQ",
+     "relatorio": 4,
+     "equipamento": "Linha L-101",
+     "sistema": "Hidráulico",
+     "material": "Aço inox 316L",
+     "metodo": "Circulação pressurizada",
+     "inicio": "07:30",
+     "fim": "18:00",
+     "tags": "L-101",
+     "inspecao": "Visual e vídeo boroscopia",
+     "status": "Finalizado",
+     "quantidade": 48,
+     "unidade_quantidade": "m",
+     "concluidas": 48,
+     "etapas": [
+      "Montagem do sistema",
+      "Teste de estanqueidade",
+      "Fase ácida",
+      "Fase neutralizante",
+      "Fase passivante",
+      "Secagem",
+      "Desmontagem do sistema",
+      "Inspeção por boroscopia"
+     ],
+     "laudo": "APROVADO"
+    },
+    {
+     "tipo": "RLM",
+     "relatorio": 1,
+     "equipamento": "Reservatório da HPU",
+     "sistema": "Hidráulico",
+     "material": "Aço carbono",
+     "inicio": "08:00",
+     "fim": "15:00",
+     "tags": "TQ-HPU-01",
+     "status": "Finalizado",
+     "quantidade": 1,
+     "concluidas": 0,
+     "etapas": [
+      "Inspeção inicial",
+      "Drenagem de fluidos e resíduos",
+      "Sucção de resíduos",
+      "Limpeza mecânica",
+      "Inspeção final"
+     ],
+     "obs": "Borra removida e acondicionada em tambor identificado.",
+     "laudo": "APROVADO"
+    }
+   ],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_03.jpg",
+     "origem": "RDO",
+     "numero": 6
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_04.jpg",
+     "origem": "RLQ",
+     "numero": 4
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_05.jpg",
+     "origem": "RLQ",
+     "numero": 4
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_06.jpg",
+     "origem": "RLM",
+     "numero": 1,
+     "legenda": "Reservatório – antes/depois"
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_07.jpg",
+     "origem": "RLM",
+     "numero": 1,
+     "legenda": "Reservatório – antes/depois"
+    }
+   ]
+  },
+  {
+   "data": "03/10/2026",
+   "dia_semana": "sábado",
+   "rdo": 7,
+   "resumo": "Teste de pressão da linha L-101",
+   "jornada": "07:00 – 13:00",
+   "efetivo": 4,
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:10",
+    "tema": "Isolamento de área em teste hidrostático"
+   },
+   "atividades": [
+    {
+     "hora": "08:00",
+     "texto": "Pressurização gradual da linha L-101 e patamar de 1 h em 315 bar, sem queda de pressão."
+    }
+   ],
+   "servicos": [
+    {
+     "tipo": "RTP",
+     "relatorio": 2,
+     "equipamento": "Linha L-101",
+     "sistema": "Hidráulico",
+     "material": "Aço inox 316L",
+     "inicio": "08:00",
+     "fim": "11:30",
+     "tags": "L-101",
+     "status": "Finalizado",
+     "quantidade": 48,
+     "unidade_quantidade": "m",
+     "concluidas": 48,
+     "etapas": [
+      "Montagem do sistema",
+      "Execução do teste",
+      "Desmontagem do sistema"
+     ],
+     "laudo": "APROVADO",
+     "rtp": {
+      "equipamento_testado": "Tubulação",
+      "fluido": "Água",
+      "pressao_trabalho": "210 bar",
+      "pressao_teste": "315 bar",
+      "unidade_teste": "UTH 003",
+      "tubulacoes": [
+       {
+        "diametro": "1 pol",
+        "comprimento": "48 m"
+       }
+      ],
+      "manometros": [
+       {
+        "tag": "MAN-012",
+        "escala": "0 a 400 bar",
+        "certificado": "CAL-2026-0412",
+        "calibracao": "12/03/2026",
+        "validade": "12/03/2027"
+       }
+      ]
+     }
+    }
+   ],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_08.jpg",
+     "origem": "RDO",
+     "numero": 7
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_09.jpg",
+     "origem": "RTP",
+     "numero": 2,
+     "legenda": "Manômetro em patamar"
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_10.jpg",
+     "origem": "RTP",
+     "numero": 2,
+     "legenda": "Manômetro em patamar"
+    }
+   ]
+  },
+  {
+   "data": "05/10/2026",
+   "dia_semana": "segunda-feira",
+   "rdo": 8,
+   "resumo": "Flushing da linha L-102 (em andamento) – turnos diurno e noturno",
+   "jornada": "07:00 – 17:00",
+   "efetivo": 4,
+   "jornada_noturna": "18:00 – 06:00",
+   "efetivo_noturno": 2,
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:15",
+    "tema": "Riscos de vazamento de óleo"
+   },
+   "dds_noturno": {
+    "inicio": "18:00",
+    "fim": "18:10",
+    "tema": "Fadiga e iluminação no turno noturno"
+   },
+   "atividades": [
+    {
+     "hora": null,
+     "texto": "Abastecimento de óleo e início do flushing primário da linha L-102, mantido em circulação no turno noturno."
+    }
+   ],
+   "servicos": [
+    {
+     "tipo": "RCPU",
+     "titulo": "Flushing",
+     "equipamento": "Linha L-102",
+     "sistema": "Hidráulico",
+     "inicio": "09:00",
+     "fim": "06:00",
+     "tags": "L-102",
+     "status": "Em andamento",
+     "quantidade": 90,
+     "unidade_quantidade": "m",
+     "concluidas": 0,
+     "etapas": [
+      "Abastecimento de óleo",
+      "Montagem do sistema",
+      "Realização do flushing"
+     ],
+     "laudo_observacao": "Em andamento – RCPU emitido na finalização (06/10)",
+     "rcpu": {
+      "oleo": "Óleo hidráulico ISO VG 46",
+      "unidade": "UF 004",
+      "unidade_desidratacao": "Termovácuo TV 002",
+      "contador": "CP-03 – série PC-88231",
+      "contador_validade": "20/01/2027",
+      "procedimento": "IBT 11-23",
+      "servicos_realizados": "Flushing primário e desidratação",
+      "volume": "400 L"
+     }
+    }
+   ],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_11.jpg",
+     "origem": "RDO",
+     "numero": 8
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_12.jpg",
+     "origem": "RDO",
+     "numero": 8
+    }
+   ]
+  },
+  {
+   "data": "06/10/2026",
+   "dia_semana": "terça-feira",
+   "rdo": 9,
+   "resumo": "Flushing da linha L-102 finalizado; teste da L-102 reprovado por vazamento",
+   "jornada": "07:00 – 17:00",
+   "efetivo": 4,
+   "jornada_noturna": "18:00 – 06:00",
+   "efetivo_noturno": 2,
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:15",
+    "tema": "Comunicação na troca de turno"
+   },
+   "dds_noturno": {
+    "inicio": "18:00",
+    "fim": "18:10",
+    "tema": "Bloqueio de energias antes de intervenções"
+   },
+   "atividades": [
+    {
+     "hora": "10:00",
+     "texto": "Coleta de amostra e contagem final de partículas da linha L-102."
+    },
+    {
+     "hora": "14:00",
+     "texto": "Teste de pressão interrompido por vazamento em conexão; conexão substituída."
+    }
+   ],
+   "servicos": [
+    {
+     "tipo": "RCPU",
+     "relatorio": 3,
+     "titulo": "Flushing",
+     "equipamento": "Linha L-102",
+     "sistema": "Hidráulico",
+     "inicio": "06:00",
+     "fim": "11:00",
+     "tags": "L-102",
+     "status": "Finalizado",
+     "quantidade": 90,
+     "unidade_quantidade": "m",
+     "concluidas": 90,
+     "etapas": [
+      "Abastecimento de óleo",
+      "Montagem do sistema",
+      "Realização do flushing",
+      "Desidratação com termovácuo",
+      "Coleta de amostra"
+     ],
+     "laudo": "APROVADO",
+     "rcpu": {
+      "oleo": "Óleo hidráulico ISO VG 46",
+      "unidade": "UF 004",
+      "unidade_desidratacao": "Termovácuo TV 002",
+      "contador": "CP-03 – série PC-88231",
+      "contador_validade": "20/01/2027",
+      "procedimento": "IBT 11-23",
+      "servicos_realizados": "Flushing primário e desidratação",
+      "volume": "400 L",
+      "tempo_total": "26:00:00",
+      "tubulacoes": [
+       {
+        "diametro": "3/4 pol",
+        "comprimento": "90 m"
+       }
+      ],
+      "iso_inicial": "19/17/14",
+      "iso_final": "15/13/10",
+      "nas_inicial": 10,
+      "nas_final": 6,
+      "umidade_inicial_ppm": 380,
+      "umidade_final_ppm": 140
+     }
+    },
+    {
+     "tipo": "RTP",
+     "relatorio": 3,
+     "equipamento": "Linha L-102",
+     "sistema": "Hidráulico",
+     "material": "Aço inox 316L",
+     "inicio": "13:00",
+     "fim": "14:30",
+     "tags": "L-102",
+     "status": "Finalizado",
+     "quantidade": 90,
+     "unidade_quantidade": "m",
+     "concluidas": 0,
+     "etapas": [
+      "Montagem do sistema",
+      "Execução do teste",
+      "Desmontagem do sistema"
+     ],
+     "laudo": "REPROVADO",
+     "obs": "Vazamento na conexão da tomada de pressão a 280 bar. Teste interrompido.",
+     "rtp": {
+      "equipamento_testado": "Tubulação",
+      "fluido": "Óleo – ISO VG 46",
+      "pressao_trabalho": "210 bar",
+      "pressao_teste": "315 bar",
+      "unidade_teste": "UTH 003",
+      "manometros": [
+       {
+        "tag": "MAN-012",
+        "escala": "0 a 400 bar",
+        "certificado": "CAL-2026-0412",
+        "calibracao": "12/03/2026",
+        "validade": "12/03/2027"
+       },
+       {
+        "tag": "MAN-015",
+        "escala": "0 a 400 bar",
+        "certificado": "CAL-2025-1187",
+        "calibracao": "04/10/2025",
+        "validade": "04/10/2026"
+       }
+      ]
+     }
+    }
+   ],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_13.jpg",
+     "origem": "RDO",
+     "numero": 9
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_14.jpg",
+     "origem": "RCPU",
+     "numero": 3,
+     "legenda": "Laudo do contador"
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_15.jpg",
+     "origem": "RCPU",
+     "numero": 3,
+     "legenda": "Laudo do contador"
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_16.jpg",
+     "origem": "RTP",
+     "numero": 3
+    }
+   ]
+  },
+  {
+   "data": "07/10/2026",
+   "dia_semana": "quarta-feira",
+   "rdo": 10,
+   "rdos_extras": [
+    11
+   ],
+   "resumo": "Reteste da L-102 aprovado; filtragem do reservatório acima do limite",
+   "jornada": "07:00 – 17:00",
+   "efetivo": 6,
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:15",
+    "tema": "Lições aprendidas do vazamento de 06/10"
+   },
+   "atividades": [
+    {
+     "hora": "08:00",
+     "texto": "Novo teste de pressão da linha L-102 após troca da conexão: patamar de 1 h sem queda."
+    },
+    {
+     "hora": "13:00",
+     "texto": "Filtragem do reservatório da HPU; contagem final acima do limite aceito (RDO nº 11, equipe de apoio)."
+    }
+   ],
+   "servicos": [
+    {
+     "tipo": "RTP",
+     "relatorio": 4,
+     "equipamento": "Linha L-102",
+     "sistema": "Hidráulico",
+     "material": "Aço inox 316L",
+     "inicio": "08:00",
+     "fim": "10:30",
+     "tags": "L-102",
+     "status": "Finalizado",
+     "quantidade": 90,
+     "unidade_quantidade": "m",
+     "concluidas": 90,
+     "etapas": [
+      "Montagem do sistema",
+      "Execução do teste",
+      "Desmontagem do sistema"
+     ],
+     "laudo": "APROVADO",
+     "rtp": {
+      "equipamento_testado": "Tubulação",
+      "fluido": "Óleo – ISO VG 46",
+      "pressao_trabalho": "210 bar",
+      "pressao_teste": "315 bar",
+      "unidade_teste": "UTH 003",
+      "tubulacoes": [
+       {
+        "diametro": "3/4 pol",
+        "comprimento": "90 m"
+       }
+      ],
+      "manometros": [
+       {
+        "tag": "MAN-012",
+        "escala": "0 a 400 bar",
+        "certificado": "CAL-2026-0412",
+        "calibracao": "12/03/2026",
+        "validade": "12/03/2027"
+       }
+      ]
+     }
+    },
+    {
+     "tipo": "RCPU",
+     "relatorio": 4,
+     "titulo": "Filtragem",
+     "equipamento": "Reservatório da HPU",
+     "sistema": "Hidráulico",
+     "inicio": "11:00",
+     "fim": "17:00",
+     "tags": "TQ-HPU-01",
+     "status": "Finalizado",
+     "quantidade": 1,
+     "concluidas": 0,
+     "etapas": [
+      "Montagem do sistema",
+      "Realização da filtragem",
+      "Coleta de amostra"
+     ],
+     "laudo": "REPROVADO",
+     "obs": "Contagem final acima do limite. Nova filtragem programada para 08/10.",
+     "rcpu": {
+      "oleo": "Óleo hidráulico ISO VG 46",
+      "unidade": "UFG 002",
+      "unidade_desidratacao": "",
+      "contador": "CP-03 – série PC-88231",
+      "contador_validade": "20/01/2027",
+      "procedimento": "IBT 11-23",
+      "servicos_realizados": "Filtragem absoluta",
+      "volume": "1.200 L",
+      "tempo_total": "06:00:00",
+      "iso_inicial": "20/18/15",
+      "iso_final": "17/15/12",
+      "nas_inicial": 11,
+      "nas_final": 8
+     }
+    }
+   ],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_17.jpg",
+     "origem": "RDO",
+     "numero": 10
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_18.jpg",
+     "origem": "RTP",
+     "numero": 4
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_19.jpg",
+     "origem": "RCPU",
+     "numero": 4
+    }
+   ]
+  },
+  {
+   "data": "08/10/2026",
+   "dia_semana": "quinta-feira",
+   "rdo": null,
+   "resumo": "Refiltragem do reservatório da HPU (sem RDO no dia)",
+   "servicos": [
+    {
+     "tipo": "RCPU",
+     "relatorio": 5,
+     "titulo": "Filtragem",
+     "equipamento": "Reservatório da HPU",
+     "sistema": "Hidráulico",
+     "inicio": "07:00",
+     "fim": "15:30",
+     "tags": "TQ-HPU-01",
+     "status": "Finalizado",
+     "quantidade": 1,
+     "concluidas": 0,
+     "etapas": [
+      "Realização da filtragem",
+      "Coleta de amostra"
+     ],
+     "laudo": "APROVADO",
+     "rcpu": {
+      "oleo": "Óleo hidráulico ISO VG 46",
+      "unidade": "UFG 002",
+      "unidade_desidratacao": "",
+      "contador": "CP-03 – série PC-88231",
+      "contador_validade": "20/01/2027",
+      "procedimento": "IBT 11-23",
+      "servicos_realizados": "Filtragem absoluta",
+      "volume": "1.200 L",
+      "tempo_total": "08:30:00",
+      "iso_inicial": "17/15/12",
+      "iso_final": "15/13/11",
+      "nas_inicial": 8,
+      "nas_final": 6
+     }
+    }
+   ],
+   "fotos": [
+    {
+     "arquivo": "fotos_ficticias/ficticia_20.jpg",
+     "origem": "RCPU",
+     "numero": 5,
+     "legenda": "Laudo do contador"
+    },
+    {
+     "arquivo": "fotos_ficticias/ficticia_21.jpg",
+     "origem": "RCPU",
+     "numero": 5,
+     "legenda": "Laudo do contador"
+    }
+   ]
+  },
+  {
+   "data": "09/10/2026",
+   "dia_semana": "sexta-feira",
+   "rdo": 12,
+   "resumo": "Desmontagem e desmobilização",
+   "jornada": "07:00 – 12:00",
+   "efetivo": 4,
+   "dds": {
+    "inicio": "07:00",
+    "fim": "07:10",
+    "tema": "Movimentação manual de cargas"
+   },
+   "atividades": [
+    {
+     "hora": null,
+     "texto": "Desmontagem das unidades, limpeza da área e entrega ao cliente."
+    }
+   ],
+   "servicos": [],
+   "fotos": []
+  }
+ ],
+ "fds": [
+  {
+   "produto": "Ácido cítrico",
+   "nome_comercial": "Ácido Cítrico Fino Granulado",
+   "codigo": "DT-LAB-100",
+   "revisao": "05",
+   "data": "28/04/2025",
+   "etapa": "Fase ácida",
+   "fabricante": "Fornecedor Exemplo Ltda. (fictício)",
+   "arquivo": "fds_ficticias/FDS_ACIDO_CITRICO.pdf"
+  },
+  {
+   "produto": "Carbonato de sódio",
+   "nome_comercial": "Barrilha (leve / densa)",
+   "codigo": "DT-LAB-023",
+   "revisao": "10",
+   "data": "15/02/2024",
+   "etapa": "Fases sequestrante e neutralizante",
+   "fabricante": "Fornecedor Exemplo Ltda. (fictício)",
+   "arquivo": "fds_ficticias/FDS_BARRILHA.pdf"
+  },
+  {
+   "produto": "Nitrito de sódio",
+   "nome_comercial": "Nitrito de Sódio",
+   "codigo": "DT-LAB-059",
+   "revisao": "02",
+   "data": "27/04/2024",
+   "etapa": "Fase passivante",
+   "fabricante": "Fornecedor Exemplo Ltda. (fictício)",
+   "arquivo": "fds_ficticias/FDS_NITRITO_DE_SODIO.pdf"
+  }
+ ],
+ "certificados": [
+  {
+   "equipamento": "Manômetro",
+   "codigo": "MAN-012",
+   "escala": "0 a 400 bar",
+   "certificado": "CAL-2026-0412",
+   "calibracao": "12/03/2026",
+   "validade": "12/03/2027",
+   "aplicacao": "RTP",
+   "arquivo": "certificados/CERT_MAN-012.pdf"
+  },
+  {
+   "equipamento": "Manômetro",
+   "codigo": "MAN-015",
+   "escala": "0 a 400 bar",
+   "certificado": "CAL-2025-1187",
+   "calibracao": "04/10/2025",
+   "validade": "04/10/2026",
+   "aplicacao": "RTP",
+   "arquivo": "certificados/CERT_MAN-015.pdf"
+  },
+  {
+   "equipamento": "Contador de partículas",
+   "codigo": "CP-03",
+   "serie": "PC-88231",
+   "certificado": "LAB-2026-0077",
+   "calibracao": "20/01/2026",
+   "validade": "20/01/2027",
+   "aplicacao": "RCPU",
+   "arquivo": "certificados/CERT_CP-03.pdf"
+  }
+ ],
+ "aprovacoes": {
+  "elaborado": {
+   "nome": "Carlos Exemplo Souza",
+   "cargo": "Encarregado de Operações III"
+  },
+  "verificado": {
+   "nome": "Paula Exemplo Costa",
+   "cargo": "Coordenadora de Projetos"
+  },
+  "aprovado": {}
+ }
+}

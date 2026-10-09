@@ -78,6 +78,27 @@ function itemBaseSchema(z) {
   };
 }
 
+// FDS do produto químico (Data Book): nomes químicos citados no RLQ e metadados da ficha.
+function fdsFieldsSchema(z) {
+  return {
+    fdsSynonyms: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+    fdsCode: optionalText(z, 60),
+    fdsRevision: optionalText(z, 20),
+    fdsDate: z.union([z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida.'), z.literal(''), z.null()]).optional()
+  };
+}
+
+function fdsFieldsValue(data) {
+  return {
+    fdsSynonyms: [...new Set((data.fdsSynonyms || []).map(item => item.trim()).filter(Boolean))],
+    fdsCode: data.fdsCode || null,
+    fdsRevision: data.fdsRevision || null,
+    fdsDate: data.fdsDate || null
+  };
+}
+
+const NO_FDS_FIELDS = { fdsSynonyms: [], fdsCode: null, fdsRevision: null, fdsDate: null };
+
 function forbidFields(data, fields, ctx) {
   for (const field of fields) {
     if (data[field] !== null && data[field] !== undefined && data[field] !== '') {
@@ -107,6 +128,7 @@ function stockItemCreateSchema(z) {
   const chemical = z.object({
     type: z.literal('PRODUTO_QUIMICO'),
     ...itemBaseSchema(z),
+    ...fdsFieldsSchema(z),
     unitLabel: z.enum(CHEMICAL_UNITS),
     unNumber: optionalText(z, 80),
     casNumber: optionalText(z, 80),
@@ -129,6 +151,7 @@ function stockItemCreateSchema(z) {
       if (data.type === 'FILTRO') {
         return {
           ...data,
+          ...NO_FDS_FIELDS,
           unitLabel: 'un',
           unNumber: null,
           casNumber: null,
@@ -138,6 +161,7 @@ function stockItemCreateSchema(z) {
       }
       return {
         ...data,
+        ...fdsFieldsValue(data),
         filterModel: null,
         filterKind: null,
         filterMicron: null,
@@ -166,6 +190,7 @@ function stockItemUpdateSchema(z, type) {
       forbidFields(data, ['unitLabel', 'unNumber', 'casNumber'], ctx);
     }).transform(data => ({
       ...data,
+      ...NO_FDS_FIELDS,
       unitLabel: 'un',
       unNumber: null,
       casNumber: null,
@@ -177,6 +202,7 @@ function stockItemUpdateSchema(z, type) {
   if (type === 'PRODUTO_QUIMICO') {
     return z.object({
       ...base,
+      ...fdsFieldsSchema(z),
       unitLabel: z.enum(CHEMICAL_UNITS),
       unNumber: optionalText(z, 80),
       casNumber: optionalText(z, 80),
@@ -189,6 +215,7 @@ function stockItemUpdateSchema(z, type) {
       forbidFields(data, ['filterModel', 'filterKind', 'filterMicron'], ctx);
     }).transform(data => ({
       ...data,
+      ...fdsFieldsValue(data),
       filterModel: null,
       filterKind: null,
       filterMicron: null,

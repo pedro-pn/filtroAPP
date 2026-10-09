@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { accountPageStateFromPath } from '../auth/moduleNavigation';
 import { AppShell } from '../layout/AppShell';
+import { ProjectDatabookNovelty } from '../components/databook/ProjectDatabookNovelty';
 import {
   createNavigationModel,
   type NavigationSubItem
@@ -95,6 +96,7 @@ export function RdoAppShell({
       onLogout={handleLogout}
     >
       {children}
+      <ProjectDatabookNovelty user={user} />
     </AppShell>
   );
 }

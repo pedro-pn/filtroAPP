@@ -42,6 +42,7 @@ import { RdoAppShell } from '../RdoAppShell';
 import { RdoSectionNavigation } from '../gestor/RdoSectionNavigation';
 import { RDO_COORDINATOR_SECTIONS } from '../gestor/rdoSectionNavigationModel';
 import { coordinatorPendingCountQuery, coordinatorPendingReportFilters } from './pendingReportFilters';
+import { ProjectDatabookButton } from '../../components/databook/ProjectDatabookButton';
 
 type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas' | 'dds';
 const COORDINATOR_TABS: CoordinatorTab[] = ['pending', 'approved', 'archived', 'nps', 'estatisticas', 'dds'];
@@ -382,6 +383,7 @@ export function CoordinatorPage() {
           showTypeSort
           storageKey={`coordinator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
           renderTypeActions={tab === 'approved' ? renderBatchReportActions : undefined}
+          renderProjectActions={tab === 'approved' ? project => <ProjectDatabookButton project={project} /> : undefined}
           onLoadMoreType={reportsQuery.loadMoreGroup}
           onEnsureTypePage={reportsQuery.ensureGroupPage}
           isTypePageReady={reportsQuery.isGroupPageReady}
@@ -550,6 +552,7 @@ export function CoordinatorPage() {
             </div>
           </div>
           <div className="admin-card-actions">
+            <ProjectDatabookButton project={project} reportCount={projectReports.length || undefined} />
             <Button variant="secondary" size="sm" type="button" onClick={() => toggleArchivedProject(project.id)}>
               {projectClosed ? 'Ver relatórios' : 'Ocultar relatórios'}
             </Button>

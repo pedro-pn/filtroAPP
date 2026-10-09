@@ -1,0 +1,3 @@
+Poppins (Indian Type Foundry) e Carlito (tyPoland Lukasz Dziedzic) são distribuídas sob a
+SIL Open Font License 1.1 (https://openfontlicense.org). Podem ser embutidas e redistribuídas
+com o software; não podem ser vendidas isoladamente.

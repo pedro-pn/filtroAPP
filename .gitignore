@@ -105,3 +105,14 @@ opencode.jsonc
 
 # Disposable database credentials and generated validation files
 output/validation/
+
+# Data Book: exemplo real (missão 5815) tem dados de cliente e fotos verdadeiras — só local.
+# O exemplo versionado é o fictício (backend/databook/exemplo/projeto_completo.json), com fotos, FDS e
+# certificados gerados por exemplo/gerar_fixtures.py.
+databook_filtrovali*.zip
+backend/databook/exemplo/missao_5815.json
+backend/databook/exemplo/fotos/
+backend/databook/referencia/DataBook_exemplo_missao_5815.pdf
+backend/databook/exemplo/fds/
+**/__pycache__/
+backend/databook/.venv/

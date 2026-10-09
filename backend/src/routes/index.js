@@ -7,6 +7,7 @@ import authRouter from './resources/auth.js';
 import bootstrapRouter from './resources/bootstrap.js';
 import collaboratorsRouter from './resources/collaborators.js';
 import countersRouter from './resources/counters.js';
+import databookRouter from './resources/databook.js';
 import ddsThemesRouter from './resources/dds-themes.js';
 import draftsRouter from './resources/drafts.js';
 import episRouter from './resources/epis.js';
@@ -57,6 +58,7 @@ function mountRdoRoutes(targetRouter) {
   targetRouter.use('/particle-counters', countersRouter);
   targetRouter.use('/drafts', draftsRouter);
   targetRouter.use('/uploads', uploadsRouter);
+  targetRouter.use('/databook', databookRouter);
 }
 
 const rdoRouter = Router();
