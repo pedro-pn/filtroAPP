@@ -202,6 +202,7 @@ export function NewRomaneioPage() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const lastAutoSaveSignatureRef = useRef('');
   const hydratedDraftKeyRef = useRef('');
+  const hydratedEditRef = useRef<{ id: string; fingerprint: string } | null>(null);
   const hydratedReturnItemsKeyRef = useRef('');
   const isSubmittingRef = useRef(false);
   const [romaneioType, setRomaneioType] = useState<RomaneioType>('OUTBOUND');
@@ -691,9 +692,16 @@ export function NewRomaneioPage() {
     showToast('Rascunho carregado.');
   }, [isEditing, draftParam, draftsQuery.data, draftId, hydrateDraft, showToast]);
 
+  const currentEditFingerprintRef = useRef('');
+  currentEditFingerprintRef.current = JSON.stringify([romaneioType, projectId, manualProjectMode, manualProjectCode, romaneioDate, driverName, vehiclePlate, cargoWeight, cargoWeightUnit, selectedItems, checklistStatuses, checklistSignatureImage]);
   useEffect(() => {
     const romaneio = editQuery.data;
     if (!romaneio || !isEditing) return;
+    if (hydratedEditRef.current?.id === romaneio.id && hydratedEditRef.current.fingerprint !== currentEditFingerprintRef.current) return;
+    hydratedEditRef.current = {
+      id: romaneio.id,
+      fingerprint: JSON.stringify([romaneio.type || 'OUTBOUND', romaneio.projectId, false, '', romaneio.romaneioDate.slice(0, 10), romaneio.driverName || '', romaneio.vehiclePlate || '', romaneio.cargoWeight == null ? '' : String(romaneio.cargoWeight), romaneio.cargoWeightUnit === 'ton' ? 'ton' : 'kg', romaneioItemsToSelectedItems(romaneio), checklistStatusesFromRomaneio(romaneio), ''])
+    };
     setRomaneioType(romaneio.type || 'OUTBOUND');
     setProjectId(romaneio.projectId);
     setManualProjectMode(false);

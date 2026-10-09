@@ -6,6 +6,7 @@ import { normalizeJobRoleKey } from '../../lib/collaborators/job-role-service.js
 import { requireJobRolePatchAccess } from '../../lib/efetivo/access.js';
 import { sortJobRolesByName } from '../../lib/job-roles/index.js';
 import prisma from '../../lib/prisma.js';
+import { clearCollaboratorDerivedCaches } from '../../lib/resource-list-cache.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -38,6 +39,7 @@ router.post('/', requireAuth, requireRdoInternal, requireManager, asyncHandler(a
       isOperational: data.isOperational ?? true
     }
   });
+  clearCollaboratorDerivedCaches();
   res.status(201).json(item);
 }));
 
@@ -53,11 +55,13 @@ router.patch('/:id', requireAuth, requireRdoInternal, requireJobRolePatchAccess,
       ...(data.isOperational !== undefined ? { isOperational: data.isOperational } : {})
     }
   });
+  clearCollaboratorDerivedCaches();
   res.json(item);
 }));
 
 router.delete('/:id', requireAuth, requireRdoInternal, requireManager, asyncHandler(async (req, res) => {
   await prisma.jobRole.update({ where: { id: req.params.id }, data: { isActive: false } });
+  clearCollaboratorDerivedCaches();
   res.status(204).end();
 }));
 

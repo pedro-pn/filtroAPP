@@ -1,5 +1,6 @@
 import { createKeyedTtlCache, createTtlCache } from './ttl-cache.js';
 import env from '../config/env.js';
+import { registerCollaboratorCacheInvalidator } from './cache/invalidation.js';
 
 const MASTER_DATA_TTL_MS = env.resourceListCacheTtlMs;
 const DASHBOARD_TTL_MS = env.dashboardCacheTtlMs;
@@ -24,6 +25,13 @@ export function clearProjectDerivedCaches() {
   projectCardsCache.clear();
   laborCostCache.clear();
 }
+
+export function clearCollaboratorDerivedCaches() {
+  collaboratorsCache.clear();
+  clearProjectDerivedCaches();
+}
+
+registerCollaboratorCacheInvalidator(clearCollaboratorDerivedCaches);
 
 // Caches dos shims de compatibilidade do RDO que agora leem do modelo unificado.
 export function clearEquipmentModuleCaches() {

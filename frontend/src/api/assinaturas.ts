@@ -1,4 +1,5 @@
 import { ApiClientError, apiClient } from './client';
+import { notifyDataWrite } from './dataUpdates';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const BASE_PATH = '/assinaturas';
@@ -203,6 +204,7 @@ async function publicRequest(path: string, token: string, init: RequestInit = {}
       : 'Não foi possível carregar o convite.';
     throw new ApiClientError(payload?.error || fallbackMessage, response.status, { code: payload?.code });
   }
+  notifyDataWrite(init.method, assinaturaApiPath(path));
   return response;
 }
 

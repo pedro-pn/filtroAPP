@@ -1,13 +1,17 @@
 import { conflictError, notFound } from './errors.js';
+import { invalidateCollaboratorDerivedCaches } from '../../cache/invalidation.js';
 
 export async function resolvePlanningDatabase(database) {
   return database || (await import('../../prisma.js')).default;
 }
 
 export async function runPlanningTransaction(database, callback, { required = false } = {}) {
-  if (typeof database?.$transaction === 'function') return database.$transaction(callback);
-  if (required) throw new Error('O planejamento exige suporte transacional do banco de dados.');
-  return callback(database);
+  if (required && typeof database?.$transaction !== 'function') throw new Error('O planejamento exige suporte transacional do banco de dados.');
+  const result = await (typeof database?.$transaction === 'function' ? database.$transaction(callback) : callback(database));
+  // Cronograma, equipe e cargos também alimentam os cards e os custos do Acompanhamento.
+  // Limpa somente depois do commit, para o próximo GET refletir a gravação concluída.
+  invalidateCollaboratorDerivedCaches();
+  return result;
 }
 
 export async function lockPlan(tx, planId) {

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { notifyDataWrite } from './dataUpdates';
 
 const TOKEN_STORAGE_KEY = 'filtrovali-react-token';
 const UNAUTHORIZED_EVENT = 'filtrovali:unauthorized';
@@ -121,7 +122,10 @@ apiClient.interceptors.request.use(config => {
 });
 
 apiClient.interceptors.response.use(
-  response => response,
+  response => {
+    notifyDataWrite(response.config.method, response.config.url);
+    return response;
+  },
   error => {
     if (axios.isCancel(error)) return Promise.reject(error);
     const status = axios.isAxiosError(error) ? error.response?.status : undefined;
