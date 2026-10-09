@@ -801,8 +801,16 @@ export function makeProjectWorkflowSchemas(z) {
     action: z.literal('stage'),
     version,
     stage: z.enum(PROJECT_WORKFLOW_STAGES),
+    startDate: dateOnly.optional(),
     reason: z.string().trim().min(3, 'Informe uma justificativa com ao menos 3 caracteres.').max(1000, 'A justificativa deve ter no máximo 1000 caracteres.').optional()
-  }).strict();
+  }).strict().superRefine((value, ctx) => {
+    if (value.stage === 'EXECUTION' && !value.startDate) {
+      ctx.addIssue({ code: 'custom', path: ['startDate'], message: 'Confirme a data de início real da execução.' });
+    }
+    if (value.stage !== 'EXECUTION' && value.startDate) {
+      ctx.addIssue({ code: 'custom', path: ['startDate'], message: 'O início real só pode ser confirmado ao entrar em execução.' });
+    }
+  });
   const mobilization = z.object({
     action: z.literal('mobilization'),
     version,

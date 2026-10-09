@@ -34,6 +34,7 @@ import {
   type ProjectOperationalMissionSummary,
   type ProjectWorkflowLegacySummaryInput,
   type ProjectWorkflowPatch,
+  type ProjectWorkflowProject,
   type ProjectWorkflowStage,
   type ProjectWorkflowSummary
 } from '../../../api/projectWorkflow';
@@ -71,6 +72,7 @@ import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
 import { missionTeamAllocationPeriod, selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
 import { InitialTeamAvailabilityModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
+import { ProjectExecutionStartModal } from './ProjectExecutionStartModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
 
 type DragState = { projectId: string; snapshot: ProjectKanbanColumns };
@@ -94,6 +96,13 @@ type ManagedMove = {
   target: ProjectWorkflowStage;
   patch: Extract<ProjectWorkflowPatch, { action: 'accept' | 'stage' }>;
   snapshot: ProjectKanbanColumns;
+};
+type ExecutionStartTarget = {
+  project: ProjectWorkflowProject;
+  plannedStartDate: string | null;
+  executedAtHeadquarters: boolean;
+  patch: Extract<ProjectWorkflowPatch, { action: 'stage' }>;
+  move?: ManagedMove;
 };
 type LegacyMove = {
   project: ProjectWorkflowSummary;
@@ -395,6 +404,7 @@ export function ProjectWorkflowBoard({
   const [teamContextLoadingProjectId, setTeamContextLoadingProjectId] = useState<string | null>(null);
   const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
+  const [executionStartTarget, setExecutionStartTarget] = useState<ExecutionStartTarget | null>(null);
   const [blockedMoveFocus, setBlockedMoveFocus] = useState<BlockedMoveFocus | null>(null);
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
   const [showCancelledMissions, setShowCancelledMissions] = useState(false);
@@ -475,6 +485,16 @@ export function ProjectWorkflowBoard({
     ]);
   };
 
+  const refreshExecutionStart = async (projectId: string) => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['project-execution', projectId] }),
+    queryClient.invalidateQueries({ queryKey: ['commercial-revisions', projectId] }),
+    queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] }),
+    queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] }),
+    queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+    queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] })
+  ]);
+
   const start = useMutation({
     mutationFn: (values: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }) => startProjectWorkflow(selectedProjectId!, values),
     onSuccess: async data => {
@@ -498,8 +518,9 @@ export function ProjectWorkflowBoard({
 
   const update = useMutation({
     mutationFn: (payload: ProjectWorkflowPatch) => updateProjectWorkflow(selectedProjectId!, payload),
-    onSuccess: async data => {
+    onSuccess: async (data, payload) => {
       await refresh(data);
+      if (payload.action === 'stage' && payload.stage === 'EXECUTION') await refreshExecutionStart(data.project.id);
       setBlockedMoveFocus(null);
       toast('Gestão do projeto atualizada.', 'success');
     },
@@ -570,6 +591,7 @@ export function ProjectWorkflowBoard({
         queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] }),
         queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
       ]);
+      if (variables.target === 'EXECUTION') await refreshExecutionStart(data.project.id);
       onMobileStageChange(variables.target);
       toast('Etapa do projeto atualizada.', 'success');
     },
@@ -708,6 +730,17 @@ export function ProjectWorkflowBoard({
             + ', mova para ' + (labels || 'a próxima etapa pelo detalhe do projeto') + '.',
           'error'
         );
+        return;
+      }
+      if (target === 'EXECUTION') {
+        const patch: ExecutionStartTarget['patch'] = { action: 'stage', version: project.workflow.version, stage: target };
+        setExecutionStartTarget({
+          project,
+          plannedStartDate: project.workflow.plannedExecutionStartDate,
+          executedAtHeadquarters: project.workflow.executedAtHeadquarters === true,
+          patch,
+          move: { project, target, patch, snapshot }
+        });
         return;
       }
       setColumns(moveProjectInColumns(columns, project.id, target));
@@ -1115,7 +1148,16 @@ export function ProjectWorkflowBoard({
         onRetry={() => void detail.refetch()}
         onClose={() => { setBlockedMoveFocus(null); onProjectSelect(undefined); }}
         onStart={values => start.mutate(values)}
-        onPatch={payload => update.mutate(payload)}
+        onPatch={payload => {
+          if (payload.action === 'stage' && payload.stage === 'EXECUTION' && detail.data?.workflow) {
+            setExecutionStartTarget({
+              project: detail.data.project,
+              plannedStartDate: detail.data.workflow.plannedExecutionStartDate,
+              executedAtHeadquarters: detail.data.workflow.executedAtHeadquarters === true,
+              patch: payload
+            });
+          } else update.mutate(payload);
+        }}
         onStartLegacySummary={payload => startLegacySummary.mutate(payload)}
         legacySummaryMission={
           detail.data?.project.operationalMission
@@ -1158,6 +1200,24 @@ export function ProjectWorkflowBoard({
           setMissionStatus.mutate({ mission, status });
         }}
       />
+      {executionStartTarget ? <ProjectExecutionStartModal
+        project={executionStartTarget.project}
+        plannedStartDate={executionStartTarget.plannedStartDate}
+        executedAtHeadquarters={executionStartTarget.executedAtHeadquarters}
+        saving={update.isPending || managedMove.isPending}
+        onClose={() => {
+          if (!update.isPending && !managedMove.isPending) setExecutionStartTarget(null);
+        }}
+        onConfirm={startDate => {
+          const patch = { ...executionStartTarget.patch, startDate };
+          const callbacks = { onSuccess: () => setExecutionStartTarget(null), onError: () => setExecutionStartTarget(null) };
+          if (executionStartTarget.move) {
+            const move = executionStartTarget.move;
+            setColumns(moveProjectInColumns(columns, move.project.id, 'EXECUTION'));
+            managedMove.mutate({ ...move, patch }, callbacks);
+          } else update.mutate(patch, callbacks);
+        }}
+      /> : null}
     </div>
   );
 }

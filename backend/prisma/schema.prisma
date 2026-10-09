@@ -963,7 +963,7 @@ model Project {
   commercialProposalCode     String? // = cod_prop do Access; reconciliação proposta↔projeto
   mobilizationDate           DateTime? // data de mobilização (manual, gestor/coordenador)
   demobilizationDate         DateTime? // data de desmobilização (manual); fecha a janela de alocação
-  startDate                  DateTime? // início real da execução (manual, gestor/coordenador)
+  startDate                  DateTime? // início real confirmado no Efetivo ou informado no Acompanhamento
   manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão (fallback quando não há escopo)
   proposalPercentage         Decimal                            @default(100) @db.Decimal(5, 2) // percentual da proposta considerado nos valores previstos do acompanhamento
   trackingDivisions          Json                               @default("[]") // recortes do acompanhamento por escopo/equipamento do cliente

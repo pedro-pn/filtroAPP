@@ -1425,7 +1425,7 @@ test('avanço para execução não passa mais por "Pronto para mobilizar"', asyn
   });
   await assert.rejects(updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
   await updateProjectWorkflow('project-1', { action: 'mobilization', version: 2, mobilizationDate: '2026-09-10' }, leader, { database, confirmOfficialMissionMobilization: async () => null });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, {
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-10' }, leader, {
     database,
     now: new Date('2026-09-10T09:00:00Z'),
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
@@ -1434,6 +1434,84 @@ test('avanço para execução não passa mais por "Pronto para mobilizar"', asyn
   assert.equal(result.workflow.version, 4);
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION']);
+});
+
+test('início real confirmado na execução alimenta o acompanhamento, em campo e na Sede', async () => {
+  for (const executedAtHeadquarters of [false, true]) {
+    const { database, state } = fakeDatabase();
+    await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+    makeStateReadyForMobilization(state);
+    state.workflow.executedAtHeadquarters = executedAtHeadquarters;
+    state.workflow.stage = executedAtHeadquarters ? 'PREPARATION' : 'MOBILIZATION';
+    state.workflow.actualMobilizationDate = executedAtHeadquarters ? null : new Date('2026-09-10T00:00:00Z');
+    state.workflow.plannedExecutionStartDate = new Date('2026-09-11T00:00:00Z');
+    const missionStart = state.operationalMission.executionStartDate.toISOString();
+    const dependencies = { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null };
+
+    let detail = await updateProjectWorkflow('project-1', {
+      action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12'
+    }, leader, dependencies);
+    assert.equal(detail.workflow.stage, 'EXECUTION');
+    assert.equal(detail.project.startDate, '2026-09-12');
+    assert.equal(state.project.startDate.toISOString(), '2026-09-12T00:00:00.000Z');
+    assert.equal(detail.workflow.plannedExecutionStartDate, '2026-09-11');
+    assert.equal(state.operationalMission.executionStartDate.toISOString(), missionStart);
+    assert.equal(state.events.at(-1).data.startDate, '2026-09-12');
+    const list = await listProjectWorkflows({}, manager, dependencies);
+    assert.equal(list.items[0].startDate, '2026-09-12');
+    assert.equal(state.lastProjectFindManyInput.select.startDate, true);
+
+    detail = await updateProjectWorkflow('project-1', {
+      action: 'stage', version: 2, stage: executedAtHeadquarters ? 'PREPARATION' : 'MOBILIZATION'
+    }, leader, dependencies);
+    assert.equal(detail.project.startDate, '2026-09-12');
+    detail = await updateProjectWorkflow('project-1', {
+      action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-12'
+    }, leader, dependencies);
+    assert.equal(detail.project.startDate, '2026-09-12');
+  }
+});
+
+test('execução recusa início sem confirmação, anterior à mobilização ou futuro na data de São Paulo', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  state.workflow.stage = 'MOBILIZATION';
+  state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+  const dependencies = { database, now: new Date('2026-09-14T01:00:00Z'), synchronizeOfficialMissionStage: async () => null };
+
+  for (const startDate of [undefined, '2026-09-09', '2026-09-14']) {
+    await assert.rejects(updateProjectWorkflow('project-1', {
+      action: 'stage', version: 1, stage: 'EXECUTION', startDate
+    }, leader, dependencies), error => error.code === (startDate ? 'INVALID_PROJECT_WORKFLOW_EXECUTION_START' : 'PROJECT_WORKFLOW_EXECUTION_START_REQUIRED'));
+    assert.equal(state.workflow.stage, 'MOBILIZATION');
+    assert.equal(state.workflow.version, 1);
+    assert.equal(state.project.startDate, null);
+  }
+  const detail = await updateProjectWorkflow('project-1', {
+    action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-13'
+  }, leader, dependencies);
+  assert.equal(detail.project.startDate, '2026-09-13');
+});
+
+test('falha ao salvar a etapa desfaz o início real e preserva a data anterior', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  state.workflow.stage = 'MOBILIZATION';
+  state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+  state.project.startDate = new Date('2026-09-11T00:00:00Z');
+  const originalUpdate = database.projectWorkflow.update;
+  database.projectWorkflow.update = async input => {
+    if (input.data.stage === 'EXECUTION') throw new Error('Falha ao gravar etapa');
+    return originalUpdate(input);
+  };
+  await assert.rejects(updateProjectWorkflow('project-1', {
+    action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12'
+  }, leader, { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null }), /Falha ao gravar etapa/);
+  assert.equal(state.project.startDate.toISOString(), '2026-09-11T00:00:00.000Z');
+  assert.equal(state.workflow.stage, 'MOBILIZATION');
+  assert.equal(state.workflow.version, 1);
 });
 
 test('desmobilização sincroniza etapa e datas sem perder os dados operacionais', async () => {
@@ -1448,7 +1526,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, stageDependencies);
   await assert.rejects(updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
   await updateProjectWorkflow('project-1', { action: 'mobilization', version: 2, mobilizationDate: '2026-09-10' }, leader, { database, confirmOfficialMissionMobilization: async () => null });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-10' }, leader, stageDependencies);
   result = await updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
   assert.equal(result.workflow.demobilizationReadiness.total, 17);

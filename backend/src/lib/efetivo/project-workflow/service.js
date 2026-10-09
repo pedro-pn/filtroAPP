@@ -78,6 +78,7 @@ const PROJECT_FIELDS = {
   clientEmailPrimary: true,
   commercialProposalSync: true,
   location: true,
+  startDate: true,
   mobilizationDate: true,
   demobilizationDate: true
 };
@@ -1017,6 +1018,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         name: project.name,
         clientName: project.clientName,
         location: project.location,
+        startDate: dateKey(project.startDate),
+        mobilizationDate: dateKey(project.mobilizationDate),
         operationalMission: mission,
         workflow: workflow ? {
           projectId: workflow.projectId,
@@ -1133,6 +1136,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
         revisionNumber: project.commercialProposalSync.revisionNumber
       } : null,
       location: project.location,
+      startDate: dateKey(project.startDate),
       mobilizationDate: dateKey(project.mobilizationDate),
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
@@ -2174,6 +2178,19 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       issues: issues.map(message => ({ message }))
     });
   }
+  if (payload.stage === 'EXECUTION') {
+    if (!payload.startDate) {
+      throw planningError('Confirme a data de início real da execução.', {
+        code: 'PROJECT_WORKFLOW_EXECUTION_START_REQUIRED'
+      });
+    }
+    const mobilizationDate = isHeadquartersWorkflow(workflow) ? null : dateKey(workflow.actualMobilizationDate);
+    if (payload.startDate > todayKey(now) || (mobilizationDate && payload.startDate < mobilizationDate)) {
+      throw planningError('O início real deve ser uma data já ocorrida e não pode ser anterior à mobilização efetiva.', {
+        code: 'INVALID_PROJECT_WORKFLOW_EXECUTION_START'
+      });
+    }
+  }
   // Voltar para a Preparação (da Mobilização em campo, ou da Execução na Sede) devolve a missão a Stand by:
   // sem "Pronto para mobilizar", essa é a única forma de sair de uma etapa operacional de volta à Preparação.
   const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'].includes(payload.stage)
@@ -2185,6 +2202,9 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       payload.stage,
       context
     );
+  }
+  if (payload.stage === 'EXECUTION') {
+    await tx.project.update({ where: { id: workflow.projectId }, data: { startDate: utcDate(payload.startDate) } });
   }
   const data = { stage: payload.stage };
   if (payload.stage === 'FINISHED') {

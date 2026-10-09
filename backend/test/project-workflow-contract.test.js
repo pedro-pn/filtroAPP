@@ -28,6 +28,19 @@ test('mobilização exige uma data efetiva válida e aceita correção de etapa'
   }
 });
 
+test('entrada em execução exige confirmação do início real e outras etapas não recebem essa data', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  const payload = { action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-10' };
+  assert.deepEqual(patch.parse(payload), payload);
+  for (const startDate of [undefined, null, '', '2026-02-30']) {
+    const result = patch.safeParse({ ...payload, startDate });
+    assert.equal(result.success, false);
+    assert.deepEqual(result.error.issues[0].path, ['startDate']);
+  }
+  assert.equal(patch.safeParse({ action: 'stage', version: 1, stage: 'MOBILIZATION' }).success, true);
+  assert.equal(patch.safeParse({ ...payload, stage: 'MOBILIZATION' }).success, false);
+});
+
 test('router de gestão fica sob autenticação do Efetivo e valida todas as entradas com Zod', () => {
   const parent = fs.readFileSync(new URL('../src/routes/resources/efetivo.js', import.meta.url), 'utf8');
   const router = fs.readFileSync(new URL('../src/routes/efetivo-project-workflow.js', import.meta.url), 'utf8');
