@@ -27,6 +27,7 @@ export { realizedFromExtraData } from './realized-measurements.js';
 import { withScopeGroups } from './scope-groups.js';
 import { normalizeRdoServiceType } from './service-types.js';
 import { dateInDivision } from './tracking-divisions.js';
+import { isValidReportDate } from '../../../../shared/modules/report-date.js';
 
 export { normalizeRdoServiceType } from './service-types.js';
 
@@ -141,12 +142,14 @@ function hasMeasurableScope(plannedServices = []) {
 }
 
 export function compactWeeklyProgressHistory(points = [], { startDate = null } = {}) {
+  // Legacy reports may contain a partially typed year (e.g. 0027). Keep their
+  // quantities in the current progress, but exclude that date from the axis.
   const byWeek = new Map();
   for (const point of points) {
     const progressPct = num(point?.progressPct);
     const date = toDateKey(point?.date);
     const week = startOfUtcWeekKey(date);
-    if (progressPct === null || !date || !week) continue;
+    if (progressPct === null || !isValidReportDate(date) || !week) continue;
     const existing = byWeek.get(week);
     if (!existing || dateMs(date) >= dateMs(existing.date)) {
       byWeek.set(week, { date, progressPct: round(progressPct) });
@@ -156,7 +159,7 @@ export function compactWeeklyProgressHistory(points = [], { startDate = null } =
   const out = Array.from(byWeek.values())
     .sort((a, b) => dateMs(a.date) - dateMs(b.date));
   const baselineDate = toDateKey(startDate);
-  if (baselineDate && (out.length === 0 || dateMs(baselineDate) < dateMs(out[0].date))) {
+  if (isValidReportDate(baselineDate) && (out.length === 0 || dateMs(baselineDate) < dateMs(out[0].date))) {
     out.unshift({ date: baselineDate, progressPct: 0 });
   }
   return out;
@@ -326,7 +329,7 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
         date: point?.recordedAt ?? point?.date,
         progressPct: num(point?.progressPct)
       }))
-      .filter(point => point.progressPct !== null);
+      .filter(point => point.progressPct !== null && isValidReportDate(point.date));
     const ordered = manualPoints
       .slice()
       .sort((a, b) => (dateMs(a.date) ?? 0) - (dateMs(b.date) ?? 0));
@@ -394,20 +397,20 @@ export function buildDailyProgressHistory(plannedServices = [], serviceReports =
 } = {}) {
   if (hasMeasurableScope(plannedServices)) {
     return buildProgressTimeline(plannedServices, serviceReports).points
-      .filter(point => point.progressPct !== null);
+      .filter(point => point.progressPct !== null && isValidReportDate(point.date));
   }
   const byDate = new Map();
   for (const point of manualProgressHistory ?? []) {
     const date = toDateKey(point?.recordedAt ?? point?.date);
     const progressPct = num(point?.progressPct);
-    if (date && progressPct !== null) byDate.set(date, { date, progressPct });
+    if (isValidReportDate(date) && progressPct !== null) byDate.set(date, { date, progressPct });
   }
   const current = num(manualProgressPct);
   if (current !== null) {
     const latest = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).at(-1);
     if (!latest || round(latest.progressPct) !== round(current)) {
       const date = toDateKey(currentDate);
-      if (date) byDate.set(date, { date, progressPct: current });
+      if (isValidReportDate(date)) byDate.set(date, { date, progressPct: current });
     }
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -415,7 +418,7 @@ export function buildDailyProgressHistory(plannedServices = [], serviceReports =
 
 function weeklyHistory(points, startDate) {
   const history = compactWeeklyProgressHistory(points.filter(point => point.progressPct !== null), { startDate });
-  if (history.length === 0 && startDate) return [{ date: toDateKey(startDate), progressPct: 0 }];
+  if (history.length === 0 && isValidReportDate(startDate)) return [{ date: toDateKey(startDate), progressPct: 0 }];
   return history;
 }
 
@@ -503,7 +506,7 @@ export function buildProgressSlices(plannedServices, serviceReports, { startDate
       return {
         progress: buildProgress(services, realizedByType),
         progressHistory: weeklyHistory(points, startDate),
-        dailyProgressHistory: points.filter(point => point.progressPct !== null)
+        dailyProgressHistory: points.filter(point => point.progressPct !== null && isValidReportDate(point.date))
       };
     })
   };
@@ -758,7 +761,7 @@ export async function computeProgressDetailsForProjects(projectIds) {
           currentDate: project.updatedAt ?? new Date()
         });
     const dailyProgressHistory = hasMeasurableScope(planned)
-      ? timeline.points.filter(point => point.progressPct !== null)
+      ? timeline.points.filter(point => point.progressPct !== null && isValidReportDate(point.date))
       : buildDailyProgressHistory(planned, serviceReports, {
           manualProgressPct: project.manualProgressPct,
           manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
