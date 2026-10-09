@@ -46,6 +46,26 @@ volume de um Data Book, a economia absoluta é de centavos; só compensa se a re
 
 **Cache de prompt:** as instruções e o glossário (~1 mil tokens) ficam abaixo do tamanho mínimo cacheável; não compensa.
 
+### 2.1 Comparação com a OpenAI (GPT), consultada em 09/10/2026
+
+Mesma carga por Data Book (~8 mil tokens de entrada e ~4 mil de saída). Preços padrão por 1M de tokens; Batch = 50% em
+ambos os provedores. Nos dois, tokens de raciocínio contam como saída: com esforço baixo o número abaixo se mantém, e
+com raciocínio alto ele sobe.
+
+| Provedor / modelo | Entrada | Saída | Custo estimado por Data Book |
+|---|---|---|---|
+| Anthropic Claude Opus 5 (recomendado no doc) | US$ 5,00 | US$ 25,00 | ≈ US$ 0,14 |
+| Anthropic Claude Sonnet 5 | US$ 2,00 | US$ 10,00 | ≈ US$ 0,06 |
+| Anthropic Claude Haiku 4.5 | US$ 1,00 | US$ 5,00 | ≈ US$ 0,03 |
+| OpenAI GPT-6 Astra (topo) | US$ 10,00 | US$ 50,00 | ≈ US$ 0,28 |
+| OpenAI GPT-6.1 Sol (intermediário) | US$ 2,00 | US$ 10,00 | ≈ US$ 0,06 |
+| OpenAI GPT-6 Luna (econômico) | US$ 0,10 | US$ 0,50 | ≈ US$ 0,003 |
+
+Fontes: https://developers.openai.com/api/docs/pricing (OpenAI) e a tabela de preços da Anthropic (seção 2).
+Conclusão: em qualquer opção o custo é de centavos por Data Book, então o critério deve ser a taxa de sugestões
+corretas, sem tocar no que não pode mudar, medida no mesmo conjunto de frases reais (seção 4). A arquitetura
+(mascaramento + validação + revisão humana) serve para qualquer provedor; só o cliente da API muda.
+
 ## 3. Saída estruturada (SDK Node `@anthropic-ai/sdk`)
 
 O backend já usa `zod`. Com `client.messages.parse()` + `zodOutputFormat`, a resposta chega validada contra o esquema:
