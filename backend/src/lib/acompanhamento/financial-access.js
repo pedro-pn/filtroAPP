@@ -15,6 +15,11 @@ export function projectFinancialsForUser(data, user) {
   const result = { ...data, canViewProjectFinancials: canViewProjectFinancials(user) };
   if (result.canViewProjectFinancials) return result;
 
+  if (result.presentation) {
+    result.presentation = { ...result.presentation };
+    delete result.presentation.taxAmount;
+  }
+
   delete result.invoicedRevenue;
   delete result.invoicedIss;
   delete result.invoiceCount;

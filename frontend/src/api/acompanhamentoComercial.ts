@@ -1,6 +1,15 @@
 import { apiClient } from './client';
 import type { OfficialMissionContext } from './reports';
 
+export interface ProjectPresentation {
+  id: string;
+  sourceProjectId: string;
+  sourceCode: string;
+  createdAt: string;
+  hidePlannedCost: boolean;
+  taxAmount?: number;
+}
+
 export interface CommercialRevision {
   codBd: number;
   codProp: number;
@@ -742,6 +751,7 @@ export interface DailyProgressPoint extends ProgressHistoryPoint {
 }
 
 export interface ProjectCard {
+  presentation?: ProjectPresentation;
   canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
@@ -967,6 +977,7 @@ export async function getMissionGroupInvoices(groupId: string) {
 }
 
 export interface ProjectDetail {
+  presentation?: ProjectPresentation;
   proposalPercentage?: number | null;
   fullPlannedDays?: number | null;
   fullWorkedDays?: number | null;

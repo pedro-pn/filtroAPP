@@ -12,11 +12,12 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
     ? `Base: faturamento real do Omie. ISS Omie: ${brl(taxes.omieIss)}.`
     : `Base: venda prevista. Impostos previstos na NF: ${brl(taxes.invoiceTaxTotal)}.`} Código ${(taxes.omieServiceTaxCodes?.length ? taxes.omieServiceTaxCodes : taxes.serviceTaxCode === 'MIXED' ? taxes.serviceTaxCodes : [taxes.serviceTaxCode])?.join(', ')}${taxes.equivalentServiceTaxCode ? ` (regra ${taxes.equivalentServiceTaxCode})` : ''}. ISS ${taxes.issRatePct}%. INSS ${taxes.inssRatePct}%.` : '';
   return <div className="acp-project__metrics">
+    {card.presentation ? <p className="acp-project__secondary">Apresentação · cópia da missão {card.presentation.sourceCode}</p> : null}
     <ProgressBar label={`Avanço de escopo${card.progressMethod === 'MANUAL' ? ' (manual)' : ''}`} value={card.progressPct} valueLabel={pct(card.progressPct)} />
     <div className="acp-project__section">
-      <ProgressBar label="Custo consumido" value={card.costConsumedPct} valueLabel={pct(card.costConsumedPct)} />
+      {!card.presentation ? <ProgressBar label="Custo consumido" value={card.costConsumedPct} valueLabel={pct(card.costConsumedPct)} /> : null}
       <dl className="acp-project__pair">
-        <div><dt>Previsto</dt><dd>{brl(card.plannedCost)}</dd></div>
+        {!card.presentation ? <div><dt>Previsto</dt><dd>{brl(card.plannedCost)}</dd></div> : null}
         <div><dt>Realizado</dt><dd>{brl(card.realizedCost)}</dd></div>
       </dl>
 
@@ -39,7 +40,7 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
         <p className="acp-project__secondary">Original: {brl(card.originalPlannedCost)} · Adicional: {brl(card.additionalPlannedCost)}</p>
       ) : null}
       {taxes || card.laborCost != null || card.stockCost > 0 ? <dl className="acp-project__facts">
-        {taxes ? <div><dt><HelpTip help={taxHelp}>IRPJ/CSLL fora da NF</HelpTip></dt><dd>{brl(taxes.outOfInvoiceTaxTotal)}</dd></div> : null}
+        {taxes ? card.presentation ? <div><dt>Impostos</dt><dd>{brl(card.presentation.taxAmount)}</dd></div> : <div><dt><HelpTip help={taxHelp}>IRPJ/CSLL fora da NF</HelpTip></dt><dd>{brl(taxes.outOfInvoiceTaxTotal)}</dd></div> : null}
         {card.laborCost != null ? <>
           <div><dt><HelpTip help="Jornada do Ponto Mais apropriada analiticamente a este projeto. Em execução compartilhada, ela pode aparecer integralmente em mais de uma missão.">Horas apropriadas do Ponto</HelpTip></dt><dd>{fmtHours(card.laborHours)}</dd></div>
           <div><dt><HelpTip help="Valor gasto com mão de obra do ponto, rateado para este projeto.">Custo MO{hasOffshore ? ' c/ offshore' : ''}</HelpTip></dt><dd>{brl(card.laborCost)}</dd></div>

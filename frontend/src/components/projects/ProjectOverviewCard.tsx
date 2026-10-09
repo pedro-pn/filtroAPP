@@ -47,6 +47,11 @@ export function ProjectOverviewCard({
   onReview?: () => void;
   recentlyFinalized?: boolean;
 }) {
+  if (card.presentation) {
+    canSelect = false;
+    canManageGroups = false;
+    canManage = false;
+  }
   const grouped = isGroupCard(card);
   const handleOpen = () => {
     if (canSelect && !grouped) { onToggleSelect?.(); return; }
