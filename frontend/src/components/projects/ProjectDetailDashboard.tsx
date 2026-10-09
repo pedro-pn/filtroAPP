@@ -77,6 +77,12 @@ export function ProjectDetailDashboard({
   progressHistoryNoveltyUser?: Pick<AuthUser, 'id'> | null;
   onBack: () => void;
 }) {
+  if (projectId?.startsWith('presentation-')) {
+    canManage = false;
+    canManageDivisions = false;
+    canManageManualCosts = false;
+    canManageProjectNotes = false;
+  }
   const queryClient = useQueryClient();
   const [scopeOpen, setScopeOpen] = useState(false);
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
@@ -336,6 +342,7 @@ export function ProjectDetailDashboard({
     <div className="fv-ds acp-detail">
       <div className="acp-detail-bar">
         <Button type="button" size="sm" variant="secondary" iconLeft={<AppIcon icon={ArrowLeft} />} onClick={onBack}>Voltar</Button>
+        {data.presentation ? <Badge tone="info">Apresentação · cópia da missão {data.presentation.sourceCode}</Badge> : null}
         <Button type="button" size="sm" variant="secondary" aria-haspopup="dialog" data-acp-weekly-progress-target onClick={() => setScopeOpen(true)}>Consultar escopo</Button>
         {canManage && !isGroup ? (
           <div className="acp-detail-bar-actions">
@@ -592,7 +599,7 @@ export function ProjectDetailDashboard({
           onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
           reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
             <ProjectReportsDialog
-              projectId={isGroup ? undefined : projectId}
+              projectId={isGroup ? undefined : data.presentation?.sourceProjectId ?? projectId}
               groupMembers={isGroup ? data.group?.members : undefined}
               signedReportDateFrom={data.division?.startDate}
               missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
@@ -643,7 +650,7 @@ export function ProjectDetailDashboard({
       {deviationProjects.length > 0 ? (
         <Card padding="sm" className="acp-detail-block acp-detail-deviations" data-quality-project-deviations>
           <details className="acp-detail-deviations-details" open>
-            <summary className="acp-detail-summary">Desvios</summary>
+            <summary className="acp-detail-summary">{data.presentation ? 'Desvios / Incidentes' : 'Desvios'}</summary>
             <div className="acp-detail-deviations-toolbar">
               <a className="fv-button fv-button--secondary fv-button--sm" href="/qualidade?tab=registros">
                 <span className="fv-button__label">Abrir Qualidade</span>
@@ -668,7 +675,7 @@ export function ProjectDetailDashboard({
           ) : (
             <ul className="acp-detail-deviation-list">
               {deviations.map(deviation => {
-                const expanded = expandedQualityDeviationIds.has(deviation.id);
+              const expanded = expandedQualityDeviationIds.has(deviation.id) || deviation.cost != null;
                 const detailsId = `quality-deviation-${deviation.id}`;
                 return (
                   <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
@@ -677,16 +684,17 @@ export function ProjectDetailDashboard({
                         <strong>{deviation.number}</strong>
                         <span>{deviation.nature?.name || '—'}</span>
                         <small>{fmtDate(deviation.eventDate)}</small>
+                        {deviation.cost != null ? <strong>Custo: {brl(deviation.cost)}</strong> : null}
                       </div>
                       <div className="acp-detail-deviation-meta">
-                        <Badge tone={deviation.impact === 'ALTO' ? 'danger' : deviation.impact === 'MEDIO' ? 'warning' : 'info'}>
+                        {deviation.impact ? <Badge tone={deviation.impact === 'ALTO' ? 'danger' : deviation.impact === 'MEDIO' ? 'warning' : 'info'}>
                           {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
-                        </Badge>
-                        <Badge tone="neutral" multiline>{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</Badge>
-                        <Badge tone={deviation.recurrent ? 'warning' : 'neutral'}>
+                        </Badge> : null}
+                        {deviation.status ? <Badge tone="neutral" multiline>{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</Badge> : null}
+                        {deviation.type !== 'INCIDENTE' ? <Badge tone={deviation.recurrent ? 'warning' : 'neutral'}>
                           {deviation.occurrences12m}x 12m
-                        </Badge>
-                        <Button
+                        </Badge> : <Badge tone="neutral">Incidente</Badge>}
+                        {deviation.cost == null ? <Button
                           type="button"
                           size="sm" variant="secondary" className="acp-detail-deviation-toggle"
                           aria-expanded={expanded}
@@ -694,7 +702,7 @@ export function ProjectDetailDashboard({
                           onClick={() => toggleQualityDeviation(deviation.id)}
                         >
                           {expanded ? 'Recolher' : 'Ver mais'}
-                        </Button>
+                        </Button> : null}
                       </div>
                     </div>
                     {expanded ? (

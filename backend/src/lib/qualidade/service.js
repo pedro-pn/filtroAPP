@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import prisma from '../prisma.js';
+import { getPresentationCopy, isPresentationCopyId } from '../acompanhamento/presentation-copies.js';
 import {
   createQualityEvidenceAttachment,
   publicQualityAttachmentUrl,
@@ -503,6 +504,11 @@ export async function deleteRecord(client = prisma, id, { userId = null } = {}) 
 }
 
 export async function listProjectDeviations(client = prisma, projectId) {
+  if (isPresentationCopyId(projectId)) {
+    const copy = await getPresentationCopy(projectId, client);
+    if (!copy) throw new QualidadeError('Apresentação não encontrada ou encerrada.', 404);
+    return copy.snapshot.deviations;
+  }
   const records = await client.qualityRecord.findMany({
     where: { projectId, type: 'DESVIO', deletedAt: null },
     include: RECORD_INCLUDE,

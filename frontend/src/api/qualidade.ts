@@ -127,6 +127,8 @@ export interface QualityRecordListResponse {
 }
 
 export interface ProjectDeviation {
+  cost?: number;
+  type?: QualityRecordType;
   id: string;
   number: string;
   registeredAt: string;

@@ -87,6 +87,7 @@ export function ProjectDetailCosts({ data, children }: { data: ProjectDetail; ch
 }
 
 export function ProjectDetailTaxes({ data }: { data: ProjectDetail }) {
+  if (data.presentation) return data.presumedProfitTaxes ? <Card padding="sm" className="acp-detail-block"><div className="acp-detail-fact acp-detail-fact--total"><strong>Impostos do projeto</strong><strong>{brl(data.presentation.taxAmount)}</strong></div></Card> : null;
   return <>{data.presumedProfitTaxes ? (() => {
             const taxes = data.presumedProfitTaxes;
             const expectedRevenue = toNum(data.faturamento.previsto);

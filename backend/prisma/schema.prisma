@@ -1005,11 +1005,22 @@ model Project {
   efetivoMissionPlans        EfetivoMissionPlan[]
   workflow                   ProjectWorkflow?
   documents                  ProjectDocument[]
+  presentationCopies         ProjectPresentationCopy[]
 
   @@index([deletedAt])
   @@index([registrationPending])
   @@index([commercialProposalSyncNextAttemptAt])
   @@index([commercialProposalCode])
+}
+
+// Frozen versions for meetings; excluded from operational and financial calculations.
+model ProjectPresentationCopy {
+  id              String    @id
+  sourceProjectId String
+  snapshot        Json
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  endedAt         DateTime? @db.Timestamptz(6)
+  sourceProject   Project   @relation(fields: [sourceProjectId], references: [id], onDelete: Restrict)
 }
 
 // === Efetivo Operacional — planejamento oficial e cenários ===

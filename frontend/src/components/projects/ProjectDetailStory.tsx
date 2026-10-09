@@ -123,6 +123,7 @@ export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction,
 }
 
 export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDetail; children?: ReactNode }) {
+  const presentation = Boolean(data.presentation);
   const actual = data.consumo.gasto + (data.maoDeObra.custo ?? 0);
   const planned = data.consumo.previsto;
   const spentPct = planned != null && planned > 0 ? actual / planned * 100 : null;
@@ -136,16 +137,16 @@ export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDeta
   const segmentTotal = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
   return <Card padding="sm" className="acp-story-financial" data-acp-financial-snapshot>
     <ProjectDetailSection label="Consumo de gastos" header={<>
-      <div className="acp-story-card-head"><div><h3>Consumo de gastos</h3><p className="acp-detail-section-subtitle">Quanto do previsto já foi usado</p></div>
-        <span className={`acp-story-status ${spentPct == null ? 'is-neutral' : spentPct > 100 ? 'is-warning' : 'is-success'}`}>{spentPct == null ? 'Sem orçamento' : spentPct > 100 ? 'Acima do previsto' : 'Dentro do previsto'}</span>
+      <div className="acp-story-card-head"><div><h3>{presentation ? 'Custo realizado' : 'Consumo de gastos'}</h3>{!presentation ? <p className="acp-detail-section-subtitle">Quanto do previsto já foi usado</p> : null}</div>
+        {!presentation ? <span className={`acp-story-status ${spentPct == null ? 'is-neutral' : spentPct > 100 ? 'is-warning' : 'is-success'}`}>{spentPct == null ? 'Sem orçamento' : spentPct > 100 ? 'Acima do previsto' : 'Dentro do previsto'}</span> : null}
       </div>
     </>}>
-      <div className="acp-story-amount"><strong>{brl(actual)}</strong><span>de {brl(planned)} previstos{spentPct != null ? ` · ${pct(spentPct)}` : ''}</span></div>
+      <div className="acp-story-amount"><strong>{brl(actual)}</strong>{!presentation ? <span>de {brl(planned)} previstos{spentPct != null ? ` · ${pct(spentPct)}` : ''}</span> : null}</div>
       {!data.division && data.consumo.previstoIntegral != null && data.consumo.previstoIntegral !== planned ? (
         <p className="acp-story-caption">Previsto integral: {brl(data.consumo.previstoIntegral)} · Considerado{data.proposalPercentage != null ? ` (${data.proposalPercentage.toLocaleString('pt-BR')}%)` : ''}: {brl(planned)}</p>
       ) : null}
-      <div className={`acp-story-meter acp-story-meter--large${spentPct != null && spentPct > 100 ? ' is-over' : ''}`} aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, spentPct ?? 0))}%` }} /></div>
-      <p className="acp-story-caption">{remaining == null ? 'Custo previsto não informado.' : remaining >= 0 ? `${brl(remaining)} ainda disponíveis no previsto` : `${brl(Math.abs(remaining))} acima do previsto`}</p>
+      {!presentation ? <><div className={`acp-story-meter acp-story-meter--large${spentPct != null && spentPct > 100 ? ' is-over' : ''}`} aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, spentPct ?? 0))}%` }} /></div>
+      <p className="acp-story-caption">{remaining == null ? 'Custo previsto não informado.' : remaining >= 0 ? `${brl(remaining)} ainda disponíveis no previsto` : `${brl(Math.abs(remaining))} acima do previsto`}</p></> : null}
       <div className="acp-story-divider" />
       <ProjectDetailSection label="De onde veio o custo" header={<>
         <h4>De onde veio o custo</h4>
@@ -154,7 +155,7 @@ export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDeta
           <span key={segment.label} className={`is-${segment.className}`} style={{ width: `${segmentTotal > 0 ? segment.value / segmentTotal * 100 : 0}%` }} title={`${segment.label}: ${brl(segment.value)}`} />)}</div>
         <div className="acp-story-cost-legend">{segments.map(segment => <div key={segment.label}><span className={`is-${segment.className}`} />{segment.label}<strong>{brl(segment.value)}</strong></div>)}</div>
       </ProjectDetailSection>
-      <ProposalContributionDetails original={data.budgetBreakdown?.original} additionals={data.budgetBreakdown?.additionals} />
+      {!presentation ? <ProposalContributionDetails original={data.budgetBreakdown?.original} additionals={data.budgetBreakdown?.additionals} /> : null}
       <div className="acp-story-divider" />
       <ProjectDetailSection label="Maiores gastos (Omie + estoque + manual)" header={<>
         <h4><HelpTip help="As 5 maiores categorias de despesa do projeto, somando Omie sem salários, consumo líquido de químicos/filtros do estoque e custos manuais.">Maiores gastos (Omie + estoque + manual)</HelpTip></h4>
@@ -184,7 +185,7 @@ export function ProjectBillingSnapshot({ data }: { data: ProjectDetail }) {
       {expected != null && expected > 0 && invoiced != null ? <div className="acp-story-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, invoiced / expected * 100))}%` }} /></div> : null}
       <div className="acp-story-billing-facts">
         <span><AppIcon icon={FileText} size="sm" /> Notas fiscais <strong>{invoiceCount}</strong></span>
-        {data.presumedProfitTaxes ? <span><AppIcon icon={Coins} size="sm" /> Impostos estimados <strong>{brl(data.presumedProfitTaxes.totalTax)}</strong></span> : null}
+        {data.presumedProfitTaxes ? <span><AppIcon icon={Coins} size="sm" /> {data.presentation ? 'Impostos' : 'Impostos estimados'} <strong>{brl(data.presumedProfitTaxes.totalTax)}</strong></span> : null}
         <span><AppIcon icon={Wallet} size="sm" /> Venda prevista <strong>{brl(expected)}</strong></span>
       </div>
       <p className="acp-story-caption">{invoiceCount ? 'Faturamento sincronizado no Omie; consulte as notas e o recebimento abaixo.' : 'Sem nota fiscal sincronizada para este projeto.'}</p>

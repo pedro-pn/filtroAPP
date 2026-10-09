@@ -48,12 +48,29 @@ import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { createSystemReconciliationRouter } from './system-reconciliation.js';
 import { projectFinancialsForUser, requireProjectFinancials } from '../../lib/acompanhamento/financial-access.js';
 import { getTrackingDivisions, setTrackingDivision, setTrackingDivisions } from '../../lib/acompanhamento/tracking-divisions.js';
+import { getPresentationCopy, isPresentationCopyId, listPresentationCopies, presentationPayload } from '../../lib/acompanhamento/presentation-copies.js';
 import {
   CommercialAppBridgeError, receiveCommercialAppProposal,
   listCommercialAppRevisions, selectCommercialAppRevision
 } from '../../lib/acompanhamento/comercialapp-bridge.js';
 
 const router = Router();
+
+// Serve the frozen copy before any operational handler can read or write its ID.
+router.use('/projetos/:projectId', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res, next) => {
+  if (!isPresentationCopyId(req.params.projectId)) return next();
+  const copy = await getPresentationCopy(req.params.projectId);
+  if (!copy) return res.status(404).json({ error: 'Apresentação não encontrada ou encerrada.' });
+  if (req.method !== 'GET') return res.status(409).json({ error: 'Esta cópia é exclusiva para apresentação e não permite alterações.' });
+  const key = req.path.slice(1);
+  if (key === 'faturamentos') {
+    if (!projectFinancialsForUser({}, req.auth.user).canViewProjectFinancials) return res.status(403).json({ error: 'Sem permissão para visualizar faturamentos.' });
+  }
+  if (req.query.division) return res.status(404).json({ error: 'Divisão não disponível nesta apresentação.' });
+  const payload = presentationPayload(copy, key, req.auth.user.accountType === 'ADMIN');
+  if (payload === undefined) return res.status(404).json({ error: 'Consulta não disponível nesta apresentação.' });
+  return res.json(key === 'detalhe' ? projectFinancialsForUser(payload, req.auth.user) : payload);
+}));
 
 for (const [path, ownerKey, param] of [
   ['/projetos/:projectId/metas-semanais', 'projectId', 'projectId'],
@@ -343,8 +360,9 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-    const [cards, groups] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups()]);
-    res.json(projectFinancialsForUser(groupProjectCards(cards, groups), req.auth.user));
+    const [cards, groups, copies] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies()]);
+    const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
+    res.json(projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards], req.auth.user));
   })
 );
 
