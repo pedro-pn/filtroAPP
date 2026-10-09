@@ -1,5 +1,5 @@
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
-import { ProjectDatabookButton } from '../../components/projects/ProjectDatabookButton';
+import { ProjectDatabookButton, ProjectDatabookHost } from '../../components/projects/ProjectDatabookButton';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -4129,6 +4129,7 @@ export function GestorPage() {
       }
       onLogout={handleLogout}
     >
+      <ProjectDatabookHost />
       <RdoSectionNavigation
         current={tab}
         onNavigate={(section) =>
