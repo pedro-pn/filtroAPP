@@ -50,9 +50,25 @@ export function summarizeDatabookReport(report) {
     clientAccepted: report.clientReviews?.[0]?.action === 'APPROVED',
     pendingSignatures: signatures.filter(item => item.isRequired !== false && item.status !== 'SIGNED').length,
     description: report.dailyDescription || '',
+    // Only technical fields enter the client-facing synthesis, never the entire
+    // extraData/specialConditions payload (uploads, contacts and internal keys).
+    technical: summarizeTechnicalFields(report.specialConditions?.serviceData),
     services: (report.services || []).map(service => ({ id: service.id, type: service.serviceType,
-      system: service.system || '', material: service.material || '', equipment: service.equipment?.name || '', finalized: service.finalized }))
+      system: service.system || '', material: service.material || '', equipment: service.equipment?.name || '', finalized: service.finalized,
+      technical: summarizeTechnicalFields(service.extraData) }))
   };
+}
+
+const TECHNICAL_FIELDS = ['Sistema', 'Equipamento', 'Equipamento(s)', 'Desenhos / TAGs', 'Material da tubulação',
+  'Método de limpeza', 'Local de limpeza', 'Tipo de inspeção', 'Quantidade de sistemas (un)',
+  'Serviço finalizado?', 'Aprovado pelo cliente?', 'Etapas realizadas no dia'];
+function summarizeTechnicalFields(data) {
+  return Object.fromEntries(TECHNICAL_FIELDS.flatMap(key => {
+    const value = data?.[key];
+    if (['string', 'number', 'boolean'].includes(typeof value)) return [[key, value]];
+    if (Array.isArray(value) && value.every(item => ['string', 'number', 'boolean'].includes(typeof item))) return [[key, value]];
+    return [];
+  }));
 }
 
 export async function loadDatabookSources(database, project, period) {

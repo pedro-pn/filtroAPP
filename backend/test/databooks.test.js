@@ -13,6 +13,25 @@ import { claimDatabookJob, generateDatabookJob } from '../src/lib/databooks/jobs
 import { databookFixture, databookInput, databookManager } from './helpers/databooks-db.js';
 
 const schemas = makeDatabookSchemas(z);
+test('databook congela TAG, método, inspeção e quantidade sem expor campos internos do formulário', () => {
+  const { state } = databookFixture(); const report = state.reports[1];
+  report.specialConditions = { serviceData: { 'Desenhos / TAGs': 'TAG-01 / TAG-02', 'Quantidade de sistemas (un)': 2,
+    'Método de limpeza': ['Circulação pressurizada'], 'Tipo de inspeção': ['Visual', 'Vídeo boroscopia'],
+    'Aprovado pelo cliente?': 'Sim', __uploads__: [{ storagePath: 'privado' }], contato: 'privado',
+    'Sistema': { private: 'objeto inválido' } }, internalNotes: 'privado' };
+  report.services = [{ id: 's1', serviceType: 'Limpeza', extraData: { 'Desenhos / TAGs': 'TAG-01',
+    'Material da tubulação': 'Aço carbono', internalCost: 1234, __uploads__: [{ storagePath: 'privado' }] } }];
+  const summary = summarizeDatabookReport(report);
+  assert.equal(summary.technical['Desenhos / TAGs'], 'TAG-01 / TAG-02');
+  assert.equal(summary.technical['Quantidade de sistemas (un)'], 2);
+  assert.deepEqual(summary.technical['Tipo de inspeção'], ['Visual', 'Vídeo boroscopia']);
+  assert.equal(summary.technical.Sistema, undefined);
+  assert.equal(summary.services[0].technical['Material da tubulação'], 'Aço carbono');
+  assert.equal(summary.clientAccepted, false, 'A declaração do formulário não registra aceite formal');
+  assert.equal(JSON.stringify(summary).includes('privado'), false);
+  assert.equal(JSON.stringify(summary).includes('internalCost'), false);
+});
+
 test('databook diferencia assinatura parcial de todos os signatários do cliente', () => {
   const { state } = databookFixture(); const report = state.reports[0];
   report.reportSignatures = [{ signerRole: 'CLIENT', status: 'SIGNED', isRequired: true }, { signerRole: 'CLIENT', status: 'PENDING', isRequired: true }];

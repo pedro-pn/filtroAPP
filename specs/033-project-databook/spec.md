@@ -57,6 +57,8 @@ Geração ocorre em tarefa persistida, com progresso, erro e repetição. Pacote
 - **FR-007**: Usar autorização explícita de gestores internos RDO/Efetivo/Acompanhamento; consultas internas conforme módulos e managerOnly; negar colaboradores e clientes nesta primeira entrega interna.
 - **FR-008**: Não alterar relatórios, fotos, estoques ou fechamento do projeto pela curadoria. Reusar o downloader oficial para preservar PDFs assinados.
 - **FR-009**: Sem publicação automática ou registro fictício de entrega/aceite. O pacote é baixado pelo usuário para entrega.
+- **FR-010**: O PDF deve reproduzir a identidade e organização do modelo aprovado `output/playwright/databook-5815-producao/modelo-databook-5815-sintese.pdf`: logo Filtrovali, fundo branco, títulos serifados verdes, capa com a primeira foto selecionada, quadros de indicadores, tabelas, caixas de conferência e galeria de duas colunas com até quatro fotos por página. Legendas extensas podem exigir menos fotos; a galeria não recorta as imagens. Quantidades e páginas variam conforme a etapa, sem fixar os números do 5815.
+- **FR-011**: A síntese inclui controle/sumário, resumo, rastreabilidade por relatório/TAG, execução/inspeção, fotos, recursos/documentos, produtos/lotes, registro das FDSs, conclusão/pendências e índice dos anexos. Campos técnicos são extraídos por lista permitida dos relatórios/serviços e congelados no snapshot, sem copiar payloads internos. Sumário e referências apontam para as páginas finais; tabelas e textos extensos continuam em páginas com o mesmo cabeçalho.
 
 ### Visual/UI Contract
 

@@ -31,6 +31,12 @@ Correção de 09/10/2026: a comparação de fontes normaliza a ordem das chaves 
 
 ## Evidência de validação
 
+Correção do modelo em 09/10/2026: a síntese agora segue `modelo-databook-5815-sintese.pdf`, com logo, títulos serifados verdes, capa com foto, quadros/tabelas, fotos em duas colunas, registro das FDSs e conclusão/aceite. A mesma sequência de seções foi preservada; paginação varia conforme dados e legendas. Os 24 testes da função passaram, incluindo galeria de oito fotos em duas páginas, paginação de TAGs/sistemas/legendas extensos, links do sumário/FDS, anexos sem overlays, documentos não PDF no ZIP e compatibilidade dos fingerprints anteriores.
+
+Validação visual com cópias de produção em `output/playwright/databook-5815-producao/validacao-modelo-aprovado/`: `databook-5815-sintese-corrigida.pdf` (14 páginas) e `databook-5815-layout-corrigido.pdf` (165 páginas, incluindo 151 páginas originais). Esse artefato usa 22 RDOs, 7 RLQs com PDF disponível no acervo anterior, 8 fotos e 5 FDSs. Não representa uma emissão oficial nem substitui os 19 RLQs da coleta: os 12 sem PDF nessa cópia não foram inventados ou omitidos silenciosamente. Todos os 42 arquivos originais do ZIP tiveram hashes conferidos; a inspeção geométrica da síntese não encontrou textos fora das margens ou sobre o rodapé. Referência aprovada permaneceu intacta.
+
+Atualizar API e worker para aplicar o novo gerador. Não há nova migração ou alteração de frontend nesta correção. Depois da atualização, usar **Preparar nova revisão** para obter o modelo com os campos técnicos atuais. PDFs concluídos anteriormente conservam seu layout e bytes; snapshots antigos em tarefas pendentes continuam compatíveis e identificam campos técnicos ausentes como “A confirmar”.
+
 - Migração executada em PGlite com checks de período/status/FK/duplicidade; schema Prisma validado e client gerado.
 - Validação inicial em 08/10/2026, com ambiente sem restrições: suíte completa backend com 2.075 testes passando, 13 cenários opcionais ignorados e nenhuma falha; teste adicional de assinatura parcial passou na suíte da função (16 testes).
 - Suíte completa frontend: 695 testes passaram; build TypeScript/Vite e lint dos arquivos novos passaram.

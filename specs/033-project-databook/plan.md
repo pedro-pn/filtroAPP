@@ -21,7 +21,13 @@ Todos os gates atendidos antes e depois do desenho. Não executar servidor, Dock
 
 ## Project Structure
 
-backend/prisma/schema.prisma e migrations/; backend/src/lib/databooks/{policy,sources,service,package,jobs}.js; backend/src/routes/resources/databooks.js; frontend/src/api/databooks.ts; frontend/src/components/projects/ProjectDatabookDialog.tsx; shared/schemas/databooks.js; backend/test/databooks*.test.js; frontend/test/databook*.test.mjs.
+backend/prisma/schema.prisma e migrations/; backend/src/lib/databooks/{policy,sources,service,package,presentation,jobs}.js; backend/src/routes/resources/databooks.js; frontend/src/api/databooks.ts; frontend/src/components/projects/ProjectDatabookDialog.tsx; shared/schemas/databooks.js; backend/test/databooks*.test.js; frontend/test/databook*.test.mjs.
+
+## Modelo do documento (correção de 09/10/2026)
+
+O PDF segue a identidade do modelo aprovado `modelo-databook-5815-sintese.pdf`, conferido visualmente a partir do próprio PDF e do HTML original. `presentation.js` concentra paleta, medidas A4, tipografia, logo existente, cabeçalhos/rodapés, quadros, tabelas com continuação e galeria de duas colunas. `package.js` monta as seções e adiciona os anexos integrais; FDSs seguem a síntese, depois relatórios técnicos, RDOs e documentos técnicos. Referências e links recebem as páginas definitivas após a composição. Nenhum overlay altera páginas importadas. Não foi adicionada dependência ou serviço de renderização.
+
+TAGs, quantidades declaradas, método, inspeção e etapas são campos técnicos explicitamente permitidos de `specialConditions.serviceData` e `ReportService.extraData`. Não há inferência de TAGs distintas, cumprimento de escopo ou aceite formal. Snapshots antigos continuam renderizáveis com “A confirmar” para campos ausentes; novas revisões recebem os campos atuais. A comparação de fontes mantém os formatos canônico e anterior, sem alterar hashes ou snapshots persistidos. O manifesto identifica o template e as páginas da síntese/seções. PDFs já concluídos permanecem intactos.
 
 ## Complexity Tracking
 
