@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 
@@ -37,6 +37,7 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
   const titleId = useId();
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<DataTableSort | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const query = useQuery({
     queryKey: ['project-invoices', groupId ? 'group' : 'project', groupId || projectId],
     queryFn: () => groupId ? getMissionGroupInvoices(groupId) : getProjectInvoices(projectId!),
@@ -52,6 +53,19 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
   const visibleTotal = visibleInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
   const pages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
+  useEffect(() => {
+    if (listRef.current) listRef.current.style.minHeight = '';
+  }, [projectId, groupId, division?.key, division?.startDate, division?.endDate, visibleInvoices.length]);
+
+  function changePage(nextPage: number) {
+    if (nextPage === currentPage) return;
+    // A última página pode ter menos documentos; preserve a posição da paginação.
+    if (listRef.current) {
+      const height = listRef.current.getBoundingClientRect().height;
+      listRef.current.style.minHeight = `${height}px`;
+    }
+    setPage(nextPage);
+  }
   const columns: DataTableColumn<ProjectInvoice>[] = [
     { key: 'number', sortValue: invoice => invoice.number, header: 'Documento', rowHeader: true, render: invoice => <span className="acp-invoices-ds__cell">
       <strong>{invoiceLabel(invoice)}</strong>
@@ -103,7 +117,8 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
           </Alert> : null}
           {visibleInvoices.length === 0 ? <EmptyState title="Nenhum faturamento encontrado"
             description={`Nenhum documento encontrado para ${groupId ? 'as missões deste grupo' : 'este projeto'} na última consulta.`} />
-            : <DataTable rows={invoices} columns={columns.map(column => ({ ...column, sortable: true }))} getRowId={invoice => invoice.id}
+            : <div ref={listRef} className="acp-invoices-ds__list">
+              <DataTable rows={invoices} columns={columns.map(column => ({ ...column, sortable: true }))} getRowId={invoice => invoice.id}
               sort={sort} onSortChange={next => { setSort(next); setPage(1); }}
               ariaLabel="Histórico de faturamentos" layout="cards" density="compact" mobileBreakpoint="xl"
               mobile={{ renderItem: invoice => ({
@@ -118,9 +133,10 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
                   ...(invoice.customerCnpj ? [{ label: 'CNPJ', value: invoice.customerCnpj }] : []),
                   ...(invoice.customerDiffers ? [{ label: 'Cadastro', value: 'Tomador diferente do cadastro do projeto' }] : [])
                 ]
-              }) }} />}
+              }) }} />
+            </div>}
           {pages > 1 ? <Pagination page={currentPage} total={visibleInvoices.length} pageSize={PAGE_SIZE}
-            onPageChange={setPage} label="Páginas de faturamentos" /> : null}
+            onPageChange={changePage} label="Páginas de faturamentos" /> : null}
           <footer className="acp-invoices-ds__foot">
             <span>Consulta de {new Date(data.lastSyncedAt!).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{data.syncStatus === 'UPDATING' || query.isFetching ? ' · Atualizando…' : ''}</span>
             <span>Inclui notas fiscais e notas de débito. Exclui documentos cancelados e remessas. Faturamento pode ser parcial ou antecipado.</span>

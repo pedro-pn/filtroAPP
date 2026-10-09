@@ -10,6 +10,7 @@
 .acp-invoices-ds__total { text-align: end; }
 .acp-invoices-ds__total strong { color: var(--brand-text); font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
 .acp-invoices-ds__body { display: grid; gap: var(--space-4); min-width: 0; }
+.acp-invoices-ds__list { min-width: 0; overflow-anchor: none; }
 .acp-invoices-ds__cell, .acp-invoices-ds__wrap { overflow-wrap: anywhere; }
 .acp-invoices-ds__amount { font-variant-numeric: tabular-nums; }
 .acp-invoices-ds__receipt { justify-items: start; }
