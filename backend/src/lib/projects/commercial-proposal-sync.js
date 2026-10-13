@@ -4,6 +4,7 @@ import { z } from 'zod';
 import env from '../../config/env.js';
 import prisma from '../prisma.js';
 import { syncCommercialAppScope } from '../acompanhamento/commercialapp-scope.js';
+import { commercialAppQueryPayloadSchema, storeQueriedCommercialAppProposal } from '../acompanhamento/comercialapp-bridge.js';
 import { parseProjectDocumentUpload, storeProjectDocumentFile, removeProjectDocumentFile } from '../efetivo/project-workflow/documents.js';
 import { runTrackedJob } from '../jobs/runner.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
@@ -11,10 +12,11 @@ import { clearProjectDerivedCaches } from '../resource-list-cache.js';
 const MAX_PDF_BYTES = 10_000_000;
 const MAX_JSON_BYTES = 10_000_000;
 const DOCUMENT_TYPES = { COMERCIAL: 'COMMERCIAL_PROPOSAL', TECNICA: 'TECHNICAL_PROPOSAL' };
-const bundleSchema = z.object({
+const bundleSchema = commercialAppQueryPayloadSchema.safeExtend({
   contractVersion: z.literal(1), proposalId: z.string().min(1).max(100),
   proposalCode: z.string().regex(/^\d{1,40}$/), revisionNumber: z.number().int().min(0),
   clientCnpj: z.string(), projectId: z.string().nullable(), sourceUpdatedAt: z.iso.datetime({ offset: true }),
+  estimateSummary: commercialAppQueryPayloadSchema.shape.estimateSummary.unwrap(),
   scope: z.unknown(), costBreakdown: z.unknown(), proposalSnapshot: z.unknown(),
   documents: z.array(z.object({
     id: z.string().min(1).max(100), kind: z.enum(['COMERCIAL', 'TECNICA']),
@@ -80,6 +82,7 @@ export async function fetchCommercialProposal(project, state, options = {}) {
   if (bundle.proposalCode !== state.proposalCode || bundle.revisionNumber !== state.revisionNumber ||
       bundle.projectId && bundle.projectId !== project.id ||
       !cnpj(project.clientCnpj) || cnpj(bundle.clientCnpj) !== cnpj(project.clientCnpj) ||
+      cnpj(bundle.client.cnpj) !== cnpj(bundle.clientCnpj) ||
       new Set(bundle.documents.map(document => document.kind)).size !== 2 ||
       new Set(bundle.documents.map(document => document.id)).size !== 2 ||
       new Set(bundle.documents.map(document => document.generationId)).size !== 1) {
@@ -162,17 +165,22 @@ export async function syncCommercialProposal(projectId, options = {}) {
       if (current.workflow?.stage === 'FINISHED') throw syncError('PROJECT_FINISHED');
       const saved = [];
       for (const file of staged) saved.push(await saveProposalDocument(tx, current, bundle, file));
-      const scope = await syncCommercialAppScope(tx, project.id, { externalId: bundle.proposalId, snapshot: bundle });
+      const commercial = await storeQueriedCommercialAppProposal(tx, current, bundle);
+      const scope = commercial.scopeAllowed
+        ? await syncCommercialAppScope(tx, project.id, commercial.proposal)
+        : { status: current.commercialScopeImport?.status === 'MANUAL_OVERRIDE'
+          ? 'MANUAL_PRESERVED' : 'SELECTION_PRESERVED', issues: [] };
       const now = new Date();
       await tx.project.update({ where: { id: project.id }, data: {
         commercialProposalSync: { ...state, status: 'SYNCED', errorCode: null, syncedAt: now.toISOString(),
-          documentIds: saved.map(item => item.documentId), scopeStatus: scope.status, scopeIssues: scope.issues },
+          documentIds: saved.map(item => item.documentId), scopeStatus: scope.status, scopeIssues: scope.issues,
+          commercialDataVersion: 1, budgetStatus: commercial.budgetStatus },
         commercialProposalSyncNextAttemptAt: null
       } });
       if (current.workflow) await tx.projectWorkflowEvent.create({ data: {
         projectId: project.id, actorUserId: null, action: 'COMMERCIALAPP_PROPOSAL_SYNCED',
         data: { proposalCode: bundle.proposalCode, revisionNumber: bundle.revisionNumber,
-          documentIds: saved.map(item => item.documentId), scopeStatus: scope.status }
+          documentIds: saved.map(item => item.documentId), scopeStatus: scope.status, budgetStatus: commercial.budgetStatus }
       } });
       return { status: 'SYNCED', scope, saved };
     }, { isolationLevel: 'Serializable', timeout: 15_000 });

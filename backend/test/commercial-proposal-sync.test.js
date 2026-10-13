@@ -10,6 +10,10 @@ function fixture() {
   const bytes = Buffer.from('%PDF-1.7\nproposal test');
   const bundle = { contractVersion: 1, proposalId: 'proposal-1', proposalCode: '4621', revisionNumber: 2,
     clientCnpj: '12345678000190', projectId: null, sourceUpdatedAt: '2026-10-07T18:00:00Z',
+    source: 'COMERCIAL_APP', nectarOpportunityId: null, approvedAt: null,
+    client: { name: 'Cliente QA', cnpj: '12345678000190', contact: '', email: '' },
+    title: 'Proposta QA', site: 'Sede', salePrice: 1500, plannedTotalCost: null,
+    expectedMargin: null, estimateSummary: null,
     scope: [], costBreakdown: null, proposalSnapshot: {}, documents: ['COMERCIAL', 'TECNICA'].map(kind => ({
       id: `document-${kind}`, kind, generationId: 'generation-1', fileName: `${kind}.pdf`, mimeType: 'application/pdf',
       byteSize: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')
@@ -41,10 +45,22 @@ test('busca somente a revisão solicitada e confere os dois arquivos', async () 
   const f = fixture();
   const result = await fetchCommercialProposal(f.project, f.state, f.options);
   assert.equal(result.files.length, 2);
+  assert.equal(result.bundle.salePrice, 1500);
+  assert.equal(result.bundle.approvedAt, null);
   assert.deepEqual(result.files[0].parsed.bytes, f.bytes);
   assert.equal(f.calls.length, 3);
   assert.ok(f.calls.every(call => call.url.includes('/propostas/4621/revisoes/2')));
   assert.ok(f.calls.every(call => call.request.redirect === 'error'));
+});
+
+test('resposta antiga ou valores comerciais inválidos não concluem uma busca incompleta', async () => {
+  for (const modify of [bundle => { delete bundle.salePrice; },
+    bundle => { delete bundle.estimateSummary; }, bundle => { bundle.salePrice = -1; }]) {
+    const f = fixture(); modify(f.bundle);
+    await assert.rejects(fetchCommercialProposal(f.project, f.state, f.options),
+      error => error.code === 'COMERCIALAPP_CONTRACT_INVALID');
+    assert.equal(f.calls.length, 1);
+  }
 });
 
 test('recusa CNPJ, projeto, revisão e geração divergentes', async () => {

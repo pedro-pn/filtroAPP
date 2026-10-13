@@ -306,6 +306,19 @@ test('selectProjectIntakeCommercialRevision selects revision zero when the webho
   });
 });
 
+test('reenvio do Prisma preserva orçamento ComercialAPP mesmo havendo a revisão na base legada', async () => {
+  const project = projectFromPayload(validPayload, { commercialProposalCode: '3088' });
+  const result = await selectProjectIntakeCommercialRevision(project, projectIntakeSchema.parse(validPayload), {
+    projectBudget: {
+      async findUnique() { return { source: 'COMERCIAL_APP', commercialAppProposalId: 'app-proposal',
+        commercialAppRevision: 2, sourceProposalCodBd: null }; }
+    },
+    commercialProposal: { async findFirst() { return { codBd: 9902 }; } }
+  });
+  assert.equal(result.status, 'already_selected');
+  assert.equal(result.selectedCodBd, null);
+});
+
 test('selectProjectIntakeCommercialRevision preserves an existing manual selection', async () => {
   const project = projectFromPayload();
   let mutationCount = 0;
