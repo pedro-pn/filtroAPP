@@ -227,6 +227,34 @@
       "roles": []
     },
     {
+      "id": "sincronizacoes",
+      "badge": "SYNC",
+      "title": "Sincronizações",
+      "copy": "Status de backups, sincronizações, recebimentos e rotinas do sistema.",
+      "hub": {
+        "enabled": true,
+        "adminOnly": true,
+        "allowedAccountTypes": [
+          "ADMIN"
+        ],
+        "path": "/operacoes"
+      },
+      "pathPrefixes": [
+        "/operacoes"
+      ],
+      "routes": {
+        "index": "/operacoes"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedAccountTypes": [
+            "ADMIN"
+          ]
+        }
+      },
+      "roles": []
+    },
+    {
       "id": "equipamentos",
       "prismaModule": "EQUIPAMENTOS",
       "badge": "EQP",

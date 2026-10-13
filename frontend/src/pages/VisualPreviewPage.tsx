@@ -9,7 +9,7 @@ const previews = [
   { title: 'Preferências de notificações', description: 'Link recebido por e-mail', href: '/notificacoes/exemplo?visualizar=1' },
   { title: 'Confirmação de e-mail', description: 'Troca do endereço da conta', href: '/confirmar-email?visualizar=1' },
   { title: 'Assinatura de RDO', description: 'Convite para assinar um relatório fictício', href: '/assinar/exemplo?visualizar=1' },
-  { title: 'Operações', description: 'Painel administrativo com indicadores simulados', href: '/visualizar/operacoes' },
+  { title: 'Sincronizações', description: 'Backups, integrações e rotinas com indicadores simulados', href: '/visualizar/operacoes' },
   { title: 'Documentos do Efetivo', description: 'Diálogos de cadastro, versão e aceite', href: '/visualizar/documentos' }
 ];
 
