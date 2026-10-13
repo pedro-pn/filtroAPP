@@ -1006,6 +1006,7 @@ model Project {
   workflow                   ProjectWorkflow?
   documents                  ProjectDocument[]
   presentationCopies         ProjectPresentationCopy[]
+  databooks                  ProjectDatabook[]
 
   @@index([deletedAt])
   @@index([registrationPending])
@@ -1810,6 +1811,58 @@ model AcompanhamentoMissionGroupMember {
   @@index([projectId])
 }
 
+enum DatabookRevisionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// Data Book (PDF consolidado) de um intervalo do projeto; nº DB-<código>-<seq>.
+model ProjectDatabook {
+  id              String                    @id @default(cuid())
+  projectId       String
+  sequence        Int
+  docNumber       String                    @unique
+  startDate       DateTime                  @db.Date
+  endDate         DateTime                  @db.Date
+  createdByUserId String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  project         Project                   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy       User?                     @relation("ProjectDatabookCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  revisions       ProjectDatabookRevision[]
+
+  @@unique([projectId, sequence])
+  @@unique([projectId, startDate, endDate])
+}
+
+// Cada geração do mesmo Data Book é uma revisão (0, 1, 2…) processada pelo worker.
+model ProjectDatabookRevision {
+  id              String                 @id @default(cuid())
+  databookId      String
+  revision        Int
+  status          DatabookRevisionStatus @default(PENDING)
+  description     String
+  input           Json // entrada do gerador (schema.json), com referências de arquivo do app
+  warnings        Json                   @default("[]")
+  pageCount       Int?
+  storagePath     String?
+  fileSize        Int?
+  error           String?
+  attempts        Int                    @default(0)
+  lockedAt        DateTime?
+  completedAt     DateTime?
+  createdByUserId String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  databook        ProjectDatabook        @relation(fields: [databookId], references: [id], onDelete: Cascade)
+  createdBy       User?                  @relation("ProjectDatabookRevisionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([databookId, revision])
+  @@index([status, lockedAt])
+}
+
 model ProjectReportSeq {
   id         String     @id @default(cuid())
   projectId  String
@@ -2475,6 +2528,11 @@ model StockItem {
   filterMicron     String?
   unNumber         String?
   casNumber        String?
+  // FDS do produto químico para o Data Book: nomes químicos citados no RLQ e metadados da ficha
+  fdsSynonyms      String[]            @default([])
+  fdsCode          String?
+  fdsRevision      String?
+  fdsDate          DateTime?           @db.Date
   checklistEnabled Boolean             @default(false)
   checklistItems   Json?
   isActive         Boolean             @default(true)
@@ -2598,6 +2656,8 @@ model User {
   drafts                               ReportDraft[]
   authorizedProjects                   ProjectAuthorizedUser[]
   createdReports                       Report[]                            @relation("ReportCreator")
+  createdDatabooks                     ProjectDatabook[]                   @relation("ProjectDatabookCreator")
+  createdDatabookRevisions             ProjectDatabookRevision[]           @relation("ProjectDatabookRevisionCreator")
   reviewedReports                      Report[]                            @relation("ReportReviewer")
   clientReportReviews                  ClientReportReview[]                @relation("ClientReportReviewer")
   reportVersions                       ReportVersion[]                     @relation("ReportVersionCreator")

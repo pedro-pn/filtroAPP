@@ -6,6 +6,7 @@ import { UploadField } from '../ui/UploadField';
 import { serviceUploadLabels, updateServiceUploadGroup } from '../../utils/serviceUploadGroups';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { cleaningModePatch } from '../../utils/cleaningMeasurement';
+import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 
 const etapasPorTipo: Record<string, string[]> = {
   LIMPEZA: [
@@ -973,6 +974,7 @@ function DrawingsObsBlock({ data, onChange, disabled, groupKey }: Pick<ServiceFi
           disabled={disabled}
           onChange={event => onChange({ notes: event.target.value })}
         />
+        <AdequarAnotacaoButton valor={getString(data.notes)} campo="Observações" disabled={disabled} onAplicar={texto => onChange({ notes: texto })} />
       </div>
     </>
   );
@@ -1454,6 +1456,7 @@ export function ServiceFields({
             <div className={`${fieldClass(invalidKey, 'notes')} service-notes-field service-options-full`}>
               <label htmlFor={fieldId(groupKey, 'notes')}>Observações</label>
               <textarea id={fieldId(groupKey, 'notes')} rows={5} placeholder="Observações adicionais..." value={getString(data.notes)} disabled={disabled} onChange={event => onChange({ notes: event.target.value })} />
+              <AdequarAnotacaoButton valor={getString(data.notes)} campo="Observações" disabled={disabled} onAplicar={texto => onChange({ notes: texto })} />
             </div>
           )}
         </ServiceFormSection>

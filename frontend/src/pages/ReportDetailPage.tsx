@@ -75,6 +75,7 @@ import { REPORT_DETAIL_TEXT as TEXT } from './reportDetailText';
 import { hubModulesForUser } from './hubModules';
 import './collaborator/NewReportPage.css';
 import './ReportDetailPage.css';
+import { AdequarAnotacaoButton } from '../components/anotacoes/AdequarAnotacaoButton';
 
 const serviceTypeModalOptions = [
   { type: 'limpeza', icon: DS_ICONS.serviceChemical, name: 'Limpeza química' },
@@ -1270,6 +1271,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               disabled={readOnly}
               onChange={event => setField('dailyDescription', event.target.value)}
             />
+            <AdequarAnotacaoButton valor={form.dailyDescription} campo="Atividades do dia" disabled={readOnly} onAplicar={texto => setField('dailyDescription', texto)} />
           </div>
         </Card>
 

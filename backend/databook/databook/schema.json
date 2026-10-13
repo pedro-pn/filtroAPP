@@ -1,0 +1,860 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Entrada do gerador de Data Book Filtrovali",
+  "description": "Dados consolidados de uma missão (RDOs + relatórios técnicos RLQ/RCPU/RTP/RLM + FDS + certificados). Campos de texto aceitam <b>, <i> e <br/>. Todo campo acrescentado depois do modelo RDO+RLQ é opcional: sem eles o PDF sai igual ao original.",
+  "type": "object",
+  "required": [
+    "projeto",
+    "dias"
+  ],
+  "properties": {
+    "projeto": {
+      "type": "object",
+      "required": [
+        "missao",
+        "cliente",
+        "contrato",
+        "local",
+        "servico",
+        "doc",
+        "emissao",
+        "empresa"
+      ],
+      "properties": {
+        "missao": {
+          "type": "string",
+          "examples": [
+            "Missão 5815 – VENTURA SS VICTÓRIA"
+          ]
+        },
+        "cliente": {
+          "type": "string"
+        },
+        "cnpj": {
+          "type": "string"
+        },
+        "contrato": {
+          "type": "string",
+          "description": "Contrato/Proposta"
+        },
+        "local": {
+          "type": "string"
+        },
+        "servico": {
+          "type": "string",
+          "description": "Título do serviço (capa e cabeçalho)",
+          "examples": [
+            "Limpeza Química de APVs Verticais"
+          ]
+        },
+        "doc": {
+          "type": "string",
+          "description": "Número do documento",
+          "examples": [
+            "DB-5815-01"
+          ]
+        },
+        "rev": {
+          "type": "string",
+          "default": "0"
+        },
+        "emissao": {
+          "type": "string",
+          "description": "dd/mm/aaaa"
+        },
+        "empresa": {
+          "type": "string",
+          "description": "Razão social do executante (rodapé)"
+        },
+        "periodo": {
+          "type": "string",
+          "description": "Opcional; padrão = 1º dia a último dia"
+        },
+        "subtitulo_capa": {
+          "type": "string",
+          "default": "RELATÓRIO FINAL DE SERVIÇO"
+        }
+      }
+    },
+    "escopo_total": {
+      "type": "number",
+      "description": "Base do % de avanço (ex.: 38 APVs, 420,5 m). Padrão = acumulado_inicial + soma das concluídas."
+    },
+    "unidade_escopo": {
+      "type": "string",
+      "default": "APVs"
+    },
+    "acumulado_inicial": {
+      "type": "number",
+      "default": 0,
+      "minimum": 0,
+      "description": "Quantidade já concluída antes do 1º dia do intervalo (Data Book parcial). Somada no gráfico, no quadro de avanço e no acumulado de cada dia."
+    },
+    "avanco_escopos": {
+      "type": "array",
+      "description": "Escopo com unidades mistas (m, L, un): previsto × realizado acumulado até o fim do intervalo, por escopo; o avanço geral (escopo_total = 100, unidade '%') é o ponderado.",
+      "items": {
+        "type": "object",
+        "required": [
+          "escopo"
+        ],
+        "properties": {
+          "escopo": {
+            "type": "string"
+          },
+          "unidade": {
+            "type": "string"
+          },
+          "previsto": {
+            "type": "number"
+          },
+          "realizado": {
+            "type": "number"
+          },
+          "percentual": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "ocorrencias_sms": {
+      "type": "integer",
+      "default": 0
+    },
+    "dados_tecnicos": {
+      "type": "array",
+      "description": "Pares [rótulo, valor] da grade da Seção 1",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "equipe": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "nome",
+          "funcao"
+        ],
+        "properties": {
+          "nome": {
+            "type": "string"
+          },
+          "funcao": {
+            "type": "string"
+          },
+          "observacao": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "etapas_produto": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "etapa"
+        ],
+        "properties": {
+          "etapa": {
+            "type": "string"
+          },
+          "produto": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "criterios_aceitacao": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "criterios_rtp": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Critérios de aceitação da seção de Teste de Pressão (texto do modelo RTP)"
+    },
+    "criterios_rcpu": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Critérios adicionais da seção de RCPU (os de limite são gerados de limites_rcpu)"
+    },
+    "limites_rcpu": {
+      "type": "object",
+      "description": "Limites aceitos informados na revisão; aplicados a todo RCPU que não tenha limite próprio",
+      "properties": {
+        "iso": {
+          "type": "string",
+          "examples": [
+            "17/15/12"
+          ]
+        },
+        "nas": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "umidade_ppm": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    },
+    "revisoes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rev": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string"
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "elaborado": {
+            "type": "string"
+          },
+          "verificado": {
+            "type": "string"
+          },
+          "aprovado": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "textos": {
+      "type": "object",
+      "description": "Textos livres. Todos opcionais; quando ausentes a seção some ou recebe um texto automático.",
+      "properties": {
+        "escopo": {
+          "type": "string"
+        },
+        "resumo_executivo": {
+          "type": "string"
+        },
+        "base_calculo": {
+          "type": "string",
+          "description": "Complemento da linha 'Base de cálculo: escopo de N …'"
+        },
+        "kpi_rotulo_concluidos": {
+          "type": "string"
+        },
+        "intro_procedimento": {
+          "type": "string"
+        },
+        "intro_rcpu": {
+          "type": "string"
+        },
+        "intro_rtp": {
+          "type": "string"
+        },
+        "destaques_sms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "consideracoes_finais": {
+          "type": "string"
+        },
+        "nota_controle": {
+          "type": "string"
+        }
+      }
+    },
+    "dias": {
+      "type": "array",
+      "description": "Um item por dia, em ordem cronológica. Um dia pode ter RDO sem RLQ, RLQ sem RDO, ou vários serviços.",
+      "items": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "dd/mm/aaaa"
+          },
+          "dia_semana": {
+            "type": "string"
+          },
+          "rdo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Nº do RDO do dia (o de menor número quando houver mais de um)"
+          },
+          "rdos_extras": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Demais RDOs da mesma data"
+          },
+          "resumo": {
+            "type": "string",
+            "description": "Uma linha: aparece na faixa do dia e na rastreabilidade"
+          },
+          "jornada": {
+            "type": "string",
+            "examples": [
+              "06:00 – 18:00"
+            ]
+          },
+          "horas_extras": {
+            "type": "string"
+          },
+          "comentario": {
+            "type": "string"
+          },
+          "efetivo": {
+            "type": "integer"
+          },
+          "jornada_noturna": {
+            "type": "string",
+            "examples": [
+              "18:00 – 06:00"
+            ]
+          },
+          "efetivo_noturno": {
+            "type": "integer"
+          },
+          "horas_extras_noturno": {
+            "type": "string"
+          },
+          "stand_by": {
+            "type": "object",
+            "properties": {
+              "tempo": {
+                "type": "string"
+              },
+              "motivo": {
+                "type": "string"
+              }
+            }
+          },
+          "dds": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "inicio": {
+                "type": "string"
+              },
+              "fim": {
+                "type": "string"
+              },
+              "tema": {
+                "type": "string"
+              }
+            }
+          },
+          "dds_noturno": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "inicio": {
+                "type": "string"
+              },
+              "fim": {
+                "type": "string"
+              },
+              "tema": {
+                "type": "string"
+              }
+            }
+          },
+          "atividades": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "texto"
+              ],
+              "properties": {
+                "hora": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "texto": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "servicos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tipo": {
+                  "type": "string",
+                  "enum": [
+                    "RLQ",
+                    "RCPU",
+                    "RTP",
+                    "RLM"
+                  ],
+                  "default": "RLQ",
+                  "description": "Tipo do relatório técnico ligado ao serviço"
+                },
+                "titulo": {
+                  "type": "string",
+                  "default": "Limpeza química",
+                  "description": "Padrão por tipo: Limpeza química, Flushing, Teste de pressão, Limpeza mecânica"
+                },
+                "equipamento": {
+                  "type": "string"
+                },
+                "sistema": {
+                  "type": "string"
+                },
+                "material": {
+                  "type": "string"
+                },
+                "metodo": {
+                  "type": "string"
+                },
+                "inicio": {
+                  "type": "string"
+                },
+                "fim": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "string"
+                },
+                "inspecao": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "default": "Finalizado",
+                  "examples": [
+                    "Finalizado",
+                    "Em andamento"
+                  ]
+                },
+                "quantidade": {
+                  "type": "number",
+                  "description": "Unidades tratadas no serviço (exibido)"
+                },
+                "unidade_quantidade": {
+                  "type": "string",
+                  "default": "un.",
+                  "examples": [
+                    "un.",
+                    "m",
+                    "L"
+                  ]
+                },
+                "concluidas": {
+                  "type": "number",
+                  "description": "Unidades que contam no avanço. Padrão = quantidade se Finalizado, senão 0"
+                },
+                "etapas": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "obs": {
+                  "type": "string"
+                },
+                "rlq": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Nº do RLQ (mantido por compatibilidade; equivale a relatorio quando tipo = RLQ)"
+                },
+                "relatorio": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Nº do relatório técnico de origem (RLQ, RCPU, RTP ou RLM)"
+                },
+                "laudo": {
+                  "type": "string",
+                  "examples": [
+                    "APROVADO",
+                    "REPROVADO"
+                  ]
+                },
+                "laudo_observacao": {
+                  "type": "string",
+                  "description": "Texto exibido quando não há RLQ"
+                },
+                "rcpu": {
+                  "type": "object",
+                  "description": "Dados do RCPU (tipo = RCPU)",
+                  "properties": {
+                    "servicos_realizados": {
+                      "type": "string"
+                    },
+                    "oleo": {
+                      "type": "string"
+                    },
+                    "volume": {
+                      "type": "string"
+                    },
+                    "unidade": {
+                      "type": "string",
+                      "description": "Unidade de flushing/filtragem"
+                    },
+                    "unidade_desidratacao": {
+                      "type": "string"
+                    },
+                    "contador": {
+                      "type": "string",
+                      "description": "Código e série do contador de partículas"
+                    },
+                    "contador_validade": {
+                      "type": "string",
+                      "description": "dd/mm/aaaa – gera aviso se vencido na data"
+                    },
+                    "tempo_total": {
+                      "type": "string"
+                    },
+                    "procedimento": {
+                      "type": "string",
+                      "examples": [
+                        "IBT 11-23"
+                      ]
+                    },
+                    "tubulacoes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "diametro": {
+                            "type": "string"
+                          },
+                          "comprimento": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "iso_inicial": {
+                      "type": "string"
+                    },
+                    "iso_final": {
+                      "type": "string"
+                    },
+                    "nas_inicial": {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "nas_final": {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "umidade_inicial_ppm": {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "umidade_final_ppm": {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "limite_iso": {
+                      "type": "string"
+                    },
+                    "limite_nas": {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "limite_umidade_ppm": {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "rtp": {
+                  "type": "object",
+                  "description": "Dados do RTP (tipo = RTP)",
+                  "properties": {
+                    "equipamento_testado": {
+                      "type": "string"
+                    },
+                    "fluido": {
+                      "type": "string"
+                    },
+                    "pressao_trabalho": {
+                      "type": "string"
+                    },
+                    "pressao_teste": {
+                      "type": "string"
+                    },
+                    "unidade_teste": {
+                      "type": "string",
+                      "description": "UTH"
+                    },
+                    "tubulacoes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "diametro": {
+                            "type": "string"
+                          },
+                          "comprimento": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "manometros": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tag": {
+                            "type": "string"
+                          },
+                          "escala": {
+                            "type": "string"
+                          },
+                          "certificado": {
+                            "type": "string"
+                          },
+                          "calibracao": {
+                            "type": "string"
+                          },
+                          "validade": {
+                            "type": "string",
+                            "description": "dd/mm/aaaa – gera aviso se vencido na data"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "fotos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "arquivo"
+              ],
+              "properties": {
+                "arquivo": {
+                  "type": "string",
+                  "description": "Caminho absoluto ou relativo a base_dir. JPG/PNG de qualquer tamanho."
+                },
+                "origem": {
+                  "type": "string",
+                  "enum": [
+                    "RDO",
+                    "RLQ",
+                    "RCPU",
+                    "RTP",
+                    "RLM"
+                  ],
+                  "default": "RDO"
+                },
+                "numero": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ],
+                  "description": "Nº do relatório de origem (legenda)"
+                },
+                "legenda": {
+                  "type": "string",
+                  "description": "Substitui 'Registro de campo' / 'Sistema / inspeção'"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "fds": {
+      "type": "array",
+      "description": "FDS anexadas integralmente ao final, na ordem dada.",
+      "items": {
+        "type": "object",
+        "required": [
+          "produto",
+          "nome_comercial",
+          "arquivo"
+        ],
+        "properties": {
+          "produto": {
+            "type": "string",
+            "description": "Nome como aparece no RLQ"
+          },
+          "nome_comercial": {
+            "type": "string"
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "revisao": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string"
+          },
+          "etapa": {
+            "type": "string"
+          },
+          "fabricante": {
+            "type": "string"
+          },
+          "arquivo": {
+            "type": "string",
+            "description": "PDF da FDS"
+          }
+        }
+      }
+    },
+    "certificados": {
+      "type": "array",
+      "description": "Certificados de calibração anexados integralmente (Anexo C), na ordem dada.",
+      "items": {
+        "type": "object",
+        "required": [
+          "equipamento",
+          "arquivo"
+        ],
+        "properties": {
+          "equipamento": {
+            "type": "string",
+            "examples": [
+              "Manômetro",
+              "Contador de partículas"
+            ]
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "serie": {
+            "type": "string"
+          },
+          "escala": {
+            "type": "string"
+          },
+          "certificado": {
+            "type": "string",
+            "description": "Nº do certificado"
+          },
+          "calibracao": {
+            "type": "string"
+          },
+          "validade": {
+            "type": "string"
+          },
+          "aplicacao": {
+            "type": "string",
+            "enum": [
+              "RTP",
+              "RCPU"
+            ]
+          },
+          "arquivo": {
+            "type": "string",
+            "description": "PDF do certificado"
+          }
+        }
+      }
+    },
+    "aprovacoes": {
+      "type": "object",
+      "description": "Responsáveis exibidos no bloco de assinaturas e na 1ª revisão",
+      "properties": {
+        "elaborado": {
+          "type": "object",
+          "properties": {
+            "nome": {
+              "type": "string"
+            },
+            "cargo": {
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            }
+          }
+        },
+        "verificado": {
+          "type": "object",
+          "properties": {
+            "nome": {
+              "type": "string"
+            },
+            "cargo": {
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            }
+          }
+        },
+        "aprovado": {
+          "type": "object",
+          "properties": {
+            "nome": {
+              "type": "string"
+            },
+            "cargo": {
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -296,3 +296,19 @@ test('DELETE /estoque/itens/:id blocks items with movements and removes unused i
   assert.equal(removed.statusCode, 204);
   assert.equal(deleted, true);
 });
+
+test('produto químico aceita sinônimos e metadados da FDS (Data Book); filtro sempre vazio', () => {
+  const schemas = makeEstoqueSchemas(z);
+  const quimico = schemas.itemCreate.parse({
+    type: 'PRODUTO_QUIMICO', code: 'QM-100', name: 'Barrilha', unitLabel: 'kg',
+    fdsSynonyms: [' Carbonato de sódio ', 'Carbonato de sódio', ''].filter(Boolean), fdsCode: 'DT-LAB-023', fdsRevision: '10', fdsDate: '2025-05-05'
+  });
+  assert.deepEqual(quimico.fdsSynonyms, ['Carbonato de sódio']);
+  assert.equal(quimico.fdsCode, 'DT-LAB-023');
+  assert.equal(quimico.fdsDate, '2025-05-05');
+  assert.throws(() => schemas.itemCreate.parse({ type: 'PRODUTO_QUIMICO', code: 'QM-1', name: 'X', unitLabel: 'kg', fdsDate: '05/05/2025' }));
+  const atualizado = schemas.itemUpdateForType('PRODUTO_QUIMICO').parse({ code: 'QM-100', name: 'Barrilha', unitLabel: 'kg', fdsDate: '' });
+  assert.deepEqual([atualizado.fdsSynonyms, atualizado.fdsDate], [[], null]);
+  const filtro = schemas.itemCreate.parse({ type: 'FILTRO', code: 'FL-100', name: 'Filtro', fdsSynonyms: ['x'] });
+  assert.deepEqual([filtro.fdsSynonyms, filtro.fdsCode], [[], null]);
+});

@@ -62,6 +62,10 @@ export interface StockItem {
   filterMicron: string | null;
   unNumber: string | null;
   casNumber: string | null;
+  fdsSynonyms: string[];
+  fdsCode: string | null;
+  fdsRevision: string | null;
+  fdsDate: string | null;
   documents: StockItemDocument[];
   checklistEnabled: boolean;
   checklistItems: string[] | null;
@@ -86,6 +90,10 @@ export interface StockItemPayload {
   filterMicron?: string | null;
   unNumber?: string | null;
   casNumber?: string | null;
+  fdsSynonyms?: string[];
+  fdsCode?: string | null;
+  fdsRevision?: string | null;
+  fdsDate?: string | null;
   checklistEnabled?: boolean;
   checklistItems?: string[] | null;
 }

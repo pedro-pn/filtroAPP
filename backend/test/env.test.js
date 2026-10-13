@@ -184,3 +184,31 @@ test('loadEnv enforces production security variables', () => {
     API_TOKEN_HASH_KEY_V1: 'curta'
   }), /API_TOKEN_HASH_KEY_V1/);
 });
+
+test('loadEnv configures the Data Book Python generator', () => {
+  const defaults = loadEnv({ DATABASE_URL: databaseUrl });
+  assert.equal(defaults.databookPython, 'python3');
+  assert.equal(defaults.databookTimeoutMs, 600000);
+  assert.equal(defaults.databookHunspell, 'hunspell');
+  assert.equal(defaults.databookHunspellDict, 'pt_BR');
+
+  const custom = loadEnv({ DATABASE_URL: databaseUrl, DATABOOK_PYTHON: '/opt/databook-venv/bin/python', DATABOOK_TIMEOUT_MS: '120000' });
+  assert.equal(custom.databookPython, '/opt/databook-venv/bin/python');
+  assert.equal(custom.databookTimeoutMs, 120000);
+  assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, DATABOOK_TIMEOUT_MS: '0' }));
+});
+
+test('loadEnv configures the OpenAI note formatter (key optional, model configurable)', () => {
+  const defaults = loadEnv({ DATABASE_URL: databaseUrl });
+  assert.equal(defaults.openaiApiKey, '');
+  assert.equal(defaults.openaiModel, 'gpt-6-luna');
+  assert.equal(defaults.openaiReasoningEffort, 'low');
+  assert.equal(defaults.openaiTimeoutMs, 30000);
+
+  const custom = loadEnv({ DATABASE_URL: databaseUrl, OPENAI_API_KEY: 'sk-test', OPENAI_MODEL: 'gpt-6.1-sol', OPENAI_REASONING_EFFORT: 'none', OPENAI_TIMEOUT_MS: '15000' });
+  assert.equal(custom.openaiApiKey, 'sk-test');
+  assert.equal(custom.openaiModel, 'gpt-6.1-sol');
+  assert.equal(custom.openaiReasoningEffort, 'none');
+  assert.equal(custom.openaiTimeoutMs, 15000);
+  assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, OPENAI_REASONING_EFFORT: 'turbo' }));
+});

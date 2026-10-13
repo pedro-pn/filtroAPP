@@ -52,6 +52,7 @@ const sections = [
     items: [
       'Os dados podem ser tratados por provedores de hospedagem, banco de dados, e-mail transacional, armazenamento de arquivos e ferramentas de assinatura/validação quando integradas.',
       'O compartilhamento ocorre apenas quando necessário para operar o sistema, cumprir obrigações legais, proteger direitos ou atender solicitações legítimas.',
+      'Quando um gestor ou coordenador usa a função "Adequar para relatório", o texto da anotação do relatório (que pode citar nomes de pessoas) é enviado a um provedor de inteligência artificial (OpenAI) apenas para revisar a redação. Esse envio pode envolver transferência internacional de dados; o provedor não usa esses dados para treinar modelos e os mantém por até 30 dias para monitoramento de abuso. O texto revisado só é usado após conferência humana.',
       'Empresas-clientes acessam dados vinculados aos seus próprios projetos, representantes e documentos, conforme permissões configuradas no sistema.'
     ]
   },

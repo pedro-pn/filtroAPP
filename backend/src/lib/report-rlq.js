@@ -328,7 +328,7 @@ function embedSignature(zip, doc, asset) {
 
 // ── RLQ data building ──
 
-function getProductForStep(stepName, material) {
+export function getProductForStep(stepName, material) {
   const s = String(stepName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const isInox = /inox/i.test(material || '');
   if (s.includes('desengraxe')) return 'Hidróxido de sódio, Metassilicato de sódio e Tripolifosfato de sódio';

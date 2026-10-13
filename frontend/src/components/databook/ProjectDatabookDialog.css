@@ -1,0 +1,33 @@
+.databook-dialog__titulo { margin: 0; font-size: var(--text-lg); overflow-wrap: anywhere; }
+.databook-dialog__ajuda,
+.databook-revisao__ajuda { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.databook-dialog__intervalo,
+.databook-dialog__status { display: grid; gap: var(--space-3); min-width: 0; }
+.databook-dialog__datas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--space-3); }
+.databook-dialog__resumo { margin: 0; font-weight: var(--font-semibold); color: var(--brand-text); overflow-wrap: anywhere; }
+.databook-dialog__historico { border-top: var(--border-width) solid var(--line); padding-top: var(--space-3); min-width: 0; }
+.databook-dialog__historico h3,
+.databook-revisao__secao h3 { margin: 0 0 var(--space-2); font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--ink); }
+.databook-dialog__historico ul,
+.databook-revisao__anexos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.databook-dialog__historico li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-sm); min-width: 0; }
+.databook-dialog__historico li > span { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+.databook-dialog__avisos { font-size: var(--text-sm); color: var(--muted); }
+.databook-dialog__avisos ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
+
+.databook-revisao { display: grid; gap: var(--space-5); min-width: 0; }
+.databook-revisao__secao { display: grid; gap: var(--space-3); min-width: 0; }
+.databook-revisao__grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-3); }
+.databook-revisao__grade--tres { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+.databook-revisao__avisos { margin: var(--space-2) 0 0; padding-left: var(--space-5); display: grid; gap: var(--space-1); max-height: 220px; overflow-y: auto; }
+.databook-revisao__anexos li label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-sm); cursor: pointer; min-width: 0; }
+.databook-revisao__anexos li label > span { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.databook-revisao__anexos input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--brand); }
+.databook-revisao__anexos input[type='checkbox']:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+
+.project-group-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding: var(--space-1) 0; }
+.databook-revisao__ortografia { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.databook-revisao__ortografia li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 220px), 260px); gap: var(--space-2) var(--space-3); align-items: center; }
+.databook-revisao__ortografia-palavra { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
+.databook-revisao__ortografia-palavra .databook-revisao__ajuda { margin: 0; }
+@media (max-width: 640px) { .databook-revisao__ortografia li { grid-template-columns: minmax(0, 1fr); } }
