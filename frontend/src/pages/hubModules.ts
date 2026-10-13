@@ -15,6 +15,7 @@ export interface HubModuleEntry {
 type HubConfig = {
   enabled?: boolean;
   adminOnly?: boolean;
+  allowedAccountTypes?: readonly string[];
   roles?: readonly string[];
   path?: string;
   pathStrategy?: 'roleHome';
@@ -32,6 +33,7 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
     .filter(module => module.hub?.enabled)
     .filter(module => {
       const hub = module.hub as HubConfig | undefined;
+      if (hub?.allowedAccountTypes?.length && !hub.allowedAccountTypes.includes(user?.accountType || '')) return false;
       if (hub?.adminOnly) return isHubAdmin(user);
       if (module.id === 'maintenance-production') {
         return canAccessOperationalModule(

@@ -262,6 +262,7 @@ test('Phase 5 listing primitives stay within migrated surfaces', () => {
     ...sourceFilesUnder('src/modules')
   ];
   const migratedPagePaths = new Set([
+    'src/pages/OperationsPage.tsx',
     'src/pages/gestor/GestorPage.tsx',
     'src/pages/coordinator/CoordinatorPage.tsx',
     'src/pages/client/ClientPage.tsx',

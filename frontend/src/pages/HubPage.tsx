@@ -179,20 +179,6 @@ export function HubPage() {
           >
             Ver tutorial
           </Button>
-          {isAdmin ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            fullWidth
-            title="Operação"
-              iconLeft={
-                <AppIcon icon={NAVIGATION_CHROME_ICONS.operations} size="sm" />
-              }
-              onClick={() => navigate('/operacoes')}
-            >
-              Operação
-            </Button>
-          ) : null}
         </>
       }
       onLogout={async () => {
