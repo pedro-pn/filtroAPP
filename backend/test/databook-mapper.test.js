@@ -253,3 +253,15 @@ test('avanço com métricas mistas segue o % ponderado do Acompanhamento', () =>
   const comEscopo = { ...dados, escopo_total: 100, unidade_escopo: '%', avanco_escopos: avanco.escopos };
   assert.equal(validar(comEscopo), true, JSON.stringify(validar.errors));
 });
+
+test('responsáveis (Elaborado/Verificado por): só contas ativas de gestor ou coordenador do RDO', async () => {
+  const { responsaveisDisponiveis } = await import('../src/lib/databook/service.js');
+  let consulta;
+  const client = { user: { findMany: async q => { consulta = q; return [
+    { id: 'u1', name: 'Paula Costa', collaborator: { jobRole: { name: 'Coordenadora' } } },
+    { id: 'u2', name: 'Gestor Sem Colaborador', collaborator: null }
+  ]; } } };
+  const lista = await responsaveisDisponiveis(client);
+  assert.deepEqual(consulta.where, { isActive: true, moduleRoles: { some: { role: { in: ['RDO_MANAGER', 'RDO_COORDINATOR'] } } } });
+  assert.deepEqual(lista, [{ id: 'u1', nome: 'Paula Costa', cargo: 'Coordenadora' }, { id: 'u2', nome: 'Gestor Sem Colaborador', cargo: '' }]);
+});

@@ -84,7 +84,7 @@ Trocar logos = substituir os PNGs em `assets/logos/` mantendo os nomes.
 | Job (fila no worker → `python -m databook … --json`) | `backend/src/lib/databook/jobs.js`, `python.js` |
 | Rotas `/api/rdo/databook/*` (gestor e coordenador do RDO) | `backend/src/routes/resources/databook.js` |
 | Tabelas `ProjectDatabook` / `ProjectDatabookRevision`; FDS no `StockItem` | migração `20261010120000_project_databooks` |
-| Botão "Gerar Data Book", diálogo de intervalo e tela de revisão | `frontend/src/components/databook/` (gestor: Projetos e Arquivados; coordenador: Aprovados e Arquivados) |
+| Botão "Data Book", diálogo de intervalo e tela de revisão | `frontend/src/components/databook/` (gestor: Projetos e Arquivados; coordenador: Aprovados e Arquivados) |
 | Cadastro de FDS (sinônimos do RLQ, código, revisão, data) | Estoque → produto químico; o PDF é o documento anexado ao item |
 
 Fluxo: diálogo (padrão = 1º e último RDO aprovado) → tela de revisão (rascunho dos textos, responsáveis,
@@ -112,6 +112,6 @@ O job roda no container `worker` (e na API quando `BACKGROUND_JOBS_IN_API=true`)
 
 1. Estoque → cada produto químico usado nos RLQs: anexe a FDS (PDF) e preencha "Nomes químicos no RLQ"
    (ex.: Barrilha → `Carbonato de sódio`), código, revisão e data da FDS.
-2. RDO → gestor (Projetos ou Arquivados) ou coordenador (Aprovados ou Arquivados) → **Gerar Data Book**.
+2. RDO → gestor (Projetos ou Arquivados) ou coordenador (Aprovados ou Arquivados) → botão **Data Book**.
 3. Ajuste o intervalo, **Continuar**, revise textos/responsáveis/anexos e os avisos, **Gerar Data Book**.
 4. Acompanhe o status no diálogo e baixe o PDF; o histórico fica no mesmo diálogo.

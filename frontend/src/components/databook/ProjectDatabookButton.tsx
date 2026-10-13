@@ -12,7 +12,7 @@ interface ProjectDatabookButtonProps {
   reportCount?: number;
 }
 
-/** "Gerar Data Book" nas listas de projetos (gestor: Projetos/Arquivados; coordenador). */
+/** Botão "Data Book" nas listas de projetos (gestor: Projetos/Arquivados; coordenador). */
 export function ProjectDatabookButton({ project, reportCount }: ProjectDatabookButtonProps) {
   const { user } = useAuth();
   const [aberto, setAberto] = useState(false);
@@ -28,7 +28,7 @@ export function ProjectDatabookButton({ project, reportCount }: ProjectDatabookB
         title={semRelatorio ? 'O projeto ainda não tem RDO.' : undefined}
         onClick={() => setAberto(true)}
       >
-        Gerar Data Book
+        Data Book
       </Button>
       {aberto ? (
         <Suspense fallback={null}>

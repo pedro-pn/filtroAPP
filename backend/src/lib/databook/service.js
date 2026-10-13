@@ -48,9 +48,12 @@ export async function resumoDoDialogo(projetoId, consulta = {}, client = prisma)
   return { padrao, resumo };
 }
 
-async function responsaveisDisponiveis(client) {
+// Elaborado/Verificado por: só gestores e coordenadores do RDO (os mesmos papéis que geram o Data Book).
+export const PAPEIS_RESPONSAVEIS = ['RDO_MANAGER', 'RDO_COORDINATOR'];
+
+export async function responsaveisDisponiveis(client = prisma) {
   const users = await client.user.findMany({
-    where: { isActive: true, accountType: 'INTERNAL' },
+    where: { isActive: true, moduleRoles: { some: { role: { in: PAPEIS_RESPONSAVEIS } } } },
     orderBy: { name: 'asc' },
     select: { id: true, name: true, collaborator: { select: { jobRole: { select: { name: true } } } } }
   });

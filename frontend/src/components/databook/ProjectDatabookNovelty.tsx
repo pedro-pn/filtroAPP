@@ -50,7 +50,7 @@ export function ProjectDatabookNovelty({ user }: ProjectDatabookNoveltyProps) {
           {
             element: BOTAO,
             popover: {
-              title: 'Gerar Data Book',
+              title: 'Botão Data Book',
               description: 'Escolha o intervalo de dias, revise os textos, responsáveis e anexos e gere. O PDF fica salvo no projeto com o histórico de revisões.',
               side: 'left',
               align: 'start'

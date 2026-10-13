@@ -38,7 +38,7 @@ interface GroupedReportListProps {
     context: GroupedReportCollectionContext
   ) => ReactNode;
   renderTypeActions?: (reports: ReportSummary[]) => React.ReactNode;
-  /** Ações do projeto (ex.: "Gerar Data Book"), exibidas ao lado do cabeçalho do grupo. */
+  /** Ações do projeto (ex.: "Data Book"), exibidas ao lado do cabeçalho do grupo. */
   renderProjectActions?: (project: { id: string; code: string; name: string }) => React.ReactNode;
   onLoadMoreType?: (params: {
     projectId: string;
