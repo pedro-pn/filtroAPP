@@ -133,8 +133,17 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   assert.equal(gerar.status, 202);
   assert.equal(gerar.body.status, 'PENDING');
 
-  await processarFilaDatabook({ client: prisma });
-  const status = await pedir(`/revisoes/${gerar.body.id}`);
+  // A rota já agenda a fila (setImmediate); o teste também a aciona e espera a revisão terminar, como a tela faz.
+  const aguardar = async id => {
+    for (let i = 0; i < 240; i += 1) {
+      await processarFilaDatabook({ client: prisma });
+      const r = await pedir(`/revisoes/${id}`);
+      if (r.body.status === 'COMPLETED' || r.body.status === 'FAILED') return r;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    throw new Error(`Revisão ${id} não terminou em 60 s.`);
+  };
+  const status = await aguardar(gerar.body.id);
   assert.equal(status.body.status, 'COMPLETED', status.body.erro || '');
   assert.ok(status.body.paginas > 6);
   const baixado = await pedir(`/revisoes/${gerar.body.id}/pdf`);
@@ -147,6 +156,7 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   const rev1 = await pedir(`/projects/${projeto.id}/gerar`, { body: { ...dialogo.body.padrao, edicoes: {} } });
   assert.equal(rev1.body.revisao, 1);
   assert.equal(rev1.body.doc, `DB-${projeto.code}-01`);
+  assert.equal((await aguardar(rev1.body.id)).body.status, 'COMPLETED'); // não deixa geração rodando na limpeza
   const lista = await pedir(`/projects/${projeto.id}`);
   assert.deepEqual(lista.body[0].revisoes.map(r => r.revisao), [1, 0]);
 });
