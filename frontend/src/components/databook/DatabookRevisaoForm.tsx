@@ -90,8 +90,8 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
           <h3 id="databook-limites-titulo">Limites aceitos nas contagens (RCPU)</h3>
           <p className="databook-revisao__ajuda">Opcional. Com limite, o Data Book mostra Conforme/Acima do limite e avisa medições fora dele.</p>
           <div className="databook-revisao__grade databook-revisao__grade--tres">
-            <Field label="Classe ISO 4406" errorText={erros.limiteIso}>
-              <Input placeholder="16/14/11" value={form.limiteIso} disabled={disabled} onChange={e => onChange({ limiteIso: e.target.value })} />
+            <Field label="Classe ISO 4406" helperText="Ex.: 16/14/11" errorText={erros.limiteIso}>
+              <Input value={form.limiteIso} disabled={disabled} onChange={e => onChange({ limiteIso: e.target.value })} />
             </Field>
             <Field label="Classe NAS 1638" errorText={erros.limiteNas}>
               <Input inputMode="decimal" value={form.limiteNas} disabled={disabled} onChange={e => onChange({ limiteNas: e.target.value })} />

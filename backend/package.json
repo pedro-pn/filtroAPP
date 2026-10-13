@@ -34,7 +34,9 @@
     "import:rdo-manual-pdfs": "node scripts/import-manual-rdo-pdfs.js",
     "extract:legacy-maintenance": "node scripts/extract-legacy-maintenance-history.js",
     "download:legacy-maintenance-assets": "node scripts/download-legacy-maintenance-assets.js",
-    "import:legacy-maintenance": "node scripts/import-legacy-maintenance-history.js"
+    "import:legacy-maintenance": "node scripts/import-legacy-maintenance-history.js",
+    "openai:check": "node scripts/check-openai-model.js",
+    "openai:avaliar": "node scripts/avaliar-adequacao.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.10",
@@ -52,6 +54,7 @@
     "mdb-reader": "^3.2.0",
     "morgan": "^1.12.1",
     "nodemailer": "^10.0.13",
+    "openai": "^7.32.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.0",

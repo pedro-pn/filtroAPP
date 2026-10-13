@@ -197,3 +197,18 @@ test('loadEnv configures the Data Book Python generator', () => {
   assert.equal(custom.databookTimeoutMs, 120000);
   assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, DATABOOK_TIMEOUT_MS: '0' }));
 });
+
+test('loadEnv configures the OpenAI note formatter (key optional, model configurable)', () => {
+  const defaults = loadEnv({ DATABASE_URL: databaseUrl });
+  assert.equal(defaults.openaiApiKey, '');
+  assert.equal(defaults.openaiModel, 'gpt-6-luna');
+  assert.equal(defaults.openaiReasoningEffort, 'low');
+  assert.equal(defaults.openaiTimeoutMs, 30000);
+
+  const custom = loadEnv({ DATABASE_URL: databaseUrl, OPENAI_API_KEY: 'sk-test', OPENAI_MODEL: 'gpt-6.1-sol', OPENAI_REASONING_EFFORT: 'none', OPENAI_TIMEOUT_MS: '15000' });
+  assert.equal(custom.openaiApiKey, 'sk-test');
+  assert.equal(custom.openaiModel, 'gpt-6.1-sol');
+  assert.equal(custom.openaiReasoningEffort, 'none');
+  assert.equal(custom.openaiTimeoutMs, 15000);
+  assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, OPENAI_REASONING_EFFORT: 'turbo' }));
+});

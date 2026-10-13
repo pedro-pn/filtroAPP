@@ -63,6 +63,7 @@ import './NewReportPage.css';
 import { calculateReportOvertimeSummary } from '../../utils/reportOvertime';
 import { resolveAuthorizedReportSelection } from '../../auth/reportPermissions';
 import { OperationalReportFormPage } from './OperationalReportFormPage';
+import { AdequarAnotacaoButton } from '../../components/anotacoes/AdequarAnotacaoButton';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -1420,6 +1421,7 @@ function SiteRdoFormPage() {
               value={dailyDescription}
               onChange={event => setHeaderField('dailyDescription', event.target.value)}
             />
+            <AdequarAnotacaoButton valor={dailyDescription} campo="Atividades do dia" onAplicar={texto => setHeaderField('dailyDescription', texto)} />
           </div>
         </Card>
 

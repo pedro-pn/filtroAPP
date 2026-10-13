@@ -151,6 +151,8 @@ Todos impressos no PDF de evidência final sem o titular ter sido informado.
 - Serviço de e-mail (mailer configurado via ENV — `mailer.js`) — processa e-mails dos titulares
 - **ZapSign** — processa documentos com dados pessoais e assinaturas (integração via `zapsign.js`)
 - Serviço de armazenamento de arquivos (filesystem local ou remoto)
+- **OpenAI** (desde 2026-10-13): recebe o texto de Atividades do dia/Observações do RDO quando o gestor/coordenador usa
+  "Adequar para relatório" (`backend/src/lib/anotacoes/`). Envolve **transferência internacional** (art. 33). Detalhes no item 3.2.
 
 **Art. 37 LGPD:** O controlador deve manter registro das operações de tratamento. O operador deve oferecer garantias suficientes de conformidade.
 
@@ -520,6 +522,23 @@ Legenda: `[ ]` pendente, `[x]` concluído. Manter este checklist no repositório
 - [x] ZapSign: não aplicável para novas assinaturas; revisar/remover menções legadas se não houver uso operacional.
 - [ ] Documentar Microsoft como operador externo no ROPA.
 - [ ] Registrar evidências contratuais fora do código-fonte.
+
+**OpenAI — adequação de anotações por IA (2026-10-13):**
+- [x] Documentada no ROPA (`ropa_v3`) como operador, com finalidade, base legal (legítimo interesse) e transferência internacional.
+- [x] Minimização no código: só o texto da anotação é enviado, por ação explícita; o usuário vai como hash
+  (`safety_identifier`); `store: false`; logs do NewRDO sem conteúdo; chave só no backend; acesso restrito a
+  `rdo:manager`/`rdo:coordinator`.
+- [x] Condições da API verificadas na documentação oficial (developers.openai.com/api/docs/guides/your-data,
+  2026-10-13): dados da API não são usados para treinar modelos por padrão; logs de monitoramento de abuso por até 30
+  dias; Zero Data Retention só mediante aprovação da OpenAI; residência de dados por projeto (EUA, Europa e EAU com
+  processamento regional).
+- [x] Política de privacidade pública atualizada (`privacy_policy_v2`) com o uso de IA e a transferência internacional.
+- [ ] Aceitar o DPA da OpenAI (Data Processing Addendum, disponível para contas da API) e arquivar a evidência fora do código.
+- [ ] Registrar a avaliação de legítimo interesse (LIA) da adequação de anotações: finalidade, necessidade (só o texto,
+  sob demanda) e expectativa dos titulares citados.
+- [ ] Decidir se vale solicitar Zero Data Retention ou criar o projeto da OpenAI com residência na Europa, para reduzir
+  a retenção de 30 dias e a transferência para os EUA.
+- [ ] Orientar os usuários a não incluir nas anotações dados pessoais desnecessários (CPF, telefone, saúde).
 
 **Critério de aceite:** operadores externos críticos possuem documentação contratual ou evidência formal de conformidade.
 

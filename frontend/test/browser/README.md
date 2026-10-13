@@ -102,3 +102,8 @@ recalculation, access permissions and mobile layout.
 Backend deployment requires the `20261002103000_flexible_weekly_targets` and
 `20261002150000_weekly_target_deletion` Prisma migrations before starting the
 updated API. Existing percentage targets are preserved.
+
+For "Adequar para relatório", open `/test/browser/adequar-anotacao.html`. The OpenAI call is simulated (700 ms):
+click the button, edit the adapted text and apply it (the field receives exactly the edited text) or discard it (the
+field is unchanged). `?modo=erro` simulates a timeout with "Tentar novamente"; `?modo=aviso` returns an invented value
+and must show the warning above the text, also at 390 px wide.
