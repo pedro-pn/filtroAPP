@@ -13,6 +13,9 @@ import { commercialProposalSyncData } from '../src/lib/projects/commercial-propo
 import { processCommercialProposalSyncs, syncCommercialProposal } from '../src/lib/projects/commercial-proposal-sync.js';
 import { listProjectDocuments } from '../src/lib/efetivo/project-workflow/documents.js';
 import { setProjectBudgetRevisionWithClient } from '../src/lib/acompanhamento/access-import.js';
+import { listCommercialDashboard } from '../src/lib/acompanhamento/access-import.js';
+import { loadPlannedHours } from '../src/lib/acompanhamento/planned-hours.js';
+import { receiveCommercialAppProposal, selectCommercialAppRevision } from '../src/lib/acompanhamento/comercialapp-bridge.js';
 
 const commercialUrl = process.env.COMMERCIALAPP_TEST_DATABASE_URL;
 const source = process.env.COMMERCIALAPP_SOURCE_DIR;
@@ -28,6 +31,7 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   const { createApp } = await load('backend/src/app.js');
   const { payloadHash } = await load('backend/src/comercial/documents.js');
   const { storeFile } = await load('backend/src/comercial/storage.js');
+  const { createDefaultCostEstimatePayload, calculateEstimate } = await load('shared/comercial/dist/cost-model.js');
   const commercial = createDatabase(commercialUrl);
   const commercialDir = await mkdtemp(path.join(tmpdir(), 'commercial-pull-source-'));
   const filtroDir = await mkdtemp(path.join(tmpdir(), 'commercial-pull-target-'));
@@ -40,6 +44,8 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   t.after(async () => {
     if (server) await new Promise(resolve => server.close(resolve));
     if (project) {
+      const proposals = await prisma.commercialAppProposal.findMany({ where: { projectId: project.id }, select: { externalId: true } });
+      await prisma.commercialAppDelivery.deleteMany({ where: { externalId: { in: proposals.map(p => p.externalId) } } });
       await prisma.projectDocumentVersion.deleteMany({ where: { document: { projectId: project.id } } });
       await prisma.projectDocument.deleteMany({ where: { projectId: project.id } });
       await prisma.projectPlannedService.deleteMany({ where: { projectId: project.id } });
@@ -61,13 +67,16 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   });
   user = await commercial.user.create({ data: { username: `pull-${randomUUID()}`, name: 'Synthetic QA', role: 'ADMIN' } });
   async function createRevision(revisionNumber, lengthM) {
-    const cost = { volumeSystems: [{ id: 'circuit-1', name: 'Caldeira A', enabled: true,
+    const cost = { ...createDefaultCostEstimatePayload(), volumeSystems: [{ id: 'circuit-1', name: 'Caldeira A', enabled: true,
       pipeSegments: [{ id: 'pipe-1', description: 'Linha de vapor', quantity: 2, lengthM,
         internalDiameterMm: 50.8, diameterUnit: 'in' }] }],
     circuitServices: [{ systemId: 'circuit-1', itemId: 'pipe-1', itemType: 'pipes', serviceId: 'teste_hidrostatico' }] };
+    cost.laborContexts[0].durationDays = 2 + revisionNumber;
+    const calculated = calculateEstimate(cost);
     const estimate = await commercial.costEstimate.create({ data: {
       proposalCode: number, revisionNumber, title: 'Synthetic estimate', mode: 'NOVA', payload: cost,
-      totalCost: 900, salePrice: 1500, marginPercent: 40, createdByUserId: user.id
+      totalCost: calculated.totalCost, salePrice: calculated.salePrice,
+      marginPercent: calculated.margin * 100, createdByUserId: user.id
     } });
     const proposal = await commercial.proposal.create({ data: {
       proposalCode: number, revisionNumber, status: 'FINALIZADA', finalizedAt: new Date(),
@@ -86,7 +95,7 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
     }
     return proposal;
   }
-  await createRevision(0, 30);
+  const firstProposal = await createRevision(0, 30);
   server = createApp({ commercialDb: commercial, authService: {}, appOrigin: 'http://localhost' }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   let transactionError;
@@ -107,6 +116,21 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   const [first] = await processCommercialProposalSyncs(options);
   assert.equal(first.status, 'SYNCED');
   assert.equal(first.scope.status, 'IMPORTED');
+  const budget = () => prisma.projectBudget.findUnique({ where: { projectId_version: { projectId: project.id, version: 1 } } });
+  const firstBudget = await budget();
+  assert.equal(firstBudget.source, 'COMERCIAL_APP');
+  assert.equal(firstBudget.commercialAppProposalId, firstProposal.id);
+  assert.equal(Number(firstBudget.salePrice), 1500);
+  assert.equal(firstBudget.approvedAt, null, 'a consulta não inventa aprovação');
+  assert.equal((await prisma.commercialAppProposal.findUnique({ where: { externalId: firstProposal.id } })).approvedAt, null);
+  const hours = (await loadPlannedHours([project.id])).get(project.id).hoursPlan;
+  assert.equal(hours.source, 'COMMERCIAL');
+  assert.ok(hours.commercial.total > 0);
+  const dashboard = await listCommercialDashboard({ projectIds: [project.id], includeProgress: false });
+  assert.equal(dashboard.length, 1, 'o projeto aparece sem proposta legada nem webhook');
+  assert.equal(Number(dashboard[0].salePrice), 1500);
+  assert.equal(dashboard[0].components.commercial_labor,
+    (await prisma.commercialAppProposal.findUnique({ where: { externalId: firstProposal.id } })).snapshot.estimateSummary.costs.labor);
   const docs = await listProjectDocuments(project.id, { includeHistory: true }, { isManager: true }, { database: prisma, rootDir: filtroDir });
   assert.equal(docs.documents.length, 2);
   assert.ok(docs.documents.every(document => document.requirementStage === 'HANDOVER' && document.readiness.ready));
@@ -119,13 +143,51 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   assert.equal((await syncCommercialProposal(project.id, options)).status, 'SKIPPED');
   assert.equal(await prisma.projectDocumentVersion.count({ where: { document: { projectId: project.id } } }), 2);
 
-  await createRevision(1, 45);
+  // A migração completa projetos já marcados como SYNCED sem duplicar os PDFs.
+  const legacyState = { ...(await prisma.project.findUnique({ where: { id: project.id } })).commercialProposalSync };
+  delete legacyState.commercialDataVersion;
+  await prisma.projectBudget.deleteMany({ where: { projectId: project.id } });
+  await prisma.commercialAppProposal.deleteMany({ where: { projectId: project.id } });
+  await prisma.project.update({ where: { id: project.id }, data: { commercialProposalSync: legacyState } });
+  const migration = await readFile(new URL('../prisma/migrations/20261013190000_commercialapp_complete_proposal/migration.sql', import.meta.url), 'utf8');
+  await prisma.$executeRawUnsafe(migration.slice(migration.indexOf('UPDATE "Project" p')));
+  assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).commercialProposalSync.status, 'PENDING');
+  assert.equal((await processCommercialProposalSyncs(options))[0].status, 'SYNCED');
+  assert.equal((await budget()).source, 'COMERCIAL_APP');
+  assert.equal(await prisma.projectDocumentVersion.count({ where: { document: { projectId: project.id } } }), 2);
+
+  // Uma aprovação enviada depois da consulta complementa a mesma proposta.
+  const bundleResponse = await fetch(`${options.apiUrl}/api/integrations/filtroapp/propostas/${number}/revisoes/0`,
+    { headers: { Authorization: `Bearer ${options.token}` } });
+  const bundle = await bundleResponse.json();
+  const approval = { ...bundle, projectId: project.id, eventId: randomUUID(),
+    approvedAt: new Date().toISOString(), nectarOpportunityId: 'synthetic-opportunity' };
+  const delivered = await receiveCommercialAppProposal(approval);
+  assert.equal(delivered.budgetStatus, 'SELECTED');
+  assert.ok((await budget()).approvedAt);
+  assert.equal((await receiveCommercialAppProposal(approval)).duplicate, true);
+  assert.equal(await prisma.commercialAppProposal.count({ where: { projectId: project.id } }), 1);
+
+  const secondProposal = await createRevision(1, 45);
   const updated = await receiveProjectIntake({ ...intake, revision: 1 });
   assert.equal(updated.status, 'updated');
   assert.equal(updated.project.id, project.id);
   assert.equal((await syncCommercialProposal(project.id, options)).status, 'SYNCED');
+  assert.equal((await budget()).commercialAppRevision, 1, 'a revisão automática acompanha o novo vínculo do Prisma');
+  assert.equal((await loadPlannedHours([project.id])).get(project.id).hoursPlan.commercial.total > hours.commercial.total, true);
   assert.equal(Number((await scope())[0].systems[0].quantity), 90);
   assert.equal(await prisma.projectDocumentVersion.count({ where: { document: { projectId: project.id } } }), 4);
+
+  // Uma revisão escolhida manualmente não é substituída por uma consulta nova.
+  await selectCommercialAppRevision(project.id, firstProposal.id, null);
+  await receiveProjectIntake({ ...intake, revision: 1 });
+  await prisma.project.update({ where: { id: project.id }, data: commercialProposalSyncData({ proposalCode: number, revisionNumber: 1 }, null) });
+  const preservedBudget = await syncCommercialProposal(project.id, options);
+  assert.equal(preservedBudget.status, 'SYNCED');
+  assert.equal(preservedBudget.scope.status, 'SELECTION_PRESERVED');
+  assert.equal((await budget()).commercialAppRevision, 0);
+  assert.equal(Number((await scope())[0].systems[0].quantity), 60);
+  assert.equal((await prisma.commercialAppProposal.findUnique({ where: { externalId: secondProposal.id } })).selectionStatus, 'STAGED');
 
   // A escolha manual de uma revisão Access também agenda a busca da revisão exata.
   const access = await prisma.commercialProposal.create({ data: {
@@ -135,6 +197,7 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).commercialProposalSync.revisionNumber, 0);
   const manualResult = await syncCommercialProposal(project.id, options);
   assert.equal(manualResult.status, 'SYNCED', transactionError?.message || JSON.stringify(manualResult));
+  assert.equal((await budget()).source, 'ACCESS_IMPORT', 'a consulta preserva a escolha do orçamento Access');
   assert.equal(await prisma.projectDocumentVersion.count({ where: { document: { projectId: project.id } } }), 4);
   const rolledBack = await listProjectDocuments(project.id, {}, { isManager: true }, { database: prisma, rootDir: filtroDir });
   assert.ok(rolledBack.documents.every(document => document.currentVersion.versionLabel.endsWith('Rev. 0')));
@@ -168,6 +231,9 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
     } })
   });
   assert.equal(rolledBackTransaction.status, 'ERROR');
+  assert.equal(await prisma.commercialAppProposal.count({ where: { projectId: project.id, revisionNumber: 2 } }), 0,
+    'rollback também remove o cadastro da proposta');
+  assert.equal((await budget()).source, 'ACCESS_IMPORT');
   assert.equal(await prisma.projectDocumentVersion.count({ where: { document: { projectId: project.id } } }), 4);
   assert.equal((await readdir(filtroDir, { recursive: true })).filter(file => file.endsWith('.pdf')).length, 4);
   const preserved = await syncCommercialProposal(project.id, options);

@@ -62,6 +62,12 @@ export const commercialAppPayloadSchema = z.object({
   }
 });
 
+// Uma consulta pode anteceder a aprovação no CRM e não representa uma entrega.
+export const commercialAppQueryPayloadSchema = commercialAppPayloadSchema.safeExtend({
+  eventId: z.string().uuid().optional(),
+  approvedAt: z.iso.datetime().nullable()
+});
+
 function sorted(value) {
   if (Array.isArray(value)) return value.map(sorted);
   if (value && typeof value === 'object') return Object.fromEntries(
@@ -71,8 +77,15 @@ function sorted(value) {
 function hash(value) { return createHash('sha256').update(JSON.stringify(sorted(value))).digest('hex'); }
 
 function withoutEstimateSummary(value) {
-  const { estimateSummary: _estimateSummary, eventId: _eventId, approvedAt: _approvedAt, ...base } = value;
+  const { estimateSummary: _estimateSummary, eventId: _eventId, approvedAt: _approvedAt,
+    nectarOpportunityId: _nectarOpportunityId, ...base } = value;
   return base;
+}
+
+function proposalSnapshotHash(value) {
+  const { eventId: _eventId, approvedAt: _approvedAt,
+    nectarOpportunityId: _nectarOpportunityId, ...immutable } = value;
+  return hash({ ...immutable, estimateSummary: value.estimateSummary ?? null });
 }
 
 export function canUpgradeLegacyProposal(existing, data, { sameEvent = false } = {}) {
@@ -114,11 +127,73 @@ function budgetFields(proposal) {
   };
 }
 
+async function storeCommercialAppProposal(tx, data) {
+  const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
+  if (existing && (existing.projectId !== data.projectId ||
+      proposalSnapshotHash(existing.snapshot) !== proposalSnapshotHash(data) && !canUpgradeLegacyProposal(existing, data))) {
+    throw new CommercialAppBridgeError(409, 'Proposta e revisão já recebidas com conteúdo ou projeto diferente.');
+  }
+  const snapshot = { ...data,
+    approvedAt: data.approvedAt ?? existing?.snapshot?.approvedAt ?? null,
+    nectarOpportunityId: data.nectarOpportunityId ?? existing?.nectarOpportunityId ?? null,
+    ...(data.eventId || !existing?.snapshot?.eventId ? {} : { eventId: existing.snapshot.eventId })
+  };
+  const fields = {
+    externalId: data.proposalId, proposalCode: data.proposalCode,
+    revisionNumber: data.revisionNumber, projectId: data.projectId,
+    nectarOpportunityId: snapshot.nectarOpportunityId,
+    approvedAt: snapshot.approvedAt ? new Date(snapshot.approvedAt) : null,
+    clientName: data.client.name, clientCnpj: data.client.cnpj, title: data.title, site: data.site,
+    salePrice: data.salePrice, plannedTotalCost: data.plannedTotalCost,
+    expectedMargin: data.expectedMargin, snapshot, snapshotHash: proposalSnapshotHash(snapshot)
+  };
+  return existing
+    ? tx.commercialAppProposal.update({ where: { id: existing.id }, data: fields })
+    : tx.commercialAppProposal.create({ data: fields });
+}
+
+export async function storeQueriedCommercialAppProposal(tx, project, bundle) {
+  const data = commercialAppQueryPayloadSchema.parse({ ...bundle, projectId: project.id });
+  const proposal = await storeCommercialAppProposal(tx, data);
+  const budget = await tx.projectBudget.findUnique({
+    where: { projectId_version: { projectId: project.id, version: 1 } }
+  });
+  const previous = budget?.source === 'COMERCIAL_APP' && budget.commercialAppProposalId
+    ? await tx.commercialAppProposal.findUnique({ where: { externalId: budget.commercialAppProposalId } }) : null;
+  const selected = budget?.source === 'COMERCIAL_APP' && budget.commercialAppProposalId === proposal.externalId;
+  const advanceAutomaticRevision = previous?.proposalCode === proposal.proposalCode
+    && previous.revisionNumber < proposal.revisionNumber && !budget.selectedByUserId && !budget.selectedAt;
+  if ((!budget && (!project.commercialProposalCode || project.commercialProposalCode === proposal.proposalCode))
+      || advanceAutomaticRevision) {
+    await tx.projectBudget.upsert({
+      where: { projectId_version: { projectId: project.id, version: 1 } },
+      create: { projectId: project.id, version: 1, ...budgetFields(proposal) },
+      update: budgetFields(proposal)
+    });
+    await tx.project.update({ where: { id: project.id }, data: { commercialProposalCode: proposal.proposalCode } });
+    await tx.commercialAppProposal.updateMany({
+      where: { projectId: project.id, selectionStatus: 'SELECTED', id: { not: proposal.id } },
+      data: { selectionStatus: 'STAGED' }
+    });
+    await tx.commercialAppProposal.update({ where: { id: proposal.id },
+      data: { selectionStatus: 'SELECTED', selectedAt: new Date() } });
+    return { proposal, budgetStatus: 'SELECTED', scopeAllowed: true };
+  }
+  if (selected && !budget.approvedAt && proposal.approvedAt) {
+    await tx.projectBudget.update({ where: { id: budget.id }, data: { approvedAt: proposal.approvedAt } });
+  }
+  const accessProposal = budget?.source === 'ACCESS_IMPORT' && budget.sourceProposalCodBd != null
+    ? await tx.commercialProposal.findUnique({ where: { codBd: budget.sourceProposalCodBd },
+      select: { codProp: true, nRev: true } }) : null;
+  return { proposal, budgetStatus: selected ? 'SELECTED' : 'STAGED',
+    scopeAllowed: selected || Boolean(accessProposal && String(accessProposal.codProp) === proposal.proposalCode
+      && accessProposal.nRev === proposal.revisionNumber) };
+}
+
 export async function receiveCommercialAppProposal(raw) {
   const data = commercialAppPayloadSchema.parse(raw);
   const deliveryHash = hash(data);
-  const { eventId: _eventId, approvedAt: _approvedAt, ...immutableSnapshot } = data;
-  const snapshotHash = hash(immutableSnapshot);
+  const snapshotHash = proposalSnapshotHash(data);
   let result;
   try {
     result = await prisma.$transaction(async tx => {
@@ -152,27 +227,7 @@ export async function receiveCommercialAppProposal(raw) {
         where: { id: data.projectId, deletedAt: null, isActive: true }
       });
       if (!project) throw new CommercialAppBridgeError(422, 'Projeto informado pelo CRM não existe no FiltroAPP.');
-      const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
-      let current = existing;
-      if (existing && (existing.snapshotHash !== snapshotHash || existing.projectId !== data.projectId)) {
-        if (!canUpgradeLegacyProposal(existing, data) || existing.projectId !== data.projectId) {
-          throw new CommercialAppBridgeError(409, 'Proposta e revisão já recebidas com conteúdo ou projeto diferente.');
-        }
-        await tx.commercialAppProposal.update({ where: { id: existing.id },
-          data: { snapshot: data, snapshotHash } });
-        current = { ...existing, snapshot: data };
-      }
-      const proposal = existing || await tx.commercialAppProposal.create({ data: {
-        externalId: data.proposalId, proposalCode: data.proposalCode,
-        revisionNumber: data.revisionNumber, projectId: data.projectId,
-        nectarOpportunityId: data.nectarOpportunityId,
-        approvedAt: new Date(data.approvedAt), clientName: data.client.name,
-        clientCnpj: data.client.cnpj, title: data.title, site: data.site,
-        salePrice: data.salePrice, plannedTotalCost: data.plannedTotalCost,
-        expectedMargin: data.expectedMargin, snapshot: data,
-        snapshotHash
-      } });
-      current ??= proposal;
+      const proposal = await storeCommercialAppProposal(tx, data);
       const budget = await tx.projectBudget.findUnique({
         where: { projectId_version: { projectId: data.projectId, version: 1 } }
       });
@@ -190,7 +245,10 @@ export async function receiveCommercialAppProposal(raw) {
           data: { selectionStatus: 'SELECTED', selectedAt: new Date() } });
         selected = true;
       }
-      const scopeImport = selected ? await syncCommercialAppScope(tx, data.projectId, current) : null;
+      if (selected && !budget?.approvedAt && proposal.approvedAt && budget) {
+        await tx.projectBudget.update({ where: { id: budget.id }, data: { approvedAt: proposal.approvedAt } });
+      }
+      const scopeImport = selected ? await syncCommercialAppScope(tx, data.projectId, proposal) : null;
       await tx.commercialAppDelivery.create({ data: {
         eventId: data.eventId, externalId: data.proposalId, snapshotHash: deliveryHash
       } });

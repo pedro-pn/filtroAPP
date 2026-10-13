@@ -3609,7 +3609,7 @@ model CommercialAppProposal {
   projectId        String
   project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   nectarOpportunityId String?
-  approvedAt       DateTime
+  approvedAt       DateTime?
   clientName       String
   clientCnpj       String
   title            String

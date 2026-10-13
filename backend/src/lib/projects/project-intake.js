@@ -210,7 +210,7 @@ export async function selectProjectIntakeCommercialRevision(project, intake, cli
   const [currentBudget, matchingProposal] = await Promise.all([
     client.projectBudget.findUnique({
       where: { projectId_version: { projectId: project.id, version: 1 } },
-      select: { sourceProposalCodBd: true }
+      select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true, commercialAppRevision: true }
     }),
     client.commercialProposal.findFirst({
       where: { codProp: proposalCode, nRev: intake.revision, parentCodProp: null },
@@ -226,6 +226,16 @@ export async function selectProjectIntakeCommercialRevision(project, intake, cli
     proposalCode: String(proposalCode),
     revision: intake.revision
   };
+
+  if (currentBudget?.source === 'COMERCIAL_APP') {
+    return {
+      status: currentBudget.commercialAppRevision === intake.revision
+        && project.commercialProposalCode === String(proposalCode)
+        ? 'already_selected' : 'existing_selection_preserved',
+      ...resultBase,
+      selectedCodBd: null
+    };
+  }
 
   if (selectedCodBd !== null) {
     return {

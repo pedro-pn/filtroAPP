@@ -30,7 +30,9 @@ nem permissões da Central de API.
 O ComercialAPP oferece:
 
 - `GET /api/integrations/filtroapp/propostas/:code/revisoes/:revision`:
-  contrato versão 1 com escopo, levantamento da finalização e metadados dos PDFs.
+  contrato versão 1 com cadastro da proposta, preço de venda, custo previsto,
+  margem, resumo calculado de horas/custos, escopo, levantamento da finalização
+  e metadados dos PDFs.
 - `GET /api/integrations/filtroapp/propostas/:code/revisoes/:revision/documentos/:documentId`:
   download autenticado do PDF daquela proposta/revisão.
 
@@ -46,8 +48,17 @@ e acesso pelas permissões existentes do projeto. Aparecem em **Efetivo →
 Handover Comercial**, nos campos de proposta comercial e técnica, com código
 e revisão visíveis. Uma revisão nova mantém os PDFs anteriores no histórico;
 voltar a uma revisão já importada reutiliza suas versões. Os anexos da
-integração são somente leitura. A busca não confirma aceite comercial,
-não movimenta etapas e não troca a origem do orçamento.
+integração são somente leitura.
+
+A busca cadastra a proposta/revisão e preenche o orçamento vazio com origem
+`COMERCIAL_APP`. Revisões superiores da mesma proposta atualizam somente uma
+seleção automática; escolhas manuais e orçamentos Access são preservados. O
+cadastro permite usar preço, custos e horas no Acompanhamento sem proposta na
+base legada nem envio separado por webhook. O resumo mantém o levantamento da
+finalização, mesmo que ele seja editado depois. A busca não confirma aceite
+comercial nem movimenta etapas: `approvedAt` permanece nulo enquanto não houver
+aprovação registrada no CRM. Um evento posterior complementa a mesma proposta
+sem duplicar o orçamento.
 
 O escopo usa a mesma projeção estruturada descrita abaixo. Edições manuais são
 preservadas; serviços sem unidades ou quantidades seguras ficam como pendências
@@ -63,7 +74,16 @@ os documentos da revisão ainda estão sendo aguardados.
 
 Para implantar, publique primeiro as rotas do ComercialAPP; aplique a migração
 `20261007190000_commercialapp_proposal_pull` no FiltroAPP e atualize API, worker
-e frontend. A fila permanece desabilitada enquanto a origem ou o token estiverem
+e frontend. Para a consulta completa, publique primeiro a ampliação do contrato
+no ComercialAPP e aplique também a migração
+`20261013190000_commercialapp_complete_proposal`. Ela permite proposta sem data
+de aprovação e reagenda apenas buscas antigas já concluídas de projetos ativos
+e não encerrados. O worker completa o cadastro e reutiliza os PDFs existentes;
+escopo e escolhas manuais permanecem protegidos. Respostas da API antiga sem os
+campos comerciais exigidos geram retentativa, sem concluir uma importação parcial.
+Pare o worker antigo antes dessa migração e reinicie-o com a versão nova, para
+que as buscas reagendadas sejam processadas pelo consumidor completo.
+A fila permanece desabilitada enquanto a origem ou o token estiverem
 vazios. Projetos anteriores não são importados em massa: o reenvio idêntico do
 Prisma ou uma seleção/edição do vínculo inicializa a busca quando ela não existe.
 

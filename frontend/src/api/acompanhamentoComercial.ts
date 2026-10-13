@@ -183,7 +183,7 @@ export interface CommercialAppRevision {
   salePrice: string | number;
   plannedTotalCost: string | number | null;
   selectionStatus: 'STAGED' | 'SELECTED';
-  approvedAt: string;
+  approvedAt: string | null;
   receivedAt: string;
 }
 
