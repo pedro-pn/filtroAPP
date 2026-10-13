@@ -104,3 +104,40 @@ test('tela de revisão mostra avisos, anexos sugeridos e omite limites sem RCPU'
     await server.close();
   }
 });
+
+import { escreverMarcacao, lerMarcacao, marcacaoDeTextoPuro, textoSemMarcacao, trechosDoEditor } from '../src/utils/textoFormatado.ts';
+
+const rascunho = 'Execução de limpeza química em <b>APVs Verticais</b> (aço carbono) da unidade <b>VENTURA SS VICTÓRIA</b>, compreendendo desengraxe.';
+
+test('textos do Data Book: <b>/<i>/<br/> viram formatação e voltam à mesma marcação', () => {
+  const trechos = lerMarcacao(rascunho);
+  assert.deepEqual(trechos.filter(t => t.tipo === 'texto' && t.negrito).map(t => t.texto), ['APVs Verticais', 'VENTURA SS VICTÓRIA']);
+  assert.equal(escreverMarcacao(trechos), rascunho);
+  assert.equal(escreverMarcacao(lerMarcacao('Linha 1<br/>Linha <i>2</i>\nLinha 3')), 'Linha 1<br/>Linha <i>2</i><br/>Linha 3');
+  assert.equal(escreverMarcacao(lerMarcacao('<b>a</b><b>b</b>')), '<b>ab</b>'); // sem tags redundantes
+  assert.equal(escreverMarcacao(lerMarcacao('<script>x</script> <b>ok</b>')), '<script>x</script> <b>ok</b>'); // outras tags ficam como texto
+});
+
+test('textos do Data Book: texto puro para a IA e de volta, sem marcas cruas', () => {
+  assert.equal(textoSemMarcacao(rascunho), 'Execução de limpeza química em APVs Verticais (aço carbono) da unidade VENTURA SS VICTÓRIA, compreendendo desengraxe.');
+  assert.equal(textoSemMarcacao('A<br/>B'), 'A\nB');
+  assert.equal(marcacaoDeTextoPuro('Linha 1\nLinha 2'), 'Linha 1<br/>Linha 2');
+});
+
+function no(nodeName, filhos = [], texto = null) {
+  return nodeName === '#text' ? { nodeType: 3, nodeName, textContent: texto, childNodes: [] } : { nodeType: 1, nodeName, textContent: null, childNodes: filhos };
+}
+const t = texto => no('#text', [], texto);
+
+test('editor: strong/em, Enter do navegador (div) e linha vazia (<div><br></div>) viram a marcação certa', () => {
+  const raiz = no('DIV', [
+    t('Início '), no('STRONG', [t('negrito')]), t(' e '), no('EM', [t('itálico')]),
+    no('DIV', [t('segunda linha')]),
+    no('DIV', [no('BR')]),
+    no('DIV', [t('quarta linha')])
+  ]);
+  assert.equal(escreverMarcacao(trechosDoEditor(raiz)), 'Início <b>negrito</b> e <i>itálico</i><br/>segunda linha<br/><br/>quarta linha');
+  assert.equal(escreverMarcacao(trechosDoEditor(no('DIV', [t('fim'), no('BR'), no('BR')]))), 'fim');
+  // texto colado com "<b>" literal não vira negrito no PDF
+  assert.equal(escreverMarcacao(trechosDoEditor(no('DIV', [t('colado <b>falso</b>')]))), 'colado falso');
+});

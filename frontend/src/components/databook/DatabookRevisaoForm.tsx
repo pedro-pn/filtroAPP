@@ -1,6 +1,9 @@
 import type { DatabookRevisaoPreparada } from '../../api/databook';
 import { Alert, Badge, Field, Input, Select, Textarea } from '../ui/ds';
+import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
+import { marcacaoDeTextoPuro, textoSemMarcacao } from '../../utils/textoFormatado';
 import { DatabookOrtografiaSecao } from './DatabookOrtografiaSecao';
+import { TextoFormatadoEditor } from './TextoFormatadoEditor';
 import type { DatabookFormulario, ErrosFormularioDatabook } from '../../utils/databook';
 
 interface DatabookRevisaoFormProps {
@@ -9,6 +12,11 @@ interface DatabookRevisaoFormProps {
   erros: ErrosFormularioDatabook;
   disabled?: boolean;
   onChange: (patch: Partial<DatabookFormulario>) => void;
+}
+
+// A IA devolve etapas com "*"/"-" e ";": nos destaques o PDF já põe o marcador de cada linha.
+function destaquesDoTextoAdequado(texto: string) {
+  return texto.split('\n').map(l => l.trim().replace(/^[*•●■-]+\s*/, '').replace(/;$/, '.')).filter(Boolean).join('\n');
 }
 
 function alternar(lista: string[], valor: string, marcado: boolean) {
@@ -45,17 +53,25 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
         <Field label="Título do serviço (capa e cabeçalho)" required errorText={erros.servico}>
           <Input value={form.servico} disabled={disabled} maxLength={200} onChange={e => onChange({ servico: e.target.value })} />
         </Field>
-        <Field label="Escopo">
-          <Textarea rows={3} value={form.escopo} disabled={disabled} onChange={e => onChange({ escopo: e.target.value })} />
+        <Field label="Escopo" optionalText="">
+          <TextoFormatadoEditor ariaLabel="Escopo" minLinhas={3} value={form.escopo} disabled={disabled} onChange={escopo => onChange({ escopo })} />
+          <AdequarAnotacaoButton campo="Escopo" valor={textoSemMarcacao(form.escopo)} disabled={disabled}
+            onAplicar={texto => onChange({ escopo: marcacaoDeTextoPuro(texto) })} />
         </Field>
-        <Field label="Resumo executivo">
-          <Textarea rows={5} value={form.resumoExecutivo} disabled={disabled} onChange={e => onChange({ resumoExecutivo: e.target.value })} />
+        <Field label="Resumo executivo" optionalText="">
+          <TextoFormatadoEditor ariaLabel="Resumo executivo" minLinhas={5} value={form.resumoExecutivo} disabled={disabled} onChange={resumoExecutivo => onChange({ resumoExecutivo })} />
+          <AdequarAnotacaoButton campo="Resumo executivo" valor={textoSemMarcacao(form.resumoExecutivo)} disabled={disabled}
+            onAplicar={texto => onChange({ resumoExecutivo: marcacaoDeTextoPuro(texto) })} />
         </Field>
-        <Field label="Destaques de SMS" helperText="Um destaque por linha.">
+        <Field label="Destaques de SMS" optionalText="" helperText="Um destaque por linha.">
           <Textarea rows={5} value={form.destaques} disabled={disabled} onChange={e => onChange({ destaques: e.target.value })} />
+          <AdequarAnotacaoButton campo="Destaques de SMS" valor={form.destaques} disabled={disabled}
+            onAplicar={texto => onChange({ destaques: destaquesDoTextoAdequado(texto) })} />
         </Field>
-        <Field label="Considerações finais">
-          <Textarea rows={4} value={form.consideracoes} disabled={disabled} onChange={e => onChange({ consideracoes: e.target.value })} />
+        <Field label="Considerações finais" optionalText="">
+          <TextoFormatadoEditor ariaLabel="Considerações finais" minLinhas={4} value={form.consideracoes} disabled={disabled} onChange={consideracoes => onChange({ consideracoes })} />
+          <AdequarAnotacaoButton campo="Considerações finais" valor={textoSemMarcacao(form.consideracoes)} disabled={disabled}
+            onAplicar={texto => onChange({ consideracoes: marcacaoDeTextoPuro(texto) })} />
         </Field>
         <div className="databook-revisao__grade">
           <Field label="Ocorrências de SMS" required errorText={erros.ocorrenciasSms}>
