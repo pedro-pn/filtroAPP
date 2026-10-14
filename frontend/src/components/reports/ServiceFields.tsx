@@ -6,6 +6,7 @@ import { UploadField } from '../ui/UploadField';
 import { serviceUploadLabels, updateServiceUploadGroup } from '../../utils/serviceUploadGroups';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { cleaningModePatch } from '../../utils/cleaningMeasurement';
+import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseModePatch } from '../../utils/pressureHoseMeasurement';
 import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 
 const etapasPorTipo: Record<string, string[]> = {
@@ -517,6 +518,7 @@ function TubesBlock({
 }
 
 function pressureTestedEquipmentValue(data: Record<string, unknown>): PressureTestedEquipment {
+  if (isPressureHoseEquipment(data)) return 'mangueira';
   const raw = getString(data.equipamentoTestado) || getString(data['Equipamento testado']);
   if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
   if (raw === 'outro' || raw === 'Outro') return 'outro';
@@ -1132,6 +1134,7 @@ export function ServiceFields({
 
   if (normalizedType === 'pressao') {
     const equipamentoTestado = pressureTestedEquipmentValue(data);
+    const hoseUnits = isPressureHoseUnits(data);
     const equipamentoTestadoOutro = getString(data.equipamentoTestadoOutro);
     const showMaterialField = equipamentoTestado === 'tubulacao';
     const tubeItemLabel = pressureTestedEquipmentLabel(data);
@@ -1157,6 +1160,7 @@ export function ServiceFields({
                   checked={equipamentoTestado === option.value}
                   disabled={disabled}
                   onChange={() => onChange({
+                    ...(option.value !== equipamentoTestado && hoseUnits ? pressureHoseModePatch(false) : {}),
                     equipamentoTestado: option.value,
                     'Equipamento testado': option.label,
                     equipamentoTestadoOutro: option.value === 'outro' ? equipamentoTestadoOutro : '',
@@ -1189,7 +1193,23 @@ export function ServiceFields({
           {showMaterialField ? (
             <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
           ) : null}
-          <TubesBlock
+          {equipamentoTestado === 'mangueira' ? <div className="field-group">
+            <label id={`pressure-hose-mode-${groupKey}`}>Medição das mangueiras {requiredMark()}</label>
+            <div className="rdo-tag-group" role="radiogroup" aria-labelledby={`pressure-hose-mode-${groupKey}`}>
+              {([false, true] as const).map(units => <label className={radioOptionClass(hoseUnits === units)} key={String(units)}>
+                <input type="radio" name={`pressure-hose-mode-${groupKey}`} checked={hoseUnits === units} disabled={disabled}
+                  onChange={() => onChange(pressureHoseModePatch(units))} />
+                <span>{units ? 'Apenas unidades' : 'Diâmetro e metragem'}</span>
+              </label>)}
+            </div>
+          </div> : null}
+          {hoseUnits ? <div className={fieldClass(invalidKey, 'quantidadeMangotes')}>
+            <label htmlFor={`pressure-hose-quantity-${groupKey}`}>Quantidade de mangueiras (unidades) {requiredMark()}</label>
+            <input id={`pressure-hose-quantity-${groupKey}`} type="number" min="1" max="999999999999" step="1" inputMode="numeric" disabled={disabled}
+              value={String(data.quantidadeMangotes ?? data['Quantidade de mangotes (un)'] ?? '')}
+              onChange={event => onChange({ quantidadeMangotes: event.target.value })} />
+            <small className="muted">Informe unidades inteiras. Entra no avanço quando o serviço estiver finalizado.</small>
+          </div> : <TubesBlock
             data={data}
             onChange={onChange}
             disabled={disabled}
@@ -1197,7 +1217,7 @@ export function ServiceFields({
             groupKey={groupKey}
             itemLabel={tubeItemLabel}
             required={equipamentoTestado !== 'outro'}
-          />
+          />}
         </ServiceFormSection>
         <ServiceFormSection title="Execução e medições" appearance={appearance}>
           {hideFinalization ? null : (
