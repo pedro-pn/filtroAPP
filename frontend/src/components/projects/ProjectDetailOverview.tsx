@@ -74,7 +74,7 @@ export function ProjectDetailServiceComposition({ target, fallbackProgress, fall
   const fallbackProgressServices = groupedFallbackServices?.length ? groupedFallbackServices : fallbackProgress?.services.map(service => ({ ...service, scopeName: null })) ?? [];
   const services: OverviewService[] = targetServices.length ? targetServices : fallbackProgressServices.length ? fallbackProgressServices : fallbackServices?.map(service => ({ ...service, scopeName: null })) ?? [];
   const serviceCards = services.flatMap(service => {
-    const linkedUnits = service.systems.filter(system => system.systemType === 'SISTEMA' && (system.equipment?.trim() || system.systemName?.trim()));
+    const linkedUnits = service.systems.filter(system => ['SISTEMA', 'MANGOTE'].includes(system.systemType) && (system.equipment?.trim() || system.systemName?.trim()));
     if (!linkedUnits.length) {
       return [{ ...service, equipmentName: null }];
     }

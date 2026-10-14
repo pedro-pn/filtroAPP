@@ -10,6 +10,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
 import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
+import { isPressureHoseUnits } from '../../lib/reports/pressure-hose-measurement.js';
 import {
   canClientSeeReportWithRules,
   releasedServiceReportsForSignedRdo
@@ -3363,7 +3364,7 @@ function serviceRequiresTubes(service) {
   const type = String(service?.serviceType || '').trim().toLowerCase();
   const extraData = serviceExtraData(service);
   if (type === 'pressao') {
-    return normalizedText(extraData['Equipamento testado'] || extraData.equipamentoTestado) !== 'outro';
+    return !isPressureHoseUnits(extraData) && normalizedText(extraData['Equipamento testado'] || extraData.equipamentoTestado) !== 'outro';
   }
   if (type === 'limpeza') return normalizedText(extraData['Limpeza de tubulação?'] || extraData['Limpeza de tubulacao?'] || extraData.limpezaTubulacao) !== 'nao';
   if (type === 'flushing') return normalizedText(extraData['Flushing em tubulação?'] || extraData['Flushing em tubulacao?'] || extraData.flushingTubulacao) !== 'nao';
@@ -4501,6 +4502,7 @@ function serviceHistoryDisambiguatorParts(service) {
   }
 
   if (type === 'pressao') {
+    if (isPressureHoseUnits(fields)) parts.push('medicao:mangote');
     const workPressure = firstHistoryKeyPart(fields, ['Pressão de trabalho', 'Pressao de trabalho', 'pressaoTrabalho']);
     const testPressure = firstHistoryKeyPart(fields, ['Pressão de teste', 'Pressao de teste', 'pressaoTeste']);
     const testFluid = firstHistoryKeyPart(fields, ['Fluido de teste', 'fluidoTeste']);

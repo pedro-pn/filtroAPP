@@ -3677,12 +3677,12 @@ model ProjectPlannedServiceSystem {
   id           String                @id @default(cuid())
   serviceId    String
   projectSystemId String?
-  systemType   String // TUBULACAO | OLEO | SISTEMA (limpeza por UN)
+  systemType   String // TUBULACAO | OLEO | SISTEMA (limpeza por UN) | MANGOTE (teste de pressão por UN)
   description  String?
   diameter     String?
   diameterUnit String?
   quantity     Decimal?              @db.Decimal(14, 2)
-  unit         PlannedMeasureUnit? // unidade do sistema (TUBULACAO=M, OLEO=L)
+  unit         PlannedMeasureUnit? // TUBULACAO=M, OLEO=L, SISTEMA/MANGOTE=UN
   order        Int                   @default(0)
   service      ProjectPlannedService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   projectSystem ProjectServiceSystem? @relation(fields: [projectSystemId], references: [id], onDelete: Restrict)

@@ -65,6 +65,7 @@ import { calculateReportOvertimeSummary } from '../utils/reportOvertime';
 import { isReportManuallyReleased } from '../utils/reportClientRelease';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasurement';
+import { isPressureHoseUnits, pressureHoseQuantity } from '../utils/pressureHoseMeasurement';
 import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js';
 import type { AuthUser } from '../types/auth';
@@ -1453,6 +1454,7 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
   }
 
   if (type === 'pressao') {
+    if (isPressureHoseUnits(data)) rows.push({ label: 'Quantidade de mangueiras', value: `${pressureHoseQuantity(data) ?? '—'} un` });
     if (data.equipamentoTestado) {
       const testedLabel = data.equipamentoTestado === 'mangueira'
         ? 'Mangueiras'
