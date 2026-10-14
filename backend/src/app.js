@@ -110,7 +110,8 @@ export function jsonBodyLimitForRequest(method, requestPath) {
   // Relatórios operacionais (manutenção etc.) levam as fotos em base64 no próprio corpo (até 10 por cartão).
   const isOperationalReportApi = /^\/api(?:\/rdo)?\/operational-reports(?:\/|$)/.test(requestPath);
   if (isStockDocumentUploadApi) return '30mb';
-  if (isManualReportUploadApi) return '30mb';
+  // Um PDF de 50 MiB ocupa cerca de 67 MiB em base64, além dos campos do JSON.
+  if (isManualReportUploadApi) return '70mb';
   if (isUploadsApi || isEquipmentUploadApi || isOperationalReportApi) return '25mb';
   if (isSignatureApi) return '3mb';
   return '1mb';

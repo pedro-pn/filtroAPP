@@ -32,7 +32,7 @@ export function canReceivePhysicalSignature(report: ReportSummary) {
 export function validatePhysicalSignatureFile(file: File) {
   if (!/\.pdf$/i.test(file.name)) return 'Selecione um arquivo PDF.';
   if (!file.size) return 'O PDF está vazio.';
-  if (file.size > 20 * 1024 * 1024) return 'O PDF assinado deve ter até 20 MB.';
+  if (file.size > 50 * 1024 * 1024) return 'O PDF assinado deve ter até 50 MB.';
   return '';
 }
 

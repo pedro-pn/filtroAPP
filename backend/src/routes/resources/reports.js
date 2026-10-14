@@ -100,7 +100,7 @@ import {
   manualReportOperationalDataSchema,
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
-import { decodeManualReportPdfDataUrl, extractManualReportPdfFields } from '../../lib/reports/manual-pdf-extraction.js';
+import { MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH, decodeManualReportPdfDataUrl, extractManualReportPdfFields } from '../../lib/reports/manual-pdf-extraction.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
 import { createReportPdfAccessChecker, reportDateFromWhere, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
@@ -3579,7 +3579,7 @@ const manualReportUploadSchema = z.object({
   fileName: z.string().trim().max(240).optional(),
   serviceEquipment: z.string().trim().max(180).optional(),
   serviceSystem: z.string().trim().max(180).optional(),
-  pdfDataUrl: z.string().trim().min(1).max(30_000_000),
+  pdfDataUrl: z.string().trim().min(1).max(MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH),
   signatureMode: manualReportSignatureModeSchema.default('APPROVED'),
   operationalData: manualReportOperationalDataSchema.optional()
 });
@@ -3588,7 +3588,7 @@ const manualReportPdfReplaceSchema = z.object({
   fileName: z.string().trim().max(240).optional(),
   serviceEquipment: z.string().trim().max(180).optional(),
   serviceSystem: z.string().trim().max(180).optional(),
-  pdfDataUrl: z.string().trim().min(1).max(30_000_000).optional(),
+  pdfDataUrl: z.string().trim().min(1).max(MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH).optional(),
   signatureMode: manualReportSignatureModeSchema.default('APPROVED')
 });
 function uniqueIds(values) {

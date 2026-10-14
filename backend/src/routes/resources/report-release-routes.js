@@ -11,13 +11,14 @@ import {
 } from '../../lib/internal-report-signatures.js';
 import prisma from '../../lib/prisma.js';
 import { isManualClientReleaseActive } from '../../lib/reports/client-visibility.js';
+import { MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH } from '../../lib/reports/manual-pdf-extraction.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const clientReleaseSchema = z.object({ release: z.boolean() });
 const physicalSignatureSchema = z.object({
   fileName: z.string().trim().min(1).max(240),
-  pdfDataUrl: z.string().trim().min(1).max(30_000_000)
+  pdfDataUrl: z.string().trim().min(1).max(MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH)
 });
 
 export async function processManualReleasedServiceReportEmail(reportId, releasedAt, options) {

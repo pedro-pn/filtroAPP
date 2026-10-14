@@ -137,7 +137,7 @@ test('PDF digitalizado usa OCR local para preencher os horários', { timeout: 60
 test('extração valida conteúdo PDF e limite de tamanho antes de processar', () => {
   assert.throws(() => decodeManualReportPdfDataUrl('data:text/plain;base64,SGVsbG8='), { statusCode: 400 });
   assert.throws(() => decodeManualReportPdfDataUrl('data:application/pdf;base64,SGVsbG8='), { statusCode: 400 });
-  const oversized = Buffer.alloc(20 * 1024 * 1024 + 1);
+  const oversized = Buffer.alloc(50 * 1024 * 1024 + 1);
   oversized.write('%PDF-');
-  assert.throws(() => decodeManualReportPdfDataUrl(`data:application/pdf;base64,${oversized.toString('base64')}`), { statusCode: 400 });
+  assert.throws(() => decodeManualReportPdfDataUrl(`data:application/pdf;base64,${oversized.toString('base64')}`), { statusCode: 400, message: /50 MB/ });
 });
