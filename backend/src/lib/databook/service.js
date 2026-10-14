@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 
 import env from '../../config/env.js';
 import prisma from '../prisma.js';
-import { materializar } from './anexos.js';
+import { materializar, salvarVinculosFds } from './anexos.js';
 import { dayKey, intervaloPadrao, montarDadosDatabook } from './montar-dados.js';
 import { aplicarCorrecoes, verificarOrtografia } from './ortografia.js';
 import { avisosDoGerador } from './python.js';
@@ -165,19 +165,32 @@ function isUnico(error) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
+/** Vínculos produto do RLQ → item do Estoque escolhidos no diálogo ({ produto: stockItemId | '' }). */
+export function vinculosFdsDasEdicoes(edicoes) {
+  const v = edicoes?.vinculos_fds;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  return Object.fromEntries(Object.entries(v)
+    .filter(([produto, id]) => String(produto).trim() && typeof id === 'string')
+    .slice(0, 100)
+    .map(([produto, id]) => [produto, id.trim()]));
+}
+
 /** Cria a revisão (PENDING) com a entrada final do gerador; o worker gera o PDF. */
 export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descricao } = {}, user, { client = prisma } = {}) {
   const projeto = await projetoDoDatabook(projetoId, client);
   const intervalo = validarIntervalo({ inicio, fim }, await intervaloPadrao(projetoId, client));
+  const vinculosFds = vinculosFdsDasEdicoes(edicoes);
   for (let tentativa = 0; tentativa < 3; tentativa += 1) {
     const documento = await proximoDocumento(client, projeto, intervalo.inicio, intervalo.fim);
-    const montado = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, documento });
+    const montado = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, documento, vinculosFds });
     const dados = aplicarEdicoes(montado.dados, edicoes, await responsaveisDisponiveis(client));
     const desc = texto(descricao, 200)?.trim() || (documento.rev === 0 ? 'Emissão inicial' : `Revisão ${documento.rev}`);
     const anteriores = (documento.databook?.revisions || []).filter(r => r.status === 'COMPLETED').map(revisaoParaTabela);
     dados.revisoes = [...anteriores, revisaoParaTabela({ revision: documento.rev, description: desc, input: dados })];
     try {
       return await client.$transaction(async tx => {
+        // O vínculo escolhido vira sinônimo no Estoque: o próximo Data Book já vincula sozinho.
+        await salvarVinculosFds(tx, vinculosFds);
         const databook = documento.databook || await tx.projectDatabook.create({
           data: {
             projectId: projeto.id, sequence: documento.sequence, docNumber: documento.doc,

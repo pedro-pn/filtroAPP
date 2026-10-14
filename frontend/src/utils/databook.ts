@@ -1,5 +1,7 @@
 import type {
   DatabookEdicoes,
+  DatabookFdsCandidata,
+  DatabookItemEstoqueFds,
   DatabookIntervalo,
   DatabookResumo,
   DatabookRevisaoPreparada,
@@ -50,6 +52,8 @@ export interface DatabookFormulario {
   limiteNas: string;
   limiteUmidade: string;
   fds: string[];
+  /** Vínculo escolhido no diálogo: produto do RLQ → item do Estoque ('' = não vincular). */
+  vinculosFds: Record<string, string>;
   certificados: string[];
   descricao: string;
   /** Correção escolhida por palavra suspeita ('' = manter como está). */
@@ -59,7 +63,7 @@ export interface DatabookFormulario {
 export const formularioVazio: DatabookFormulario = {
   servico: '', escopo: '', resumoExecutivo: '', destaques: '', consideracoes: '', ocorrenciasSms: '0',
   elaborado: '', verificado: '', aprovadoNome: '', aprovadoCargo: '',
-  limiteIso: '', limiteNas: '', limiteUmidade: '', fds: [], certificados: [], descricao: '', correcoes: {}
+  limiteIso: '', limiteNas: '', limiteUmidade: '', fds: [], vinculosFds: {}, certificados: [], descricao: '', correcoes: {}
 };
 
 export function formularioInicialDatabook(preparada: DatabookRevisaoPreparada, usuarioId?: string): DatabookFormulario {
@@ -81,6 +85,7 @@ export function formularioInicialDatabook(preparada: DatabookRevisaoPreparada, u
     limiteNas: dados.limites_rcpu?.nas != null ? String(dados.limites_rcpu.nas) : '',
     limiteUmidade: dados.limites_rcpu?.umidade_ppm != null ? String(dados.limites_rcpu.umidade_ppm) : '',
     fds: dados.fds.map(f => f.arquivo),
+    vinculosFds: {},
     certificados: dados.certificados.map(c => c.arquivo),
     descricao: preparada.documento.rev === 0 ? 'Emissão inicial' : `Revisão ${preparada.documento.rev}`,
     correcoes: {}
@@ -114,6 +119,7 @@ export function edicoesDoFormulario(form: DatabookFormulario): DatabookEdicoes {
     },
     limites_rcpu: { iso: form.limiteIso.trim(), nas: form.limiteNas.trim(), umidade_ppm: form.limiteUmidade.trim() },
     fds: form.fds,
+    vinculos_fds: form.vinculosFds,
     certificados: form.certificados,
     correcoes: Object.entries(form.correcoes).filter(([, por]) => por.trim()).map(([palavra, por]) => ({ palavra, por: por.trim() })),
     aprovacoes: {
@@ -122,6 +128,32 @@ export function edicoesDoFormulario(form: DatabookFormulario): DatabookEdicoes {
       ...(form.aprovadoNome.trim() ? { aprovado: { nome: form.aprovadoNome.trim(), cargo: form.aprovadoCargo.trim() } } : {})
     }
   };
+}
+
+export interface DatabookFdsResolvida {
+  arquivo: string;
+  nome: string;
+  produtos: string[];
+  confirmadoRomaneio: boolean;
+}
+
+/** Item do Estoque vinculado a cada produto do RLQ: a escolha do diálogo vale sobre a sugestão. */
+export function itemVinculadoFds(candidata: DatabookFdsCandidata, vinculos: Record<string, string>) {
+  return Object.hasOwn(vinculos, candidata.produto) ? vinculos[candidata.produto] : candidata.stockItemId || '';
+}
+
+/** FDS que entram no Anexo B com os vínculos atuais (uma por item do Estoque, como no backend). */
+export function fdsResolvidas(candidatas: DatabookFdsCandidata[], estoque: DatabookItemEstoqueFds[], vinculos: Record<string, string>) {
+  const porItem = new Map<string, DatabookFdsResolvida>();
+  for (const c of candidatas) {
+    const id = itemVinculadoFds(c, vinculos);
+    const item = estoque.find(i => i.stockItemId === id);
+    if (!item?.documentoId) continue;
+    const atual = porItem.get(id);
+    if (atual) atual.produtos.push(c.produto);
+    else porItem.set(id, { arquivo: `stockdoc:${item.documentoId}`, nome: item.nome, produtos: [c.produto], confirmadoRomaneio: item.confirmadoRomaneio });
+  }
+  return [...porItem.values()];
 }
 
 export function statusDatabookConcluido(status: DatabookStatus | undefined) {

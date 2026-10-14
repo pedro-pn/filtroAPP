@@ -266,7 +266,7 @@ export async function intervaloPadrao(projetoId, client = prisma) {
  * Arquivos ficam como referências do app ("upload:", "stockdoc:", "cert:"), resolvidas por
  * anexos.js#materializar antes de chamar o Python.
  */
-export async function montarDadosDatabook(projetoId, inicio, fim, { client = prisma, documento = {}, agora = new Date() } = {}) {
+export async function montarDadosDatabook(projetoId, inicio, fim, { client = prisma, documento = {}, agora = new Date(), vinculosFds = {} } = {}) {
   const { projeto, rdosAvanco, rdos, derivados, contadores } = await carregar(client, projetoId, inicio, fim);
   if (!projeto) throw Object.assign(new Error('Projeto não encontrado.'), { status: 404 });
   const avisos = [];
@@ -311,7 +311,7 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
   const temTipo = tipo => dias.some(d => d.servicos.some(s => s.tipo === tipo));
   const etapasProduto = etapasProdutoDosRlqs(dias);
   const [fds, certificados] = await Promise.all([
-    sugerirFds(client, projeto, etapasProduto),
+    sugerirFds(client, projeto, etapasProduto, vinculosFds),
     sugerirCertificados(client, derivados)
   ]);
   avisos.push(...fds.avisos, ...certificados.avisos);
@@ -357,5 +357,5 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
     fds: dados.fds.length,
     certificados: dados.certificados.length
   };
-  return { dados, avisos, resumo, sugestoes: { fds: fds.candidatas, certificados: certificados.itens } };
+  return { dados, avisos, resumo, sugestoes: { fds: fds.candidatas, estoqueFds: fds.estoque, certificados: certificados.itens } };
 }

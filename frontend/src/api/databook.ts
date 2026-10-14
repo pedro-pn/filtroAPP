@@ -46,13 +46,26 @@ export interface DatabookCertificado {
   arquivo: string;
 }
 
+export type DatabookVinculoFds = 'exato' | 'aproximado' | 'duvida' | 'nenhum' | 'manual';
+
 export interface DatabookFdsCandidata {
   produto: string;
   stockItemId: string | null;
+  documentoId?: string | null;
   nome_comercial?: string;
+  vinculo?: DatabookVinculoFds;
+  opcoes?: Array<{ stockItemId: string; nome: string; score: number }>;
   confirmadoRomaneio?: boolean;
   selecionado: boolean;
   motivo: string;
+}
+
+/** Produto químico do Estoque que pode ser vinculado a um nome do RLQ no diálogo. */
+export interface DatabookItemEstoqueFds {
+  stockItemId: string;
+  nome: string;
+  documentoId: string | null;
+  confirmadoRomaneio: boolean;
 }
 
 export interface DatabookTextos {
@@ -92,7 +105,7 @@ export interface DatabookRevisaoPreparada {
   };
   avisos: string[];
   resumo: DatabookResumo;
-  sugestoes: { fds: DatabookFdsCandidata[]; certificados: DatabookCertificado[] };
+  sugestoes: { fds: DatabookFdsCandidata[]; estoqueFds?: DatabookItemEstoqueFds[]; certificados: DatabookCertificado[] };
   documento: { doc: string; rev: number };
   responsaveis: DatabookResponsavel[];
   ortografia?: DatabookOrtografia;
@@ -111,6 +124,8 @@ export interface DatabookEdicoes {
   textos?: DatabookTextos;
   limites_rcpu?: { iso?: string; nas?: string; umidade_ppm?: string };
   fds?: string[];
+  /** Produto do RLQ → item do Estoque escolhido no diálogo ('' = não vincular). */
+  vinculos_fds?: Record<string, string>;
   certificados?: string[];
   aprovacoes?: { elaborado?: DatabookPessoa; verificado?: DatabookPessoa; aprovado?: DatabookPessoa };
   correcoes?: Array<{ palavra: string; por: string }>;

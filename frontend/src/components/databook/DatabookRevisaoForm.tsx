@@ -1,10 +1,10 @@
-import type { DatabookRevisaoPreparada } from '../../api/databook';
+import type { DatabookFdsCandidata, DatabookItemEstoqueFds, DatabookRevisaoPreparada } from '../../api/databook';
 import { Alert, Badge, Field, Input, Select, Textarea } from '../ui/ds';
 import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 import { marcacaoDeTextoPuro, textoSemMarcacao } from '../../utils/textoFormatado';
 import { DatabookOrtografiaSecao } from './DatabookOrtografiaSecao';
 import { TextoFormatadoEditor } from './TextoFormatadoEditor';
-import type { DatabookFormulario, ErrosFormularioDatabook } from '../../utils/databook';
+import { fdsResolvidas, itemVinculadoFds, type DatabookFormulario, type ErrosFormularioDatabook } from '../../utils/databook';
 
 interface DatabookRevisaoFormProps {
   preparada: DatabookRevisaoPreparada;
@@ -19,6 +19,26 @@ function destaquesDoTextoAdequado(texto: string) {
   return texto.split('\n').map(l => l.trim().replace(/^[*•●■-]+\s*/, '').replace(/;$/, '.')).filter(Boolean).join('\n');
 }
 
+const ROTULO_VINCULO: Record<string, { texto: string; tom: 'success' | 'warning' | 'danger' | 'info' }> = {
+  exato: { texto: 'Cadastrado', tom: 'success' },
+  aproximado: { texto: 'Por semelhança – confira', tom: 'warning' },
+  duvida: { texto: 'Escolha o item', tom: 'danger' },
+  nenhum: { texto: 'Sem correspondência', tom: 'danger' },
+  manual: { texto: 'Escolhido aqui', tom: 'info' }
+};
+
+/** Sugestões por semelhança primeiro; depois os demais produtos químicos do Estoque. */
+function opcoesDoVinculo(candidata: DatabookFdsCandidata, estoque: DatabookItemEstoqueFds[]) {
+  const rotulo = (i: DatabookItemEstoqueFds) => `${i.nome}${i.documentoId ? '' : ' (sem FDS anexada)'}${i.confirmadoRomaneio ? ' · no romaneio' : ''}`;
+  const sugeridos = (candidata.opcoes || []).map(o => estoque.find(i => i.stockItemId === o.stockItemId)).filter((i): i is DatabookItemEstoqueFds => Boolean(i));
+  const ids = new Set(sugeridos.map(i => i.stockItemId));
+  return [
+    { value: '', label: 'Não vincular' },
+    ...sugeridos.map(i => ({ value: i.stockItemId, label: `★ ${rotulo(i)}` })),
+    ...estoque.filter(i => !ids.has(i.stockItemId)).map(i => ({ value: i.stockItemId, label: rotulo(i) }))
+  ];
+}
+
 function alternar(lista: string[], valor: string, marcado: boolean) {
   return marcado ? [...new Set([...lista, valor])] : lista.filter(item => item !== valor);
 }
@@ -26,8 +46,21 @@ function alternar(lista: string[], valor: string, marcado: boolean) {
 export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange }: DatabookRevisaoFormProps) {
   const { dados, sugestoes, avisos, resumo, responsaveis } = preparada;
   const opcoesResponsaveis = responsaveis.map(r => ({ value: r.id, label: r.cargo ? `${r.nome} – ${r.cargo}` : r.nome }));
-  const candidataPorProduto = new Map(sugestoes.fds.map(c => [c.produto, c]));
-  const fdsSemCadastro = sugestoes.fds.filter(c => !c.stockItemId || c.motivo === 'sem arquivo de FDS');
+  const estoqueFds = sugestoes.estoqueFds || [];
+  const fdsAnexo = fdsResolvidas(sugestoes.fds, estoqueFds, form.vinculosFds);
+  const semFds = sugestoes.fds.filter(c => {
+    const item = estoqueFds.find(i => i.stockItemId === itemVinculadoFds(c, form.vinculosFds));
+    return !item?.documentoId;
+  });
+
+  function vincular(produto: string, stockItemId: string) {
+    const documentoId = estoqueFds.find(i => i.stockItemId === stockItemId)?.documentoId;
+    // A FDS do item recém-vinculado já entra marcada no Anexo B.
+    onChange({
+      vinculosFds: { ...form.vinculosFds, [produto]: stockItemId },
+      ...(documentoId ? { fds: [...new Set([...form.fds, `stockdoc:${documentoId}`])] } : {})
+    });
+  }
 
   return (
     <div className="databook-revisao">
@@ -121,26 +154,55 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
 
       <section className="databook-revisao__secao" aria-labelledby="databook-fds-titulo">
         <h3 id="databook-fds-titulo">FDS anexadas (Anexo B)</h3>
-        {dados.fds.length ? (
+        {sugestoes.fds.length ? (
+          <>
+            <p className="databook-revisao__ajuda">
+              Produto químico de cada etapa do RLQ e o item do Estoque com a FDS. Quando o nome difere, o mais parecido é sugerido;
+              o vínculo escolhido aqui fica salvo no Estoque como sinônimo e vale para os próximos Data Books.
+            </p>
+            <ul className="databook-revisao__ortografia">
+              {sugestoes.fds.map(c => {
+                const vinculo = Object.hasOwn(form.vinculosFds, c.produto) ? 'manual' : c.vinculo || (c.stockItemId ? 'exato' : 'nenhum');
+                const rotulo = ROTULO_VINCULO[vinculo] || ROTULO_VINCULO.nenhum;
+                return (
+                  <li key={c.produto}>
+                    <div className="databook-revisao__ortografia-palavra">
+                      <strong>{c.produto}</strong>
+                      <span><Badge tone={rotulo.tom}>{rotulo.texto}</Badge></span>
+                    </div>
+                    <Select
+                      aria-label={`Item do Estoque para ${c.produto}`}
+                      value={itemVinculadoFds(c, form.vinculosFds)}
+                      disabled={disabled}
+                      options={opcoesDoVinculo(c, estoqueFds)}
+                      onChange={e => vincular(c.produto, e.target.value)}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : null}
+        {fdsAnexo.length ? (
           <ul className="databook-revisao__anexos">
-            {dados.fds.map(f => {
-              const candidata = candidataPorProduto.get(f.produto.split(' / ')[0]);
+            {fdsAnexo.map(f => {
+              const etapa = dados.fds.find(x => x.arquivo === f.arquivo)?.etapa;
               return (
                 <li key={f.arquivo}>
                   <label>
                     <input type="checkbox" checked={form.fds.includes(f.arquivo)} disabled={disabled}
                       onChange={e => onChange({ fds: alternar(form.fds, f.arquivo, e.target.checked) })} />
-                    <span><strong>{f.nome_comercial}</strong> · {f.produto}{f.etapa ? ` · ${f.etapa}` : ''}</span>
-                    {candidata?.confirmadoRomaneio ? <Badge tone="success">No romaneio</Badge> : <Badge tone="warning">Fora do romaneio</Badge>}
+                    <span><strong>{f.nome}</strong> · {f.produtos.join(' / ')}{etapa ? ` · ${etapa}` : ''}</span>
+                    {f.confirmadoRomaneio ? <Badge tone="success">No romaneio</Badge> : <Badge tone="warning">Fora do romaneio</Badge>}
                   </label>
                 </li>
               );
             })}
           </ul>
-        ) : <p className="databook-revisao__ajuda">Nenhum produto químico com FDS cadastrada nos RLQs do intervalo.</p>}
-        {fdsSemCadastro.length ? (
+        ) : <p className="databook-revisao__ajuda">Nenhum produto químico com FDS vinculada nos RLQs do intervalo.</p>}
+        {semFds.length ? (
           <p className="databook-revisao__ajuda">
-            Sem FDS no Estoque: {fdsSemCadastro.map(c => c.produto).join(', ')}. Cadastre a ficha no produto químico do Estoque (com o nome do RLQ como sinônimo) e prepare de novo.
+            Sem FDS: {semFds.map(c => c.produto).join(', ')}. Vincule acima a um item do Estoque com a ficha anexada, ou anexe a FDS no Estoque e prepare de novo.
           </p>
         ) : null}
       </section>
