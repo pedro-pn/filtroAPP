@@ -1,5 +1,13 @@
 # Search regression in a browser
 
+For signed RDO batch uploads, open `/test/browser/physical-signature-batch.html` and run
+`playwright-cli run-code --filename frontend/test/browser/physical-signature-batch.js`.
+The regression uses the production dialog with simulated API responses and covers
+selecting a project before upload, querying only its RDOs, filename matching
+within that project, manual assignments, duplicate targets, PDF validation,
+partial failures, retrying only failed files, load failures and mobile layout.
+No database records are changed.
+
 Start the frontend with `npm run dev`. Open `/test/browser/search-race.html` in an
 isolated Playwright CLI session, then run:
 
