@@ -502,7 +502,7 @@ export async function setProjectSchedule(projectId: string, payload: ProjectSche
 // --- Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra ---
 
 export type PlannedMeasureUnit = 'M' | 'KG' | 'T' | 'UN' | 'L';
-export type PlannedSystemType = 'TUBULACAO' | 'OLEO' | 'SISTEMA';
+export type PlannedSystemType = 'TUBULACAO' | 'OLEO' | 'SISTEMA' | 'MANGOTE';
 export type PlannedDiameterUnit = 'pol' | 'mm';
 
 export interface PlannedServiceSystem {

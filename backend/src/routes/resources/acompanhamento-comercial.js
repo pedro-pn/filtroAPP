@@ -787,12 +787,12 @@ router.delete(
 
 // === Escopo previsto: quantitativo de serviços vendidos + previsão de horas (manual) ===
 
-// Quantitativos com fonte no RDO: tubulação (m), óleo (L) e limpeza de sistemas completos (un).
+// Quantitativos com fonte no RDO: tubulação (m), óleo (L), sistemas completos (un) e teste de mangueiras (un).
 const plannedSystemSchema = z.object({
   projectSystemId: z.string().max(100).nullable().optional(),
   equipment: z.string().trim().max(180).nullable().optional(),
   systemName: z.string().trim().max(180).nullable().optional(),
-  systemType: z.enum(['TUBULACAO', 'OLEO', 'SISTEMA']),
+  systemType: z.enum(['TUBULACAO', 'OLEO', 'SISTEMA', 'MANGOTE']),
   description: z.string().trim().max(180).nullable().optional(),
   diameter: z.string().trim().max(40).nullable().optional(),
   diameterUnit: z.enum(['pol', 'mm']).nullable().optional(),

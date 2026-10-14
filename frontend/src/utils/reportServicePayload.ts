@@ -1,5 +1,6 @@
 import type { Collaborator, Equipment, ReportServiceInput, Unit } from '../types/domain';
 import { cleaningSystemQuantity } from './cleaningMeasurement';
+import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } from './pressureHoseMeasurement';
 import { serviceUploadLabels } from './serviceUploadGroups';
 
 export const serviceTypeMap: Record<string, string> = {
@@ -63,6 +64,7 @@ function flushingTubulacaoLabel(data: Record<string, unknown>) {
 }
 
 function pressureTestedEquipmentValue(data: Record<string, unknown>) {
+  if (isPressureHoseEquipment(data)) return 'mangueira';
   const raw = getString(data.equipamentoTestado) || getString(data['Equipamento testado']);
   if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
   if (raw === 'outro' || raw === 'Outro') return 'outro';
@@ -141,7 +143,7 @@ function commonExtraData(
   const collaboratorIds = options.collaboratorIds || [];
   const pressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(data) : '';
   const includeMaterial = type !== 'flushing' && !(type === 'pressao' && pressureTestedEquipment !== 'tubulacao');
-  const tubes = (type === 'flushing' && flushingTubulacaoLabel(data) === 'Não') || (type === 'limpeza' && limpezaTubulacaoLabel(data) === 'Não')
+  const tubes = (type === 'pressao' && isPressureHoseUnits(data)) || (type === 'flushing' && flushingTubulacaoLabel(data) === 'Não') || (type === 'limpeza' && limpezaTubulacaoLabel(data) === 'Não')
     ? []
     : (Array.isArray(data.tubes) ? data.tubes : []);
 
@@ -229,6 +231,12 @@ export function buildReportServicePayload(
     const pressureTestedEquipment = pressureTestedEquipmentValue(data);
     const pressureTestedEquipmentOther = getString(data.equipamentoTestadoOutro) || getString(data['Outro equipamento testado']);
     extraData['Equipamento testado'] = pressureTestedEquipmentLabel(data);
+    extraData.equipamentoTestado = pressureTestedEquipment;
+    extraData.medicaoMangotes = isPressureHoseUnits(data) ? 'UN' : 'M';
+    extraData['Medição de mangueiras'] = extraData.medicaoMangotes;
+    extraData.tubes = extraData['Diâmetros e comprimentos'];
+    extraData.quantidadeMangotes = isPressureHoseUnits(data) ? pressureHoseQuantity(data) : null;
+    extraData['Quantidade de mangotes (un)'] = extraData.quantidadeMangotes;
     extraData['Outro equipamento testado'] = pressureTestedEquipment === 'outro' ? pressureTestedEquipmentOther : '';
     extraData['Pressão de trabalho'] = formatValueWithUnit(data.pressaoTrabalho, data.pressaoTrabalhoUnit);
     extraData['Pressão de teste'] = formatValueWithUnit(data.pressaoTeste, data.pressaoTesteUnit);

@@ -31,15 +31,17 @@ const SERVICE_TYPES: Array<{ value: string; label: string }> = [
 const SYSTEM_LABELS: Record<PlannedSystemType, string> = {
   TUBULACAO: 'Tubulações',
   OLEO: 'Óleo',
-  SISTEMA: 'Sistemas completos (unidades)'
+  SISTEMA: 'Sistemas completos (unidades)',
+  MANGOTE: 'Mangueiras (unidades)'
 };
 
 // Unidade única de cada sistema — escolhida para casar com o que o RDO registra como realizado:
-// tubulação por comprimento (m), óleo por volume (L) e limpeza de sistemas completos por unidades.
+// tubulação por comprimento (m), óleo por volume (L), limpeza de sistemas completos e teste de mangueiras por unidades.
 const SYSTEM_UNIT: Record<PlannedSystemType, PlannedMeasureUnit> = {
   TUBULACAO: 'M',
   OLEO: 'L',
-  SISTEMA: 'UN'
+  SISTEMA: 'UN',
+  MANGOTE: 'UN'
 };
 const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 const DIAMETER_UNIT_LABELS: Record<PlannedDiameterUnit, string> = { pol: 'pol', mm: 'mm' };
@@ -71,7 +73,7 @@ const COMMON_INCH_DIAMETERS = [
 // Tipos de sistema permitidos por serviço (alinhados ao que cada serviço registra no RDO).
 const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
   LIMPEZA_QUIMICA: ['TUBULACAO', 'SISTEMA'],
-  TESTE_PRESSAO: ['TUBULACAO'],
+  TESTE_PRESSAO: ['TUBULACAO', 'MANGOTE'],
   FLUSHING: ['TUBULACAO', 'OLEO'],
   FILTRAGEM: ['OLEO']
 };
@@ -334,10 +336,10 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       }
       names.add(name);
     }
-    if (services.some(service => service.systems.some(row => row.systemType === 'SISTEMA' && (
+    if (services.some(service => service.systems.some(row => ['SISTEMA', 'MANGOTE'].includes(row.systemType) && (
       !row.equipment.trim() || !row.systemName.trim() || !Number.isSafeInteger(toNum(row.quantity)) || (toNum(row.quantity) ?? 0) <= 0
     )))) {
-      showToast('Sistemas por unidade exigem equipamento do cliente, nome do sistema e quantidade inteira positiva.');
+      showToast('Sistemas e mangueiras por unidade exigem equipamento do cliente, nome do sistema e quantidade inteira positiva.');
       return;
     }
     const payload: PlannedScopeInput = {
@@ -623,6 +625,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 <div className="acp-sys-list">
                   {svc.systems.map(sys => {
                     const isTube = sys.systemType === 'TUBULACAO';
+                    const isUnit = SYSTEM_UNIT[sys.systemType] === 'UN';
                     const inchDiameters = sys.diameter && !COMMON_INCH_DIAMETERS.includes(sys.diameter)
                       ? [sys.diameter, ...COMMON_INCH_DIAMETERS]
                       : COMMON_INCH_DIAMETERS;
@@ -643,7 +646,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       </div>
                       <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`}>
                         <div className="field-group">
-                          <label htmlFor={`scope-system-type-${sys.key}`}>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros ou limpeza de sistemas completos em unidades." /></label>
+                          <label htmlFor={`scope-system-type-${sys.key}`}>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros, limpeza de sistemas completos em unidades ou teste de mangueiras em unidades." /></label>
                           <Select id={`scope-system-type-${sys.key}`}
                             value={sys.systemType}
                             onChange={e => changeSystemType(svc.key, sys.key, e.target.value as PlannedSystemType)}
@@ -700,12 +703,12 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                         ) : null}
                         <div className="field-group">
                           <label htmlFor={`scope-quantity-${sys.key}`}>
-                            {isTube ? 'Comprimento (m)' : sys.systemType === 'SISTEMA' ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
+                            {isTube ? 'Comprimento (m)' : sys.systemType === 'MANGOTE' ? 'Quantidade de mangueiras (unidades)' : isUnit ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
                           </label>
                           <div className="num-unit">
                             <Input
                               id={`scope-quantity-${sys.key}`}
-                              type="number" min={sys.systemType === 'SISTEMA' ? '1' : '0'} step={sys.systemType === 'SISTEMA' ? '1' : 'any'} inputMode={sys.systemType === 'SISTEMA' ? 'numeric' : 'decimal'} placeholder="0"
+                              type="number" min={isUnit ? '1' : '0'} step={isUnit ? '1' : 'any'} inputMode={isUnit ? 'numeric' : 'decimal'} placeholder="0"
                               value={sys.quantity}
                               onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
                             />

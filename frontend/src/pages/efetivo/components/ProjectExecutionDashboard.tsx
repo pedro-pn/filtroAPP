@@ -35,7 +35,7 @@ const schemas = makeProjectExecutionSchemas(z);
 type DeviationValues = ProjectExecutionDeviationInput;
 const PdfCanvasViewer = lazy(() => import('../../../components/projects/PdfCanvasViewer').then(module => ({ default: module.PdfCanvasViewer })));
 const SERVICE_LABELS: Record<string, string> = { LIMPEZA_QUIMICA: 'Limpeza química', TESTE_PRESSAO: 'Teste de pressão', FLUSHING: 'Flushing', FILTRAGEM: 'Filtragem' };
-const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos' };
+const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
 const REPORT_LABELS: Record<string, string> = { RDO: 'RDO', RDO_MAINTENANCE: 'RDO de manutenção', RDO_PRODUCTION: 'RDO de produção', RTP: 'RTP', RLQ: 'RLQ', RCPU: 'RCPU', RLM: 'RLM', RLF: 'RLF', RLI: 'RLI' };
 const STATUS_LABELS_REPORT: Record<string, string> = { PENDING: 'Pendente de revisão', APPROVED: 'Aguardando assinatura', RETURNED: 'Devolvido', SIGNED: 'Assinado' };
 

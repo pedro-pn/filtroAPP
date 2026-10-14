@@ -52,6 +52,7 @@ import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../../utils/ongoingServices';
 import { requiresSystemType, systemTypeValue } from '../../utils/cleaningMeasurement';
+import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } from '../../utils/pressureHoseMeasurement';
 import { dateInputValue, formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { sortProjects } from '../../utils/projectSort';
@@ -542,11 +543,12 @@ function SiteRdoFormPage() {
       const raw = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
       return !isNoValue(raw);
     }
-    if (type === 'pressao') return pressureTestedEquipmentValue(data) !== 'outro';
+    if (type === 'pressao') return !isPressureHoseUnits(data) && pressureTestedEquipmentValue(data) !== 'outro';
     return false;
   }
 
   function pressureTestedEquipmentValue(data: Record<string, unknown>) {
+    if (isPressureHoseEquipment(data)) return 'mangueira';
     const raw = String(data.equipamentoTestado || data['Equipamento testado'] || '').trim();
     if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
     if (raw === 'outro' || raw === 'Outro') return 'outro';
@@ -645,6 +647,9 @@ function SiteRdoFormPage() {
       }
 
       if (type === 'pressao') {
+        if (isPressureHoseUnits(data) && pressureHoseQuantity(data) === null) {
+          return failRequired('Quantidade inteira positiva de mangueiras', target('quantidadeMangotes'), 1);
+        }
         if (!hasTextOrStringItem(data.uth)) return failRequired('Unidade de Teste Hidrostático (UTH)', target('uth'), 1);
         if (!hasText(data.pressaoTrabalho)) return failRequired('Pressão de trabalho', target('pressaoTrabalho'), 1);
         if (!hasText(data.pressaoTeste)) return failRequired('Pressão de teste', target('pressaoTeste'), 1);

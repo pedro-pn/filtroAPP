@@ -15,7 +15,7 @@ export function buildWeeklyServiceHistory(services = []) {
     if (!date || !serviceType) return [];
     const quantities = { M: 0, L: 0, UN: 0 };
     for (const measurement of service.reconciledMeasurements ?? extractServiceMeasurements(service, serviceType)) {
-      const metric = { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN' }[measurement.systemType];
+      const metric = { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[measurement.systemType];
       if (metric && Number.isFinite(Number(measurement.quantity))) quantities[metric] += Number(measurement.quantity);
     }
     return [{ date, serviceType, quantities }];

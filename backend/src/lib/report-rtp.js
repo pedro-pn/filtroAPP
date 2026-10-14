@@ -15,6 +15,7 @@ import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
+import { isPressureHoseUnits, pressureHoseQuantity } from './reports/pressure-hose-measurement.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -422,7 +423,7 @@ function buildRtpBaseData(report) {
 function rtpEquipmentTypeInfo(sd) {
   const raw = stringify(getField(sd, ['Equipamento testado', 'equipamentoTestado']));
   const normalized = canonicalize(raw);
-  if (normalized === 'mangueira' || normalized === 'mangueiras') {
+  if (['mangueira', 'mangueiras', 'mangote', 'mangotes'].includes(normalized)) {
     return { value: 'mangueira', label: 'MANGUEIRAS' };
   }
   if (normalized === 'outro') {
@@ -450,6 +451,17 @@ function buildRtpBaseDataResolved(report) {
 function expandTubeRows(doc, sd) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{diameter}}');
   if (!templateRow) return;
+  if (isPressureHoseUnits(sd)) {
+    const table = closestAncestor(templateRow, 'w:tbl');
+    const quantity = pressureHoseQuantity(sd);
+    if (quantity === null) { removeNode(table || templateRow); return; }
+    for (const [from, to] of [['Diâmetro', 'Sistema'], ['Comprimento', 'Quantidade (un)']]) {
+      const paragraph = findFirstByText(table, 'w:p', from);
+      if (paragraph) replaceTokenInElement(paragraph, from, to);
+    }
+    replacePlaceholders(templateRow, { diameter: stringify(getField(sd, ['Sistema', 'system'])), length: `${quantity} un` });
+    return;
+  }
   const tubesRaw = getField(sd, ['Diâmetros e comprimentos', 'Diametros e comprimentos']);
   const tubes = Array.isArray(tubesRaw) ? tubesRaw.filter(t => t && (t.d || t.c)) : [];
   if (!tubes.length) {

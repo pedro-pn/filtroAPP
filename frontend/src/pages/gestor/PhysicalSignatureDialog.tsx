@@ -23,8 +23,8 @@ export function PhysicalSignatureDialog({ report, onClose, upload, uploadPending
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
-      showToast('O PDF assinado deve ter até 20 MB.', 'error');
+    if (file.size > 50 * 1024 * 1024) {
+      showToast('O PDF assinado deve ter até 50 MB.', 'error');
       return;
     }
     try {
@@ -59,7 +59,7 @@ export function PhysicalSignatureDialog({ report, onClose, upload, uploadPending
         Envie a digitalização assinada de {report.reportType} {report.sequenceNumber || '—'}.
         O PDF enviado será a versão final, o RDO ficará bloqueado e os relatórios de serviço vinculados seguirão a liberação por assinatura.
       </p>
-      <PdfDropzone appearance="design-system" id="physical-signature-pdf" label="PDF assinado pelo cliente" file={file} onFile={setFile} disabled={uploadPending} emptyHint="PDF de até 20 MB" />
+      <PdfDropzone appearance="design-system" id="physical-signature-pdf" label="PDF assinado pelo cliente" file={file} onFile={setFile} disabled={uploadPending} emptyHint="PDF de até 50 MB" />
     </form>
   </Modal>;
 }

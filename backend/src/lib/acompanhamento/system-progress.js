@@ -44,7 +44,7 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
       serviceType: type, equipment: measurement.equipment || 'Não informado', system: measurement.system || 'Não informado',
       projectSystemId: measurement.projectSystemId || null,
       matchedSystem: match ? { id: match.id, equipment: match.equipment, name: match.name } : null,
-      systemType: measurement.systemType, unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN' }[measurement.systemType],
+      systemType: measurement.systemType, unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[measurement.systemType],
       diameter: measurement.diameter || null, diameterUnit: measurement.diameterUnit || null, quantity: 0
     });
     pending.get(key).quantity += measurement.quantity;
@@ -54,7 +54,7 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
     const realized = realizedByType.get(service.serviceType) ?? {};
     const legacyMetrics = new Set(rows.filter(row => !row.projectSystemId).map(row => row.systemType));
     for (const row of rows.filter(row => !row.projectSystemId)) {
-      row.realizedQty = realized[{ TUBULACAO: 'tubulacaoM', OLEO: 'oleoL', SISTEMA: 'sistemasUn' }[row.systemType]] ?? 0;
+      row.realizedQty = realized[{ TUBULACAO: 'tubulacaoM', OLEO: 'oleoL', SISTEMA: 'sistemasUn', MANGOTE: 'mangotesUn' }[row.systemType]] ?? 0;
     }
     for (const measurement of realized.measurements ?? []) {
       if (legacyMetrics.has(measurement.systemType)) continue;

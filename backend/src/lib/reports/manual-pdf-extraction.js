@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { manualPdfTextFromItems, parseManualReportPdfFields } from './manual-pdf-fields.js';
 
 const require = createRequire(import.meta.url);
-const MAX_PDF_BYTES = 20 * 1024 * 1024;
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
+export const MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH = Math.ceil(MAX_PDF_BYTES / 3) * 4 + 'data:application/pdf;base64,'.length;
 const MAX_OCR_PAGES = 3;
 let extractionTail = Promise.resolve();
 
@@ -18,7 +19,7 @@ export function decodeManualReportPdfDataUrl(value) {
   const encoded = match[1].replace(/\s/g, '');
   if (!encoded || encoded.length % 4 === 1) invalidPdf('PDF enviado está corrompido.');
   const bytes = Buffer.from(encoded, 'base64');
-  if (!bytes.length || bytes.length > MAX_PDF_BYTES) invalidPdf('PDF inválido ou maior que 20 MB.');
+  if (!bytes.length || bytes.length > MAX_PDF_BYTES) invalidPdf('PDF inválido ou maior que 50 MB.');
   if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') invalidPdf('Arquivo enviado não parece ser um PDF.');
   return bytes;
 }
