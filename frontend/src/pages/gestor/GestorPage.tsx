@@ -50,6 +50,7 @@ import {
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
 import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
+import { PhysicalSignatureBatchAction } from './PhysicalSignatureBatchAction';
 import { NpsSortControls } from './NpsSortControls';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
@@ -4215,6 +4216,7 @@ export function GestorPage() {
             description={tab === 'pendentes' ? 'Acompanhe os relatórios que aguardam revisão ou foram devolvidos.' : 'Consulte os relatórios aprovados e assinados.'}
             actions={
               <>
+                {tab === 'aprovados' ? <PhysicalSignatureBatchAction projects={manualReportProjectOptions} upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)} /> : null}
                 <Button variant="secondary" aria-label="Abrir upload de relatórios antigos" onClick={() => openManualReportUpload()}>
                   <span className="rdo-action-label rdo-action-label--full">Upload de relatórios antigos</span>
                   <span className="rdo-action-label rdo-action-label--compact">Upload antigo</span>

@@ -67,6 +67,7 @@ apiClient.defaults.adapter = async config => {
       ],
       meta: { projectTotal: 2 }
     };
+    if (!config.params?.page) data = items;
   }
   return { config, status: 200, statusText: 'OK', headers: {}, data };
 };
