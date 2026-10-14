@@ -10,11 +10,11 @@ export const SERVICE_LABELS: Record<string, string> = {
   FLUSHING: 'Flushing',
   FILTRAGEM: 'Filtragem'
 };
-export const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo' };
+export const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
 export const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 
 export function physicalUnit(systemType: string, unit?: string | null) {
-  const bySystem: Record<string, string> = { TUBULACAO: 'M', SISTEMA: 'UN', OLEO: 'L' };
+  const bySystem: Record<string, string> = { TUBULACAO: 'M', SISTEMA: 'UN', MANGOTE: 'UN', OLEO: 'L' };
   return bySystem[systemType] ?? unit ?? null;
 }
 

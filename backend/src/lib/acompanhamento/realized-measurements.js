@@ -1,4 +1,5 @@
 import { cleaningSystemQuantity, isSystemCleaning } from '../reports/cleaning-measurement.js';
+import { isPressureHoseUnits, pressureHoseQuantity } from '../reports/pressure-hose-measurement.js';
 import { normalizeRdoServiceType } from './service-types.js';
 import { diameterKey } from './system-progress.js';
 
@@ -15,14 +16,18 @@ function num(value) {
 export function realizedFromExtraData(extraData, serviceType) {
   const data = extraData && typeof extraData === 'object' ? extraData : {};
   const completeSystem = normalizeRdoServiceType(serviceType) === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);
+  const hose = normalizeRdoServiceType(serviceType) === 'TESTE_PRESSAO' && isPressureHoseUnits(data);
   let tubulacaoM = 0;
-  for (const tube of !completeSystem && Array.isArray(data.tubes) ? data.tubes : []) {
+  for (const tube of !completeSystem && !hose && Array.isArray(data.tubes) ? data.tubes : []) {
     const c = num(tube?.c);
     if (c !== null) tubulacaoM += tube?.lengthUnit === 'cm' ? c / 100 : c;
   }
   const vol = num(data.volumeOleo);
-  const oleoL = !completeSystem && vol !== null ? (data.volumeOleoUnit === 'mL' ? vol / 1000 : vol) : 0;
-  return { tubulacaoM, oleoL, ...(serviceType ? { sistemasUn: completeSystem ? cleaningSystemQuantity(data) ?? 0 : 0 } : {}) };
+  const oleoL = !completeSystem && !hose && vol !== null ? (data.volumeOleoUnit === 'mL' ? vol / 1000 : vol) : 0;
+  return { tubulacaoM, oleoL, ...(serviceType ? {
+    sistemasUn: completeSystem ? cleaningSystemQuantity(data) ?? 0 : 0,
+    mangotesUn: hose ? pressureHoseQuantity(data) ?? 0 : 0
+  } : {}) };
 }
 
 // A lista e o avanço compartilham a extração: cada tubo, volume ou sistema é uma medição.
@@ -35,7 +40,8 @@ export function extractServiceMeasurements(service, canonical = normalizeRdoServ
   };
   const rows = [];
   const completeSystem = canonical === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);
-  for (const tube of !completeSystem && Array.isArray(data.tubes) ? data.tubes : []) {
+  const hose = canonical === 'TESTE_PRESSAO' && isPressureHoseUnits(data);
+  for (const tube of !completeSystem && !hose && Array.isArray(data.tubes) ? data.tubes : []) {
     const quantity = num(tube?.c);
     if (quantity == null || quantity <= 0) continue;
     rows.push({ ...context, systemType: 'TUBULACAO', diameter: tube.d, diameterUnit: tube.unit || 'pol',
@@ -43,5 +49,6 @@ export function extractServiceMeasurements(service, canonical = normalizeRdoServ
   }
   if (realized.oleoL > 0) rows.push({ ...context, systemType: 'OLEO', bitola: '', quantity: realized.oleoL });
   if (realized.sistemasUn > 0) rows.push({ ...context, systemType: 'SISTEMA', bitola: '', quantity: realized.sistemasUn });
+  if (realized.mangotesUn > 0) rows.push({ ...context, systemType: 'MANGOTE', bitola: '', quantity: realized.mangotesUn });
   return rows;
 }

@@ -1,5 +1,6 @@
 import type { ProjectSystem } from '../api/projectSystems';
 import { cleaningModePatch, isSystemCleaning } from './cleaningMeasurement';
+import { isPressureHoseUnits, pressureHoseModePatch } from './pressureHoseMeasurement';
 
 export const systemNameKey = (value: unknown) => String(value ?? '').normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -23,7 +24,15 @@ export function projectSystemSelectionPatch(systems: ProjectSystem[], data: Reco
   const next = { ...data, [field]: value };
   const match = systems.find(item => systemNameKey(item.equipment) === systemNameKey(next.equipmentId) && systemNameKey(item.name) === systemNameKey(next.system));
   const patch: Record<string, unknown> = { [field]: value, __projectSystemId: match?.id || null };
-  if (!match || !['limpeza', 'limpeza_quimica'].includes(String(serviceType).toLowerCase()) || match.id === data.__projectSystemId) return patch;
+  if (!match || match.id === data.__projectSystemId) return patch;
+  const type = String(serviceType).toLowerCase();
+  if (['pressao', 'teste_pressao'].includes(type)) {
+    const modes = new Set(match.measurements?.filter(item => ['pressao', 'teste_pressao'].includes(item.serviceType.toLowerCase())).map(item => item.systemType));
+    if (modes.size === 1 && modes.has('MANGOTE')) Object.assign(patch, pressureHoseModePatch(true));
+    else if (modes.size === 1 && modes.has('TUBULACAO') && isPressureHoseUnits(data)) Object.assign(patch, pressureHoseModePatch(false));
+    return patch;
+  }
+  if (!['limpeza', 'limpeza_quimica'].includes(type)) return patch;
   const modes = new Set(match.measurements?.filter(item => ['limpeza', 'limpeza_quimica'].includes(item.serviceType.toLowerCase())).map(item => item.systemType));
   // Se o cronograma tem as duas modalidades, a escolha explícita do colaborador prevalece.
   if (modes.size === 1 && modes.has('SISTEMA')) Object.assign(patch, cleaningModePatch('Não'));

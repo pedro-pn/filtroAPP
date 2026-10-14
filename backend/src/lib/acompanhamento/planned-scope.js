@@ -105,10 +105,13 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
   }
   const modes = new Map();
   for (const service of services ?? []) for (const row of service.systems ?? []) {
-    if (row.systemType === 'SISTEMA' && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_QUIMICA'
+    const unitService = { SISTEMA: 'LIMPEZA_QUIMICA', MANGOTE: 'TESTE_PRESSAO' }[row.systemType];
+    if (unitService && (normalizeRdoServiceType(service.serviceType) !== unitService
       || !row.equipment?.trim() || !row.systemName?.trim() || !Number.isSafeInteger(row.quantity)
       || row.quantity <= 0 || row.quantity > 999999999999)) {
-      throw new Error('Sistemas por unidade exigem limpeza química, equipamento do cliente, nome do sistema e quantidade inteira positiva.');
+      throw new Error(row.systemType === 'MANGOTE'
+        ? 'Mangueiras por unidade exigem teste de pressão, equipamento do cliente, nome do sistema e quantidade inteira positiva.'
+        : 'Sistemas por unidade exigem limpeza química, equipamento do cliente, nome do sistema e quantidade inteira positiva.');
     }
     const key = `${normalizeRdoServiceType(service.serviceType) ?? service.serviceType}:${row.systemType}`;
     const linked = Boolean(row.projectSystemId || row.equipment || row.systemName);
@@ -158,7 +161,7 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
           description: text(sys.description),
           diameter: sys.systemType === 'TUBULACAO' ? text(sys.diameter) : null,
           diameterUnit: sys.systemType === 'TUBULACAO' && text(sys.diameter) ? (sys.diameterUnit || 'pol') : null,
-          quantity: num(sys.quantity), unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN' }[sys.systemType], order: sysIndex
+          quantity: num(sys.quantity), unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[sys.systemType], order: sysIndex
         });
       }
       await tx.projectPlannedService.create({

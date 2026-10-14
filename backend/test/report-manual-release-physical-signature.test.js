@@ -121,7 +121,7 @@ test('gestor libera e revoga apenas um relatório de serviço vinculado', async 
   assert.deepEqual(auditActions, ['CLIENT_RELEASED', 'CLIENT_RELEASE_REVOKED']);
 });
 
-test('upload do RDO assinado em papel cria versão final e bloqueia o relatório', async t => {
+test('upload do RDO assinado de 50 MB cria versão final e bloqueia o relatório', async t => {
   stubManager(t);
   const item = report();
   const auditActions = [];
@@ -156,7 +156,9 @@ test('upload do RDO assinado em papel cria versão final e bloqueia o relatório
     prisma.$transaction = originals.transaction;
   });
 
-  const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF');
+  const pdf = Buffer.alloc(50 * 1024 * 1024, ' ');
+  pdf.write('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n');
+  pdf.write('%%EOF', pdf.length - 5);
   const response = await dispatch('POST', '/api/reports/rdo-1/physical-signature', {
     fileName: 'rdo-assinado.pdf', pdfDataUrl: `data:application/pdf;base64,${pdf.toString('base64')}`
   });

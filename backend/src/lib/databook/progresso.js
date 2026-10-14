@@ -6,17 +6,18 @@ import { realizedFromExtraData } from '../acompanhamento/realized-measurements.j
 const METRICAS = [
   ['tubulacaoM', 'm', 'TUBULACAO'],
   ['oleoL', 'L', 'OLEO'],
-  ['sistemasUn', 'un', 'SISTEMA']
+  ['sistemasUn', 'un', 'SISTEMA'],
+  ['mangotesUn', 'un', 'MANGOTE']
 ];
 
-const UNIDADE_POR_SISTEMA = { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'un' };
+const UNIDADE_POR_SISTEMA = { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'un', MANGOTE: 'un' };
 const NOME_SERVICO = {
   LIMPEZA_QUIMICA: 'Limpeza química',
   TESTE_PRESSAO: 'Teste de pressão',
   FLUSHING: 'Flushing',
   FILTRAGEM: 'Filtragem'
 };
-const NOME_SISTEMA = { TUBULACAO: 'tubulação', OLEO: 'óleo', SISTEMA: 'sistemas' };
+const NOME_SISTEMA = { TUBULACAO: 'tubulação', OLEO: 'óleo', SISTEMA: 'sistemas', MANGOTE: 'mangueiras' };
 
 function dayKey(value) {
   if (!value) return '';
@@ -139,5 +140,6 @@ export function quantidadeDoServico(service) {
   if (q.tubulacaoM > 0) return { quantidade: arredondar(q.tubulacaoM), unidade: 'm' };
   if (q.oleoL > 0) return { quantidade: arredondar(q.oleoL), unidade: 'L' };
   if (q.sistemasUn > 0) return { quantidade: arredondar(q.sistemasUn), unidade: 'un.' };
+  if (q.mangotesUn > 0) return { quantidade: arredondar(q.mangotesUn), unidade: 'un.' };
   return { quantidade: 0, unidade: 'un.' };
 }
