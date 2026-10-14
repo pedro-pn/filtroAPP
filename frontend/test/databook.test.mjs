@@ -8,6 +8,7 @@ import {
   deveMostrarNovidadeDatabook,
   edicoesDoFormulario,
   erroIntervaloDatabook,
+  fdsResolvidas,
   formatarResumoDatabook,
   formularioInicialDatabook,
   marcarNovidadeDatabookVista,
@@ -27,8 +28,15 @@ const preparada = {
   resumo: { inicio: '2026-09-16', fim: '2026-10-08', dias: 23, rdos: 23, rlq: 19, rcpu: 0, rtp: 2, rlm: 0, fds: 6 },
   sugestoes: {
     fds: [
-      { produto: 'Ácido cítrico', stockItemId: 'i1', confirmadoRomaneio: true, selecionado: true, motivo: 'confirmado no romaneio' },
-      { produto: 'Nitrito de sódio', stockItemId: null, selecionado: false, motivo: 'sem cadastro' }
+      { produto: 'Ácido cítrico', stockItemId: 'i1', vinculo: 'aproximado', confirmadoRomaneio: true, selecionado: true, motivo: 'confirmado no romaneio',
+        opcoes: [{ stockItemId: 'i1', nome: 'Ácido Cítrico Fino Granulado', score: 0.85 }] },
+      { produto: 'Nitrito de sódio', stockItemId: null, vinculo: 'duvida', selecionado: false, motivo: 'sem cadastro',
+        opcoes: [{ stockItemId: 'i2', nome: 'Nitrito de Sódio PA', score: 0.8 }, { stockItemId: 'i3', nome: 'Nitrito de Sódio Técnico', score: 0.8 }] }
+    ],
+    estoqueFds: [
+      { stockItemId: 'i1', nome: 'Ácido Cítrico Fino Granulado', documentoId: 'a', confirmadoRomaneio: true },
+      { stockItemId: 'i2', nome: 'Nitrito de Sódio PA', documentoId: 'n2', confirmadoRomaneio: false },
+      { stockItemId: 'i3', nome: 'Nitrito de Sódio Técnico', documentoId: null, confirmadoRomaneio: false }
     ],
     certificados: [{ equipamento: 'Manômetro', codigo: 'MAN-012', aplicacao: 'RTP', validade: '12/03/2027', arquivo: 'cert:m' }]
   },
@@ -69,6 +77,18 @@ test('formulário da revisão: valores iniciais, validação e edições enviada
   assert.deepEqual(comCorrecao.correcoes, [{ palavra: 'equipamnetos', por: 'equipamentos' }]);
 });
 
+test('vínculo de FDS escolhido no diálogo: muda o Anexo B e vai nas edições', () => {
+  const { fds, estoqueFds } = preparada.sugestoes;
+  assert.deepEqual(fdsResolvidas(fds, estoqueFds, {}).map(f => [f.arquivo, f.produtos]), [['stockdoc:a', ['Ácido cítrico']]]);
+  const vinculos = { 'Nitrito de sódio': 'i2', 'Ácido cítrico': '' };
+  assert.deepEqual(fdsResolvidas(fds, estoqueFds, vinculos).map(f => [f.arquivo, f.nome, f.confirmadoRomaneio]),
+    [['stockdoc:n2', 'Nitrito de Sódio PA', false]]);
+  // item sem FDS anexada não entra no anexo
+  assert.deepEqual(fdsResolvidas(fds, estoqueFds, { 'Nitrito de sódio': 'i3' }).map(f => f.arquivo), ['stockdoc:a']);
+  const form = formularioInicialDatabook(preparada, 'u1');
+  assert.deepEqual(edicoesDoFormulario({ ...form, vinculosFds: vinculos }).vinculos_fds, vinculos);
+});
+
 test('novidade do Data Book: uma vez por usuário e só até 10 dias após a implementação', () => {
   const store = new Map();
   const storage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
@@ -89,7 +109,11 @@ test('tela de revisão mostra avisos, anexos sugeridos e omite limites sem RCPU'
     assert.match(html, /DDS termina \(06:05\)/);
     assert.match(html, /Ácido Cítrico Fino Granulado/);
     assert.match(html, /No romaneio/);
-    assert.match(html, /Sem FDS no Estoque: Nitrito de sódio/);
+    assert.match(html, /Sem FDS: Nitrito de sódio/);
+    assert.match(html, /Por semelhança – confira/);
+    assert.match(html, /Escolha o item/);
+    assert.match(html, /aria-label="Item do Estoque para Nitrito de sódio"/);
+    assert.match(html, /★ Nitrito de Sódio Técnico \(sem FDS anexada\)/);
     assert.match(html, /Manômetro MAN-012/);
     assert.match(html, /Informe o título do serviço\./);
     assert.match(html, /aria-invalid="true"/);

@@ -63,15 +63,102 @@ function rotuloEtapas(etapas) {
   return juntarProdutos(etapas);
 }
 
+// Palavras que não distinguem produtos ("Hidróxido de sódio" ≈ "Hidróxido Sódio").
+const PALAVRAS_VAZIAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'em', 'para', 'com']);
+
+function tokens(texto) {
+  // Números e embalagens ("25kg", "98", "50l") não identificam o produto.
+  return normalizarNome(texto).split(' ').filter(t => t && !PALAVRAS_VAZIAS.has(t) && !/\d/.test(t));
+}
+
+function bigramas(texto) {
+  const s = ` ${texto} `;
+  const out = [];
+  for (let i = 0; i < s.length - 1; i += 1) out.push(s.slice(i, i + 2));
+  return out;
+}
+
+/** Coeficiente de Dice sobre bigramas de caracteres (0–1). */
+function dice(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const ba = bigramas(a);
+  const resto = bigramas(b);
+  let comuns = 0;
+  for (const g of ba) {
+    const i = resto.indexOf(g);
+    if (i >= 0) { comuns += 1; resto.splice(i, 1); }
+  }
+  return (2 * comuns) / (ba.length + bigramas(b).length);
+}
+
+// "metasilicato" ≈ "metassilicato"; "hidrox" ≈ "hidroxido".
+function palavrasParecidas(a, b) {
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a))) return true;
+  return dice(a, b) >= 0.8;
+}
+
+/**
+ * Semelhança entre o nome químico do RLQ e um nome do Estoque. `cobertura` é a fração das palavras
+ * do RLQ presentes no nome do Estoque; o `score` (0–1) pesa também as palavras a mais do Estoque.
+ */
+export function semelhancaNomes(produto, nome) {
+  if (normalizarNome(produto) === normalizarNome(nome)) return { score: 1, cobertura: 1 };
+  const a = tokens(produto);
+  const b = tokens(nome);
+  if (!a.length || !b.length) return { score: 0, cobertura: 0 };
+  const cobertura = a.filter(x => b.some(y => palavrasParecidas(x, y))).length / a.length;
+  const precisao = b.filter(y => a.some(x => palavrasParecidas(x, y))).length / b.length;
+  const porPalavras = 0.7 * cobertura + 0.3 * precisao;
+  return { score: Math.max(porPalavras, dice(a.join(' '), b.join(' ')) * 0.9), cobertura };
+}
+
+const SCORE_MINIMO_OPCAO = 0.35;
+const SCORE_MINIMO_AUTOMATICO = 0.7;
+const MARGEM_AUTOMATICO = 0.15;
+
+/**
+ * Item do Estoque para um produto do RLQ: igualdade de nome/sinônimo ("exato"); senão o mais parecido,
+ * vinculado sozinho só quando cobre todas as palavras do RLQ e se destaca dos demais ("aproximado");
+ * caso contrário fica em "duvida" (com opções) ou "nenhum", para o vínculo ser escolhido no diálogo.
+ */
+export function vincularProduto(produto, itens, levados = new Set()) {
+  const chave = normalizarNome(produto);
+  const exato = itens.find(i => [i.name, ...(i.fdsSynonyms || [])].some(n => normalizarNome(n) === chave));
+  if (exato) return { item: exato, vinculo: 'exato', opcoes: [] };
+  const ranking = itens
+    .map(item => {
+      const melhor = [item.name, ...(item.fdsSynonyms || [])]
+        .map(n => semelhancaNomes(produto, n))
+        .reduce((m, x) => (x.score > m.score ? x : m), { score: 0, cobertura: 0 });
+      return { item, ...melhor };
+    })
+    .filter(r => r.score >= SCORE_MINIMO_OPCAO)
+    .sort((x, y) => y.score - x.score || Number(levados.has(y.item.id)) - Number(levados.has(x.item.id)));
+  const opcoes = ranking.slice(0, 5).map(r => ({ stockItemId: r.item.id, nome: r.item.name, score: Math.round(r.score * 100) / 100 }));
+  const [primeiro, segundo] = ranking;
+  if (!primeiro) return { item: null, vinculo: 'nenhum', opcoes };
+  // Empate técnico se resolve pelo romaneio: só um dos dois foi levado ao projeto.
+  const destacado = !segundo || primeiro.score - segundo.score >= MARGEM_AUTOMATICO
+    || (levados.has(primeiro.item.id) && !levados.has(segundo.item.id));
+  if (primeiro.cobertura === 1 && primeiro.score >= SCORE_MINIMO_AUTOMATICO && destacado) {
+    return { item: primeiro.item, vinculo: 'aproximado', opcoes };
+  }
+  return { item: null, vinculo: 'duvida', opcoes };
+}
+
 /**
  * FDS sugeridas: para cada produto citado nos RLQs, o item do Estoque (PRODUTO_QUIMICO) cujo
- * nome ou sinônimo de FDS corresponde ao nome químico, com a FDS mais recente anexada. Os
- * romaneios do projeto (movimentos de estoque e itens) servem de confirmação adicional.
+ * nome ou sinônimo de FDS corresponde ao nome químico (ou, na falta, o mais parecido), com a FDS
+ * mais recente anexada. Os romaneios do projeto (movimentos de estoque e itens) servem de
+ * confirmação adicional. `vinculos` ({ produto: stockItemId | '' }) são as escolhas feitas no
+ * diálogo e valem sobre a sugestão automática ('' = não vincular).
  */
-export async function sugerirFds(client, projeto, etapasProduto) {
+export async function sugerirFds(client, projeto, etapasProduto, vinculos = {}) {
   const produtos = [...new Set(etapasProduto.flatMap(e => separarProdutos(e.produto)))];
   const avisos = [];
-  if (!produtos.length) return { candidatas: [], selecionadas: [], avisos };
+  if (!produtos.length) return { candidatas: [], selecionadas: [], avisos, estoque: [] };
   const [itens, movimentos, itensRomaneio] = await Promise.all([
     client.stockItem.findMany({
       where: { type: 'PRODUTO_QUIMICO' },
@@ -83,25 +170,42 @@ export async function sugerirFds(client, projeto, etapasProduto) {
     }),
     client.romaneioItem.findMany({ where: { romaneio: { projectId: projeto.id } }, select: { itemName: true } })
   ]);
-  const levados = new Set(movimentos.map(m => m.itemId));
+  const levadosMov = new Set(movimentos.map(m => m.itemId));
   const nomesRomaneio = itensRomaneio.map(i => normalizarNome(i.itemName));
+  const noRomaneio = item => {
+    const nomesItem = [item.name, ...(item.fdsSynonyms || [])].map(normalizarNome);
+    return levadosMov.has(item.id) || nomesRomaneio.some(n => nomesItem.some(x => n.includes(x)));
+  };
+  const levados = new Set(itens.filter(noRomaneio).map(i => i.id));
+  const escolhas = vinculos && typeof vinculos === 'object' ? vinculos : {};
 
   const candidatas = [];
   for (const produto of produtos) {
-    const chave = normalizarNome(produto);
-    const item = itens.find(i => [i.name, ...(i.fdsSynonyms || [])].some(n => normalizarNome(n) === chave));
+    const sugestao = vincularProduto(produto, itens, levados);
+    let { item, vinculo } = sugestao;
+    if (Object.hasOwn(escolhas, produto)) {
+      const id = escolhas[produto];
+      item = id ? itens.find(i => i.id === id) || null : null;
+      if (id && !item) throw Object.assign(new Error(`Produto do Estoque escolhido para "${produto}" não encontrado.`), { status: 400 });
+      vinculo = 'manual';
+    }
+    const base = { produto, vinculo, opcoes: sugestao.opcoes };
     if (!item) {
-      avisos.push(`Produto "${produto}" (RLQ) sem FDS cadastrada no Estoque: cadastre o nome químico como sinônimo do produto.`);
-      candidatas.push({ produto, stockItemId: null, selecionado: false, motivo: 'sem cadastro' });
+      if (vinculo === 'duvida') {
+        avisos.push(`Produto "${produto}" (RLQ): mais de um item parecido no Estoque; escolha o vínculo na seção de FDS.`);
+      } else if (vinculo !== 'manual') {
+        avisos.push(`Produto "${produto}" (RLQ) sem item correspondente no Estoque: escolha o vínculo na seção de FDS ou cadastre o produto químico.`);
+      }
+      candidatas.push({ ...base, stockItemId: null, selecionado: false, motivo: vinculo === 'manual' ? 'sem vínculo' : 'sem cadastro' });
       continue;
     }
     const documento = item.documents[0] || null;
-    const nomesItem = [item.name, ...(item.fdsSynonyms || [])].map(normalizarNome);
-    const confirmado = levados.has(item.id) || nomesRomaneio.some(n => nomesItem.some(x => n.includes(x)));
+    const confirmado = levados.has(item.id);
+    if (vinculo === 'aproximado') avisos.push(`Produto "${produto}" (RLQ) vinculado por semelhança a "${item.name}" do Estoque: confira.`);
     if (!documento) avisos.push(`Produto "${produto}" (${item.name}) sem arquivo de FDS anexado no Estoque.`);
     if (!confirmado) avisos.push(`Produto "${produto}" (${item.name}) não consta nos romaneios do projeto.`);
     candidatas.push({
-      produto,
+      ...base,
       stockItemId: item.id,
       documentoId: documento?.id || null,
       nome_comercial: item.name,
@@ -132,7 +236,34 @@ export async function sugerirFds(client, projeto, etapasProduto) {
     });
   }
   const selecionadas = [...porItem.values()].map(({ etapas, fds }) => ({ ...fds, etapa: rotuloEtapas(etapas) }));
-  return { candidatas, selecionadas, avisos };
+  // Opções do vínculo manual no diálogo: todos os produtos químicos do Estoque.
+  const estoque = itens
+    .map(i => ({ stockItemId: i.id, nome: i.name, documentoId: i.documents[0]?.id || null, confirmadoRomaneio: levados.has(i.id) }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return { candidatas, selecionadas, avisos, estoque };
+}
+
+/**
+ * Vínculos escolhidos no diálogo viram sinônimo de FDS do item do Estoque, para o próximo Data Book
+ * já vincular sozinho. Devolve os itens alterados.
+ */
+export async function salvarVinculosFds(client, vinculos = {}) {
+  const porItem = new Map();
+  for (const [produto, id] of Object.entries(vinculos || {})) {
+    if (!id || typeof id !== 'string' || !String(produto).trim()) continue;
+    porItem.set(id, [...(porItem.get(id) || []), String(produto).trim().slice(0, 160)]);
+  }
+  if (!porItem.size) return [];
+  const itens = await client.stockItem.findMany({ where: { id: { in: [...porItem.keys()] }, type: 'PRODUTO_QUIMICO' }, select: { id: true, name: true, fdsSynonyms: true } });
+  const alterados = [];
+  for (const item of itens) {
+    const conhecidos = new Set([item.name, ...(item.fdsSynonyms || [])].map(normalizarNome));
+    const novos = porItem.get(item.id).filter(p => !conhecidos.has(normalizarNome(p)) && conhecidos.add(normalizarNome(p)));
+    if (!novos.length) continue;
+    await client.stockItem.update({ where: { id: item.id }, data: { fdsSynonyms: [...(item.fdsSynonyms || []), ...novos] } });
+    alterados.push(item.id);
+  }
+  return alterados;
 }
 
 /** Certificados de calibração dos manômetros (RTP) e contadores (RCPU) usados no intervalo. */
