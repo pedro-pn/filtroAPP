@@ -1,5 +1,6 @@
 import { assertReportProjectSystems } from '../acompanhamento/project-systems.js';
 import { assertCleaningMeasurement } from './cleaning-measurement.js';
+import { assertPressureHoseMeasurement } from './pressure-hose-measurement.js';
 import { assertSystemTypeWhenVisible } from './system-type-validation.js';
 
 export async function assertReportServicesProject(client, project, services) {
@@ -9,6 +10,7 @@ export async function assertReportServicesProject(client, project, services) {
   }
   for (const service of services || []) {
     assertCleaningMeasurement(service);
+    assertPressureHoseMeasurement(service);
     assertSystemTypeWhenVisible(service);
   }
   await assertReportProjectSystems(client, project.id, services);

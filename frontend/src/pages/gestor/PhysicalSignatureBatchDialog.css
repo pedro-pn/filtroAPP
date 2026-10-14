@@ -1,0 +1,39 @@
+:where(.fv-ds, [data-fv-ds]) .physical-signature-batch-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .physical-signature-batch-form > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: var(--leading-md);
+}
+
+.physical-signature-batch-list {
+  display: grid;
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.physical-signature-batch-file {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.physical-signature-batch-file__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.physical-signature-batch-file__heading strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

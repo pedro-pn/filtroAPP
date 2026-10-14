@@ -13,7 +13,7 @@ const identity = system => system ? { id: system.id, equipment: system.equipment
 // nunca corrige nomes, cria metas ou transforma vínculos existentes em aliases.
 export function measurementReconciliation(item, planned, registry, sourceConflict = null) {
   const serviceType = normalizeRdoServiceType(item.serviceType);
-  const systemType = ['m', 'cm'].includes(item.unit) ? 'TUBULACAO' : item.unit === 'UN' ? 'SISTEMA' : 'OLEO';
+  const systemType = item.systemType || (['m', 'cm'].includes(item.unit) ? 'TUBULACAO' : item.unit === 'UN' ? 'SISTEMA' : 'OLEO');
   const rows = planned.filter(service => (normalizeRdoServiceType(service.serviceType) ?? service.serviceType) === serviceType)
     .flatMap(service => service.systems ?? []);
   const diameterRowsFor = measurementRows => {
@@ -65,7 +65,7 @@ const historicalServiceTypes = { LIMPEZA_QUIMICA: 'limpeza', TESTE_PRESSAO: 'pre
 
 function nativeItems(report, planned, systems) {
   return nativeReportMeasurements(report).filter(row => isServiceFinalized(row.service)).map((row, itemIndex) => {
-    const measurement = { ...row.measurement, serviceType: historicalServiceTypes[row.serviceType], unit: { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'UN' }[row.measurement.systemType] };
+    const measurement = { ...row.measurement, serviceType: historicalServiceTypes[row.serviceType], unit: { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[row.measurement.systemType] };
     return { ...measurement, itemIndex, measurementKey: row.measurementKey, projectSystemId: row.link?.projectSystemId ?? null,
       reconciliation: measurementReconciliation(measurement, planned, systems) };
   });

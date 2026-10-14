@@ -50,6 +50,7 @@ import {
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
 import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
+import { PhysicalSignatureBatchAction } from './PhysicalSignatureBatchAction';
 import { NpsSortControls } from './NpsSortControls';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
@@ -1290,8 +1291,8 @@ export function GestorPage() {
       showToast('Selecione um arquivo PDF.', 'error');
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      showToast('O PDF deve ter no máximo 20 MB.', 'error');
+    if (file.size > 50 * 1024 * 1024) {
+      showToast('O PDF deve ter no máximo 50 MB.', 'error');
       return;
     }
     try {
@@ -1316,9 +1317,9 @@ export function GestorPage() {
       return;
     }
 
-    const oversizedFile = files.find((file) => file.size > 20 * 1024 * 1024);
+    const oversizedFile = files.find((file) => file.size > 50 * 1024 * 1024);
     if (oversizedFile) {
-      showToast(`O PDF ${oversizedFile.name} deve ter no máximo 20 MB.`, 'error');
+      showToast(`O PDF ${oversizedFile.name} deve ter no máximo 50 MB.`, 'error');
       return;
     }
 
@@ -4215,6 +4216,7 @@ export function GestorPage() {
             description={tab === 'pendentes' ? 'Acompanhe os relatórios que aguardam revisão ou foram devolvidos.' : 'Consulte os relatórios aprovados e assinados.'}
             actions={
               <>
+                {tab === 'aprovados' ? <PhysicalSignatureBatchAction projects={manualReportProjectOptions} upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)} /> : null}
                 <Button variant="secondary" aria-label="Abrir upload de relatórios antigos" onClick={() => openManualReportUpload()}>
                   <span className="rdo-action-label rdo-action-label--full">Upload de relatórios antigos</span>
                   <span className="rdo-action-label rdo-action-label--compact">Upload antigo</span>

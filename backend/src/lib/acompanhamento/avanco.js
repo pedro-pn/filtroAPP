@@ -94,6 +94,7 @@ export function addRealizedService(byType, service, canonical = normalizeRdoServ
   acc.tubulacaoM += realized.tubulacaoM;
   acc.oleoL += realized.oleoL;
   acc.sistemasUn = (acc.sistemasUn ?? 0) + realized.sistemasUn;
+  acc.mangotesUn = (acc.mangotesUn ?? 0) + realized.mangotesUn;
   acc.measurements.push(...(service.reconciledMeasurements ?? extractServiceMeasurements(service, canonical)));
   byType.set(canonical, acc);
 }
@@ -103,6 +104,7 @@ function realizedForSystem(systemType, realized) {
   if (systemType === 'TUBULACAO') return realized.tubulacaoM;
   if (systemType === 'OLEO') return realized.oleoL;
   if (systemType === 'SISTEMA') return realized.sistemasUn ?? 0;
+  if (systemType === 'MANGOTE') return realized.mangotesUn ?? 0;
   return 0;
 }
 
@@ -373,7 +375,7 @@ function buildProgressTimeline(plannedServices, serviceReports) {
       services: progress.services.map(service => {
         const quantitiesByUnit = new Map();
         for (const system of service.systems ?? []) {
-          const unit = { TUBULACAO: 'M', SISTEMA: 'UN', OLEO: 'L' }[system.systemType] ?? system.unit;
+          const unit = { TUBULACAO: 'M', SISTEMA: 'UN', MANGOTE: 'UN', OLEO: 'L' }[system.systemType] ?? system.unit;
           if (!unit || system.realizedQty == null) continue;
           quantitiesByUnit.set(unit, (quantitiesByUnit.get(unit) ?? 0) + Number(system.realizedQty));
         }

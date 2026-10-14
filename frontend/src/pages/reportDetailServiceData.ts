@@ -161,7 +161,7 @@ export function legacyServiceData(service: ReportService) {
 
   if (type === 'pressao') {
     const normalizedChoice = normalizeChoiceText(equipamentoTestado);
-    const normalizedTestedEquipment = normalizedChoice === 'mangueira' || normalizedChoice === 'mangueiras'
+    const normalizedTestedEquipment = ['mangote', 'mangotes', 'mangueira', 'mangueiras'].includes(normalizedChoice)
       ? 'mangueira'
       : normalizedChoice === 'outro'
       ? 'outro'
