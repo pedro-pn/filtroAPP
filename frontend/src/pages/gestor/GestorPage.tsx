@@ -1291,8 +1291,8 @@ export function GestorPage() {
       showToast('Selecione um arquivo PDF.', 'error');
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      showToast('O PDF deve ter no máximo 20 MB.', 'error');
+    if (file.size > 50 * 1024 * 1024) {
+      showToast('O PDF deve ter no máximo 50 MB.', 'error');
       return;
     }
     try {
@@ -1317,9 +1317,9 @@ export function GestorPage() {
       return;
     }
 
-    const oversizedFile = files.find((file) => file.size > 20 * 1024 * 1024);
+    const oversizedFile = files.find((file) => file.size > 50 * 1024 * 1024);
     if (oversizedFile) {
-      showToast(`O PDF ${oversizedFile.name} deve ter no máximo 20 MB.`, 'error');
+      showToast(`O PDF ${oversizedFile.name} deve ter no máximo 50 MB.`, 'error');
       return;
     }
 

@@ -58,9 +58,9 @@ test('service filenames and already signed, unapproved or deleted RDOs are never
     specialConditions: { __clientRejectedAt: '2026-10-03', __clientRejectionResolvedAt: '2026-10-04' } }), true);
 });
 
-test('PDF validation rejects non-PDF, empty and oversize files while allowing the 20 MB limit', () => {
-  assert.equal(batch.validatePhysicalSignatureFile({ name: 'RDO.PDF', size: 20 * 1024 * 1024 }), '');
-  for (const file of [{ name: 'foto.png', size: 100 }, { name: 'rdo.pdf', size: 0 }, { name: 'rdo.pdf', size: 20 * 1024 * 1024 + 1 }]) {
+test('PDF validation rejects non-PDF, empty and oversize files while allowing the 50 MB limit', () => {
+  assert.equal(batch.validatePhysicalSignatureFile({ name: 'RDO.PDF', size: 50 * 1024 * 1024 }), '');
+  for (const file of [{ name: 'foto.png', size: 100 }, { name: 'rdo.pdf', size: 0 }, { name: 'rdo.pdf', size: 50 * 1024 * 1024 + 1 }]) {
     assert.ok(batch.validatePhysicalSignatureFile(file));
   }
 });

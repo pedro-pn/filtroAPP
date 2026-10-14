@@ -105,7 +105,7 @@ export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Prop
       {projectId && candidates.isSuccess && !reports.length ? <Alert tone="info">Este projeto não possui RDOs aprovados disponíveis para receber um PDF assinado.</Alert> : null}
       {projectId ? <PdfDropzone appearance="design-system" id="physical-signature-batch-pdfs" label="PDFs assinados pelo cliente"
         multiple onFile={() => {}} onFiles={addFiles} disabled={submitting || !candidates.isSuccess || !reports.length}
-        emptyHint="Selecione vários PDFs deste projeto, de até 20 MB cada" /> : null}
+        emptyHint="Selecione vários PDFs deste projeto, de até 50 MB cada" /> : null}
       {files.length ? <p role="status" aria-live="polite">{files.length} arquivo(s) · {savedCount} enviado(s) · {remaining.length} restante(s)</p> : null}
       {files.length ? <ul className="physical-signature-batch-list">{files.map(entry => {
         const complete = entry.status === 'success';
