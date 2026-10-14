@@ -184,3 +184,44 @@ test('mobilização recorta dias e custos dos colaboradores, enquanto início re
   assert.deepEqual(buildProjectDetailCollaborator({ rate, projectId: 'p', division: pending }).diasApropriados, []);
   assert.equal(dateInDivision('2026-09-10', divisionLaborPeriod(pending)), false);
 });
+
+test('cria, renomeia e remove várias divisões por data em projeto sem escopo', async () => {
+  let project = { trackingDivisions: [], startDate: '2026-08-01' };
+  const fake = {
+    $transaction: async callback => callback(fake),
+    project: { findFirst: async () => project, update: async ({ data }) => { project = { ...project, ...data }; } },
+    projectPlannedService: { findMany: async () => [] }
+  };
+  const first = { key: divisionKey('DATE', 'period-1'), label: 'Setembro', startDate: '2026-09-01', endDate: '2026-09-30' };
+  const second = { key: divisionKey('DATE', 'period-2'), label: 'Outubro', startDate: '2026-10-01', endDate: null };
+  const result = await setTrackingDivisions('p', [first, second], fake);
+  assert.deepEqual(result.candidates.map(candidate => [candidate.kind, candidate.label]), [['DATE', 'Setembro'], ['DATE', 'Outubro']]);
+  assert.deepEqual(result.divisions.map(row => row.mobilizationDate), ['2026-09-01', '2026-10-01']);
+  assert.equal(project.startDate, '2026-08-01');
+  const loaded = await getTrackingDivisions('p', fake);
+  assert.deepEqual(loaded, result);
+  await setTrackingDivision('p', { ...first, label: 'Etapa inicial', startDate: '2026-09-02' }, fake);
+  const edited = await getTrackingDivisions('p', fake);
+  assert.equal(edited.candidates[0].label, 'Etapa inicial');
+  assert.equal(edited.divisions[1].key, second.key);
+  await setTrackingDivisions('p', [edited.divisions[1]], fake);
+  assert.equal((await getTrackingDivisions('p', fake)).candidates.length, 1);
+  await setTrackingDivisions('p', [], fake);
+  assert.deepEqual(await getTrackingDivisions('p', fake), { candidates: [], divisions: [] });
+});
+
+test('período considera todos os escopos e recorta custos e dias pelas mesmas datas', () => {
+  const key = divisionKey('DATE', 'period-1');
+  const [division] = validateDivisionRows([], [{ key, label: 'Etapa', startDate: '2026-09-02', endDate: '2026-09-05' }]);
+  assert.deepEqual(selectDivisionPlannedServices(candidateServices, key), candidateServices);
+  assert.deepEqual(selectDivisionPlannedServices([], key), []);
+  assert.deepEqual(divisionLaborPeriod(division), division);
+  assert.equal(buildProjectCalendarPeriod({ division, referenceDate: new Date('2026-09-05') }).elapsed, 3);
+  assert.equal(dateInDivision('2026-09-01', division), false);
+  assert.equal(dateInDivision('2026-09-05', division), true);
+  assert.equal(dateInDivision('2026-09-06', division), false);
+  for (const patch of [{ label: '' }, { label: 'a'.repeat(101) }, { startDate: '2026-02-30' }, { endDate: '2026-09-01' }, { key: '["DATE",null,null]' }]) {
+    assert.throws(() => validateDivisionRows([], [{ ...division, ...patch }]));
+  }
+  assert.throws(() => validateDivisionRows([], [division, division]), /repetida/);
+});

@@ -521,7 +521,13 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     <div className="acp-scope">
       <details className="acp-schedule-ds__scope-details" data-acp-schedule-scope-details>
         <summary className="acp-schedule-ds__scope-summary">
-          <span>Detalhes do escopo previsto</span>
+          <span className="acp-schedule-ds__scope-heading">
+            <span>Detalhes do escopo previsto</span>
+            <small aria-hidden="true">
+              <span className="acp-schedule-ds__scope-expand">Expandir serviços e quantitativos</span>
+              <span className="acp-schedule-ds__scope-collapse">Recolher detalhes</span>
+            </small>
+          </span>
           {data.commercialScopeImport?.issues?.length ? <Badge tone="warning" multiline>{data.commercialScopeImport.issues.length} {data.commercialScopeImport.issues.length === 1 ? 'item para conferir' : 'itens para conferir'}</Badge>
             : data.commercialScopeImport?.pendingExternalId ? <Badge tone="warning">Conferir importação</Badge> : null}
         </summary>

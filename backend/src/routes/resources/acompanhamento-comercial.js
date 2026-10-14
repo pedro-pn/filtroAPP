@@ -953,9 +953,10 @@ router.get(
 
 const trackingDivisionRowSchema = z.object({
   key: z.string().min(1).max(500),
+  label: z.string().trim().min(1).max(100).optional(),
   startDate: z.iso.date(),
   endDate: z.iso.date().nullable().optional(),
-  mobilizationDate: z.iso.date(),
+  mobilizationDate: z.iso.date().optional(),
   plannedCost: z.number().nonnegative().nullable().optional(),
   plannedRevenue: z.number().nonnegative().nullable().optional(),
   plannedHours: z.number().nonnegative().nullable().optional(),

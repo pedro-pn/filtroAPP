@@ -3,7 +3,7 @@ import { BrandLoading } from '../brand/BrandLoading';
 import { useId, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { buildWeeklyProgressComparison, corporateToday, weekStartKey, weeklyTargetDefinition, weeklyTargetGoalMetric, WEEKLY_TARGET_SERVICES, type WeeklyTargetDeleteInput, type WeeklyTargetInput, type WeeklyProgressComparison } from '../../../../shared/modules/mission-weekly-progress.js';
+import { buildWeeklyProgressComparison, corporateToday, weekStartKey, weeklyTargetDefinition, effectiveWeeklyProgressTarget, WEEKLY_TARGET_SERVICES, type WeeklyTargetDeleteInput, type WeeklyTargetInput, type WeeklyProgressComparison } from '../../../../shared/modules/mission-weekly-progress.js';
 import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetPath, type WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { ApiClientError } from '../../api/client';
 import type { ProgressHistoryPoint } from '../../api/acompanhamentoComercial';
@@ -12,7 +12,7 @@ import { WorkflowButton as Button } from '../ui/WorkflowButton';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { formatDateOnly } from '../../utils/dateOnly';
 import { WeeklyTargetEditor } from './WeeklyTargetEditor';
-import { newScenario, onlyFilteringGoals, scenarioToDraft, type TargetDraft } from './weeklyTargetDraft';
+import { newScenario, weeklyTargetDraftToInput, scenarioToDraft, type TargetDraft } from './weeklyTargetDraft';
 import { WeeklyGoalResults, WeeklyTargetConfiguration } from './WeeklyTargetDisplay';
 import { attendanceBalanceLabel, weeklyValueLabel } from './weeklyTargetPresentation';
 import { ProjectDetailSection } from './ProjectDetailSection';
@@ -54,17 +54,16 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   const closedWithTarget = rows.filter(row => !row.inProgress && row.weekStartDate < currentWeek && ['ON_TARGET', 'ABOVE', 'BELOW'].includes(row.status));
   const achieved = closedWithTarget.filter(row => ['ON_TARGET', 'ABOVE'].includes(row.status)).length;
   const current = rows.find(row => row.weekStartDate === currentWeek)!;
-  const hasAttendance = draft?.metric === 'COLLABORATORS' || rows.some(row => row.metric === 'COLLABORATORS');
+  const hasAttendance = draft?.scenarios.some(scenario => scenario.metric === 'COLLABORATORS') || rows.some(row => row.metric === 'COLLABORATORS');
   const plannedHeading = hasAttendance ? 'Previsto' : 'Avanço previsto';
   const actualHeading = hasAttendance ? 'Realizado' : 'Avanço realizado';
   const latestFor = (week: string) => targets.filter(target => target.weekStartDate === week).sort((a, b) => b.revision - a.revision)[0];
   const editWeek = (week: string) => {
-    const target = latestFor(week);
-    const definition = target && !target.isDeleted ? weeklyTargetDefinition(target) : null;
-    setDraft({ weekStartDate: week, metric: definition?.metric ?? 'PCT_POINTS', basis: definition?.basis ?? 'WEEK_TOTAL',
-      referenceDayHours: String(definition?.referenceDayHours ?? targetsQuery.data?.defaultReferenceDayHours ?? ''),
-      workdays: definition?.workdays ?? [1, 2, 3, 4, 5],
-      scenarios: definition ? definition.scenarios.map(scenarioToDraft) : [newScenario()], expectedRevision: target?.revision ?? 0 });
+    const target = effectiveWeeklyProgressTarget(targets, week);
+    const definition = target ? weeklyTargetDefinition(target) : null;
+    setDraft({ weekStartDate: week, repeatWeekly: definition?.repeatWeekly ?? false,
+      scenarios: definition ? definition.scenarios.map(scenario => scenarioToDraft(scenario, definition, targetsQuery.data?.defaultReferenceDayHours))
+        : [newScenario(String(targetsQuery.data?.defaultReferenceDayHours ?? ''))], expectedRevision: latestFor(week)?.revision ?? 0 });
     setError('');
   };
   const save = useMutation({
@@ -104,27 +103,8 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!draft || !canManage || busy) return;
-    const scenarios = draft.scenarios.map(scenario => ({ name: scenario.name, condition: scenario.condition, goals: scenario.goals.map(goal => ({ serviceType: goal.serviceType, value: Number(goal.value.replace(',', '.')) })) }));
-    const referenceDayHours = Number(draft.referenceDayHours.replace(',', '.'));
-    if (draft.metric === 'COLLABORATORS' && (!draft.workdays.length || scenarios.some(scenario => scenario.goals.some(goal => !Number.isInteger(goal.value) || goal.value < 1)))) {
-      setError('Informe uma quantidade inteira positiva de colaboradores e selecione ao menos um dia de trabalho.');
-      return;
-    }
-    if (!draft.weekStartDate || draft.scenarios.some(scenario => !scenario.name.trim() || !scenario.goals.length
-      || scenario.goals.some(goal => !goal.value.trim()) || (scenario.condition.kind === 'SERVICE_SET' && !scenario.condition.serviceTypes.length))
-      || scenarios.some(scenario => scenario.goals.some(goal => !Number.isFinite(goal.value) || goal.value < 0
-        || goal.value > (draft.metric === 'PCT_POINTS' ? 100 : 999999999.99) || Math.abs(goal.value * 100 - Math.round(goal.value * 100)) > 1e-5
-        || (weeklyTargetGoalMetric(draft.metric, goal, scenario.condition) === 'UN' && draft.basis === 'WEEK_TOTAL' && !Number.isInteger(goal.value))))
-      || (draft.basis === 'PER_PRODUCTIVE_DAY' && (!draft.referenceDayHours.trim() || !Number.isFinite(referenceDayHours)
-        || referenceDayHours <= 0 || referenceDayHours > 24 || Math.abs(referenceDayHours * 100 - Math.round(referenceDayHours * 100)) > 1e-5))) {
-      setError('Preencha a semana, as condições e os valores de cada meta. Use até duas casas decimais e uma jornada de referência entre 0,01 e 24 horas.');
-      return;
-    }
-    save.mutate(draft.metric === 'PCT_POINTS'
-      ? { weekStartDate: draft.weekStartDate, plannedPctPoints: scenarios[0].goals[0].value, expectedRevision: draft.expectedRevision }
-      : { weekStartDate: draft.weekStartDate, definition: { metric: onlyFilteringGoals(draft) ? 'L' : draft.metric, basis: draft.basis,
-        ...(draft.metric === 'COLLABORATORS' ? { workdays: draft.workdays } : {}),
-        ...(draft.basis === 'PER_PRODUCTIVE_DAY' ? { referenceDayHours } : {}), scenarios }, expectedRevision: draft.expectedRevision });
+    try { save.mutate(weeklyTargetDraftToInput(draft)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Confira os valores da meta.'); }
   }
 
   return <section className="fv-ds mission-weekly-progress" aria-label="Metas semanais de avanço" onClick={event => event.stopPropagation()}>
@@ -158,6 +138,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
             <p className="mission-weekly-progress-hint">Cada colaborador em um dia conta como uma presença. O saldo soma excedentes e faltas desde a primeira semana com meta de presença, nos dias selecionados já ocorridos. Dias sem meta não entram; a avaliação diária continua independente.</p>
           </div> : null}
           {current.metric !== 'PCT_POINTS' ? <WeeklyGoalResults row={current} showBalance={false} /> : null}
+          {current.target?.repeatedFromWeekStartDate ? <p className="mission-weekly-progress-hint">Meta reutilizada automaticamente desde {formatDateOnly(current.target.repeatedFromWeekStartDate)}.</p> : current.target?.definition?.repeatWeekly ? <p className="mission-weekly-progress-hint">Repetição semanal ativada.</p> : null}
           {current.target?.definition ? <details><summary>Regras cadastradas para a semana</summary><WeeklyTargetConfiguration target={current.target} /></details> : null}
         </div></ProjectDetailDisclosure>
         {draft && canManage ? <form className="mission-weekly-progress-form" onSubmit={submit}>
@@ -167,6 +148,13 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
               expectedRevision: week && week !== currentDraft.weekStartDate ? latestFor(week)?.revision ?? 0 : currentDraft.expectedRevision } : null);
             setError('');
           }} /></Field>
+          <div className="mission-weekly-repeat">
+            <Button type="button" size="sm" variant={draft.repeatWeekly ? 'primary' : 'secondary'} aria-pressed={draft.repeatWeekly} disabled={busy}
+              onClick={() => setDraft({ ...draft, repeatWeekly: !draft.repeatWeekly })}>Reutilizar meta toda semana</Button>
+            <p className="mission-weekly-progress-hint">{draft.repeatWeekly
+              ? 'Repetição ativada a partir desta semana. Uma nova meta ou exclusão interrompe a repetição a partir da semana escolhida.'
+              : 'Ative para aplicar os mesmos cenários automaticamente às próximas semanas. Desative e salve para encerrar a repetição a partir desta semana.'}</p>
+          </div>
           <WeeklyTargetEditor id={id} draft={draft} disabled={busy} onChange={setDraft} />
           <div className="mission-weekly-progress-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="primary" type="submit" size="sm" disabled={busy}>{save.isPending ? 'Salvando…' : 'Salvar meta'}</Button><Button workflowAppearance={workflowAppearance} workflowVariant="mini" type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { setDraft(null); setError(''); }}>Cancelar</Button></div>
         </form> : null}
@@ -181,7 +169,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
                 <th scope="row" data-sort-value={row.weekStartDate}>{formatDateOnly(row.weekStartDate)}<small>até {formatDateOnly(row.weekEndDate)}{row.inProgress ? ' · Em andamento' : ''}</small></th>
                 <td data-label={plannedHeading} data-sort-value={row.plannedValue}>{comparisonValue(row, 'plannedValue', true)}</td><td data-label={actualHeading} data-sort-value={row.actualValue}><div>{comparisonValue(row, 'actualValue')}{row.metric === 'COLLABORATORS' ? <details><summary>Presença por dia · menor efetivo diário</summary><WeeklyGoalResults row={row} /></details> : null}</div></td><td data-label="Diferença" data-sort-value={row.differenceValue}><div>{comparisonValue(row, 'differenceValue')}{row.cumulativeAttendance ? <small>Acumulado: {attendanceBalanceLabel(row.cumulativeAttendance.differenceValue)}</small> : null}</div></td>
                 <td data-label="Situação"><span className={`mission-weekly-status status-${compact && row.inProgress && row.status === 'BELOW' ? 'planned' : row.status.toLowerCase()}`}>{!compact ? STATUS_LABEL[row.status] : row.inProgress && row.status === 'BELOW' ? 'Em andamento' : ['ON_TARGET', 'ABOVE'].includes(row.status) ? 'Meta atingida' : row.status === 'BELOW' ? 'Meta não atingida' : STATUS_LABEL[row.status]}</span></td>
-                {showDetails ? <td data-label="Meta registrada" data-sort-value={revisions[0]?.createdAt}>{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : '—'}</td> : null}
+                {showDetails ? <td data-label="Meta registrada" data-sort-value={revisions[0]?.createdAt}>{revisions.length ? <div className="mission-weekly-record">{revisions[0].isDeleted ? <strong>Meta excluída</strong> : null}<span>{revisions[0].author.name}</span><small>{new Date(revisions[0].createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small><details><summary>{revisions.length > 1 ? `${revisions.length} versões` : 'Ver regras'}</summary>{revisions.map(revision => <div key={revision.id}><small>Versão {revision.revision} · {revision.author.name} · {new Date(revision.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>{revision.isDeleted ? <span>Meta excluída</span> : <WeeklyTargetConfiguration target={revision} />}</div>)}</details></div> : row.target?.repeatedFromWeekStartDate ? <div className="mission-weekly-record"><strong>Meta reutilizada</strong><small>Desde {formatDateOnly(row.target.repeatedFromWeekStartDate)}</small><span>{row.target.author.name}</span></div> : '—'}</td> : null}
                 {canManage && showDetails ? <td data-label="Ação"><div className="mission-weekly-row-actions"><Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={busy} aria-label={`${row.target ? 'Editar' : 'Definir'} meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => editWeek(row.weekStartDate)}>{row.target ? 'Editar' : 'Definir'}</Button>{row.target ? <Button workflowAppearance={workflowAppearance} workflowVariant="danger" size="sm" variant="danger" disabled={busy} aria-label={`Excluir meta da semana de ${formatDateOnly(row.weekStartDate)}`} onClick={() => {
                   setDeleteError('');
                   setDeleteTarget({ weekStartDate: row.weekStartDate, expectedRevision: row.target!.revision });
@@ -202,7 +190,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
       </>}
     </ProjectDetailSection>
     <ConfirmDialog open={Boolean(deleteTarget) && canManage} appearance="design-system" title="Excluir meta semanal"
-      description="A semana ficará sem meta definida. As versões anteriores e o registro da exclusão permanecerão no histórico."
+      description="A semana ficará sem meta definida e a repetição será interrompida a partir dela. As versões anteriores e o registro da exclusão permanecerão no histórico."
       highlight={deleteTarget ? `Semana de ${formatDateOnly(deleteTarget.weekStartDate)}` : undefined}
       confirmLabel={remove.isPending ? 'Excluindo…' : 'Excluir meta'} confirmDisabled={busy} errorMessage={deleteError}
       onCancel={() => { if (!remove.isPending) { setDeleteTarget(null); setDeleteError(''); } }}

@@ -1,22 +1,31 @@
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
 import prisma from '../prisma.js';
-import { dateOnlyKey, weekStartKey, weeklyTargetGoalMetric } from '../../../../shared/modules/mission-weekly-progress.js';
+import { dateOnlyKey, weekStartKey, weeklyTargetGoalMetric, weeklyTargetScenarioSettings, effectiveWeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
 
 const preciseValue = z.number().min(0, 'A meta não pode ser negativa.').max(999999999.99)
   .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-5, 'Use no máximo duas casas decimais.');
+const metricSchema = z.enum(['PCT_POINTS', 'M', 'L', 'UN', 'COLLABORATORS']);
+const basisSchema = z.enum(['WEEK_TOTAL', 'PER_PRODUCTIVE_DAY', 'PER_WORKDAY']);
+const referenceHoursSchema = preciseValue.pipe(z.number().min(0.01).max(24));
+const workdaysSchema = z.array(z.number().int().min(0).max(6)).min(1).max(7);
 const conditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('ALWAYS') }).strict(),
   z.object({ kind: z.literal('SERVICE_COUNT'), count: z.number().int().min(1).max(4) }).strict(),
   z.object({ kind: z.literal('SERVICE_SET'), serviceTypes: z.array(z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'])).min(1).max(4) }).strict()
 ]);
 export const weeklyTargetDefinitionSchema = z.object({
-  metric: z.enum(['PCT_POINTS', 'M', 'L', 'UN', 'COLLABORATORS']),
-  basis: z.enum(['WEEK_TOTAL', 'PER_PRODUCTIVE_DAY', 'PER_WORKDAY']).default('WEEK_TOTAL'),
-  referenceDayHours: preciseValue.pipe(z.number().min(0.01).max(24)).optional(),
-  workdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  metric: metricSchema,
+  basis: basisSchema.default('WEEK_TOTAL'),
+  referenceDayHours: referenceHoursSchema.optional(),
+  workdays: workdaysSchema.optional(),
+  repeatWeekly: z.boolean().optional(),
   scenarios: z.array(z.object({
     name: z.string().trim().min(1).max(100),
+    metric: metricSchema.optional(),
+    basis: basisSchema.optional(),
+    referenceDayHours: referenceHoursSchema.optional(),
+    workdays: workdaysSchema.optional(),
     condition: conditionSchema,
     goals: z.array(z.object({
       serviceType: z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM']).nullable().default(null),
@@ -25,20 +34,20 @@ export const weeklyTargetDefinitionSchema = z.object({
   }).strict()).min(1).max(20)
 }).strict().superRefine((definition, ctx) => {
   const fail = message => ctx.addIssue({ code: 'custom', message });
-  if (definition.metric === 'COLLABORATORS') {
-    const scenario = definition.scenarios[0];
-    if (definition.basis !== 'PER_WORKDAY' || definition.referenceDayHours != null || !definition.workdays
-      || new Set(definition.workdays).size !== definition.workdays.length || definition.scenarios.length !== 1
-      || scenario.condition.kind !== 'ALWAYS' || scenario.goals.length !== 1 || scenario.goals[0].serviceType != null
-      || !Number.isInteger(scenario.goals[0].value) || scenario.goals[0].value < 1) {
-      fail('Defina uma quantidade inteira positiva de colaboradores por dia, os dias de trabalho e uma única meta geral, sem vínculo com serviços ou horas produtivas.');
-    }
-  } else if (definition.basis === 'PER_WORKDAY' || definition.workdays != null) {
-    fail('Os dias de trabalho e a base diária de presença são exclusivos da meta de colaboradores.');
-  }
   const conditions = new Set();
   for (const scenario of definition.scenarios) {
     const { condition, goals } = scenario;
+    const { metric, basis, referenceDayHours, workdays } = weeklyTargetScenarioSettings(definition, scenario);
+    if (metric === 'COLLABORATORS') {
+      if (basis !== 'PER_WORKDAY' || referenceDayHours != null || !workdays
+        || new Set(workdays).size !== workdays.length || goals.length !== 1 || goals[0].serviceType != null
+        || !Number.isInteger(goals[0].value) || goals[0].value < 1
+        || (scenario.metric == null && (definition.scenarios.length !== 1 || condition.kind !== 'ALWAYS'))) {
+        fail('Defina uma quantidade inteira positiva de colaboradores por dia, os dias de trabalho e uma meta geral, sem vínculo com serviços ou horas produtivas.');
+      }
+    } else if (basis === 'PER_WORKDAY' || workdays != null) {
+      fail('Os dias de trabalho e a base diária de presença são exclusivos da meta de colaboradores.');
+    }
     const ids = goals.map(goal => goal.serviceType);
     if (new Set(ids).size !== ids.length) fail('Não repita um tipo de serviço no mesmo cenário.');
     if (ids.includes(null) && goals.length > 1) fail('Escolha uma meta geral ou metas por tipo de serviço no cenário.');
@@ -53,11 +62,11 @@ export const weeklyTargetDefinitionSchema = z.object({
       : condition.kind === 'SERVICE_COUNT' ? `COUNT:${condition.count}` : 'ALWAYS';
     if (conditions.has(key)) fail('Cada condição deve ter apenas um cenário.');
     conditions.add(key);
-    if (definition.basis === 'WEEK_TOTAL' && definition.referenceDayHours != null) fail('A jornada de referência é usada em metas por colaborador/dia.');
-    if (definition.basis === 'WEEK_TOTAL' && goals.some(goal => weeklyTargetGoalMetric(definition.metric, goal, condition) === 'UN' && !Number.isInteger(goal.value))) fail('Metas totais de unidades de sistema devem ser inteiras.');
-    if (definition.metric === 'PCT_POINTS' && (definition.scenarios.length !== 1 || condition.kind !== 'ALWAYS'
-      || ids.some(Boolean) || goals.some(goal => goal.value > 100) || definition.basis !== 'WEEK_TOTAL')) {
-      fail('Avanço percentual usa uma única meta geral de 0 a 100 p.p., para a missão inteira.');
+    if (basis === 'WEEK_TOTAL' && referenceDayHours != null) fail('A jornada de referência é usada em metas por colaborador/dia.');
+    if (basis === 'WEEK_TOTAL' && goals.some(goal => weeklyTargetGoalMetric(metric, goal, condition) === 'UN' && !Number.isInteger(goal.value))) fail('Metas totais de unidades de sistema devem ser inteiras.');
+    if (metric === 'PCT_POINTS' && (goals.length !== 1 || ids.some(Boolean) || goals.some(goal => goal.value > 100) || basis !== 'WEEK_TOTAL'
+      || (scenario.metric == null && (definition.scenarios.length !== 1 || condition.kind !== 'ALWAYS')))) {
+      fail('Avanço percentual usa uma meta geral de 0 a 100 p.p., para a missão inteira.');
     }
   }
 });
@@ -73,7 +82,7 @@ export const weeklyProgressTargetSchema = z.object({
 
 export const deleteWeeklyProgressTargetSchema = z.object({
   weekStartDate: weeklyProgressTargetSchema.shape.weekStartDate,
-  expectedRevision: z.number().int().min(1)
+  expectedRevision: z.number().int().min(0)
 }).strict();
 
 export function weeklyTargetError(message, status) {
@@ -168,10 +177,13 @@ export async function deleteWeeklyProgressTarget(owner, input, { client = prisma
   const where = await assertOwner(client, owner, true);
   const weekStartDate = new Date(`${payload.weekStartDate}T00:00:00.000Z`);
   const latest = await client.missionWeeklyProgressTarget.findFirst({ where: { ...where, weekStartDate }, orderBy: { revision: 'desc' } });
-  if (!latest) throw weeklyTargetError('Meta não encontrada.', 404);
+  if (!latest) {
+    const inherited = effectiveWeeklyProgressTarget(await listWeeklyProgressTargets(owner, { client }), payload.weekStartDate);
+    if (!inherited) throw weeklyTargetError('Meta não encontrada.', 404);
+  }
   const conflict = () => weeklyTargetError('Esta meta foi alterada por outra pessoa. Confira o histórico atualizado e tente novamente.', 409);
-  if (latest.revision !== payload.expectedRevision) throw conflict();
-  if (latest.isDeleted) throw weeklyTargetError('Esta meta já foi excluída.', 404);
+  if ((latest?.revision ?? 0) !== payload.expectedRevision) throw conflict();
+  if (latest?.isDeleted) throw weeklyTargetError('Esta meta já foi excluída.', 404);
   try {
     return toResponse(await client.missionWeeklyProgressTarget.create({ data: {
       ...where, weekStartDate, plannedPctPoints: null, isDeleted: true, revision: payload.expectedRevision + 1,

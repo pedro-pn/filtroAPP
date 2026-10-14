@@ -460,14 +460,14 @@ export function ProjectDetailDashboard({
             .filter(candidate => trackingDivisions.divisions.some(item => item.key === candidate.key))
             .map(candidate => <button key={candidate.key} type="button" aria-pressed={activeDivisionKey === candidate.key}
               onClick={() => setTrackingDivisionKey(candidate.key)}>
-              {candidate.kind === 'SCOPE' ? `Escopo: ${candidate.label}` : `${candidate.scopeName || 'Sem escopo definido'}: ${candidate.label.replace(/^Unidade Geradora\s+/i, 'UG ')}`}
+              {candidate.kind === 'DATE' ? `Período: ${candidate.label}` : candidate.kind === 'SCOPE' ? `Escopo: ${candidate.label}` : `${candidate.scopeName || 'Sem escopo definido'}: ${candidate.label.replace(/^Unidade Geradora\s+/i, 'UG ')}`}
             </button>)}
         </nav>
       ) : null}
       {data.division ? <Card padding="sm" className="acp-tracking-period" aria-label="Período da divisão">
-        <span>Início do escopo: {fmtDate(data.division.startDate)}</span>
-        <span>Fim do escopo: {data.division.endDate ? fmtDate(data.division.endDate) : 'Não informado · período até hoje'}</span>
-        <span>Mobilização do escopo: {fmtDate(data.division.mobilizationDate)}</span>
+        <span>{data.division.label ? 'Início do período' : 'Início do escopo'}: {fmtDate(data.division.startDate)}</span>
+        <span>{data.division.label ? 'Término do período' : 'Fim do escopo'}: {data.division.endDate ? fmtDate(data.division.endDate) : 'Não informado · período até hoje'}</span>
+        {!data.division.label ? <span>Mobilização do escopo: {fmtDate(data.division.mobilizationDate)}</span> : null}
       </Card> : null}
       {data.division && !data.division.mobilizationDate ? <Alert tone="warning" title="Informe a mobilização do escopo.">
         Preencha a data no cronograma da divisão para calcular os dias corridos e a apropriação dos colaboradores.

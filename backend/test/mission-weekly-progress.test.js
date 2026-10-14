@@ -153,7 +153,7 @@ test('exclusão valida semana, revisão, responsável e conflitos concorrentes',
   const client = database();
   const owner = { projectId: 'p1' };
   const input = { weekStartDate: payload.weekStartDate, expectedRevision: 1 };
-  for (const changes of [{ weekStartDate: '2026-09-29' }, { expectedRevision: 0 }, { expectedRevision: 1.5 }, { expectedRevision: '1' }, { definition: {} }]) {
+  for (const changes of [{ weekStartDate: '2026-09-29' }, { expectedRevision: -1 }, { expectedRevision: 1.5 }, { expectedRevision: '1' }, { definition: {} }]) {
     assert.equal(deleteWeeklyProgressTargetSchema.safeParse({ ...input, ...changes }).success, false);
   }
   await assert.rejects(deleteWeeklyProgressTarget(owner, input, { client }), { status: 400 });
@@ -435,4 +435,82 @@ test('meta de presença salva mínimo e dias de trabalho em revisões preservada
   assert.deepEqual(records[0].definition, definition);
   assert.equal(records[1].definition.scenarios[0].goals[0].value, 6);
   assert.deepEqual(records[1].definition.workdays, [1, 2, 3, 4, 5, 6]);
+});
+
+test('repetição preenche semanas sem lançamentos, usa a última revisão e termina na próxima meta', () => {
+  const repeating = { ...target('2026-09-07', null), definition: { metric: 'PCT_POINTS', repeatWeekly: true,
+    scenarios: [scenario('Geral', { kind: 'ALWAYS' }, [goal(10)])] } };
+  const input = { today: '2026-09-30', targets: [repeating], progressHistory: [point('2026-09-20', 20), point('2026-09-29', 25)] };
+  const snapshot = JSON.stringify(input);
+  const rows = buildWeeklyProgressComparison(input);
+  assert.equal(rowFor(rows, '2026-09-14').plannedValue, 10);
+  assert.equal(rowFor(rows, '2026-09-28').plannedValue, 10);
+  assert.equal(rowFor(rows, '2026-09-28').target.repeatedFromWeekStartDate, '2026-09-07');
+  assert.equal(rowFor(rows, '2026-09-28').target.revision, 0);
+  assert.equal(rowFor(rows, '2026-10-05').status, 'PLANNED');
+  assert.equal(JSON.stringify(input), snapshot);
+  const replacement = { ...target('2026-09-21', null), definition: { ...repeating.definition, repeatWeekly: false } };
+  const stopped = buildWeeklyProgressComparison({ ...input, targets: [repeating, replacement] });
+  assert.equal(rowFor(stopped, '2026-09-14').plannedValue, 10);
+  assert.equal(rowFor(stopped, '2026-09-21').plannedValue, 10);
+  assert.equal(rowFor(stopped, '2026-09-28').status, 'NO_TARGET');
+  const revised = { ...repeating, revision: 2, definition: { ...repeating.definition, scenarios: [scenario('Geral', { kind: 'ALWAYS' }, [goal(15)])] } };
+  assert.equal(rowFor(buildWeeklyProgressComparison({ ...input, targets: [repeating, revised] }), '2026-09-28').plannedValue, 15);
+});
+
+test('uma meta repetida pode ser editada, excluída e reiniciada sem apagar semanas anteriores', async () => {
+  const client = database(), owner = { projectId: 'p1' };
+  const definition = { metric: 'M', repeatWeekly: true, scenarios: [scenario('Geral', { kind: 'ALWAYS' }, [goal(300)])] };
+  await saveWeeklyProgressTarget(owner, { weekStartDate: '2026-09-07', definition, expectedRevision: 0 }, { client, ...actor });
+  await assert.rejects(deleteWeeklyProgressTarget({ projectId: 'p2' }, { weekStartDate: '2026-09-21', expectedRevision: 0 }, { client, ...actor }), { status: 404 });
+  await assert.rejects(deleteWeeklyProgressTarget(owner, { weekStartDate: '2026-09-21', expectedRevision: 1 }, { client, ...actor }), { status: 409 });
+  const deleted = await deleteWeeklyProgressTarget(owner, { weekStartDate: '2026-09-21', expectedRevision: 0 }, { client, ...actor });
+  assert.equal(deleted.revision, 1);
+  const rows = buildWeeklyProgressComparison({ targets: await listWeeklyProgressTargets(owner, { client }), today: '2026-09-30' });
+  assert.equal(rowFor(rows, '2026-09-14').target.repeatedFromWeekStartDate, '2026-09-07');
+  assert.equal(rowFor(rows, '2026-09-21').status, 'NO_TARGET');
+  assert.equal(rowFor(rows, '2026-09-28').status, 'NO_TARGET');
+  await saveWeeklyProgressTarget(owner, { weekStartDate: '2026-09-28', definition, expectedRevision: 0 }, { client, ...actor });
+  const restarted = buildWeeklyProgressComparison({ targets: await listWeeklyProgressTargets(owner, { client }), today: '2026-10-09' });
+  assert.equal(rowFor(restarted, '2026-10-05').plannedValue, 300);
+  assert.equal(client.records.length, 3);
+  assert.equal((await listWeeklyProgressTargets(owner, { client }))[0].definition.repeatWeekly, true);
+});
+
+test('cada cenário salva e aplica sua medida e sua base, sem converter metas de outros cenários', async () => {
+  const definition = { metric: 'M', repeatWeekly: true, scenarios: [
+    { ...scenario('Metragem', { kind: 'ALWAYS' }, [goal(300)]), metric: 'M', basis: 'WEEK_TOTAL' },
+    { ...scenario('Sistemas', { kind: 'SERVICE_SET', serviceTypes: ['LIMPEZA_QUIMICA'] }, [goal(3)]), metric: 'UN', basis: 'WEEK_TOTAL' },
+    { ...scenario('Óleo por dia', { kind: 'SERVICE_SET', serviceTypes: ['FILTRAGEM'] }, [goal(1000)]), metric: 'L', basis: 'PER_PRODUCTIVE_DAY', referenceDayHours: 4 },
+    { ...scenario('Avanço', { kind: 'SERVICE_COUNT', count: 2 }, [goal(10)]), metric: 'PCT_POINTS', basis: 'WEEK_TOTAL' }
+  ] };
+  assert.equal(weeklyProgressTargetSchema.safeParse({ weekStartDate: payload.weekStartDate, definition }).success, true);
+  const client = database();
+  const saved = await saveWeeklyProgressTarget({ projectId: 'p1' }, { weekStartDate: payload.weekStartDate, definition }, { client, ...actor });
+  assert.deepEqual(saved.definition.scenarios, definition.scenarios);
+  const units = comparePhysical(definition, [servicePoint('2026-09-28', 'LIMPEZA_QUIMICA', 150, 0, 3)]);
+  assert.equal(units.metric, 'UN'); assert.equal(units.actualValue, 3); assert.equal(units.plannedValue, 3);
+  const oil = comparePhysical(definition, [servicePoint('2026-09-28', 'FILTRAGEM', 0, 2000), productivePoint('2026-09-28', 'FILTRAGEM', 1)]);
+  assert.equal(oil.metric, 'L'); assert.equal(oil.plannedValue, 2000); assert.equal(oil.basis, 'PER_PRODUCTIVE_DAY');
+  const percent = comparePhysical(definition, [servicePoint('2026-09-28', 'LIMPEZA_QUIMICA'), servicePoint('2026-09-28', 'TESTE_PRESSAO')], { progressHistory: [point('2026-09-27', 30), point('2026-09-28', 40)] });
+  assert.equal(percent.metric, 'PCT_POINTS'); assert.equal(percent.actualValue, 10); assert.equal(percent.status, 'ON_TARGET');
+  const general = comparePhysical(definition, [servicePoint('2026-09-28', 'FLUSHING', 300)]);
+  assert.equal(general.metric, 'M'); assert.equal(general.plannedValue, 300);
+  const invalid = structuredClone(definition);
+  invalid.scenarios[1].goals[0].value = 1.5;
+  assert.equal(weeklyProgressTargetSchema.safeParse({ weekStartDate: payload.weekStartDate, definition: invalid }).success, false);
+});
+
+test('cenário de presença e produção podem coexistir e a repetição continua o saldo de presença', () => {
+  const definition = { metric: 'M', repeatWeekly: true, scenarios: [
+    { ...scenario('Presença', { kind: 'ALWAYS' }, [goal(2)]), metric: 'COLLABORATORS', basis: 'PER_WORKDAY', workdays: [1] },
+    { ...scenario('Produção', { kind: 'SERVICE_SET', serviceTypes: ['FLUSHING'] }, [goal(300)]), metric: 'M', basis: 'WEEK_TOTAL' }
+  ] };
+  assert.equal(weeklyProgressTargetSchema.safeParse({ weekStartDate: '2026-09-21', definition }).success, true);
+  const rows = buildWeeklyProgressComparison({ today: '2026-09-30', targets: [{ ...target('2026-09-21', null), definition }],
+    attendanceHistory: [{ date: '2026-09-21', collaboratorIds: ['c1', 'c2', 'c3'] }, { date: '2026-09-28', collaboratorIds: ['c1'] }] });
+  assert.equal(rowFor(rows, '2026-09-28').metric, 'COLLABORATORS');
+  assert.equal(rowFor(rows, '2026-09-28').cumulativeAttendance.differenceValue, 0);
+  assert.equal(rowFor(rows, '2026-09-28').status, 'BELOW');
+  assert.equal(comparePhysical(definition, [servicePoint('2026-09-28', 'FLUSHING', 300)]).metric, 'M');
 });

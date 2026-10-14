@@ -1084,6 +1084,7 @@ export async function getProjectDetail(projectId: string, divisionKey?: string):
 
 export interface TrackingDivision {
   key: string;
+  label?: string;
   startDate: string;
   endDate: string | null;
   mobilizationDate?: string | null;
@@ -1093,11 +1094,11 @@ export interface TrackingDivision {
   plannedDays: number | null;
 }
 
-export type TrackingDivisionInput = Omit<TrackingDivision, 'mobilizationDate'> & { mobilizationDate: string };
+export type TrackingDivisionInput = TrackingDivision;
 
 export interface TrackingDivisionCandidate {
   key: string;
-  kind: 'SCOPE' | 'EQUIPMENT';
+  kind: 'SCOPE' | 'EQUIPMENT' | 'DATE';
   scopeName: string | null;
   equipmentKey?: string;
   systemCount?: number;
