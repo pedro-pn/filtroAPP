@@ -16,7 +16,8 @@ const SERVICE_NAMES = {
 const UNITS = [
   ['tubulacaoM', 'm', 'TUBULACAO'],
   ['oleoL', 'L', 'OLEO'],
-  ['sistemasUn', 'un', 'SISTEMA']
+  ['sistemasUn', 'un', 'SISTEMA'],
+  ['mangotesUn', 'mangueiras', 'MANGOTE']
 ];
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 const percentFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -93,7 +94,7 @@ export function buildRdoProgressRows(report, plannedServices = [], reports = [])
     }
   }
   const plannedUnits = new Set(UNITS.filter(([key]) => plannedTotals[key] > 0).map(([, label]) => label));
-  const accumulated = { tubulacaoM: 0, oleoL: 0, sistemasUn: 0 };
+  const accumulated = Object.fromEntries(UNITS.map(([key]) => [key, 0]));
   const realizedByType = new Map();
 
   return ordered.map(item => {
@@ -102,7 +103,7 @@ export function buildRdoProgressRows(report, plannedServices = [], reports = [])
       ...service,
       report: { id: item.id, measurementLinks: item.measurementLinks || [] }
     }))).filter(isServiceFinalized);
-    const daily = { tubulacaoM: 0, oleoL: 0, sistemasUn: 0 };
+    const daily = Object.fromEntries(UNITS.map(([key]) => [key, 0]));
     const serviceAmounts = [];
     let hasSystemType = false;
     for (const service of linked) {

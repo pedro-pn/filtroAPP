@@ -1,5 +1,6 @@
 import type { ReportSummary } from '../../types/domain';
 import { normalizeServiceType } from '../../utils/reportServicePayload';
+import { isPressureHoseUnits } from '../../utils/pressureHoseMeasurement';
 
 type ReportServiceSummary = NonNullable<ReportSummary['services']>[number];
 
@@ -55,6 +56,7 @@ export function serviceDisambiguatorParts(service: ReportServiceSummary) {
   }
 
   if (type === 'pressao') {
+    if (isPressureHoseUnits(extra)) parts.push('medicao:mangote');
     const testedEquipment = firstServiceKeyPart(extra, ['Equipamento testado', 'equipamentoTestado']);
     const testedEquipmentOther = firstServiceKeyPart(extra, ['Outro equipamento testado', 'equipamentoTestadoOutro']);
     const workPressure = firstServiceKeyPart(extra, ['Pressão de trabalho', 'Pressao de trabalho', 'pressaoTrabalho']);
