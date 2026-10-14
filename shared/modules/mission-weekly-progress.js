@@ -46,19 +46,54 @@ export function weeklyTargetDefinition(target) {
   };
 }
 
+// Settings on the scenario take precedence; older definitions keep their shared settings.
+export function weeklyTargetScenarioSettings(definition, scenario) {
+  return {
+    metric: scenario?.metric ?? definition.metric,
+    basis: scenario?.basis ?? definition.basis ?? 'WEEK_TOTAL',
+    referenceDayHours: scenario?.referenceDayHours ?? definition.referenceDayHours,
+    workdays: scenario?.workdays ?? definition.workdays
+  };
+}
+
+function resolveTargetForWeek(entries, week) {
+  const previous = entries.filter(([date]) => date <= week).sort(([a], [b]) => b.localeCompare(a))[0];
+  if (!previous) return null;
+  const [date, target] = previous;
+  if (target.isDeleted || (date !== week && !target.definition?.repeatWeekly)) return null;
+  return date === week ? target : { ...target, weekStartDate: week, revision: 0, repeatedFromWeekStartDate: date };
+}
+
+export function effectiveWeeklyProgressTarget(targets, week) {
+  const latest = new Map();
+  for (const target of targets) {
+    const date = weekStartKey(target.weekStartDate);
+    if (date && (!latest.has(date) || target.revision > latest.get(date).revision)) latest.set(date, target);
+  }
+  return resolveTargetForWeek([...latest], week);
+}
+
+function selectScenario(definition, activeServiceTypes) {
+  // Exact combination takes priority over service count, followed by the general rule.
+  return definition.scenarios.find(item => item.condition.kind === 'SERVICE_SET'
+    && item.condition.serviceTypes.length === activeServiceTypes.length
+    && item.condition.serviceTypes.every(type => activeServiceTypes.includes(type)))
+    ?? definition.scenarios.find(item => item.condition.kind === 'SERVICE_COUNT' && item.condition.count === activeServiceTypes.length)
+    ?? definition.scenarios.find(item => item.condition.kind === 'ALWAYS') ?? null;
+}
+
 function comparisonStatus(differences) {
   return differences.some(value => value < 0) ? 'BELOW' : differences.some(value => value > 0) ? 'ABOVE' : 'ON_TARGET';
 }
 
 // Presença é verificada em cada dia contratado. O menor efetivo diário resume
 // a semana sem permitir que excedentes de outros dias compensem uma falta.
-function compareAttendanceTarget({ target, week, today, attendancePoints, previousAttendance }) {
-  const definition = weeklyTargetDefinition(target);
-  const scenario = definition.scenarios[0], goal = scenario.goals[0];
+function compareAttendanceTarget({ definition, scenario, week, today, attendancePoints, previousAttendance, activeServiceTypes }) {
+  const settings = weeklyTargetScenarioSettings(definition, scenario), goal = scenario.goals[0];
   let cumulativeDifferenceValue = previousAttendance.differenceValue ?? 0;
   let cumulativeComplete = previousAttendance.differenceValue != null;
   const dailyAttendance = Array.from({ length: 7 }, (_, index) => addDays(week, index))
-    .filter(date => (definition.workdays ?? [1, 2, 3, 4, 5]).includes(new Date(`${date}T00:00:00Z`).getUTCDay()))
+    .filter(date => (settings.workdays ?? [1, 2, 3, 4, 5]).includes(new Date(`${date}T00:00:00Z`).getUTCDay()))
     .map(date => {
       const points = attendancePoints.filter(point => point.date === date);
       const attendanceIssues = [...new Set(points.flatMap(point => point.attendanceIssues ?? []))];
@@ -87,20 +122,12 @@ function compareAttendanceTarget({ target, week, today, attendancePoints, previo
     achievementPct: actualValue == null ? null : actualValue / goal.value * 100,
     goals: [{ ...goal, metric: 'COLLABORATORS', plannedValue: goal.value, actualValue, differenceValue,
       personDays: null, productiveHours: null, productivityIssues: [], actualRate: null }],
-    dailyAttendance, activeServiceTypes: [], scenarioName: scenario.name, status };
+    dailyAttendance, activeServiceTypes, scenarioName: scenario.name, status };
 }
 
-function compareTarget({ target, week, currentWeek, actualPctPoints, servicePoints }) {
-  const definition = weeklyTargetDefinition(target), metric = definition.metric;
-  const basis = definition.basis ?? 'WEEK_TOTAL';
+function compareTarget({ definition, scenario, activeServiceTypes, week, currentWeek, actualPctPoints, servicePoints }) {
+  const { metric, basis, referenceDayHours } = weeklyTargetScenarioSettings(definition, scenario);
   const weekPoints = servicePoints.filter(point => point.date >= week && point.date <= addDays(week, 6));
-  const activeServiceTypes = [...new Set(weekPoints.map(point => point.serviceType))].sort();
-  // Combinação exata tem prioridade sobre quantidade; a meta geral é a alternativa.
-  const scenario = definition.scenarios.find(item => item.condition.kind === 'SERVICE_SET'
-    && item.condition.serviceTypes.length === activeServiceTypes.length
-    && item.condition.serviceTypes.every(type => activeServiceTypes.includes(type)))
-    ?? definition.scenarios.find(item => item.condition.kind === 'SERVICE_COUNT' && item.condition.count === activeServiceTypes.length)
-    ?? definition.scenarios.find(item => item.condition.kind === 'ALWAYS') ?? null;
   const hasData = metric === 'PCT_POINTS' ? actualPctPoints != null : servicePoints.length > 0;
   const canCompare = week <= currentWeek && hasData;
   const goals = (scenario?.goals ?? []).map(goal => {
@@ -108,7 +135,7 @@ function compareTarget({ target, week, currentWeek, actualPctPoints, servicePoin
     const selected = weekPoints.filter(point => !goal.serviceType || point.serviceType === goal.serviceType);
     const productivePoints = selected.filter(point => typeof point.productivePersonMinutes === 'number' && Number.isFinite(point.productivePersonMinutes));
     const productiveHours = basis === 'PER_PRODUCTIVE_DAY' ? productivePoints.reduce((sum, point) => sum + point.productivePersonMinutes / 60, 0) : null;
-    const personDays = productiveHours == null ? null : productiveHours / (definition.referenceDayHours ?? 8);
+    const personDays = productiveHours == null ? null : productiveHours / (referenceDayHours ?? 8);
     const productivityIssues = basis === 'PER_PRODUCTIVE_DAY' ? [...new Set(productivePoints.flatMap(point => point.productivityIssues ?? []))] : [];
     if (basis === 'PER_PRODUCTIVE_DAY' && (!productivePoints.length || selected.some(point => point.productivePersonMinutes == null
       && !productivePoints.some(base => base.date === point.date && base.serviceType === point.serviceType)))) productivityIssues.push('MISSING_RDO_BASE');
@@ -152,6 +179,13 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
     .filter(point => point.date && point.date <= today && point.progressPct != null && Number.isFinite(Number(point.progressPct)))
     .sort((a, b) => a.date.localeCompare(b.date));
   const weeks = new Set([...latestTargets.keys(), currentWeek]);
+  const targetEntries = [...latestTargets];
+  const firstRepeatingWeek = targetEntries.filter(([, target]) => !target.isDeleted && target.definition?.repeatWeekly).map(([week]) => week).sort()[0];
+  if (firstRepeatingWeek) {
+    for (let week = firstRepeatingWeek; week <= currentWeek; week = addDays(week, 7)) weeks.add(week);
+    const nextWeek = addDays(currentWeek, 7);
+    if (resolveTargetForWeek(targetEntries, nextWeek)?.definition?.repeatWeekly) weeks.add(nextWeek);
+  }
   const servicePoints = serviceHistory.map(point => ({ ...point, date: dateOnlyKey(point.date) }))
     .filter(point => point.date && point.date <= today).sort((a, b) => a.date.localeCompare(b.date));
   const attendancePoints = attendanceHistory.map(point => ({ ...point, date: dateOnlyKey(point.date) }))
@@ -170,11 +204,13 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
     const before = accumulated;
     const weekEndDate = addDays(week, 6);
     while (pointIndex < points.length && points[pointIndex].date <= weekEndDate) accumulated = Number(points[pointIndex++].progressPct);
-    const latest = latestTargets.get(week);
-    const target = latest?.isDeleted ? null : latest ?? null;
-    const comparison = !target ? null : weeklyTargetDefinition(target).metric === 'COLLABORATORS'
-      ? compareAttendanceTarget({ target, week, today, attendancePoints, previousAttendance: accumulatedAttendance })
-      : compareTarget({ target, week, currentWeek, actualPctPoints: week > currentWeek || !points.length ? null : round(accumulated - before), servicePoints });
+    const target = resolveTargetForWeek(targetEntries, week);
+    const definition = target ? weeklyTargetDefinition(target) : null;
+    const activeServiceTypes = [...new Set(servicePoints.filter(point => point.date >= week && point.date <= weekEndDate).map(point => point.serviceType))].sort();
+    const scenario = definition ? selectScenario(definition, activeServiceTypes) : null;
+    const comparison = !target ? null : scenario && weeklyTargetScenarioSettings(definition, scenario).metric === 'COLLABORATORS'
+      ? compareAttendanceTarget({ definition, scenario, activeServiceTypes, week, today, attendancePoints, previousAttendance: accumulatedAttendance })
+      : compareTarget({ definition, scenario, activeServiceTypes, week, currentWeek, actualPctPoints: week > currentWeek || !points.length ? null : round(accumulated - before), servicePoints });
     if (comparison?.cumulativeAttendance) accumulatedAttendance = comparison.cumulativeAttendance;
     const plannedPctPoints = comparison?.metric === 'PCT_POINTS' ? comparison.plannedValue : null;
     const actualPctPoints = week > currentWeek || !points.length ? null : round(accumulated - before);

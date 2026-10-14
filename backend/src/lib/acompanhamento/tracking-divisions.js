@@ -13,6 +13,25 @@ export function divisionKey(kind, scopeName, equipmentKey = null) {
   return JSON.stringify([kind, scopeName ?? null, equipmentKey]);
 }
 
+export function isDateDivisionKey(key) {
+  try {
+    const parts = JSON.parse(key);
+    return Array.isArray(parts) && parts.length === 3 && parts[0] === 'DATE'
+      && typeof parts[1] === 'string' && /^[\w-]{1,80}$/.test(parts[1]) && parts[2] === null
+      && JSON.stringify(parts) === key;
+  } catch { return false; }
+}
+
+function dateDivisionCandidates(rows) {
+  const candidates = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (row && isDateDivisionKey(row.key) && typeof row.label === 'string' && row.label.trim() && row.label.trim().length <= 100) {
+      candidates.set(row.key, { key: row.key, kind: 'DATE', scopeName: null, label: row.label.trim(), equipments: [] });
+    }
+  }
+  return [...candidates.values()];
+}
+
 export function divisionLaborPeriod(division) {
   return division ? { ...division, startDate: division.mobilizationDate ?? null } : null;
 }
@@ -35,7 +54,7 @@ export function divisionDateWhere(field, division, now = new Date()) {
   } };
 }
 
-export function divisionCandidates(services = []) {
+export function divisionCandidates(services = [], dateRows = []) {
   const scopes = new Map();
   for (const service of services) {
     const name = service.scopeName?.trim() || null;
@@ -55,22 +74,26 @@ export function divisionCandidates(services = []) {
       equipments.get(childKey).systemIds.add(row.projectSystemId);
     }
   }
-  return [...scopes.values()].map(({ equipments, ...scope }) => ({
+  const scopeCandidates = [...scopes.values()].map(({ equipments, ...scope }) => ({
     ...scope,
     equipments: [...equipments.values()].map(({ systemIds, ...equipment }) => ({ ...equipment, systemCount: systemIds.size }))
   }));
+  return [...scopeCandidates, ...dateDivisionCandidates(dateRows)];
 }
 
 export function validateDivisionRows(candidates, rows) {
   const allowed = new Set(candidates.flatMap(scope => [scope.key, ...scope.equipments.map(equipment => equipment.key)]));
   const seen = new Set();
   return rows.map(row => {
-    if (!allowed.has(row.key) || seen.has(row.key)) throw new Error('Divisão desconhecida ou repetida. Atualize o painel e tente novamente.');
+    const byDate = isDateDivisionKey(row.key);
+    if ((!allowed.has(row.key) && !byDate) || seen.has(row.key)) throw new Error('Divisão desconhecida ou repetida. Atualize o painel e tente novamente.');
     seen.add(row.key);
-    if (!validDay(row.startDate) || (row.endDate != null && !validDay(row.endDate))) throw new Error('Informe datas válidas para o início e o fim do escopo.');
-    if (row.endDate && row.endDate < row.startDate) throw new Error('O fim do escopo deve ser igual ou posterior ao início do escopo.');
-    if (!validDay(row.mobilizationDate)) throw new Error('Informe uma data válida para a mobilização do escopo.');
-    if (row.endDate && row.mobilizationDate > row.endDate) throw new Error('A mobilização do escopo deve ser igual ou anterior ao fim do escopo.');
+    if (byDate && (typeof row.label !== 'string' || !row.label.trim() || row.label.trim().length > 100)) throw new Error('Informe um nome de até 100 caracteres para a divisão por período.');
+    if (!validDay(row.startDate) || (row.endDate != null && !validDay(row.endDate))) throw new Error(byDate ? 'Informe datas válidas para o início e o término do período.' : 'Informe datas válidas para o início e o fim do escopo.');
+    if (row.endDate && row.endDate < row.startDate) throw new Error(byDate ? 'O término do período deve ser igual ou posterior ao início.' : 'O fim do escopo deve ser igual ou posterior ao início do escopo.');
+    const mobilizationDate = byDate ? row.startDate : row.mobilizationDate;
+    if (!validDay(mobilizationDate)) throw new Error('Informe uma data válida para a mobilização do escopo.');
+    if (row.endDate && mobilizationDate > row.endDate) throw new Error('A mobilização do escopo deve ser igual ou anterior ao fim do escopo.');
     const planned = {};
     for (const field of ['plannedCost', 'plannedRevenue', 'plannedHours', 'plannedDays']) {
       const value = row[field];
@@ -78,7 +101,7 @@ export function validateDivisionRows(candidates, rows) {
       planned[field] = value ?? null;
     }
     if (planned.plannedDays != null && !Number.isInteger(planned.plannedDays)) throw new Error('Dias previstos devem ser inteiros.');
-    return { key: row.key, startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate: row.mobilizationDate, ...planned };
+    return { key: row.key, ...(byDate ? { label: row.label.trim() } : {}), startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate, ...planned };
   });
 }
 
@@ -132,7 +155,7 @@ export async function getTrackingDivisions(projectId, client = prisma) {
     } })
   ]);
   if (!project) throw new Error('Projeto não encontrado.');
-  const candidates = divisionCandidates(services);
+  const candidates = divisionCandidates(services, project.trackingDivisions);
   const divisions = storedDivisionRows(candidates, services, project.trackingDivisions);
   return { candidates, divisions };
 }
@@ -142,7 +165,7 @@ export async function setTrackingDivisions(projectId, rows, client = prisma) {
     const { candidates } = await getTrackingDivisions(projectId, tx);
     const divisions = validateDivisionRows(candidates, rows);
     await tx.project.update({ where: { id: projectId }, data: { trackingDivisions: divisions } });
-    return { candidates, divisions };
+    return { candidates: [...candidates.filter(candidate => candidate.kind !== 'DATE'), ...dateDivisionCandidates(divisions)], divisions };
   });
 }
 
@@ -155,6 +178,6 @@ export async function setTrackingDivision(projectId, row, client = prisma) {
       ? current.map(item => item.key === division.key ? division : item)
       : [...current, division];
     await tx.project.update({ where: { id: projectId }, data: { trackingDivisions: divisions } });
-    return { candidates, divisions };
+    return { candidates: [...candidates.filter(candidate => candidate.kind !== 'DATE'), ...dateDivisionCandidates(divisions)], divisions };
   });
 }

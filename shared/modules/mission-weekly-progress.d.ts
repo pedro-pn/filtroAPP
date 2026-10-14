@@ -4,8 +4,9 @@ export type WeeklyTargetCondition = { kind: 'ALWAYS' } | { kind: 'SERVICE_COUNT'
   | { kind: 'SERVICE_SET'; serviceTypes: WeeklyTargetService[] };
 export type WeeklyTargetBasis = 'WEEK_TOTAL' | 'PER_PRODUCTIVE_DAY' | 'PER_WORKDAY';
 export interface WeeklyTargetGoal { serviceType: WeeklyTargetService | null; value: number }
-export interface WeeklyTargetScenario { name: string; condition: WeeklyTargetCondition; goals: WeeklyTargetGoal[] }
-export interface WeeklyTargetDefinition { metric: WeeklyTargetMetric; basis?: WeeklyTargetBasis; referenceDayHours?: number; workdays?: number[]; scenarios: WeeklyTargetScenario[] }
+export interface WeeklyTargetSettings { metric: WeeklyTargetMetric; basis?: WeeklyTargetBasis; referenceDayHours?: number; workdays?: number[] }
+export interface WeeklyTargetScenario extends Partial<WeeklyTargetSettings> { name: string; condition: WeeklyTargetCondition; goals: WeeklyTargetGoal[] }
+export interface WeeklyTargetDefinition extends WeeklyTargetSettings { repeatWeekly?: boolean; scenarios: WeeklyTargetScenario[] }
 export interface WeeklyAttendanceHistoryPoint { date: string; collaboratorIds: string[]; attendanceIssues?: string[] }
 export interface DailyAttendanceComparison {
   date: string;
@@ -31,6 +32,7 @@ export interface WeeklyProgressTarget {
   weekStartDate: string;
   plannedPctPoints: number | null;
   definition?: WeeklyTargetDefinition;
+  repeatedFromWeekStartDate?: string;
   isDeleted?: boolean;
   revision: number;
   author: { id: string | null; name: string };
@@ -64,6 +66,8 @@ export const WEEKLY_TARGET_SERVICES: Record<WeeklyTargetService, string>;
 export function weeklyTargetUnit(metric: WeeklyTargetMetric): string;
 export function weeklyTargetGoalMetric(metric: WeeklyTargetMetric, goal: Pick<WeeklyTargetGoal, 'serviceType'>, condition?: WeeklyTargetCondition): WeeklyTargetMetric;
 export function weeklyTargetDefinition(target?: WeeklyProgressTarget | null): WeeklyTargetDefinition;
+export function weeklyTargetScenarioSettings(definition: WeeklyTargetDefinition, scenario?: WeeklyTargetScenario | null): WeeklyTargetSettings & { basis: WeeklyTargetBasis };
+export function effectiveWeeklyProgressTarget(targets: WeeklyProgressTarget[], week: string): WeeklyProgressTarget | null;
 export function dateOnlyKey(value: unknown): string | null;
 export function weekStartKey(value: unknown): string | null;
 export function corporateToday(value?: Date): string;

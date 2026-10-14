@@ -790,6 +790,7 @@ export async function computeProjectProgressDetails(projectId) {
 // finalizadas dentro da janela informada no painel de divisões.
 export function selectDivisionPlannedServices(allPlanned, divisionKey) {
   const [kind, scopeName, equipmentKey] = JSON.parse(divisionKey);
+  if (kind === 'DATE') return allPlanned;
   return allPlanned.filter(service => (service.scopeName?.trim() || null) === scopeName)
     .map(service => kind === 'EQUIPMENT'
       ? { ...service, systems: service.systems.filter(system =>
