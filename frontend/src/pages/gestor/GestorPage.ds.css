@@ -713,6 +713,22 @@
   gap: var(--space-4);
 }
 
+:where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__sort-select {
+  width: auto;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__filters .fv-filter-bar__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__filters .fv-filter-bar__search,
+  :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__filters .fv-filter-bar__actions {
+    grid-column: 1 / -1;
+  }
+}
+
 :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__group {
   min-width: 0;
 }

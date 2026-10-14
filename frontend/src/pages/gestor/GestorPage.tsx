@@ -228,6 +228,7 @@ export function GestorPage() {
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [allocationDashboardOpen, setAllocationDashboardOpen] = useState(false);
+  const [npsSortBy, setNpsSortBy] = useState<'project' | 'sentAt'>('project');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
   const [surveyQuestionDrafts, setSurveyQuestionDrafts] = useState<SurveyQuestionDraft[]>([]);
@@ -3745,10 +3746,20 @@ export function GestorPage() {
         surveys: group.surveys.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
       }))
       .sort((a, b) => {
+        if (npsSortBy === 'sentAt') {
+          const sentAtDifference = new Date(a.surveys[0].sentAt).getTime() - new Date(b.surveys[0].sentAt).getTime();
+          if (sentAtDifference) return npsSortDir === 'asc' ? sentAtDifference : -sentAtDifference;
+        }
         const titleA = a.title;
         const titleB = b.title;
         return npsSortDir === 'asc' ? titleA.localeCompare(titleB, 'pt-BR', { numeric: true, sensitivity: 'base' }) : titleB.localeCompare(titleA, 'pt-BR', { numeric: true, sensitivity: 'base' });
       });
+    const sortLabel = npsSortBy === 'sentAt'
+      ? npsSortDir === 'asc' ? 'Mais antigas' : 'Mais recentes'
+      : npsSortDir === 'asc' ? 'A–Z' : 'Z–A';
+    const sortActionLabel = npsSortBy === 'sentAt'
+      ? npsSortDir === 'asc' ? 'Ordenar envios do mais recente ao mais antigo' : 'Ordenar envios do mais antigo ao mais recente'
+      : npsSortDir === 'asc' ? 'Ordenar projetos de Z a A' : 'Ordenar projetos de A a Z';
     const allSurveys = surveysQuery.data || [];
     const respondedSurveyCount = allSurveys.filter((survey) => survey.respondedAt).length;
     const expiredSurveyCount = allSurveys.filter((survey) => !survey.respondedAt && surveyIsExpired(survey)).length;
@@ -3782,15 +3793,30 @@ export function GestorPage() {
           resultsId="rdo-nps-results"
           search={<SearchInput value={gestorSearch} onChange={setGestorSearch} label="Buscar em pesquisas NPS" placeholder="Buscar em pesquisas NPS" autoComplete="off" />}
           actions={
-            <Button
-              variant="secondary"
-              iconLeft={<AppIcon icon={DS_ICONS.sort} size="sm" />}
-              aria-label={npsSortDir === 'asc' ? 'Ordenar projetos de Z a A' : 'Ordenar projetos de A a Z'}
-              onClick={() => setNpsSortDir((direction) => (direction === 'asc' ? 'desc' : 'asc'))}
-            >
-              <span className="rdo-sort-label rdo-sort-label--full">Ordenar por: {npsSortDir === 'asc' ? 'A–Z' : 'Z–A'}</span>
-              <span className="rdo-sort-label rdo-sort-label--compact">{npsSortDir === 'asc' ? 'A–Z' : 'Z–A'}</span>
-            </Button>
+            <>
+              <Select
+                containerClassName="rdo-nps__sort-select"
+                aria-label="Ordenar cards por"
+                value={npsSortBy}
+                onChange={(event) => {
+                  const sortBy = event.target.value as typeof npsSortBy;
+                  setNpsSortBy(sortBy);
+                  setNpsSortDir(sortBy === 'sentAt' ? 'desc' : 'asc');
+                }}
+              >
+                <option value="project">Projeto</option>
+                <option value="sentAt">Data de envio</option>
+              </Select>
+              <Button
+                variant="secondary"
+                iconLeft={<AppIcon icon={DS_ICONS.sort} size="sm" />}
+                aria-label={sortActionLabel}
+                onClick={() => setNpsSortDir((direction) => (direction === 'asc' ? 'desc' : 'asc'))}
+              >
+                <span className="rdo-sort-label rdo-sort-label--full">Ordenar por: {sortLabel}</span>
+                <span className="rdo-sort-label rdo-sort-label--compact">{sortLabel}</span>
+              </Button>
+            </>
           }
         />
 
