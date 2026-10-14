@@ -50,6 +50,7 @@ import {
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
 import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
+import { NpsSortControls } from './NpsSortControls';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
 import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import type { CollaboratorFormState } from './CollaboratorForm';
@@ -228,6 +229,7 @@ export function GestorPage() {
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [allocationDashboardOpen, setAllocationDashboardOpen] = useState(false);
+  const [npsSortBy, setNpsSortBy] = useState<'project' | 'sentAt'>('project');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
   const [surveyQuestionDrafts, setSurveyQuestionDrafts] = useState<SurveyQuestionDraft[]>([]);
@@ -3745,6 +3747,10 @@ export function GestorPage() {
         surveys: group.surveys.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
       }))
       .sort((a, b) => {
+        if (npsSortBy === 'sentAt') {
+          const sentAtDifference = new Date(a.surveys[0].sentAt).getTime() - new Date(b.surveys[0].sentAt).getTime();
+          if (sentAtDifference) return npsSortDir === 'asc' ? sentAtDifference : -sentAtDifference;
+        }
         const titleA = a.title;
         const titleB = b.title;
         return npsSortDir === 'asc' ? titleA.localeCompare(titleB, 'pt-BR', { numeric: true, sensitivity: 'base' }) : titleB.localeCompare(titleA, 'pt-BR', { numeric: true, sensitivity: 'base' });
@@ -3782,15 +3788,7 @@ export function GestorPage() {
           resultsId="rdo-nps-results"
           search={<SearchInput value={gestorSearch} onChange={setGestorSearch} label="Buscar em pesquisas NPS" placeholder="Buscar em pesquisas NPS" autoComplete="off" />}
           actions={
-            <Button
-              variant="secondary"
-              iconLeft={<AppIcon icon={DS_ICONS.sort} size="sm" />}
-              aria-label={npsSortDir === 'asc' ? 'Ordenar projetos de Z a A' : 'Ordenar projetos de A a Z'}
-              onClick={() => setNpsSortDir((direction) => (direction === 'asc' ? 'desc' : 'asc'))}
-            >
-              <span className="rdo-sort-label rdo-sort-label--full">Ordenar por: {npsSortDir === 'asc' ? 'A–Z' : 'Z–A'}</span>
-              <span className="rdo-sort-label rdo-sort-label--compact">{npsSortDir === 'asc' ? 'A–Z' : 'Z–A'}</span>
-            </Button>
+            <NpsSortControls sortBy={npsSortBy} direction={npsSortDir} onSortByChange={setNpsSortBy} onDirectionChange={setNpsSortDir} />
           }
         />
 
