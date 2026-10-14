@@ -718,7 +718,7 @@
   min-width: 0;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   :where(.fv-ds, [data-fv-ds]).rdo-nps .rdo-nps__filters .fv-filter-bar__main {
     grid-template-columns: minmax(0, 1fr);
   }

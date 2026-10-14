@@ -20,7 +20,9 @@ function npsTabSource() {
   assert.ok(start > 0, 'renderNpsTab não encontrado');
   const end = gestor.indexOf('function renderGestorSearch()', start);
   assert.ok(end > start, 'fim de renderNpsTab não encontrado');
-  return gestor.slice(start, end);
+  const tab = gestor.slice(start, end);
+  assert.match(tab, /<NpsSortControls\b/);
+  return `${tab}\n${source('src/pages/gestor/NpsSortControls.tsx')}`;
 }
 
 test('B.9 preserva a derivação de dados da aba NPS', () => {
@@ -362,7 +364,8 @@ test('B.9 preserva o fluxo do Coordenador e migra seu dashboard compartilhado po
     .sort();
   assert.deepEqual(owners, [
     join(frontendRoot, 'src/components/surveys/SurveyDashboard.tsx'),
-    join(frontendRoot, 'src/pages/gestor/GestorPage.tsx')
+    join(frontendRoot, 'src/pages/gestor/GestorPage.tsx'),
+    join(frontendRoot, 'src/pages/gestor/NpsSortControls.tsx')
   ]);
 
   // Os helpers de status continuam independentes da migração visual.
