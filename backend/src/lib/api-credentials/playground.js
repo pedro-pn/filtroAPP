@@ -13,6 +13,7 @@ import { createPrismaQuotaStore, reserveCredentialQuota, settleCredentialQuota }
 import { ApiCredentialServiceError, effectiveCredentialStatus, validateCredentialId } from './service.js';
 import { checkPlaygroundDownload } from './playground-downloads.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './efetivo-project-status.js';
+import { getJobRoleSalary, validateJobRoleSalaryRequest } from './job-role-salary.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 
 const PLAYGROUND_MAX_ITEMS = 20;
@@ -40,6 +41,7 @@ export function validatePlaygroundRequest(input) {
   else if (operation.operationId === 'quality.records.get') parsed.query = integrationSchemas.qualityRecordDetailQuery.parse(parsed.query);
   else if (operation.operationId === 'quality.natures.list') parsed.query = integrationSchemas.qualityNaturesQuery.parse(parsed.query);
   else if (operation.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, parsed.query, { projectAccessMode: 'ALL' });
+  else if (operation.operationId === 'jobRoles.salary.get') validateJobRoleSalaryRequest(parsed.pathParams, parsed.query);
   else if (operation.operationId === 'efetivo.projects.create') validateProjectCreation(parsed.body);
   else if (operation.operationId === 'efetivo.projects.commercialFact.post') validateCommercialFact(parsed.body);
   else if (operation.operationId === 'efetivo.projects.document.post') validateCrmDocument(parsed.body);
@@ -144,6 +146,9 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
       const result = await listIntegrationQualityNatures(prisma, integrationSchemas.qualityNaturesQuery.parse(query), context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
       rows = result.items.length;
+    } else if (parsed.operationId === 'jobRoles.salary.get') {
+      body = await getJobRoleSalary(prisma, parsed.pathParams, query, context);
+      rows = 1;
     } else if (parsed.operationId === 'efetivo.projects.status.get') {
       body = {
         ...await getEfetivoProjectStatus(prisma, parsed.pathParams.id, context),
