@@ -31,3 +31,33 @@
 .databook-revisao__ortografia-palavra { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
 .databook-revisao__ortografia-palavra .databook-revisao__ajuda { margin: 0; }
 @media (max-width: 640px) { .databook-revisao__ortografia li { grid-template-columns: minmax(0, 1fr); } }
+
+.databook-dialog__acoes-revisao { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.databook-dialog .fv-modal__footer { flex-wrap: wrap; }
+.databook-previa { margin-top: var(--space-4); min-width: 0; }
+.databook-previa__documento { display: grid; gap: var(--space-3); min-width: 0; }
+.databook-previa__documento h3 { margin: 0; font-size: var(--text-sm); }
+.databook-previa__documento a { color: var(--brand-text); font-size: var(--text-sm); }
+.databook-previa__pdf { width: 100%; height: 65dvh; min-height: 260px; overflow: auto; border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.databook-pdf { min-width: 0; }
+.databook-pdf__controles { position: sticky; left: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2); background: var(--surface); border-bottom: var(--border-width) solid var(--line); font-size: var(--text-sm); }
+.databook-pdf__zoom { display: flex; align-items: center; gap: var(--space-2); }
+.databook-pdf__paginas { display: flex; flex-direction: column; align-items: center; width: max-content; min-width: 100%; padding: 0 8px; background: var(--surface-2, var(--surface)); }
+.databook-pdf__pagina { position: relative; flex: none; background: white; overflow: hidden; }
+.databook-pdf__pagina canvas { display: block; width: 100%; height: 100%; }
+.databook-pdf__pagina-estado { position: absolute; inset: 20px 0 auto; text-align: center; font-size: var(--text-sm); color: #5f6b64; }
+.databook-pdf__texto { position: absolute; z-index: 1; min-width: 4px; min-height: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
+.databook-pdf--destacar .databook-pdf__texto { background: rgb(51 136 98 / 8%); box-shadow: inset 0 -1px rgb(51 136 98 / 40%); }
+.databook-pdf__texto:hover, .databook-pdf__texto:focus-visible { outline: 2px solid #328862; background: rgb(51 136 98 / 20%); }
+.databook-pdf__texto:disabled { pointer-events: none; }
+.databook-pdf__texto--alterado { white-space: pre-wrap; overflow-wrap: anywhere; background: white !important; color: #1f2623; text-align: left; font-family: Arial, sans-serif; }
+.databook-pdf__edicao { position: absolute; z-index: 3; box-sizing: border-box; margin: 0; padding: 0 2px; border: 0; outline: 2px solid #328862; outline-offset: 1px; border-radius: 1px; background: white; color: #1f2623; resize: none; font-family: Arial, sans-serif; overflow: auto; }
+.databook-pdf__edicao:focus { outline: 2px solid #328862; }
+.databook-previa__sincronizacao { min-height: 1.4em; font-size: var(--text-sm); color: var(--muted); }
+.databook-revisao__dia { padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); }
+.databook-revisao__dia > summary { cursor: pointer; overflow-wrap: anywhere; font-size: var(--text-sm); font-weight: var(--font-semibold); }
+.databook-revisao__dia[open] > * + * { margin-top: var(--space-3); }
+@media (max-width: 900px) {
+  .databook-previa__pdf { height: 58dvh; }
+  .databook-pdf__edicao { font-size: 16px !important; line-height: 1.25 !important; }
+}

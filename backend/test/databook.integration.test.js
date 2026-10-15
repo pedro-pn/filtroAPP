@@ -127,9 +127,13 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   assert.equal(revisao.body.dados.certificados.length, 1);
   assert.ok(Array.isArray(revisao.body.avisos));
 
-  const gerar = await pedir(`/projects/${projeto.id}/gerar`, { body: { ...dialogo.body.padrao, edicoes: {
+  const previa = await pedir(`/projects/${projeto.id}/previa`, { body: { ...dialogo.body.padrao, edicoes: {
     servico: 'Limpeza Química e Teste de Pressão', aprovacoes: { elaborado: { userId: criados.users[0] } }
   } } });
+  assert.equal(previa.status, 200);
+  assert.equal(await prisma.projectDatabookRevision.count({ where: { databook: { projectId: projeto.id } } }), 0);
+  assert.equal((await pedir(`/previas/${previa.body.id}/pdf`)).body.subarray(0, 4).toString(), '%PDF');
+  const gerar = await pedir(`/projects/${projeto.id}/gerar`, { body: { previaId: previa.body.id } });
   assert.equal(gerar.status, 202);
   assert.equal(gerar.body.status, 'PENDING');
 
@@ -152,11 +156,19 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   const salvo = await prisma.projectDatabookRevision.findUnique({ where: { id: gerar.body.id } });
   await fs.access(path.join(uploadDir, ...salvo.storagePath.split('/')));
 
-  // nova geração do mesmo intervalo = mesma numeração, revisão seguinte
-  const rev1 = await pedir(`/projects/${projeto.id}/gerar`, { body: { ...dialogo.body.padrao, edicoes: {} } });
+  const edicao = await pedir(`/revisoes/${gerar.body.id}/edicao`);
+  assert.equal(edicao.body.dados.projeto.servico, 'Limpeza Química e Teste de Pressão');
+  const previaEditada = await pedir(`/projects/${projeto.id}/previa`, { body: {
+    origemRevisaoId: gerar.body.id, edicoes: { textos: { escopo: 'Escopo corrigido manualmente' } }, descricao: 'Correção manual'
+  } });
+  assert.equal(previaEditada.status, 200);
+  const rev1 = await pedir(`/projects/${projeto.id}/gerar`, { body: { previaId: previaEditada.body.id } });
   assert.equal(rev1.body.revisao, 1);
   assert.equal(rev1.body.doc, `DB-${projeto.code}-01`);
   assert.equal((await aguardar(rev1.body.id)).body.status, 'COMPLETED'); // não deixa geração rodando na limpeza
+  assert.deepEqual(await prisma.projectDatabookRevision.findUnique({ where: { id: gerar.body.id } }), salvo);
+  assert.deepEqual((await pedir(`/revisoes/${gerar.body.id}/pdf`)).body, baixado.body);
+  assert.equal((await prisma.projectDatabookRevision.findUnique({ where: { id: rev1.body.id } })).input.textos.escopo, 'Escopo corrigido manualmente');
   const lista = await pedir(`/projects/${projeto.id}`);
   assert.deepEqual(lista.body[0].revisoes.map(r => r.revisao), [1, 0]);
 });

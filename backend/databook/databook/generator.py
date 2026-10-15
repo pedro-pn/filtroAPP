@@ -20,7 +20,7 @@ from copy import deepcopy
 
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
-from reportlab.graphics.shapes import Drawing, Line, Rect, String
+from reportlab.graphics.shapes import Drawing, Line, Rect
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -32,8 +32,10 @@ from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas as rlcanvas
 from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, NextPageTemplate,
-                                PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
+                                PageBreak, PageTemplate, Spacer, Table, TableStyle)
 from reportlab.platypus import Image as RLImage
+
+from .editing import DocumentFields, EditableDrawing
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")
 
@@ -193,6 +195,7 @@ class DatabookBuilder:
         self._tmp = tempfile.TemporaryDirectory(prefix="databook_")
         self._foto_cache = {}
         self._normalize()
+        self.fields = DocumentFields(self.d)
 
     def close(self):
         """Libera o diretório temporário quando o builder é usado só para pré-validar (sem build)."""
@@ -347,14 +350,14 @@ class DatabookBuilder:
 
     def day_photos(self, dia):
         out, seen = [], set()
-        for f in dia["fotos"]:
+        for foto_idx, f in enumerate(dia["fotos"]):
             if not os.path.exists(self._p(f["arquivo"])):
                 continue
             p, w, h, hs = self._foto(f["arquivo"])
             if hs in seen:          # remove duplicadas (mesma foto no RDO e no RLQ)
                 continue
             seen.add(hs)
-            out.append((p, w, h, f.get("origem", "RDO"), f.get("numero", ""), f.get("legenda")))
+            out.append((p, w, h, f.get("origem", "RDO"), f.get("numero", ""), f.get("legenda"), foto_idx))
         return out
 
     def photo_rows(self, photos, day_idx):
@@ -364,7 +367,7 @@ class DatabookBuilder:
         for off in range(0, len(photos), FOTO_COLS):
             chunk = photos[off:off + FOTO_COLS]
             row = []
-            for j, (p, iw, ih, src, n, leg) in enumerate(chunk):
+            for j, (p, iw, ih, src, n, leg, foto_idx) in enumerate(chunk):
                 s = min((cw - 2) / iw, (FOTO_CELL_H - 2) / ih)
                 frame = Table([[RLImage(p, width=iw * s, height=ih * s)]], colWidths=[cw], rowHeights=[FOTO_CELL_H])
                 frame.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -373,7 +376,8 @@ class DatabookBuilder:
                                            ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
                 kind = esc(leg) if leg else ("Registro de campo" if src == "RDO" else "Sistema / inspeção")
                 ref = f" · {src} nº {n}" if n != "" else ""
-                cap = Paragraph(f"<font name='BB' color='#30503A'>Foto {day_idx}.{off + j + 1}</font> · {kind}{ref}", sCap)
+                cap = self.editable(f"dias.{day_idx - 1}.fotos.{foto_idx}.legenda",
+                                    f"<font name='BB' color='#30503A'>Foto {day_idx}.{off + j + 1}</font> · {kind}{ref}", sCap)
                 row.append([frame, Spacer(1, 2), cap])
             while len(row) < FOTO_COLS:
                 row.append("")
@@ -392,25 +396,35 @@ class DatabookBuilder:
         return flows
 
     # ------------------------------------------------------------ blocos visuais
+    def paragraph(self, texto, estilo, **kwargs):
+        return self.fields.paragraph(texto, estilo, **kwargs)
+
+    def editable(self, campo, texto, estilo):
+        return self.paragraph(texto, estilo, key=self.fields.key("origem." + campo) if campo else None)
+
     def marker(self, key, title, level=0):
+        self.fields.section(key, title)
         return _Marker(self.st, key, title, level)
 
     def section_title(self, num, title, key, kicker=None):
         full = f"{num}. {title}" if num else title
         out = [self.marker(key, full)]
         if kicker:
-            out.append(Paragraph(esc(kicker).upper(), sKicker))
-        out.append(Paragraph(esc(full), sH1))
+            out.append(self.paragraph(esc(kicker).upper(), sKicker))
+        out.append(self.paragraph(esc(full), sH1))
         d = Drawing(CW, 6)
         d.add(Rect(0, 2, 28 * mm, 2.2, fillColor=RED, strokeColor=None))
         d.add(Rect(28 * mm, 2.6, CW - 28 * mm, 0.6, fillColor=RULE, strokeColor=None))
         return out + [d, Spacer(1, 6)]
 
-    @staticmethod
-    def kv_table(rows, cols=2):
+    def kv_table(self, rows, cols=2):
         cells, line = [], []
+        key = self.fields.key("ficha", rows[0][0] if rows else "")
         for lab, val in rows:
-            line.append([Paragraph(esc(lab).upper(), sLabel), Paragraph(esc(val) if val not in (None, "") else "—", sVal)])
+            campo = self.fields.key("campo", key + "." + lab)
+            valor = val if isinstance(val, Flowable) else self.paragraph(
+                esc(val) if val not in (None, "") else "—", sVal, key=f"{campo}.valor", label=lab)
+            line.append([self.paragraph(esc(lab).upper(), sLabel, key=f"{campo}.rotulo", label=f"Rótulo: {lab}"), valor])
             if len(line) == cols:
                 cells.append(line)
                 line = []
@@ -426,12 +440,13 @@ class DatabookBuilder:
             ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6)]))
         return t
 
-    @staticmethod
-    def data_table(header, rows, colw, align_center=()):
-        data = [[Paragraph(h, sCellW) for h in header]]
-        for r in rows:
+    def data_table(self, header, rows, colw, align_center=()):
+        key = self.fields.key("tabela", header)
+        data = [[self.paragraph(h, sCellW, key=f"{key}.cabecalho.{i}", label=f"Cabeçalho: {h}") for i, h in enumerate(header)]]
+        for row_idx, r in enumerate(rows):
             data.append([c if isinstance(c, Flowable) else
-                         Paragraph(esc(c), sCellC if i in align_center else sCell) for i, c in enumerate(r)])
+                         self.paragraph(esc(c), sCellC if i in align_center else sCell,
+                                        key=f"{key}.linha.{row_idx}.coluna.{i}", label=f"{header[i]} · linha {row_idx + 1}") for i, c in enumerate(r)])
         t = Table(data, colWidths=colw, repeatRows=1)
         st = [("BACKGROUND", (0, 0), (-1, 0), GREEN), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
               ("LINEBELOW", (0, 0), (-1, -1), 0.4, RULE), ("BOX", (0, 0), (-1, -1), 0.6, RULE),
@@ -448,9 +463,8 @@ class DatabookBuilder:
         d.add(Line(0, 2, width, 2, strokeColor=color, strokeWidth=thick))
         return d
 
-    @staticmethod
-    def bullet(txt, style_name="bl"):
-        return Paragraph(f"<font color='#C81519'>●</font>&nbsp;&nbsp;{esc(txt)}", S(style_name, spaceBefore=2))
+    def bullet(self, txt, style_name="bl"):
+        return self.paragraph(f"<font color='#C81519'>●</font>&nbsp;&nbsp;{esc(txt)}", S(style_name, spaceBefore=2))
 
     # ------------------------------------------------------------ moldura
     def _logo(self, name):
@@ -465,20 +479,25 @@ class DatabookBuilder:
         c.drawImage(lg, ML, H - 19 * mm, width=38 * mm, height=38 * mm * ih / iw, mask="auto")
         c.setFont("H", 8)
         c.setFillColor(GREEN)
-        c.drawRightString(W - MR, H - 13.2 * mm, "DATA BOOK  ·  " + P["servico"].upper())
+        self.fields.canvas_text(c, "documento.moldura.titulo", W - MR, H - 13.2 * mm,
+                                "DATA BOOK  ·  " + P["servico"].upper(), "Título no cabeçalho", right=True, section="Cabeçalho e rodapé")
         c.setFont("B", 8)
         c.setFillColor(MUTED)
-        c.drawRightString(W - MR, H - 17.4 * mm, f"{P['missao']}  ·  {P['cliente']}")
+        self.fields.canvas_text(c, "documento.moldura.cliente", W - MR, H - 17.4 * mm,
+                                f"{P['missao']}  ·  {P['cliente']}", "Unidade e cliente no cabeçalho", right=True, section="Cabeçalho e rodapé")
         c.setStrokeColor(GREEN); c.setLineWidth(1.2); c.line(ML, H - 21.5 * mm, W - MR, H - 21.5 * mm)
         c.setStrokeColor(RED); c.line(ML, H - 21.5 * mm, ML + 22 * mm, H - 21.5 * mm)
         c.setStrokeColor(RULE); c.setLineWidth(0.5); c.line(ML, 13 * mm, W - MR, 13 * mm)
         c.setFont("B", 7.2)
         c.setFillColor(MUTED)
-        c.drawString(ML, 9 * mm, P["empresa"])
-        c.drawString(ML, 5.6 * mm, f"Doc. {P['doc']}  ·  Rev. {P['rev']}  ·  Emissão {P['emissao']}  ·  Contrato/Proposta {P['contrato']}")
+        self.fields.canvas_text(c, "documento.moldura.empresa", ML, 9 * mm, P["empresa"], "Empresa no rodapé", section="Cabeçalho e rodapé")
+        self.fields.canvas_text(c, "documento.moldura.identificacao", ML, 5.6 * mm,
+                                f"Doc. {P['doc']}  ·  Rev. {P['rev']}  ·  Emissão {P['emissao']}  ·  Contrato/Proposta {P['contrato']}",
+                                "Identificação no rodapé", section="Cabeçalho e rodapé")
         c.setFont("BB", 8)
         c.setFillColor(GREEN)
-        c.drawRightString(W - MR, 9 * mm, f"Página {pg} de {self.st['total'] or '—'}")
+        self.fields.canvas_text(c, f"documento.moldura.pagina.{pg}", W - MR, 9 * mm,
+                                f"Página {pg} de {self.st['total'] or '—'}", f"Numeração da página {pg}", right=True, section="Cabeçalho e rodapé")
         c.restoreState()
 
     def draw_cover(self, c, doc):
@@ -497,23 +516,25 @@ class DatabookBuilder:
         iw, ih = Image.open(lg).size
         c.drawImage(lg, ML, H - 48 * mm, width=72 * mm, height=72 * mm * ih / iw, mask="auto")
         c.setFillColor(HexColor("#B9C9BE")); c.setFont("H", 10)
-        c.drawString(ML, H - 98 * mm, P.get("subtitulo_capa", "RELATÓRIO FINAL DE SERVIÇO"))
+        self.fields.canvas_text(c, "documento.capa.subtitulo", ML, H - 98 * mm, P.get("subtitulo_capa", "RELATÓRIO FINAL DE SERVIÇO"), "Subtítulo da capa", section="Capa")
         c.setFillColor(colors.white); c.setFont("HB", 46)
-        c.drawString(ML - 1.5, H - 117 * mm, "DATA BOOK")
+        self.fields.canvas_text(c, "documento.capa.titulo", ML - 1.5, H - 117 * mm, "DATA BOOK", "Título da capa", section="Capa")
         c.setFont("HL", 19)
-        c.drawString(ML, H - 130 * mm, P["servico"])
+        self.fields.canvas_text(c, "documento.capa.servico", ML, H - 130 * mm, P["servico"], "Serviço na capa", section="Capa")
         c.setFillColor(RED)
         c.rect(ML, H - 139 * mm, 30 * mm, 1.6 * mm, fill=1, stroke=0)
         rows = [("CLIENTE", P["cliente"]), ("UNIDADE / MISSÃO", P["missao"]), ("LOCAL", P["local"]),
                 ("CONTRATO / PROPOSTA", P["contrato"]), ("PERÍODO DE EXECUÇÃO", P["periodo"]),
                 ("DOCUMENTO", f"{P['doc']}  ·  Rev. {P['rev']}  ·  Emissão {P['emissao']}")]
         yy = H - 158 * mm
-        for lab, val in rows:
-            c.setFillColor(HexColor("#9DB3A4")); c.setFont("H", 7.5); c.drawString(ML, yy, lab)
-            c.setFillColor(colors.white); c.setFont("B", 12.5); c.drawString(ML, yy - 5.6 * mm, val)
+        for idx, (lab, val) in enumerate(rows):
+            c.setFillColor(HexColor("#9DB3A4")); c.setFont("H", 7.5)
+            self.fields.canvas_text(c, f"documento.capa.rotulo.{idx}", ML, yy, lab, f"Rótulo na capa: {lab}", section="Capa")
+            c.setFillColor(colors.white); c.setFont("B", 12.5)
+            self.fields.canvas_text(c, f"documento.capa.valor.{idx}", ML, yy - 5.6 * mm, val, lab, section="Capa")
             yy -= 14 * mm
         c.setFillColor(HexColor("#9DB3A4")); c.setFont("B", 7.5)
-        c.drawString(ML, 12 * mm, P["empresa"])
+        self.fields.canvas_text(c, "documento.capa.empresa", ML, 12 * mm, P["empresa"], "Empresa na capa", section="Capa")
         c.restoreState()
 
     # ------------------------------------------------------------ gráfico
@@ -522,7 +543,7 @@ class DatabookBuilder:
         total = self.d["escopo_total"]
         n = max(len(days), 1)
         dw, dh = CW, 62 * mm
-        d = Drawing(dw, dh)
+        d = EditableDrawing(dw, dh)
         left, bottom, top = 12 * mm, 12 * mm, dh - 8 * mm
         ph = top - bottom
         bw = (dw - left - 4 * mm) / n
@@ -530,12 +551,16 @@ class DatabookBuilder:
         for v in (0, 25, 50, 75, 100):
             y = bottom + ph * v / 100
             d.add(Line(left, y, dw, y, strokeColor=RULE, strokeWidth=0.4))
-            d.add(String(left - 2 * mm, y - 2.5, f"{v}%", fontName="B", fontSize=7, fillColor=MUTED, textAnchor="end"))
+            self.fields.chart_text(d, f"documento.s2.grafico.eixo.{v}", left - 2 * mm, y - 2.5, f"{v}%", f"Escala do gráfico: {v}%", fontName="B", fontSize=7, fillColor=MUTED, textAnchor="end")
         acc = self.d["acumulado_inicial"]
         for i, day in enumerate(days):
             q = self.qty(day)
             acc += q
             pct = min(acc / total * 100, 100)
+            pct_key = f"documento.s2.grafico.dia.{i}.percentual"
+            pct_text = self.fields.value(pct_key, f"{pct:.0f}%", f"Avanço no gráfico · {day['data']}", multiline=False)
+            if pct_key in self.fields.overrides and re.fullmatch(r"\s*\d+(?:[.,]\d+)?\s*%?\s*", pct_text):
+                pct = min(float(pct_text.strip().rstrip('%').strip().replace(',', '.')), 100)
             x = left + i * bw + bw * 0.18
             w = bw * 0.64
             h = ph * pct / 100
@@ -543,13 +568,13 @@ class DatabookBuilder:
             if q:
                 qh = min(ph * q / total, h)
                 d.add(Rect(x, bottom + h - qh, w, qh, fillColor=RED, strokeColor=None))
-            d.add(String(x + w / 2, bottom + h + 2.2 * mm, f"{pct:.0f}%", fontName="BB", fontSize=7.5 * fs, fillColor=INK, textAnchor="middle"))
-            d.add(String(x + w / 2, bottom - 4.5 * mm, day["data"][:5], fontName="B", fontSize=7.3 * fs, fillColor=MUTED, textAnchor="middle"))
-            d.add(String(x + w / 2, bottom - 8.5 * mm, f"{num(acc)}/{num(total)}", fontName="B", fontSize=6.8 * fs, fillColor=MUTED, textAnchor="middle"))
-        for lx, col, txt in [(left, GREEN, f"Avanço acumulado ({self.d['unidade_escopo']} concluídos / escopo)"),
-                             (left + 82 * mm, RED, "Produção do dia"), (left + 112 * mm, LAV, "Sem produção")]:
+            self.fields.chart_text(d, pct_key, x + w / 2, bottom + h + 2.2 * mm, f"{min(acc / total * 100, 100):.0f}%", f"Avanço no gráfico · {day['data']}", fontName="BB", fontSize=7.5 * fs, fillColor=INK, textAnchor="middle")
+            self.fields.chart_text(d, f"documento.s2.grafico.dia.{i}.data", x + w / 2, bottom - 4.5 * mm, day["data"][:5], f"Data no gráfico · dia {i + 1}", fontName="B", fontSize=7.3 * fs, fillColor=MUTED, textAnchor="middle")
+            self.fields.chart_text(d, f"documento.s2.grafico.dia.{i}.quantidade", x + w / 2, bottom - 8.5 * mm, f"{num(acc)}/{num(total)}", f"Acumulado / escopo no gráfico · {day['data']}", fontName="B", fontSize=6.8 * fs, fillColor=MUTED, textAnchor="middle")
+        for idx, (lx, col, txt) in enumerate([(left, GREEN, f"Avanço acumulado ({self.d['unidade_escopo']} concluídos / escopo)"),
+                             (left + 82 * mm, RED, "Produção do dia"), (left + 112 * mm, LAV, "Sem produção")]):
             d.add(Rect(lx, dh - 4 * mm, 3 * mm, 3 * mm, fillColor=col, strokeColor=None))
-            d.add(String(lx + 4.5 * mm, dh - 3.6 * mm, txt, fontName="B", fontSize=7.5, fillColor=INK))
+            self.fields.chart_text(d, f"documento.s2.grafico.legenda.{idx}", lx + 4.5 * mm, dh - 3.6 * mm, txt, f"Legenda do gráfico {idx + 1}", fontName="B", fontSize=7.5, fillColor=INK)
         return d
 
     # ------------------------------------------------------------ conteúdo
@@ -558,8 +583,8 @@ class DatabookBuilder:
         for key, title, lvl, pg in (self.st["toc"] or []):
             if key in ("controle", "sumario"):
                 continue
-            rows.append([Paragraph(esc(title), sTOCB if lvl == 0 else sTOC1),
-                         Paragraph(str(pg), S("tp", fontName="BB" if lvl == 0 else "B", fontSize=10 if lvl == 0 else 8.8,
+            rows.append([self.paragraph(esc(title), sTOCB if lvl == 0 else sTOC1),
+                         self.paragraph(str(pg), S("tp", fontName="BB" if lvl == 0 else "B", fontSize=10 if lvl == 0 else 8.8,
                                               leading=14 if lvl == 0 else 10.5, alignment=TA_RIGHT,
                                               textColor=GREEN if lvl == 0 else INK))])
         if not rows:
@@ -582,35 +607,38 @@ class DatabookBuilder:
         # ---- Controle do documento
         st += self.section_title("", "Controle do Documento", "controle", kicker="Folha de rosto")
         st.append(self.kv_table([
-            ("Título", f"Data Book – {P['servico']}"), ("Número do documento", P["doc"]),
+            ("Título", self.editable("servico", esc(f"Data Book – {P['servico']}"), sVal)), ("Número do documento", P["doc"]),
             ("Cliente", P["cliente"]), ("CNPJ do cliente", P.get("cnpj", "")),
             ("Unidade / Missão", P["missao"]), ("Contrato / Proposta", P["contrato"]),
             ("Local do serviço", P["local"]), ("Período de execução", P["periodo"]),
             ("Executante", P["empresa"]), ("Data de emissão", P["emissao"])]))
-        st += [Spacer(1, 8), Paragraph("Registro de revisões", sH2)]
+        st += [Spacer(1, 8), self.paragraph("Registro de revisões", sH2)]
         ap = D.get("aprovacoes", {})
         revs = D.get("revisoes") or [{"rev": P["rev"], "data": P["emissao"], "descricao": "Emissão inicial",
                                       "elaborado": (ap.get("elaborado") or {}).get("nome", ""),
                                       "verificado": (ap.get("verificado") or {}).get("nome", ""),
                                       "aprovado": (ap.get("aprovado") or {}).get("nome", "")}]
-        rows = [[r.get("rev", ""), r.get("data", ""), r.get("descricao", ""), r.get("elaborado", ""),
+        rows = [[r.get("rev", ""), r.get("data", ""),
+                 self.editable("descricao", esc(r.get("descricao", "")), sCell) if str(r.get("rev")) == str(P["rev"]) else r.get("descricao", ""), r.get("elaborado", ""),
                  r.get("verificado", ""), r.get("aprovado", "")] for r in revs] + [[""] * 6]
         st.append(self.data_table(["Rev.", "Data", "Descrição", "Elaborado", "Verificado", "Aprovado"], rows,
                                   [12 * mm, 22 * mm, CW - 124 * mm, 30 * mm, 30 * mm, 30 * mm], align_center=(0, 1)))
-        st += [Spacer(1, 8), Paragraph("Aprovações", sH2)]
+        st += [Spacer(1, 8), self.paragraph("Aprovações", sH2)]
         sig = []
         ap = D.get("aprovacoes", {})
         for key, role in [("elaborado", "Elaborado por (Filtrovali)"), ("verificado", "Verificado por (Filtrovali)"),
                           ("aprovado", "Aprovado por (Cliente)")]:
             pessoa = ap.get(key) or {}
             cell = [Spacer(1, 18 * mm), self.hr(CW / 3 - 10 * mm, INK),
-                    Paragraph(f"<b>{role}</b>", S("sg", fontSize=8.5, leading=11, alignment=TA_CENTER))]
+                    self.paragraph(f"<b>{role}</b>", S("sg", fontSize=8.5, leading=11, alignment=TA_CENTER))]
             if pessoa.get("nome"):
-                cell.append(Paragraph(esc(pessoa["nome"]), S("sgn", fontSize=8.8, leading=11, alignment=TA_CENTER)))
-                cell.append(Paragraph(f"Cargo: {esc(pessoa.get('cargo', ''))}<br/>Data: {esc(pessoa.get('data') or '____/____/______')}",
+                campo = "aprovadoNome" if key == "aprovado" else key
+                cell.append(self.editable(campo, esc(pessoa["nome"]), S("sgn", fontSize=8.8, leading=11, alignment=TA_CENTER)))
+                cargo = esc(pessoa.get("cargo", ""))
+                cell.append(self.paragraph(f"Cargo: {cargo}<br/>Data: {esc(pessoa.get('data') or '____/____/______')}",
                                       S("sg2", fontSize=7.5, leading=10, textColor=MUTED, alignment=TA_CENTER)))
             else:
-                cell.append(Paragraph("Nome / Cargo / Data", S("sg2", fontSize=7.5, leading=10, textColor=MUTED, alignment=TA_CENTER)))
+                cell.append(self.paragraph("Nome / Cargo / Data", S("sg2", fontSize=7.5, leading=10, textColor=MUTED, alignment=TA_CENTER)))
             sig.append(cell)
         t = Table([sig], colWidths=[CW / 3] * 3)
         t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("BOX", (0, 0), (-1, -1), 0.6, RULE),
@@ -625,7 +653,7 @@ class DatabookBuilder:
             "condensada as atividades diárias, os dados técnicos de cada serviço, o avanço físico e o registro fotográfico, "
             "acompanhados das Fichas com Dados de Segurança (FDS) dos produtos químicos utilizados. Os relatórios originais "
             "assinados permanecem disponíveis para consulta." if rdos and rlqs else "")
-        st += [Paragraph(esc(nota), S("note", fontSize=8.6, leading=12, textColor=MUTED, alignment=4)), PageBreak()]
+        st += [self.editable("textosAdicionais.nota_controle", esc(nota), S("note", fontSize=8.6, leading=12, textColor=MUTED, alignment=4)), PageBreak()]
 
         # ---- Sumário
         st += self.section_title("", "Sumário", "sumario")
@@ -634,15 +662,15 @@ class DatabookBuilder:
         # ---- 1. Dados gerais
         st += self.section_title("1", "Dados Gerais do Serviço", "s1", kicker="Seção 1")
         if T.get("escopo"):
-            st += [Paragraph("Escopo", sH2), Paragraph(esc(T["escopo"]), sBodyJ), Spacer(1, 6)]
+            st += [self.editable("escopo", "Escopo", sH2), self.editable("escopo", esc(T["escopo"]), sBodyJ), Spacer(1, 6)]
         if D["dados_tecnicos"]:
             st.append(self.kv_table([tuple(x) for x in D["dados_tecnicos"]]))
         if D["equipe"]:
-            st.append(Paragraph("Equipe executante", sH2))
+            st.append(self.paragraph("Equipe executante", sH2))
             st.append(self.data_table(["Nome", "Função", "Observação"],
                                       [[e.get("nome", ""), e.get("funcao", ""), e.get("observacao", "")] for e in D["equipe"]],
                                       [70 * mm, 70 * mm, CW - 140 * mm]))
-        st.append(Paragraph("Rastreabilidade dos registros", sH2))
+        st.append(self.paragraph("Rastreabilidade dos registros", sH2))
         rows = []
         for i, x in enumerate(dias, 1):
             if self.misto:
@@ -650,7 +678,7 @@ class DatabookBuilder:
             else:
                 rl = ", ".join(f"RLQ nº {s['rlq']}" for s in x["servicos"] if s.get("rlq")) or "—"
             rdo = ", ".join(f"RDO nº {n}" for n in ([x["rdo"]] if x.get("rdo") else []) + x.get("rdos_extras", [])) or "—"
-            rows.append([f"{i:02d}", x["data"], x.get("dia_semana", ""), rdo, rl, x.get("resumo", "")])
+            rows.append([f"{i:02d}", x["data"], x.get("dia_semana", ""), rdo, rl, self.editable(f"dias.{i - 1}.resumo", esc(x.get("resumo", "")), sCell)])
         if self.misto:
             st.append(self.data_table(["Dia", "Data", "Dia da semana", "RDO", "Relatórios técnicos", "Atividade principal"], rows,
                                       [10 * mm, 20 * mm, 24 * mm, 20 * mm, 30 * mm, CW - 104 * mm], align_center=(0, 1, 3, 4)))
@@ -664,8 +692,10 @@ class DatabookBuilder:
         kpis = [(T.get("kpi_rotulo_concluidos", f"{un} limpos e aprovados"), num(concluido)),
                 ("Laudos aprovados", f"{len(aprovados)}/{len(emitidos)}"),
                 ("Dias de execução", f"{len(dias)}"), ("Ocorrências de SMS", f"{D['ocorrencias_sms']}")]
-        kc = [[Paragraph(v, S("kv", fontName="HB", fontSize=20, leading=24, textColor=GREEN)),
-               Paragraph(esc(lab).upper(), sLabel)] for lab, v in kpis]
+        kc = [[self.paragraph(v, S("kv", fontName="HB", fontSize=20, leading=24, textColor=GREEN),
+                              key=f"documento.s2.indicadores.{key}", label=lab, multiline=False),
+               self.paragraph(esc(lab).upper(), sLabel)] for key, (lab, v) in zip(
+                   ("concluidos", "laudos_aprovados", "dias_execucao", "ocorrencias_sms"), kpis)]
         t = Table([kc], colWidths=[CW / 4] * 4)
         t.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, RULE), ("INNERGRID", (0, 0), (-1, -1), 0.4, RULE),
                                ("BACKGROUND", (0, 0), (-1, -1), GREEN_L), ("TOPPADDING", (0, 0), (-1, -1), 7),
@@ -683,21 +713,22 @@ class DatabookBuilder:
         else:
             resumo = (f"Entre {dias[0]['data']} e {dias[-1]['data']} foram concluídos <b>{num(concluido)} de {num(total)} {un}</b> "
                       f"({concluido / total * 100:.0f}% do escopo), com {len(aprovados)} laudo(s) aprovado(s).")
-        st.append(Paragraph(esc(resumo), sBodyJ))
+        st.append(self.editable("resumoExecutivo", esc(resumo), sBodyJ))
         if self.misto:
-            st += [Paragraph("Relatórios técnicos por tipo", sH2), self._quadro_tipos(servs)]
+            st += [self.paragraph("Relatórios técnicos por tipo", sH2), self._quadro_tipos(servs)]
+        complemento_base = T.get("base_calculo", "")
         if un == "%":
-            base = "Base de cálculo: avanço físico ponderado dos escopos do contrato (100%)" + (f", {T['base_calculo']}" if T.get("base_calculo") else "")
+            base = "Base de cálculo: avanço físico ponderado dos escopos do contrato (100%)" + (f", {complemento_base}" if T.get("base_calculo") else "")
             if inicial:
                 base += f"; inclui {num(inicial)}% executados antes de {dias[0]['data']}"
         else:
-            base = f"Base de cálculo: escopo de {num(total)} {un}" + (f", {T['base_calculo']}" if T.get("base_calculo") else "")
+            base = f"Base de cálculo: escopo de {num(total)} {un}" + (f", {complemento_base}" if T.get("base_calculo") else "")
             if inicial:
                 base += f"; inclui {num(inicial)} {un} concluídos antes de {dias[0]['data']}"
-        st += [Paragraph("Curva de avanço", sH2), self.progress_chart(), Paragraph(base + ".", sSmall)]
+        st += [self.paragraph("Curva de avanço", sH2), self.progress_chart(), self.paragraph(base + ".", sSmall)]
         if D.get("avanco_escopos"):
             st += self._quadro_escopos(concluido, total)
-        st.append(Paragraph("Quadro de avanço por dia", sH2))
+        st.append(self.paragraph("Quadro de avanço por dia", sH2))
         rows, acc = [], inicial
         for x in dias:
             q = self.qty(x)
@@ -714,7 +745,7 @@ class DatabookBuilder:
                 laudo = esc(x["servicos"][0].get("laudo") or "—")
             else:
                 laudo = "—"
-            rows.append([x["data"][:5], tags, num(q), num(acc), f"{acc / total * 100:.0f}%", Paragraph(laudo, sCellC)])
+            rows.append([x["data"][:5], tags, num(q), num(acc), f"{acc / total * 100:.0f}%", self.paragraph(laudo, sCellC)])
         st.append(self.data_table(["Data", "Tags / identificação", "Qtd.", "Acum.", "Avanço", "Laudo"], rows,
                                   [14 * mm, CW - 81 * mm, 12 * mm, 13 * mm, 15 * mm, 27 * mm], align_center=(0, 2, 3, 4)))
         st.append(PageBreak())
@@ -724,7 +755,7 @@ class DatabookBuilder:
         if "RLQ" in self.tipos or D["etapas_produto"] or D["fds"]:
             n += 1
             st += self.section_title(str(n), "Procedimento de Limpeza Química", f"s{n}", kicker=f"Seção {n}")
-            st += [Paragraph(esc(T.get("intro_procedimento",
+            st += [self.editable("textosAdicionais.intro_procedimento", esc(T.get("intro_procedimento",
                                        "Sequência de etapas e produtos químicos aplicados, conforme registrado nos Relatórios de "
                                        "Limpeza Química (RLQ). Montagem, teste de estanqueidade, secagem e desmontagem foram "
                                        "registrados nos dias em que se aplicaram.")), sBodyJ), Spacer(1, 6)]
@@ -733,12 +764,12 @@ class DatabookBuilder:
                                           [[f"{i:02d}", e["etapa"], e.get("produto") or "—"] for i, e in enumerate(D["etapas_produto"], 1)],
                                           [10 * mm, 55 * mm, CW - 65 * mm], align_center=(0,)))
             if D["criterios_aceitacao"]:
-                st += [Paragraph("Critérios de aceitação", sH2), Paragraph("O spool/tubulação pode ser aprovado quando:", sBody)]
+                st += [self.paragraph("Critérios de aceitação", sH2), self.paragraph("O spool/tubulação pode ser aprovado quando:", sBody)]
                 for i, c in enumerate(D["criterios_aceitacao"], 1):
-                    st.append(Paragraph(f"<font name='BB' color='#C81519'>{i}.</font>&nbsp;&nbsp;{esc(c)}",
+                    st.append(self.paragraph(f"<font name='BB' color='#C81519'>{i}.</font>&nbsp;&nbsp;{esc(c)}",
                                         S(f"cr{i}", leftIndent=12, firstLineIndent=-12, spaceBefore=3)))
             if D["fds"]:
-                st.append(Paragraph("Produtos químicos utilizados", sH2))
+                st.append(self.paragraph("Produtos químicos utilizados", sH2))
                 st.append(self.data_table(["Produto (conforme RLQ)", "Nome comercial (FDS)", "Etapa", "Anexo"],
                                           [[f["produto"], f["nome_comercial"], f.get("etapa", ""), f"B.{i}"] for i, f in enumerate(D["fds"], 1)],
                                           [42 * mm, 58 * mm, CW - 116 * mm, 16 * mm], align_center=(3,)))
@@ -754,7 +785,7 @@ class DatabookBuilder:
         nd = n + 1
         st += self.section_title(str(nd), "Diário de Execução", f"s{nd}", kicker=f"Seção {nd}")
         fontes = "RDOs e RLQs" if not self.misto else "RDOs e dos relatórios técnicos (" + ", ".join(self.tipos) + ")"
-        st += [Paragraph(f"Condensação diária dos {fontes}: jornada, DDS, atividades, dados técnicos do serviço, "
+        st += [self.paragraph(f"Condensação diária dos {fontes}: jornada, DDS, atividades, dados técnicos do serviço, "
                          "avanço e registro fotográfico.", sBody), Spacer(1, 4)]
         acc = inicial
         for i, x in enumerate(dias, 1):
@@ -766,11 +797,11 @@ class DatabookBuilder:
             refs = [f"RDO nº {r}" for r in ([x["rdo"]] if x.get("rdo") else []) + x.get("rdos_extras", [])] + \
                    [self.ref(s) for s in x["servicos"] if s.get("relatorio")]
             refs = " · ".join(r.replace(" ", "&nbsp;") for r in refs) if self.misto else " · ".join(refs)
-            band = Table([[Paragraph(f"DIA {i:02d}", S("dn", fontName="HB", fontSize=15, leading=18, textColor=colors.white)),
-                           Paragraph(f"<font name='H' size='12.5'>{x['data']}</font>  <font color='#B9C9BE'>{esc(x.get('dia_semana', ''))}</font><br/>"
-                                     f"<font size='8.5' color='#B9C9BE'>{esc(x.get('resumo', ''))}</font>",
+            band = Table([[self.paragraph(f"DIA {i:02d}", S("dn", fontName="HB", fontSize=15, leading=18, textColor=colors.white)),
+                           self.paragraph(f"<font name='H' size='12.5'>{x['data']}</font>  <font color='#B9C9BE'>{esc(x.get('dia_semana', ''))}</font><br/>"
+                                     + f"<font size='8.5' color='#B9C9BE'>{esc(x.get('resumo', ''))}</font>",
                                      S("dd", fontSize=11, leading=15, textColor=colors.white)),
-                           Paragraph(f"<font size='8' color='#B9C9BE'>REGISTROS</font><br/>{refs}",
+                           self.paragraph(f"<font size='8' color='#B9C9BE'>REGISTROS</font><br/>{refs}",
                                      S("dr", fontName="BB", fontSize=9, leading=12, textColor=colors.white, alignment=TA_RIGHT))]],
                          colWidths=[24 * mm, CW - 70 * mm, 46 * mm])
             band.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), GREEN), ("BACKGROUND", (0, 0), (0, 0), RED),
@@ -789,7 +820,7 @@ class DatabookBuilder:
                 if x.get("stand_by"):
                     jr.append(("Stand-by", f"{x['stand_by'].get('tempo', '')} – {x['stand_by'].get('motivo', '')}"))
                 if x.get("comentario"):
-                    jr.append(("Comentário (jornada)", x["comentario"]))
+                    jr.append(("Comentário (jornada)", self.editable(f"dias.{i - 1}.comentario", esc(x["comentario"]), sVal)))
                 jr += self._jornada_noturna(x)
             elif all(s["tipo"] == "RLQ" for s in x["servicos"]):
                 rl = ", ".join(str(s["rlq"]) for s in x["servicos"] if s.get("rlq"))
@@ -800,14 +831,14 @@ class DatabookBuilder:
             st.append(self.kv_table(jr))
 
             if x["atividades"]:
-                st.append(Paragraph("Atividades", sH2))
-                for a in x["atividades"]:
+                st.append(self.paragraph("Atividades", sH2))
+                for atividade_idx, a in enumerate(x["atividades"]):
                     hr_ = a.get("hora")
                     pre = f"<font name='BB' color='#30503A'>{esc(hr_)}</font>&nbsp;&nbsp;" if hr_ else "<font color='#C81519'>●</font>&nbsp;&nbsp;"
-                    st.append(Paragraph(pre + esc(a["texto"]), S(f"at{i}", spaceBefore=1, spaceAfter=2, alignment=4)))
+                    st.append(self.editable(f"dias.{i - 1}.atividades.{atividade_idx}.texto", pre + esc(a["texto"]), S(f"at{i}", spaceBefore=1, spaceAfter=2, alignment=4)))
 
             for k, s in enumerate(x["servicos"], 1):
-                st.append(Paragraph(f"Serviço {k} – {esc(s['titulo'])}", sH2))
+                st.append(self.editable(f"dias.{i - 1}.servicos.{k - 1}.titulo", f"Serviço {k} – {esc(s['titulo'])}", sH2))
                 equip = " · ".join(v for v in [s.get("equipamento"), s.get("sistema")] if v)
                 if s.get("quantidade"):
                     equip += f" ({num(s['quantidade'])} {s.get('unidade_quantidade', 'un.')})"
@@ -815,17 +846,17 @@ class DatabookBuilder:
                     if s.get("rlq"):
                         laudo = f"{s.get('laudo', 'APROVADO')} – RLQ nº {s['rlq']}"
                     else:
-                        laudo = s.get("laudo_observacao") or "Não emitido"
+                        laudo = self.editable(f"dias.{i - 1}.servicos.{k - 1}.laudo_observacao", esc(s.get("laudo_observacao") or "Não emitido"), sVal)
                     st.append(self.kv_table([
                         ("Equipamento / sistema", equip), ("Material", s.get("material", "")),
                         ("Início – término", f"{s.get('inicio', '')} – {s.get('fim', '')}"), ("Método", s.get("metodo", "")),
                         ("Tags", s.get("tags", "")), ("Inspeção", s.get("inspecao") or "—"),
                         ("Status", s["status"]), ("Laudo (RLQ)", laudo)]))
                 else:
-                    st += self._bloco_tecnico(s, equip)
+                    st += self._bloco_tecnico(s, equip, f"dias.{i - 1}.servicos.{k - 1}.laudo_observacao")
                 if s["etapas"]:
                     chips = "  ".join(f"<font color='#30503A'>●</font> {esc(e)}" for e in s["etapas"])
-                    et = Table([[Paragraph("ETAPAS EXECUTADAS", sLabel)], [Paragraph(chips, S("chips", fontSize=8.8, leading=13))]],
+                    et = Table([[self.paragraph("ETAPAS EXECUTADAS", sLabel)], [self.paragraph(chips, S("chips", fontSize=8.8, leading=13))]],
                                colWidths=[CW])
                     et.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, RULE), ("BACKGROUND", (0, 0), (-1, -1), ZEBRA),
                                             ("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 3),
@@ -833,19 +864,19 @@ class DatabookBuilder:
                     st += [Spacer(1, 4), et]
                 st += self._medicoes(s)
                 if s.get("obs"):
-                    st += [Spacer(1, 4), Paragraph(f"<font name='BB' color='#5F6B64'>OBS.:</font> {esc(s['obs'])}", sBody)]
+                    st += [Spacer(1, 4), self.editable(f"dias.{i - 1}.servicos.{k - 1}.obs", f"<font name='BB' color='#5F6B64'>OBS.:</font> {esc(s['obs'])}", sBody)]
 
             ph = self.day_photos(x)
             if ph:
                 st.append(CondPageBreak(75 * mm))
-                st.append(Paragraph(f"Registro fotográfico <font size='8.5' color='#5F6B64'>({len(ph)} fotos)</font>", sH2))
+                st.append(self.paragraph(f"Registro fotográfico <font size='8.5' color='#5F6B64'>({len(ph)} fotos)</font>", sH2))
                 st += self.photo_rows(ph, i)
         st.append(PageBreak())
 
         # ---- SMS
         ns = nd + 1
         st += self.section_title(str(ns), "Segurança, Meio Ambiente e Saúde", f"s{ns}", kicker=f"Seção {ns}")
-        st += [Paragraph("Diálogos Diários de Segurança (DDS) realizados no início de cada turno, conforme RDOs.", sBody), Spacer(1, 4)]
+        st += [self.paragraph("Diálogos Diários de Segurança (DDS) realizados no início de cada turno, conforme RDOs.", sBody), Spacer(1, 4)]
         rows = []
         for x in dias:
             if not x.get("rdo"):
@@ -858,10 +889,10 @@ class DatabookBuilder:
                              f"<i>Turno noturno:</i> {dn.get('tema', '')}"])
         st.append(self.data_table(["Data", "Registro", "Horário", "Tema"], rows, [22 * mm, 22 * mm, 26 * mm, CW - 70 * mm], align_center=(0, 1, 2)))
         if T.get("destaques_sms"):
-            st.append(Paragraph("Destaques do período", sH2))
-            st += [self.bullet(t_) for t_ in T["destaques_sms"]]
+            st.append(self.paragraph("Destaques do período", sH2))
+            st += [self.editable("destaques", f"<font color='#C81519'>●</font>&nbsp;&nbsp;{esc(t_)}", S("bl", spaceBefore=2)) for t_ in T["destaques_sms"]]
         if T.get("consideracoes_finais"):
-            st += [Paragraph("Considerações finais", sH2), Paragraph(esc(T["consideracoes_finais"]), sBodyJ)]
+            st += [self.editable("consideracoes", "Considerações finais", sH2), self.editable("consideracoes", esc(T["consideracoes_finais"]), sBodyJ)]
         st.append(PageBreak())
 
         # ---- Anexos
@@ -869,7 +900,7 @@ class DatabookBuilder:
             pages = dict((k, p) for k, _, _, p in (self.st["toc"] or []))
             st += self.section_title("A", "Relação de Fichas com Dados de Segurança", "anexoA", kicker="Anexos")
             fabs = sorted({f.get("fabricante", "") for f in D["fds"] if f.get("fabricante")})
-            st += [Paragraph("FDS dos produtos químicos empregados nas etapas de limpeza química"
+            st += [self.paragraph("FDS dos produtos químicos empregados nas etapas de limpeza química"
                              + (f", fornecidas por {esc(', '.join(fabs)).rstrip('.')}" if fabs else "")
                              + f". As fichas são reproduzidas integralmente nos Anexos B.1 a B.{len(D['fds'])}.", sBodyJ), Spacer(1, 6)]
             rows = [[f"B.{i}", f["nome_comercial"], f["produto"], f.get("codigo", ""), f.get("revisao", ""), f.get("data", ""),
@@ -880,9 +911,9 @@ class DatabookBuilder:
             for i, f in enumerate(D["fds"], 1):
                 st += [PageBreak(), _SetOffset(self.st, i - 1),
                        self.marker(f"b{i}", f"Anexo B.{i} – FDS {f['nome_comercial']}"), Spacer(1, 70 * mm),
-                       Paragraph(f"ANEXO B.{i}", S("ak", fontName="H", fontSize=11, leading=14, textColor=RED)),
-                       Paragraph("Ficha com Dados de Segurança", S("at", fontName="HL", fontSize=14, leading=18, textColor=MUTED)),
-                       Paragraph(esc(f["nome_comercial"]), S("an", fontName="HB", fontSize=26, leading=31, textColor=GREEN))]
+                       self.paragraph(f"ANEXO B.{i}", S("ak", fontName="H", fontSize=11, leading=14, textColor=RED)),
+                       self.paragraph("Ficha com Dados de Segurança", S("at", fontName="HL", fontSize=14, leading=18, textColor=MUTED)),
+                       self.paragraph(esc(f["nome_comercial"]), S("an", fontName="HB", fontSize=26, leading=31, textColor=GREEN))]
                 dd = Drawing(CW, 8)
                 dd.add(Rect(0, 3, 30 * mm, 2, fillColor=RED, strokeColor=None))
                 st += [dd, Spacer(1, 6), self.kv_table([
@@ -948,9 +979,9 @@ class DatabookBuilder:
         """Escopo com unidades mistas: previsto × realizado por escopo e o % geral ponderado."""
         rows = [[e.get("escopo", ""), e.get("unidade", ""), num(e.get("previsto")), num(e.get("realizado")),
                  "—" if e.get("percentual") is None else f"{float(e['percentual']):.0f}%"] for e in self.d["avanco_escopos"]]
-        rows.append([Paragraph("<b>Geral (ponderado)</b>", sCell), "", "", "",
-                     Paragraph(f"<b>{min(concluido / total * 100, 999):.0f}%</b>", sCellC)])
-        return [Paragraph("Avanço por escopo", sH2),
+        rows.append([self.paragraph("<b>Geral (ponderado)</b>", sCell), "", "", "",
+                     self.paragraph(f"<b>{min(concluido / total * 100, 999):.0f}%</b>", sCellC)])
+        return [self.paragraph("Avanço por escopo", sH2),
                 self.data_table(["Escopo", "Unid.", "Previsto", "Realizado", "Avanço"], rows,
                                 [CW - 88 * mm, 14 * mm, 25 * mm, 25 * mm, 24 * mm], align_center=(1, 2, 3, 4))]
 
@@ -972,7 +1003,7 @@ class DatabookBuilder:
             return f"{s.get('laudo') or 'Sem laudo'} – {self.ref(s)}"
         return s.get("laudo_observacao") or "Não emitido"
 
-    def _bloco_tecnico(self, s, equip):
+    def _bloco_tecnico(self, s, equip, campo_laudo=None):
         t, ini_fim = s["tipo"], f"{s.get('inicio', '')} – {s.get('fim', '')}"
         if t == "RCPU":
             r = s["rcpu"]
@@ -994,6 +1025,8 @@ class DatabookBuilder:
             rows = [("Equipamento / sistema", equip), ("Material", s.get("material", "")),
                     ("Início – término", ini_fim), ("Tags", s.get("tags", "")),
                     ("Status", s["status"]), (f"Laudo ({t})", self._laudo(s))]
+        if campo_laudo and not s.get("relatorio"):
+            rows = [(rotulo, self.editable(campo_laudo, esc(valor), sVal) if rotulo.startswith("Laudo (") else valor) for rotulo, valor in rows]
         return [self.kv_table(rows)]
 
     def _medicoes(self, s):
@@ -1020,7 +1053,7 @@ class DatabookBuilder:
                 res = ("—" if acima is None else
                        "<font color='#C81519'><b>ACIMA DO LIMITE</b></font>" if acima else
                        "<font color='#30503A'><b>CONFORME</b></font>")
-                rows.append([rot, ini or "—", fim or "—", lim or "—", Paragraph(res, sCellC)])
+                rows.append([rot, ini or "—", fim or "—", lim or "—", self.paragraph(res, sCellC)])
             if rows:
                 out += [Spacer(1, 4), self.data_table(["Análise", "Inicial", "Final", "Limite", "Resultado"], rows,
                                                       [CW - 120 * mm, 27 * mm, 27 * mm, 30 * mm, 36 * mm], align_center=(1, 2, 3))]
@@ -1043,16 +1076,16 @@ class DatabookBuilder:
             return []
         rows = [[c.get("equipamento", ""), c.get("codigo", ""), c.get("serie") or c.get("escala") or "—", c.get("certificado", ""),
                  c.get("calibracao", ""), c.get("validade", ""), self._anexo_ref(c.get("codigo"))] for c in certs]
-        return [Paragraph("Instrumentos de medição", sH2),
+        return [self.paragraph("Instrumentos de medição", sH2),
                 self.data_table(["Instrumento", "Código", "Série / escala", "Certificado", "Calibração", "Validade", "Anexo"], rows,
                                 [CW - 136 * mm, 22 * mm, 26 * mm, 28 * mm, 20 * mm, 20 * mm, 20 * mm], align_center=(1, 2, 3, 4, 5, 6))]
 
     def _criterios(self, intro, itens, chave):
         if not itens:
             return []
-        out = [Paragraph("Critérios de aceitação", sH2), Paragraph(esc(intro), sBody)]
+        out = [self.paragraph("Critérios de aceitação", sH2), self.paragraph(esc(intro), sBody)]
         for i, c in enumerate(itens, 1):
-            out.append(Paragraph(f"<font name='BB' color='#C81519'>{i}.</font>&nbsp;&nbsp;{esc(c)}",
+            out.append(self.paragraph(f"<font name='BB' color='#C81519'>{i}.</font>&nbsp;&nbsp;{esc(c)}",
                                  S(f"{chave}{i}", leftIndent=12, firstLineIndent=-12, spaceBefore=3)))
         return out
 
@@ -1064,7 +1097,7 @@ class DatabookBuilder:
         st = self.section_title(str(n), "Contagem de Partículas e Análise de Umidade", f"s{n}", kicker=f"Seção {n}")
         itens = self._servicos_do_tipo(dias, "RCPU")
         procs = sorted({s["rcpu"].get("procedimento") for _, s in itens if s["rcpu"].get("procedimento")})
-        st += [Paragraph(esc(T.get("intro_rcpu",
+        st += [self.editable("textosAdicionais.intro_rcpu", esc(T.get("intro_rcpu",
                                    "Resultados das análises de contaminação por partículas (ISO 4406 / NAS 1638) e de umidade "
                                    "registradas nos Relatórios de Contagem de Partículas e Umidade (RCPU)"
                                    + (f", executadas conforme o procedimento {', '.join(procs)}" if procs else "") + ".")),
@@ -1092,7 +1125,7 @@ class DatabookBuilder:
     def _secao_rtp(self, n, dias):
         T = self.d["textos"]
         st = self.section_title(str(n), "Teste de Pressão", f"s{n}", kicker=f"Seção {n}")
-        st += [Paragraph(esc(T.get("intro_rtp",
+        st += [self.editable("textosAdicionais.intro_rtp", esc(T.get("intro_rtp",
                                    "Testes de pressão registrados nos Relatórios de Teste de Pressão (RTP), com o fluido, as "
                                    "pressões de trabalho e de teste e os manômetros calibrados utilizados em cada teste.")),
                          sBodyJ), Spacer(1, 6)]
@@ -1115,7 +1148,7 @@ class DatabookBuilder:
         st = [PageBreak()] if D["fds"] else []
         st += [_SetOffset(self.st, nf)]     # a relação vem depois do PDF da última FDS
         st += self.section_title("C", "Relação de Certificados de Calibração", "anexoC", kicker="Anexos")
-        st += [Paragraph("Certificados de calibração dos instrumentos de medição utilizados nos testes de pressão e nas análises "
+        st += [self.paragraph("Certificados de calibração dos instrumentos de medição utilizados nos testes de pressão e nas análises "
                          f"de contaminação. Os certificados são reproduzidos integralmente nos Anexos C.1 a C.{len(certs)}.",
                          sBodyJ), Spacer(1, 6)]
         rows = [[f"C.{i}", c.get("equipamento", ""), c.get("codigo", ""), c.get("certificado", ""), c.get("calibracao", ""),
@@ -1128,9 +1161,9 @@ class DatabookBuilder:
             nome = " ".join(v for v in [c.get("equipamento"), c.get("codigo")] if v)
             st += [PageBreak(), _SetOffset(self.st, nf + i - 1),
                    self.marker(f"c{i}", f"Anexo C.{i} – Certificado {nome}"), Spacer(1, 70 * mm),
-                   Paragraph(f"ANEXO C.{i}", S("ck", fontName="H", fontSize=11, leading=14, textColor=RED)),
-                   Paragraph("Certificado de Calibração", S("ct", fontName="HL", fontSize=14, leading=18, textColor=MUTED)),
-                   Paragraph(esc(nome), S("cn", fontName="HB", fontSize=26, leading=31, textColor=GREEN))]
+                   self.paragraph(f"ANEXO C.{i}", S("ck", fontName="H", fontSize=11, leading=14, textColor=RED)),
+                   self.paragraph("Certificado de Calibração", S("ct", fontName="HL", fontSize=14, leading=18, textColor=MUTED)),
+                   self.paragraph(esc(nome), S("cn", fontName="HB", fontSize=26, leading=31, textColor=GREEN))]
             dd = Drawing(CW, 8)
             dd.add(Rect(0, 3, 30 * mm, 2, fillColor=RED, strokeColor=None))
             st += [dd, Spacer(1, 6), self.kv_table([
@@ -1144,6 +1177,7 @@ class DatabookBuilder:
     def _build_body(self, path):
         P = self.d["projeto"]
         self.st["headings"], self.st["offset"] = [], 0
+        self.fields.reset()
         doc = BaseDocTemplate(path, pagesize=A4, leftMargin=ML, rightMargin=MR, topMargin=MT, bottomMargin=MB,
                               title=f"Data Book – {P['servico']} – {P['missao']}", author=P["empresa"],
                               subject=f"{P['doc']} Rev. {P['rev']}")
@@ -1160,9 +1194,11 @@ class DatabookBuilder:
         c.setFillColor(colors.white)
         c.rect(ML - 2, 3.2 * mm, CW + 4, 4.6 * mm, fill=1, stroke=0)
         c.setFont("B", 6.8); c.setFillColor(MUTED)
-        c.drawString(ML, 4.6 * mm, f"Data Book {P['doc']} Rev. {P['rev']}  ·  {label}")
+        self.fields.canvas_text(c, f"documento.anexo.pagina.{pg}.identificacao", ML, 4.6 * mm,
+                                f"Data Book {P['doc']} Rev. {P['rev']}  ·  {label}", f"Rodapé do anexo · página {pg}", section="Anexos")
         c.setFont("BB", 7); c.setFillColor(GREEN)
-        c.drawRightString(W - MR, 4.6 * mm, f"Página {pg} de {total}")
+        self.fields.canvas_text(c, f"documento.anexo.pagina.{pg}.numeracao", W - MR, 4.6 * mm,
+                                f"Página {pg} de {total}", f"Numeração do anexo · página {pg}", right=True, section="Anexos")
         c.save()
         buf.seek(0)
         return PdfReader(buf).pages[0]
@@ -1213,7 +1249,10 @@ class DatabookBuilder:
         with open(saida, "wb") as fh:
             out.write(fh)
         self._tmp.cleanup()
-        return {"arquivo": os.path.abspath(saida), "paginas": len(out.pages), "avisos": self.avisos}
+        info = {"arquivo": os.path.abspath(saida), "paginas": len(out.pages), "avisos": self.avisos}
+        if self.fields.preview:
+            info["campos"] = list(self.fields.items.values())
+        return info
 
 
 def gerar_databook(dados, saida, base_dir=None, assets_dir=None):

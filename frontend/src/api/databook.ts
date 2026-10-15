@@ -74,6 +74,20 @@ export interface DatabookTextos {
   destaques_sms?: string[];
   consideracoes_finais?: string;
   kpi_rotulo_concluidos?: string;
+  base_calculo?: string;
+  intro_procedimento?: string;
+  intro_rcpu?: string;
+  intro_rtp?: string;
+  nota_controle?: string;
+}
+
+export interface DatabookDiaEditavel {
+  data: string;
+  resumo?: string;
+  comentario?: string;
+  atividades?: Array<{ texto: string }>;
+  servicos?: Array<{ titulo?: string; obs?: string; laudo_observacao?: string }>;
+  fotos?: Array<{ legenda?: string }>;
 }
 
 export interface DatabookPalavraSuspeita {
@@ -99,9 +113,12 @@ export interface DatabookRevisaoPreparada {
     unidade_escopo: string;
     ocorrencias_sms: number;
     textos: DatabookTextos;
+    dias?: DatabookDiaEditavel[];
+    aprovacoes?: { elaborado?: DatabookPessoa; verificado?: DatabookPessoa; aprovado?: DatabookPessoa };
     fds: DatabookFds[];
     certificados: DatabookCertificado[];
     limites_rcpu?: { iso?: string; nas?: number; umidade_ppm?: number };
+    campos_documento?: Record<string, string>;
   };
   avisos: string[];
   resumo: DatabookResumo;
@@ -109,6 +126,7 @@ export interface DatabookRevisaoPreparada {
   documento: { doc: string; rev: number };
   responsaveis: DatabookResponsavel[];
   ortografia?: DatabookOrtografia;
+  origem?: { id: string; revisao: number };
 }
 
 export interface DatabookPessoa {
@@ -118,6 +136,7 @@ export interface DatabookPessoa {
 }
 
 export interface DatabookEdicoes {
+  campos_documento?: Record<string, string>;
   servico?: string;
   unidade_escopo?: string;
   ocorrencias_sms?: number;
@@ -129,6 +148,25 @@ export interface DatabookEdicoes {
   certificados?: string[];
   aprovacoes?: { elaborado?: DatabookPessoa; verificado?: DatabookPessoa; aprovado?: DatabookPessoa };
   correcoes?: Array<{ palavra: string; por: string }>;
+  dias?: DatabookDiaEditavel[];
+}
+
+export interface DatabookCampoDocumento {
+  id: string;
+  rotulo: string;
+  secao: string;
+  original: string;
+  valor: string;
+  multilinha: boolean;
+  aparencia?: { tamanho: number; entrelinha?: number; alinhamento?: number; negrito?: boolean; italico?: boolean };
+}
+
+export interface DatabookPrevia {
+  id: string;
+  documento: { doc: string; rev: number };
+  paginas: number;
+  avisos: string[];
+  campos?: DatabookCampoDocumento[];
 }
 
 export interface DatabookRevisao {
@@ -165,8 +203,23 @@ export async function prepararDatabook(projectId: string, intervalo: DatabookInt
   return data;
 }
 
-export async function gerarDatabook(projectId: string, payload: DatabookIntervalo & { edicoes: DatabookEdicoes; descricao?: string }) {
+export async function gerarDatabook(projectId: string, payload: { previaId: string } | (DatabookIntervalo & { edicoes: DatabookEdicoes; descricao?: string })) {
   const { data } = await apiClient.post<DatabookRevisao>(base(`/projects/${projectId}/gerar`), payload);
+  return data;
+}
+
+export async function prepararEdicaoDatabook(revisaoId: string) {
+  const { data } = await apiClient.get<DatabookRevisaoPreparada>(base(`/revisoes/${revisaoId}/edicao`));
+  return data;
+}
+
+export async function criarPreviaDatabook(projectId: string, payload: DatabookIntervalo & { edicoes: DatabookEdicoes; descricao: string; origemRevisaoId?: string }) {
+  const { data } = await apiClient.post<DatabookPrevia>(base(`/projects/${projectId}/previa`), payload);
+  return data;
+}
+
+export async function baixarPreviaDatabook(previaId: string) {
+  const { data } = await apiClient.get<Blob>(base(`/previas/${previaId}/pdf`), { responseType: 'blob' });
   return data;
 }
 

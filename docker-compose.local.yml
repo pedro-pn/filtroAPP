@@ -34,6 +34,7 @@ services:
       - "4000:4000"
     volumes:
       - ./backend/src:/workspace/backend/src
+      - ./backend/databook/databook:/workspace/backend/databook/databook:ro
       - ./backend/prisma:/workspace/backend/prisma
       - ./backend/scripts:/workspace/backend/scripts
       - ./backend/assets:/workspace/backend/assets

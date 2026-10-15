@@ -8,6 +8,17 @@
     "dias"
   ],
   "properties": {
+    "campos_documento": {
+      "type": "object",
+      "description": "Ajustes manuais dos campos de apresentação, por ID estável do gerador. Aplicados tanto na prévia quanto no PDF final, sem alterar os relatórios de origem.",
+      "propertyNames": { "pattern": "^documento\\.[a-zA-Z0-9_.-]{1,190}$" },
+      "additionalProperties": { "type": "string", "maxLength": 12000 }
+    },
+    "previa_editavel": {
+      "type": "boolean",
+      "default": false,
+      "description": "Uso interno da prévia: acrescenta vínculos entre textos e campos de edição. Não é salvo na entrada das revisões finais."
+    },
     "projeto": {
       "type": "object",
       "required": [
