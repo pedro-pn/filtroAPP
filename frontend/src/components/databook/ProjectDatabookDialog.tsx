@@ -121,6 +121,11 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
     },
     onError: error => showToast(mensagemErro(error), 'error')
   });
+  const baixarPdf = useMutation({
+    mutationFn: ({ revisao, doc }: { revisao: DatabookRevisao; doc: string }) => baixar(revisao, doc),
+    onError: error => showToast(mensagemErro(error), 'error')
+  });
+  const revisaoBaixandoId = baixarPdf.isPending ? baixarPdf.variables.revisao.id : null;
 
   const resumoTexto = useMemo(() => formatarResumoDatabook(resumoQuery.data?.resumo), [resumoQuery.data]);
   const documento = preparada?.documento;
@@ -133,14 +138,6 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
       return;
     }
     gerar.mutate();
-  }
-
-  async function baixarRevisao(revisao: DatabookRevisao, doc: string) {
-    try {
-      await baixar(revisao, doc);
-    } catch (error) {
-      showToast(mensagemErro(error), 'error');
-    }
   }
 
   const titulo = `Data Book · ${project.code} - ${project.name}`;
@@ -178,7 +175,8 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
         <DatabookHistorico
           documentos={historicoQuery.data}
           carregando={historicoQuery.isLoading}
-          onBaixar={(revisao, doc) => void baixarRevisao(revisao, doc)}
+          revisaoBaixandoId={revisaoBaixandoId}
+          onBaixar={(revisao, doc) => baixarPdf.mutate({ revisao, doc })}
         />
       </div>
     );
@@ -235,7 +233,12 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
       <>
         <Button variant="secondary" size="sm" type="button" onClick={onClose}>Fechar</Button>
         {revisao?.status === 'COMPLETED' ? (
-          <Button variant="primary" size="sm" type="button" onClick={() => void baixarRevisao(revisao, documento?.doc || 'DataBook')}>Baixar PDF</Button>
+          <Button variant="primary" size="sm" type="button"
+            loading={revisaoBaixandoId === revisao.id} loadingLabel="Preparando download"
+            disabled={baixarPdf.isPending}
+            onClick={() => baixarPdf.mutate({ revisao, doc: documento?.doc || 'DataBook' })}>
+            {revisaoBaixandoId === revisao.id ? 'Preparando download…' : 'Baixar PDF'}
+          </Button>
         ) : null}
       </>
     );
@@ -259,9 +262,10 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
   );
 }
 
-function DatabookHistorico({ documentos, carregando, onBaixar }: {
+function DatabookHistorico({ documentos, carregando, revisaoBaixandoId, onBaixar }: {
   documentos?: Awaited<ReturnType<typeof fetchDatabooks>>;
   carregando: boolean;
+  revisaoBaixandoId: string | null;
   onBaixar: (revisao: DatabookRevisao, doc: string) => void;
 }) {
   if (carregando) return null;
@@ -275,7 +279,11 @@ function DatabookHistorico({ documentos, carregando, onBaixar }: {
             <span><strong>{doc.doc} Rev. {r.revisao}</strong> · {dataBr(doc.inicio)} a {dataBr(doc.fim)} · {r.descricao}</span>
             <Badge tone={r.status === 'COMPLETED' ? 'success' : r.status === 'FAILED' ? 'danger' : 'info'}>{ROTULO_STATUS_DATABOOK[r.status]}</Badge>
             {r.status === 'COMPLETED' ? (
-              <Button variant="ghost" size="sm" type="button" onClick={() => onBaixar(r, doc.doc)}>Baixar</Button>
+              <Button variant="secondary" size="sm" type="button"
+                loading={revisaoBaixandoId === r.id} loadingLabel="Preparando download"
+                disabled={revisaoBaixandoId !== null} onClick={() => onBaixar(r, doc.doc)}>
+                {revisaoBaixandoId === r.id ? 'Preparando download…' : 'Baixar'}
+              </Button>
             ) : null}
           </li>
         )))}
