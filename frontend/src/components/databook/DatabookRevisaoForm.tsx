@@ -11,6 +11,7 @@ interface DatabookRevisaoFormProps {
   form: DatabookFormulario;
   erros: ErrosFormularioDatabook;
   disabled?: boolean;
+  edicaoDocumento?: boolean;
   onChange: (patch: Partial<DatabookFormulario>) => void;
 }
 
@@ -43,11 +44,13 @@ function alternar(lista: string[], valor: string, marcado: boolean) {
   return marcado ? [...new Set([...lista, valor])] : lista.filter(item => item !== valor);
 }
 
-export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange }: DatabookRevisaoFormProps) {
+export function DatabookRevisaoForm({ preparada, form, erros, disabled, edicaoDocumento, onChange }: DatabookRevisaoFormProps) {
   const { dados, sugestoes, avisos, resumo, responsaveis } = preparada;
   const opcoesResponsaveis = responsaveis.map(r => ({ value: r.id, label: r.cargo ? `${r.nome} – ${r.cargo}` : r.nome }));
   const estoqueFds = sugestoes.estoqueFds || [];
-  const fdsAnexo = fdsResolvidas(sugestoes.fds, estoqueFds, form.vinculosFds);
+  const fdsAnexo = preparada.origem
+    ? dados.fds.map(f => ({ arquivo: f.arquivo, nome: f.nome_comercial, produtos: [f.produto], confirmadoRomaneio: false }))
+    : fdsResolvidas(sugestoes.fds, estoqueFds, form.vinculosFds);
   const semFds = sugestoes.fds.filter(c => {
     const item = estoqueFds.find(i => i.stockItemId === itemVinculadoFds(c, form.vinculosFds));
     return !item?.documentoId;
@@ -82,35 +85,35 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
 
       <section className="databook-revisao__secao" aria-labelledby="databook-textos-titulo">
         <h3 id="databook-textos-titulo">Textos</h3>
-        <p className="databook-revisao__ajuda">Rascunho automático a partir dos relatórios. Edite à vontade; tags, horários e medições vêm dos relatórios e não mudam aqui.</p>
-        <Field label="Título do serviço (capa e cabeçalho)" required errorText={erros.servico}>
+        <p className="databook-revisao__ajuda">Edite os textos do documento e confira o resultado na prévia do PDF.</p>
+        <Field label="Título do serviço (capa e cabeçalho)" data-databook-field="servico" required errorText={erros.servico}>
           <Input value={form.servico} disabled={disabled} maxLength={200} onChange={e => onChange({ servico: e.target.value })} />
         </Field>
-        <Field label="Escopo" optionalText="">
+        <Field label="Escopo" data-databook-field="escopo" optionalText="">
           <TextoFormatadoEditor ariaLabel="Escopo" minLinhas={3} value={form.escopo} disabled={disabled} onChange={escopo => onChange({ escopo })} />
           <AdequarAnotacaoButton campo="Escopo" valor={textoSemMarcacao(form.escopo)} disabled={disabled}
             onAplicar={texto => onChange({ escopo: marcacaoDeTextoPuro(texto) })} />
         </Field>
-        <Field label="Resumo executivo" optionalText="">
+        <Field label="Resumo executivo" data-databook-field="resumoExecutivo" optionalText="">
           <TextoFormatadoEditor ariaLabel="Resumo executivo" minLinhas={5} value={form.resumoExecutivo} disabled={disabled} onChange={resumoExecutivo => onChange({ resumoExecutivo })} />
           <AdequarAnotacaoButton campo="Resumo executivo" valor={textoSemMarcacao(form.resumoExecutivo)} disabled={disabled}
             onAplicar={texto => onChange({ resumoExecutivo: marcacaoDeTextoPuro(texto) })} />
         </Field>
-        <Field label="Destaques de SMS" optionalText="" helperText="Um destaque por linha.">
+        <Field label="Destaques de SMS" data-databook-field="destaques" optionalText="" helperText="Um destaque por linha.">
           <Textarea rows={5} value={form.destaques} disabled={disabled} onChange={e => onChange({ destaques: e.target.value })} />
           <AdequarAnotacaoButton campo="Destaques de SMS" valor={form.destaques} disabled={disabled}
             onAplicar={texto => onChange({ destaques: destaquesDoTextoAdequado(texto) })} />
         </Field>
-        <Field label="Considerações finais" optionalText="">
+        <Field label="Considerações finais" data-databook-field="consideracoes" optionalText="">
           <TextoFormatadoEditor ariaLabel="Considerações finais" minLinhas={4} value={form.consideracoes} disabled={disabled} onChange={consideracoes => onChange({ consideracoes })} />
           <AdequarAnotacaoButton campo="Considerações finais" valor={textoSemMarcacao(form.consideracoes)} disabled={disabled}
             onAplicar={texto => onChange({ consideracoes: marcacaoDeTextoPuro(texto) })} />
         </Field>
         <div className="databook-revisao__grade">
-          <Field label="Ocorrências de SMS" required errorText={erros.ocorrenciasSms}>
+          <Field label="Ocorrências de SMS" data-databook-field="ocorrenciasSms" required errorText={erros.ocorrenciasSms}>
             <Input inputMode="numeric" value={form.ocorrenciasSms} disabled={disabled} onChange={e => onChange({ ocorrenciasSms: e.target.value })} />
           </Field>
-          <Field label="Descrição da revisão" required errorText={erros.descricao}>
+          <Field label="Descrição da revisão" data-databook-field="descricao" required errorText={erros.descricao}>
             <Input value={form.descricao} disabled={disabled} maxLength={200} onChange={e => onChange({ descricao: e.target.value })} />
           </Field>
         </div>
@@ -119,16 +122,20 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
       <section className="databook-revisao__secao" aria-labelledby="databook-resp-titulo">
         <h3 id="databook-resp-titulo">Responsáveis</h3>
         <div className="databook-revisao__grade">
-          <Field label="Elaborado por (Filtrovali)" optionalText="">
-            <Select value={form.elaborado} disabled={disabled} placeholder="Selecionar…" options={opcoesResponsaveis} onChange={e => onChange({ elaborado: e.target.value })} />
+          <Field label="Elaborado por (Filtrovali)" data-databook-field="elaborado" optionalText="">
+            <Select value={form.elaborado} disabled={disabled} placeholder="Selecionar…" options={[
+              ...(form.elaboradoSalvo?.nome ? [{ value: '__salvo', label: `${form.elaboradoSalvo.nome} · revisão original` }] : []), ...opcoesResponsaveis
+            ]} onChange={e => onChange({ elaborado: e.target.value })} />
           </Field>
-          <Field label="Verificado por (Filtrovali)" optionalText="">
-            <Select value={form.verificado} disabled={disabled} placeholder="Selecionar…" options={opcoesResponsaveis} onChange={e => onChange({ verificado: e.target.value })} />
+          <Field label="Verificado por (Filtrovali)" data-databook-field="verificado" optionalText="">
+            <Select value={form.verificado} disabled={disabled} placeholder="Selecionar…" options={[
+              ...(form.verificadoSalvo?.nome ? [{ value: '__salvo', label: `${form.verificadoSalvo.nome} · revisão original` }] : []), ...opcoesResponsaveis
+            ]} onChange={e => onChange({ verificado: e.target.value })} />
           </Field>
-          <Field label="Aprovado por (cliente) – nome">
+          <Field label="Aprovado por (cliente) – nome" data-databook-field="aprovadoNome">
             <Input value={form.aprovadoNome} disabled={disabled} maxLength={160} onChange={e => onChange({ aprovadoNome: e.target.value })} />
           </Field>
-          <Field label="Cargo (cliente)">
+          <Field label="Cargo (cliente)" data-databook-field="aprovadoCargo">
             <Input value={form.aprovadoCargo} disabled={disabled} maxLength={120} onChange={e => onChange({ aprovadoCargo: e.target.value })} />
           </Field>
         </div>
@@ -139,13 +146,13 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
           <h3 id="databook-limites-titulo">Limites aceitos nas contagens (RCPU)</h3>
           <p className="databook-revisao__ajuda">Opcional. Com limite, o Data Book mostra Conforme/Acima do limite e avisa medições fora dele.</p>
           <div className="databook-revisao__grade databook-revisao__grade--tres">
-            <Field label="Classe ISO 4406" helperText="Ex.: 16/14/11" errorText={erros.limiteIso}>
+            <Field label="Classe ISO 4406" data-databook-field="limiteIso" helperText="Ex.: 16/14/11" errorText={erros.limiteIso}>
               <Input value={form.limiteIso} disabled={disabled} onChange={e => onChange({ limiteIso: e.target.value })} />
             </Field>
-            <Field label="Classe NAS 1638" errorText={erros.limiteNas}>
+            <Field label="Classe NAS 1638" data-databook-field="limiteNas" errorText={erros.limiteNas}>
               <Input inputMode="decimal" value={form.limiteNas} disabled={disabled} onChange={e => onChange({ limiteNas: e.target.value })} />
             </Field>
-            <Field label="Umidade máxima (ppm)" errorText={erros.limiteUmidade}>
+            <Field label="Umidade máxima (ppm)" data-databook-field="limiteUmidade" errorText={erros.limiteUmidade}>
               <Input inputMode="decimal" value={form.limiteUmidade} disabled={disabled} onChange={e => onChange({ limiteUmidade: e.target.value })} />
             </Field>
           </div>
@@ -193,7 +200,7 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
                     <input type="checkbox" checked={form.fds.includes(f.arquivo)} disabled={disabled}
                       onChange={e => onChange({ fds: alternar(form.fds, f.arquivo, e.target.checked) })} />
                     <span><strong>{f.nome}</strong> · {f.produtos.join(' / ')}{etapa ? ` · ${etapa}` : ''}</span>
-                    {f.confirmadoRomaneio ? <Badge tone="success">No romaneio</Badge> : <Badge tone="warning">Fora do romaneio</Badge>}
+                    {preparada.origem ? <Badge tone="info">Da revisão original</Badge> : f.confirmadoRomaneio ? <Badge tone="success">No romaneio</Badge> : <Badge tone="warning">Fora do romaneio</Badge>}
                   </label>
                 </li>
               );
@@ -222,6 +229,64 @@ export function DatabookRevisaoForm({ preparada, form, erros, disabled, onChange
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {edicaoDocumento ? (
+        <section className="databook-revisao__secao" aria-labelledby="databook-complementos-titulo">
+          <h3 id="databook-complementos-titulo">Textos complementares</h3>
+          {([
+            ['base_calculo', 'Base de cálculo'], ['intro_procedimento', 'Introdução ao procedimento'],
+            ['intro_rcpu', 'Introdução às contagens (RCPU)'], ['intro_rtp', 'Introdução aos testes de pressão (RTP)'],
+            ['nota_controle', 'Nota de controle']
+          ] as const).map(([campo, label]) => (
+            <Field key={campo} label={label} data-databook-field={`textosAdicionais.${campo}`}>
+              <TextoFormatadoEditor ariaLabel={label} value={form.textosAdicionais?.[campo] || ''} disabled={disabled}
+                onChange={valor => onChange({ textosAdicionais: { ...form.textosAdicionais, [campo]: valor } })} />
+            </Field>
+          ))}
+        </section>
+      ) : null}
+      {edicaoDocumento && form.dias?.length ? (
+        <section className="databook-revisao__secao" aria-labelledby="databook-dias-titulo">
+          <h3 id="databook-dias-titulo">Registros diários e legendas</h3>
+          {form.dias.map((dia, i) => {
+            const alterarDia = (patch: Partial<typeof dia>) => onChange({ dias: form.dias?.map((d, j) => j === i ? { ...d, ...patch } : d) });
+            return (
+              <details key={dia.data} className="databook-revisao__dia">
+                <summary>{dia.data} · {dia.resumo || 'Registro diário'}</summary>
+                <Field label={`Resumo de ${dia.data}`} data-databook-field={`dias.${i}.resumo`}>
+                  <Input value={dia.resumo || ''} disabled={disabled} maxLength={4000} onChange={e => alterarDia({ resumo: e.target.value })} />
+                </Field>
+                <Field label={`Comentário de ${dia.data}`} data-databook-field={`dias.${i}.comentario`}>
+                  <TextoFormatadoEditor ariaLabel={`Comentário de ${dia.data}`} value={dia.comentario || ''} disabled={disabled} onChange={comentario => alterarDia({ comentario })} />
+                </Field>
+                {dia.atividades?.map((a, j) => (
+                  <Field key={j} label={`Atividade ${j + 1} de ${dia.data}`} data-databook-field={`dias.${i}.atividades.${j}.texto`}>
+                    <TextoFormatadoEditor ariaLabel={`Atividade ${j + 1} de ${dia.data}`} value={a.texto} disabled={disabled}
+                      onChange={texto => alterarDia({ atividades: dia.atividades?.map((at, k) => k === j ? { texto } : at) })} />
+                  </Field>
+                ))}
+                {dia.servicos?.map((s, j) => (
+                  <div key={j} className="databook-revisao__secao">
+                    {(['titulo', 'obs', 'laudo_observacao'] as const).map(campo => {
+                      const label = `${{ titulo: 'Título', obs: 'Observações', laudo_observacao: 'Observação do laudo' }[campo]} do serviço ${j + 1} de ${dia.data}`;
+                      return <Field key={campo} label={label} data-databook-field={`dias.${i}.servicos.${j}.${campo}`}>
+                        <TextoFormatadoEditor ariaLabel={label} value={s[campo] || ''} disabled={disabled}
+                          onChange={valor => alterarDia({ servicos: dia.servicos?.map((item, k) => k === j ? { ...item, [campo]: valor } : item) })} />
+                      </Field>;
+                    })}
+                  </div>
+                ))}
+                {dia.fotos?.map((f, j) => (
+                  <Field key={j} label={`Legenda da foto ${j + 1} de ${dia.data}`} data-databook-field={`dias.${i}.fotos.${j}.legenda`}>
+                    <Input value={f.legenda || ''} disabled={disabled} maxLength={4000}
+                      onChange={e => alterarDia({ fotos: dia.fotos?.map((foto, k) => k === j ? { legenda: e.target.value } : foto) })} />
+                  </Field>
+                ))}
+              </details>
+            );
+          })}
         </section>
       ) : null}
     </div>

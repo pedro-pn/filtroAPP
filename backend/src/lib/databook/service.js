@@ -9,6 +9,7 @@ import { dayKey, intervaloPadrao, montarDadosDatabook } from './montar-dados.js'
 import { aplicarCorrecoes, verificarOrtografia } from './ortografia.js';
 import { avisosDoGerador } from './python.js';
 import { revisarTextoLivre } from './textos.js';
+import { guardarPrevia, lerPrevia } from './previas.js';
 
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -112,18 +113,33 @@ function pessoa(escolha, responsaveis, data) {
 }
 
 /**
- * Aplica as edições da tela de revisão. Só os campos editoriais mudam; dados dos relatórios
- * (tags, horários, medições) não são editáveis aqui.
+ * Aplica textos e ajustes de apresentação sobre uma cópia. Os campos do PDF podem
+ * ser substituídos livremente; os relatórios e referências de arquivos são preservados.
  */
 export function aplicarEdicoes(dados, edicoes = {}, responsaveis = []) {
   // Correções ortográficas escolhidas na revisão: palavra inteira, só nos textos livres dos relatórios.
-  const out = structuredClone(aplicarCorrecoes(dados, edicoes?.correcoes));
+  const out = structuredClone(dados);
   const e = edicoes || {};
+  if (e.campos_documento !== undefined) {
+    const campos = e.campos_documento;
+    if (!campos || typeof campos !== 'object' || Array.isArray(campos) || Object.keys(campos).length > 20000) {
+      throw erro(400, 'Campos do documento inválidos.');
+    }
+    let tamanho = 0;
+    for (const [id, valor] of Object.entries(campos)) {
+      if (!/^documento\.[a-zA-Z0-9_.-]{1,190}$/.test(id) || typeof valor !== 'string' || valor.length > 12000) {
+        throw erro(400, 'Campo do documento inválido.');
+      }
+      tamanho += Buffer.byteLength(valor, 'utf8');
+    }
+    if (tamanho > 2 * 1024 * 1024) throw erro(400, 'Os ajustes do documento excedem o tamanho permitido.');
+    out.campos_documento = structuredClone(campos);
+  }
   if (texto(e.servico, 200)?.trim()) out.projeto.servico = e.servico.trim();
   if (texto(e.unidade_escopo, 40)?.trim()) out.unidade_escopo = e.unidade_escopo.trim();
   if (Number.isInteger(e.ocorrencias_sms) && e.ocorrencias_sms >= 0) out.ocorrencias_sms = e.ocorrencias_sms;
   const t = e.textos || {};
-  for (const campo of ['escopo', 'resumo_executivo', 'consideracoes_finais', 'kpi_rotulo_concluidos']) {
+  for (const campo of ['escopo', 'resumo_executivo', 'consideracoes_finais', 'kpi_rotulo_concluidos', 'base_calculo', 'intro_procedimento', 'intro_rcpu', 'intro_rtp', 'nota_controle']) {
     if (texto(t[campo]) !== undefined) out.textos[campo] = revisarTextoLivre(t[campo]);
   }
   if (Array.isArray(t.destaques_sms)) out.textos.destaques_sms = t.destaques_sms.map(x => revisarTextoLivre(texto(x, 600) || '')).filter(Boolean).slice(0, 30);
@@ -143,14 +159,33 @@ export function aplicarEdicoes(dados, edicoes = {}, responsaveis = []) {
   }
   if (Array.isArray(e.fds)) out.fds = out.fds.filter(f => e.fds.includes(f.arquivo));
   if (Array.isArray(e.certificados)) out.certificados = out.certificados.filter(c => e.certificados.includes(c.arquivo));
-  const a = e.aprovacoes || {};
-  const data = out.projeto.emissao;
-  out.aprovacoes = Object.fromEntries(Object.entries({
-    elaborado: pessoa(a.elaborado, responsaveis, data),
-    verificado: pessoa(a.verificado, responsaveis, data),
-    aprovado: pessoa(a.aprovado, responsaveis)
-  }).filter(([, v]) => v));
-  return out;
+  if (e.aprovacoes) {
+    const a = e.aprovacoes;
+    const data = out.projeto.emissao;
+    out.aprovacoes = Object.fromEntries(Object.entries({
+      elaborado: pessoa(a.elaborado, responsaveis, data),
+      verificado: pessoa(a.verificado, responsaveis, data),
+      aprovado: pessoa(a.aprovado, responsaveis)
+    }).filter(([, v]) => v));
+  }
+  if (Array.isArray(e.dias)) {
+    for (const [i, edicao] of e.dias.entries()) {
+      const dia = out.dias?.[i];
+      if (!dia || edicao?.data !== dia.data) throw erro(400, 'Os dias editados não correspondem ao documento.');
+      const copiarTextos = (alvo, fonte, campos) => {
+        for (const campo of campos) {
+          if (texto(fonte?.[campo]) !== undefined) alvo[campo] = revisarTextoLivre(texto(fonte[campo]));
+        }
+      };
+      copiarTextos(dia, edicao, ['resumo', 'comentario']);
+      for (const [lista, campos] of [['atividades', ['texto']], ['servicos', ['titulo', 'obs', 'laudo_observacao']], ['fotos', ['legenda']]]) {
+        if (!Array.isArray(edicao[lista])) continue;
+        if (edicao[lista].length !== (dia[lista] || []).length) throw erro(400, 'A estrutura dos registros do documento não pode ser alterada.');
+        edicao[lista].forEach((item, j) => copiarTextos(dia[lista][j], item, campos));
+      }
+    }
+  }
+  return aplicarCorrecoes(out, e.correcoes);
 }
 
 function revisaoParaTabela(r) {
@@ -176,7 +211,8 @@ export function vinculosFdsDasEdicoes(edicoes) {
 }
 
 /** Cria a revisão (PENDING) com a entrada final do gerador; o worker gera o PDF. */
-export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descricao } = {}, user, { client = prisma } = {}) {
+export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descricao, previaId } = {}, user, { client = prisma, opcoesPrevia } = {}) {
+  if (previaId) return salvarPrevia(projetoId, previaId, user, { client, opcoesPrevia });
   const projeto = await projetoDoDatabook(projetoId, client);
   const intervalo = validarIntervalo({ inicio, fim }, await intervaloPadrao(projetoId, client));
   const vinculosFds = vinculosFdsDasEdicoes(edicoes);
@@ -211,6 +247,95 @@ export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descri
     }
   }
   throw erro(409, 'Outra geração deste Data Book está em andamento. Tente novamente.');
+}
+
+async function revisaoEditavel(id, client) {
+  const revisao = await client.projectDatabookRevision.findUnique({ where: { id }, include: { databook: true } });
+  if (!revisao) throw erro(404, 'Revisão do Data Book não encontrada.');
+  await projetoDoDatabook(revisao.databook.projectId, client);
+  if (revisao.status !== 'COMPLETED') throw erro(409, 'Aguarde a conclusão da revisão para editá-la.');
+  return revisao;
+}
+
+/** Abre exatamente o conteúdo salvo, mesmo que relatórios/cadastros tenham mudado depois. */
+export async function prepararEdicao(revisaoId, { client = prisma } = {}) {
+  const r = await revisaoEditavel(revisaoId, client);
+  const projeto = await projetoDoDatabook(r.databook.projectId, client);
+  const inicio = dayKey(r.databook.startDate);
+  const fim = dayKey(r.databook.endDate);
+  const documento = await proximoDocumento(client, projeto, inicio, fim);
+  const dados = structuredClone(r.input);
+  const dias = dados.dias || [];
+  const contar = tipo => dias.flatMap(d => d.servicos || []).filter(s => s.tipo === tipo && (s.relatorio != null || s.rlq != null)).length;
+  return {
+    dados, origem: { id: r.id, revisao: r.revision },
+    documento: { doc: documento.doc, rev: documento.rev },
+    resumo: { inicio, fim, dias: dias.length, rdos: dias.reduce((n, d) => n + (d.rdo != null ? 1 : 0) + (d.rdos_extras?.length || 0), 0),
+      rlq: contar('RLQ'), rcpu: contar('RCPU'), rtp: contar('RTP'), rlm: contar('RLM'), fds: dados.fds?.length || 0, certificados: dados.certificados?.length || 0 },
+    avisos: Array.isArray(r.warnings) ? r.warnings : [],
+    sugestoes: { fds: [], certificados: dados.certificados || [] },
+    responsaveis: await responsaveisDisponiveis(client)
+  };
+}
+
+/** Monta a entrada final uma só vez: a prévia e a revisão usam o mesmo snapshot. */
+export async function criarPrevia(projetoId, { inicio, fim, edicoes, descricao, origemRevisaoId } = {}, user, { client = prisma, ...opcoesPrevia } = {}) {
+  const projeto = await projetoDoDatabook(projetoId, client);
+  let base;
+  if (origemRevisaoId) {
+    const origem = await revisaoEditavel(origemRevisaoId, client);
+    if (origem.databook.projectId !== projetoId) throw erro(400, 'A revisão não pertence a este projeto.');
+    inicio = dayKey(origem.databook.startDate);
+    fim = dayKey(origem.databook.endDate);
+    base = { dados: origem.input, avisos: Array.isArray(origem.warnings) ? origem.warnings : [] };
+  } else {
+    validarIntervalo({ inicio, fim }, await intervaloPadrao(projetoId, client));
+  }
+  const documento = await proximoDocumento(client, projeto, inicio, fim);
+  const vinculosFds = origemRevisaoId ? {} : vinculosFdsDasEdicoes(edicoes);
+  base ||= await montarDadosDatabook(projetoId, inicio, fim, { client, documento, vinculosFds });
+  const dados = aplicarEdicoes(base.dados, edicoes, await responsaveisDisponiveis(client));
+  dados.projeto.doc = documento.doc;
+  dados.projeto.rev = String(documento.rev);
+  dados.projeto.emissao = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  for (const campo of ['elaborado', 'verificado']) {
+    if (dados.aprovacoes?.[campo]) dados.aprovacoes[campo].data = dados.projeto.emissao;
+  }
+  const desc = texto(descricao, 200)?.trim() || (documento.rev === 0 ? 'Emissão inicial' : `Revisão ${documento.rev}`);
+  dados.revisoes = [
+    ...(documento.databook?.revisions || []).filter(r => r.status === 'COMPLETED').map(revisaoParaTabela),
+    revisaoParaTabela({ revision: documento.rev, description: desc, input: dados })
+  ];
+  return guardarPrevia({
+    projetoId, inicio, fim, dados, descricao: desc, avisos: base.avisos, vinculosFds,
+    documento: { doc: documento.doc, rev: documento.rev }
+  }, user, { client, ...opcoesPrevia });
+}
+
+async function salvarPrevia(projetoId, previaId, user, { client, opcoesPrevia }) {
+  const entrada = await lerPrevia(previaId, user, opcoesPrevia);
+  if (entrada.projetoId !== projetoId) throw erro(400, 'A prévia não pertence a este projeto.');
+  const projeto = await projetoDoDatabook(projetoId, client);
+  const documento = await proximoDocumento(client, projeto, entrada.inicio, entrada.fim);
+  const conflito = () => erro(409, 'Uma nova revisão foi gerada durante a edição. Atualize a prévia para salvar com o próximo número.');
+  if (documento.doc !== entrada.documento.doc || documento.rev !== entrada.documento.rev) throw conflito();
+  try {
+    return await client.$transaction(async tx => {
+      await salvarVinculosFds(tx, entrada.vinculosFds);
+      const databook = documento.databook || await tx.projectDatabook.create({ data: {
+        projectId: projetoId, sequence: documento.sequence, docNumber: documento.doc,
+        startDate: new Date(`${entrada.inicio}T00:00:00Z`), endDate: new Date(`${entrada.fim}T00:00:00Z`),
+        createdByUserId: user.id
+      } });
+      return tx.projectDatabookRevision.create({ data: {
+        databookId: databook.id, revision: documento.rev, description: entrada.descricao,
+        input: entrada.dados, warnings: entrada.avisos, createdByUserId: user.id
+      }, include: { databook: true } });
+    });
+  } catch (error) {
+    if (isUnico(error)) throw conflito();
+    throw error;
+  }
 }
 
 export function serializarRevisao(r) {

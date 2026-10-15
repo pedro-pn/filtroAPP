@@ -23,6 +23,11 @@ export default defineConfig(() => {
     base: '/',
     // Concurrent dev servers and SSR tests must not overwrite each other's dependencies.
     cacheDir: process.env.VITE_CACHE_DIR || `node_modules/.vite-app-${process.pid}`,
+    // O visualizador é carregado sob demanda. Prepare o motor de PDF no início,
+    // evitando reotimização e URLs de dependências vencidas ao abrir o Data Book.
+    optimizeDeps: {
+      include: ['pdfjs-dist']
+    },
     plugins: [
       react(),
       tailwindcss(),

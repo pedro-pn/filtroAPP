@@ -120,3 +120,24 @@ For the Data Book text editor, open `/test/browser/databook-texto.html`: the fie
 raw `<b>` tags; type, press Enter (plain line break), select text and press Ctrl+B or the B button, paste rich text
 (only plain text is inserted) and click "Simular aplicar" — the `<pre>` shows the markup sent to the PDF generator.
 `?tela=revisao` mounts the full Data Book review form with the "Adequar para relatório" buttons (manager role).
+
+For the editable Data Book preview, open `/test/browser/databook-previa.html` and run the following
+scripts from the repository root in the same Playwright CLI session. All API writes are simulated.
+
+- `playwright-cli run-code --filename frontend/test/browser/databook-previa.js`: initial preparation,
+  editing directly on the cover, returning to settings without losing edits, saving an immutable new
+  revision, cancelling, retrying an initial failure and a 42-page document (`?longo=1`) at 320 px.
+- `playwright-cli run-code --filename frontend/test/browser/databook-campos.js`: inline editing of
+  execution days, progress tables, chart values, independent identical measurements, empty cells,
+  Escape to cancel, automatic PDF updates, mobile focus and saving without leaving the last field.
+- `playwright-cli run-code --filename frontend/test/browser/databook-interativo.js`: continuous scroll,
+  zoom and scroll retention, delayed preview responses while typing another field (`?lento=1`), saving
+  the most recent text, preserving the draft after automatic update failures (`?falha-auto=1`), retry
+  and multiline editing with Shift+Enter.
+- `playwright-cli run-code --filename frontend/test/browser/databook-abertura.js`: the menu opens
+  without loading PDF.js; a renderer import failure keeps navigation, settings and the direct PDF link.
+
+The default fixture uses a synthetic three-page PDF with real editing annotations and appearance
+metadata. Python tests separately cover the real generator, blank-cell annotation geometry, unchanged
+preview/final page text, edits that cause repagination, and final PDFs without editing links. Frontend
+unit tests cover serial preview generation, reuse when saving and recovery after failures/cache reset.

@@ -1,8 +1,10 @@
 import type {
   DatabookEdicoes,
+  DatabookDiaEditavel,
   DatabookFdsCandidata,
   DatabookItemEstoqueFds,
   DatabookIntervalo,
+  DatabookPessoa,
   DatabookResumo,
   DatabookRevisaoPreparada,
   DatabookStatus
@@ -38,6 +40,7 @@ export function dataBr(iso: string | null | undefined) {
 }
 
 export interface DatabookFormulario {
+  camposDocumento?: Record<string, string>;
   servico: string;
   escopo: string;
   resumoExecutivo: string;
@@ -58,6 +61,10 @@ export interface DatabookFormulario {
   descricao: string;
   /** Correção escolhida por palavra suspeita ('' = manter como está). */
   correcoes: Record<string, string>;
+  elaboradoSalvo?: DatabookPessoa;
+  verificadoSalvo?: DatabookPessoa;
+  dias?: DatabookDiaEditavel[];
+  textosAdicionais?: Pick<NonNullable<DatabookEdicoes['textos']>, 'base_calculo' | 'intro_procedimento' | 'intro_rcpu' | 'intro_rtp' | 'nota_controle'>;
 }
 
 export const formularioVazio: DatabookFormulario = {
@@ -70,17 +77,21 @@ export function formularioInicialDatabook(preparada: DatabookRevisaoPreparada, u
   const { dados } = preparada;
   const t = dados.textos || {};
   const elaborado = preparada.responsaveis.some(r => r.id === usuarioId) ? usuarioId || '' : '';
+  const aprovacoes = dados.aprovacoes || {};
   return {
+    camposDocumento: { ...dados.campos_documento },
     servico: dados.projeto.servico || '',
     escopo: t.escopo || '',
     resumoExecutivo: t.resumo_executivo || '',
     destaques: (t.destaques_sms || []).join('\n'),
     consideracoes: t.consideracoes_finais || '',
     ocorrenciasSms: String(dados.ocorrencias_sms ?? 0),
-    elaborado,
-    verificado: '',
-    aprovadoNome: '',
-    aprovadoCargo: '',
+    elaborado: aprovacoes.elaborado?.nome ? '__salvo' : preparada.origem ? '' : elaborado,
+    verificado: aprovacoes.verificado?.nome ? '__salvo' : '',
+    elaboradoSalvo: aprovacoes.elaborado,
+    verificadoSalvo: aprovacoes.verificado,
+    aprovadoNome: aprovacoes.aprovado?.nome || '',
+    aprovadoCargo: aprovacoes.aprovado?.cargo || '',
     limiteIso: dados.limites_rcpu?.iso || '',
     limiteNas: dados.limites_rcpu?.nas != null ? String(dados.limites_rcpu.nas) : '',
     limiteUmidade: dados.limites_rcpu?.umidade_ppm != null ? String(dados.limites_rcpu.umidade_ppm) : '',
@@ -88,7 +99,17 @@ export function formularioInicialDatabook(preparada: DatabookRevisaoPreparada, u
     vinculosFds: {},
     certificados: dados.certificados.map(c => c.arquivo),
     descricao: preparada.documento.rev === 0 ? 'Emissão inicial' : `Revisão ${preparada.documento.rev}`,
-    correcoes: {}
+    correcoes: {},
+    // Apenas campos editoriais são devolvidos ao servidor (sem caminhos de arquivos).
+    dias: dados.dias?.map(d => ({
+      data: d.data, resumo: d.resumo || '', comentario: d.comentario || '',
+      atividades: d.atividades?.map(a => ({ texto: a.texto })),
+      servicos: d.servicos?.map(s => ({ titulo: s.titulo, obs: s.obs || '', laudo_observacao: s.laudo_observacao || '' })),
+      fotos: d.fotos?.map(f => ({ legenda: f.legenda || '' }))
+    })),
+    textosAdicionais: Object.fromEntries(
+      (['base_calculo', 'intro_procedimento', 'intro_rcpu', 'intro_rtp', 'nota_controle'] as const).filter(c => t[c] !== undefined).map(c => [c, t[c]])
+    )
   };
 }
 
@@ -109,9 +130,11 @@ export function validarFormularioDatabook(form: DatabookFormulario): ErrosFormul
 
 export function edicoesDoFormulario(form: DatabookFormulario): DatabookEdicoes {
   return {
+    campos_documento: form.camposDocumento,
     servico: form.servico.trim(),
     ocorrencias_sms: Number(form.ocorrenciasSms.trim() || 0),
     textos: {
+      ...form.textosAdicionais,
       escopo: form.escopo,
       resumo_executivo: form.resumoExecutivo,
       destaques_sms: form.destaques.split('\n').map(l => l.trim()).filter(Boolean),
@@ -122,9 +145,10 @@ export function edicoesDoFormulario(form: DatabookFormulario): DatabookEdicoes {
     vinculos_fds: form.vinculosFds,
     certificados: form.certificados,
     correcoes: Object.entries(form.correcoes).filter(([, por]) => por.trim()).map(([palavra, por]) => ({ palavra, por: por.trim() })),
+    dias: form.dias,
     aprovacoes: {
-      ...(form.elaborado ? { elaborado: { userId: form.elaborado } } : {}),
-      ...(form.verificado ? { verificado: { userId: form.verificado } } : {}),
+      ...(form.elaborado ? { elaborado: form.elaborado === '__salvo' ? form.elaboradoSalvo : { userId: form.elaborado } } : {}),
+      ...(form.verificado ? { verificado: form.verificado === '__salvo' ? form.verificadoSalvo : { userId: form.verificado } } : {}),
       ...(form.aprovadoNome.trim() ? { aprovado: { nome: form.aprovadoNome.trim(), cargo: form.aprovadoCargo.trim() } } : {})
     }
   };

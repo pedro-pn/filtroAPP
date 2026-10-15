@@ -8,6 +8,7 @@ procedimento, diário por dia com fotos, SMS e FDS anexadas) a partir de um JSON
 | Caminho | O que é |
 |---|---|
 | `databook/generator.py` | Gerador (ReportLab + pypdf + Pillow). Função pública `gerar_databook(dados, saida, base_dir=None)` |
+| `databook/editing.py` | Catálogo e substituição de campos de apresentação; vínculos clicáveis apenas na prévia |
 | `databook/schema.json` | JSON Schema da entrada – contrato entre o app e o gerador |
 | `databook/__main__.py` | CLI: `python -m databook entrada.json saida.pdf` |
 | `assets/logos/` | `logo_horizontal.png` (cabeçalho), `logo_horizontal_branco.png` (capa), `emblema_branco.png` (marca d'água) |
@@ -81,6 +82,7 @@ Trocar logos = substituir os PNGs em `assets/logos/` mantendo os nomes.
 |---|---|
 | Mapper `montarDadosDatabook(projetoId, inicio, fim)` | `backend/src/lib/databook/montar-dados.js` (+ `servicos.js`, `progresso.js`, `textos.js`, `anexos.js`) |
 | Serviço (intervalo, revisão, edições, nº `DB-<projeto>-<seq>` e revisões) | `backend/src/lib/databook/service.js` |
+| Prévia temporária do PDF e da entrada final do gerador | `backend/src/lib/databook/previas.js` |
 | Job (fila no worker → `python -m databook … --json`) | `backend/src/lib/databook/jobs.js`, `python.js` |
 | Rotas `/api/rdo/databook/*` (gestor e coordenador do RDO) | `backend/src/routes/resources/databook.js` |
 | Tabelas `ProjectDatabook` / `ProjectDatabookRevision`; FDS no `StockItem` | migração `20261010120000_project_databooks` |
@@ -88,10 +90,36 @@ Trocar logos = substituir os PNGs em `assets/logos/` mantendo os nomes.
 | Cadastro de FDS (sinônimos do RLQ, código, revisão, data) | Estoque → produto químico; o PDF é o documento anexado ao item |
 
 Fluxo: diálogo (padrão = 1º e último RDO aprovado) → tela de revisão (rascunho dos textos, responsáveis,
-limites de RCPU, FDS e certificados sugeridos, avisos da pré-validação `--avisos`) → `POST gerar` cria a revisão
+limites de RCPU, FDS e certificados sugeridos, avisos da pré-validação `--avisos`) → **Visualizar prévia** abre o PDF
+com os campos de edição ao lado → `POST gerar` com `previaId` cria a revisão
 `PENDING` → o worker materializa fotos (HEIC → JPEG), FDS e certificados num diretório temporário, roda o gerador e
 grava `<uploadDir>/Missão <código> - <nome>/DATABOOK/DB-…_Rev<n>.pdf`. Gerar de novo o mesmo intervalo cria a revisão
 seguinte, com a linha no "Registro de revisões".
+
+O botão **Editar** de cada revisão concluída abre a mesma prévia usando a entrada salva daquela revisão,
+sem remontar os dados a partir dos relatórios atuais. É possível alterar todos os campos gerados do documento:
+indicadores (incluindo dias de execução), avanço, células das tabelas, medições, jornada, efetivo, DDS,
+metadados, textos, títulos e legendas. **Salvar como nova revisão**
+sempre insere a próxima revisão; o PDF e a entrada de qualquer revisão anterior permanecem intactos.
+As alterações aparecem no próprio campo e a prévia é atualizada automaticamente ao sair dele ou
+pressionar Enter. Salvar aguarda a prévia correspondente ao último texto digitado. Se outra geração
+ocupar o mesmo número, a API responde 409; o diálogo refaz a prévia, preservando o rascunho.
+
+A prévia usa rolagem contínua, com renderização das páginas próximas à leitura. Clique em um texto
+destacado para editar diretamente sobre ele, sem formulário lateral ou botão de atualização. Células
+vazias também têm áreas clicáveis. Enter aplica, Shift+Enter insere uma quebra de linha em campos de
+texto e Esc cancela a edição atual. O zoom, a rolagem e o foco são preservados durante a atualização.
+Os ajustes ficam em `campos_documento` na entrada da nova revisão e são
+aplicados tanto na prévia quanto na geração final. São ajustes locais de apresentação, sem recalcular
+ou modificar os relatórios de origem nem outras ocorrências do mesmo texto. Alterar o percentual de uma
+barra do gráfico também ajusta sua altura. Os PDFs anexados de FDS/certificados preservam seu conteúdo.
+**Voltar** abre as configurações de preparação. Os vínculos são incluídos somente no PDF temporário da prévia
+(`previa_editavel`); o PDF final e a entrada salva da revisão não contêm essas marcações.
+
+`POST /projects/:projectId/previa` gera o PDF sem criar revisões; `GET /previas/:id/pdf` entrega a prévia
+somente ao autor. `GET /revisoes/:id/edicao` carrega o conteúdo salvo para edição.
+As prévias ficam em `<uploadDir>/.databook-previas/`, expiram após 24 horas e são removidas na próxima
+criação de prévia. A API precisa do mesmo Python do worker. Não há nova migração de banco.
 
 ### Rodar localmente
 
@@ -107,11 +135,16 @@ cd .. && npm test
 
 Na imagem Docker o venv fica em `/opt/databook-venv` e `DATABOOK_PYTHON` já vem configurado (`backend/Dockerfile`).
 O job roda no container `worker` (e na API quando `BACKGROUND_JOBS_IN_API=true`).
+O `docker-compose.local.yml` monta também o pacote Python do Data Book, para usar o mesmo gerador
+do código local ao preparar as prévias, sem manter uma cópia antiga dentro da imagem.
 
 ### Gerar o Data Book de um projeto real
 
 1. Estoque → cada produto químico usado nos RLQs: anexe a FDS (PDF) e preencha "Nomes químicos no RLQ"
    (ex.: Barrilha → `Carbonato de sódio`), código, revisão e data da FDS.
 2. RDO → gestor (Projetos ou Arquivados) ou coordenador (Aprovados ou Arquivados) → botão **Data Book**.
-3. Ajuste o intervalo, **Continuar**, revise textos/responsáveis/anexos e os avisos, **Gerar Data Book**.
+3. Ajuste o intervalo, **Continuar**, revise textos/responsáveis/anexos e os avisos, **Visualizar prévia**.
+   Edite os campos diretamente no documento e escolha **Gerar Data Book**; a atualização da prévia é automática.
 4. Acompanhe o status no diálogo e baixe o PDF; o histórico fica no mesmo diálogo.
+5. Para alterar um documento já gerado, clique em **Editar** na revisão desejada, ajuste a prévia
+   e escolha **Salvar como nova revisão**.

@@ -3,6 +3,8 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
+import { campoDaAnotacaoDatabook, rotuloCampoDatabook } from '../src/utils/databookPreview.ts';
+import { criarFilaPreviaDatabook } from '../src/utils/databookPrevia.ts';
 
 import {
   deveMostrarNovidadeDatabook,
@@ -46,9 +48,58 @@ const preparada = {
     ocorrencias: [{ data: '05/10/2026', campo: 'Atividades', trecho: 'Montagem dos equipamnetos' }] }] }
 };
 
+test('clique na prévia identifica o campo de origem, inclusive textos iguais em dias diferentes', () => {
+  assert.equal(campoDaAnotacaoDatabook('https://databook.invalid/editar/escopo'), 'escopo');
+  assert.equal(campoDaAnotacaoDatabook('https://databook.invalid/editar/documento.s2.indicadores.dias_execucao'), 'documento.s2.indicadores.dias_execucao');
+  assert.equal(campoDaAnotacaoDatabook('https://databook.invalid/editar/dias.0.atividades.0.texto'), 'dias.0.atividades.0.texto');
+  assert.equal(campoDaAnotacaoDatabook('https://databook.invalid/editar/dias.1.atividades.0.texto'), 'dias.1.atividades.0.texto');
+  assert.equal(rotuloCampoDatabook('dias.1.atividades.0.texto'), 'Atividade 1 do dia 2');
+  for (const url of ['https://example.com/editar/escopo', 'javascript:alert(1)', 'https://databook.invalid/editar/__proto__',
+    'https://databook.invalid/editar/dias.0.atividades.0.arquivo', 'https://databook.invalid/editar/dias.0.fotos.0.texto',
+    'https://databook.invalid/editar/%ZZ', null]) assert.equal(campoDaAnotacaoDatabook(url), null);
+});
+
 test('resumo do intervalo no formato do diálogo', () => {
   assert.equal(formatarResumoDatabook(preparada.resumo), '23 dias · 23 RDOs · 19 RLQs · 2 RTPs · 6 FDS');
   assert.equal(formatarResumoDatabook({ dias: 1, rdos: 1, rlq: 0, rcpu: 1, rtp: 0, rlm: 0 }), '1 dia · 1 RDO · 1 RCPU');
+});
+
+test('prévia automática: serializa gerações e salvar reutiliza a prévia do texto mais recente', async () => {
+  const chamadas = [];
+  const resolver = [];
+  const fila = criarFilaPreviaDatabook(pedido => {
+    chamadas.push(pedido.formulario.servico);
+    return new Promise(resolve => resolver.push(() => resolve({ info: { id: pedido.formulario.servico }, pdf: new Blob(), formulario: JSON.stringify(pedido.formulario) })));
+  });
+  const pedido = titulo => ({ projetoId: 'p1', dados: preparada, periodo: { inicio: '2026-10-01', fim: '2026-10-01' }, formulario: { ...formularioInicialDatabook(preparada), servico: titulo } });
+  const primeira = fila.obter(pedido('A'));
+  const segunda = fila.obter(pedido('B'));
+  const salvar = fila.obter(pedido('B'));
+  assert.deepEqual(chamadas, ['A']);
+  resolver.shift()();
+  await primeira;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(chamadas, ['A', 'B']);
+  resolver.shift()();
+  assert.equal((await segunda).info.id, 'B');
+  assert.equal((await salvar).info.id, 'B');
+  assert.equal((await fila.obter(pedido('B'))).info.id, 'B');
+  assert.deepEqual(chamadas, ['A', 'B']);
+});
+
+test('prévia automática: falha permite repetir e nova sessão invalida o PDF em cache', async () => {
+  let chamadas = 0;
+  const fila = criarFilaPreviaDatabook(async () => {
+    chamadas += 1;
+    if (chamadas === 1) throw new Error('Falha temporária');
+    return { info: { id: String(chamadas) }, pdf: new Blob(), formulario: '{}' };
+  });
+  const pedido = { projetoId: 'p1', dados: preparada, periodo: { inicio: '2026-10-01', fim: '2026-10-01' }, formulario: formularioInicialDatabook(preparada) };
+  await assert.rejects(fila.obter(pedido), /Falha temporária/);
+  assert.equal((await fila.obter(pedido)).info.id, '2');
+  assert.equal((await fila.obter(pedido)).info.id, '2');
+  fila.limparCache();
+  assert.equal((await fila.obter(pedido)).info.id, '3');
 });
 
 test('intervalo: padrão é primeiro/último RDO e datas inválidas são bloqueadas', () => {
@@ -87,6 +138,36 @@ test('vínculo de FDS escolhido no diálogo: muda o Anexo B e vai nas edições'
   assert.deepEqual(fdsResolvidas(fds, estoqueFds, { 'Nitrito de sódio': 'i3' }).map(f => f.arquivo), ['stockdoc:a']);
   const form = formularioInicialDatabook(preparada, 'u1');
   assert.deepEqual(edicoesDoFormulario({ ...form, vinculosFds: vinculos }).vinculos_fds, vinculos);
+});
+
+test('abrir uma revisão preserva responsáveis antigos, anexos, textos e propõe a próxima revisão', () => {
+  const snapshot = structuredClone(preparada);
+  snapshot.origem = { id: 'rev-0', revisao: 0 };
+  snapshot.documento.rev = 3;
+  snapshot.dados.aprovacoes = {
+    elaborado: { nome: 'Autor antigo', cargo: 'Coordenador' }, verificado: { nome: 'Verificador', cargo: 'Gestor' },
+    aprovado: { nome: 'Fiscal', cargo: 'Cliente' }
+  };
+  snapshot.dados.campos_documento = { 'documento.s2.indicadores.dias_execucao': '19', 'documento.d1.campo.efetivo.valor': '20 colaboradores' };
+  snapshot.dados.dias = [{ data: '16/09/2026', resumo: 'Dia original', atividades: [{ hora: '08:00', texto: 'Atividade original' }],
+    fotos: [{ arquivo: 'upload:foto-original.jpg', legenda: 'Legenda original' }] }];
+  const form = formularioInicialDatabook(snapshot, 'u1');
+  assert.equal(form.descricao, 'Revisão 3');
+  assert.equal(form.elaborado, '__salvo');
+  assert.equal(form.verificado, '__salvo');
+  assert.equal(form.aprovadoNome, 'Fiscal');
+  const edicoes = edicoesDoFormulario(form);
+  assert.deepEqual(edicoes.campos_documento, snapshot.dados.campos_documento);
+  form.camposDocumento['documento.s2.indicadores.dias_execucao'] = '21';
+  assert.equal(snapshot.dados.campos_documento['documento.s2.indicadores.dias_execucao'], '19');
+  assert.deepEqual(edicoes.aprovacoes, snapshot.dados.aprovacoes);
+  assert.deepEqual(edicoes.fds, snapshot.dados.fds.map(f => f.arquivo));
+  assert.equal(edicoes.dias[0].atividades[0].texto, 'Atividade original');
+  assert.equal(edicoes.dias[0].fotos[0].legenda, 'Legenda original');
+  assert.equal(edicoes.dias[0].fotos[0].arquivo, undefined);
+  assert.equal(edicoes.dias[0].atividades[0].hora, undefined);
+  form.dias[0].atividades[0].texto = 'Texto editado';
+  assert.equal(snapshot.dados.dias[0].atividades[0].texto, 'Atividade original');
 });
 
 test('novidade do Data Book: uma vez por usuário e só até 10 dias após a implementação', () => {

@@ -3,12 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   baixarDatabookPdf,
+  baixarPreviaDatabook,
+  criarPreviaDatabook,
   fetchDatabookDialogo,
   fetchDatabookRevisao,
   fetchDatabooks,
   gerarDatabook,
   prepararDatabook,
+  prepararEdicaoDatabook,
   type DatabookIntervalo,
+  type DatabookPrevia,
   type DatabookRevisao,
   type DatabookRevisaoPreparada
 } from '../../api/databook';
@@ -29,6 +33,8 @@ import {
   type ErrosFormularioDatabook
 } from '../../utils/databook';
 import { DatabookRevisaoForm } from './DatabookRevisaoForm';
+import { DatabookPreviaDocumento } from './DatabookPreviaDocumento';
+import { criarFilaPreviaDatabook, type PedidoPreviaDatabook } from '../../utils/databookPrevia';
 import './ProjectDatabookDialog.css';
 
 export interface DatabookProject {
@@ -43,7 +49,7 @@ interface ProjectDatabookDialogProps {
   onClose: () => void;
 }
 
-type Etapa = 'intervalo' | 'revisao' | 'status';
+type Etapa = 'intervalo' | 'revisao' | 'previa' | 'status';
 
 function mensagemErro(error: unknown) {
   return error instanceof Error ? error.message : 'Não foi possível concluir a operação.';
@@ -65,12 +71,27 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
   const showToast = useToast();
   const queryClient = useQueryClient();
   const fecharRef = useRef<HTMLButtonElement>(null);
+  const [campoEmEdicao, setCampoEmEdicao] = useState<string | null>(null);
   const [etapa, setEtapa] = useState<Etapa>('intervalo');
   const [intervalo, setIntervalo] = useState<DatabookIntervalo | null>(null);
   const [preparada, setPreparada] = useState<DatabookRevisaoPreparada | null>(null);
   const [form, setForm] = useState<DatabookFormulario>(formularioVazio);
   const [erros, setErros] = useState<ErrosFormularioDatabook>({});
   const [revisaoId, setRevisaoId] = useState<string | null>(null);
+  const [previa, setPrevia] = useState<(DatabookPrevia & { formulario: string }) | null>(null);
+  const [pdfPrevia, setPdfPrevia] = useState<Blob | null>(null);
+
+  const formularioAtual = useRef(form);
+  const origemAtual = useRef(preparada?.origem?.id);
+  useEffect(() => { formularioAtual.current = form; origemAtual.current = preparada?.origem?.id; }, [form, preparada]);
+  const [filaPrevia] = useState(() => criarFilaPreviaDatabook(async pedido => {
+    const info = await criarPreviaDatabook(pedido.projetoId, {
+      ...pedido.periodo, edicoes: edicoesDoFormulario(pedido.formulario), descricao: pedido.formulario.descricao.trim(),
+      origemRevisaoId: pedido.dados.origem?.id
+    });
+    const pdf = await baixarPreviaDatabook(info.id);
+    return { info, pdf, formulario: JSON.stringify(pedido.formulario) };
+  }));
 
   const padraoQuery = useQuery({
     queryKey: ['databook', 'dialogo', project.id],
@@ -106,20 +127,57 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
     mutationFn: (i: DatabookIntervalo) => prepararDatabook(project.id, i),
     onSuccess: dados => {
       setPreparada(dados);
+      filaPrevia.limparCache();
       setForm(formularioInicialDatabook(dados, userId));
       setErros({});
+      setPrevia(null);
+      setPdfPrevia(null);
       setEtapa('revisao');
     },
     onError: error => showToast(mensagemErro(error), 'error')
   });
+  const visualizar = useMutation({
+    mutationFn: (pedido: PedidoPreviaDatabook) => filaPrevia.obter(pedido),
+    onSuccess: ({ info, pdf, formulario }, pedido) => {
+      // Uma resposta antiga não substitui os textos que estão sendo editados agora.
+      if (formulario !== JSON.stringify(formularioAtual.current) || pedido.dados.origem?.id !== origemAtual.current) return;
+      setPrevia({ ...info, formulario });
+      setPdfPrevia(pdf);
+    }
+  });
+  const editar = useMutation({
+    mutationFn: (id: string) => prepararEdicaoDatabook(id),
+    onSuccess: dados => {
+      const formulario = formularioInicialDatabook(dados, userId);
+      filaPrevia.limparCache();
+      const periodo = { inicio: dados.resumo.inicio, fim: dados.resumo.fim };
+      setPreparada(dados);
+      setForm(formulario);
+      setIntervalo(periodo);
+      setErros({});
+      setPrevia(null);
+      setPdfPrevia(null);
+      setEtapa('previa');
+      visualizar.mutate({ projetoId: project.id, formulario, dados, periodo });
+    },
+    onError: error => showToast(mensagemErro(error), 'error')
+  });
   const gerar = useMutation({
-    mutationFn: () => gerarDatabook(project.id, { ...(intervalo as DatabookIntervalo), edicoes: edicoesDoFormulario(form), descricao: form.descricao.trim() }),
+    mutationFn: async (pedido: PedidoPreviaDatabook) => {
+      // Inclui o último caractere mesmo ao salvar sem sair do campo ou durante uma atualização.
+      const { info } = await filaPrevia.obter(pedido);
+      return gerarDatabook(project.id, { previaId: info.id });
+    },
     onSuccess: revisao => {
       setRevisaoId(revisao.id);
       setEtapa('status');
       void queryClient.invalidateQueries({ queryKey: ['databook', 'lista', project.id] });
     },
-    onError: error => showToast(mensagemErro(error), 'error')
+    onError: error => {
+      filaPrevia.limparCache();
+      setPrevia(null);
+      showToast(mensagemErro(error), 'error');
+    }
   });
   const baixarPdf = useMutation({
     mutationFn: ({ revisao, doc }: { revisao: DatabookRevisao; doc: string }) => baixar(revisao, doc),
@@ -128,16 +186,40 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
   const revisaoBaixandoId = baixarPdf.isPending ? baixarPdf.variables.revisao.id : null;
 
   const resumoTexto = useMemo(() => formatarResumoDatabook(resumoQuery.data?.resumo), [resumoQuery.data]);
-  const documento = preparada?.documento;
+  const documento = previa?.documento || preparada?.documento;
+  const previaAtual = Boolean(previa && previa.formulario === JSON.stringify(form));
+  const ocupada = visualizar.isPending || gerar.isPending;
+  const formularioChave = JSON.stringify(form);
+  const falhaAtual = visualizar.isError && JSON.stringify(visualizar.variables?.formulario) === formularioChave;
+  const atualizarPrevia = visualizar.mutate;
+  useEffect(() => {
+    if (etapa !== 'previa' || !preparada || !intervalo || campoEmEdicao || gerar.isPending || visualizar.isPending || previaAtual || falhaAtual) return;
+    const timer = window.setTimeout(() => atualizarPrevia({ projetoId: project.id, formulario: form, dados: preparada, periodo: intervalo }), 450);
+    return () => window.clearTimeout(timer);
+  }, [etapa, preparada, intervalo, campoEmEdicao, gerar.isPending, visualizar.isPending, previaAtual, falhaAtual, project.id, form, atualizarPrevia]);
 
-  function confirmarGeracao() {
+  function visualizarDocumento() {
     const novos = validarFormularioDatabook(form);
     setErros(novos);
     if (Object.keys(novos).length) {
       showToast('Revise os campos destacados.', 'error');
       return;
     }
-    gerar.mutate();
+    if (preparada && intervalo) {
+      setEtapa('previa');
+      atualizarPrevia({ projetoId: project.id, formulario: form, dados: preparada, periodo: intervalo });
+    }
+  }
+
+  function editarCampoDoDocumento(id: string, valor: string) {
+    const campo = previa?.campos?.find(item => item.id === id);
+    if (!campo) return;
+    setForm(atual => {
+      const camposDocumento = { ...atual.camposDocumento };
+      if (valor === campo.original) delete camposDocumento[id];
+      else camposDocumento[id] = valor;
+      return { ...atual, camposDocumento };
+    });
   }
 
   const titulo = `Data Book · ${project.code} - ${project.name}`;
@@ -177,6 +259,8 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
           carregando={historicoQuery.isLoading}
           revisaoBaixandoId={revisaoBaixandoId}
           onBaixar={(revisao, doc) => baixarPdf.mutate({ revisao, doc })}
+          revisaoEditandoId={editar.isPending ? editar.variables : null}
+          onEditar={id => editar.mutate(id)}
         />
       </div>
     );
@@ -184,7 +268,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
       <>
         <Button ref={fecharRef} variant="secondary" size="sm" type="button" onClick={onClose}>Fechar</Button>
         <Button variant="primary" size="sm" type="button" loading={preparar.isPending}
-          disabled={!intervalo || Boolean(erroIntervalo) || !padrao || preparar.isPending || !resumoQuery.data?.resumo?.dias}
+          disabled={!intervalo || Boolean(erroIntervalo) || !padrao || preparar.isPending || editar.isPending || !resumoQuery.data?.resumo?.dias}
           onClick={() => intervalo && preparar.mutate(intervalo)}>
           Continuar
         </Button>
@@ -196,18 +280,43 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
         <p className="databook-dialog__ajuda">
           <strong>{documento?.doc} · Rev. {documento?.rev}</strong> · {dataBr(intervalo?.inicio)} a {dataBr(intervalo?.fim)} · {formatarResumoDatabook(preparada.resumo)}
         </p>
-        <DatabookRevisaoForm preparada={preparada} form={form} erros={erros} disabled={gerar.isPending}
+        <DatabookRevisaoForm preparada={preparada} form={form} erros={erros} disabled={ocupada}
           onChange={patch => setForm(atual => ({ ...atual, ...patch }))} />
       </>
     );
     rodape = (
       <>
-        <Button variant="secondary" size="sm" type="button" disabled={gerar.isPending} onClick={() => setEtapa('intervalo')}>Voltar</Button>
-        <Button variant="primary" size="sm" type="button" loading={gerar.isPending} disabled={gerar.isPending} onClick={confirmarGeracao}>
-          Gerar Data Book
+        <Button variant="secondary" size="sm" type="button" disabled={ocupada} onClick={() => setEtapa('intervalo')}>Voltar</Button>
+        <Button variant="primary" size="sm" type="button" loading={visualizar.isPending} disabled={ocupada} onClick={visualizarDocumento}>
+          Visualizar prévia
         </Button>
       </>
     );
+  } else if (etapa === 'previa' && preparada) {
+    corpo = <>
+      <p className="databook-dialog__ajuda">
+        <strong>{documento?.doc} · Rev. {documento?.rev}</strong> · {dataBr(intervalo?.inicio)} a {dataBr(intervalo?.fim)}
+      </p>
+      <Alert tone="info" title={preparada.origem ? `Editando a partir da Rev. ${preparada.origem.revisao}` : 'Confira e edite antes de gerar'}>
+        Ao salvar, será criada {documento?.rev === 0 ? 'a revisão inicial' : `uma nova revisão (Rev. ${documento?.rev})`}. As revisões anteriores permanecem no histórico.
+      </Alert>
+      <div className="databook-previa">
+        <DatabookPreviaDocumento pdf={pdfPrevia} carregando={visualizar.isPending} desatualizada={!previaAtual}
+          campos={previa?.campos || []} edicoes={form.camposDocumento || {}} disabled={gerar.isPending}
+          onEditarCampo={editarCampoDoDocumento} onEdicaoAtiva={setCampoEmEdicao}
+          erro={falhaAtual ? mensagemErro(visualizar.error) : undefined} onTentarNovamente={visualizarDocumento} />
+      </div>
+      {previa?.avisos.length ? <details className="databook-dialog__avisos">
+        <summary>{previa.avisos.length} aviso(s) da prévia</summary>
+        <ul>{previa.avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}</ul>
+      </details> : null}
+    </>;
+    rodape = <>
+      <Button variant="secondary" size="sm" type="button" disabled={ocupada}
+        onClick={() => setEtapa('revisao')}>Voltar</Button>
+      <Button variant="primary" size="sm" type="button" loading={gerar.isPending} disabled={gerar.isPending || !pdfPrevia || falhaAtual}
+        onClick={() => intervalo && gerar.mutate({ projetoId: project.id, formulario: form, dados: preparada, periodo: intervalo })}>{preparada.origem ? 'Salvar como nova revisão' : 'Gerar Data Book'}</Button>
+    </>;
   } else {
     const revisao = revisaoQuery.data;
     corpo = (
@@ -248,12 +357,14 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
     <Modal
       open
       onClose={onClose}
-      size="lg"
+      size={etapa === 'previa' ? 'full' : 'lg'}
       appearance="design-system"
       panelClassName="databook-dialog rdo-ds-actions"
       ariaLabelledBy="databook-dialog-title"
       initialFocusRef={fecharRef}
-      closeOnBackdrop={etapa !== 'revisao'}
+      closeOnBackdrop={etapa === 'intervalo' || etapa === 'status'}
+      closeOnEscape={!ocupada && !editar.isPending}
+      showCloseButton={!ocupada && !editar.isPending}
       title={<h2 id="databook-dialog-title" className="databook-dialog__titulo">{titulo}</h2>}
       footer={rodape}
     >
@@ -262,11 +373,13 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
   );
 }
 
-function DatabookHistorico({ documentos, carregando, revisaoBaixandoId, onBaixar }: {
+function DatabookHistorico({ documentos, carregando, revisaoBaixandoId, revisaoEditandoId, onBaixar, onEditar }: {
   documentos?: Awaited<ReturnType<typeof fetchDatabooks>>;
   carregando: boolean;
   revisaoBaixandoId: string | null;
+  revisaoEditandoId: string | null;
   onBaixar: (revisao: DatabookRevisao, doc: string) => void;
+  onEditar: (id: string) => void;
 }) {
   if (carregando) return null;
   if (!documentos?.length) return null;
@@ -279,11 +392,16 @@ function DatabookHistorico({ documentos, carregando, revisaoBaixandoId, onBaixar
             <span><strong>{doc.doc} Rev. {r.revisao}</strong> · {dataBr(doc.inicio)} a {dataBr(doc.fim)} · {r.descricao}</span>
             <Badge tone={r.status === 'COMPLETED' ? 'success' : r.status === 'FAILED' ? 'danger' : 'info'}>{ROTULO_STATUS_DATABOOK[r.status]}</Badge>
             {r.status === 'COMPLETED' ? (
-              <Button variant="secondary" size="sm" type="button"
-                loading={revisaoBaixandoId === r.id} loadingLabel="Preparando download"
-                disabled={revisaoBaixandoId !== null} onClick={() => onBaixar(r, doc.doc)}>
-                {revisaoBaixandoId === r.id ? 'Preparando download…' : 'Baixar'}
-              </Button>
+              <div className="databook-dialog__acoes-revisao">
+                <Button variant="secondary" size="sm" type="button"
+                  loading={revisaoEditandoId === r.id} disabled={revisaoEditandoId !== null}
+                  aria-label={`Editar ${doc.doc} revisão ${r.revisao}`} onClick={() => onEditar(r.id)}>Editar</Button>
+                <Button variant="secondary" size="sm" type="button"
+                  loading={revisaoBaixandoId === r.id} loadingLabel="Preparando download"
+                  disabled={revisaoBaixandoId !== null} onClick={() => onBaixar(r, doc.doc)}>
+                  {revisaoBaixandoId === r.id ? 'Preparando download…' : 'Baixar'}
+                </Button>
+              </div>
             ) : null}
           </li>
         )))}
