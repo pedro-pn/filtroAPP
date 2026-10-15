@@ -1,6 +1,8 @@
 import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { cleaningSystemQuantity, isSystemCleaning } from '../../lib/reports/cleaning-measurement.js';
+import { isPressureHoseUnits, pressureHoseQuantity } from '../../lib/reports/pressure-hose-measurement.js';
 import { buildMonthlyAllocationPdf, buildMonthlyAllocationSummary, processMonthlyAllocationReport, validateYearMonth } from '../../lib/allocation-monthly-report.js';
 import prisma from '../../lib/prisma.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
@@ -183,7 +185,35 @@ export function parseTubulacoes(service) {
 }
 
 function emptyServiceStats() {
-  return { serviceCount: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hasTubulacao: 0 };
+  return { serviceCount: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hasTubulacao: 0, hoseUnits: 0, systemUnits: 0 };
+}
+
+// Totais, detalhes diários e CSV usam a mesma medição e respeitam a modalidade ativa.
+function serviceMeasurements(service, ignoredRows) {
+  const type = (service.serviceType || '').toLowerCase();
+  const extra = service.extraData || {};
+  const measurements = { volumeOleoLiters: null, tubesByDiameter: {}, hasTubulacao: 0, hoseUnits: 0, systemUnits: 0 };
+  if (type === 'pressao' && isPressureHoseUnits(extra)) {
+    measurements.hoseUnits = pressureHoseQuantity(extra) ?? 0;
+    return measurements;
+  }
+  if (type === 'limpeza' && isSystemCleaning(extra)) {
+    measurements.systemUnits = cleaningSystemQuantity(extra) ?? 0;
+    return measurements;
+  }
+  if (type === 'filtragem' || (type === 'flushing' && (extra.volumeOleo != null || extra['Volume de óleo'] != null))) {
+    const { liters, ignored } = parseVolumeOleo(service);
+    if (ignored) ignoredRows.volumeOleo += 1;
+    else measurements.volumeOleoLiters = liters;
+  }
+  if (type === 'flushing' || type === 'limpeza' || type === 'pressao') {
+    const { byDiameter, ignoredCount } = parseTubulacoes(service);
+    ignoredRows.tubulacao += ignoredCount;
+    measurements.tubesByDiameter = byDiameter;
+    const tubFlag = extra['Flushing em tubulação?'] || extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
+    if (normalizedText(tubFlag) === 'sim') measurements.hasTubulacao = 1;
+  }
+  return measurements;
 }
 
 function serviceEquipmentName(service) {
@@ -249,6 +279,8 @@ function mergeServiceStats(acc, s) {
   acc.serviceCount += s.serviceCount;
   acc.volumeOleoLiters += s.volumeOleoLiters;
   acc.hasTubulacao += s.hasTubulacao;
+  acc.hoseUnits += s.hoseUnits;
+  acc.systemUnits += s.systemUnits;
   for (const [d, m] of Object.entries(s.tubesByDiameter)) {
     acc.tubesByDiameter[d] = (acc.tubesByDiameter[d] || 0) + m;
   }
@@ -274,24 +306,7 @@ export function buildServiceStats(services, ignoredRows) {
     if (!isServiceFinalized(svc)) continue;
 
     if (!result[type]) result[type] = emptyServiceStats();
-    result[type].serviceCount += 1;
-
-    if (type === 'filtragem') {
-      const { liters, ignored } = parseVolumeOleo(svc);
-      if (ignored) { ignoredRows.volumeOleo += 1; }
-      else if (liters !== null) { result[type].volumeOleoLiters += liters; }
-    }
-
-    if (type === 'flushing' || type === 'limpeza' || type === 'pressao') {
-      const { byDiameter, ignoredCount } = parseTubulacoes(svc);
-      ignoredRows.tubulacao += ignoredCount;
-      for (const [d, m] of Object.entries(byDiameter)) {
-        result[type].tubesByDiameter[d] = (result[type].tubesByDiameter[d] || 0) + m;
-      }
-      const extra = svc.extraData || {};
-      const tubFlag = extra['Flushing em tubulação?'] || extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
-      if (tubFlag && String(tubFlag).toLowerCase() === 'sim') result[type].hasTubulacao += 1;
-    }
+    mergeServiceStats(result[type], { serviceCount: 1, ...serviceMeasurements(svc, ignoredRows) });
   }
 
   return result;
@@ -359,38 +374,16 @@ export function buildDailyReport(r) {
     if (!finalized) continue;
 
     if (!servicesByType[type]) {
-      servicesByType[type] = { serviceCount: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hasTubulacao: 0, items: [] };
+      servicesByType[type] = { ...emptyServiceStats(), items: [] };
     }
-    servicesByType[type].serviceCount += 1;
-
+    const { hasTubulacao, ...measurements } = serviceMeasurements(svc, ignoredRows);
+    mergeServiceStats(servicesByType[type], { serviceCount: 1, hasTubulacao, ...measurements });
     const item = {
       serviceId: svc.id,
       system: serviceSystemName(svc),
       equipmentName: serviceEquipmentName(svc),
-      volumeOleoLiters: null,
-      tubesByDiameter: {}
+      ...measurements
     };
-
-    if (type === 'filtragem') {
-      const { liters, ignored } = parseVolumeOleo(svc);
-      if (ignored) ignoredRows.volumeOleo += 1;
-      else if (liters !== null) {
-        item.volumeOleoLiters = liters;
-        servicesByType[type].volumeOleoLiters += liters;
-      }
-    }
-
-    if (type === 'flushing' || type === 'limpeza' || type === 'pressao') {
-      const { byDiameter, ignoredCount } = parseTubulacoes(svc);
-      ignoredRows.tubulacao += ignoredCount;
-      item.tubesByDiameter = byDiameter;
-      for (const [d, m] of Object.entries(byDiameter)) {
-        servicesByType[type].tubesByDiameter[d] = (servicesByType[type].tubesByDiameter[d] || 0) + m;
-      }
-      const extra = svc.extraData || {};
-      const tubFlag = extra['Flushing em tubulação?'] || extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
-      if (tubFlag && String(tubFlag).toLowerCase() === 'sim') servicesByType[type].hasTubulacao += 1;
-    }
 
     servicesByType[type].items.push(item);
   }
@@ -487,20 +480,16 @@ export function buildServiceExportRows(report, project) {
     const eqName = svc.equipment ? `${svc.equipment.code} - ${svc.equipment.name}` : '';
     const base = [dateStr, project?.code || report.projectId, report.sequenceNumber || '', type, svc.system || '', eqName];
 
-    if (type === 'filtragem') {
-      const { liters, ignored } = parseVolumeOleo(svc);
-      if (!ignored) rows.push([...base, liters !== null ? liters.toFixed(2) : '', '', '']);
-      continue;
-    }
-
-    const { byDiameter } = parseTubulacoes(svc);
-    const entries = Object.entries(byDiameter);
+    const measurements = serviceMeasurements(svc, { volumeOleo: 0, tubulacao: 0 });
+    const volume = measurements.volumeOleoLiters?.toFixed(2) ?? '';
+    const units = [measurements.hoseUnits || '', measurements.systemUnits || ''];
+    const entries = Object.entries(measurements.tubesByDiameter);
     if (entries.length === 0) {
-      rows.push([...base, '', '', '']);
+      rows.push([...base, volume, '', '', ...units]);
       continue;
     }
-    for (const [d, m] of entries) {
-      rows.push([...base, '', d, m.toFixed(2)]);
+    for (const [index, [d, m]] of entries.entries()) {
+      rows.push([...base, index === 0 ? volume : '', d, m.toFixed(2), ...units]);
     }
   }
 
@@ -840,7 +829,7 @@ router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async 
     }
   } else if (section === 'services') {
     res.write(csvRow(['Data', 'Projeto', 'RDO #', 'Tipo serviço', 'Sistema', 'Equipamento',
-      'Volume óleo (L)', 'Diâmetro', 'Comprimento (m)']) + '\n');
+      'Volume óleo (L)', 'Diâmetro', 'Comprimento (m)', 'Mangueiras (un)', 'Sistemas (un)']) + '\n');
     for (const r of reports) {
       const proj = projects.find(p => p.id === r.projectId);
       for (const row of buildServiceExportRows(r, proj)) {

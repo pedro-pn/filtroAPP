@@ -183,13 +183,17 @@ test('service stats count measurements, tubing flag and ignored legacy rows once
       serviceCount: 3,
       volumeOleoLiters: 4.5,
       tubesByDiameter: {},
-      hasTubulacao: 0
+      hasTubulacao: 0,
+      hoseUnits: 0,
+      systemUnits: 0
     },
     flushing: {
       serviceCount: 1,
       volumeOleoLiters: 0,
       tubesByDiameter: { '4 pol': 12 },
-      hasTubulacao: 1
+      hasTubulacao: 1,
+      hoseUnits: 0,
+      systemUnits: 0
     }
   });
   assert.deepEqual(ignoredRows, { volumeOleo: 1, tubulacao: 1 });
@@ -230,8 +234,8 @@ test('service export rows include finalized legacy services and skip unfinished 
   }, { code: 'PRJ-1' });
 
   assert.deepEqual(rows, [
-    ['2026-05-13', 'PRJ-1', 12, 'filtragem', 'Sistema A', 'EQ-1 - Unidade', '2.00', '', ''],
-    ['2026-05-13', 'PRJ-1', 12, 'flushing', 'Sistema C', 'EQ-3 - Unidade', '', '4 pol', '12.00']
+    ['2026-05-13', 'PRJ-1', 12, 'filtragem', 'Sistema A', 'EQ-1 - Unidade', '2.00', '', '', '', ''],
+    ['2026-05-13', 'PRJ-1', 12, 'flushing', 'Sistema C', 'EQ-3 - Unidade', '', '4 pol', '12.00', '', '']
   ]);
 });
 
@@ -274,8 +278,58 @@ test('daily report summary includes per-service measurements and standby minutes
     system: 'Sistema hidráulico',
     equipmentName: 'EQ-1 - Unidade',
     volumeOleoLiters: 2,
-    tubesByDiameter: {}
+    tubesByDiameter: {},
+    hoseUnits: 0,
+    systemUnits: 0
   }]);
+});
+
+test('all service measurements survive daily detail, aggregation and CSV without counting hidden or unfinished values', () => {
+  const hoses = {
+    serviceType: 'pressao', finalized: true,
+    extraData: { equipamentoTestado: 'mangueira', medicaoMangotes: 'UN', quantidadeMangotes: 8, tubes: [{ d: '2', c: '999' }], volumeOleo: '999' }
+  };
+  const systems = {
+    serviceType: 'limpeza', finalized: true,
+    extraData: { 'Limpeza de tubulação?': 'Não', 'Quantidade de sistemas (un)': '3', tubes: [{ d: '2', c: '999' }] }
+  };
+  const flushing = {
+    serviceType: 'flushing', finalized: true,
+    extraData: { volumeOleo: '1500', volumeOleoUnit: 'mL', tubes: [{ d: '2', c: '250', lengthUnit: 'cm' }] }
+  };
+  const services = [hoses, systems, flushing,
+    { ...hoses, extraData: { 'Equipamento testado': 'Mangotes', 'Medição de mangueiras': 'UN', 'Quantidade de mangotes (un)': '2' } },
+    { ...hoses, finalized: false }, { ...systems, finalized: false },
+    { ...hoses, extraData: { ...hoses.extraData, medicaoMangotes: 'M' } },
+    { ...systems, extraData: { ...systems.extraData, 'Limpeza de tubulação?': 'Sim' } }
+  ];
+  const ignored = { volumeOleo: 0, tubulacao: 0 };
+  const stats = buildServiceStats(services, ignored);
+  assert.equal(stats.pressao.hoseUnits, 10);
+  assert.equal(stats.limpeza.systemUnits, 3);
+  assert.deepEqual(stats.pressao.tubesByDiameter, { '2': 999 });
+  assert.deepEqual(stats.limpeza.tubesByDiameter, { '2': 999 });
+  assert.equal(stats.flushing.volumeOleoLiters, 1.5);
+  assert.deepEqual(stats.flushing.tubesByDiameter, { '2': 2.5 });
+  assert.deepEqual(ignored, { volumeOleo: 0, tubulacao: 0 });
+
+  const report = { id: 'daily', reportDate: '2026-05-13', services };
+  const daily = buildDailyReport(report);
+  for (const [type, { items, ...totals }] of Object.entries(daily.services)) {
+    assert.deepEqual(totals, stats[type]);
+    assert.equal(items.length, stats[type].serviceCount);
+  }
+  assert.equal(daily.services.pressao.items[0].hoseUnits, 8);
+  assert.deepEqual(daily.services.pressao.items[0].tubesByDiameter, {});
+  assert.equal(daily.services.limpeza.items[0].systemUnits, 3);
+  assert.equal(daily.services.flushing.items[0].volumeOleoLiters, 1.5);
+
+  const rows = buildServiceExportRows(report, { code: 'PRJ-1' });
+  assert.equal(rows.length, 6);
+  assert.deepEqual(rows[0].slice(6), ['', '', '', 8, '']);
+  assert.deepEqual(rows[1].slice(6), ['', '', '', '', 3]);
+  assert.deepEqual(rows[2].slice(6), ['1.50', '2', '2.50', '', '']);
+  assert.deepEqual(rows[3].slice(6), ['', '', '', 2, '']);
 });
 
 test('manual uploaded reports keep service exports simple but expose standby in daily detail', () => {

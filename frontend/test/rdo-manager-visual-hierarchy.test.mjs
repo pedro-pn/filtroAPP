@@ -53,7 +53,7 @@ function cssRuleAt(contents, marker, fromIndex = 0) {
   };
 }
 
-test('RdoServiceSummary separates title, description and quantitative summary without changing data derivation', () => {
+test('RdoServiceSummary separates title, description and all service measurements', () => {
   const stats = source('src/components/stats/StatsDashboard.tsx');
   const summary = sectionBetween(
     stats,
@@ -91,9 +91,18 @@ test('RdoServiceSummary separates title, description and quantitative summary wi
   );
   assert.match(
     summary,
-    /type === 'filtragem' &&\s*item\.volumeOleoLiters != null &&\s*item\.volumeOleoLiters > 0/
+    /const hasVolume =\s*item\.volumeOleoLiters != null &&\s*item\.volumeOleoLiters > 0/
   );
-  assert.match(summary, /\{hasVolume \|\| tubes\.length > 0 \? \(/);
+  assert.doesNotMatch(
+    summary,
+    /type === 'filtragem' &&/,
+    'o volume de óleo do flushing também deve aparecer no resumo diário'
+  );
+  assert.match(
+    summary,
+    /\{hasVolume \|\| tubes\.length > 0 \|\| item\.hoseUnits > 0 \|\| item\.systemUnits > 0 \? \(/
+  );
+  assert.match(summary, /<ServiceUnitMeasurement item=\{item\} \/>/);
   assert.match(summary, /fmtNum\(item\.volumeOleoLiters!, 0\)\} L/);
   assert.match(
     summary,
