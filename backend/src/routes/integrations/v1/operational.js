@@ -6,6 +6,7 @@ import prisma from '../../../lib/prisma.js';
 import { OPERATIONAL_RESOURCES } from '../../../lib/api-credentials/operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-operational-resources.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
+import { getJobRoleSalary, validateJobRoleSalaryRequest } from '../../../lib/api-credentials/job-role-salary.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
 import { openOperationalDownload, validateOperationalDownload } from '../../../lib/api-credentials/operational-downloads.js';
 import {
@@ -22,6 +23,17 @@ export function createOperationalRouter({
   envConfig = env
 } = {}) {
   const router = Router();
+  router.get('/cargos/:id/salario', requireApiOperation('jobRoles.salary.get'), asyncHandler(async (req, res) => {
+    validateJobRoleSalaryRequest(req.params, req.query);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'jobRoles.salary.get', requestedRows: 1,
+      execute: async () => ({
+        rows: 1,
+        body: await getJobRoleSalary(prismaClient, req.params, req.query, { scopes: req.apiAuth.scopeCodes })
+      })
+    });
+    res.json(result.body);
+  }));
   router.post('/efetivo/projetos', requireApiOperation('efetivo.projects.create'), asyncHandler(async (req, res) => {
     validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
     validateProjectCreation(req.body);

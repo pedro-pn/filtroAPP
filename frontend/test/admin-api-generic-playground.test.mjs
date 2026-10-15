@@ -39,23 +39,36 @@ test('all implemented permissions select matching operations, including optional
     assert.ok(matches.length, scope.code);
     assert.ok(matches.every(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code)));
   }
-  assert.equal(operationsForScope(operations, '').length, 39);
+  assert.equal(operationsForScope(operations, '').length, operations.length);
   assert.equal(operationsForScope(operations, 'rdo.anexos.download')[0].responseKind, 'DOWNLOAD_CHECK');
   assert.equal(operationsForScope(operations, 'ponto.resumos.read').length, 0);
 });
 
-test('dynamic forms cover all fields and only resource operations require an individual ID', () => {
+test('dynamic forms validate every required path and query parameter', () => {
   for (const op of operations) {
     const initial = playgroundParameterDefaults(op, 3);
     const result = schema(op).safeParse(initial);
-    assert.equal(result.success, !op.pathParams.length, op.operationId);
+    assert.equal(result.success, !op.parameters.some(parameter => parameter.required), op.operationId);
     if (op.pathParams.length) {
-      assert.equal(schema(op).safeParse({ ...initial, id: 'record-demo' }).success, true);
+      const requiredQuery = Object.fromEntries(op.parameters.filter(parameter => parameter.in === 'query' && parameter.required)
+        .map(parameter => [parameter.name, parameter.type === 'date' ? '2026-10-15' : 'demo']));
+      assert.equal(schema(op).safeParse({ ...initial, ...requiredQuery, id: 'record-demo' }).success, true);
       assert.equal(schema(op).safeParse({ id: ' ' }).success, false);
       assert.equal(schema(op).safeParse({ id: 'x'.repeat(101) }).success, false);
     }
     assert.equal(schema(op).safeParse({ ...initial, url: 'http://private' }).success, false);
   }
+});
+
+test('salary playground requires a cargo ID and a valid reference date and builds only those parameters', () => {
+  const op = operationsForScope(operations, 'cargos.salarios.read')[0];
+  assert.equal(op.operationId, 'jobRoles.salary.get');
+  assert.equal(schema(op).safeParse({ id: 'role-1' }).success, false);
+  assert.equal(schema(op).safeParse({ id: 'role-1', referenceDate: '2026-02-30' }).success, false);
+  const values = schema(op).parse({ id: 'role-1', referenceDate: '2026-10-15' });
+  assert.deepEqual(buildPlaygroundInput(op, { ...values, collaboratorId: 'ignored' }), {
+    operationId: op.operationId, pathParams: { id: 'role-1' }, query: { referenceDate: '2026-10-15' }
+  });
 });
 
 test('generic query builder converts types and dates, keeps filters out of path and omits unrelated values', () => {

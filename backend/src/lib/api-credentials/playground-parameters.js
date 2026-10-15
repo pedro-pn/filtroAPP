@@ -2,6 +2,7 @@ import { QUALITY_RECORD_TYPES, QUALITY_STATUSES } from '../../../../shared/schem
 import { INTEGRATION_REPORT_TYPES } from '../../../../shared/schemas/integration-api.js';
 
 const queryDefinitions = {
+  referenceDate: { label: 'Data de referência', type: 'date', required: true, help: 'Na URI: referenceDate=AAAA-MM-DD. Seleciona o salário com vigência mais recente até essa data, inclusive; reajustes posteriores ficam de fora.' },
   limit: { label: 'Itens para visualizar', type: 'integer', min: 1, max: 20, help: 'Na URI: limit=20. Define o tamanho da página; o teste exibe até 20 itens e respeita o limite do token.' },
   cursor: { label: 'Cursor da próxima página', type: 'text', maxLength: 4096, help: 'Na URI: cursor=VALOR. Copie page.nextCursor, codifique-o na URL e mantenha os mesmos filtros.', advanced: true },
   snapshotAt: { label: 'Teto da consulta (horário local)', type: 'datetime', help: 'Na URI: snapshotAt=DATA_HORA_ISO. Use page.snapshotAt para manter o mesmo teto entre páginas.', advanced: true },
@@ -24,7 +25,9 @@ const queryDefinitions = {
 };
 
 export function describePlaygroundParameters(operation) {
-  const identity = operation.operationId === 'quality.records.get'
+  const identity = operation.operationId === 'jobRoles.salary.get'
+    ? { label: 'ID do cargo', help: 'Copie id da operação Listar cargos. A consulta de salários exige a permissão cargos.salarios.read.' }
+    : operation.operationId === 'quality.records.get'
     ? { label: 'ID do registro de Qualidade', help: 'Copie o campo id de um item retornado em Listar registros de Qualidade. Não é o número do registro nem o ID do token.' }
     : operation.operationId === 'quality.evidence.download'
       ? { label: 'ID da evidência', help: 'Copie id de uma evidência ATTACHMENT no array evidences de um registro de Qualidade.' }

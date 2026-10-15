@@ -51,7 +51,7 @@ test('all administrative, quality and operational operations have unique IDs and
     readFile(new URL('../src/routes/integrations/v1/qualidade.js', import.meta.url), 'utf8')
   ]);
   const operations = operationEntries(YAML.parse(source));
-  assert.equal(operations.length, 18 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
+  assert.equal(operations.length, 19 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
   assert.equal(new Set(operations.map(item => item.operation.operationId)).size, operations.length);
 
   const handlers = {
@@ -77,8 +77,9 @@ test('all administrative, quality and operational operations have unique IDs and
       assert.equal(route?.methods.get, true, `Rota operacional ausente: ${resource.path}`);
       continue;
     }
-    if (operation.operationId === 'getIntegrationEfetivoProjectStatus') {
-      const route = createOperationalRouter().stack.find(layer => layer.route?.path === '/efetivo/projetos/:id/status')?.route;
+    if (['getIntegrationEfetivoProjectStatus', 'getIntegrationJobRoleSalary'].includes(operation.operationId)) {
+      const path = operation.operationId === 'getIntegrationJobRoleSalary' ? '/cargos/:id/salario' : '/efetivo/projetos/:id/status';
+      const route = createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route;
       assert.equal(route?.methods.get, true);
       continue;
     }

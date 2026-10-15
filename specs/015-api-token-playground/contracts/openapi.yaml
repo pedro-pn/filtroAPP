@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -335,6 +335,7 @@ paths:
                     - quality.records.get
                     - quality.natures.list
                     - quality.evidence.download
+                    - jobRoles.salary.get
                     - efetivo.projects.status.get
                     - efetivo.projects.create
                     - efetivo.projects.commercialFact.post
@@ -661,6 +662,59 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/cargos/{id}/salario:
+    get:
+      tags: [IntegrationOperational]
+      operationId: getIntegrationJobRoleSalary
+      summary: Salário base do cargo na data de referência
+      description: >-
+        Consulta global por ID do cargo, independente do recorte de projetos.
+        Seleciona a maior effectiveDate menor ou igual a referenceDate; em empate,
+        seleciona a maior versão. Reajustes futuros só se aplicam a partir da vigência.
+        Não consulta colaboradores. Sem salário configurado na data, retorna 404,
+        sem antecipar a primeira vigência nem usar salários de modelos genéricos.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [cargos.salarios.read]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID retornado pela listagem de cargos.
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: referenceDate
+          in: query
+          required: true
+          description: Data de referência, inclusive, no formato AAAA-MM-DD.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Somente identificação do cargo, salário base mensal em BRL, início da vigência e versão.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [jobRoleId, jobRoleName, salary, effectiveDate, version]
+                properties:
+                  jobRoleId: { type: string }
+                  jobRoleName: { type: string }
+                  salary: { type: string, pattern: '^\d+(\.\d+)?$', description: Valor decimal em BRL, preservado como texto. }
+                  effectiveDate: { type: string, format: date }
+                  version: { type: integer, minimum: 1 }
+              example: { jobRoleId: cargo_1, jobRoleName: Operador, salary: '4086.57', effectiveDate: '2026-07-01', version: 2 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Cargo inexistente (NOT_FOUND) ou salário não configurado na data (SALARY_NOT_FOUND).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /integracoes/v1/colaboradores:

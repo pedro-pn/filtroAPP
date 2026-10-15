@@ -1,6 +1,6 @@
 # API de integrações
 
-Esta API fornece leitura controlada dos dados do Filtrovali sem conceder acesso direto ao banco. Estão implementadas 33 permissões e 35 operações externas GET, incluindo Qualidade, cadastros operacionais e a expansão de relatórios, estoque e manutenção. A disponibilidade no ambiente depende da publicação e homologação do código pelo operador; esta implementação não executa deploy.
+Esta API fornece acesso controlado aos dados do Filtrovali sem conceder acesso direto ao banco, incluindo Qualidade, cadastros operacionais, salários por cargo, relatórios, estoque, manutenção e operações contratadas do CRM. A disponibilidade no ambiente depende da publicação e homologação do código pelo operador; esta implementação não executa deploy.
 
 O endereço base comum a todas as áreas é `/api/integracoes/v1`. Acrescente o caminho da consulta desejada, como `/projetos`, `/estoque/itens` ou `/qualidade/registros`. O segmento `/qualidade` identifica apenas as consultas desse setor. Na exibição única do token, o exemplo em cURL usa uma consulta compatível com as permissões concedidas.
 
@@ -32,8 +32,32 @@ Todas as respostas usam `Cache-Control: no-store` e `X-Request-Id`. Registre o r
 | `GET` | `/api/integracoes/v1/qualidade/registros/{id}` | `qualidade.registros.read` |
 | `GET` | `/api/integracoes/v1/qualidade/naturezas` | `qualidade.naturezas.read` |
 | `GET` | `/api/integracoes/v1/qualidade/evidencias/{id}/download` | registros + metadados + download |
+| `GET` | `/api/integracoes/v1/cargos/{id}/salario?referenceDate=AAAA-MM-DD` | `cargos.salarios.read` |
 
 `qualidade.evidencias.metadata.read` inclui metadados allowlisted. `qualidade.excluidos.read` é necessário para `includeDeleted=true`. Caminhos físicos, tokens públicos, sequências internas e identificadores de usuários não são publicados.
+
+## Salários por cargo para o ComercialAPP
+
+Na central **Administração → Tokens de API**, conceda **Consultar salário por cargo** (`cargos.salarios.read`). A operação **Consultar salário por cargo e data** também está disponível no playground. A permissão `cargos.read` permite descobrir os IDs pela listagem `/cargos`, mas não concede acesso a salários.
+
+```http
+GET /api/integracoes/v1/cargos/cargo_1/salario?referenceDate=2026-10-15
+Authorization: Bearer <token>
+```
+
+```json
+{
+  "jobRoleId": "cargo_1",
+  "jobRoleName": "Operador",
+  "salary": "4086.57",
+  "effectiveDate": "2026-07-01",
+  "version": 2
+}
+```
+
+`referenceDate` é obrigatória e deve ser uma data válida no formato `AAAA-MM-DD`. A consulta retorna o salário base mensal em BRL como texto decimal e seleciona a maior vigência até a data informada, inclusive; em empate, vale a maior versão dessa vigência. Uma versão cadastrada depois com vigência retroativa não substitui uma vigência mais recente. Um reajuste futuro só aparece em consultas a partir da sua vigência.
+
+A resposta contém apenas identificação do cargo, salário, início da vigência e versão. A consulta é global, aceita cargos ativos e inativos e independe do recorte de projetos do token. Não aceita identificadores de colaboradores nem filtros adicionais. Se o cargo não existir, retorna `404 NOT_FOUND`; se não houver salário configurado na data, retorna `404 SALARY_NOT_FOUND`, sem antecipar reajustes nem usar um salário genérico. Tokens sem a nova permissão recebem `403 INSUFFICIENT_SCOPE`; tokens existentes precisam ser substituídos para ganhar o novo escopo.
 
 ## Paginação e sincronização
 

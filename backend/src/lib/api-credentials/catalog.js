@@ -3,7 +3,7 @@ import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 
-export const API_CATALOG_VERSION = '2026-09-30.2';
+export const API_CATALOG_VERSION = '2026-10-15.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -16,6 +16,7 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'cargos.salarios.read', domain: 'Pessoas, cargos e acesso', label: 'Consultar salário por cargo', description: 'Salário base do cargo vigente na data de referência. Cadastro global compartilhado, independente do recorte de projetos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['JobRole', 'CostProfile', 'CostParameterSet'], exposedFields: ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version'], excludedFields: ['colaboradores', 'dados pessoais', 'parâmetros internos de custo', 'observações', 'identidade do editor'] },
   { code: 'qualidade.registros.read', domain: 'Qualidade', label: 'Ler registros', description: 'Consulta registros de qualidade permitidos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'qualidade.naturezas.read', domain: 'Qualidade', label: 'Ler naturezas', description: 'Consulta o catálogo de naturezas de qualidade.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'qualidade.evidencias.metadata.read', domain: 'Qualidade', label: 'Ler metadados de evidências', description: 'Inclui metadados allowlisted das evidências.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
@@ -44,6 +45,11 @@ export const API_SCOPES = Object.freeze([
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([
+  {
+    operationId: 'jobRoles.salary.get', openApiOperationId: 'getIntegrationJobRoleSalary', method: 'GET', path: '/cargos/:id/salario',
+    label: 'Consultar salário por cargo e data', requiredScopes: ['cargos.salarios.read'],
+    optionalScopes: [], pathParams: ['id'], queryParams: ['referenceDate'], supportsPlayground: true
+  },
   {
     operationId: 'quality.records.list', openApiOperationId: 'qualityRecordsList', method: 'GET', path: '/qualidade/registros',
     requiredScopes: ['qualidade.registros.read'],
