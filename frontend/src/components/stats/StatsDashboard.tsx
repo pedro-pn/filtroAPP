@@ -731,7 +731,8 @@ const SERVICE_LABELS: Record<string, string> = {
   flushing: 'Flushing',
   limpeza: 'Limpeza Química',
   mecanica: 'Limpeza mecânica',
-  pressao: 'Teste de Pressão'
+  pressao: 'Teste de Pressão',
+  inibicao: 'Inibição'
 };
 
 interface AggregatedItem {
@@ -741,6 +742,8 @@ interface AggregatedItem {
   count: number;
   volumeOleoLiters: number;
   tubesByDiameter: Record<string, number>;
+  hoseUnits: number;
+  systemUnits: number;
 }
 
 function aggregateItemsByEquipment(byProject: StatsProjectData[]): Record<string, AggregatedItem[]> {
@@ -754,11 +757,13 @@ function aggregateItemsByEquipment(byProject: StatsProjectData[]): Record<string
         for (const item of (svc.items || [])) {
           const key = `${item.equipmentName || ''}||${item.system || ''}`;
           if (!map.has(key)) {
-            map.set(key, { key, system: item.system, equipmentName: item.equipmentName, count: 0, volumeOleoLiters: 0, tubesByDiameter: {} });
+            map.set(key, { key, system: item.system, equipmentName: item.equipmentName, count: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hoseUnits: 0, systemUnits: 0 });
           }
           const agg = map.get(key)!;
           agg.count += 1;
           agg.volumeOleoLiters += item.volumeOleoLiters ?? 0;
+          agg.hoseUnits += item.hoseUnits ?? 0;
+          agg.systemUnits += item.systemUnits ?? 0;
           for (const [d, m] of Object.entries(item.tubesByDiameter || {})) {
             agg.tubesByDiameter[d] = (agg.tubesByDiameter[d] || 0) + m;
           }
@@ -784,29 +789,34 @@ function totalTubeLength(tubesByDiameter: Record<string, number>): number {
   return Object.values(tubesByDiameter || {}).reduce((sum, meters) => sum + meters, 0);
 }
 
+function ServiceUnitMeasurement({ item }: { item: { hoseUnits?: number; systemUnits?: number } }) {
+  return <>
+    {(item.hoseUnits ?? 0) > 0 ? <span className="stats-tube-entry">{fmtNum(item.hoseUnits!, 0)} un de mangueiras</span> : null}
+    {(item.systemUnits ?? 0) > 0 ? <span className="stats-tube-entry">{fmtNum(item.systemUnits!, 0)} un de sistemas</span> : null}
+  </>;
+}
+
+function serviceMeasurementSortValue(item: AggregatedItem) {
+  return item.hoseUnits || item.systemUnits || item.volumeOleoLiters || totalTubeLength(item.tubesByDiameter);
+}
+
 function ServiceItemMeasurement({
-  item,
-  type
+  item
 }: {
   item: AggregatedItem;
-  type: string;
 }) {
   const tubes = Object.entries(item.tubesByDiameter);
   const itemTubeTotal = totalTubeLength(item.tubesByDiameter);
 
-  if (type === 'filtragem') {
-    return item.volumeOleoLiters > 0
-      ? `${fmtNum(item.volumeOleoLiters, 0)} L`
-      : '—';
-  }
-
-  if (tubes.length === 0) return <>—</>;
+  if (!item.volumeOleoLiters && !item.hoseUnits && !item.systemUnits && tubes.length === 0) return <>—</>;
 
   return (
     <>
-      <span className="stats-tube-entry">
+      <ServiceUnitMeasurement item={item} />
+      {item.volumeOleoLiters > 0 ? <span className="stats-tube-entry">{fmtNum(item.volumeOleoLiters, 0)} L</span> : null}
+      {tubes.length > 0 ? <span className="stats-tube-entry">
         <strong>Total</strong> → {fmtNum(itemTubeTotal, 1)} m
-      </span>
+      </span> : null}
       {tubes.map(([diameter, meters]) => (
         <span key={diameter} className="stats-tube-entry">
           <strong>{diameter}</strong> → {fmtNum(meters, 1)} m
@@ -824,7 +834,7 @@ function DesignSystemServiceItemsTable({
   type: string;
 }) {
   const measurementLabel =
-    type === 'filtragem' ? 'Volume (L)' : 'Diâm. → Metros';
+    type === 'filtragem' ? 'Volume (L)' : 'Medições';
   const columns: DataTableColumn<AggregatedItem>[] = [
     {
       key: 'equipment',
@@ -841,9 +851,9 @@ function DesignSystemServiceItemsTable({
     },
     {
       key: 'measurement',
-      sortValue: item => type === 'filtragem' ? item.volumeOleoLiters : totalTubeLength(item.tubesByDiameter),
+      sortValue: serviceMeasurementSortValue,
       header: measurementLabel,
-      render: (item) => <ServiceItemMeasurement item={item} type={type} />
+      render: (item) => <ServiceItemMeasurement item={item} />
     }
   ];
 
@@ -863,7 +873,7 @@ function DesignSystemServiceItemsTable({
             { label: 'Quantidade', value: item.count },
             {
               label: measurementLabel,
-              value: <ServiceItemMeasurement item={item} type={type} />
+              value: <ServiceItemMeasurement item={item} />
             }
           ],
           accessibleLabel: `${SERVICE_LABELS[type] || type}: ${item.equipmentName || item.system || 'sem identificação'}`
@@ -932,6 +942,8 @@ function ServicesSection({
                     <strong>{fmtNum(tubeTotal, 1)} m</strong>
                   </div>
                 ) : null}
+                {stats.hoseUnits > 0 ? <div><span>Mangueiras testadas</span><strong>{fmtNum(stats.hoseUnits, 0)} un</strong></div> : null}
+                {stats.systemUnits > 0 ? <div><span>Sistemas executados</span><strong>{fmtNum(stats.systemUnits, 0)} un</strong></div> : null}
                 {stats.hasTubulacao > 0 ? (
                   <div>
                     <span>Registros em tubulação</span>
@@ -941,6 +953,7 @@ function ServicesSection({
               </div>
             ) : (
               <div className="stats-service-details">
+                <ServiceUnitMeasurement item={stats} />
                 {stats.volumeOleoLiters > 0 && (
                   <span>
                     Volume total:{' '}
@@ -987,7 +1000,7 @@ function ServicesSection({
                       {type === 'filtragem' ? (
                         <th>Volume (L)</th>
                       ) : (
-                        <th>Diâm. → Metros</th>
+                        <th>Medições</th>
                       )}
                     </tr>
                   </thead>
@@ -998,8 +1011,8 @@ function ServicesSection({
                           <ServiceItemLabel item={item} />
                         </td>
                         <td>{item.count}</td>
-                        <td data-sort-value={type === "filtragem" ? item.volumeOleoLiters : totalTubeLength(item.tubesByDiameter)}>
-                          <ServiceItemMeasurement item={item} type={type} />
+                        <td data-sort-value={serviceMeasurementSortValue(item)}>
+                          <ServiceItemMeasurement item={item} />
                         </td>
                       </tr>
                     ))}
@@ -1063,7 +1076,6 @@ function RdoServiceRows({
           const tubes = Object.entries(item.tubesByDiameter || {});
           const tubeTotal = totalTubeLength(item.tubesByDiameter || {});
           const hasVolume =
-            type === 'filtragem' &&
             item.volumeOleoLiters != null &&
             item.volumeOleoLiters > 0;
           return (
@@ -1078,6 +1090,7 @@ function RdoServiceRows({
                   <span className="stats-svc-subrow-type stats-svc-subrow-type--cont" />
                 )}
                 <span className="stats-svc-subrow-label">{label}</span>
+                <ServiceUnitMeasurement item={item} />
                 {hasVolume && (
                   <span className="stats-svc-subrow-qty">
                     {fmtNum(item.volumeOleoLiters!, 0)} L
@@ -1134,7 +1147,6 @@ function RdoServiceSummary({
                 const tubes = Object.entries(item.tubesByDiameter || {});
                 const tubeTotal = totalTubeLength(item.tubesByDiameter || {});
                 const hasVolume =
-                  type === 'filtragem' &&
                   item.volumeOleoLiters != null &&
                   item.volumeOleoLiters > 0;
 
@@ -1146,8 +1158,9 @@ function RdoServiceSummary({
                     <span className="rdo-stats-dashboard__daily-service-description">
                       {label}
                     </span>
-                    {hasVolume || tubes.length > 0 ? (
+                    {hasVolume || tubes.length > 0 || item.hoseUnits > 0 || item.systemUnits > 0 ? (
                       <span className="rdo-stats-dashboard__daily-service-quantity">
+                        <ServiceUnitMeasurement item={item} />
                         {hasVolume ? (
                           <span className="stats-tube-entry">
                             {fmtNum(item.volumeOleoLiters!, 0)} L

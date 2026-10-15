@@ -38,12 +38,16 @@ export interface StatsServiceStats {
   volumeOleoLiters: number;
   tubesByDiameter: Record<string, number>;
   hasTubulacao: number;
+  hoseUnits: number;
+  systemUnits: number;
   items?: Array<{
     serviceId: string;
     system: string | null;
     equipmentName: string | null;
     volumeOleoLiters: number | null;
     tubesByDiameter: Record<string, number>;
+    hoseUnits: number;
+    systemUnits: number;
   }>;
 }
 

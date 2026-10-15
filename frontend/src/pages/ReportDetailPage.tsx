@@ -4,7 +4,7 @@ import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
 import { GeneralUploadThumb } from '../components/reports/GeneralUploadThumb';
 import { BrandLoading } from '../components/brand/BrandLoading';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { listDdsThemes } from '../api/ddsThemes';
@@ -127,6 +127,8 @@ interface RdoFormState {
   generalUploads: UploadedFile[];
   services: RdoServiceForm[];
 }
+
+type ReportSaveAction = 'SAVE' | 'APPROVED' | 'RETURNED';
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
@@ -468,6 +470,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const loadedFormRef = useRef(JSON.stringify(form));
   const currentFormRef = useRef(form);
   currentFormRef.current = form;
+  const saveInProgressRef = useRef(false);
+  const [saveAction, setSaveAction] = useState<ReportSaveAction | null>(null);
+  const isSaving = saveAction !== null;
   const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
   const [invalidSystemTypeServiceId, setInvalidSystemTypeServiceId] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
@@ -498,6 +503,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     if (currentReportIdRef.current === report.id && JSON.stringify(currentFormRef.current) !== loadedFormRef.current) return;
     const nextForm = reportToForm(report);
     loadedFormRef.current = JSON.stringify(nextForm);
+    currentFormRef.current = nextForm;
     setForm(nextForm);
     // Descarta exclusões de fotos encenadas e não salvas ao (re)carregar o relatório.
     clearStagedUploadDeletions();
@@ -674,6 +680,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       });
       const nextForm = reportToForm(saved);
       loadedFormRef.current = JSON.stringify(nextForm);
+      currentFormRef.current = nextForm;
       setForm(nextForm);
       if (showSuccess) showToast(TEXT.saved, 'success');
       if (navigateAfter) navigate(reportBackPath, { replace: true, state: reportBackState });
@@ -766,6 +773,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   async function handleSave(options: { navigateAfter?: boolean; showSuccess?: boolean } = {}) {
+    // A submissão lê os valores atuais, inclusive a alteração do campo que perdeu o foco.
+    const form = currentFormRef.current;
     if (readOnly) return false;
     if (manualReport) return handleManualInlineSave(options);
     if (report.reportType === 'RDO') {
@@ -863,6 +872,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       });
       const nextForm = reportToForm(saved);
       loadedFormRef.current = JSON.stringify(nextForm);
+      currentFormRef.current = nextForm;
       setForm(nextForm);
       // Relatório salvo: efetiva a exclusão global das fotos removidas no editor.
       await flushStagedUploadDeletions();
@@ -905,6 +915,28 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }
 
+  async function submitReport(action: ReportSaveAction, reviewNotes?: string | null) {
+    // O bloqueio cobre salvar + revisar por inteiro, inclusive o intervalo entre as duas requisições.
+    if (readOnly || saveInProgressRef.current) return;
+    saveInProgressRef.current = true;
+    setSaveAction(action);
+    try {
+      if (action === 'SAVE') await handleSave();
+      else await handleSaveAndStatus(action, reviewNotes);
+    } finally {
+      saveInProgressRef.current = false;
+      setSaveAction(null);
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (event.target !== event.currentTarget) return;
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const action = submitter instanceof HTMLButtonElement && submitter.value === 'APPROVED' ? 'APPROVED' : 'SAVE';
+    void submitReport(action);
+  }
+
   async function handleDownload(format: 'pdf' | 'docx') {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
     try {
@@ -917,7 +949,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   return (
-    <div className="rdo-form-stage rdo-edit-form">
+    <form className="rdo-form-stage rdo-edit-form" noValidate onSubmit={handleSubmit} aria-busy={isSaving}>
       {readOnly ? <Alert tone="warning">{TEXT.signedLocked}</Alert> : null}
 
       <Card className="rdo-form-card rdo-form-card--identification" title={TEXT.generalInfo}>
@@ -1296,10 +1328,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           label="Motivo"
           confirmLabel={TEXT.reject}
           requiredMessage={TEXT.rejectRequired}
-          isSubmitting={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+          isSubmitting={isSaving}
           appearance="design-system"
           onCancel={() => setReturnDialogOpen(false)}
-          onConfirm={reason => void handleSaveAndStatus('RETURNED', reason)}
+          onConfirm={reason => void submitReport('RETURNED', reason)}
         />
       </div>
       ) : null}
@@ -1308,10 +1340,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         <section className="rdo-edit-actions" aria-label="Ações do formulário de edição">
           <Button
             variant="primary"
-            type="button"
-            loading={reportMutations.updateReport.isPending || reportMutations.updateManualReportData.isPending}
+            type="submit"
+            name="rdoAction"
+            value="SAVE"
+            disabled={isSaving}
+            loading={saveAction === 'SAVE'}
             loadingLabel="Salvando relatório"
-            onClick={() => void handleSave()}
           >
             {TEXT.save}
           </Button>
@@ -1329,9 +1363,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           {canReview && canApproveInEditor ? (
             <Button
               variant="primary"
-              type="button"
-              disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
-              onClick={() => void handleSaveAndStatus('APPROVED')}
+              type="submit"
+              name="rdoAction"
+              value="APPROVED"
+              disabled={isSaving}
+              loading={saveAction === 'APPROVED'}
+              loadingLabel="Salvando e aprovando relatório"
             >
               {hasActiveClientRejection(report) ? 'Salvar e Reenviar' : 'Salvar e Aprovar'}
             </Button>
@@ -1340,7 +1377,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             <Button
               variant="danger"
               type="button"
-              disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+              disabled={isSaving}
               onClick={() => setReturnDialogOpen(true)}
             >
               Salvar e Devolver
@@ -1405,7 +1442,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       <PhotoCaptureNovelty user={user} placement="rdo-edit" enabled={!readOnly} />
       <ReportReissueDialog count={reissueOpen ? 1 : 0} submitting={reportMutations.regenerateReports.isPending} onConfirm={() => void handleReissue()} onCancel={() => setReissueOpen(false)} />
       {confirmDialog}
-    </div>
+    </form>
   );
 }
 
