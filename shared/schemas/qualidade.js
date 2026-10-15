@@ -44,10 +44,11 @@ export const QUALITY_STATUS_OPTIONS = [
 function optionalText(z, max) {
   let schema = z.string().trim();
   if (Number.isInteger(max)) schema = schema.max(max);
+  // Keep omitted fields explicit in parsed objects so updates can clear stored values.
   return z.any().optional().nullable().transform(value => {
     const text = String(value || '').trim();
     return text || null;
-  }).pipe(schema.optional().nullable());
+  }).pipe(schema.optional().nullable()).default(null);
 }
 
 function requiredText(z, max, message = 'Campo obrigatório.') {
@@ -60,7 +61,7 @@ function optionalEnum(z, values) {
   return z.any().optional().nullable().transform(value => {
     const text = String(value || '').trim();
     return text || null;
-  }).pipe(z.enum(values).optional().nullable());
+  }).pipe(z.enum(values).optional().nullable()).default(null);
 }
 
 function optionalUrl(z) {
