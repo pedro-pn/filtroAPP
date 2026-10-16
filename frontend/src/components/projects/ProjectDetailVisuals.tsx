@@ -1,24 +1,24 @@
 import type { BudgetBreakdownSlice, PlannedScope, RequiredWeeklyProgress, RequiredWeeklyProgressStatus } from '../../api/acompanhamentoComercial';
 import { HelpTip } from '../ui/HelpTip';
-import { Badge, ProgressBar } from '../ui/ds';
-import { brl, toNum, hasMoney, proposalContributionLabel, fmtPct, fmtHours, SERVICE_LABELS, SYSTEM_LABELS, UNIT_LABELS, weeklyPhysicalProgress } from './projectDetailModel';
+import { Badge, Button, ProgressBar } from '../ui/ds';
+import { brl, toNum, proposalContributionLabel, fmtPct, fmtHours, SERVICE_LABELS, SYSTEM_LABELS, UNIT_LABELS, weeklyPhysicalProgress } from './projectDetailModel';
 import { groupServicesByScope } from '../../utils/plannedScopeGroups';
 
 export function ProposalContributionDetails({
   original,
-  additionals
+  additionals,
+  onViewAdditionalContribution
 }: {
   original?: BudgetBreakdownSlice | null;
   additionals?: BudgetBreakdownSlice[];
+  onViewAdditionalContribution?: (proposal: BudgetBreakdownSlice) => void;
 }) {
   const rows = [
     original ? { ...original, contributionKind: 'ORIGINAL' as const } : null,
     ...(additionals ?? []).map(item => ({ ...item, contributionKind: 'ADDITIONAL' as const }))
   ].filter((item): item is BudgetBreakdownSlice & { contributionKind: 'ORIGINAL' | 'ADDITIONAL' } => Boolean(item));
 
-  if (rows.length <= 1 || !(additionals ?? []).some(item => (
-    hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
-  ))) {
+  if (!additionals?.length) {
     return null;
   }
 
@@ -30,10 +30,15 @@ export function ProposalContributionDetails({
       </summary>
       <div className="acp-detail-proposal-list">
         {rows.map((proposal, index) => (
-          <div className="acp-detail-proposal-item" key={`${proposal.contributionKind}-${proposal.codBd ?? proposal.codProp ?? index}`}>
+          <div className="acp-detail-proposal-item" key={`${proposal.contributionKind}-${proposal.projectId ?? ''}-${proposal.codBd ?? proposal.codProp ?? index}`}>
             <div className="acp-detail-proposal-item-head">
               <strong>{proposalContributionLabel(proposal, proposal.contributionKind === 'ORIGINAL' ? 'Proposta original' : 'Proposta adicional')}</strong>
               <span>{proposal.contributionKind === 'ORIGINAL' ? 'Original' : 'Adicional'}</span>
+              {proposal.contributionKind === 'ADDITIONAL' && onViewAdditionalContribution ? (
+                <Button type="button" variant="secondary" size="sm" aria-haspopup="dialog"
+                  aria-label={`Ver contribuição da proposta adicional ${proposal.codProp}`}
+                  onClick={() => onViewAdditionalContribution(proposal)}>Ver contribuição</Button>
+              ) : null}
             </div>
             <div className="acp-detail-proposal-grid">
               <div><span>Venda</span><strong>{brl(toNum(proposal.salePrice))}</strong></div>

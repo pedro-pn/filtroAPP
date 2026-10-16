@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ProjectDetail } from '../../api/acompanhamentoComercial';
+import type { BudgetBreakdownSlice, ProjectDetail } from '../../api/acompanhamentoComercial';
 import { BarList, Button, Card } from '../ui/ds';
 import { HelpTip } from '../ui/HelpTip';
 import { PortalTip } from '../ui/PortalTip';
@@ -122,7 +122,10 @@ export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction,
   </Card>;
 }
 
-export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDetail; children?: ReactNode }) {
+export function ProjectFinancialSnapshot({ data, children, onViewAdditionalContribution }: {
+  data: ProjectDetail; children?: ReactNode;
+  onViewAdditionalContribution?: (proposal: BudgetBreakdownSlice) => void;
+}) {
   const presentation = Boolean(data.presentation);
   const actual = data.consumo.gasto + (data.maoDeObra.custo ?? 0);
   const planned = data.consumo.previsto;
@@ -155,7 +158,8 @@ export function ProjectFinancialSnapshot({ data, children }: { data: ProjectDeta
           <span key={segment.label} className={`is-${segment.className}`} style={{ width: `${segmentTotal > 0 ? segment.value / segmentTotal * 100 : 0}%` }} title={`${segment.label}: ${brl(segment.value)}`} />)}</div>
         <div className="acp-story-cost-legend">{segments.map(segment => <div key={segment.label}><span className={`is-${segment.className}`} />{segment.label}<strong>{brl(segment.value)}</strong></div>)}</div>
       </ProjectDetailSection>
-      {!presentation ? <ProposalContributionDetails original={data.budgetBreakdown?.original} additionals={data.budgetBreakdown?.additionals} /> : null}
+      {!presentation ? <ProposalContributionDetails original={data.budgetBreakdown?.original} additionals={data.budgetBreakdown?.additionals}
+        onViewAdditionalContribution={onViewAdditionalContribution} /> : null}
       <div className="acp-story-divider" />
       <ProjectDetailSection label="Maiores gastos (Omie + estoque + manual)" header={<>
         <h4><HelpTip help="As 5 maiores categorias de despesa do projeto, somando Omie sem salários, consumo líquido de químicos/filtros do estoque e custos manuais.">Maiores gastos (Omie + estoque + manual)</HelpTip></h4>

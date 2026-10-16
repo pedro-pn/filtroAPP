@@ -657,6 +657,12 @@ router.get(
 );
 
 const revisionSchema = z.object({ codBd: z.number().int() });
+const additionalRevisionSchema = revisionSchema.extend({
+  metricInclusion: z.object({
+    plannedDays: z.boolean(), workedDays: z.boolean(), plannedCost: z.boolean(),
+    salePrice: z.boolean(), expectedProfit: z.boolean(), taxes: z.boolean(), hours: z.boolean()
+  }).strict().optional()
+});
 const proposalCodeParamSchema = z.coerce.number().int();
 
 router.post(
@@ -680,9 +686,10 @@ router.post(
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
-    const { codBd } = revisionSchema.parse(req.body);
+    const { codBd, metricInclusion } = additionalRevisionSchema.parse(req.body);
     try {
       const selection = await setProjectAdditionalProposalRevision(req.params.projectId, codBd, {
+        metricInclusion,
         selectedByUserId: req.auth?.user?.id ?? null
       });
       clearProjectDerivedCaches();

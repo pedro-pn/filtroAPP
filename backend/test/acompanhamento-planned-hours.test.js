@@ -10,6 +10,28 @@ const raw = (normal = 100, overtime = 20) => ({
 const proposal = (codBd = 1, hours = raw()) => ({ codBd, codProp: 1000 + codBd, nRev: 0, rawRow: hours });
 const manual = (normal = 100, extra = 20) => ({ normalHours: [{ hours: normal, collaboratorCount: 5 }], overtime: [{ hours: extra }] });
 
+test('adicionais com horas desconsideradas saem da previsão e não invalidam a base comercial por dados ausentes', async () => {
+  let includeHours = false;
+  const database = {
+    project: { findMany: async () => [{ id: 'p', plannedNormalHours: [], plannedOvertime: [],
+      budgets: [{ sourceProposalCodBd: 1 }], additionalProposals: [
+        { sourceProposalCodBd: 2, metricInclusion: { hours: includeHours } },
+        { sourceProposalCodBd: 3, metricInclusion: { hours: false } }
+      ] }] },
+    commercialProposal: { findMany: async ({ where }) => {
+      assert.deepEqual(where.codBd.in, includeHours ? [1, 2] : [1]);
+      return [proposal(1), ...(includeHours ? [proposal(2, raw(50, 10))] : [])];
+    } }
+  };
+  const excluded = (await loadPlannedHours(['p'], database)).get('p');
+  assert.equal(excluded.hoursPlan.commercial.total, 120);
+  assert.equal(excluded.hoursPlan.issues.length, 0);
+  includeHours = true;
+  const included = (await loadPlannedHours(['p'], database)).get('p');
+  assert.equal(included.hoursPlan.commercial.total, 180);
+  assert.notEqual(included.hoursPlan.fingerprint, excluded.hoursPlan.fingerprint);
+});
+
 test('commercial hours preserve decimal totals, sum shifts and classify weekend overtime', () => {
   const result = readCommercialHours({ ...raw(), hh_total: '1.234,50', hh_util_diurno: '1.000,50',
     hh_util_noturno: 100, hh_util_extra_diurno: 50, hh_util_extra_noturno: 20,

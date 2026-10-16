@@ -75,6 +75,16 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   const readOnly = render(ProjectScheduleEditor, { projectId: 'p', canManage: false });
   assert.doesNotMatch(readOnly, /Adicionar colaborador manualmente|Usar horas do comercial/);
   assert.match(readOnly, /Serviços previstos/);
+
+  const scheduleKey = ['commercial-revisions', 'p'];
+  const existing = client.getQueryData(scheduleKey);
+  client.setQueryData(scheduleKey, { ...existing, proposalPercentage: 50, additionalProposals: [
+    { currentCodBd: 9, metricInclusion: { plannedDays: false, workedDays: true },
+      revisions: [{ codBd: 9, nRev: 1, plannedDays: 8, workedDays: 4 }] }
+  ] });
+  const partial = render(ProjectScheduleEditor, { projectId: 'p', canManage: true });
+  assert.match(partial, /<span>Dias corridos<\/span><strong>6<\/strong>/);
+  assert.match(partial, /<span>Dias trabalhados<\/span><strong>7<\/strong>/);
 }));
 
 test('revisões comerciais mantêm ações e seletores acessíveis no Gestor', async () => fixture(async ({ server, client, render }) => {
@@ -91,6 +101,7 @@ test('revisões comerciais mantêm ações e seletores acessíveis no Gestor', a
   assert.match(html, /fv-select/);
   assert.match(html, /Aplicar/);
   assert.match(html, /Remover/);
+  assert.doesNotMatch(html, /Ver contribuição/);
 }));
 
 test('as duas entradas usam modal DS e preservam o salvar único do cronograma', () => {

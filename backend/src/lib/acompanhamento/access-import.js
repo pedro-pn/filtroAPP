@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 
 import MDBReader from 'mdb-reader';
+import { applyAdditionalMetricInclusion, normalizeAdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
 
 import prisma from '../prisma.js';
 import { commercialDashboardCache } from '../resource-list-cache.js';
@@ -19,6 +20,7 @@ import { getManualProjectCostsByProject } from './manual-costs.js';
 import { applyProposalPercentage, scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 import { buildPresumedProfitTaxEstimate } from './presumed-profit-taxes.js';
 import { progressContributionWeight } from './progress-groups.js';
+import { readCommercialHours } from './planned-hours.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 
 const PROPOSAL_TABLE = 'proposta';
@@ -285,7 +287,8 @@ export function buildBudgetBreakdown({ originalSource, originalBudget = null, ad
     expectedMargin: originalBudget.expectedMargin,
     taxes: originalBudget.taxes
   } : {});
-  const additionals = additionalSources.map(proposal => proposalBudgetSlice(proposal)).filter(Boolean);
+  const additionals = additionalSources.filter(Boolean)
+    .map(proposal => proposalBudgetSlice(applyAdditionalMetricInclusion(proposal)));
   const allSlices = [original, ...additionals].filter(Boolean);
   const originalSalePrice = original?.salePrice ?? null;
   const additionalSalePrice = sumNullable(additionals, item => item.salePrice);
@@ -334,7 +337,7 @@ export function buildBudgetBreakdown({ originalSource, originalBudget = null, ad
   };
 }
 
-function groupCommercialRevisionsByProposal(revisions, currentByCodProp = new Map()) {
+function groupCommercialRevisionsByProposal(revisions, currentByCodProp = new Map(), inclusionByCodProp = new Map()) {
   const groups = new Map();
   for (const revision of revisions) {
     const key = revision.codProp;
@@ -347,6 +350,7 @@ function groupCommercialRevisionsByProposal(revisions, currentByCodProp = new Ma
       proposalCode: String(codProp),
       parentProposalCode: items[0]?.parentCodProp ? String(items[0].parentCodProp) : null,
       currentCodBd: currentByCodProp.get(codProp) ?? null,
+      metricInclusion: normalizeAdditionalMetricInclusion(inclusionByCodProp.get(codProp)),
       revisions: items.sort((a, b) => b.nRev - a.nRev || b.codBd - a.codBd)
     }));
 }
@@ -562,7 +566,7 @@ export async function listProjectRevisions(projectId) {
         serviceModality: true, salePrice: true, plannedCost: true, expectedProfit: true,
         expectedMargin: true, taxes: true, plannedDays: true, workedDays: true,
         numOperators: true, numSupervisors: true, numPerDay: true, numPerNight: true,
-        mobilizationLeadDays: true, isComplete: true
+        mobilizationLeadDays: true, isComplete: true, rawRow: true
       }
     }),
     prisma.projectBudget.findUnique({
@@ -571,7 +575,7 @@ export async function listProjectRevisions(projectId) {
     }),
     prisma.projectAdditionalProposal.findMany({
       where: { projectId },
-      select: { codProp: true, sourceProposalCodBd: true }
+      select: { codProp: true, sourceProposalCodBd: true, metricInclusion: true }
     })
   ]);
   const currentAdditionalByCodProp = new Map(
@@ -592,7 +596,15 @@ export async function listProjectRevisions(projectId) {
     laborSleepModeByCollaborator,
     laborCollaboratorIds: labor.laborCollaboratorIds,
     laborCollaborators: labor.laborCollaborators,
-    additionalProposals: groupCommercialRevisionsByProposal(additionalRevisions, currentAdditionalByCodProp),
+    additionalProposals: groupCommercialRevisionsByProposal(
+      additionalRevisions.map(({ rawRow, ...revision }) => {
+        const hours = readCommercialHours(rawRow);
+        return { ...revision, plannedHours: hours.status === 'AVAILABLE'
+          ? { normal: hours.normal, overtime: hours.overtime, total: hours.total } : null };
+      }),
+      currentAdditionalByCodProp,
+      new Map(selectedAdditionals.map(selection => [selection.codProp, selection.metricInclusion]))
+    ),
     currentAdditionalCodBds: selectedAdditionals.map(selection => selection.sourceProposalCodBd),
     revisions
   };
@@ -774,7 +786,7 @@ export async function setProjectBudgetRevision(projectId, codBd) {
   return setProjectBudgetRevisionWithClient(prisma, projectId, codBd);
 }
 
-export async function setProjectAdditionalProposalRevision(projectId, codBd, { selectedByUserId = null } = {}) {
+export async function setProjectAdditionalProposalRevision(projectId, codBd, { selectedByUserId = null, metricInclusion } = {}) {
   const proposal = await prisma.commercialProposal.findUnique({ where: { codBd } });
   if (!proposal) throw new Error('Revisão adicional não encontrada.');
   if (proposal.parentCodProp === null || proposal.parentCodProp === undefined) {
@@ -795,11 +807,13 @@ export async function setProjectAdditionalProposalRevision(projectId, codBd, { s
       projectId,
       codProp: proposal.codProp,
       sourceProposalCodBd: proposal.codBd,
+      ...(metricInclusion === undefined ? {} : { metricInclusion: normalizeAdditionalMetricInclusion(metricInclusion) }),
       selectedByUserId,
       selectedAt: new Date()
     },
     update: {
       sourceProposalCodBd: proposal.codBd,
+      ...(metricInclusion === undefined ? {} : { metricInclusion: normalizeAdditionalMetricInclusion(metricInclusion) }),
       selectedByUserId,
       selectedAt: new Date()
     }
@@ -941,7 +955,7 @@ async function listCommercialDashboardUncached({
     }),
     prisma.projectAdditionalProposal.findMany({
       where: projectIds ? { projectId: { in: projectIds } } : undefined,
-      select: { projectId: true, codProp: true, sourceProposalCodBd: true }
+      select: { projectId: true, codProp: true, sourceProposalCodBd: true, metricInclusion: true }
     }),
     prisma.report.groupBy({
       by: ['projectId'],
@@ -1011,7 +1025,10 @@ async function listCommercialDashboardUncached({
       plannedDays: null, workedDays: null
     } : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
     const additionalSources = (appProposal ? [] : selectedAdditionalsByProject.get(project.id) ?? [])
-      .map(selection => byCodBd.get(selection.sourceProposalCodBd))
+      .map(selection => {
+        const proposal = byCodBd.get(selection.sourceProposalCodBd);
+        return proposal ? applyAdditionalMetricInclusion(proposal, selection.metricInclusion) : null;
+      })
       .filter(proposal => proposal && proposal.parentCodProp === codProp)
       .sort((a, b) => a.codProp - b.codProp || b.nRev - a.nRev);
     const budgetBreakdown = buildBudgetBreakdown({
@@ -1065,7 +1082,7 @@ async function listCommercialDashboardUncached({
       additionalTaxes: budgetBreakdown.additionalTaxes,
       budgetBreakdown: {
         original: budgetBreakdown.original,
-        additionals: budgetBreakdown.additionals,
+        additionals: budgetBreakdown.additionals.map(item => ({ ...item, projectId: project.id })),
         additionalCount: budgetBreakdown.additionalCount,
         additionalTotals: budgetBreakdown.additionalTotals,
         totals: budgetBreakdown.totals

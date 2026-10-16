@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { OfficialMissionContext } from './reports';
+import type { AdditionalMetricInclusion } from '../../../shared/modules/additional-proposal-metrics.js';
 
 export interface ProjectPresentation {
   id: string;
@@ -31,16 +32,19 @@ export interface CommercialRevision {
   numPerNight?: number | null;
   mobilizationLeadDays?: number | null;
   isComplete?: boolean;
+  plannedHours?: { normal: number; overtime: number; total: number } | null;
 }
 
 export interface CommercialRevisionGroup {
   proposalCode: string;
   parentProposalCode?: string | null;
   currentCodBd: number | null;
+  metricInclusion?: AdditionalMetricInclusion;
   revisions: CommercialRevision[];
 }
 
 export interface BudgetBreakdownSlice {
+  projectId?: string;
   codBd?: number | null;
   codProp?: number | null;
   parentCodProp?: number | null;
@@ -484,8 +488,8 @@ export async function setProjectRevision(projectId: string, codBd: number) {
   return data;
 }
 
-export async function setProjectAdditionalRevision(projectId: string, codBd: number) {
-  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/revisao`, { codBd });
+export async function setProjectAdditionalRevision(projectId: string, codBd: number, metricInclusion?: AdditionalMetricInclusion) {
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/revisao`, { codBd, metricInclusion });
   return data;
 }
 

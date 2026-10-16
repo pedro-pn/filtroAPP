@@ -1,5 +1,13 @@
 # Search regression in a browser
 
+For additional proposal contributions, open `/test/browser/additional-metrics.html` and run
+`playwright-cli run-code --filename frontend/test/browser/additional-metrics.js`.
+It checks that the action appears only in Acompanhamento, per-field inclusion, cancellation,
+persistence after reload, updating the dashboard, retry after a failed save, reactivating excluded
+contributions, read-only access and mobile layout at 390/320 px.
+The production dashboard runs with a simulated API. Backend deployment requires migration
+`20261016140000_additional_proposal_metrics` before starting the updated API.
+
 For signature batches, open `/test/browser/signature-batch.html` and run
 `playwright-cli run-code --filename frontend/test/browser/signature-batch.js`.
 The fixture uses the production upload and editor with a simulated API. It checks

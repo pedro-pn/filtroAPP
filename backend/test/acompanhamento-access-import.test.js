@@ -23,6 +23,43 @@ import {
   toStr
 } from '../src/lib/acompanhamento/access-import.js';
 import { buildPresumedProfitTaxEstimate } from '../src/lib/acompanhamento/presumed-profit-taxes.js';
+import { applyAdditionalMetricInclusion } from '../../shared/modules/additional-proposal-metrics.js';
+
+test('adicional permite desconsiderar orçamento e dias sem alterar receita ou a proposta importada', () => {
+  const original = { salePrice: 1000, plannedCost: 600, expectedProfit: 400, taxes: 100, plannedDays: 10, workedDays: 8 };
+  const additional = { codBd: 2, salePrice: 500, plannedCost: 300, expectedProfit: 200, taxes: 50,
+    plannedDays: 5, workedDays: 4, components: { mo: 300 },
+    metricInclusion: { plannedCost: false, plannedDays: false, workedDays: false } };
+  const snapshot = structuredClone(additional);
+  const effective = applyAdditionalMetricInclusion(additional);
+  assert.equal(effective.plannedDays, null);
+  assert.equal(effective.workedDays, null);
+  assert.deepEqual(effective.components, {});
+  const breakdown = buildBudgetBreakdown({ originalSource: original, additionalSources: [additional] });
+  assert.equal(breakdown.plannedTotalCost, 600);
+  assert.equal(breakdown.additionalPlannedTotalCost, null);
+  assert.equal(breakdown.salePrice, 1500);
+  assert.equal(breakdown.expectedProfit, 600);
+  assert.equal(breakdown.taxes, 150);
+  assert.deepEqual(additional, snapshot);
+  assert.equal(buildBudgetBreakdown({ originalSource: original,
+    additionalSources: [{ ...additional, metricInclusion: {} }] }).plannedTotalCost, 900);
+});
+
+test('seleção por métrica não interfere nos demais adicionais e permite contribuição zerada', () => {
+  const source = { salePrice: 1000, plannedCost: 500, expectedProfit: 500, taxes: 100 };
+  const none = { salePrice: false, plannedCost: false, expectedProfit: false, taxes: false,
+    plannedDays: false, workedDays: false, hours: false };
+  const breakdown = buildBudgetBreakdown({ originalSource: source, additionalSources: [
+    { ...source, metricInclusion: none }, { ...source, metricInclusion: { salePrice: false, taxes: false } }
+  ] });
+  assert.equal(breakdown.additionalCount, 2);
+  assert.equal(breakdown.salePrice, 1000);
+  assert.equal(breakdown.plannedTotalCost, 1000);
+  assert.equal(breakdown.expectedProfit, 1000);
+  assert.equal(breakdown.taxes, 100);
+  assert.equal(breakdown.expectedMargin, 100);
+});
 
 test('faturamento soma ND no projeto 5775 e preserva a base fiscal para impostos', () => {
   const fiscal = { projectId: '5775', valor: 290163.81, valorIss: 8704.91, aliquotaIss: 3, codigoLc116: '7.05', codigoTipoDocumento: 'NFS' };

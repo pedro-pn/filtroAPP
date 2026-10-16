@@ -3642,6 +3642,7 @@ model ProjectAdditionalProposal {
   projectId           String
   codProp             Int
   sourceProposalCodBd Int
+  metricInclusion     Json     @default("{}")
   selectedByUserId    String?
   selectedAt          DateTime @default(now())
   createdAt           DateTime @default(now())
