@@ -158,7 +158,7 @@ export interface DatabookCampoDocumento {
   original: string;
   valor: string;
   multilinha: boolean;
-  aparencia?: { tamanho: number; entrelinha?: number; alinhamento?: number; negrito?: boolean; italico?: boolean };
+  aparencia?: { tamanho: number; entrelinha?: number; alinhamento?: number; negrito?: boolean; italico?: boolean; cor?: string };
 }
 
 export interface DatabookPrevia {

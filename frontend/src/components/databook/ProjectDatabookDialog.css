@@ -50,8 +50,8 @@
 .databook-pdf--destacar .databook-pdf__texto { background: rgb(51 136 98 / 8%); box-shadow: inset 0 -1px rgb(51 136 98 / 40%); }
 .databook-pdf__texto:hover, .databook-pdf__texto:focus-visible { outline: 2px solid #328862; background: rgb(51 136 98 / 20%); }
 .databook-pdf__texto:disabled { pointer-events: none; }
-.databook-pdf__texto--alterado { white-space: pre-wrap; overflow-wrap: anywhere; background: white !important; color: #1f2623; text-align: left; font-family: Arial, sans-serif; }
-.databook-pdf__edicao { position: absolute; z-index: 3; box-sizing: border-box; margin: 0; padding: 0 2px; border: 0; outline: 2px solid #328862; outline-offset: 1px; border-radius: 1px; background: white; color: #1f2623; resize: none; font-family: Arial, sans-serif; overflow: auto; }
+.databook-pdf__texto--alterado { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--databook-campo-fundo, white) !important; font-family: Arial, sans-serif; }
+.databook-pdf__edicao { position: absolute; z-index: 3; box-sizing: border-box; margin: 0; padding: 0 2px; border: 0; outline: 2px solid #328862; outline-offset: 1px; border-radius: 1px; background: var(--databook-campo-fundo, white); resize: none; font-family: Arial, sans-serif; overflow: auto; }
 .databook-pdf__edicao:focus { outline: 2px solid #328862; }
 .databook-previa__sincronizacao { min-height: 1.4em; font-size: var(--text-sm); color: var(--muted); }
 .databook-revisao__dia { padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); }

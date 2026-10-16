@@ -14,6 +14,7 @@ interface AreaEditavel {
   top: number;
   width: number;
   height: number;
+  fundo?: string;
 }
 
 interface EdicaoInline { pagina: number; campo: string; inicial: string }
@@ -171,11 +172,14 @@ function PaginaDatabook({ pdf, numero, largura, campos, edicoes, disabled, edica
       // Troca o bitmap e seus campos juntos, evitando branco/texto antigo durante a atualização.
       canvas.width = destino.width;
       canvas.height = destino.height;
-      canvas.getContext('2d')?.drawImage(destino, 0, 0);
+      const contexto = canvas.getContext('2d', { willReadFrequently: true });
+      contexto?.drawImage(destino, 0, 0);
       destino.width = 0;
       destino.height = 0;
       setCamposRenderizados(campos);
-      setAreas([...novas.values()].sort((a, b) => a.top - b.top || a.left - b.left));
+      const pixels = contexto?.getImageData(0, 0, canvas.width, canvas.height).data;
+      setAreas([...novas.values()].map(area => ({ ...area, fundo: corDeFundo(pixels, canvas.width, canvas.height, area) }))
+        .sort((a, b) => a.top - b.top || a.left - b.left));
       setPronta(true);
     }).catch(error => { if (!cancelado && error?.name !== 'RenderingCancelledException') setErro(true); });
     return () => {
@@ -197,8 +201,9 @@ function PaginaDatabook({ pdf, numero, largura, campos, edicoes, disabled, edica
       const ativo = edicao?.campo === campo.id;
       const alterado = valor !== campo.valor;
       const tamanho = Math.max(12, (campo.aparencia?.tamanho || 12) * largura / larguraPdf);
-      const estilo: CSSProperties = {
+      const estilo: CSSProperties & { '--databook-campo-fundo': string } = {
         left: `${area.left}%`, top: `${area.top}%`, width: `${area.width}%`, minHeight: `${area.height}%`,
+        color: campo.aparencia?.cor || '#1f2623', '--databook-campo-fundo': area.fundo || '#ffffff',
         fontSize: tamanho, lineHeight: campo.aparencia?.entrelinha ? `${campo.aparencia.entrelinha * largura / larguraPdf}px` : 1.2,
         fontWeight: campo.aparencia?.negrito ? 700 : 400, fontStyle: campo.aparencia?.italico ? 'italic' : 'normal',
         textAlign: campo.aparencia?.alinhamento === 1 ? 'center' : campo.aparencia?.alinhamento === 2 ? 'right' : 'left'
@@ -214,6 +219,23 @@ function PaginaDatabook({ pdf, numero, largura, campos, edicoes, disabled, edica
         onClick={() => onIniciar({ pagina: numero, campo: campo.id, inicial: valor })}>{alterado ? valor || '\u00a0' : null}</button>;
     })}
   </div>;
+}
+
+/** A cor predominante sob o campo mantém legíveis inclusive letras brancas em faixas. */
+function corDeFundo(pixels: Uint8ClampedArray | undefined, largura: number, altura: number, area: AreaEditavel): string {
+  if (!pixels) return '#ffffff';
+  const cores = new Map<string, number>();
+  for (const x of [0.05, 0.25, 0.5, 0.75, 0.95]) {
+    for (const y of [0.05, 0.5, 0.95]) {
+      const px = Math.max(0, Math.min(largura - 1, Math.floor((area.left + area.width * x) / 100 * largura)));
+      const py = Math.max(0, Math.min(altura - 1, Math.floor((area.top + area.height * y) / 100 * altura)));
+      const offset = (py * largura + px) * 4;
+      const [r, g, b] = pixels.subarray(offset, offset + 3);
+      const cor = `rgb(${r}, ${g}, ${b})`;
+      cores.set(cor, (cores.get(cor) || 0) + 1);
+    }
+  }
+  return [...cores].sort((a, b) => b[1] - a[1])[0][0];
 }
 
 function CampoInline({ campo, valor, disabled, estilo, larguraDisponivel, alturaDisponivel, onChange, onTerminar, onCancelar }: {
