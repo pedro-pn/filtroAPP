@@ -1584,6 +1584,28 @@ test('confirmação e correção de mobilização preservam a previsão e a etap
   assert.equal(state.events.at(-1).data.correctionStage, 'MOBILIZATION');
 });
 
+test('primeira confirmação no fluxo resumido em execução registra a mobilização efetiva sem mover a gestão', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  state.workflow.stage = 'EXECUTION';
+  state.workflow.legacySummaryEntryStage = 'EXECUTION';
+  state.project.mobilizationDate = new Date('2026-07-06T00:00:00Z');
+  const confirmations = [];
+  const payload = { action: 'mobilization', correctionStage: 'MOBILIZATION', version: 1, mobilizationDate: '2026-07-06' };
+  const dependencies = { database, confirmOfficialMissionMobilization: async (_tx, projectId, date) => confirmations.push({ projectId, date }) };
+  assert.equal((await getProjectWorkflow('project-1', leader, { database })).workflow.actualMobilizationDate, null);
+  await assert.rejects(updateProjectWorkflow('project-1', payload, viewer, dependencies), error => error.code === 'PROJECT_WORKFLOW_CORRECTION_FORBIDDEN');
+  const detail = await updateProjectWorkflow('project-1', payload, leader, dependencies);
+  assert.equal(detail.workflow.stage, 'EXECUTION');
+  assert.equal(detail.workflow.legacySummaryEntryStage, 'EXECUTION');
+  assert.equal(detail.workflow.actualMobilizationDate, '2026-07-06');
+  assert.equal(detail.project.mobilizationDate, '2026-07-06');
+  assert.equal(detail.workflow.plannedMobilizationDate, null);
+  assert.deepEqual(confirmations, [{ projectId: 'project-1', date: '2026-07-06' }]);
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_MOBILIZATION');
+  assert.equal(state.events.at(-1).data.correctionStage, 'MOBILIZATION');
+});
+
 test('datas efetivas não podem ser antecipadas fora da desmobilização', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });

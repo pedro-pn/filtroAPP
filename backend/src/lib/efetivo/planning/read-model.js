@@ -98,7 +98,7 @@ export async function listPlanningCoordinators(dependencies = {}) {
   }));
 }
 
-export async function loadPlanningProjection({ date, returnDate = null, planId = null }, dependencies = {}) {
+export async function loadPlanningProjection({ date, returnDate = null, planId = null, includeOpenCycles = false }, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const startDate = parseDateKey(date);
   const endDate = returnDate && parseDateKey(returnDate) >= startDate ? parseDateKey(returnDate) : addCalendarDays(startDate, 89);
@@ -120,7 +120,7 @@ export async function loadPlanningProjection({ date, returnDate = null, planId =
         deletedAt: null,
         project: efetivoProjectWhere(),
         ...missionStartsOnOrBefore(utcDate(endDate)),
-        ...missionEndsOnOrAfter(utcDate(startDate))
+        ...missionEndsOnOrAfter(utcDate(startDate), { includeOpenCycles })
       },
       include: missionReadInclude
     }),

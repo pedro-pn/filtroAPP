@@ -31,6 +31,7 @@ import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import {
   canManageProjectTeamCycles,
   canViewProjectTeamCycles,
+  showLegacyMobilizationConfirmation,
   WORKFLOW_STAGES,
   WORKFLOW_STAGE_LABELS
 } from '../../../utils/projectWorkflow';
@@ -848,7 +849,7 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
         : <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><ProjectWorkflowBooleanChoice value={item.answer} label={item.label} disabled={stageSaving || !workflow.permissions.canEdit} onSelect={answer => { if (item.answer !== answer) stagePatch({ action: 'critical', version: workflow.version, key: item.key, answer }); }} /></article>)}
     </ProjectWorkflowCategory>
   );
-  const renderMobilizationDates = () => <ProjectWorkflowCategory title="Mobilização efetiva" description="Confirme a data em que o projeto mobilizou. A saída prevista não encerra o ciclo." area="Operações" status={workflow.actualMobilizationDate ? 'Confirmada' : 'Confirmação pendente'} complete={Boolean(workflow.actualMobilizationDate)} initiallyOpen><MobilizationDatesForm workflow={workflow} mission={initialTeam} saving={stageSaving} onPatch={stagePatch} /></ProjectWorkflowCategory>;
+  const renderMobilizationDates = (onMobilizationPatch = stagePatch) => <ProjectWorkflowCategory title="Mobilização efetiva" description="Confirme a data em que o projeto mobilizou. A saída prevista não encerra o ciclo." area="Operações" status={workflow.actualMobilizationDate ? 'Confirmada' : 'Confirmação pendente'} complete={Boolean(workflow.actualMobilizationDate)} initiallyOpen><MobilizationDatesForm workflow={workflow} mission={initialTeam} saving={stageSaving} onPatch={onMobilizationPatch} /></ProjectWorkflowCategory>;
   const renderAnalysisMonitoring = (includeCritical = true) => (
     <>
       <ProjectWorkflowDocumentationTracking workflow={workflow} saving={stageSaving} onPatch={stagePatch} />
@@ -965,6 +966,10 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
       <ProjectTeamCyclesCategory mission={planningMission} loading={planningMissionLoading} editable={teamEditable} allowCycleChanges={activeStage === 'EXECUTION'} mobilizationConfirmed={Boolean(workflow.actualMobilizationDate)} onPlanningMutated={onTeamCyclesMutated} />
       {stageContent}
     </>;
+  }
+
+  if (isCurrentStage && showLegacyMobilizationConfirmation(workflow)) {
+    stageContent = <>{renderMobilizationDates(payload => onPatch({ ...payload, correctionStage: 'MOBILIZATION' }))}{stageContent}</>;
   }
 
   const gateBlockers = ['PREPARATION', 'MOBILIZATION', 'EXECUTION'].includes(activeStage)

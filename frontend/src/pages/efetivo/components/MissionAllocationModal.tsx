@@ -268,7 +268,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
             : <Alert tone="info" title="Somente consulta">Você pode consultar a equipe e os ciclos. Alterações são feitas pelo gestor do Efetivo.</Alert> : null}
           <section className="efetivo-team-section efetivo-team-project-cycles" aria-labelledby="mission-project-cycles-title">
             <header><h3 id="mission-project-cycles-title">Ciclos do projeto</h3><p>Períodos em que a missão esteve mobilizada. A equipe herda estes ciclos por padrão.</p></header>
-            <p className="efetivo-team-help">Desmobilização prevista: {displayDateOnly(mission.executionEndDate)}. Apenas a desmobilização efetiva registrada manualmente encerra um ciclo. A mobilização do ciclo padrão é confirmada ou corrigida na etapa Mobilização.</p>
+            <p className="efetivo-team-help">Desmobilização prevista: {displayDateOnly(mission.executionEndDate)}. Apenas a desmobilização efetiva registrada manualmente encerra um ciclo. Confirme ou corrija a mobilização do ciclo padrão em Mobilização efetiva, na gestão do projeto.</p>
             <div className="efetivo-team-cycle-list">
               {projectCycles.length ? projectCycles.map((cycle, index) => renderCycle(cycle, index)) : <p className="efetivo-team-help">Nenhum ciclo do projeto registrado.</p>}
             </div>
@@ -293,7 +293,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                 <Button workflowAppearance={embedded} variant="primary" size="sm" loading={add.isPending} disabled={busy || !validPeriod || roles.isError} onClick={() => setTeamPickerOpen(true)}>Adicionar colaborador à equipe</Button>
               </div>
             </div> : null}
-            {canManageTeam && allowCycleChanges ? <p className="efetivo-team-help">Sem data de saída, a participação vai até o fim previsto da missão. Os ciclos individuais podem ser ajustados abaixo sem apagar o histórico.</p> : null}
+            {canManageTeam && allowCycleChanges ? <p className="efetivo-team-help">Sem data de saída, o ciclo individual permanece aberto. Os ciclos individuais podem ser ajustados abaixo sem apagar o histórico.</p> : null}
             <div className="efetivo-team-stack" role="group" aria-labelledby="mission-allocated-team-title">
               <h4 id="mission-allocated-team-title">Equipe alocada <span className="efetivo-team-help">({mission.allocations.length})</span></h4>
               {mission.allocations.length ? mission.allocations.map(allocation => {

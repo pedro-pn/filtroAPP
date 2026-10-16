@@ -7,6 +7,7 @@ import {
   canDefineInitialProjectTeam,
   canManageProjectTeamCycles,
   canViewProjectTeamCycles,
+  showLegacyMobilizationConfirmation,
   moveProjectInColumns,
   projectKanbanStage,
   projectStageInColumns,
@@ -15,6 +16,20 @@ import {
   projectWorkflowStageOptions,
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
+
+test('fluxo resumido oferece confirmação de mobilização na etapa atual depois de pular a mobilização', () => {
+  for (const entryStage of ['EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT']) {
+    assert.equal(showLegacyMobilizationConfirmation({ stage: entryStage, legacySummaryEntryStage: entryStage }), true, entryStage);
+    assert.equal(showLegacyMobilizationConfirmation({ stage: 'FINAL_MEASUREMENT', legacySummaryEntryStage: entryStage }), true, entryStage);
+  }
+  for (const workflow of [
+    { stage: 'EXECUTION', legacySummaryEntryStage: null },
+    { stage: 'EXECUTION', legacySummaryEntryStage: 'MOBILIZATION' },
+    { stage: 'MOBILIZATION', legacySummaryEntryStage: 'EXECUTION' },
+    { stage: 'FINISHED', legacySummaryEntryStage: 'EXECUTION' },
+    { stage: 'EXECUTION', legacySummaryEntryStage: 'EXECUTION', executedAtHeadquarters: true }
+  ]) assert.equal(showLegacyMobilizationConfirmation(workflow), false, JSON.stringify(workflow));
+});
 
 test('equipe inicial começa no planejamento e continua disponível até a mobilização; novos ciclos só na execução', () => {
   assert.equal(canDefineInitialProjectTeam('MOBILIZATION_PLANNING'), true);

@@ -4,7 +4,7 @@ import {
   projectWorkflowStageTransitions,
   projectWorkflowVisibleStages
 } from '../../../shared/schemas/project-workflow.js';
-import type { ProjectWorkflowStage, ProjectWorkflowSummary } from '../api/projectWorkflow';
+import type { ProjectWorkflow, ProjectWorkflowStage, ProjectWorkflowSummary } from '../api/projectWorkflow';
 
 export const WORKFLOW_STAGES: readonly ProjectWorkflowStage[] = PROJECT_WORKFLOW_STAGES;
 export const WORKFLOW_STAGE_LABELS = PROJECT_WORKFLOW_STAGE_LABELS as Record<ProjectWorkflowStage, string>;
@@ -27,6 +27,14 @@ export function canManageProjectTeamCycles(stage: ProjectKanbanStage) {
 
 export function canViewProjectTeamCycles(stage: ProjectKanbanStage) {
   return WORKFLOW_STAGES.indexOf(stage) >= WORKFLOW_STAGES.indexOf('MOBILIZATION');
+}
+
+export function showLegacyMobilizationConfirmation(workflow: Pick<ProjectWorkflow, 'stage' | 'legacySummaryEntryStage' | 'executedAtHeadquarters'>) {
+  const entryIndex = workflow.legacySummaryEntryStage ? WORKFLOW_STAGES.indexOf(workflow.legacySummaryEntryStage) : -1;
+  return !workflow.executedAtHeadquarters
+    && entryIndex > WORKFLOW_STAGES.indexOf('MOBILIZATION')
+    && WORKFLOW_STAGES.indexOf(workflow.stage) >= entryIndex
+    && workflow.stage !== 'FINISHED';
 }
 
 export function projectKanbanStage(item: ProjectWorkflowSummary): ProjectKanbanStage {

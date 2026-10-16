@@ -62,10 +62,11 @@ export function allocationCoversDate(allocation, mission, value) {
   ));
 }
 
-export function missionCoversDate(mission, value) {
+export function missionCoversDate(mission, value, { includeOpenCycles = false } = {}) {
   const date = parseDateKey(value);
   return missionCycles(mission).some(period => (
-    period.startDate <= date && period.endDate >= date
+    period.startDate <= date && (period.endDate >= date
+      || (includeOpenCycles && period.isOpen && ['MOBILIZATION', 'EXECUTION'].includes(mission.stage)))
   ));
 }
 

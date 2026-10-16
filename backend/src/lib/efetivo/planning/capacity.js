@@ -31,7 +31,7 @@ function indexAbsencesByCollaborator(absences) {
   return index;
 }
 
-function indexMissionsByCollaborator(missions) {
+function indexMissionsByCollaborator(missions, includeOpenCycles = false) {
   const index = new Map();
   for (const mission of missions) {
     if (mission.deletedAt || mission.scheduleStatus !== 'CONFIRMED') continue;
@@ -41,8 +41,11 @@ function indexMissionsByCollaborator(missions) {
       periods.push(...allocationPeriods(allocation, mission).map(period => ({
         record: mission,
         startDate: period.startDate,
-        endDate: period.endDate
+        endDate: period.endDate,
+        isOpen: includeOpenCycles && period.isOpen && ['MOBILIZATION', 'EXECUTION'].includes(mission.stage)
       })));
+      // Uma missão em campo prevalece sobre uma programação futura em Stand by.
+      if (includeOpenCycles) periods.sort((left, right) => Number(left.record.stage === 'STANDBY') - Number(right.record.stage === 'STANDBY'));
       index.set(allocation.collaboratorId, periods);
     }
   }
@@ -50,15 +53,15 @@ function indexMissionsByCollaborator(missions) {
 }
 
 function recordOn(index, collaboratorId, date) {
-  return index.get(collaboratorId)?.find(period => period.startDate <= date && period.endDate >= date)?.record;
+  return index.get(collaboratorId)?.find(period => period.startDate <= date && (period.isOpen || period.endDate >= date))?.record;
 }
 
-function demandByRoleOn(missions, date) {
+function demandByRoleOn(missions, date, includeOpenCycles = false) {
   const totals = new Map();
   for (const mission of missions) {
     if (mission.deletedAt
       || mission.scheduleStatus !== 'CONFIRMED'
-      || !missionCoversDate(mission, date)) continue;
+      || !missionCoversDate(mission, date, { includeOpenCycles })) continue;
     for (const demand of mission.demands || []) {
       totals.set(demand.jobRoleId, (totals.get(demand.jobRoleId) || 0) + Number(demand.requiredCount || 0));
     }
@@ -82,14 +85,15 @@ export function calculateDailyCapacity({
   collaborators = [],
   jobRoles = [],
   missions = [],
-  absences = []
+  absences = [],
+  includeOpenCycles = false
 }) {
   const dateKey = parseDateKey(date);
   const roles = jobRoles.filter(role => role.isActive !== false && role.isOperational !== false);
   const groups = roleGroups(roles);
   const absenceIndex = indexAbsencesByCollaborator(absences);
-  const missionIndex = indexMissionsByCollaborator(missions);
-  const demandTotals = demandByRoleOn(missions, dateKey);
+  const missionIndex = indexMissionsByCollaborator(missions, includeOpenCycles);
+  const demandTotals = demandByRoleOn(missions, dateKey, includeOpenCycles);
   const statuses = [];
 
   for (const collaborator of collaborators) {

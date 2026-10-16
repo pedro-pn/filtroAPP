@@ -91,8 +91,45 @@ test('voltar à tela ou à aba revalida mesmo dentro dos 60 segundos do cache', 
 });
 
 test('listas e painéis têm atualização periódica; formulários e catálogos estáticos não', () => {
+  for (const key of [['project-detail', 'p1'], ['project-detail', 'p1', 'division1'], ['mission-group-detail', 'g1']]) assert.equal(clients.liveQueryInterval(key), 15_000);
   for (const key of [['projects'], ['reports', 'accumulated'], ['efetivo-planning-overview'], ['operations'], ['operational-reports', 'module-list']]) assert.equal(clients.liveQueryInterval(key), 60_000);
   for (const key of [['romaneio', 'edit'], ['report', 'edit'], ['planned-scope'], ['cost-config'], ['equipamentos', 'units-catalog'], ['reports', 'planning-context'], ['operational-reports', 'report']]) assert.equal(clients.liveQueryInterval(key), false);
+});
+
+test('aprovação em outra aba atualiza o último RDO no projeto, divisão e agrupamento abertos', async () => {
+  const client = clients.createAppQueryClient();
+  const dispose = clients.installQueryDataUpdates(client);
+  const channel = new BroadcastChannel('filtrovali:data-updates');
+  const keys = [['project-detail', 'p1'], ['project-detail', 'p1', 'division1'], ['mission-group-detail', 'g1']];
+  let lastRdoDate = '2026-10-14';
+  const observers = keys.map(queryKey => new QueryObserver(client, {
+    queryKey,
+    queryFn: async () => ({ header: { lastRdoDate } })
+  }));
+  const unsubscribes = observers.map(observer => observer.subscribe(() => {}));
+  try {
+    await Promise.all(observers.map(observer => observer.refetch()));
+    for (const observer of observers) assert.equal(observer.getCurrentResult().data.header.lastRdoDate, '2026-10-14');
+    lastRdoDate = '2026-10-15';
+    channel.postMessage(updates.dataUpdatesForRequest('patch', '/rdo/reports/r1/status'));
+    await new Promise((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error('O último RDO não foi atualizado nas consultas abertas.')), 2_000);
+      const check = () => {
+        if (observers.every(observer => observer.getCurrentResult().data?.header.lastRdoDate === lastRdoDate)) {
+          clearTimeout(deadline);
+          resolve();
+        }
+      };
+      observers.forEach(observer => unsubscribes.push(observer.subscribe(check)));
+      check();
+    });
+    for (const key of keys) assert.equal(client.getQueryData(key).header.lastRdoDate, '2026-10-15');
+  } finally {
+    unsubscribes.forEach(unsubscribe => unsubscribe());
+    channel.close();
+    dispose();
+    client.clear();
+  }
 });
 
 function page(items, number, totalPages = 2, groups = []) { return { items, groups, pagination: { page: number, pageSize: 2, total: 4, totalPages } }; }
