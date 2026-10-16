@@ -4,6 +4,23 @@ import test from 'node:test';
 import { calculateDailyCapacity, calculateUtilization90Days } from '../src/lib/efetivo/planning/capacity.js';
 import { businessDatesInclusive, holidayDateSet, isBusinessDay } from '../src/lib/efetivo/planning/business-days.js';
 
+test('posição operacional respeita ciclos abertos e o cálculo prospectivo conserva o término previsto', () => {
+  const input = {
+    date: '2026-10-16', endDate: '2026-10-16',
+    jobRoles: [{ id: 'r1', name: 'Operador', isActive: true, isOperational: true }],
+    collaborators: [{ id: 'c1', name: 'Pessoa', jobRoleId: 'r1', isActive: true }],
+    missions: [{
+      id: 'm1', stage: 'EXECUTION', scheduleStatus: 'CONFIRMED',
+      mobilizationDate: '2026-07-06', executionEndDate: '2026-08-20', returnDate: null,
+      cycles: [{ isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: null }],
+      demands: [{ jobRoleId: 'r1', requiredCount: 1 }], allocations: [{ collaboratorId: 'c1' }]
+    }]
+  };
+  assert.equal(calculateDailyCapacity(input).totals.free, 1);
+  assert.equal(calculateDailyCapacity({ ...input, includeOpenCycles: true }).totals.allocated, 1);
+  assert.equal(calculateUtilization90Days(input).committedPersonDays, 0);
+});
+
 test('fadiga offshore reduz capacidade e dias disponíveis, respeitando exclusão lógica', () => {
   const input = {
     date: '2026-09-01', endDate: '2026-09-04',

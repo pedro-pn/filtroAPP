@@ -18,7 +18,7 @@ export function missionPeriod(mission) {
   };
 }
 
-export function missionEndsOnOrAfter(value) {
+export function missionEndsOnOrAfter(value, { includeOpenCycles = false } = {}) {
   return {
     OR: [
       { returnDate: { gte: value } },
@@ -28,7 +28,14 @@ export function missionEndsOnOrAfter(value) {
       { allocations: { some: { deletedAt: null, cycles: { some: { OR: [
         { demobilizationDate: { gte: value } },
         { mobilizationDate: { gte: value } }
-      ] } } } } }
+      ] } } } } },
+      ...(includeOpenCycles ? [{
+        stage: { in: ['MOBILIZATION', 'EXECUTION'] },
+        OR: [
+          { cycles: { some: { demobilizationDate: null } } },
+          { allocations: { some: { deletedAt: null, cycles: { some: { demobilizationDate: null } } } } }
+        ]
+      }] : [])
     ]
   };
 }

@@ -14,6 +14,9 @@ const liveLists = [
 ];
 
 export function liveQueryInterval(queryKey: readonly unknown[]) {
+  // Aprovações em outros navegadores não chegam pelo BroadcastChannel.
+  // Mantém o último RDO e os demais indicadores do detalhe atualizados com a tela aberta.
+  if (queryKey[0] === 'project-detail' || queryKey[0] === 'mission-group-detail') return 15_000;
   // Os detalhes abaixo alimentam formulários, e não listas/painéis.
   if (queryKey[0] === 'reports' && ['planning-context', 'collaborator-prefill'].includes(String(queryKey[1]))) return false;
   if (queryKey[0] === 'operational-reports') return ['module-list', 'maintenance-schedule', 'maintenance-history'].includes(String(queryKey[1])) ? 60_000 : false;

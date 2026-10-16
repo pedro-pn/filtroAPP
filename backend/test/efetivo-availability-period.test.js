@@ -1,7 +1,101 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildAvailabilityPeriod } from '../src/lib/efetivo/planning/availability-period.js';
+import { buildAvailabilityPeriod, getPlanningAvailabilityPeriod } from '../src/lib/efetivo/planning/availability-period.js';
+
+function ongoingProjectProjection() {
+  return {
+    jobRoles: [{ id: 'r1', name: 'Operador', isOperational: true, isActive: true }],
+    collaborators: ['Antonio', 'Daniel', 'Wilton'].map((name, index) => ({ id: `c${index + 1}`, name, jobRoleId: 'r1', isActive: true })),
+    absences: [],
+    missions: [{
+      id: 'future', projectId: '5843', scheduleStatus: 'CONFIRMED', stage: 'STANDBY',
+      project: { code: '5843', name: 'Próxima missão' },
+      mobilizationDate: '2026-10-25', executionEndDate: '2026-11-09', returnDate: null,
+      cycles: [{ isDefault: true, mobilizationDate: '2026-10-25', demobilizationDate: null }],
+      demands: [], allocations: [{ collaboratorId: 'c3' }]
+    }, {
+      id: 'current', projectId: '5800', scheduleStatus: 'CONFIRMED', stage: 'EXECUTION',
+      project: { code: '5800', name: 'Reframax' },
+      mobilizationDate: '2026-07-06', executionEndDate: '2026-08-20', returnDate: null,
+      cycles: [{ isDefault: true, mobilizationDate: '2026-07-06', demobilizationDate: null }],
+      demands: [{ jobRoleId: 'r1', requiredCount: 3 }],
+      allocations: [
+        { collaboratorId: 'c1' },
+        { collaboratorId: 'c2', cycles: [{ mobilizationDate: '2026-08-20', demobilizationDate: null }] },
+        { collaboratorId: 'c3', cycles: [{ mobilizationDate: '2026-10-05', demobilizationDate: null }] }
+      ]
+    }]
+  };
+}
+
+test('ciclos gerais e individuais abertos mantêm os três colaboradores mobilizados após o fim previsto', () => {
+  const projection = ongoingProjectProjection();
+  const before = structuredClone(projection);
+  const result = buildAvailabilityPeriod({ startDate: '2026-10-16', endDate: '2026-10-27', projection });
+  assert.equal(result.people.length, 3);
+  for (const person of result.people) {
+    assert.equal(person.days.length, 12);
+    assert.ok(person.days.every(day => day.status === 'MOBILIZED' && day.detail === '5800 · Reframax'), person.name);
+  }
+  assert.ok(result.roles[0].daily.every(day => day.allocated === 3 && day.free === 0 && day.demand === 3));
+  assert.deepEqual(projection, before);
+});
+
+test('consulta da disponibilidade carrega ciclos abertos em campo mesmo quando a previsão terminou antes do período', async () => {
+  const projection = ongoingProjectProjection();
+  let missionQuery;
+  const database = {
+    efetivoPlan: { findFirst: async () => ({ id: 'official', kind: 'OFFICIAL', status: 'ACTIVE' }) },
+    collaborator: { findMany: async () => projection.collaborators },
+    jobRole: { findMany: async () => projection.jobRoles },
+    efetivoMissionPlan: { findMany: async query => { missionQuery = query; return projection.missions; } },
+    collaboratorAbsence: { findMany: async () => [] },
+    workforceHoliday: { findMany: async () => [] },
+    workforceCalendarState: { findUnique: async () => ({ revision: 1 }) },
+    efetivoSetting: { findUnique: async () => null },
+    efetivoPlannedHire: { findMany: async () => [] },
+    projectWorkflow: { findMany: async () => [] }
+  };
+  const result = await getPlanningAvailabilityPeriod({ startDate: '2026-10-16', endDate: '2026-10-16' }, { database });
+  assert.equal(missionQuery.where.planId, 'official');
+  assert.deepEqual(missionQuery.where.OR.at(-1), {
+    stage: { in: ['MOBILIZATION', 'EXECUTION'] },
+    OR: [
+      { cycles: { some: { demobilizationDate: null } } },
+      { allocations: { some: { deletedAt: null, cycles: { some: { demobilizationDate: null } } } } }
+    ]
+  });
+  assert.ok(missionQuery.include.cycles);
+  assert.ok(missionQuery.include.allocations.include.cycles);
+  assert.ok(result.people.every(person => person.days[0].status === 'MOBILIZED'));
+});
+
+test('desmobilização individual, pausas e afastamentos continuam liberando ou bloqueando os dias corretos', () => {
+  const projection = ongoingProjectProjection();
+  const mission = projection.missions[1];
+  mission.allocations[1].cycles[0].demobilizationDate = '2026-10-17';
+  mission.allocations[1].cycles.push({ mobilizationDate: '2026-10-20', demobilizationDate: null });
+  projection.absences.push({ collaboratorId: 'c1', type: 'FERIAS', startDate: '2026-10-18', endDate: '2026-10-18' });
+  const result = buildAvailabilityPeriod({ startDate: '2026-10-16', endDate: '2026-10-20', projection });
+  assert.deepEqual(result.people.find(person => person.id === 'c2').days.map(day => day.status), ['MOBILIZED', 'MOBILIZED', 'AVAILABLE', 'AVAILABLE', 'MOBILIZED']);
+  assert.equal(result.people.find(person => person.id === 'c1').days[2].status, 'ON_VACATION');
+});
+
+test('ciclo encerrado, missão cancelada ou finalizada e programação em standby não prolongam alocação', () => {
+  for (const change of [
+    mission => { mission.cycles[0].demobilizationDate = '2026-10-15'; mission.allocations.forEach(allocation => { allocation.cycles = []; }); },
+    mission => { mission.scheduleStatus = 'CANCELLED'; },
+    mission => { mission.stage = 'FINISHED'; },
+    mission => { mission.deletedAt = new Date(); },
+    mission => { mission.stage = 'STANDBY'; }
+  ]) {
+    const projection = ongoingProjectProjection();
+    change(projection.missions[1]);
+    const result = buildAvailabilityPeriod({ startDate: '2026-10-16', endDate: '2026-10-16', projection });
+    assert.ok(result.people.every(person => person.days[0].status === 'AVAILABLE'));
+  }
+});
 
 test('fadiga offshore bloqueia o período inclusivo e recebe status e detalhe próprios', () => {
   const projection = {
