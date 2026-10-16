@@ -83,6 +83,11 @@ export async function sendInviteEmail(client, signerId, {
   mailer = sendClientMail,
   missingMailerConfig = getMissingMailerConfig()
 } = {}) {
+  const target = await client.signatureDocumentSigner.findUnique({ where: { id: signerId }, select: { groupInviteId: true } });
+  if (target?.groupInviteId) {
+    const { sendGroupInviteEmail } = await import('./group-notifications.js');
+    return sendGroupInviteEmail(client, target.groupInviteId, { now, mailer, missingMailerConfig });
+  }
   const startedAt = Date.now();
   const claimedAt = now;
   const claim = await client.signatureDocumentSigner.updateMany({
@@ -203,6 +208,9 @@ export async function markAmbiguousInviteClaims(client, { now = new Date() } = {
 }
 
 export async function processInviteEmailQueue(client = prisma, { now = new Date(), limit = 25, ...dependencies } = {}) {
+  const grouped = client.signatureInviteGroup
+    ? await (await import('./group-notifications.js')).processGroupInviteEmailQueue(client, { now, limit, ...dependencies })
+    : { found: 0, sent: 0, failed: 0, reviewed: 0 };
   const reviewed = await markAmbiguousInviteClaims(client, { now });
   const candidates = await client.signatureDocumentSigner.findMany({
     where: {
@@ -222,7 +230,7 @@ export async function processInviteEmailQueue(client = prisma, { now = new Date(
     if (result.status === 'ENVIADO') sent += 1;
     if (result.status === 'FALHOU') failed += 1;
   }
-  return { found: candidates.length, sent, failed, reviewed };
+  return { found: candidates.length + grouped.found, sent: sent + grouped.sent, failed: failed + grouped.failed, reviewed: reviewed + grouped.reviewed };
 }
 
 export async function queueInviteEmails(client, documentId, dependencies = {}) {
@@ -245,6 +253,10 @@ export async function resendInviteEmail(client, document, signer, dependencies =
     const error = new Error('Este assinante não possui e-mail. Copie o link manualmente.');
     error.statusCode = 409;
     throw error;
+  }
+  if (signer.groupInviteId && ['PENDENTE', 'VISUALIZADO'].includes(signer.status)) {
+    const { resendGroupInviteEmail } = await import('./group-notifications.js');
+    return resendGroupInviteEmail(client, signer.groupInviteId, dependencies);
   }
   if (!['PENDENTE', 'VISUALIZADO'].includes(signer.status) || !signer.tokenHash) {
     const error = new Error('Este convite não pode ser reenviado.');

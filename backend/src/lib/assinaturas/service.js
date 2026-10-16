@@ -11,6 +11,7 @@ import {
   ownerListWhere
 } from './access.js';
 import { recordDocumentEvent } from './audit.js';
+import { listGroupedDocuments } from './batch-library.js';
 import { sourcePdfBuffer } from './document.js';
 import { beginDocumentFinalization, scheduleDocumentFinalization } from './finalization.js';
 import {
@@ -212,6 +213,7 @@ export async function revokeDocumentInvite(client, documentId, signerId, ownerUs
 function ownerSignerPayload(signer) {
   return {
     id: signer.id,
+    batchSignerId: signer.batchSignerId || null,
     name: signer.name,
     email: signer.email,
     position: signer.position,
@@ -219,9 +221,10 @@ function ownerSignerPayload(signer) {
     isRequired: signer.isRequired,
     tokenExpiresAt: signer.tokenExpiresAt,
     renewalCount: signer.renewalCount,
-    emailStatus: signer.emailStatus,
-    emailAttempts: signer.emailAttempts,
-    emailSentAt: signer.emailSentAt,
+    groupInviteId: signer.groupInviteId || null,
+    emailStatus: signer.groupInvite?.emailStatus ?? signer.emailStatus,
+    emailAttempts: signer.groupInvite?.emailAttempts ?? signer.emailAttempts,
+    emailSentAt: signer.groupInvite?.emailSentAt ?? signer.emailSentAt,
     viewedAt: signer.viewedAt,
     signedAt: signer.signedAt,
     revokedAt: signer.revokedAt,
@@ -229,7 +232,7 @@ function ownerSignerPayload(signer) {
   };
 }
 
-function ownerDocumentPayload(document) {
+export function ownerDocumentPayload(document) {
   return {
     ...document,
     signers: (document.signers || []).map(ownerSignerPayload),
@@ -241,6 +244,7 @@ function documentCard(document) {
   const progress = documentProgress(document);
   return {
     id: document.id,
+    batchId: document.batchId || null,
     title: document.title,
     originalFileName: document.originalFileName,
     status: document.status,
@@ -279,6 +283,7 @@ export async function listDocuments(client, ownerUserId, filters = {}) {
       ]
     } : {})
   };
+  if (filters.grouped) return listGroupedDocuments(client, ownerUserId, where, filters, limit, documentCard);
   const items = await client.signatureDocument.findMany({
     where,
     include: { signers: { select: { status: true } } },
@@ -297,7 +302,7 @@ export async function listDocuments(client, ownerUserId, filters = {}) {
 export async function getDocument(client, id, ownerUserId, options = {}) {
   const document = await documentForOwnerOrThrow(client, id, ownerUserId, {
     include: {
-      signers: { orderBy: { position: 'asc' } },
+      signers: { orderBy: { position: 'asc' }, include: { groupInvite: { select: { emailStatus: true, emailAttempts: true, emailSentAt: true } } } },
       fields: { orderBy: [{ pageNumber: 'asc' }, { createdAt: 'asc' }] }
     },
     ...options
@@ -364,6 +369,36 @@ export async function replaceFields(client, document, fields, actorUserId) {
   return client.$transaction ? client.$transaction(operation) : operation(client);
 }
 
+// Também usado pelo lote, dentro de uma única transação.
+export async function publishPreparedDocument(tx, document, expiresAt, ownerUserId, now, { grouped = false } = {}) {
+  const invites = grouped ? document.signers.map(signer => ({ signer })) : await issueInvites(tx, document, expiresAt, { actorUserId: ownerUserId });
+  const updated = await tx.signatureDocument.update({
+    where: { id: document.id },
+    data: {
+      status: 'AGUARDANDO_ASSINATURAS',
+      validationCode: createStandaloneValidationCode(),
+      tokenExpiresAt: expiresAt,
+      publishedAt: now
+    }
+  });
+  await recordDocumentEvent(tx, {
+    document,
+    actorUserId: ownerUserId,
+    action: 'DOCUMENTO_PUBLICADO',
+    description: 'Documento publicado para assinatura.'
+  });
+  return {
+    document: updated,
+    invites: invites.map(item => ({
+      signerId: item.signer.id,
+      name: item.signer.name,
+      hasEmail: Boolean(item.signer.email),
+      expiresAt
+    })),
+    emailSummary: { pending: invites.filter(item => item.signer.email).length, notApplicable: invites.filter(item => !item.signer.email).length }
+  };
+}
+
 export async function publishDocument(client, id, ownerUserId, payload, {
   now = new Date(),
   loadSource = sourcePdfBuffer,
@@ -383,32 +418,7 @@ export async function publishDocument(client, id, ownerUserId, payload, {
     const issues = validatePublishableSnapshot(document);
     if (issues.length) throw httpError('Corrija as pendências antes de publicar.', 400, { issues });
     const expiresAt = publicationExpiresAt(payload, now);
-    const invites = await issueInvites(tx, document, expiresAt, { actorUserId: ownerUserId });
-    const updated = await tx.signatureDocument.update({
-      where: { id: document.id },
-      data: {
-        status: 'AGUARDANDO_ASSINATURAS',
-        validationCode: createStandaloneValidationCode(),
-        tokenExpiresAt: expiresAt,
-        publishedAt: now
-      }
-    });
-    await recordDocumentEvent(tx, {
-      document,
-      actorUserId: ownerUserId,
-      action: 'DOCUMENTO_PUBLICADO',
-      description: 'Documento publicado para assinatura.'
-    });
-    return {
-      document: updated,
-      invites: invites.map(item => ({
-        signerId: item.signer.id,
-        name: item.signer.name,
-        hasEmail: Boolean(item.signer.email),
-        expiresAt
-      })),
-      emailSummary: { pending: invites.filter(item => item.signer.email).length, notApplicable: invites.filter(item => !item.signer.email).length }
-    };
+    return publishPreparedDocument(tx, document, expiresAt, ownerUserId, now);
   };
   const result = await client.$transaction(operation);
   await deliverInvites(client, result.document.id, { now }).catch(() => {

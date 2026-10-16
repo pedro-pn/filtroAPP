@@ -31,7 +31,8 @@ export function DocumentDetailView({
   pageNumber,
   onTabChange,
   onPageChange,
-  onBack
+  onBack,
+  onOpenBatch
 }: {
   document: SignatureDocument;
   tab: 'details' | 'setup' | 'audit';
@@ -39,6 +40,7 @@ export function DocumentDetailView({
   onTabChange: (tab: 'details' | 'setup' | 'audit') => void;
   onPageChange: (page: number) => void;
   onBack: () => void;
+  onOpenBatch?: () => void;
 }) {
   const showToast = useToast();
   const mutations = useAssinaturaMutations();
@@ -107,7 +109,8 @@ export function DocumentDetailView({
       {activeTab === 'setup' ? <DocumentSetupView document={document} pageNumber={pageNumber} onPageChange={onPageChange} /> : activeTab === 'audit' ? <AuditTrail key={document.id} documentId={document.id} /> : (
         <>
           <DocumentTrackingSummary document={document} downloading={downloading} onDownload={download} />
-          <SignerStatusList documentId={document.id} signers={document.signers} />
+          {document.batchId ? <Button variant="secondary" onClick={onOpenBatch || onBack}>Ver assinantes e links do lote</Button>
+            : <SignerStatusList documentId={document.id} signers={document.signers} />}
         </>
       )}
       <ConfirmDialog

@@ -34,6 +34,7 @@ interface DocumentLibraryProps {
 
 export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreError, archived, query, status, dateFrom = '', dateTo = '', newSignatures = [], onQueryChange, onStatusChange, onDateFromChange, onDateToChange, onArchiveChange, onClearFilters, onRetry, onLoadMore, onNew, onOpen }: DocumentLibraryProps) {
   const items = data?.items || [];
+  const documents = items.flatMap(item => item.batchDocuments || [item]);
   const filtered = Boolean(query || status || dateFrom || dateTo);
   const highlighted = archived ? [] : newSignatures;
   const highlightedIds = new Set(highlighted.map(document => document.id));
@@ -90,9 +91,9 @@ export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreErr
       />
       {!loading && !error && data ? (
         <section className="assinaturas-library__metrics" aria-label="Resumo dos documentos exibidos">
-          <MetricCard label="Nesta lista" value={items.length} description={data.nextCursor ? 'Recorte carregado' : archived ? 'Documentos arquivados' : 'Documentos ativos'} />
-          <MetricCard label="Aguardando" value={items.filter(item => item.status === 'AGUARDANDO_ASSINATURAS').length} description="Assinaturas pendentes" tone="warning" />
-          <MetricCard label="Concluídos" value={items.filter(item => item.status === 'CONCLUIDO').length} description="PDF final disponível" tone="success" />
+          <MetricCard label="Nesta lista" value={documents.length} description={data.nextCursor ? 'Recorte carregado' : archived ? 'Documentos arquivados' : 'Documentos ativos'} />
+          <MetricCard label="Aguardando" value={documents.filter(item => item.status === 'AGUARDANDO_ASSINATURAS').length} description="Assinaturas pendentes" tone="warning" />
+          <MetricCard label="Concluídos" value={documents.filter(item => item.status === 'CONCLUIDO').length} description="PDF final disponível" tone="success" />
         </section>
       ) : null}
       <div id="signature-document-results" aria-busy={loading || undefined}>

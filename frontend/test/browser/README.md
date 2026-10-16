@@ -1,5 +1,21 @@
 # Search regression in a browser
 
+For signature batches, open `/test/browser/signature-batch.html` and run
+`playwright-cli run-code --filename frontend/test/browser/signature-batch.js`.
+The fixture uses the production upload and editor with a simulated API. It checks
+multiple PDFs, partial upload failure and retry, continuous scrolling, independent
+signer placement, preserving fields when adding signers, reloading the saved
+draft, mobile layout, and publishing only the assigned signers per document.
+After that regression, run `playwright-cli run-code --filename frontend/test/browser/signature-batch-tracking.js` to check one library card per batch, nested PDFs with mixed statuses, centralized signer links, stable copying, individual downloads, document-to-batch navigation, and mobile layout.
+No database records or emails are created.
+
+The batch regression also checks the external document header, previous/next
+buttons, direct document selection and scroll tracking. For the public grouped
+invitation, run `playwright-cli run-code --filename
+frontend/test/browser/signature-group-public.js` in the same fixture session.
+It checks one signature confirmation for two documents, navigation on mobile,
+and two separate PDF downloads with simulated responses.
+
 For signed RDO batch uploads, open `/test/browser/physical-signature-batch.html` and run
 `playwright-cli run-code --filename frontend/test/browser/physical-signature-batch.js`.
 The regression uses the production dialog with simulated API responses and covers

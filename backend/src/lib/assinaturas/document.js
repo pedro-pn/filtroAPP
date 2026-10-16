@@ -32,13 +32,21 @@ function normalizedText(value) {
 
 export function parsePdfUpload(fileName, dataUrl) {
   const name = normalizedText(fileName);
+  const maxEncodedLength = Math.ceil(env.assinaturasMaxPdfMb * 1024 * 1024 / 3) * 4;
+  if (typeof dataUrl !== 'string' || dataUrl.length > maxEncodedLength + 64) {
+    throw httpError(`Arquivo PDF inválido ou muito grande (máx. ${env.assinaturasMaxPdfMb} MB).`);
+  }
   const match = normalizedText(dataUrl).match(/^data:application\/pdf;base64,([A-Za-z0-9+/]+={0,2})$/i);
   if (!name || !match || match[1].length % 4 !== 0) {
     throw httpError('Envie um arquivo PDF válido.');
   }
-  const bytes = Buffer.from(match[1], 'base64');
+  return parsePdfBytes(name, Buffer.from(match[1], 'base64'));
+}
+
+export function parsePdfBytes(fileName, bytes) {
+  const name = normalizedText(fileName);
   const maxBytes = env.assinaturasMaxPdfMb * 1024 * 1024;
-  if (!bytes.length || bytes.length > maxBytes || bytes.subarray(0, 4).toString('utf8') !== '%PDF') {
+  if (!name || !Buffer.isBuffer(bytes) || !bytes.length || bytes.length > maxBytes || bytes.subarray(0, 4).toString('utf8') !== '%PDF') {
     throw httpError(`Arquivo PDF inválido ou muito grande (máx. ${env.assinaturasMaxPdfMb} MB).`);
   }
   return { fileName: name, mimeType: 'application/pdf', extension: 'pdf', bytes };
@@ -132,7 +140,9 @@ export async function createDocument(client, input, dependencies = {}) {
   if (!ownerUserId) throw new TypeError('ownerUserId is required to create a signature document.');
   if (!requesterNameSnapshot) throw httpError('O nome do solicitante é obrigatório.');
 
-  const parsed = parsePdfUpload(input?.fileName, input?.pdfDataUrl);
+  const parsed = input?.pdfBytes !== undefined
+    ? parsePdfBytes(input?.fileName, input.pdfBytes)
+    : parsePdfUpload(input?.fileName, input?.pdfDataUrl);
   const metadata = await pdfMetadata(parsed.bytes);
   const title = normalizedText(input?.title)
     || path.basename(parsed.fileName, path.extname(parsed.fileName));
@@ -151,10 +161,24 @@ export async function createDocument(client, input, dependencies = {}) {
 
   try {
     const operation = async tx => {
+      let batchPosition;
+      if (input.batchId) {
+        // Serializa uploads/configuração/publicação do lote e verifica o proprietário.
+        const locked = await tx.signatureDocumentBatch.updateMany({
+          where: { id: input.batchId, ownerUserId }, data: { updatedAt: new Date() }
+        });
+        if (locked.count !== 1) throw httpError('Lote não encontrado.', 404);
+        const published = await tx.signatureDocument.count({
+          where: { batchId: input.batchId, status: { not: 'RASCUNHO' }, deletedAt: null }
+        });
+        if (published) throw httpError('Este lote já foi publicado.', 409);
+        batchPosition = await tx.signatureDocument.count({ where: { batchId: input.batchId } });
+      }
       const document = await tx.signatureDocument.create({
         data: {
           ownerUserId,
           requesterNameSnapshot,
+          ...(input.batchId ? { batchId: input.batchId, batchPosition } : {}),
           title,
           originalFileName: parsed.fileName,
           mimeType: parsed.mimeType,

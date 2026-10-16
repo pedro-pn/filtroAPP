@@ -82,7 +82,10 @@ export function jsonBodyLimitForRequest(method, requestPath) {
 
   const isStandaloneSignatureUpload = method === 'POST'
     && requestPath === '/api/assinaturas/documentos';
-  if (isStandaloneSignatureUpload) return '30mb';
+  if (isStandaloneSignatureUpload) return `${Math.ceil(env.assinaturasMaxPdfMb * 4 / 3) + 2}mb`;
+
+  // A configuração envia apenas posições; os PDFs são enviados individualmente.
+  if (method === 'PUT' && /^\/api\/assinaturas\/lotes\/[^/]+\/configuracao$/.test(requestPath)) return '25mb';
 
   if (method === 'POST' && requestPath === '/api/assinaturas/publico/assinar') return '15mb';
 

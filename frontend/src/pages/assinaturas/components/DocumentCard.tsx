@@ -7,7 +7,7 @@ import { signatureDocumentStatusLabels } from '../utils/documentStatus';
 
 export function DocumentCard({ document, onOpen }: { document: SignatureDocumentCard; onOpen: () => void }) {
   return (
-    <Card className="assinaturas-document" padding="md" data-signature-document={document.id} onClick={onOpen} aria-label={`Abrir documento ${document.title}`}>
+    <Card className="assinaturas-document" padding="md" data-signature-document={document.id} onClick={onOpen} aria-label={`${document.batchDocuments ? 'Abrir lote' : 'Abrir documento'} ${document.title}`}>
       <div className="assinaturas-document__identity">
         <span className="assinaturas-document__icon" aria-hidden="true"><AppIcon icon={DS_ICONS.fileText} size="md" /></span>
         <div>
@@ -29,6 +29,12 @@ export function DocumentCard({ document, onOpen }: { document: SignatureDocument
         <StatusPill status={signatureDocumentStatusLabels[document.status]} dot={false} />
         <span aria-hidden="true"><AppIcon icon={DS_ICONS.next} size="sm" /></span>
       </div>
+      {document.batchDocuments ? <div className="assinaturas-batch-documents" aria-label="Documentos do lote">
+        {document.batchDocuments.map(child => <div className="assinaturas-batch-document" key={child.id}>
+          <span><strong>{child.title}</strong><small>{child.originalFileName} · {child.progressLabel}</small></span>
+          <StatusPill status={signatureDocumentStatusLabels[child.status]} dot={false} />
+        </div>)}
+      </div> : null}
       {document.hasExpiredInvites ? <div className="assinaturas-document__warning"><Badge tone="danger">Há links expirados</Badge></div> : null}
     </Card>
   );

@@ -20,6 +20,7 @@ export function AssinaturasAppShell({ children, archived, documentTitle, actions
     function listHref(showArchived: boolean) {
       const params = new URLSearchParams(location.search);
       params.delete('doc');
+      params.delete('lote');
       params.delete('page');
       params.delete('list');
       if (showArchived) params.set('tab', 'archived'); else params.delete('tab');

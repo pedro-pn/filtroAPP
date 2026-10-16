@@ -5,6 +5,7 @@ import {
   signatureTokenHash
 } from '../signature-token.js';
 import { recordDocumentEvent } from './audit.js';
+import { findGroupedInviteByHash, renewGroupedInvite } from './grouped-invites.js';
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -30,6 +31,7 @@ export async function issueInvites(client, document, expiresAt, {
       where: { id: signer.id },
       data: {
         status: 'PENDENTE',
+        groupInviteId: null,
         ...persistedTokenData,
         tokenExpiresAt: expiresAt,
         invalidationReason: null,
@@ -55,19 +57,21 @@ export async function issueInvites(client, document, expiresAt, {
 }
 
 export async function recoverInviteLink(client, document, signer, actorUserId) {
-  if (!signer || signer.documentId !== document.id || !signer.tokenHash) {
+  if (!signer || signer.documentId !== document.id || signer.status === 'REVOGADO' || (!signer.tokenHash && !signer.groupInviteId)) {
     throw httpError('Convite não encontrado.', 404);
   }
-  if (!signer.tokenEncrypted || !signer.tokenIv || !signer.tokenAuthTag) {
+  const credential = signer.groupInviteId
+    ? await client.signatureInviteGroup.findUnique({ where: { id: signer.groupInviteId } }) : signer;
+  if (!credential?.tokenEncrypted || !credential.tokenIv || !credential.tokenAuthTag) {
     throw httpError('Este convite não possui link recuperável.', 409);
   }
   let token;
   try {
-    token = decryptSignatureToken(signer);
+    token = decryptSignatureToken(credential);
   } catch {
     throw httpError('Não foi possível recuperar o link deste convite.', 409);
   }
-  if (signatureTokenHash(token) !== signer.tokenHash) {
+  if (signatureTokenHash(token) !== credential.tokenHash) {
     throw httpError('Não foi possível confirmar a integridade do convite.', 409);
   }
   await recordDocumentEvent(client, {
@@ -77,13 +81,13 @@ export async function recoverInviteLink(client, document, signer, actorUserId) {
     action: 'LINK_RECUPERADO',
     description: `Link recuperado para ${signer.name}.`
   });
-  return { url: inviteUrl(token), expiresAt: signer.tokenExpiresAt };
+  return { url: inviteUrl(token), expiresAt: credential.tokenExpiresAt };
 }
 
 export async function resolveInviteByToken(client, token) {
   const value = String(token || '');
   if (!/^[a-f0-9]{64}$/i.test(value)) return null;
-  return client.signatureDocumentSigner.findUnique({
+  const individual = await client.signatureDocumentSigner.findUnique({
     where: { tokenHash: signatureTokenHash(value) },
     include: {
       fields: { orderBy: [{ pageNumber: 'asc' }, { createdAt: 'asc' }] },
@@ -94,6 +98,15 @@ export async function resolveInviteByToken(client, token) {
       }
     }
   });
+  const grouped = await findGroupedInviteByHash(client, signatureTokenHash(value));
+  if (grouped) return grouped;
+  if (individual?.groupInviteId && individual.status !== 'REVOGADO'
+    && !individual.document.deletedAt && individual.document.status !== 'CANCELADO'
+    && new Date(individual.tokenExpiresAt).getTime() > Date.now()) {
+    const group = await client.signatureInviteGroup.findUnique({ where: { id: individual.groupInviteId } });
+    return group ? findGroupedInviteByHash(client, group.tokenHash) : null;
+  }
+  return individual;
 }
 
 export async function renewInvite(client, document, signer, expiresAt, {
@@ -104,6 +117,10 @@ export async function renewInvite(client, document, signer, expiresAt, {
   if (!signer || signer.documentId !== document.id) throw httpError('Assinante não encontrado.', 404);
   if (signer.status === 'ASSINADO' || signer.status === 'REVOGADO') {
     throw httpError('Este convite não pode ser renovado.', 409);
+  }
+  if (signer.groupInviteId) {
+    const renewed = await renewGroupedInvite(client, signer, expiresAt, actorUserId, tokenFactory);
+    return { signer: renewed.signer, url: inviteUrl(renewed.token), expiresAt, renewedAt: now };
   }
   const tokenData = tokenFactory();
   const { token, ...persistedTokenData } = tokenData;
@@ -200,7 +217,7 @@ export async function expireOverdueInvites(client, { now = new Date(), limit = 1
     where: {
       status: { in: ['PENDENTE', 'VISUALIZADO'] },
       tokenExpiresAt: { lte: now },
-      tokenHash: { not: null }
+      OR: [{ tokenHash: { not: null } }, { groupInviteId: { not: null } }]
     },
     include: { document: true },
     orderBy: { tokenExpiresAt: 'asc' },
@@ -243,6 +260,7 @@ export async function reissueInviteAfterDelete(client, document, signer, expires
     },
     data: {
       status: 'PENDENTE',
+      groupInviteId: null,
       ...persistedTokenData,
       tokenExpiresAt: expiresAt,
       invalidationReason: null,

@@ -34,12 +34,12 @@ test('upload, substituição, extração e assinatura física aceitam PDFs de 50
   }
 });
 
-test('proxy de produção e staging comportam um PDF de 50 MB codificado em base64', () => {
-  const encodedPayloadSize = 4 * Math.ceil((50 * 1024 * 1024) / 3) + 1024;
+test('proxy de produção e staging comportam um PDF de assinatura de 200 MB codificado em base64', () => {
+  const encodedPayloadSize = 4 * Math.ceil((200 * 1024 * 1024) / 3) + 1024;
   for (const file of ['default.conf', 'staging.conf']) {
     const source = fs.readFileSync(new URL(`../../deploy/nginx/${file}`, import.meta.url), 'utf8');
     const limit = source.match(/client_max_body_size\s+(\d+)M;/);
     assert.ok(limit, `${file} deve definir limite de corpo`);
-    assert.ok(Number(limit[1]) * 1024 * 1024 >= encodedPayloadSize, `${file} deve comportar 50 MB em base64 mais os campos do JSON`);
+    assert.ok(Number(limit[1]) * 1024 * 1024 >= encodedPayloadSize, `${file} deve comportar 200 MB em base64 mais os campos do JSON`);
   }
 });

@@ -4,10 +4,10 @@ import { Button } from '../../../components/ui/ds';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { sequentialSignaturePageLoader, type SignaturePageLoader } from '../utils/preview';
 
-type PageContent = { imageUrl: string; pageNumber: number; onImageError: () => void };
+export type PageContent = { imageUrl: string; pageNumber: number; onImageError: () => void };
 type PageDimension = { page: number; widthPt: number; heightPt: number; rotation: number };
 
-function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, dimension, revision }: {
+export function PreviewPage({ pageNumber, pageCount, loadPage, renderPage, scrollRef, dimension, revision }: {
   pageNumber: number;
   pageCount: number;
   loadPage: SignaturePageLoader;

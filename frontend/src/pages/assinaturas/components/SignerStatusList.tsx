@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
-import { recoverSignatureInviteLink, type SignatureSigner } from '../../../api/assinaturas';
+import { recoverSignatureInviteLink, signatureBatchInviteAction, type SignatureBatchInvitation, type SignatureSigner } from '../../../api/assinaturas';
 import { Badge, Button, Card, EmptyState, StatusPill } from '../../../components/ui/ds';
 import type { SemanticTone } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
@@ -23,7 +24,13 @@ function emailDelivery(signer: SignatureSigner): { label: string; tone: Semantic
 
 type InviteAction = 'copy' | 'renew' | 'resend' | 'revoke';
 
-export function SignerStatusList({ documentId, signers }: { documentId: string; signers: SignatureSigner[] }) {
+export function SignerStatusList({ documentId = '', signers, batchId }: { documentId?: string; signers: SignatureSigner[]; batchId?: string }) {
+  const queryClient = useQueryClient();
+  async function batchAction(signer: SignatureSigner, action: 'link' | 'renovar' | 'reenviar-email' | 'revogar') {
+    const result = await signatureBatchInviteAction(batchId!, signer.id, action);
+    await queryClient.invalidateQueries({ queryKey: ['assinaturas'] });
+    return result;
+  }
   const showToast = useToast();
   const mutations = useAssinaturaMutations();
   const [revoking, setRevoking] = useState<SignatureSigner | null>(null);
@@ -34,7 +41,7 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
     if (busy) return;
     setPending({ signerId: signer.id, action: 'copy' });
     try {
-      const result = await recoverSignatureInviteLink(documentId, signer.id);
+      const result = await (batchId ? batchAction(signer, 'link') : recoverSignatureInviteLink(documentId, signer.id));
       await navigator.clipboard.writeText(result.url);
       showToast('Link copiado.', 'success');
     } catch (error) {
@@ -47,7 +54,7 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
     if (busy) return;
     setPending({ signerId: signer.id, action: 'renew' });
     try {
-      const result = await mutations.renewInvite.mutateAsync({ id: documentId, signerId: signer.id });
+      const result = await (batchId ? batchAction(signer, 'renovar') : mutations.renewInvite.mutateAsync({ id: documentId, signerId: signer.id }));
       await navigator.clipboard.writeText(result.url);
       showToast('Convite renovado e novo link copiado.', 'success');
     } catch (error) {
@@ -60,7 +67,7 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
     if (!revoking || busy) return;
     setPending({ signerId: revoking.id, action: 'revoke' });
     try {
-      await mutations.revokeInvite.mutateAsync({ id: documentId, signerId: revoking.id });
+      await (batchId ? batchAction(revoking, 'revogar') : mutations.revokeInvite.mutateAsync({ id: documentId, signerId: revoking.id }));
       showToast('Convite revogado.', 'success');
       setRevoking(null);
       // The triggering action disappears after revocation; keep focus on this signer.
@@ -75,7 +82,7 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
     if (busy) return;
     setPending({ signerId: signer.id, action: 'resend' });
     try {
-      await mutations.resendInvite.mutateAsync({ id: documentId, signerId: signer.id });
+      await (batchId ? batchAction(signer, 'reenviar-email') : mutations.resendInvite.mutateAsync({ id: documentId, signerId: signer.id }));
       showToast('Reenvio solicitado.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível reenviar o convite.', 'error');
@@ -85,7 +92,7 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
   }
   return (
     <section className="fv-ds assinaturas-tracking" aria-label="Assinantes e convites">
-      <div className="assinaturas-tracking__heading"><h2>Assinantes</h2><Badge tone="neutral">{signers.length}</Badge></div>
+      <div className="assinaturas-tracking__heading"><h2>{batchId ? 'Assinantes e links do lote' : 'Assinantes'}</h2><Badge tone="neutral">{signers.length}</Badge></div>
       <div className="signature-status-list">
         {signers.map(signer => {
           const delivery = emailDelivery(signer);
@@ -96,6 +103,9 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
               <StatusPill status={labels[signer.status]} toneMap={{ visualizado: 'info', revogado: 'neutral' }} />
             </div>
             <p className="assinaturas-signer-card__email">{signer.email || 'Sem e-mail cadastrado'}</p>
+            {batchId ? <ul className="assinaturas-signer-documents" aria-label={`Documentos de ${signer.name}`}>
+              {(signer as SignatureBatchInvitation).documents.map(document => <li key={document.id}>{document.title} · {labels[document.signerStatus]}</li>)}
+            </ul> : null}
             <div className="signature-status-overview">
               <Badge tone={delivery.tone}>{delivery.label}</Badge>
               <span className="signature-status-detail">{signer.signedAt
@@ -119,7 +129,7 @@ export function SignerStatusList({ documentId, signers }: { documentId: string; 
         confirmDisabled={busy}
         open={Boolean(revoking)}
         title="Revogar convite?"
-        description="O link atual deixará de funcionar imediatamente. Assinaturas já registradas não são alteradas."
+        description={batchId ? "O convite será revogado em todos os documentos pendentes deste assinante no lote. Assinaturas já registradas são preservadas." : "O link atual deixará de funcionar imediatamente. Assinaturas já registradas não são alteradas."}
         highlight={revoking?.name}
         confirmLabel={mutations.revokeInvite.isPending ? 'Revogando...' : 'Revogar'}
         onConfirm={revoke}

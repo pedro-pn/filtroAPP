@@ -87,13 +87,13 @@ test('migração mantém navegação e API e isola o upload compacto dos consumi
   assert.match(shell, /accountPageStateFromPath\(location\)/);
   assert.match(page, /normalizeSignatureSearchParams\(params\)/);
   assert.match(page, /signatureDocumentSearchParams\(currentSearchParams\(\), id, initialTab\)/);
-  assert.match(page, /useSignatureDocuments\(\{ q: query \|\| undefined, status: status \|\| undefined, dateFrom: dateFrom \|\| undefined, dateTo: dateTo \|\| undefined, arquivados: archived \|\| params.get\('list'\) === 'archived' \? 1 : undefined \}\)/);
+  assert.match(page, /useSignatureDocuments\(\{ grouped: 1, q: query \|\| undefined, status: status \|\| undefined, dateFrom: dateFrom \|\| undefined, dateTo: dateTo \|\| undefined, arquivados: archived \|\| params.get\('list'\) === 'archived' \? 1 : undefined \}\)/);
   assert.doesNotMatch(library, /useQuery|useMutation|localStorage|fetch\(/);
   assert.match(modal, /appearance="design-system"/);
   assert.match(modal, /fullscreenOnMobile=\{false\}/);
   assert.match(modal, /closeOnEscape=\{!saving\}/);
-  assert.match(modal, /file\.size > 20 \* 1024 \* 1024/);
-  assert.match(modal, /pdfDataUrl = await readDataUrl\(file\)/);
+  assert.match(modal, /validateSignatureFiles\(files\)/);
+  assert.match(modal, /onSubmit\(files/);
   for (const path of ['pages/assinaturas/AssinaturasPage.ds.css', 'components/ui/PdfDropzone.css']) {
     const css = source(path);
     assert.doesNotMatch(css, /#[\da-f]{3,8}\b|rgba?\(|!important/i);

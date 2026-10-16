@@ -309,13 +309,22 @@ Manutenção e Produção usa permissões individuais de emissão (`SITE_RDO`, `
 
 ### Assinaturas Avulsas
 
-- Envio de PDF com verificação SHA-256, prévia paginada e posicionamento de campos por assinante
+- Envio de um ou vários PDFs, sem limite de quantidade e com até 200 MB por arquivo, com verificação SHA-256
+- Preparação de lote com rolagem contínua, separadores sem sobreposição, navegação anterior/próximo, seleção direta e posições salvas para retomada
+- Um único link por assinante reúne somente os documentos nos quais ele possui campos; uma confirmação aplica a assinatura a todos eles, com PDFs finais separados
+- Biblioteca com um card por lote, PDFs listados dentro dele e convites centralizados por assinante, inclusive com status diferentes entre documentos
+- Publicação e assinatura do conjunto em transações, com auditoria e finalização independentes por documento
 - Convites individuais por e-mail ou cópia manual, com renovação, revogação, expiração e retry durável
 - Link público recebido no fragmento da URL e enviado à API somente no header `X-Signature-Token`
 - Finalização recuperável do PDF, página de evidências, código/QR e validação pública por hash
 - Arquivamento, cancelamento e exclusão lógica com retenção de arquivos por 90 dias
 - Exclusão de conta com quarentena recuperável dos documentos não concluídos e preservação dos concluídos sem proprietário
 - Auditoria append-only e anonimização posterior de IP/User-Agent
+
+Para habilitar os lotes em um ambiente existente, aplique as migrações com
+`npm --prefix backend run prisma:deploy` e publique frontend, backend e as
+configurações atualizadas do Nginx. Se o ambiente definir explicitamente
+`ASSINATURAS_MAX_PDF_MB`, ajuste esse valor para `200`.
 
 ### E-mails Automáticos
 
@@ -609,7 +618,7 @@ Nginx HTTP interno
 | `SURVEY_TOKEN_SECRET_PREVIOUS` | Não | Segredos antigos aceitos durante rotação de tokens de pesquisa |
 | `SIGNATURE_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para links de assinatura de RDO, EPI e assinaturas avulsas |
 | `SIGNATURE_TOKEN_SECRET_PREVIOUS` | Não | Segredos antigos aceitos durante rotação de tokens de assinatura |
-| `ASSINATURAS_MAX_PDF_MB` | Não | Limite do PDF avulso em MB (padrão: `20`) |
+| `ASSINATURAS_MAX_PDF_MB` | Não | Limite de cada PDF de assinatura em MB (padrão: `200`) |
 | `ASSINATURAS_MAX_PAGES` | Não | Máximo de páginas por PDF avulso (padrão: `100`) |
 | `ASSINATURAS_MAX_SIGNERS` | Não | Máximo de assinantes por documento (padrão: `20`) |
 | `ASSINATURAS_TOKEN_MAX_DAYS` | Não | Validade máxima do convite em dias (padrão: `90`) |

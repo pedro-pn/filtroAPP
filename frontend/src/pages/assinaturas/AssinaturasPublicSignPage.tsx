@@ -21,6 +21,7 @@ export function AssinaturasPublicSignPage() {
   const [dialogError, setDialogError] = useState('');
   const inviteQuery = usePublicSignatureInvite(token, polling);
   const loadPage = useCallback((page: number, signal: AbortSignal) => publicSignaturePage(token, page, signal), [token]);
+  const loadDocumentPage = useCallback((id: string, page: number, signal: AbortSignal) => publicSignaturePage(token, page, signal, id), [token]);
 
   useEffect(() => {
     const captureRenewedInvite = () => {
@@ -72,16 +73,16 @@ export function AssinaturasPublicSignPage() {
     }
   }
 
-  async function download() {
+  async function download(documentId?: string, title?: string) {
     if (downloading) return;
     setDownloading(true);
     setMessage(null);
     try {
-      const blob = await publicSignaturePdf(token);
+      const blob = await publicSignaturePdf(token, documentId);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${inviteQuery.data?.document.title || 'documento'}-assinado.pdf`;
+      anchor.download = `${title || inviteQuery.data?.document.title || 'documento'}-assinado.pdf`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -105,7 +106,7 @@ export function AssinaturasPublicSignPage() {
   const invite = inviteQuery.data;
   return (
     <PublicSignatureShell>
-      <PublicSignatureView invite={invite} loadPage={loadPage}
+      <PublicSignatureView invite={invite} loadPage={loadPage} loadDocumentPage={loadDocumentPage}
         downloading={downloading} onDownload={download}
         onSign={() => { setMessage(null); setDialogError(''); setDialogOpen(true); }}
         feedback={message && !dialogOpen && (message.tone === 'danger' || invite.signer.status !== 'ASSINADO') ? <Alert tone={message.tone}>{message.text}</Alert> : null} />
@@ -114,15 +115,16 @@ export function AssinaturasPublicSignPage() {
         appearance="design-system"
         fullscreenOnMobile={false}
         backdropClassName="assinaturas-public__dialog-backdrop"
-        title="Assinar documento"
+        title={invite.documents?.length ? 'Assinar documentos do convite' : 'Assinar documento'}
         initialSignerName={invite.signer.name}
         allowCachedSignerName={false}
         maxUploadMb={10}
         isSubmitting={submitting}
-        loadingLabel="Assinando documento"
+        loadingLabel={invite.documents?.length ? 'Assinando documentos' : 'Assinando documento'}
         submissionError={dialogError}
         confirmDisabled={!privacyAccepted}
         notice={<div className="assinaturas-public__consent">
+          {invite.documents?.length ? <p>Ao confirmar, sua assinatura será aplicada aos {invite.documents.length} documento(s) deste convite. Cada PDF final será disponibilizado separadamente.</p> : null}
           <PrivacyNotice variant="signatureAvulsa" checked={privacyAccepted} onCheckedChange={setPrivacyAccepted} disabled={submitting} />
         </div>}
         onCancel={() => { if (!submitting) { setDialogOpen(false); setMessage(null); setDialogError(''); } }}

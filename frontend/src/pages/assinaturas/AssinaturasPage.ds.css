@@ -329,3 +329,47 @@
     --fv-button-font-size: var(--text-xs);
   }
 }
+
+:where(.fv-ds, [data-fv-ds]) .assinaturas-batch-documents {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+:where(.fv-ds, [data-fv-ds]) .assinaturas-batch-document {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+:where(.fv-ds, [data-fv-ds]) .assinaturas-batch-document > span:first-child {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+:where(.fv-ds, [data-fv-ds]) .assinaturas-batch-document small {
+  color: var(--muted);
+}
+:where(.fv-ds, [data-fv-ds]) .assinaturas-signer-documents {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+:where(.fv-ds, [data-fv-ds]) .assinaturas-batch-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+}
+:where(.fv-ds, [data-fv-ds]) .assinaturas-batch-document .signature-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

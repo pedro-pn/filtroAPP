@@ -2713,6 +2713,7 @@ model User {
   deletedQualityRecords                QualityRecord[]                     @relation("QualityRecordDeletedBy")
   responsibleEfetivoMissions           EfetivoMissionPlan[]                @relation("EfetivoMissionResponsibleUser")
   signatureDocuments                   SignatureDocument[]                 @relation("SignatureDocumentOwner")
+  signatureDocumentBatches             SignatureDocumentBatch[]
   signatureDocumentAuditLogs           SignatureDocumentAuditLog[]         @relation("SignatureDocumentAuditActor")
   maintenanceRecordsCreated            MaintenanceRecord[]                 @relation("MaintenanceCreator")
   maintenanceRecordsReviewed           MaintenanceRecord[]                 @relation("MaintenanceReviewer")
@@ -3910,10 +3911,24 @@ model IntegrationSyncRun {
 
 // === Modulo Assinaturas Avulsas ===
 
+model SignatureDocumentBatch {
+  id          String              @id @default(cuid())
+  ownerUserId String
+  signers     Json                @default("[]")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  owner       User                @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  documents   SignatureDocument[]
+
+  @@index([ownerUserId])
+}
+
 model SignatureDocument {
   id                        String                                   @id @default(cuid())
   ownerUserId               String?
   requesterNameSnapshot     String
+  batchId                   String?
+  batchPosition             Int?
   title                     String
   originalFileName          String
   mimeType                  String                                   @default("application/pdf")
@@ -3941,6 +3956,7 @@ model SignatureDocument {
   createdAt                 DateTime                                 @default(now())
   updatedAt                 DateTime                                 @updatedAt
   owner                     User?                                    @relation("SignatureDocumentOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  batch                     SignatureDocumentBatch?                  @relation(fields: [batchId], references: [id], onDelete: SetNull)
   signers                   SignatureDocumentSigner[]
   fields                    SignatureDocumentField[]
   auditLogs                 SignatureDocumentAuditLog[]
@@ -3949,15 +3965,37 @@ model SignatureDocument {
 
   @@index([ownerUserId, deletedAt, archivedAt, createdAt])
   @@index([ownerUserId])
+  @@index([batchId, batchPosition])
   @@index([ownerUserId, status])
   @@index([status, finalizationNextAttemptAt])
   @@index([deletedAt])
   @@index([archivedAt])
 }
 
+model SignatureInviteGroup {
+  id             String                       @id @default(cuid())
+  tokenHash      String                       @unique
+  tokenEncrypted String
+  tokenIv        String
+  tokenAuthTag   String
+  tokenExpiresAt DateTime
+  emailStatus    SignatureDocumentEmailStatus @default(NAO_APLICAVEL)
+  emailAttempts  Int                          @default(0)
+  emailSentAt    DateTime?
+  emailLastError String?
+  emailClaimedAt DateTime?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  members        SignatureDocumentSigner[]
+
+  @@index([emailStatus, emailClaimedAt])
+}
+
 model SignatureDocumentSigner {
   id                      String                                     @id @default(cuid())
   documentId              String
+  batchSignerId           String?
+  groupInviteId           String?
   name                    String
   email                   String?
   position                Int
@@ -3988,11 +4026,13 @@ model SignatureDocumentSigner {
   createdAt               DateTime                                   @default(now())
   updatedAt               DateTime                                   @updatedAt
   document                SignatureDocument                          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  groupInvite             SignatureInviteGroup?                     @relation(fields: [groupInviteId], references: [id], onDelete: SetNull)
   fields                  SignatureDocumentField[]
   auditLogs               SignatureDocumentAuditLog[]
 
   @@unique([documentId, position])
   @@index([documentId])
+  @@index([groupInviteId])
   @@index([documentId, status])
   @@index([status, tokenExpiresAt])
   @@index([emailStatus, emailClaimedAt])

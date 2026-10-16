@@ -27,6 +27,17 @@ test('assinatura pública apresenta leitura, estados finais e falhas no design s
     assert.doesNotMatch(ready, /Baixar PDF assinado|class="assinaturas-public__field"/);
     for (const page of [1, 2, 3]) assert.match(ready, new RegExp(`Página ${page} de 3`));
     assert.match(ready, /aria-label="Documento completo"/);
+    const documents = [1, 2].map(index => ({ ...document, id: `doc-${index}`, title: `Contrato ${index}`, pageDimensions: [], fields: invite.fields, signerStatus: 'PENDENTE', downloadAvailable: false }));
+    const grouped = { ...invite, documents };
+    const groupReady = render(PublicSignatureView, { ...base, invite: grouped });
+    assert.equal((groupReady.match(/>Assinar todos os documentos</g) || []).length, 1);
+    assert.match(groupReady, /aria-label="Navegação entre documentos"/);
+    const groupSigned = render(PublicSignatureView, { ...base, invite: { ...grouped,
+      signer: { ...invite.signer, status: 'ASSINADO' }, downloadAvailable: true,
+      documents: documents.map(item => ({ ...item, signerStatus: 'ASSINADO', downloadAvailable: true, status: 'CONCLUIDO' })) } });
+    assert.match(groupSigned, /Baixar Contrato 1/);
+    assert.match(groupSigned, /Baixar Contrato 2/);
+    assert.doesNotMatch(groupSigned, /Assinar todos os documentos/);
     for (const status of ['AGUARDANDO_ASSINATURAS', 'FINALIZANDO', 'CONCLUIDO']) {
       const signedInvite = { ...invite, document: { ...document, status }, signer: { ...invite.signer, status: 'ASSINADO', signedAt: '2026-09-10T12:00:00Z' }, downloadAvailable: status === 'CONCLUIDO' };
       const html = render(PublicSignatureView, { ...base, invite: signedInvite, pageNumber: 3 });
@@ -72,10 +83,10 @@ test('migração pública preserva token, consentimento, coordenadas e consulta 
   assert.match(page, /confirmDisabled=\{!privacyAccepted\}/);
   assert.match(page, /appearance="design-system"/);
   assert.match(page, /fullscreenOnMobile=\{false\}/);
-  assert.match(page, /loadingLabel="Assinando documento"/);
+  assert.match(page, /loadingLabel=\{invite.documents\?\.length \? 'Assinando documentos' : 'Assinando documento'\}/);
   assert.match(page, /if \(!submitting\)/);
   assert.match(page, /publicSignaturePage\(token, page, signal\)/);
-  assert.match(page, /publicSignaturePdf\(token\)/);
+  assert.match(page, /publicSignaturePdf\(token, documentId\)/);
   assert.match(page, /const loadPage = useCallback/);
   const preview = source('pages/assinaturas/components/SignatureDocumentPreview.tsx');
   assert.match(preview, /URL.revokeObjectURL\(url\)/);
