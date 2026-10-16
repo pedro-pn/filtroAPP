@@ -77,6 +77,16 @@ Isso remove o bloqueio principal que existia para o `P3`.
 
 ## Subida em produção
 
+O Compose define o limite de PDFs de assinatura em 200 MB, inclusive quando o
+env-file ainda contém o limite antigo de 20 MB. Mudanças de ambiente exigem recriar
+os serviços com `docker compose up -d`; `docker compose restart` conserva as
+variáveis antigas. Para conferir somente esse limite no backend em execução:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T backend \
+  node --input-type=module -e "import env from './src/config/env.js'; console.log(env.assinaturasMaxPdfMb)"
+```
+
 1. Preencher `backend/.env.production` com segredos e URLs reais
    - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
    - Definir `SURVEY_TOKEN_SECRET` com um segredo longo e estável para tokens de pesquisa.

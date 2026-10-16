@@ -14,6 +14,7 @@ import { DocumentDetailView } from './components/DocumentDetailView';
 import { NewDocumentModal } from './components/NewDocumentModal';
 import { BatchSetupView } from './components/BatchSetupView';
 import { AssinaturasTutorial } from './AssinaturasTutorial';
+import { AssinaturasBatchNovelty } from './AssinaturasBatchNovelty';
 import { normalizeSignatureSearchParams, signatureBatchSearchParams, signatureDocumentSearchParams, signatureLibrarySearchParams } from './utils/navigation';
 import './AssinaturasPage.ds.css';
 
@@ -205,6 +206,8 @@ export function AssinaturasPage() {
         )}
         <NewDocumentModal open={newOpen} submitting={mutations.create.isPending} onClose={() => setNewOpen(false)} onSubmit={create} />
         <AssinaturasTutorial userKey={user?.id || ''} ready={Boolean(user) && !listQuery.isLoading} triggerRef={tutorialTrigger} />
+        <AssinaturasBatchNovelty userId={user?.id || ''}
+          enabled={!listQuery.isLoading && !listQuery.isLoadingError && !selectedId && !selectedBatchId && !newOpen} />
       </main>
     </AssinaturasAppShell>
   );

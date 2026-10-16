@@ -9,6 +9,13 @@ draft, mobile layout, and publishing only the assigned signers per document.
 After that regression, run `playwright-cli run-code --filename frontend/test/browser/signature-batch-tracking.js` to check one library card per batch, nested PDFs with mixed statuses, centralized signer links, stable copying, individual downloads, document-to-batch navigation, and mobile layout.
 No database records or emails are created.
 
+For the five-day signature batch announcement, run `playwright-cli run-code
+--filename frontend/test/browser/signature-batch-novelty.js` in the same fixture.
+It checks the production page with a simulated authenticated user: waiting for the
+existing tutorial, marking the announcement only after it opens, all three steps,
+mobile layout, waiting for the upload dialog, once-per-user display and global
+expiration at the end of 20/10/2026 in the corporate timezone.
+
 The batch regression also checks the external document header, previous/next
 buttons, direct document selection and scroll tracking. For the public grouped
 invitation, run `playwright-cli run-code --filename
