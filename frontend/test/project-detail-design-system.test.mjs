@@ -311,16 +311,58 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.match(withoutDates, /Sem projeção comparável/);
       assert.doesNotMatch(withoutDates, /NaN|Infinity/);
     });
-    await t.test('ponto e RDO abrem suas origens; referência RDO não vira custo', () => {
+    await t.test('ponto e RDO abrem suas origens; estimativa não compõe os totais do ponto', () => {
       const html = render(ProjectDetailPeople, { data: detail, isGroup: false, onSelect() {} });
       assert.match(html, /Conferir os dias apropriados de João/);
       assert.match(html, /acp-detail-report-hours-trigger[^]*24h · RDO/);
-      assert.match(html, /não entram no custo apropriado/);
+      assert.match(html, /não compõe os totais do ponto/);
       assert.match(html, /já está incluído nas horas e no custo total/);
       assert.match(html, /1\.800,00/); assert.match(html, /400,00 do custo/);
       const group = render(ProjectDetailPeople, { data: detail, isGroup: true, onSelect() {} });
       assert.match(group, /Jornada sem sobreposição/); assert.match(group, /8h em sobreposição/);
       assert.match(render(ProjectDetailPeople, { data: { ...detail, colaboradores: [] }, isGroup: false, onSelect() {} }), /Nenhum colaborador/);
+    });
+    await t.test('estimativa RDO aparece sem ponto em tabela e cartões, sem alterar os totais', () => {
+      for (const horasApropriadas of [null, 0]) {
+        const collaborator = {
+          ...detail.colaboradores[1], horas: 8.8, horasApropriadas,
+          custoEstimadoRdo: 300, custoHoraEstimadoRdo: 300 / 8.8
+        };
+        const data = { ...detail, colaboradores: [collaborator] };
+        const before = JSON.stringify(data);
+        const tree = ProjectDetailPeople({ data, isGroup: false, onSelect() {}, onSelectRates() {} });
+        const table = tree.props.children.props.children.find(node => node?.props?.ariaLabel === 'Colaboradores na obra');
+        for (const layout of ['responsive', 'cards']) {
+          const html = render(table.type, { ...table.props, layout });
+          assert.match(html, /300,00/);
+          assert.match(html, /34,09\/h/);
+          assert.equal([...html.matchAll(/>Estimativa RDO</g)].length, 2);
+        }
+        const html = render(ProjectDetailPeople, { data, isGroup: false, onSelect() {}, onSelectRates() {} });
+        assert.match(html, /não compõe os totais do ponto/);
+        assert.equal(JSON.stringify(data), before);
+      }
+    });
+    await t.test('apropriação do ponto prevalece sobre estimativa RDO em tabela e cartões', () => {
+      const collaborator = { ...detail.colaboradores[0], custoEstimadoRdo: 9999, custoHoraEstimadoRdo: 777 };
+      const tree = ProjectDetailPeople({ data: { ...detail, colaboradores: [collaborator] }, isGroup: false, onSelect() {}, onSelectRates() {} });
+      const table = tree.props.children.props.children.find(node => node?.props?.ariaLabel === 'Colaboradores na obra');
+      for (const layout of ['responsive', 'cards']) {
+        const html = render(table.type, { ...table.props, layout });
+        assert.match(html, /1\.800,00/);
+        assert.match(html, /50,00\/h/);
+        assert.doesNotMatch(html, /9\.999,00|777,00|Estimativa RDO/);
+      }
+    });
+    await t.test('sem ponto e sem estimativa os custos continuam ausentes em tabela e cartões', () => {
+      const collaborator = { ...detail.colaboradores[1], custoEstimadoRdo: null, custoHoraEstimadoRdo: null };
+      const tree = ProjectDetailPeople({ data: { ...detail, colaboradores: [collaborator] }, isGroup: false, onSelect() {}, onSelectRates() {} });
+      const table = tree.props.children.props.children.find(node => node?.props?.ariaLabel === 'Colaboradores na obra');
+      for (const layout of ['responsive', 'cards']) {
+        const html = render(table.type, { ...table.props, layout });
+        assert.doesNotMatch(html, /R\$|Estimativa RDO/);
+        assert.ok([...html.matchAll(/>—</g)].length >= 2);
+      }
     });
     await t.test('gatilhos DS preservam a fonte POINT/REPORT do diálogo da main', () => {
       const selected = [];
