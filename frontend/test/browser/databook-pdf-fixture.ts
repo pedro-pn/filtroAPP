@@ -19,12 +19,20 @@ const gruposCampos = [
 
 export function camposDoDocumento(edicoes?: DatabookEdicoes): DatabookCampoDocumento[] {
   return gruposCampos.flat().map(c => ({ ...c, valor: edicoes?.campos_documento?.[c.id] ?? c.original,
-    aparencia: { tamanho: 14, entrelinha: 18 } }));
+    aparencia: aparenciaDoCampo(c.id) }));
+}
+
+function aparenciaDoCampo(id: string): NonNullable<DatabookCampoDocumento['aparencia']> {
+  if (id.startsWith('documento.capa.')) return { tamanho: 14, entrelinha: 18, cor: '#ffffff', negrito: true };
+  if (id.includes('indicadores.')) return { tamanho: 20, entrelinha: 24, cor: '#30503a', negrito: true, alinhamento: 1 };
+  if (id.includes('pressao.')) return { tamanho: 14, entrelinha: 18, cor: '#5f6b64', italico: true };
+  return { tamanho: 14, entrelinha: 18, cor: '#1f2623' };
 }
 
 /** PDF sintético com links reais para testar rolagem e seleção de campos no navegador. */
 export function pdfInterativo(edicoes?: DatabookEdicoes, todosCampos = false) {
-  const objetos = ['<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  const objetos = ['<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>'];
   const adicionar = (valor: string) => objetos.push(valor);
   const paginas: number[] = [];
   const textoPdf = (texto: string) => texto.replace(/[^\x20-\x7e]/g, '?').replace(/([\\()])/g, '\\$1');
@@ -38,14 +46,19 @@ export function pdfInterativo(edicoes?: DatabookEdicoes, todosCampos = false) {
       { texto: 'Medicao: 315 bar', campo: null }]
   ];
   for (const linhas of blocos) {
-    const conteudo = linhas.flatMap((linha, i) => linha.texto.split('\n').map((parte, j) => `BT /F1 14 Tf 40 ${520 - i * 60 - j * 20} Td (${textoPdf(parte)}) Tj ET`)).join('\n');
+    const corPdf = (cor = '#1f2623') => [1, 3, 5].map(i => parseInt(cor.slice(i, i + 2), 16) / 255).join(' ');
+    const fundo = todosCampos && paginas.length === 0 ? `${corPdf('#30503a')} rg 0 0 400 600 re f\n` : '';
+    const conteudo = fundo + linhas.flatMap((linha, i) => {
+      const estilo: NonNullable<DatabookCampoDocumento['aparencia']> = todosCampos && linha.campo ? aparenciaDoCampo(linha.campo) : { tamanho: 14 };
+      return linha.texto.split('\n').map((parte, j) => `${corPdf(estilo.cor)} rg BT /${estilo.negrito ? 'F2' : estilo.italico ? 'F3' : 'F1'} ${estilo.tamanho} Tf 40 ${520 - i * 60 - j * 20} Td (${textoPdf(parte)}) Tj ET`);
+    }).join('\n');
     const stream = adicionar(`<< /Length ${conteudo.length} >>\nstream\n${conteudo}\nendstream`);
     const anotacoes = linhas.flatMap((linha, i) => {
       const partes = linha.texto.split('\n');
       const direita = Math.min(390, 40 + Math.max(18, ...partes.map(parte => parte.length * 7.2)));
       return linha.campo ? [adicionar(`<< /Type /Annot /Subtype /Link /Rect [40 ${517 - i * 60 - (partes.length - 1) * 20} ${direita} ${536 - i * 60}] /Border [0 0 0] /A << /S /URI /URI (https://databook.invalid/editar/${linha.campo}) >> >>`)] : [];
     });
-    paginas.push(adicionar(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Resources << /Font << /F1 3 0 R >> >> /Contents ${stream} 0 R /Annots [${anotacoes.map(id => `${id} 0 R`).join(' ')}] >>`));
+    paginas.push(adicionar(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${stream} 0 R /Annots [${anotacoes.map(id => `${id} 0 R`).join(' ')}] >>`));
   }
   objetos[1] = `<< /Type /Pages /Kids [${paginas.map(id => `${id} 0 R`).join(' ')}] /Count ${paginas.length} >>`;
   let documento = '%PDF-1.4\n';
