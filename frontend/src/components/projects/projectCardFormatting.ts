@@ -1,9 +1,10 @@
 import type { MissionGroupCard, ProjectCardItem } from '../../api/acompanhamentoComercial';
+import { formatDateOnly } from '../../utils/dateOnly';
 
 export function formatDate(iso?: string | null) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+  return Number.isNaN(d.getTime()) ? '—' : formatDateOnly(iso, '—');
 }
 export function pct(value?: number | null) {
   return value === null || value === undefined ? '—' : `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;

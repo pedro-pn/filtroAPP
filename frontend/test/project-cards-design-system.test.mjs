@@ -12,6 +12,7 @@ test('cards de acompanhamento preservam informações, ações e agrupamentos no
     server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
   try {
     const { ProjectOverviewCard } = await server.ssrLoadModule('/src/components/projects/ProjectOverviewCard.tsx');
+    const { formatDate } = await server.ssrLoadModule('/src/components/projects/projectCardFormatting.ts');
     const { ProjectCardsToolbar } = await server.ssrLoadModule('/src/components/projects/ProjectCardsToolbar.tsx');
     const { ProgressBar } = await server.ssrLoadModule('/src/components/ui/ds/ProgressBar.tsx');
     const card = { projectId: 'p1', code: '4069', name: 'Projeto com nome extenso', clientName: 'Cliente',
@@ -23,6 +24,34 @@ test('cards de acompanhamento preservam informações, ações e agrupamentos no
       equipment: [{ name: 'Unidade de filtragem', days: 8 }], alerts: [{ level: 'warn', label: 'Atenção ao cronograma' }] };
     const base = { card, onOpen() {}, onToggleSelect() {} };
     const render = props => renderToStaticMarkup(createElement(ProjectOverviewCard, { ...base, ...props }));
+    await t.test('último dia trabalhado preserva 15/10 da TKMS em qualquer fuso', () => {
+      const originalTimezone = process.env.TZ;
+      const dates = [
+        ['2026-10-15', '15/10/2026'],
+        ['2026-10-15T00:00:00.000Z', '15/10/2026'],
+        ['2026-10-01T00:00:00.000Z', '01/10/2026'],
+        ['2027-01-01T00:00:00.000Z', '01/01/2027'],
+        ['2024-02-29T00:00:00.000Z', '29/02/2024'],
+        ['2026-10-15T23:30:00.000Z', '15/10/2026']
+      ];
+      try {
+        for (const timezone of ['America/Sao_Paulo', 'UTC', 'Pacific/Kiritimati']) {
+          process.env.TZ = timezone;
+          for (const [iso, expected] of dates) assert.equal(formatDate(iso), expected, `${timezone}: ${iso}`);
+          for (const value of [undefined, null, '', 'inválida', '2026-10-15Tinválida']) assert.equal(formatDate(value), '—');
+          const tkms = { ...card, code: '5847', name: 'TKMS', lastDay: { status: 'TRABALHADO', date: '2026-10-15T00:00:00.000Z' } };
+          for (const item of [tkms, { ...tkms, kind: 'GROUP', groupId: 'tkms-group', members: [{ projectId: tkms.projectId, code: tkms.code }] }]) {
+            const html = render({ card: item });
+            assert.match(html, /Último dia trabalhado/);
+            assert.match(html, /acp-project__secondary">15\/10\/2026<\/span>/);
+            assert.doesNotMatch(html, /14\/10\/2026/);
+          }
+        }
+      } finally {
+        if (originalTimezone === undefined) delete process.env.TZ;
+        else process.env.TZ = originalTimezone;
+      }
+    });
     await t.test('card mostra o resumo até colaboradores em obra', () => {
       const html = render({ canManage: true });
       for (const text of ['4069', 'Projeto com nome extenso', '60%', 'manual', '1.000.000,00', '250.000,00', 'Original', 'Adicional', '50h', '40h', '10h', 'Colaboradores em obra']) assert.ok(html.includes(text), text);
