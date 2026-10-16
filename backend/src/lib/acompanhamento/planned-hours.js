@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
 import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
+import { normalizeAdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
 
 export const PLANNED_HOURS_DIVERGENCE_PCT = 10;
 const NORMAL_FIELDS = ['hh_util_diurno', 'hh_util_noturno'];
@@ -120,11 +121,13 @@ export async function loadPlannedHours(projectIds, client = prisma) {
       plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
-      additionalProposals: { select: { sourceProposalCodBd: true } }
+      additionalProposals: { select: { sourceProposalCodBd: true, metricInclusion: true } }
     }
   });
   const accessSelections = project => project.budgets[0]?.source === 'COMERCIAL_APP' ? []
-    : [...new Set([...project.budgets, ...project.additionalProposals].map(row => row.sourceProposalCodBd).filter(Number.isInteger))];
+    : [...new Set([...project.budgets, ...project.additionalProposals.filter(row =>
+      normalizeAdditionalMetricInclusion(row.metricInclusion).hours
+    )].map(row => row.sourceProposalCodBd).filter(Number.isInteger))];
   const codBds = [...new Set(projects.flatMap(accessSelections))];
   const appIds = [...new Set(projects.map(project => project.budgets[0])
     .filter(budget => budget?.source === 'COMERCIAL_APP')

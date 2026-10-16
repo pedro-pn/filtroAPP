@@ -273,7 +273,13 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const deadline = approvalValue && leadDays != null ? addDays(approvalValue, leadDays) : '';
   const late = Boolean(startValue && deadline && startValue > deadline);
   const additionalRevisions = (data?.additionalProposals ?? [])
-    .map(group => group.revisions.find(revision => revision.codBd === group.currentCodBd))
+    .map((group): CommercialRevision | undefined => {
+      const revision = group.revisions.find(item => item.codBd === group.currentCodBd);
+      return revision ? { ...revision,
+        plannedDays: group.metricInclusion?.plannedDays === false ? null : revision.plannedDays,
+        workedDays: group.metricInclusion?.workedDays === false ? null : revision.workedDays
+      } : undefined;
+    })
     .filter((revision): revision is CommercialRevision => Boolean(revision));
   const commercialRevisions = [currentRevision, ...additionalRevisions];
   const plannedDays = consideredProposalValue(sumRevisionValue(commercialRevisions, revision => revision.plannedDays, 0), proposalPercentage ?? 100);

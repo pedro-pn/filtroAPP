@@ -32,6 +32,14 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.match(html, /Lista de custos manuais/);
       assert.ok(html.indexOf('Composição das propostas') < html.indexOf('Maiores gastos'));
       assert.ok(html.indexOf('Maiores gastos') < html.indexOf('Lista de custos manuais'));
+      const editable = render(story.ProjectFinancialSnapshot, { data: detail, onViewAdditionalContribution() {} });
+      assert.match(editable, /Ver contribuição da proposta adicional PROP-ADICIONAL-4069/);
+      assert.equal((editable.match(/>Ver contribuição<\/span>/g) ?? []).length, 1);
+      const excluded = render(story.ProjectFinancialSnapshot, { data: { ...detail, budgetBreakdown: {
+        ...detail.budgetBreakdown, additionals: [{ ...detail.budgetBreakdown.additionals[0],
+          salePrice: null, plannedTotalCost: null, expectedProfit: null, taxes: null }]
+      } }, onViewAdditionalContribution() {} });
+      assert.match(excluded, /Ver contribuição da proposta adicional PROP-ADICIONAL-4069/);
       const noBudget = render(story.ProjectFinancialSnapshot, { data: { ...detail, consumo: { ...detail.consumo, previsto: null }, maoDeObra: { ...detail.maoDeObra, custo: null }, maioresGastos: [] } });
       assert.match(noBudget, /75\.000,00/);
       assert.match(noBudget, /Sem gastos registrados/);
@@ -411,7 +419,7 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   assert.match(main, /<PlannedScopeView/);
   assert.doesNotMatch(main, /Conferir cálculo de dias e horas|Detalhar metas e composição do avanço/);
   assert.match(source('ProjectDetailOverview.tsx'), /id="acp-progress"/);
-  assert.match(main, /<ProjectFinancialSnapshot data=\{data\}>[\s\S]*data-acp-manual-costs[\s\S]*<\/ProjectFinancialSnapshot>/);
+  assert.match(main, /<ProjectFinancialSnapshot data=\{data\}[\s\S]*data-acp-manual-costs[\s\S]*<\/ProjectFinancialSnapshot>/);
   assert.doesNotMatch(main, /acp-detail-deep-dive--costs|Detalhar despesas, lançamentos e maiores gastos/);
   assert.match(main, /scheduleRef.current\?\.save\(\)/);
   assert.match(main, /appearance="design-system" size="lg"/);

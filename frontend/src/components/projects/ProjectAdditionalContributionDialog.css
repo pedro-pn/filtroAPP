@@ -1,0 +1,29 @@
+.additional-contribution {
+  display: grid;
+  gap: var(--space-4, 16px);
+}
+
+.additional-contribution p {
+  margin: 0;
+}
+
+.additional-contribution__hint {
+  color: var(--ink-muted, #64748b);
+  font-size: var(--text-sm, 14px);
+}
+
+.additional-contribution__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+
+.additional-contribution__fields {
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+
+.additional-contribution__fields .fv-switch {
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  padding-bottom: var(--space-3, 12px);
+}

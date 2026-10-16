@@ -25,6 +25,7 @@ import { qualityDeviationProjects } from './projectQualityDeviations';
 import { Modal } from '../ui/Modal';
 import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
 import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
+import { ProjectAdditionalContributionDialog } from './ProjectAdditionalContributionDialog';
 import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
 import { ProjectCollaboratorRatesDialog } from './ProjectCollaboratorRatesDialog';
 import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
@@ -98,6 +99,7 @@ export function ProjectDetailDashboard({
   const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
   const [qualityDeviationsNoveltyActive, setQualityDeviationsNoveltyActive] = useState(true);
   const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
+  const [additionalContribution, setAdditionalContribution] = useState<{ projectId: string; proposalCode: string } | null>(null);
   const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
   const [standbyHistoryOpen, setStandbyHistoryOpen] = useState(false);
   const [hoursDetail, setHoursDetail] = useState<{
@@ -474,7 +476,12 @@ export function ProjectDetailDashboard({
       </Alert> : null}
 
       <div className="acp-detail-priorities">
-        <ProjectFinancialSnapshot data={data}>
+        <ProjectFinancialSnapshot data={data} onViewAdditionalContribution={proposal => {
+          const ownerProjectId = proposal.projectId ?? projectId;
+          if (ownerProjectId && proposal.codProp != null) setAdditionalContribution({
+            projectId: ownerProjectId, proposalCode: String(proposal.codProp)
+          });
+        }}>
           {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
             <div className="acp-detail-manual-costs" data-acp-manual-costs>
               <ProjectDetailSection label="Custos manuais" header={<>
@@ -945,6 +952,8 @@ export function ProjectDetailDashboard({
         enabled={qualityDeviationsNoveltyActive && deviationProjects.length > 0}
         onSeen={() => setQualityDeviationsNoveltyActive(false)}
       />
+      {additionalContribution ? <ProjectAdditionalContributionDialog {...additionalContribution}
+        canManage={canManageManualCosts} onClose={() => setAdditionalContribution(null)} /> : null}
       <ProjectAdditionalProposalsNovelty
         user={progressHistoryNoveltyUser}
         enabled={additionalProposalsNoveltyActive && hasAdditionalProposalContribution}

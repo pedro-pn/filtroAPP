@@ -63,6 +63,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       PROPOSAL_PERCENTAGE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
+      ADDITIONAL_METRICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       DATABOOK_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       TRUST_PROXY: "false"
       SIGNATURE_TOKEN_SECRET: ci-signature-token-secret
