@@ -1,4 +1,4 @@
-import { diameterKey } from './system-progress.js';
+import { diameterKey, summarizeProgressSystems } from './system-progress.js';
 import { systemNameKey } from './project-systems.js';
 
 const scopeName = service => service.scopeName?.trim() || null;
@@ -69,7 +69,15 @@ export function withScopeGroups(progress, plannedServices, normalizeServiceType)
       const original = progress.services.find(service => service.serviceType === type);
       if (!original) return [];
       const systems = original.systems.filter(row => group.keys.has(measurementKey(row)));
-      return [{ ...original, weight: group.weight, systems, executionPct: systems.length === original.systems.length ? original.executionPct : executionPct(systems) }];
+      const wholeService = systems.length === original.systems.length;
+      const attributed = (progress.pendingMeasurements ?? [])
+        .filter(item => item.serviceType === type && item.attributedScope
+          && systemNameKey(item.attributedScope.scopeName) === systemNameKey(name))
+        .map(item => ({ systemType: item.systemType, realizedQty: item.quantity }));
+      const totals = original.totals ? (wholeService ? original.totals : summarizeProgressSystems([...systems, ...attributed])) : null;
+      return [{ ...original, weight: group.weight, systems,
+        ...(totals ? { totals } : {}),
+        executionPct: wholeService ? original.executionPct : executionPct(totals ?? systems) }];
     })
   })) };
 }

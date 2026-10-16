@@ -8,7 +8,8 @@
  *   - Sistemas (un): Σ quantidadeSistemas, apenas limpeza química sem tubulação
  *
  * avanço_% = Σ(peso_s × execução_s) ÷ Σ(peso_s)
- *   execução_s = média das execuções dos sistemas do serviço; execução_sistema = min(real/prev, 1).
+ *   execução_s = média das razões realizado/previsto por tipo de medição do serviço.
+ *   O realizado total inclui medições ainda não conciliadas e pode ultrapassar 100%.
  *
  * Contabilização: só entram serviços **finalizados** (`ReportService.finalized`). Um serviço que dura
  * vários dias aparece em vários RDOs, mas é finalizado uma única vez (as ocorrências em aberto são
@@ -169,9 +170,9 @@ export function compactWeeklyProgressHistory(points = [], { startDate = null } =
 
 // Monta o resultado de avanço de um projeto a partir do previsto e do realizado já agregado.
 // realizedByType: Map<serviceTypeCanônico, {tubulacaoM, oleoL}>.
-export function buildProgress(plannedServices, realizedByType) {
+export function buildProgress(plannedServices, realizedByType, options = {}) {
   if (plannedServices.some(service => service.systems?.some(row => row.projectSystemId))) {
-    return withScopeGroups(buildSystemProgress(plannedServices, realizedByType, normalizeRdoServiceType), plannedServices, normalizeRdoServiceType);
+    return withScopeGroups(buildSystemProgress(plannedServices, realizedByType, normalizeRdoServiceType, options), plannedServices, normalizeRdoServiceType);
   }
   const groupedServices = new Map();
   for (const svc of plannedServices) {
@@ -272,10 +273,7 @@ export function buildRequiredWeeklyProgress(progress, {
     ? round(remainingPctPoints / (remainingDays / 7), 2)
     : null;
 
-  const weeklyServices = input => (input ?? []).map(service => ({
-    serviceType: service.serviceType,
-    executionPct: service.executionPct,
-    systems: (service.systems ?? []).map(system => {
+  const weeklySystems = systems => (systems ?? []).map(system => {
       const plannedQty = num(system.plannedQty);
       const realizedQty = num(system.realizedQty);
       const remainingQty = plannedQty === null
@@ -299,7 +297,12 @@ export function buildRequiredWeeklyProgress(progress, {
           ? round(remainingQty / (remainingDays / 7), 2)
           : null
       };
-    })
+    });
+  const weeklyServices = input => (input ?? []).map(service => ({
+    serviceType: service.serviceType,
+    executionPct: service.executionPct,
+    systems: weeklySystems(service.systems),
+    ...(service.totals ? { totals: weeklySystems(service.totals) } : {})
   }));
   const services = weeklyServices(progress?.services);
 
@@ -348,7 +351,7 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
 
 // Acumula, data a data, o realizado dos serviços finalizados de relatórios-fonte e registra o
 // avanço após cada data com RDO. Devolve também o realizado final, que é o avanço atual.
-function buildProgressTimeline(plannedServices, serviceReports) {
+function buildProgressTimeline(plannedServices, serviceReports, options = {}) {
   const servicesByDate = new Map();
   for (const service of serviceReports) {
     if (!isServiceFinalized(service)) continue;
@@ -368,13 +371,13 @@ function buildProgressTimeline(plannedServices, serviceReports) {
     for (const service of servicesByDate.get(date) ?? []) {
       addRealizedService(realizedByType, service, service.canonical);
     }
-    const progress = buildProgress(plannedServices, realizedByType);
+    const progress = buildProgress(plannedServices, realizedByType, options);
     points.push({
       date,
       progressPct: progress.progressPct,
       services: progress.services.map(service => {
         const quantitiesByUnit = new Map();
-        for (const system of service.systems ?? []) {
+        for (const system of service.totals ?? service.systems ?? []) {
           const unit = { TUBULACAO: 'M', SISTEMA: 'UN', MANGOTE: 'UN', OLEO: 'L' }[system.systemType] ?? system.unit;
           if (!unit || system.realizedQty == null) continue;
           quantitiesByUnit.set(unit, (quantitiesByUnit.get(unit) ?? 0) + Number(system.realizedQty));
@@ -504,9 +507,12 @@ export function buildProgressSlices(plannedServices, serviceReports, { startDate
     equipments: split.equipments,
     lookup: split.lookup,
     slices: split.entries.map(({ services }) => {
-      const { points, realizedByType } = buildProgressTimeline(services, serviceReports);
+      // Usa o cadastro completo para reconhecer escopo/UG sem escolher um
+      // destino só porque os demais foram ocultados pelo filtro.
+      const options = { includeUnmatched: false, referencePlannedServices: plannedServices };
+      const { points, realizedByType } = buildProgressTimeline(services, serviceReports, options);
       return {
-        progress: buildProgress(services, realizedByType),
+        progress: buildProgress(services, realizedByType, options),
         progressHistory: weeklyHistory(points, startDate),
         dailyProgressHistory: points.filter(point => point.progressPct !== null && isValidReportDate(point.date))
       };
@@ -815,8 +821,10 @@ export async function computeDivisionProgressDetails(projectId, division) {
   if (!project) throw new Error('Projeto não encontrado.');
   const plannedServices = consideredPlannedServices(selectDivisionPlannedServices(allPlanned, division.key), project.proposalPercentage);
   const reports = (servicesByProject.get(projectId) ?? []).filter(service => dateInDivision(service.reportDate, division));
-  const timeline = buildProgressTimeline(plannedServices, reports);
-  const scopeProgress = buildProgress(plannedServices, timeline.realizedByType);
+  const options = { includeUnmatched: JSON.parse(division.key)[0] === 'DATE',
+    referencePlannedServices: consideredPlannedServices(allPlanned, project.proposalPercentage) };
+  const timeline = buildProgressTimeline(plannedServices, reports, options);
+  const scopeProgress = buildProgress(plannedServices, timeline.realizedByType, options);
   const progress = { ...scopeProgress, progressMethod: scopeProgress.progressPct == null ? null : 'RDO' };
   return {
     project, plannedServices, progress,

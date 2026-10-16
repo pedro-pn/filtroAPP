@@ -103,7 +103,8 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
               <strong>{label}</strong>
               <span>peso {service.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(service.executionPct)}</span>
             </>;
-            const lines = <ul>{service.systems.filter(system => matchesEquipment(system.equipment)).map((system, systemIndex) =>
+            const lines = <ul>{!equipment ? service.totals?.map(total => <li key={`total-${total.systemType}`}>Total do serviço · {systemLine(total)}</li>) : null}
+              {service.systems.filter(system => matchesEquipment(system.equipment)).map((system, systemIndex) =>
               <li key={systemIndex}>{systemLine(system)}</li>)}</ul>;
             return collapsibleDetails ? <details className="acp-progress-ds__service acp-progress-ds__service--collapsible" key={`${service.serviceType}:${index}`} data-acp-progress-service>
               <summary className="acp-progress-ds__service-head acp-progress-ds__service-summary">{header}</summary>
@@ -124,13 +125,14 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
       </div> : <EmptyState title="Nenhuma meta corresponde ao filtro" />}
       {data.pendingMeasurements?.length ? <details className="acp-progress-ds__pending">
         <summary>Medições sem correspondência no escopo ({data.pendingMeasurements.length})</summary>
-        <p>Não entram nas metas por sistema até a conferência de equipamento, nome e bitola. Revise os vínculos na Conciliação de sistemas do Acompanhamento.</p>
+        <p>As quantidades já entram no total realizado do serviço, mesmo sem conciliação. Revise os vínculos na Conciliação de sistemas do Acompanhamento para atribuí-las aos sistemas.</p>
         <ul>{data.pendingMeasurements.map((item, index) => <li key={index}>
           {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
+          {item.attributedScope ? ` · Contabilizado em ${item.attributedScope.scopeName || 'Sem escopo definido'} · ${item.attributedScope.equipment}` : ''}
         </li>)}</ul>
       </details> : null}
       <ProjectRealizedCorrections projectId={projectId} canManage={canManage} appearance="design-system" />
-      <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. Metas por sistema consideram equipamento do cliente, sistema e bitola. Em cada tipo de medição, a execução é proporcional à quantidade prevista, limitada à meta de cada linha; os serviços usam seus pesos.</p>
+      <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. O avanço total considera todas as quantidades realizadas por serviço e tipo de medição, independentemente da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.</p>
     </div>;
   }
 
@@ -169,6 +171,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
               <span className="acp-progress-meta">peso {svc.weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% · {fmtPct(svc.executionPct)}</span>
             </div>
             <ul className="acp-progress-sys">
+              {!equipment ? svc.totals?.map(total => <li key={`total-${total.systemType}`}>Total do serviço · {systemLine(total)}</li>) : null}
               {svc.systems.filter(sys => matchesEquipment(sys.equipment)).map((sys, j) => <li key={j}>{systemLine(sys)}</li>)}
             </ul>
           </div>
@@ -177,16 +180,18 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
       </div>
       {data.pendingMeasurements?.length ? <details className="acp-progress-svc" open>
         <summary>Medições sem correspondência no escopo ({data.pendingMeasurements!.length})</summary>
-        <p>Não entram nas metas por sistema até a conferência de equipamento, nome e bitola. Revise os vínculos na Conciliação de sistemas do Acompanhamento.</p>
+        <p>As quantidades já entram no total realizado do serviço, mesmo sem conciliação. Revise os vínculos na Conciliação de sistemas do Acompanhamento para atribuí-las aos sistemas.</p>
         <ul>{data.pendingMeasurements!.map((item, index) => <li key={index}>
           {item.equipment} · {item.system} · {SERVICE_LABELS[item.serviceType] || item.serviceType}{item.diameter ? ` · ${item.diameter} ${item.diameterUnit || 'pol'}` : ''}: {fmtQty(item.quantity, item.unit)}
+          {item.attributedScope ? ` · Contabilizado em ${item.attributedScope.scopeName || 'Sem escopo definido'} · ${item.attributedScope.equipment}` : ''}
         </li>)}</ul>
       </details> : null}
       <ProjectRealizedCorrections projectId={projectId} canManage={canManage} />
       <p className="placeholder-copy" style={{ marginTop: 6, fontSize: 11 }}>
         Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados.
-        Metas por sistema consideram equipamento do cliente, sistema e bitola. Em cada tipo de medição, a execução
-        é proporcional à quantidade prevista, limitada à meta de cada linha; os serviços usam seus pesos.
+        O avanço total considera todas as quantidades realizadas por serviço e tipo de medição, independentemente
+        da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado
+        quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.
       </p>
     </div>
   );

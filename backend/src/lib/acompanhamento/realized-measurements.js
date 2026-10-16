@@ -38,6 +38,15 @@ export function extractServiceMeasurements(service, canonical = normalizeRdoServ
     projectSystemId: data.__projectSystemId || null,
     equipment: data.equipmentId || data['Equipamento(s)'] || '', system: service.system || data.system || data.Sistema || ''
   };
+  // O escopo selecionado no RDO identifica a obra mesmo quando o nome do
+  // sistema não corresponde ao cadastro atual do cronograma.
+  if (typeof data.__scopeName === 'string' || data.__scopeName === null) context.scopeName = data.__scopeName;
+  else if (typeof data.__scopeKey === 'string') {
+    try {
+      const name = JSON.parse(data.__scopeKey);
+      if (typeof name === 'string' || name === null) context.scopeName = name;
+    } catch { /* Relatórios antigos sem uma seleção válida continuam sem escopo. */ }
+  }
   const rows = [];
   const completeSystem = canonical === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);
   const hose = canonical === 'TESTE_PRESSAO' && isPressureHoseUnits(data);

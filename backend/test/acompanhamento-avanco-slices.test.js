@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  addRealizedService,
+  buildProgress,
   buildProgressSlices,
   buildRequiredWeeklyProgress,
   NO_SCOPE_KEY,
@@ -54,6 +56,19 @@ test('recorte por equipamento: medição de outra UG não avança a UG filtrada'
   assert.equal(sliceOf(result, '', K02).progress.progressPct, 80);
   // Sem medição própria a UG fica em 0% (platô), nunca herda o avanço da outra UG.
   assert.ok(sliceOf(result, '', K01).progressHistory.every(point => point.progressPct === 0));
+});
+
+test('medições sem conciliação contam no total sem avançar arbitrariamente um equipamento ou escopo', () => {
+  const scope = [planned(UG01, { scopeName: 'A' }), planned(UG02, { scopeName: 'B' })];
+  const reports = [done(UG01, 20), done({ equipment: 'UG antiga', name: 'Nome não conciliado' }, 80)];
+  const realized = new Map(); reports.forEach(service => addRealizedService(realized, service));
+  const total = buildProgress(scope, realized);
+  assert.equal(total.progressPct, 50);
+  assert.equal(total.services[0].totals[0].realizedQty, 100);
+  const slices = buildProgressSlices(scope, reports);
+  assert.equal(sliceOf(slices, 'a', K01).progress.progressPct, 20);
+  assert.equal(sliceOf(slices, 'b', K02).progress.progressPct, 0);
+  assert.deepEqual(total.scopeGroups.map(group => group.services[0].totals[0].realizedQty), [20, 0]);
 });
 
 test('recorte por equipamento: histórico semanal acompanha só a UG (ponto na última data de RDO da semana)', () => {

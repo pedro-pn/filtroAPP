@@ -22,6 +22,7 @@ type OverviewService = {
   scopeName: string | null;
   executionPct: number | null;
   systems: OverviewSystem[];
+  totals?: OverviewSystem[];
 };
 
 function progressOfSystems(systems: OverviewSystem[]) {
@@ -76,7 +77,7 @@ export function ProjectDetailServiceComposition({ target, fallbackProgress, fall
   const serviceCards = services.flatMap(service => {
     const linkedUnits = service.systems.filter(system => ['SISTEMA', 'MANGOTE'].includes(system.systemType) && (system.equipment?.trim() || system.systemName?.trim()));
     if (!linkedUnits.length) {
-      return [{ ...service, equipmentName: null }];
+      return [{ ...service, systems: service.totals ?? service.systems, equipmentName: null }];
     }
     const systemsByEquipment = new Map<string, OverviewSystem[]>();
     for (const system of linkedUnits) {

@@ -224,7 +224,27 @@ test('lista única inclui RDO finalizado, exclui derivados/em andamento e manté
   assert.equal(native[0].items[2].reconciliation.status, 'DIAMETER_MISMATCH');
   assert.deepEqual(state, before);
   assert.deepEqual(progress(state), beforeProgress);
-  assert.equal(beforeProgress.current.progressPct, 37.9);
+  assert.equal(beforeProgress.current.progressPct, 42.9);
+});
+
+test('medições nativas e históricas pendentes já contam antes do vínculo e não duplicam após conciliar', async () => {
+  const { state, client } = fixture(); addNative(state);
+  state.systems[0].aliases = [];
+  state.reports.forEach(report => { delete report.items[0].projectSystemId; });
+  const before = progress(state);
+  assert.equal(before.current.pendingMeasurements.length, 2);
+  assert.equal(before.current.progressPct, 42.9);
+  assert.equal(before.current.services[0].totals[0].realizedQty, 85.75);
+  const listed = await getSystemReconciliation(client, 'p');
+  const measurements = listed.reports.flatMap(report => report.items
+    .filter(item => item.reconciliation.compatibleSystemIds.includes('a'))
+    .map(item => ({ source: report.source, reportId: report.id, revision: report.revision, measurementKey: item.measurementKey })));
+  await linkReconciledMeasurements(client, { projectId: 'p', projectSystemId: 'a', measurements });
+  const after = progress(state);
+  assert.equal(after.current.progressPct, before.current.progressPct);
+  assert.deepEqual(after.current.services[0].totals, before.current.services[0].totals);
+  assert.deepEqual(after.history, before.history);
+  assert.equal(after.current.pendingMeasurements.length, 1, 'a bitola incompatível continua para conferência');
 });
 
 test('lote misto salva só linhas escolhidas, sem alterar RDO/PDF/aliases; preserva a curva quando o total não muda', async () => {

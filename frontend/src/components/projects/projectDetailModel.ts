@@ -29,7 +29,7 @@ export function weeklyPhysicalProgress(target?: RequiredWeeklyProgress) {
   if (target.status === 'DUE_TODAY') return 'Concluir hoje';
   const byUnit = new Map<string, number>();
   for (const service of target.services ?? []) {
-    for (const system of service.systems ?? []) {
+    for (const system of service.totals ?? service.systems ?? []) {
       const unit = physicalUnit(system.systemType, system.unit);
       if (!unit || system.requiredQtyPerWeek == null) continue;
       byUnit.set(unit, (byUnit.get(unit) ?? 0) + system.requiredQtyPerWeek);

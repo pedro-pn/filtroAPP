@@ -65,14 +65,14 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const csv = 'Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro;Quantidade;Unidade\nRLQ;1;01/01/2026;Limpeza;UG01;RV;2;50;m\nRLQ;1;01/01/2026;Limpeza;UG01;Mancais superior e inferior;3;30;m';
   const preview = await request(`${historyBase}/preview`, 'POST', { csv });
   assert.equal((await request(`${historyBase}/import`, 'POST', { csv, token: preview.data.token })).status, 201);
-  assert.equal((await request(progressPath)).data.progressPct, 0);
+  assert.equal((await request(progressPath)).data.progressPct, 26.7);
   const alias = { equipment: 'UG01', system: 'RV', serviceType: 'LIMPEZA_QUIMICA', revision: 1 };
   assert.equal((await request(`${systemsPath}/${ids[0]}/alias`, 'PUT', alias, tokens[2])).status, 403);
   const linked = await request(`${systemsPath}/${ids[0]}/alias`, 'PUT', alias);
   assert.equal(linked.status, 200, JSON.stringify(linked.data));
   assert.equal((await request(`${systemsPath}/${ids[0]}/alias`, 'PUT', alias)).status, 409);
   const progress = (await request(progressPath)).data;
-  assert.equal(progress.progressPct, 16.7);
+  assert.equal(progress.progressPct, 26.7);
   assert.deepEqual(progress.services[0].systems.map(system => system.realizedQty), [50, 0, 0]);
   assert.equal(progress.pendingMeasurements.length, 1);
   assert.equal((await computeProgressHistoryForProjects([projectIds[0]])).get(projectIds[0]).at(-1).progressPct, progress.progressPct);

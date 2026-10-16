@@ -95,12 +95,13 @@ export function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeekly
                 <strong>{SERVICE_LABELS[service.serviceType] ?? service.serviceType}</strong>
                 <span>{fmtPct(service.executionPct)}</span>
               </div>
-              {service.systems.filter(system => system.plannedQty != null).map(system => {
+              {[...(service.totals ?? []), ...service.systems].filter(system => system.plannedQty != null).map(system => {
                 const unit = system.unit ? ` ${UNIT_LABELS[system.unit] ?? system.unit}` : '';
+                const isTotal = service.totals?.includes(system);
                 return (
-                  <div className="acp-detail-weekly-system" key={`${system.projectSystemId ?? ''}:${system.systemType}:${system.unit ?? ''}:${system.diameter ?? ''}:${system.diameterUnit ?? ''}`}>
+                  <div className="acp-detail-weekly-system" key={`${isTotal ? 'total' : system.projectSystemId ?? ''}:${system.systemType}:${system.unit ?? ''}:${system.diameter ?? ''}:${system.diameterUnit ?? ''}`}>
                     <div>
-                      <span>{system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] ?? system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}</span>
+                      <span>{isTotal ? 'Total do serviço · ' : system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] ?? system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}</span>
                       <small>{fmtQuantity(system.realizedQty, system.unit)} / {fmtQuantity(system.plannedQty, system.unit)}</small>
                     </div>
                     <strong>{weeklyTargetText(system.status, system.remainingQty, system.requiredQtyPerWeek, unit)}</strong>
