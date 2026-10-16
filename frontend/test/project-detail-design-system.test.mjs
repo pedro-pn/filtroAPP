@@ -147,6 +147,46 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.equal(model.fmtShortDate('2026-07-06'), '06/07');
       assert.equal(model.fmtShortDate('2026-10-09'), '09/10');
     });
+    await t.test('último RDO e histórico preservam a data da API em qualquer fuso', () => {
+      const originalTimezone = process.env.TZ;
+      const dates = [
+        ['2026-10-16', '16/10/2026'],
+        ['2026-10-16T00:00:00.000Z', '16/10/2026'],
+        ['2026-10-01T00:00:00.000Z', '01/10/2026'],
+        ['2027-01-01T00:00:00.000Z', '01/01/2027'],
+        ['2024-02-29T00:00:00.000Z', '29/02/2024'],
+        ['2026-10-16T23:30:00.000Z', '16/10/2026']
+      ];
+      try {
+        for (const timezone of ['America/Sao_Paulo', 'UTC', 'Pacific/Kiritimati']) {
+          process.env.TZ = timezone;
+          for (const [iso, expected] of dates) {
+            assert.equal(model.fmtDate(iso), expected, `${timezone}: ${iso}`);
+            assert.equal(model.fmtShortDate(iso), expected.slice(0, 5), `${timezone}: ${iso}`);
+          }
+          for (const value of [undefined, null, '', 'inválida', '2026-10-16Tinválida']) {
+            assert.equal(model.fmtDate(value), '—');
+            assert.equal(model.fmtShortDate(value), '—');
+          }
+          const time = render(story.ProjectTimeSnapshot, { data: {
+            ...detail,
+            header: { ...detail.header, lastRdoDate: '2026-10-16T00:00:00.000Z' },
+            ultimosDias: [{ ...detail.ultimosDias[0], date: '2026-10-16T00:00:00.000Z' }]
+          } });
+          assert.match(time, /Último RDO<\/span><strong>16\/10\/2026<\/strong>/);
+          assert.match(time, /16\/10\/2026: Trabalhado/);
+          const chart = render(ProgressHistoryChart, { points: [
+            { date: '2026-09-30T00:00:00.000Z', progressPct: 10 },
+            { date: '2026-10-01T00:00:00.000Z', progressPct: 20 }
+          ] });
+          assert.match(chart, /Avanço de 30\/09 até 01\/10/);
+          assert.match(chart, /Dia: 01\/10\/2026/);
+        }
+      } finally {
+        if (originalTimezone === undefined) delete process.env.TZ;
+        else process.env.TZ = originalTimezone;
+      }
+    });
     await t.test('gráfico e composição usam o recorte real sem recriar a visão geral', () => {
       const chart = render(ProjectDetailOverview, { progressHistory: detail.progressHistory, filterLabel: 'Tubulação' });
       assert.match(chart, /Histórico do avanço/);

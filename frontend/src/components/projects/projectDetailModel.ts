@@ -148,7 +148,8 @@ export function fmtDate(iso?: string | null) {
   if (!iso) return '—';
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDateOnly(iso, '—');
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+  // Datas do projeto e do RDO representam um dia civil, mesmo serializadas em UTC.
+  return Number.isNaN(d.getTime()) ? '—' : formatDateOnly(iso, '—');
 }
 export function fmtDateTime(iso?: string | null) {
   if (!iso) return '—';
@@ -163,12 +164,7 @@ export function fmtDateTime(iso?: string | null) {
   });
 }
 export function fmtShortDate(iso?: string | null) {
-  if (!iso) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDateOnly(iso, '—').slice(0, 5);
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? '—'
-    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return fmtDate(iso).slice(0, 5);
 }
 export function fmtHM(minutes?: number | null) {
   if (!minutes || minutes <= 0) return '0h';
