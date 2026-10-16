@@ -1,4 +1,5 @@
 import { round1, round2, toNumber } from './project-card-groups.js';
+import { summarizeProgressSystems } from './system-progress.js';
 
 export function progressContributionWeight(progress) {
   let total = 0;
@@ -22,8 +23,12 @@ export function combineProgressBreakdowns(progresses = []) {
       const serviceAcc = byService.get(serviceKey) ?? {
         serviceType: serviceKey,
         weight: 0,
+        totals: [],
+        hasTotals: false,
         systems: new Map()
       };
+      serviceAcc.totals.push(...(service.totals ?? summarizeProgressSystems(service.systems ?? [])));
+      serviceAcc.hasTotals ||= Boolean(service.totals);
       let hasPlannedSystem = false;
       for (const system of service.systems ?? []) {
         const planned = Math.max(0, toNumber(system.plannedQty) ?? 0);
@@ -66,7 +71,11 @@ export function combineProgressBreakdowns(progresses = []) {
       let executionPct = measurable.length
         ? round1(measurable.reduce((sum, system) => sum + system.pct, 0) / measurable.length)
         : null;
-      if (measurable.some(system => system.projectSystemId)) {
+      const totals = service.hasTotals ? summarizeProgressSystems(service.totals) : null;
+      if (totals) {
+        const metrics = totals.filter(metric => metric.plannedQty > 0);
+        executionPct = metrics.length ? round1(metrics.reduce((sum, metric) => sum + metric.realizedQty / metric.plannedQty * 100, 0) / metrics.length) : null;
+      } else if (measurable.some(system => system.projectSystemId)) {
         const metrics = new Map();
         for (const system of measurable) {
           const metric = metrics.get(system.systemType) ?? { planned: 0, completed: 0 };
@@ -80,6 +89,7 @@ export function combineProgressBreakdowns(progresses = []) {
         serviceType: service.serviceType,
         weight: service.weight,
         executionPct,
+        ...(totals ? { totals } : {}),
         systems
       };
     })

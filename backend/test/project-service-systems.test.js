@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addRealizedService, buildProgress, buildProgressHistory, buildRequiredWeeklyProgress } from '../src/lib/acompanhamento/avanco.js';
+import { addRealizedService, buildDailyProgressHistory, buildProgress, buildProgressHistory, buildRequiredWeeklyProgress } from '../src/lib/acompanhamento/avanco.js';
 import { assertReportProjectSystems, projectSystemWithMeasurements, resolvePlannedSystem, resolveProjectSystem, saveSystemAlias } from '../src/lib/acompanhamento/project-systems.js';
 import { diameterKey } from '../src/lib/acompanhamento/system-progress.js';
 import { combineProgressBreakdowns } from '../src/lib/acompanhamento/progress-groups.js';
@@ -24,6 +24,8 @@ test('conservative matching: spelling case/accent OK; unconfirmed abbreviations 
   const result = calc(scope([row(registry[0])]), [service(' unidade geradora 01 ', 'REGULADOR DE VELOCIDADE', 20), service('UG 01', 'RV', 30), service(registry[0].equipment, 'Regulador e mancais', 40)]);
   assert.equal(result.services[0].systems[0].realizedQty, 20);
   assert.deepEqual(result.pendingMeasurements.map(item => item.quantity), [30, 40]);
+  assert.equal(result.progressPct, 90);
+  assert.equal(result.services[0].totals[0].realizedQty, 90);
   assert.equal(resolveProjectSystem(registry, { projectSystemId: 'another-project-id', equipment: registry[0].equipment, system: registry[0].name }), null);
 });
 
@@ -43,7 +45,10 @@ test('pending measurements distinguish an unknown name from an identified system
   assert.ok(before.pendingMeasurements.every(item => item.matchedSystem === null));
   const system = { ...registry[0], aliases: [alias] };
   const after = calc(scope([row(system)]), reports);
-  assert.equal(after.progressPct, 30);
+  assert.equal(before.progressPct, 70);
+  assert.equal(after.progressPct, before.progressPct);
+  assert.equal(after.services[0].systems[0].realizedQty, 30);
+  assert.equal(after.services[0].totals[0].realizedQty, 70);
   assert.equal(after.pendingMeasurements.length, 1);
   assert.equal(after.pendingMeasurements[0].diameter, '3');
   assert.equal(after.pendingMeasurements[0].quantity, 40);
@@ -61,7 +66,8 @@ test('pending measurements retain independent manual system assignments even whe
   assert.deepEqual(result.pendingMeasurements.map(item => item.projectSystemId), registry.slice(0, 2).map(system => system.id));
   assert.deepEqual(result.pendingMeasurements.map(item => item.matchedSystem.id), registry.slice(0, 2).map(system => system.id));
   assert.deepEqual(result.pendingMeasurements.map(item => item.quantity), [20, 21]);
-  assert.equal(result.progressPct, 0);
+  assert.equal(result.progressPct, 20.5);
+  assert.equal(result.services[0].totals[0].realizedQty, 41);
 });
 
 test('diameters, wildcard rows and repeated planned rows cannot consume a measurement twice', () => {
@@ -107,6 +113,77 @@ test('oil mL and pipe cm use canonical system identity and base units independen
   const result = calc(planned, [{ ...service(registry[0].equipment), serviceType: 'flushing', extraData: { equipmentId: registry[0].equipment, tubes: [{ d: '2', unit: 'pol', c: 500, lengthUnit: 'cm' }], volumeOleo: 50000, volumeOleoUnit: 'mL' } }]);
   assert.deepEqual(result.services[0].systems.map(item => item.realizedQty), [5, 50]);
   assert.equal(result.progressPct, 50);
+});
+
+test('totais incluem medições sem vínculo por serviço e medida, com conversões e pesos independentes', () => {
+  const planned = [
+    { serviceType: 'FLUSHING', weight: 2, systems: [row(registry[0]), { ...row(registry[0]), systemType: 'OLEO', unit: 'L' }] },
+    { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ ...row(registry[0], 2), systemType: 'SISTEMA', unit: 'UN' }] },
+    { serviceType: 'TESTE_PRESSAO', weight: 1, systems: [{ ...row(registry[0], 10), systemType: 'MANGOTE', unit: 'UN' }] }
+  ];
+  const reports = [
+    { ...service('UG sem cadastro', 'Sistema desconhecido', 0), serviceType: 'flushing', extraData: {
+      tubes: [{ c: 5000, lengthUnit: 'cm', d: '50', unit: 'mm' }], volumeOleo: 50000, volumeOleoUnit: 'mL'
+    } },
+    service('UG sem cadastro', 'Sistema desconhecido', 0, { limpezaTubulacao: 'Não', quantidadeSistemas: 1 }),
+    { ...service('UG sem cadastro', 'Sistema desconhecido', 0), serviceType: 'pressao', extraData: {
+      equipamentoTestado: 'mangueira', medicaoMangotes: 'UN', quantidadeMangotes: 4
+    } }
+  ];
+  const before = structuredClone({ planned, reports });
+  const result = calc(planned, reports);
+  assert.deepEqual(result.services.map(item => item.executionPct), [50, 50, 40]);
+  assert.equal(result.progressPct, 47.5);
+  assert.deepEqual(result.services.flatMap(item => item.systems.map(system => system.realizedQty)), [0, 0, 0, 0]);
+  assert.deepEqual(result.services.flatMap(item => item.totals.map(system => [system.systemType, system.realizedQty])), [
+    ['TUBULACAO', 50], ['OLEO', 50], ['SISTEMA', 1], ['MANGOTE', 4]
+  ]);
+  assert.deepEqual({ planned, reports }, before);
+});
+
+test('curvas, quantitativos diários e ritmo semanal incluem pendências uma vez e conciliar não muda o total', () => {
+  const planned = scope([row(registry[0])]);
+  const reports = [service(registry[0].equipment, undefined, 20), { ...service('UG antiga', 'RV', 45), reportDate: '2026-01-10' }];
+  const current = calc(planned, reports);
+  const history = buildProgressHistory(planned, reports);
+  const daily = buildDailyProgressHistory(planned, [
+    ...reports, { ...service('UG antiga', 'RV', 500), finalized: false },
+    { ...service(registry[0].equipment, undefined, 20), reportType: 'RLQ', specialConditions: { parentRdoId: 'rdo' } }
+  ]);
+  assert.equal(current.progressPct, 65);
+  assert.deepEqual(history.map(item => item.progressPct), [20, 65]);
+  assert.deepEqual(daily.map(item => item.services[0].quantities), [
+    [{ unit: 'M', realizedQty: 20 }], [{ unit: 'M', realizedQty: 65 }]
+  ]);
+  const weekly = buildRequiredWeeklyProgress(current, { referenceDate: '2026-01-10', expectedEndDate: '2026-01-17' });
+  assert.equal(weekly.remainingPctPoints, 35);
+  assert.equal(weekly.services[0].totals[0].requiredQtyPerWeek, 35);
+  const reconciled = reports.map(report => ({ ...report, extraData: { ...report.extraData, __projectSystemId: registry[0].id } }));
+  const after = calc(planned, reconciled);
+  assert.equal(after.pendingMeasurements.length, 0);
+  assert.equal(after.services[0].systems[0].realizedQty, 65);
+  assert.deepEqual(after.services[0].totals, current.services[0].totals);
+  assert.deepEqual(buildProgressHistory(planned, reconciled), history);
+});
+
+test('grupos de missões preservam o realizado não conciliado e o excesso mesmo com escopo legado', () => {
+  const linked = calc(scope([row(registry[0])]), [service('UG sem vínculo', 'Desconhecido', 150)]);
+  const legacy = calc(scope([{ systemType: 'TUBULACAO', unit: 'M', quantity: 100 }]), [service('', '', 50)]);
+  const combined = combineProgressBreakdowns([linked, legacy]);
+  assert.equal(linked.progressPct, 150);
+  assert.equal(combined.progressPct, 100);
+  assert.deepEqual(combined.services[0].totals, [{ systemType: 'TUBULACAO', unit: 'M', plannedQty: 200, realizedQty: 200, pct: 100 }]);
+  assert.equal(combined.pendingMeasurements[0].quantity, 150);
+});
+
+test('meta ausente em uma linha não retém quantidades; medidas sem meta ficam no total sem misturar unidades', () => {
+  const planned = scope([row(registry[0], 0), row(registry[1], 100)]);
+  const result = calc(planned, [service(registry[0].equipment, undefined, 50, { volumeOleo: 100 })]);
+  assert.equal(result.progressPct, 50);
+  assert.deepEqual(result.services[0].totals, [
+    { systemType: 'TUBULACAO', unit: 'M', plannedQty: 100, realizedQty: 50, pct: 50 },
+    { systemType: 'OLEO', unit: 'L', plannedQty: null, realizedQty: 100, pct: null }
+  ]);
 });
 
 test('mm CSV accepts inline and column units, rejects conflicting units and preserves legacy inch fingerprints', () => {

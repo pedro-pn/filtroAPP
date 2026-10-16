@@ -323,8 +323,11 @@ Manutenção e Produção usa permissões individuais de emissão (`SITE_RDO`, `
 
 Para habilitar os lotes em um ambiente existente, aplique as migrações com
 `npm --prefix backend run prisma:deploy` e publique frontend, backend e as
-configurações atualizadas do Nginx. Se o ambiente definir explicitamente
-`ASSINATURAS_MAX_PDF_MB`, ajuste esse valor para `200`.
+configurações atualizadas do Nginx. Os arquivos Compose de produção, homologação e
+desenvolvimento fixam `ASSINATURAS_MAX_PDF_MB=200`, prevalecendo sobre o limite de
+20 MB de env-files antigos. Recrie os containers para aplicar a configuração;
+apenas reiniciar um container existente não atualiza suas variáveis. Para executar
+o backend fora do Compose, ajuste essa variável para `200` no ambiente do processo.
 
 ### E-mails Automáticos
 

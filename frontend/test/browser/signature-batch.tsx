@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '../../src/api/client';
 import type { SignatureBatch, SignatureBatchConfiguration, SignatureDocument } from '../../src/api/assinaturas';
 import { AuthContext } from '../../src/auth/AuthContext';
+import type { AuthUser } from '../../src/types/auth';
 import { ThemeProvider } from '../../src/theme/ThemeProvider';
 import { ToastContext } from '../../src/components/ui/ToastContext';
 import { AssinaturasPublicSignPage } from '../../src/pages/assinaturas/AssinaturasPublicSignPage';
@@ -79,6 +80,9 @@ apiClient.defaults.adapter = async config => {
   return { config, status: 200, statusText: 'OK', headers: {}, data };
 };
 const publicMode = new URLSearchParams(window.location.search).get('mode') === 'public';
+const noveltyMode = new URLSearchParams(window.location.search).get('novelty') === '1';
+const fixtureUser: AuthUser | null = noveltyMode ? { id: 'signature-batch-novelty-browser', name: 'Gestor de assinaturas', username: 'novelty-test',
+  email: null, role: 'MANAGER', accountType: 'INTERNAL', moduleRoles: ['assinaturas:user'], reportEmissionPermissions: [], isActive: true } : null;
 const publicState = { signed: false, signatureRequests: 0, downloads: [] as string[] };
 Object.assign(window, { signatureGroupPublicFixture: publicState });
 if (publicMode) {
@@ -112,7 +116,7 @@ const noop = async () => {};
 const root = createRoot(document.getElementById('root')!);
 import.meta.hot?.dispose(() => root.unmount());
 root.render(<React.StrictMode><ThemeProvider><QueryClientProvider client={client}>
-  <AuthContext.Provider value={{ user: null, token: null, isBootstrapping: false, isAuthenticated: false, login: noop, logout: noop, refreshUser: noop, replaceUser() {} }}>
+  <AuthContext.Provider value={{ user: fixtureUser, token: null, isBootstrapping: false, isAuthenticated: Boolean(fixtureUser), login: noop, logout: noop, refreshUser: noop, replaceUser() {} }}>
     <ToastContext.Provider value={{ showToast() {} }}><BrowserRouter>{publicMode ? <AssinaturasPublicSignPage /> : <AssinaturasPage />}</BrowserRouter></ToastContext.Provider>
   </AuthContext.Provider>
 </QueryClientProvider></ThemeProvider></React.StrictMode>);

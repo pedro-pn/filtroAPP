@@ -93,6 +93,69 @@ test('avanço usa apresentação DS só no detalhe e mantém percentual acima de
   assert.doesNotMatch(shared, /data-acp-progress-ds/);
 }));
 
+test('pendências já aparecem nos totais do avanço, composição e ritmo necessário', async () => fixture(async ({ server, client, render }) => {
+  const { ProjectProgressBreakdown } = await server.ssrLoadModule('/src/components/projects/ProjectProgressBreakdown.tsx');
+  const { ProjectDetailServiceComposition } = await server.ssrLoadModule('/src/components/projects/ProjectDetailOverview.tsx');
+  const { weeklyPhysicalProgress } = await server.ssrLoadModule('/src/components/projects/projectDetailModel.ts');
+  const { RequiredWeeklyProgressCard } = await server.ssrLoadModule('/src/components/projects/ProjectDetailVisuals.tsx');
+  const system = { projectSystemId: 'system-1', equipment: 'UG 01', systemName: 'Linha A',
+    systemType: 'TUBULACAO', unit: 'M', plannedQty: 100, realizedQty: 20, pct: 20 };
+  const total = { systemType: 'TUBULACAO', unit: 'M', plannedQty: 100, realizedQty: 65, pct: 65 };
+  const service = { serviceType: 'TESTE_PRESSAO', weight: 100, executionPct: 65, systems: [system], totals: [total] };
+  const progress = { hasScope: true, progressPct: 65, services: [service], pendingMeasurements: [{
+    serviceType: 'TESTE_PRESSAO', equipment: 'UG antiga', system: 'Nome antigo', systemType: 'TUBULACAO', unit: 'M', quantity: 45
+  }] };
+  client.setQueryData(['project-progress', 'p'], progress);
+  for (const appearance of ['legacy', 'design-system']) {
+    const html = render(ProjectProgressBreakdown, { projectId: 'p', appearance });
+    assert.match(html, /65%/);
+    assert.match(html, /Total do serviço · Tubulações: 65 m \/ 100 m/);
+    assert.match(html, /UG 01 · Linha A · Tubulações: 20 m \/ 100 m/);
+    assert.match(html, /As quantidades já entram no total realizado do serviço, mesmo sem conciliação/);
+    assert.match(html, /UG antiga · Nome antigo/);
+    assert.doesNotMatch(html, /Não entram nas metas|limitada à meta/);
+  }
+  const composition = render(ProjectDetailServiceComposition, { fallbackProgress: progress });
+  assert.match(composition, /65 m/);
+  assert.match(composition, /de 100 m/);
+  const target = { status: 'REQUIRED', services: [{ ...service,
+    systems: [{ ...system, status: 'REQUIRED', remainingQty: 80, requiredQtyPerWeek: 80 }],
+    totals: [{ ...total, status: 'REQUIRED', remainingQty: 35, requiredQtyPerWeek: 35 }]
+  }] };
+  assert.equal(weeklyPhysicalProgress(target), '35 m/semana');
+  const weekly = render(RequiredWeeklyProgressCard, { target });
+  assert.match(weekly, /Total do serviço · Tubulações/);
+  assert.match(weekly, /35 m\/semana/);
+  assert.match(weekly, /65 m \/ 100 m/);
+}));
+
+test('Jupiá UG14 exibe 3.600/50.000 L e 7,2% mesmo com os sistemas individuais sem vínculo', async () => fixture(async ({ server, client, render }) => {
+  const { ProjectDetailServiceComposition } = await server.ssrLoadModule('/src/components/projects/ProjectDetailOverview.tsx');
+  const { ProjectProgressBreakdown } = await server.ssrLoadModule('/src/components/projects/ProjectProgressBreakdown.tsx');
+  const service = { serviceType: 'FILTRAGEM', weight: 100, executionPct: 7.2,
+    totals: [{ systemType: 'OLEO', unit: 'L', plannedQty: 50000, realizedQty: 3600, pct: 7.2 }],
+    systems: [45000, 5000].map((plannedQty, index) => ({ projectSystemId: `system-${index}`,
+      equipment: 'Unidade Geradora 14', systemName: index ? 'Comporta vagão' : 'Regulação e mancais',
+      systemType: 'OLEO', unit: 'L', plannedQty, realizedQty: 0, pct: 0 })) };
+  const progress = { hasScope: true, progressPct: 7.2, services: [service],
+    scopeGroups: [{ scopeName: 'Jupiá', services: [service] }], pendingMeasurements: [{
+      serviceType: 'FILTRAGEM', equipment: 'Unidade Geradora 14', system: 'Regulador de Velocidade',
+      systemType: 'OLEO', unit: 'L', quantity: 3600,
+      attributedScope: { scopeName: 'Jupiá', equipment: 'Unidade Geradora 14' }
+    }] };
+  const html = render(ProjectDetailServiceComposition, { target: progress });
+  assert.match(html, /Escopo: Jupiá/);
+  assert.match(html, /3\.600 L/);
+  assert.match(html, /de 50\.000 L/);
+  assert.match(html, /7,2%/);
+  client.setQueryData(['project-progress', 'p'], progress);
+  for (const appearance of ['legacy', 'design-system']) {
+    const detail = render(ProjectProgressBreakdown, { projectId: 'p', appearance });
+    assert.match(detail, /Total do serviço · Óleo: 3\.600 L \/ 50\.000 L/);
+    assert.match(detail, /Contabilizado em Jupiá · Unidade Geradora 14/);
+  }
+}));
+
 test('conciliação de metragens preserva leitura, gestão e histórico no detalhe DS', async () => fixture(async ({ server, client, render }) => {
   const { ProjectRealizedCorrections } = await server.ssrLoadModule('/src/components/projects/ProjectRealizedCorrections.tsx');
   client.setQueryData(['realized-corrections', 'p'], { rows: [{

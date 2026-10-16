@@ -602,6 +602,7 @@ export interface ProgressService {
   weight: number;
   executionPct: number | null;
   systems: ProgressSystem[];
+  totals?: ProgressSystem[];
 }
 
 export interface ProjectProgress {
@@ -617,6 +618,7 @@ export interface PendingSystemMeasurement {
   unit: string; diameter: string | null; diameterUnit: string | null; quantity: number;
   projectSystemId?: string | null;
   matchedSystem?: { id: string; equipment: string; name: string } | null;
+  attributedScope?: { scopeName: string | null; equipment: string };
 }
 
 export type RequiredWeeklyProgressStatus = 'REQUIRED' | 'COMPLETED' | 'DUE_TODAY' | 'OVERDUE' | 'UNAVAILABLE';
@@ -640,6 +642,7 @@ export interface RequiredWeeklyProgress {
     serviceType: string;
     executionPct: number | null;
     systems: RequiredWeeklyProgressSystem[];
+    totals?: RequiredWeeklyProgressSystem[];
   }>;
   scopeGroups?: Array<{ scopeName: string | null; services: RequiredWeeklyProgress['services'] }>;
 }

@@ -67,3 +67,15 @@ test('unnamed services remain visible alongside named scopes and mission groups 
   assert.deepEqual(withoutGroups(group), combineProgressBreakdowns([withoutGroups(first), second]));
   assert.equal(second.scopeGroups, undefined);
 });
+
+test('totais não conciliados de um serviço são preservados na projeção de escopo único e nos grupos de missões', () => {
+  const first = calc([service('Principal', [row(systems[0])])], [realize({ equipment: 'UG antiga', name: 'Outro nome' }, 80)]);
+  assert.equal(first.progressPct, 80);
+  assert.equal(first.scopeGroups[0].services[0].executionPct, 80);
+  assert.equal(first.scopeGroups[0].services[0].totals[0].realizedQty, 80);
+  const second = calc([service('Principal', [row(systems[1])])], [realize(systems[1], 20)]);
+  const combined = combineProgressBreakdowns([first, second]);
+  assert.equal(combined.progressPct, 50);
+  assert.equal(combined.scopeGroups[0].services[0].executionPct, 50);
+  assert.equal(combined.scopeGroups[0].services[0].totals[0].realizedQty, 100);
+});

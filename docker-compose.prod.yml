@@ -54,6 +54,8 @@ services:
       - backend/.env.production
     environment:
       BACKGROUND_JOBS_IN_API: "false"
+      # Prevalece sobre o limite antigo de 20 MB presente em env-files existentes.
+      ASSINATURAS_MAX_PDF_MB: "200"
       DATABASE_CONNECTION_LIMIT: ${BACKEND_DATABASE_CONNECTION_LIMIT:-8}
       PRISMA_SLOW_QUERY_MS: ${PRISMA_SLOW_QUERY_MS:-1000}
       SLOW_OPERATION_LOG_MS: ${SLOW_OPERATION_LOG_MS:-1000}
@@ -85,6 +87,7 @@ services:
       - backend/.env.production
     environment:
       BACKGROUND_JOBS_IN_API: "false"
+      ASSINATURAS_MAX_PDF_MB: "200"
       DATABASE_CONNECTION_LIMIT: ${WORKER_DATABASE_CONNECTION_LIMIT:-2}
       PRISMA_SLOW_QUERY_MS: ${PRISMA_SLOW_QUERY_MS:-1000}
       SLOW_OPERATION_LOG_MS: ${SLOW_OPERATION_LOG_MS:-1000}
