@@ -53,6 +53,8 @@
 .acp-detail-hero-track i { display: block; height: 100%; border-radius: inherit; background: var(--on-brand); }
 .acp-detail-header .acp-detail-group-members { border-top: var(--border-width) solid var(--line-strong); padding-top: var(--space-3); }
 .acp-detail-header .acp-detail-alerts { justify-content: start; }
+/* Tone backgrounds are translucent in dark mode; keep alerts readable on the hero. */
+.dark .acp-detail-header .fv-badge { background: var(--surface); }
 .acp-detail-group-policy__content { display: grid; gap: var(--space-3); padding-block: var(--space-3); }
 .acp-detail-group-policy__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--space-4); align-items: start; }
 .acp-detail-section-head { display: grid; gap: var(--space-1); scroll-margin-top: calc(var(--topbar-h) + var(--space-5)); }
@@ -89,6 +91,7 @@
 .acp-detail-planning-team > .fv-badge { align-self: start; }
 .acp-detail-facts, .acp-detail-tax-body, .acp-detail-scope, .acp-detail-weekly,
 .acp-detail-proposal-list { display: grid; gap: var(--space-3); min-width: 0; }
+.acp-detail-scope { background: transparent; }
 .acp-detail-fact { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--text-sm); min-width: 0; }
 .acp-detail-fact > :first-child { min-width: 0; overflow-wrap: anywhere; }
 .acp-detail-fact > :last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; text-align: right; }
@@ -115,7 +118,7 @@
 .acp-detail-weekly { padding-block: var(--space-4); border-block: var(--border-width) solid var(--line); }
 .acp-detail-weekly-head, .acp-detail-weekly-services, .acp-detail-weekly-service { display: grid; gap: var(--space-3); }
 .acp-detail-weekly-head > div { display: grid; gap: var(--space-1); }
-.acp-detail-weekly-head span, .acp-detail-weekly-system small { color: var(--muted); font-size: var(--text-xs); }
+.acp-detail-weekly-head > div > span, .acp-detail-weekly-system small { color: var(--muted); font-size: var(--text-xs); }
 .acp-detail-weekly-head > .fv-badge { justify-self: start; }
 .acp-detail-weekly-service-head, .acp-detail-weekly-system { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); font-size: var(--text-sm); }
 .acp-detail-weekly-system > div { display: grid; gap: var(--space-1); }
@@ -142,7 +145,7 @@
 .acp-detail-history svg { display: block; width: 100%; height: 144px; overflow: visible; }
 .acp-detail-history-grid { stroke: var(--line); stroke-width: 1; }
 .acp-detail-history-line { stroke: var(--brand-text); stroke-width: 1.5; stroke-dasharray: 4 5; opacity: .65; fill: none; }
-.acp-detail-history-bar { fill: var(--brand); opacity: .88; }
+.acp-detail-history-bar { fill: var(--brand-text); opacity: .88; }
 .acp-detail-history-point:hover .acp-detail-history-bar, .acp-detail-history-point:focus-visible .acp-detail-history-bar { fill: var(--success); opacity: 1; }
 .acp-detail-history-dot { fill: var(--brand-text); stroke: var(--surface); stroke-width: 1.5; }
 .acp-detail-history-dot-hit { fill: transparent; }

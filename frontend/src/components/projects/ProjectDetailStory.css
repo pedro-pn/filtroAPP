@@ -66,7 +66,7 @@
 .acp-story-financial h4 { margin: 0; font-size: var(--text-sm); }
 .acp-story-cost-stack { display: flex; height: var(--space-3); overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-2); }
 .acp-story-cost-stack > span { display: block; height: 100%; }
-.acp-story-cost-stack .is-omie, .acp-story-cost-legend .is-omie { background: var(--brand); }
+.acp-story-cost-stack .is-omie, .acp-story-cost-legend .is-omie { background: var(--brand-text); }
 .acp-story-cost-stack .is-stock, .acp-story-cost-legend .is-stock { background: var(--success); }
 .acp-story-cost-stack .is-manual, .acp-story-cost-legend .is-manual { background: var(--warning); }
 .acp-story-cost-stack .is-labor, .acp-story-cost-legend .is-labor { background: var(--info); }
