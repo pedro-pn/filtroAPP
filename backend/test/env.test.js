@@ -33,7 +33,7 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.errorTrackingWebhookUrl, '');
   assert.equal(env.projectIntakeWebhookToken, '');
   assert.equal(env.pontomaisApiToken, '');
-  assert.equal(env.assinaturasMaxPdfMb, 20);
+  assert.equal(env.assinaturasMaxPdfMb, 200);
   assert.equal(env.projectDocumentMaxMb, 20);
   assert.equal(env.assinaturasMaxPages, 100);
   assert.equal(env.assinaturasMaxSigners, 20);

@@ -29,8 +29,8 @@ const steps: DriveStep[] = [
   {
     element: '[data-signature-new-document]',
     popover: {
-      title: '1. Envie o PDF',
-      description: 'Crie um documento e selecione um PDF de até 20 MB. O arquivo original recebe uma verificação de integridade.',
+      title: '1. Envie os PDFs',
+      description: 'Selecione um ou vários PDFs, sem limite de quantidade e com até 200 MB por arquivo. Cada original recebe uma verificação de integridade.',
       side: 'bottom',
       align: 'end'
     }
@@ -48,7 +48,7 @@ const steps: DriveStep[] = [
     element: '.signature-pdf-canvas',
     popover: {
       title: '3. Posicione os campos',
-      description: 'Toque ou clique no PDF e escolha o assinante nas opções ao lado. Com apenas um assinante, o campo é incluído diretamente. Ajuste a caixa e salve os campos antes de publicar.',
+      description: 'Role ou use Anterior e Próximo para percorrer os documentos. Toque ou clique no PDF e escolha o assinante. Cada pessoa recebe um único link com os documentos em que seu nome foi posicionado e assina todos de uma vez. Os PDFs finais ficam separados.',
       side: 'top',
       align: 'start'
     }

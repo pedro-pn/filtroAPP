@@ -16,9 +16,10 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-export function PublishDialog({ open, signers, pending, issues, onClose, onPublish }: {
+export function PublishDialog({ open, signers, pending, issues, onClose, onPublish, batchDocumentCount }: {
   open: boolean;
   signers: SignatureSigner[];
+  batchDocumentCount?: number;
   pending: boolean;
   issues: string[];
   onClose: () => void;
@@ -39,7 +40,9 @@ export function PublishDialog({ open, signers, pending, issues, onClose, onPubli
       <form id="signature-publish-form" className="signature-publish-form" aria-busy={busy || undefined} onSubmit={form.handleSubmit(values => onPublish(values.validity === 'custom'
         ? { expiresAt: new Date(values.expiresAt || '').toISOString() }
         : { expiresInDays: Number(values.validity) }))}>
-        <p>{signers.length} assinante(s) receberão um convite individual.</p>
+        <p>{batchDocumentCount
+          ? `${batchDocumentCount} documento(s). Cada assinante receberá um único link com os documentos em que possui campos posicionados. Uma confirmação assina todos os seus documentos; os PDFs finais ficam separados.`
+          : `${signers.length} assinante(s) receberão um convite individual.`}</p>
         <ul className="assinaturas-publish-dialog__signers">{signers.map(signer => <li key={signer.id}><strong>{signer.name}</strong><span>{signer.email || 'Link manual'}</span></li>)}</ul>
         <Field id="signature-expiry" label="Validade dos links" optionalText={null} errorText={form.formState.errors.validity?.message} disabled={busy}>
           <Select size="sm" {...form.register('validity')}>

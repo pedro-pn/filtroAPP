@@ -11,6 +11,7 @@ import {
   createDocument,
   finalPdfBuffer,
   pdfMetadata,
+  parsePdfBytes,
   parsePdfUpload,
   sourcePdfBuffer,
   storeSourcePdf
@@ -21,7 +22,7 @@ function dataUrl(bytes, mimeType = 'application/pdf') {
 }
 
 test('parser reserva espaço para imagem de assinatura de 10 MB sem ampliar outras rotas públicas', () => {
-  assert.equal(jsonBodyLimitForRequest('POST', '/api/assinaturas/documentos'), '30mb');
+  assert.equal(jsonBodyLimitForRequest('POST', '/api/assinaturas/documentos'), '269mb');
   assert.equal(jsonBodyLimitForRequest('GET', '/api/assinaturas/documentos'), '1mb');
   assert.equal(jsonBodyLimitForRequest('POST', '/api/assinaturas/publico/assinar'), '15mb');
   assert.equal(jsonBodyLimitForRequest('GET', '/api/assinaturas/publico'), '3mb');
@@ -39,13 +40,12 @@ test('parsePdfUpload valida MIME, magic bytes e limite bruto configurado', () =>
   assert.throws(() => parsePdfUpload('arquivo.pdf', 'data:text/plain;base64,WA=='), /PDF/);
   assert.throws(() => parsePdfUpload('arquivo.pdf', dataUrl(Buffer.from('ZIP!'))), /PDF inválido/);
 
-  const atLimit = Buffer.alloc(20 * 1024 * 1024);
-  atLimit.write('%PDF');
-  assert.equal(parsePdfUpload('limite.pdf', dataUrl(atLimit)).bytes.length, atLimit.length);
-
-  const aboveLimit = Buffer.alloc((20 * 1024 * 1024) + 1);
+  assert.equal(parsePdfUpload('pequeno.pdf', dataUrl(Buffer.from('%PDF-test'))).bytes.length, 9);
+  const aboveLimit = Buffer.alloc((200 * 1024 * 1024) + 1);
   aboveLimit.write('%PDF');
-  assert.throws(() => parsePdfUpload('grande.pdf', dataUrl(aboveLimit)), /20 MB/);
+  const atLimit = aboveLimit.subarray(0, 200 * 1024 * 1024);
+  assert.equal(parsePdfBytes('limite.pdf', atLimit).bytes.length, atLimit.length);
+  assert.throws(() => parsePdfBytes('grande.pdf', aboveLimit), /200 MB/);
 });
 
 test('pdfMetadata lê páginas e rotações e rejeita conteúdo ilegível', async () => {

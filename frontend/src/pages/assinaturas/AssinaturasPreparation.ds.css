@@ -88,6 +88,21 @@
   justify-content: flex-end;
 }
 
+.signature-batch-save-status {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 760px) {
+  .assinaturas-setup .signature-batch-save-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
 .assinaturas-setup .signature-signer-list {
   gap: var(--space-2);
   margin-top: var(--space-3);
@@ -160,6 +175,32 @@
 /* Keep the measured bounds identical to the actual page, including landscape PDFs. */
 .assinaturas-setup .signature-pdf-canvas.is-ready {
   min-height: 0;
+}
+
+.signature-upload-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  max-height: 30vh;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.signature-upload-files > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.signature-upload-files > li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .assinaturas-setup .signature-page-loading {

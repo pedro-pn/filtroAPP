@@ -8,86 +8,74 @@ import { Button, Field, Input } from '../../../components/ui/ds';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { Modal } from '../../../components/ui/Modal';
 import { PdfDropzone } from '../../../components/ui/PdfDropzone';
+import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
+import { validateSignatureFiles } from '../utils/batch';
 
 const schema = z.object({ title: z.string().trim().max(180) });
 type FormValues = z.infer<typeof schema>;
 
-function readDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Não foi possível ler o PDF.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-export function NewDocumentModal({
-  open,
-  submitting,
-  onClose,
-  onSubmit
-}: {
+export function NewDocumentModal({ open, submitting, onClose, onSubmit }: {
   open: boolean;
   submitting: boolean;
   onClose: () => void;
-  onSubmit: (payload: { fileName: string; pdfDataUrl: string; title?: string }) => Promise<void>;
+  onSubmit: (files: File[], title: string | undefined, onProgress: (message: string) => void) => Promise<void>;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState('');
+  const [progress, setProgress] = useState('');
+  const [started, setStarted] = useState(false);
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { title: '' } });
   const saving = submitting || form.formState.isSubmitting;
 
   useEffect(() => {
     if (!open) {
-      setFile(null);
+      setFiles([]);
       setFileError('');
+      setProgress('');
+      setStarted(false);
       form.reset({ title: '' });
     }
   }, [form, open]);
 
   async function submit(values: FormValues) {
-    if (!file) {
-      setFileError('Selecione um arquivo PDF.');
-      return;
-    }
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      setFileError('Envie um arquivo PDF válido.');
-      return;
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      setFileError('O PDF deve ter no máximo 20 MB.');
-      return;
-    }
+    const error = validateSignatureFiles(files);
+    if (error) { setFileError(error); return; }
     setFileError('');
-    let pdfDataUrl: string;
+    setStarted(true);
     try {
-      pdfDataUrl = await readDataUrl(file);
-    } catch {
-      setFileError('Não foi possível ler o PDF. Selecione o arquivo novamente.');
-      return;
+      await onSubmit(files, files.length === 1 ? values.title || undefined : undefined, setProgress);
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : 'Não foi possível enviar os PDFs. Tente novamente.');
     }
-    await onSubmit({
-      fileName: file.name,
-      pdfDataUrl,
-      ...(values.title ? { title: values.title } : {})
-    });
   }
 
   return (
-    <Modal open={open} onClose={onClose} appearance="design-system" title="Novo documento" size="md"
+    <Modal open={open} onClose={() => { if (!saving) onClose(); }} appearance="design-system" title="Novos documentos" size="md"
       fullscreenOnMobile={false} backdropClassName="assinaturas-dialog-backdrop" panelClassName="assinaturas-upload-dialog"
       closeOnEscape={!saving} showCloseButton={!saving}
       footer={<>
         <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
-        <Button variant="primary" type="submit" form="signature-new-document-form" size="sm" loading={saving} disabled={saving} iconLeft={<AppIcon icon={DS_ICONS.upload} size="sm" />}>{saving ? 'Enviando...' : 'Enviar PDF'}</Button>
+        <Button variant="primary" type="submit" form="signature-new-document-form" size="sm" loading={saving} disabled={saving} iconLeft={<AppIcon icon={DS_ICONS.upload} size="sm" />}>{saving ? 'Enviando...' : 'Enviar e avançar'}</Button>
       </>}
     >
       <form id="signature-new-document-form" className="signature-new-document-form" onSubmit={form.handleSubmit(submit)} aria-busy={saving || undefined}>
-        <p className="assinaturas-upload-dialog__hint">Envie um PDF de até 20 MB. Depois, adicione os assinantes e posicione os campos no documento.</p>
-        <Field id="signature-title" label="Título" helperText="Se ficar vazio, será usado o nome do arquivo." errorText={form.formState.errors.title?.message} disabled={saving}>
+        <p className="assinaturas-upload-dialog__hint">Selecione quantos PDFs precisar, com até 200 MB por arquivo. Depois, posicione as assinaturas em cada documento.</p>
+        {files.length <= 1 ? <Field id="signature-title" label="Título" helperText="Se ficar vazio, será usado o nome do arquivo." errorText={form.formState.errors.title?.message} disabled={saving || started}>
           <Input size="sm" {...form.register('title')} />
-        </Field>
-        <PdfDropzone appearance="design-system" id="signature-pdf" label="Arquivo PDF" file={file} onFile={next => { setFile(next); setFileError(''); }} disabled={saving} error={fileError} />
+        </Field> : null}
+        <PdfDropzone appearance="design-system" id="signature-pdf" label="Arquivos PDF" multiple fileName={files.length ? `${files.length} arquivo(s) selecionado(s)` : ''}
+          onFile={() => {}} onFiles={next => {
+            const selected = next.length ? [...files, ...next] : [];
+            setFiles(selected);
+            if (selected.length > 1) form.setValue('title', '', { shouldValidate: true });
+            setFileError('');
+          }} disabled={saving || started} error={fileError} />
+        {files.length ? <ul className="signature-upload-files" aria-label="Arquivos selecionados">{files.map((file, index) => <li key={index}>
+          <span>{file.name} <small>({(file.size / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB)</small></span>
+          <RemoveIconButton label={`Remover ${file.name}`} disabled={saving || started} onClick={() => setFiles(current => current.filter((_, position) => position !== index))} />
+        </li>)}</ul> : null}
+        {progress ? <p role="status">{progress}</p> : null}
+        {started && !saving && fileError ? <p>Ao tentar novamente, os arquivos já enviados serão preservados. Os rascunhos também estão disponíveis na biblioteca.</p> : null}
       </form>
     </Modal>
   );

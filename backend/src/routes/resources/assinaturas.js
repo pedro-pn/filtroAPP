@@ -1,9 +1,11 @@
-import { Router } from 'express';
+import { raw, Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { requireAssinaturasAccess, documentForOwnerOrThrow } from '../../lib/assinaturas/access.js';
 import { createDocument, finalPdfBuffer, sourcePdfBuffer } from '../../lib/assinaturas/document.js';
+import { batchInviteAction, createBatch, getBatch, publishBatch, saveBatch } from '../../lib/assinaturas/batch.js';
+import env from '../../config/env.js';
 import { MAX_SIGNATURE_IMAGE_DATA_URL_LENGTH } from '../../lib/assinaturas/image-limits.js';
 import {
   recoverInviteLink,
@@ -32,6 +34,7 @@ import {
 } from '../../lib/assinaturas/service.js';
 import {
   assertInviteUsable,
+  inviteDocumentOrThrow,
   confirmSignature,
   loadInvite,
   tokenFromSignatureHeader
@@ -52,8 +55,10 @@ const publicSignatureLimiter = createMemoryRateLimit({
 const uploadSchema = z.strictObject({
   fileName: z.string().trim().min(1).max(255),
   pdfDataUrl: z.string().min(1),
-  title: z.string().trim().min(1).max(180).optional()
+  title: z.string().trim().min(1).max(180).optional(),
+  batchId: z.string().trim().min(1).optional()
 });
+const binaryUploadSchema = uploadSchema.omit({ pdfDataUrl: true });
 const renameSchema = z.strictObject({ title: z.string().trim().min(1).max(180) });
 const signerSchema = z.array(z.strictObject({
   id: z.string().trim().min(1).optional(),
@@ -106,7 +111,9 @@ router.get('/publico', publicSignatureLimiter, publicHeaders, asyncHandler(async
 }));
 
 router.get('/publico/pdf', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
-  const invite = await resolveInviteByToken(prisma, invitationToken(req));
+  const resolved = await resolveInviteByToken(prisma, invitationToken(req));
+  assertInviteUsable(resolved);
+  const invite = inviteDocumentOrThrow(resolved, req.query.documentId);
   assertInviteUsable(invite);
   let bytes;
   let fileName = invite.document.originalFileName;
@@ -133,7 +140,9 @@ router.get('/publico/pdf', publicSignatureLimiter, publicHeaders, asyncHandler(a
 }));
 
 router.get('/publico/paginas/:n.png', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
-  const invite = await resolveInviteByToken(prisma, invitationToken(req));
+  const resolved = await resolveInviteByToken(prisma, invitationToken(req));
+  assertInviteUsable(resolved);
+  const invite = inviteDocumentOrThrow(resolved, req.query.documentId);
   assertInviteUsable(invite);
   const pageNumber = Number(req.params.n);
   if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > Number(invite.document.pageCount)) {
@@ -172,8 +181,31 @@ router.get('/validar/:code', publicSignatureLimiter, publicHeaders, asyncHandler
 
 router.use(requireAuth, requireAssinaturasAccess);
 
+router.post('/lotes', asyncHandler(async (req, res) => {
+  return res.status(201).json(await createBatch(prisma, ownerId(req)));
+}));
+
+router.get('/lotes/:id', asyncHandler(async (req, res) => {
+  return res.json(await getBatch(prisma, req.params.id, ownerId(req)));
+}));
+
+router.put('/lotes/:id/configuracao', asyncHandler(async (req, res) => {
+  return res.json(await saveBatch(prisma, req.params.id, ownerId(req), req.body));
+}));
+
+router.post('/lotes/:id/publicar', asyncHandler(async (req, res) => {
+  return res.json(await publishBatch(prisma, req.params.id, ownerId(req), publishSchema.parse(req.body)));
+}));
+
+router.post('/lotes/:id/assinantes/:signerId/:action', asyncHandler(async (req, res) => {
+  const action = z.enum(['link', 'renovar', 'reenviar-email', 'revogar']).parse(req.params.action);
+  const expiry = action === 'renovar' ? publishSchema.parse(req.body) : undefined;
+  return res.json(await batchInviteAction(prisma, req.params.id, req.params.signerId, ownerId(req), action, expiry));
+}));
+
 router.get('/documentos', asyncHandler(async (req, res) => {
   const result = await listDocuments(prisma, ownerId(req), {
+    grouped: req.query.grouped === '1',
     status: req.query.status,
     q: req.query.q,
     dateFrom: req.query.dateFrom,
@@ -185,14 +217,17 @@ router.get('/documentos', asyncHandler(async (req, res) => {
   return res.json(result);
 }));
 
-router.post('/documentos', asyncHandler(async (req, res) => {
-  const body = uploadSchema.parse(req.body);
+router.post('/documentos', raw({ type: 'application/pdf', limit: `${env.assinaturasMaxPdfMb}mb` }), asyncHandler(async (req, res) => {
+  const binary = req.is('application/pdf');
+  const body = binary ? binaryUploadSchema.parse(req.query) : uploadSchema.parse(req.body);
   const document = await createDocument(prisma, {
     ownerUserId: ownerId(req),
     requesterNameSnapshot: req.auth?.user?.name,
     fileName: body.fileName,
     pdfDataUrl: body.pdfDataUrl,
-    title: body.title
+    ...(binary ? { pdfBytes: req.body } : {}),
+    title: body.title,
+    batchId: body.batchId
   });
   return res.status(201).json(document);
 }));
@@ -265,6 +300,7 @@ router.get('/documentos/:id/assinantes/:signerId/link', asyncHandler(async (req,
     error.statusCode = 404;
     throw error;
   }
+  if (document.batchId && signer.batchSignerId) return res.json(await batchInviteAction(prisma, document.batchId, signer.batchSignerId, ownerId(req), 'link'));
   return res.json(await recoverInviteLink(prisma, document, signer, ownerId(req)));
 }));
 
@@ -278,8 +314,10 @@ router.post('/documentos/:id/assinantes/:signerId/renovar', asyncHandler(async (
       error.statusCode = 404;
       throw error;
     }
+    if (document.batchId && signer.batchSignerId) return { batchId: document.batchId, batchSignerId: signer.batchSignerId };
     return renewInvite(tx, document, signer, publicationExpiresAt(expiry), { actorUserId: ownerId(req) });
   });
+  if (result.batchId) return res.json(await batchInviteAction(prisma, result.batchId, result.batchSignerId, ownerId(req), 'renovar', expiry));
   if (result.signer.email) {
     await sendInviteEmail(prisma, result.signer.id).catch(() => {});
   }
@@ -299,6 +337,7 @@ router.post('/documentos/:id/assinantes/:signerId/reenviar-email', asyncHandler(
     error.statusCode = 404;
     throw error;
   }
+  if (document.batchId && signer.batchSignerId) return res.json(await batchInviteAction(prisma, document.batchId, signer.batchSignerId, ownerId(req), 'reenviar-email'));
   return res.json(await resendInviteEmail(prisma, document, signer));
 }));
 

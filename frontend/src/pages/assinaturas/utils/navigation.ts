@@ -1,6 +1,10 @@
 export function normalizeSignatureSearchParams(current: URLSearchParams) {
   const next = new URLSearchParams(current);
   const selectedId = next.get('doc') || '';
+  if (next.get('lote')) {
+    next.delete('doc'); next.delete('tab'); next.delete('page');
+    return next;
+  }
   const requestedTab = next.get('tab');
   if (selectedId) {
     if (requestedTab === 'archived') next.set('list', 'archived');
@@ -26,6 +30,7 @@ export function signatureDocumentSearchParams(
 ) {
   const next = new URLSearchParams(current);
   if (current.get('tab') === 'archived') next.set('list', 'archived');
+  next.delete('lote');
   next.delete('page');
   next.set('doc', documentId);
   next.set('tab', initialTab);
@@ -36,9 +41,19 @@ export function signatureDocumentSearchParams(
 export function signatureLibrarySearchParams(current: URLSearchParams) {
   const next = new URLSearchParams(current);
   next.delete('doc');
+  next.delete('lote');
   next.delete('page');
   next.delete('tab');
   if (next.get('list') === 'archived') next.set('tab', 'archived');
   next.delete('list');
+  return next;
+}
+
+
+export function signatureBatchSearchParams(current: URLSearchParams, batchId: string) {
+  const next = new URLSearchParams(current);
+  if (next.get('tab') === 'archived') next.set('list', 'archived');
+  next.delete('doc'); next.delete('tab'); next.delete('page');
+  next.set('lote', batchId);
   return next;
 }

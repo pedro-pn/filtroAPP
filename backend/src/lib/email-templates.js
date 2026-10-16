@@ -840,11 +840,23 @@ export function buildReportSignatureRequestEmailTemplate({
 
 export function buildStandaloneSignatureRequestEmailTemplate({
   documentTitle,
+  documentTitles,
   requesterNameSnapshot,
   signerName,
   signUrl,
   expiresLabel
 }) {
+  if (documentTitles?.length > 1) {
+    const titles = documentTitles.map(value => escapeHtml(value));
+    const title = 'Documentos disponíveis para assinatura';
+    const intro = `${escapeHtml(requesterNameSnapshot || 'O solicitante')} solicitou sua assinatura em ${titles.length} documentos.`;
+    const body = `<p>Olá, ${escapeHtml(signerName || 'Assinante')}.</p><ul>${titles.map(value => `<li>${value}</li>`).join('')}</ul><p>Confira todos os documentos e confirme sua assinatura uma única vez. Os PDFs assinados ficam separados.</p><p>Prazo: ${escapeHtml(expiresLabel || 'consulte o convite')}</p><p><a href="${escapeHtml(signUrl)}">Conferir e assinar documentos</a></p>${privacyHtmlLine()}`;
+    return { subject: `[Filtrovali] Assinatura de ${titles.length} documentos`, text: [
+      `Olá, ${signerName || 'Assinante'}.`, `${requesterNameSnapshot || 'O solicitante'} pediu sua assinatura nos documentos:`,
+      ...documentTitles.map(value => `- ${value}`), 'Uma única confirmação assina todos estes documentos. Os PDFs finais ficam separados.',
+      `Prazo: ${expiresLabel || 'consulte o convite'}`, `Conferir e assinar: ${signUrl}`, privacyTextLine()
+    ].join('\n'), html: wrapEmailHtml({ title, intro, body, footer: 'Este link é individual e reúne somente os documentos atribuídos a você.' }) };
+  }
   const safeTitle = escapeHtml(documentTitle || 'Documento');
   const safeRequester = escapeHtml(requesterNameSnapshot || 'Solicitante');
   const safeSigner = escapeHtml(signerName || 'Assinante');

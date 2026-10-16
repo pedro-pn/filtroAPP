@@ -22,6 +22,8 @@ export interface SignatureField {
 
 export interface SignatureSigner {
   id: string;
+  batchSignerId?: string | null;
+  groupInviteId?: string | null;
   name: string;
   email: string | null;
   position: number;
@@ -33,7 +35,9 @@ export interface SignatureSigner {
 }
 
 export interface SignatureDocumentCard {
+  batchDocuments?: SignatureDocumentCard[];
   id: string;
+  batchId?: string | null;
   title: string;
   originalFileName: string;
   status: SignatureDocumentStatus;
@@ -61,6 +65,41 @@ export interface SignatureDocumentList {
   nextCursor: string | null;
 }
 
+export type SignatureBatchSigner = Pick<SignatureSigner, 'id' | 'name' | 'email' | 'position'>;
+export interface SignatureBatchInvitation extends SignatureSigner {
+  documents: Array<{ id: string; title: string; status: SignatureDocumentStatus; signerStatus: SignatureSignerStatus }>;
+}
+export interface SignatureBatch {
+  id: string;
+  signers: SignatureBatchSigner[];
+  invitations: SignatureBatchInvitation[];
+  documents: SignatureDocument[];
+}
+export interface SignatureBatchConfiguration {
+  signers: SignatureBatchSigner[];
+  documents: Array<{ id: string; fields: SignatureField[] }>;
+}
+
+export async function createSignatureBatch() {
+  return (await apiClient.post<{ id: string }>(assinaturaApiPath('/lotes'))).data;
+}
+
+export async function getSignatureBatch(id: string) {
+  return (await apiClient.get<SignatureBatch>(assinaturaApiPath(`/lotes/${id}`))).data;
+}
+
+export async function saveSignatureBatch(id: string, configuration: SignatureBatchConfiguration) {
+  const documents = configuration.documents.map(document => ({
+    id: document.id,
+    fields: document.fields.map(({ signerId, pageNumber, x, y, width, height }) => ({ signerId, pageNumber, x, y, width, height }))
+  }));
+  return (await apiClient.put<SignatureBatch>(assinaturaApiPath(`/lotes/${id}/configuracao`), { signers: configuration.signers, documents })).data;
+}
+
+export async function publishSignatureBatch(id: string, expiry: { expiresInDays: number } | { expiresAt: string }) {
+  return (await apiClient.post(assinaturaApiPath(`/lotes/${id}/publicar`), expiry)).data;
+}
+
 export interface SignatureAuditItem {
   id: string;
   action: string;
@@ -85,6 +124,13 @@ export interface PublicSignatureInvite {
   signer: { name: string; status: SignatureSignerStatus; signedAt: string | null };
   fields: Omit<SignatureField, 'id' | 'signerId'>[];
   downloadAvailable: boolean;
+  documents?: Array<PublicSignatureInvite['document'] & {
+    id: string;
+    pageDimensions: SignatureDocument['pageDimensions'];
+    fields: PublicSignatureInvite['fields'];
+    signerStatus: SignatureSignerStatus;
+    downloadAvailable: boolean;
+  }>;
 }
 
 export function assinaturaApiPath(path: string) {
@@ -101,8 +147,14 @@ export async function getSignatureDocument(id: string) {
   return response.data;
 }
 
-export async function createSignatureDocument(payload: { fileName: string; pdfDataUrl: string; title?: string }) {
-  const response = await apiClient.post<SignatureDocument>(assinaturaApiPath('/documentos'), payload);
+export async function createSignatureDocument(payload: { fileName: string; pdfDataUrl: string; title?: string } | { file: File; title?: string; batchId?: string }) {
+  // Envia o File diretamente para evitar cópias de 200 MB em base64 no navegador.
+  const response = 'file' in payload
+    ? await apiClient.post<SignatureDocument>(assinaturaApiPath('/documentos'), payload.file, {
+      params: { fileName: payload.file.name, title: payload.title, batchId: payload.batchId },
+      headers: { 'Content-Type': 'application/pdf' }
+    })
+    : await apiClient.post<SignatureDocument>(assinaturaApiPath('/documentos'), payload);
   return response.data;
 }
 
@@ -223,10 +275,15 @@ export async function confirmPublicSignature(token: string, payload: {
   return response.json() as Promise<{ success: true; documentStatus: SignatureDocumentStatus; downloadAvailable: boolean }>;
 }
 
-export async function publicSignaturePdf(token: string) {
-  return (await publicRequest('/publico/pdf', token)).blob();
+export async function publicSignaturePdf(token: string, documentId?: string) {
+  return (await publicRequest(`/publico/pdf${documentId ? `?documentId=${encodeURIComponent(documentId)}` : ''}`, token)).blob();
 }
 
-export async function publicSignaturePage(token: string, pageNumber: number, signal?: AbortSignal) {
-  return (await publicRequest(`/publico/paginas/${pageNumber}.png`, token, { signal })).blob();
+export async function publicSignaturePage(token: string, pageNumber: number, signal?: AbortSignal, documentId?: string) {
+  return (await publicRequest(`/publico/paginas/${pageNumber}.png${documentId ? `?documentId=${encodeURIComponent(documentId)}` : ''}`, token, { signal })).blob();
+}
+
+
+export async function signatureBatchInviteAction(batchId: string, signerId: string, action: 'link' | 'renovar' | 'reenviar-email' | 'revogar') {
+  return (await apiClient.post<{ url: string; expiresAt: string }>(assinaturaApiPath(`/lotes/${encodeURIComponent(batchId)}/assinantes/${encodeURIComponent(signerId)}/${action}`), action === 'renovar' ? { expiresInDays: 15 } : {})).data;
 }
