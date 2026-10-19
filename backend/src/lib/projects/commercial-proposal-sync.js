@@ -30,13 +30,15 @@ const bundleSchema = commercialAppQueryPayloadSchema.safeExtend({
 function syncError(code) { return Object.assign(new Error(code), { code }); }
 const cnpj = value => String(value || '').replace(/\D/g, '');
 
-export function commercialAppConnection({ apiUrl = env.comercialAppApiUrl, token = env.comercialAppServiceToken, production = env.nodeEnv === 'production' } = {}) {
+export function commercialAppConnection({ apiUrl = env.comercialAppApiUrl, token = env.comercialAppServiceToken,
+  production = env.nodeEnv === 'production', appEnv = env.appEnv, allowStagingHttp = env.comercialAppAllowStagingHttp } = {}) {
   if (!apiUrl || !token) throw syncError('COMERCIALAPP_NOT_CONFIGURED');
   let base;
   try { base = new URL(apiUrl); } catch { throw syncError('COMERCIALAPP_URL_INVALID'); }
   const local = !production && base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname);
+  const staging = appEnv === 'staging' && allowStagingHttp === true && base.protocol === 'http:';
   if (base.username || base.password || base.search || base.hash ||
-      base.pathname !== '/' || !(base.protocol === 'https:' || local)) throw syncError('COMERCIALAPP_URL_INVALID');
+      base.pathname !== '/' || !(base.protocol === 'https:' || local || staging)) throw syncError('COMERCIALAPP_URL_INVALID');
   return { origin: base.origin, token };
 }
 

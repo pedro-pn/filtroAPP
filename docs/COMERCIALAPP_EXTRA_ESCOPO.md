@@ -186,3 +186,17 @@ executado estão em [COMERCIALAPP_EXTRA_ESCOPO_EVIDENCIAS.md](COMERCIALAPP_EXTRA
 ## Escopo operacional e Data Book independente
 
 Ver [Escopo e Data Book por proposta](DATABOOK_POR_PROPOSTA.md): editor com origem do escopo, acompanhamento de serviços por contribuição, vínculos operacionais auditados e geração/numeração/histórico separados por proposta. A migração adicional `20261019210000_proposal_scope_databooks` deve preceder a atualização das aplicações.
+
+### Consulta HTTP entre stagings
+
+Em produção, a consulta continua exigindo HTTPS. Para um par de stagings publicado por IP/porta em HTTP, configurar explicitamente no filtroAPP:
+
+```dotenv
+APP_ENV=staging
+COMERCIALAPP_ALLOW_STAGING_HTTP=true
+COMERCIALAPP_API_URL=http://IP_DO_STAGING_COMERCIAL:8087/
+```
+
+As duas opções de staging são obrigatórias para essa exceção, mesmo com `NODE_ENV=production` no container. Credenciais embutidas, subcaminhos, query string, fragmentos e redirects continuam recusados. O Compose de staging informa `APP_ENV=staging`; a habilitação HTTP tem padrão `false`.
+
+No ComercialAPP, `FILTROAPP_API_TOKEN` também autentica a exportação consultada pelo filtroAPP. Configurar somente a URL do consumidor deixa o exportador desativado (503). Para homologar o push, o produtor precisa de `FILTROAPP_API_URL`, do mesmo token de serviço do par de stagings e de `FILTROAPP_ADDITIONAL_CONTRACT=3`; conferir antes a capability e as entregas pendentes do produtor. Nunca utilizar credenciais de produção nesse par HTTP.
