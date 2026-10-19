@@ -199,7 +199,9 @@ export async function syncCommercialAppScope(tx, projectId, proposal, { replaceE
     await saveMetadata({ ...metadata, pendingExternalId: proposal.externalId, issues });
     return { status: 'NEEDS_REVIEW', issues };
   }
-  if (metadata?.externalId === proposal.externalId && metadata.fingerprint === fingerprint) {
+  // A retirada explícita remove as linhas automáticas, preservando o histórico da importação.
+  // Reativar a mesma revisão precisa reconstruí-las antes de considerar a consulta concluída.
+  if (metadata?.externalId === proposal.externalId && metadata.fingerprint === fingerprint && current === mapped.services.length) {
     return { status: 'UNCHANGED', issues: mapped.issues };
   }
   await tx.projectPlannedService.deleteMany({ where });

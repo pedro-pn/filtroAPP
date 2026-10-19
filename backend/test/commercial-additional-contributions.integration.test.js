@@ -114,6 +114,25 @@ test('contribuições v3: 120/125/130 mil, revisão/mãe/eventos, overrides, sel
   assert.equal((await receiveCommercialAppProposal({ ...a2, eventId: randomUUID() })).budgetStatus, 'STAGED');
   assert.equal((await selection()).active, false);
   assert.equal((await services()).some(row => row.contributionKey === a0.contributionKey), true, 'override manual preservado');
+  await t.test('retirar e reativar a mesma revisão reconstrói o escopo automático sem alterar outras contribuições', async () => {
+    await selectCommercialAppRevision(project.id, a2.proposalId, null, { expectedSelectionVersion: (await selection()).selectionVersion });
+    await resolveContributionScope(project.id, a0.proposalCode, { expectedSelectionVersion: (await selection()).selectionVersion,
+      choice: 'COMMERCIAL', reason: 'Restaurar quantitativos comerciais antes da retirada' });
+    const otherIds = async () => (await services()).filter(row => row.contributionKey !== a2.contributionKey).map(row => row.id).sort();
+    const preserved = await otherIds();
+    await removeContribution(project.id, 'COMERCIAL_APP', a2.proposalCode,
+      { expectedSelectionVersion: (await selection()).selectionVersion, reason: 'Retirada explícita do escopo automático' });
+    assert.equal((await services()).some(row => row.contributionKey === a2.contributionKey), false);
+    await selectCommercialAppRevision(project.id, a2.proposalId, null, { expectedSelectionVersion: (await selection()).selectionVersion });
+    const restored = (await services()).find(row => row.contributionKey === a2.contributionKey);
+    assert.ok(restored, 'o histórico da importação não substitui as metas removidas');
+    assert.equal(Number(restored.systems[0].quantity), 30);
+    assert.deepEqual(await otherIds(), preserved);
+    await total(136_000, 81_600, 1360);
+    const restoredId = restored.id;
+    await selectCommercialAppRevision(project.id, a2.proposalId, null, { expectedSelectionVersion: (await selection()).selectionVersion });
+    assert.equal((await services()).find(row => row.contributionKey === a2.contributionKey).id, restoredId, 'repetir a seleção permanece idempotente');
+  });
 });
 
 test('fontes mistas e mãe ausente: principal ComercialAPP + adicional Access; legado permanece staged', { skip: !databaseUrl }, async t => {
