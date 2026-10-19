@@ -1,11 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { contributionServiceKey, resolveServiceContribution } from '../src/lib/acompanhamento/proposal-scopes.js';
+import { contributionServiceKey, loadProposalScopes, resolveServiceContribution } from '../src/lib/acompanhamento/proposal-scopes.js';
 import { projectReportsToProposal } from '../src/lib/databook/montar-dados.js';
 const main = 'ACCESS_IMPORT:500', a = 'COMERCIAL_APP:502', b = 'COMERCIAL_APP:503';
 const service = (id, meters = 20, extra = {}) => ({ id, serviceType: 'pressao', finalized: true, system: 'Linha', extraData: { tubes: [{ d: '2', unit: 'pol', c: String(meters) }], ...extra } });
 const planned = key => ({ contributionKey: key, serviceType: 'TESTE_PRESSAO', systems: [{ systemType: 'TUBULACAO', quantity: 100, unit: 'M' }] });
 const context = { main: { key: main }, options: [{ key: main }, { key: a }, { key: b }], planned: [planned(main), planned(a), planned(b)], plannedKey: s => s.contributionKey || main };
+
+test('fontes mistas: o escopo consultado da mãe acompanha a principal e participa da sua versão', async () => {
+  for (const source of ['ACCESS_IMPORT', 'COMERCIAL_APP']) {
+    const other = source === 'ACCESS_IMPORT' ? 'COMERCIAL_APP' : 'ACCESS_IMPORT';
+    const services = [planned(`${other}:500`), planned(`${other}:502`), planned(null)];
+    const client = {
+      projectBudget: { findUnique: async () => ({ source, sourceProposalCodBd: 500, commercialAppProposalId: 'mother' }) },
+      projectAdditionalProposal: { findMany: async () => [] },
+      commercialProposal: { findMany: async () => [{ codBd: 500, codProp: 500, nRev: 0 }] },
+      commercialAppProposal: { findMany: async () => [{ externalId: 'mother', proposalCode: '500', revisionNumber: 0 }] }
+    };
+    const load = () => loadProposalScopes('project', client, { id: 'project', plannedServices: services });
+    const loaded = await load();
+    assert.deepEqual(services.map(loaded.plannedKey), [`${source}:500`, `${other}:502`, `${source}:500`]);
+    assert.equal(services[0].contributionKey, `${other}:500`, 'a procedência persistida não muda');
+    services[0].systems[0].quantity++;
+    assert.notEqual((await load()).main.version, loaded.main.version, 'editar o escopo consultado invalida a versão do databook da mãe');
+  }
+});
 
 test('mesmo título/tipo nas propostas fica pendente; vínculo explícito prevalece e não depende do ID', () => {
   const s = service('s1');

@@ -45,9 +45,13 @@ export async function loadProposalScopes(projectId, client = prisma, suppliedPro
   };
   const main = budget ? option(budget, true) : { key: 'MAIN', proposalCode: null, source: 'MANUAL', kind: 'MAIN', revision: null, parentProposalCode: null, label: 'Escopo principal / manual' };
   const options = [main, ...additions.filter(row => row.active).map(row => option(row))];
-  for (const item of options) item.version = hash([item, planned.filter(service => (service.contributionKey || main.key) === item.key)]);
   // Escopo manual/legado sem origem permanece na principal. Nunca migra para um adicional.
-  const plannedKey = service => service.contributionKey || main.key;
+  // A consulta da principal no ComercialAPP pode complementar um orçamento do Access.
+  // Sua origem permanece registrada, mas o mesmo número pertence ao escopo da principal.
+  const mainKeys = new Set(main.proposalCode && ['ACCESS_IMPORT', 'COMERCIAL_APP'].includes(main.source)
+    ? [`ACCESS_IMPORT:${main.proposalCode}`, `COMERCIAL_APP:${main.proposalCode}`] : [main.key]);
+  const plannedKey = service => !service.contributionKey || mainKeys.has(service.contributionKey) ? main.key : service.contributionKey;
+  for (const item of options) item.version = hash([item, planned.filter(service => plannedKey(service) === item.key)]);
   return { project, options, main, planned, plannedKey, hasRetired: additions.some(row => !row.active) };
 }
 
