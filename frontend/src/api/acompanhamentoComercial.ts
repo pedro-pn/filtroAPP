@@ -14,7 +14,7 @@ export interface ProjectPresentation {
 export interface CommercialRevision {
   codBd: number;
   codProp: number;
-  parentCodProp?: number | null;
+  parentCodProp?: number | string | null;
   nRev: number;
   proposalDate?: string | null;
   modifiedInAccessAt?: string | null;
@@ -44,10 +44,12 @@ export interface CommercialRevisionGroup {
 }
 
 export interface BudgetBreakdownSlice {
+  source?: 'ACCESS_IMPORT' | 'COMERCIAL_APP';
+  contributionKey?: string;
   projectId?: string;
   codBd?: number | null;
-  codProp?: number | null;
-  parentCodProp?: number | null;
+  codProp?: number | string | null;
+  parentCodProp?: number | string | null;
   nRev?: number | null;
   salePrice?: string | number | null;
   plannedTotalCost?: string | number | null;
@@ -81,6 +83,7 @@ export interface ProjectRevisions {
   laborCollaborators?: LaborCollaborator[];
   additionalProposals?: CommercialRevisionGroup[];
   currentAdditionalCodBds?: number[];
+  additionalSelectionVersions?: Record<string, number>;
   revisions: CommercialRevision[];
 }
 
@@ -177,11 +180,21 @@ export async function getProjectRevisions(projectId: string): Promise<ProjectRev
   return data;
 }
 
+export interface CommercialAppQuery { proposalCode: string; revisionNumber: number; status: string; }
+
 export interface CommercialAppRevision {
   id: string;
   externalId: string;
   proposalCode: string;
   revisionNumber: number;
+  proposalKind: 'MAIN' | 'ADDITIONAL';
+  parentProposalCode: string | null;
+  additionalProposalId: string | null;
+  selectionVersion: number;
+  metricInclusion: Partial<AdditionalMetricInclusion>;
+  scopeImport?: { status?: string; issues?: string[]; pendingExternalId?: string } | null;
+  documents: Array<{ id: string; kind: string; fileName: string; byteSize: number }>;
+  estimateSummary?: { hours: { normal: number; overtime: number; total: number } } | null;
   title: string;
   clientName: string;
   salePrice: string | number;
@@ -192,22 +205,22 @@ export interface CommercialAppRevision {
 }
 
 export async function getCommercialAppRevisions(projectId: string): Promise<{
-  items: CommercialAppRevision[]; budgetSource: string | null;
+  items: CommercialAppRevision[]; budgetSource: string | null; queries?: CommercialAppQuery[];
 }> {
   const { data } = await apiClient.get<{
-    items: CommercialAppRevision[]; budgetSource: string | null;
+    items: CommercialAppRevision[]; budgetSource: string | null; queries?: CommercialAppQuery[];
   }>(
     `/acompanhamento/comercial/projetos/${projectId}/comercialapp/revisoes`);
   return data;
 }
 
 export async function selectCommercialAppRevision(projectId: string, externalId: string,
-  replaceLegacy = false) {
+  replaceLegacy = false, options: { expectedSelectionVersion?: number; allowOlderRevision?: boolean; reason?: string; metricInclusion?: AdditionalMetricInclusion } = {}) {
   const { data } = await apiClient.post<{ budgetStatus: string; scopeImport?: {
     status: string; issues: string[];
   } }>(
     `/acompanhamento/comercial/projetos/${projectId}/comercialapp/selecionar`,
-    { externalId, replaceLegacy });
+    { externalId, replaceLegacy, ...options });
   return data;
 }
 
@@ -488,13 +501,13 @@ export async function setProjectRevision(projectId: string, codBd: number) {
   return data;
 }
 
-export async function setProjectAdditionalRevision(projectId: string, codBd: number, metricInclusion?: AdditionalMetricInclusion) {
-  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/revisao`, { codBd, metricInclusion });
+export async function setProjectAdditionalRevision(projectId: string, codBd: number, metricInclusion?: AdditionalMetricInclusion, options: { expectedSelectionVersion?: number; allowOlderRevision?: boolean; reason?: string } = {}) {
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/revisao`, { codBd, metricInclusion, ...options });
   return data;
 }
 
-export async function removeProjectAdditionalRevision(projectId: string, codProp: number) {
-  const { data } = await apiClient.delete(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/${codProp}`);
+export async function removeProjectAdditionalRevision(projectId: string, codProp: number, expectedSelectionVersion: number, reason: string) {
+  const { data } = await apiClient.delete(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/${codProp}`, { data: { expectedSelectionVersion, reason } });
   return data;
 }
 
@@ -522,6 +535,7 @@ export interface PlannedServiceSystem {
 }
 
 export interface PlannedService {
+  contributionKey?: string | null;
   id?: string;
   serviceType: string;
   scopeName?: string | null;
@@ -539,6 +553,7 @@ export interface PlannedOvertime {
 }
 
 export interface PlannedScope {
+  contributionsFingerprint?: string;
   services: PlannedService[];
   normalHours: PlannedOvertime[];
   overtime: PlannedOvertime[];
@@ -567,6 +582,7 @@ export interface PlannedHoursPlan {
 export type PlannedScopeInput = Partial<Pick<PlannedScope, 'services' | 'normalHours' | 'overtime'>> & {
   hoursFingerprint?: string;
   commercialScopeFingerprint?: string | null;
+  contributionsFingerprint?: string;
 };
 
 export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
@@ -1177,5 +1193,28 @@ export async function createManualProjectCost(projectId: string, payload: Manual
 
 export async function deleteManualProjectCost(projectId: string, costId: string): Promise<{ ok: true; id: string }> {
   const { data } = await apiClient.delete<{ ok: true; id: string }>(`/acompanhamento/comercial/projetos/${projectId}/custos-manuais/${costId}`);
+  return data;
+}
+
+export async function queryCommercialAppAdditional(projectId: string, proposalCode: string, revisionNumber: number) {
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/comercialapp/consultar-adicional`,
+    { proposalCode, revisionNumber });
+  return data;
+}
+export async function removeCommercialAppAdditional(projectId: string, proposalCode: string, expectedSelectionVersion: number, reason: string) {
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/comercialapp/remover-adicional`,
+    { proposalCode, expectedSelectionVersion, reason });
+  return data;
+}
+export async function downloadCommercialAppDocument(projectId: string, proposalId: string, documentId: string) {
+  const { data } = await apiClient.get<Blob>(`/acompanhamento/comercial/projetos/${projectId}/comercialapp/documentos`,
+    { params: { proposalId, documentId }, responseType: 'blob' });
+  return data;
+}
+
+export async function resolveCommercialAppAdditionalScope(projectId: string, proposalCode: string,
+  expectedSelectionVersion: number, choice: 'MANUAL' | 'COMMERCIAL', reason: string) {
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/comercialapp/resolver-escopo`,
+    { proposalCode, expectedSelectionVersion, choice, reason });
   return data;
 }

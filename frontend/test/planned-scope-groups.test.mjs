@@ -135,3 +135,35 @@ test('scope hierarchy is rendered in planned scope and weekly pace, with an acce
   assert.match(css, /\.acp-weekly-target-services\s*\{[^}]*max-height:\s*min\(420px, 55vh\)[^}]*overflow-y:\s*auto[^}]*overscroll-behavior-y:\s*contain/);
   assert.match(css, /@media print\s*\{\s*\.acp-weekly-target-services\s*\{[^}]*max-height:\s*none[^}]*overflow:\s*visible/);
 });
+
+test('same scope titles from different commercial contributions keep identity, quantities and weights', async () => {
+  let seq = 0;
+  const actions = await functionsFrom('../src/components/projects/ProjectPlannedScopeEditor.tsx', [
+    'SERVICE_SYSTEMS', 'ALL_SYSTEMS', 'allowedSystems', 'toStr', 'toNum', 'toDiameterUnit',
+    'roundToSum', 'withWeights', 'rescaleTo100', 'fromScope'
+  ], { nextKey: () => `key-${++seq}` });
+  const scope = { services: ['500', '502'].map((code, index) => ({
+    contributionKey: `COMERCIAL_APP:${code}`, scopeName: 'Teste de pressão', serviceType: 'TESTE_PRESSAO',
+    weight: 100, systems: [{ systemType: 'TUBULACAO', quantity: index ? 20 : 100, diameter: '2', diameterUnit: 'pol' }]
+  })), normalHours: [], overtime: [] };
+  const rows = actions.fromScope(scope).services;
+  assert.notEqual(rows[0].scopeKey, rows[1].scopeKey);
+  assert.equal(rows[0].contributionKey, 'COMERCIAL_APP:500');
+  assert.equal(rows[1].contributionKey, 'COMERCIAL_APP:502');
+  assert.equal(rows[0].weight, '100'); assert.equal(rows[1].weight, '100');
+  assert.equal(rows[0].systems[0].quantity, '100'); assert.equal(rows[1].systems[0].quantity, '20');
+  const groups = await functionsFrom('../src/utils/plannedScopeGroups.ts', ['groupServicesByScope']);
+  assert.equal(groups.groupServicesByScope(scope.services).length, 2);
+});
+
+test('rebalancing weights in an additional leaves the principal and other contributions unchanged', async () => {
+  const { rebalanceUntouched } = await functionsFrom('../src/components/projects/ProjectPlannedScopeEditor.tsx', ['toNum', 'roundToSum', 'rebalanceUntouched'], {});
+  const original = [
+    { key: 'main', contributionKey: 'ACCESS_IMPORT:500', weight: '100' },
+    { key: 'a1', contributionKey: 'COMERCIAL_APP:502', weight: '100' },
+    { key: 'a2', contributionKey: 'COMERCIAL_APP:502', weight: '' },
+    { key: 'b', contributionKey: 'COMERCIAL_APP:503', weight: '100' }
+  ];
+  const adjusted = plain(rebalanceUntouched(original, new Set(['main', 'b'])));
+  assert.deepEqual(adjusted.map(row => row.weight), ['100', '50', '50', '100']);
+});

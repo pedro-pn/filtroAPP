@@ -265,3 +265,28 @@ test('responsáveis (Elaborado/Verificado por): só contas ativas de gestor ou c
   assert.deepEqual(consulta.where, { isActive: true, moduleRoles: { some: { role: { in: ['RDO_MANAGER', 'RDO_COORDINATOR'] } } } });
   assert.deepEqual(lista, [{ id: 'u1', nome: 'Paula Costa', cargo: 'Coordenadora' }, { id: 'u2', nome: 'Gestor Sem Colaborador', cargo: '' }]);
 });
+
+test('Data Book por proposta: FDS, certificados e fotos seguem somente os serviços do recorte', async () => {
+  const { contributionServiceKey } = await import('../src/lib/acompanhamento/proposal-scopes.js');
+  const main = 'ACCESS_IMPORT:500', a = 'COMERCIAL_APP:502', b = 'COMERCIAL_APP:503';
+  const ownership = id => id === 's2' ? a : ['s3', 's4'].includes(id) ? b : main;
+  const scopedRdos = rdos.map(r => ({ ...r, contributionAssignments: Object.fromEntries(r.services.map(s => [contributionServiceKey(s), { contributionKey: ownership(s.id) }])) }));
+  const client = clienteFalso();
+  const original = client.report.findMany;
+  client.report.findMany = async args => args.where.reportType === 'RDO'
+    ? (await original(args)).map(r => scopedRdos.find(x => x.id === r.id)) : original(args);
+  const context = { main: { key: main }, options: [{ key: main }, { key: a, proposalCode: '502', revision: 0 }, { key: b, proposalCode: '503', revision: 0 }],
+    planned: [{ ...projeto.plannedServices[0], contributionKey: a }, { serviceType: 'FLUSHING', contributionKey: b, weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 90 }] }],
+    plannedKey: s => s.contributionKey || main };
+  const extra = await montarDadosDatabook('p1', '2026-10-02', '2026-10-06', { client, scopeContext: context, contributionKey: a });
+  assert.deepEqual(extra.dados.fds.map(f => f.arquivo), ['stockdoc:doc-acido', 'stockdoc:doc-nitrito']);
+  assert.deepEqual(extra.dados.certificados, []);
+  assert.equal(extra.dados.dias.length, 1);
+  assert.equal(extra.dados.dias[0].servicos[0].relatorio, 4);
+  const another = await montarDadosDatabook('p1', '2026-10-02', '2026-10-06', { client, scopeContext: context, contributionKey: b });
+  assert.deepEqual(another.dados.fds, []);
+  assert.deepEqual(another.dados.certificados.map(c => c.arquivo), ['cert:cert-cp']);
+  assert.ok(another.dados.dias.flatMap(d => d.fotos).every(f => !f.arquivo.includes('man.jpg') && !f.arquivo.includes('rlq4.jpg')));
+  assert.equal(extra.dados.projeto.contrato, '502 REV 0');
+  assert.equal(validar(extra.dados), true, JSON.stringify(validar.errors));
+});

@@ -1,3 +1,4 @@
+import { fetchProposalScopes } from '../../api/proposalScopes';
 import { forwardRef, type ReactNode, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiClientError } from '../../api/client';
@@ -95,6 +96,8 @@ interface SystemRow {
   quantity: string;
 }
 interface ServiceRow {
+  contributionKey?: string | null;
+  note?: string | null;
   key: string;
   scopeKey: string;
   scopeName: string;
@@ -139,6 +142,16 @@ function withWeights(services: ServiceRow[], ints: number[]): ServiceRow[] {
 // não editados dividem igualmente o que sobra para o total tentar fechar 100%. Assim dá para
 // digitar cada um manualmente — quando todos estão fixos, nada é mexido (a soma guia via aviso).
 function rebalanceUntouched(services: ServiceRow[], touched: Set<string>): ServiceRow[] {
+  const groups = new Map<string, ServiceRow[]>();
+  for (const service of services) {
+    const key = service.contributionKey || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(service);
+  }
+  if (groups.size > 1) {
+    const adjusted = new Map([...groups.values()].flatMap(rows => rebalanceUntouched(rows, touched)).map(row => [row.key, row]));
+    return services.map(row => adjusted.get(row.key)!);
+  }
   const untouched = services.filter(s => !touched.has(s.key));
   if (untouched.length === 0) return services;
   const touchedSum = services
@@ -162,12 +175,14 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
   const scopeKeys = new Map<string, string>();
   const services = scope.services.map(s => {
     const scopeName = s.scopeName?.trim() || '';
-    if (!scopeKeys.has(scopeName)) scopeKeys.set(scopeName, nextKey());
+    const scopeIdentity = JSON.stringify([s.contributionKey ?? null, scopeName]);
+    if (!scopeKeys.has(scopeIdentity)) scopeKeys.set(scopeIdentity, nextKey());
     const serviceType = s.serviceType || 'LIMPEZA_QUIMICA';
     const allowed = allowedSystems(serviceType);
     return {
       key: nextKey(),
-      scopeKey: scopeKeys.get(scopeName)!, scopeName,
+      scopeKey: scopeKeys.get(scopeIdentity)!, scopeName,
+      contributionKey: s.contributionKey, note: s.note,
       serviceType,
       weight: s.weight === null || s.weight === undefined ? '' : toStr(s.weight),
       systems: (s.systems ?? [])
@@ -185,7 +200,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
     };
   });
   return {
-    services: rescaleTo100(services), // garante soma 100% (corrige dados antigos)
+    services: services.some(s => s.contributionKey) ? services : rescaleTo100(services), // garante soma 100% (corrige dados antigos)
     normalHours: (scope.normalHours ?? []).map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
@@ -204,6 +219,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
 function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: HoursRow[]) {
   return JSON.stringify({
     services: services.map(s => ({
+      contributionKey: s.contributionKey ?? null,
       scopeName: (s.scopeName ?? '').trim(),
       serviceType: s.serviceType,
       weight: s.weight,
@@ -239,6 +255,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   const queryKey = ['planned-scope', projectId];
 
   const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => getPlannedScope(projectId) });
+  const { data: proposalScopes } = useQuery({ queryKey: ['proposal-scopes', projectId], queryFn: () => fetchProposalScopes(projectId) });
   const { data: roles } = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
 
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -298,6 +315,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['proposal-scopes', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['databook'] });
       queryClient.invalidateQueries({ queryKey: ['project-systems'] });
       queryClient.invalidateQueries({ queryKey: ['system-reconciliation', projectId] });
     },
@@ -329,7 +348,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     if (!canManage || !data || staleHours || resolutionMutation.isPending) return;
     const names = new Set<string>();
     for (const group of scopeGroups) {
-      const name = group.name.trim();
+      const name = JSON.stringify([group.services?.[0]?.contributionKey ?? null, group.name.trim()]);
       if (names.has(name)) {
         showToast('Há escopos com o mesmo nome ou mais de um sem nome. Renomeie-os ou mova os serviços para um único escopo.', 'error');
         return;
@@ -345,7 +364,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     const payload: PlannedScopeInput = {
       hoursFingerprint: loadedFingerprint,
       commercialScopeFingerprint: data.commercialScopeImport?.fingerprint ?? null,
+      contributionsFingerprint: data.contributionsFingerprint,
       services: services.map(s => ({
+        contributionKey: s.contributionKey, note: s.note,
         scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
         weight: toNum(s.weight) ?? 0,
@@ -399,7 +420,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   function addService(scopeKey?: string) {
     const group = scopeGroups.find(item => item.key === scopeKey) ?? scopeGroups.at(-1);
     setServices(prev => rebalanceUntouched(
-      [...prev, { key: nextKey(), scopeKey: group?.key ?? nextKey(), scopeName: group?.name ?? '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
+      [...prev, { key: nextKey(), scopeKey: group?.key ?? nextKey(), scopeName: group?.name ?? '', contributionKey: group?.services?.[0]?.contributionKey, serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
       touchedWeights.current
     ));
   }
@@ -412,6 +433,10 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     ));
   }
 
+  function changeScopeProposal(scopeKey: string, contributionKey: string) {
+    setServices(prev => prev.map(service => service.scopeKey === scopeKey ? { ...service, contributionKey: contributionKey || null } : service));
+  }
+
   function changeScopeName(scopeKey: string, name: string) {
     setServices(prev => prev.map(service => service.scopeKey === scopeKey ? { ...service, scopeName: name } : service));
   }
@@ -419,7 +444,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   function moveService(key: string, scopeKey: string) {
     const group = scopeGroups.find(item => item.key === scopeKey);
     if (!group) return;
-    setServices(prev => prev.map(service => service.key === key ? { ...service, scopeKey, scopeName: group.name } : service));
+    setServices(prev => prev.map(service => service.key === key ? { ...service, scopeKey, scopeName: group.name, contributionKey: group.services?.[0]?.contributionKey } : service));
   }
 
   function duplicateService(key: string) {
@@ -555,7 +580,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
           {scopeGroups.map(group => <details className="acp-scope-group" key={group.key}>
             <summary className="acp-scope-group-toggle">
               <span>{group.name.trim() || 'Escopo sem nome'}</span>
-              <small>{group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small>
+              <small>{group.services[0]?.contributionKey?.replace('COMERCIAL_APP:', 'ComercialAPP · Proposta ') ?? 'Manual'} · {group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small>
             </summary>
             <div className="acp-scope-group-content" role="region" aria-label={`Serviços do escopo ${group.name.trim() || 'sem nome'}`} tabIndex={0}>
             <div className="field-group acp-scope-group-name">
@@ -563,6 +588,14 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               <Input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
               {!group.name.trim() ? <small>Sem escopo definido — os serviços existentes foram preservados.</small> : null}
             </div>
+            {proposalScopes ? <div className="field-group">
+              <label htmlFor={`scope-proposal-${group.key}`}>Proposta de origem</label>
+              <Select id={`scope-proposal-${group.key}`} value={group.services[0]?.contributionKey || ''}
+                disabled={!canManage} onChange={event => changeScopeProposal(group.key, event.target.value)}>
+                <option value="">Principal / manual legado</option>
+                {proposalScopes.scopes.map(proposal => <option key={proposal.key} value={proposal.key}>{proposal.label}</option>)}
+              </Select>
+            </div> : null}
             <div className="acp-svc-list">
           {group.services.map(svc => {
             const collapsed = collapsedServices.has(svc.key);
@@ -742,9 +775,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         + Adicionar escopo
       </Button>
       {services.length > 0 ? (
-        <div className={`acp-weight-sum ${Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>
+        <div className={`acp-weight-sum ${services.some(service => service.contributionKey) || Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>
           Soma dos pesos: {weightSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
-          {Math.round(weightSum) !== 100 ? ' — o ideal é somar 100%' : ''}
+          {services.some(service => service.contributionKey) ? ' — pesos tratados separadamente por proposta' : Math.round(weightSum) !== 100 ? ' — o ideal é somar 100%' : ''}
         </div>
       ) : null}
 

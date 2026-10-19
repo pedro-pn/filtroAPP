@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 
 import env from '../../config/env.js';
 import prisma from '../prisma.js';
+import { loadProposalScopes, selectProposalScope } from '../acompanhamento/proposal-scopes.js';
 import { materializar, salvarVinculosFds } from './anexos.js';
 import { dayKey, intervaloPadrao, montarDadosDatabook } from './montar-dados.js';
 import { aplicarCorrecoes, verificarOrtografia } from './ortografia.js';
@@ -41,12 +42,15 @@ export async function projetoDoDatabook(projetoId, client = prisma) {
 /** Dados do diálogo de intervalo: padrão (1º e último RDO) e o que entra no intervalo. */
 export async function resumoDoDialogo(projetoId, consulta = {}, client = prisma) {
   await projetoDoDatabook(projetoId, client);
+  const scopeContext = await loadProposalScopes(projetoId, client);
+  const proposta = selectProposalScope(scopeContext, consulta.contributionKey);
+  const propostas = scopeContext.options;
   const padrao = await intervaloPadrao(projetoId, client);
-  if (!padrao) return { padrao: null, resumo: null };
+  if (!padrao) return { padrao: null, resumo: null, propostas };
   const intervalo = validarIntervalo({ inicio: consulta.inicio || padrao.inicio, fim: consulta.fim || padrao.fim }, padrao);
   // O mapper só consulta o banco (não lê fotos nem PDFs): dá a contagem real de FDS do intervalo.
-  const { resumo } = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client });
-  return { padrao, resumo };
+  const { resumo } = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, scopeContext, contributionKey: proposta?.key });
+  return { padrao, resumo, propostas };
 }
 
 // Elaborado/Verificado por: só gestores e coordenadores do RDO (os mesmos papéis que geram o Data Book).
@@ -61,9 +65,9 @@ export async function responsaveisDisponiveis(client = prisma) {
   return users.map(u => ({ id: u.id, nome: u.name, cargo: u.collaborator?.jobRole?.name || '' }));
 }
 
-async function proximoDocumento(client, projeto, inicio, fim) {
+async function proximoDocumento(client, projeto, inicio, fim, scopeKey = 'ALL') {
   const existente = await client.projectDatabook.findUnique({
-    where: { projectId_startDate_endDate: { projectId: projeto.id, startDate: new Date(`${inicio}T00:00:00Z`), endDate: new Date(`${fim}T00:00:00Z`) } },
+    where: { projectId_startDate_endDate_scopeKey: { projectId: projeto.id, startDate: new Date(`${inicio}T00:00:00Z`), endDate: new Date(`${fim}T00:00:00Z`), scopeKey } },
     include: { revisions: { orderBy: { revision: 'asc' }, select: { revision: true, status: true, description: true, createdAt: true, input: true } } }
   });
   if (existente) {
@@ -79,8 +83,8 @@ async function proximoDocumento(client, projeto, inicio, fim) {
 export async function prepararRevisao(projetoId, intervaloPedido, { client = prisma, gerarAvisos = avisosDoGerador, ortografia = verificarOrtografia } = {}) {
   const projeto = await projetoDoDatabook(projetoId, client);
   const { inicio, fim } = validarIntervalo(intervaloPedido, await intervaloPadrao(projetoId, client));
-  const documento = await proximoDocumento(client, projeto, inicio, fim);
-  const montado = await montarDadosDatabook(projetoId, inicio, fim, { client, documento });
+  const documento = await proximoDocumento(client, projeto, inicio, fim, intervaloPedido.contributionKey || 'ALL');
+  const montado = await montarDadosDatabook(projetoId, inicio, fim, { client, documento, contributionKey: intervaloPedido.contributionKey, scopeVersion: intervaloPedido.scopeVersion });
   let avisosGerador = [];
   try {
     avisosGerador = await gerarAvisos(await materializar(client, montado.dados, { modo: 'verificar' }));
@@ -211,14 +215,14 @@ export function vinculosFdsDasEdicoes(edicoes) {
 }
 
 /** Cria a revisão (PENDING) com a entrada final do gerador; o worker gera o PDF. */
-export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descricao, previaId } = {}, user, { client = prisma, opcoesPrevia } = {}) {
+export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descricao, previaId, contributionKey, scopeVersion } = {}, user, { client = prisma, opcoesPrevia } = {}) {
   if (previaId) return salvarPrevia(projetoId, previaId, user, { client, opcoesPrevia });
   const projeto = await projetoDoDatabook(projetoId, client);
   const intervalo = validarIntervalo({ inicio, fim }, await intervaloPadrao(projetoId, client));
   const vinculosFds = vinculosFdsDasEdicoes(edicoes);
   for (let tentativa = 0; tentativa < 3; tentativa += 1) {
-    const documento = await proximoDocumento(client, projeto, intervalo.inicio, intervalo.fim);
-    const montado = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, documento, vinculosFds });
+    const documento = await proximoDocumento(client, projeto, intervalo.inicio, intervalo.fim, contributionKey || 'ALL');
+    const montado = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, documento, vinculosFds, contributionKey, scopeVersion });
     const dados = aplicarEdicoes(montado.dados, edicoes, await responsaveisDisponiveis(client));
     const desc = texto(descricao, 200)?.trim() || (documento.rev === 0 ? 'Emissão inicial' : `Revisão ${documento.rev}`);
     const anteriores = (documento.databook?.revisions || []).filter(r => r.status === 'COMPLETED').map(revisaoParaTabela);
@@ -230,13 +234,14 @@ export async function solicitarGeracao(projetoId, { inicio, fim, edicoes, descri
         const databook = documento.databook || await tx.projectDatabook.create({
           data: {
             projectId: projeto.id, sequence: documento.sequence, docNumber: documento.doc,
+            scopeKey: contributionKey || 'ALL', scopeSnapshot: dados.proposta || Prisma.JsonNull,
             startDate: new Date(`${intervalo.inicio}T00:00:00Z`), endDate: new Date(`${intervalo.fim}T00:00:00Z`),
             createdByUserId: user?.id || null
           }
         });
         return tx.projectDatabookRevision.create({
           data: {
-            databookId: databook.id, revision: documento.rev, description: desc, input: dados,
+            databookId: databook.id, revision: documento.rev, description: desc, input: dados, scopeSnapshot: dados.proposta || Prisma.JsonNull,
             warnings: montado.avisos, createdByUserId: user?.id || null
           },
           include: { databook: true }
@@ -263,12 +268,12 @@ export async function prepararEdicao(revisaoId, { client = prisma } = {}) {
   const projeto = await projetoDoDatabook(r.databook.projectId, client);
   const inicio = dayKey(r.databook.startDate);
   const fim = dayKey(r.databook.endDate);
-  const documento = await proximoDocumento(client, projeto, inicio, fim);
+  const documento = await proximoDocumento(client, projeto, inicio, fim, r.databook.scopeKey || 'ALL');
   const dados = structuredClone(r.input);
   const dias = dados.dias || [];
   const contar = tipo => dias.flatMap(d => d.servicos || []).filter(s => s.tipo === tipo && (s.relatorio != null || s.rlq != null)).length;
   return {
-    dados, origem: { id: r.id, revisao: r.revision },
+    dados, proposta: dados.proposta || null, origem: { id: r.id, revisao: r.revision },
     documento: { doc: documento.doc, rev: documento.rev },
     resumo: { inicio, fim, dias: dias.length, rdos: dias.reduce((n, d) => n + (d.rdo != null ? 1 : 0) + (d.rdos_extras?.length || 0), 0),
       rlq: contar('RLQ'), rcpu: contar('RCPU'), rtp: contar('RTP'), rlm: contar('RLM'), fds: dados.fds?.length || 0, certificados: dados.certificados?.length || 0 },
@@ -279,21 +284,22 @@ export async function prepararEdicao(revisaoId, { client = prisma } = {}) {
 }
 
 /** Monta a entrada final uma só vez: a prévia e a revisão usam o mesmo snapshot. */
-export async function criarPrevia(projetoId, { inicio, fim, edicoes, descricao, origemRevisaoId } = {}, user, { client = prisma, ...opcoesPrevia } = {}) {
+export async function criarPrevia(projetoId, { inicio, fim, edicoes, descricao, origemRevisaoId, contributionKey, scopeVersion } = {}, user, { client = prisma, ...opcoesPrevia } = {}) {
   const projeto = await projetoDoDatabook(projetoId, client);
   let base;
   if (origemRevisaoId) {
     const origem = await revisaoEditavel(origemRevisaoId, client);
     if (origem.databook.projectId !== projetoId) throw erro(400, 'A revisão não pertence a este projeto.');
+    contributionKey = origem.databook.scopeKey || 'ALL';
     inicio = dayKey(origem.databook.startDate);
     fim = dayKey(origem.databook.endDate);
     base = { dados: origem.input, avisos: Array.isArray(origem.warnings) ? origem.warnings : [] };
   } else {
     validarIntervalo({ inicio, fim }, await intervaloPadrao(projetoId, client));
   }
-  const documento = await proximoDocumento(client, projeto, inicio, fim);
+  const documento = await proximoDocumento(client, projeto, inicio, fim, contributionKey || 'ALL');
   const vinculosFds = origemRevisaoId ? {} : vinculosFdsDasEdicoes(edicoes);
-  base ||= await montarDadosDatabook(projetoId, inicio, fim, { client, documento, vinculosFds });
+  base ||= await montarDadosDatabook(projetoId, inicio, fim, { client, documento, vinculosFds, contributionKey, scopeVersion });
   const dados = aplicarEdicoes(base.dados, edicoes, await responsaveisDisponiveis(client));
   dados.projeto.doc = documento.doc;
   dados.projeto.rev = String(documento.rev);
@@ -307,7 +313,7 @@ export async function criarPrevia(projetoId, { inicio, fim, edicoes, descricao, 
     revisaoParaTabela({ revision: documento.rev, description: desc, input: dados })
   ];
   return guardarPrevia({
-    projetoId, inicio, fim, dados, descricao: desc, avisos: base.avisos, vinculosFds,
+    projetoId, inicio, fim, scopeKey: contributionKey || 'ALL', dados, descricao: desc, avisos: base.avisos, vinculosFds,
     documento: { doc: documento.doc, rev: documento.rev }
   }, user, { client, ...opcoesPrevia });
 }
@@ -316,7 +322,7 @@ async function salvarPrevia(projetoId, previaId, user, { client, opcoesPrevia })
   const entrada = await lerPrevia(previaId, user, opcoesPrevia);
   if (entrada.projetoId !== projetoId) throw erro(400, 'A prévia não pertence a este projeto.');
   const projeto = await projetoDoDatabook(projetoId, client);
-  const documento = await proximoDocumento(client, projeto, entrada.inicio, entrada.fim);
+  const documento = await proximoDocumento(client, projeto, entrada.inicio, entrada.fim, entrada.scopeKey || 'ALL');
   const conflito = () => erro(409, 'Uma nova revisão foi gerada durante a edição. Atualize a prévia para salvar com o próximo número.');
   if (documento.doc !== entrada.documento.doc || documento.rev !== entrada.documento.rev) throw conflito();
   try {
@@ -324,12 +330,13 @@ async function salvarPrevia(projetoId, previaId, user, { client, opcoesPrevia })
       await salvarVinculosFds(tx, entrada.vinculosFds);
       const databook = documento.databook || await tx.projectDatabook.create({ data: {
         projectId: projetoId, sequence: documento.sequence, docNumber: documento.doc,
+        scopeKey: entrada.scopeKey || 'ALL', scopeSnapshot: entrada.dados.proposta || Prisma.JsonNull,
         startDate: new Date(`${entrada.inicio}T00:00:00Z`), endDate: new Date(`${entrada.fim}T00:00:00Z`),
         createdByUserId: user.id
       } });
       return tx.projectDatabookRevision.create({ data: {
         databookId: databook.id, revision: documento.rev, description: entrada.descricao,
-        input: entrada.dados, warnings: entrada.avisos, createdByUserId: user.id
+        input: entrada.dados, scopeSnapshot: entrada.dados.proposta || Prisma.JsonNull, warnings: entrada.avisos, createdByUserId: user.id
       }, include: { databook: true } });
     });
   } catch (error) {
@@ -341,6 +348,7 @@ async function salvarPrevia(projetoId, previaId, user, { client, opcoesPrevia })
 export function serializarRevisao(r) {
   return {
     id: r.id,
+    proposta: r.scopeSnapshot || r.input?.proposta || r.databook?.scopeSnapshot || null,
     revisao: r.revision,
     descricao: r.description,
     status: r.status,
@@ -362,7 +370,7 @@ export async function listarDatabooks(projetoId, client = prisma) {
     include: { revisions: { orderBy: { revision: 'desc' }, omit: { input: true } } }
   });
   return databooks.map(d => ({
-    id: d.id, doc: d.docNumber, inicio: dayKey(d.startDate), fim: dayKey(d.endDate),
+    id: d.id, doc: d.docNumber, proposta: d.scopeSnapshot || null, inicio: dayKey(d.startDate), fim: dayKey(d.endDate),
     revisoes: d.revisions.map(serializarRevisao)
   }));
 }

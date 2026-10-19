@@ -18,7 +18,7 @@ import {
 } from '../../api/databook';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/ToastContext';
-import { Alert, Badge, Button, Field, Input, Spinner } from '../ui/ds';
+import { Alert, Badge, Button, Field, Input, Select, Spinner } from '../ui/ds';
 import {
   ROTULO_STATUS_DATABOOK,
   dataBr,
@@ -83,10 +83,11 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
 
   const formularioAtual = useRef(form);
   const origemAtual = useRef(preparada?.origem?.id);
-  useEffect(() => { formularioAtual.current = form; origemAtual.current = preparada?.origem?.id; }, [form, preparada]);
+  const preparadaAtual = useRef(preparada);
+  useEffect(() => { preparadaAtual.current = preparada; formularioAtual.current = form; origemAtual.current = preparada?.origem?.id; }, [form, preparada]);
   const [filaPrevia] = useState(() => criarFilaPreviaDatabook(async pedido => {
     const info = await criarPreviaDatabook(pedido.projetoId, {
-      ...pedido.periodo, edicoes: edicoesDoFormulario(pedido.formulario), descricao: pedido.formulario.descricao.trim(),
+      ...pedido.periodo, contributionKey: pedido.dados.proposta?.key || pedido.dados.dados.proposta?.key || pedido.periodo.contributionKey, scopeVersion: pedido.dados.proposta?.version || pedido.dados.dados.proposta?.version, edicoes: edicoesDoFormulario(pedido.formulario), descricao: pedido.formulario.descricao.trim(),
       origemRevisaoId: pedido.dados.origem?.id
     });
     const pdf = await baixarPreviaDatabook(info.id);
@@ -104,7 +105,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
 
   const erroIntervalo = intervalo ? erroIntervaloDatabook(intervalo, padrao) : null;
   const resumoQuery = useQuery({
-    queryKey: ['databook', 'resumo', project.id, intervalo?.inicio, intervalo?.fim],
+    queryKey: ['databook', 'resumo', project.id, intervalo?.inicio, intervalo?.fim, intervalo?.contributionKey],
     queryFn: () => fetchDatabookDialogo(project.id, intervalo ?? undefined),
     enabled: Boolean(intervalo && padrao && !erroIntervalo)
   });
@@ -140,7 +141,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
     mutationFn: (pedido: PedidoPreviaDatabook) => filaPrevia.obter(pedido),
     onSuccess: ({ info, pdf, formulario }, pedido) => {
       // Uma resposta antiga não substitui os textos que estão sendo editados agora.
-      if (formulario !== JSON.stringify(formularioAtual.current) || pedido.dados.origem?.id !== origemAtual.current) return;
+      if (pedido.dados !== preparadaAtual.current || formulario !== JSON.stringify(formularioAtual.current) || pedido.dados.origem?.id !== origemAtual.current) return;
       setPrevia({ ...info, formulario });
       setPdfPrevia(pdf);
     }
@@ -150,7 +151,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
     onSuccess: dados => {
       const formulario = formularioInicialDatabook(dados, userId);
       filaPrevia.limparCache();
-      const periodo = { inicio: dados.resumo.inicio, fim: dados.resumo.fim };
+      const periodo = { inicio: dados.resumo.inicio, fim: dados.resumo.fim, contributionKey: dados.proposta?.key };
       setPreparada(dados);
       setForm(formulario);
       setIntervalo(periodo);
@@ -234,8 +235,16 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
         {padrao && intervalo ? (
           <>
             <p className="databook-dialog__ajuda">
-              Escolha os dias do Data Book. O padrão vai do primeiro RDO ({dataBr(padrao.inicio)}) ao último ({dataBr(padrao.fim)}); um intervalo parcial mantém o avanço acumulado do projeto inteiro.
+              Escolha a proposta e os dias do Data Book. O padrão vai do primeiro RDO ({dataBr(padrao.inicio)}) ao último ({dataBr(padrao.fim)}); um intervalo parcial mantém o avanço acumulado do escopo escolhido.
             </p>
+            <Field label="Escopo do Data Book">
+              <Select aria-label="Escopo do Data Book" value={intervalo.contributionKey || 'ALL'}
+                onChange={e => setIntervalo({ ...intervalo, contributionKey: e.target.value })}>
+                <option value="ALL">Projeto completo (principal e adicionais)</option>
+                {padraoQuery.data?.propostas?.map(proposta => <option key={proposta.key} value={proposta.key}>{proposta.label}</option>)}
+              </Select>
+            </Field>
+            {intervalo.contributionKey && intervalo.contributionKey !== 'ALL' ? <p>Apenas os serviços e anexos vinculados à proposta escolhida. Serviços sem vínculo ficam fora; revise-os no acompanhamento.</p> : null}
             <div className="databook-dialog__datas">
               <Field label="Início" required errorText={erroIntervalo && intervalo.inicio > intervalo.fim ? erroIntervalo : undefined}>
                 <Input type="date" value={intervalo.inicio} min={padrao.inicio} max={padrao.fim}
@@ -246,6 +255,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
                   onChange={e => setIntervalo({ ...intervalo, fim: e.target.value })} />
               </Field>
             </div>
+            {resumoQuery.isError ? <Alert tone="danger" title="Não foi possível consultar o escopo.">{mensagemErro(resumoQuery.error)}</Alert> : null}
             {erroIntervalo ? <Alert tone="danger" title={erroIntervalo} /> : null}
             {!erroIntervalo ? (
               <p className="databook-dialog__resumo" aria-live="polite">
@@ -268,7 +278,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
       <>
         <Button ref={fecharRef} variant="secondary" size="sm" type="button" onClick={onClose}>Fechar</Button>
         <Button variant="primary" size="sm" type="button" loading={preparar.isPending}
-          disabled={!intervalo || Boolean(erroIntervalo) || !padrao || preparar.isPending || editar.isPending || !resumoQuery.data?.resumo?.dias}
+          disabled={resumoQuery.isFetching || resumoQuery.isError || !intervalo || Boolean(erroIntervalo) || !padrao || preparar.isPending || editar.isPending || !resumoQuery.data?.resumo?.dias}
           onClick={() => intervalo && preparar.mutate(intervalo)}>
           Continuar
         </Button>
@@ -278,7 +288,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
     corpo = (
       <>
         <p className="databook-dialog__ajuda">
-          <strong>{documento?.doc} · Rev. {documento?.rev}</strong> · {dataBr(intervalo?.inicio)} a {dataBr(intervalo?.fim)} · {formatarResumoDatabook(preparada.resumo)}
+          <strong>{documento?.doc} · Rev. {documento?.rev}</strong> · {preparada.proposta?.label || preparada.dados.proposta?.label || 'Projeto completo'} · {dataBr(intervalo?.inicio)} a {dataBr(intervalo?.fim)} · {formatarResumoDatabook(preparada.resumo)}
         </p>
         <DatabookRevisaoForm preparada={preparada} form={form} erros={erros} disabled={ocupada}
           onChange={patch => setForm(atual => ({ ...atual, ...patch }))} />
@@ -295,7 +305,7 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
   } else if (etapa === 'previa' && preparada) {
     corpo = <>
       <p className="databook-dialog__ajuda">
-        <strong>{documento?.doc} · Rev. {documento?.rev}</strong> · {dataBr(intervalo?.inicio)} a {dataBr(intervalo?.fim)}
+        <strong>{documento?.doc} · Rev. {documento?.rev}</strong> · {preparada.proposta?.label || preparada.dados.proposta?.label || 'Projeto completo'} · {dataBr(intervalo?.inicio)} a {dataBr(intervalo?.fim)}
       </p>
       <Alert tone="info" title={preparada.origem ? `Editando a partir da Rev. ${preparada.origem.revisao}` : 'Confira e edite antes de gerar'}>
         Ao salvar, será criada {documento?.rev === 0 ? 'a revisão inicial' : `uma nova revisão (Rev. ${documento?.rev})`}. As revisões anteriores permanecem no histórico.
@@ -389,7 +399,7 @@ function DatabookHistorico({ documentos, carregando, revisaoBaixandoId, revisaoE
       <ul>
         {documentos.flatMap(doc => doc.revisoes.map(r => (
           <li key={r.id}>
-            <span><strong>{doc.doc} Rev. {r.revisao}</strong> · {dataBr(doc.inicio)} a {dataBr(doc.fim)} · {r.descricao}</span>
+            <span><strong>{doc.doc} Rev. {r.revisao}</strong> · {dataBr(doc.inicio)} a {dataBr(doc.fim)} · {r.descricao} · {r.proposta?.label || doc.proposta?.label || 'Projeto completo'}</span>
             <Badge tone={r.status === 'COMPLETED' ? 'success' : r.status === 'FAILED' ? 'danger' : 'info'}>{ROTULO_STATUS_DATABOOK[r.status]}</Badge>
             {r.status === 'COMPLETED' ? (
               <div className="databook-dialog__acoes-revisao">

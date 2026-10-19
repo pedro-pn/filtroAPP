@@ -4,6 +4,8 @@ import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
 import { syncCommercialAppScope } from './commercialapp-scope.js';
 import { commercialProposalSyncData } from '../projects/commercial-proposal-sync-state.js';
+import { CommercialAppBridgeError, commercialTransaction, lockCommercialProject, selectContribution, validateContributionParent, contributionWhere, assertPrincipalContributionCompatibility } from './commercial-contributions.js';
+export { CommercialAppBridgeError } from './commercial-contributions.js';
 
 const decimal = z.number().finite().min(0).max(999999999999.99);
 const nonnegative = z.number().finite().min(0);
@@ -34,8 +36,22 @@ const estimateSummarySchema = z.object({
     context.addIssue({ code: 'custom', path: ['hours'], message: 'Total de horas diverge das horas normais e extras.' });
   }
 });
-export const commercialAppPayloadSchema = z.object({
-  contractVersion: z.literal(1),
+const payloadSchema = z.object({
+  contractVersion: z.union([z.literal(1), z.literal(3)]),
+  proposalKind: z.literal('ADDITIONAL').optional(),
+  parentProposalCode: z.string().min(1).max(40).optional(),
+  additionalProposalId: z.string().min(1).max(100).optional(),
+  sourceProposalId: z.string().min(1).nullable().optional(),
+  sourceRevisionNumber: z.number().int().min(0).nullable().optional(),
+  contributionKey: z.string().optional(),
+  budgetOperation: z.literal('UPSERT_ADDITIONAL_CONTRIBUTION').optional(),
+  prismaProjectId: z.string().min(1).nullable().optional(),
+  documents: z.array(z.object({
+    id: z.string().min(1), kind: z.enum(['COMERCIAL', 'TECNICA']),
+    fileName: z.string().min(1), byteSize: z.number().int().positive().max(10_000_000),
+    generationId: z.string().min(1).optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/).optional()
+  }).passthrough()).length(2).optional(),
+  documentsReference: z.object({ proposalCode: z.string(), revisionNumber: z.number().int().min(0) }).optional(),
   eventId: z.string().uuid(),
   source: z.literal('COMERCIAL_APP'),
   proposalId: z.string().min(1),
@@ -55,6 +71,25 @@ export const commercialAppPayloadSchema = z.object({
   estimateSummary: estimateSummarySchema.nullable().optional(),
   proposalSnapshot: z.unknown()
 }).superRefine((data, context) => {
+  if (data.contractVersion === 3) {
+    if (data.proposalKind !== 'ADDITIONAL' || !data.parentProposalCode || !data.additionalProposalId ||
+        data.contributionKey !== `COMERCIAL_APP:${data.proposalCode}` ||
+        data.budgetOperation !== 'UPSERT_ADDITIONAL_CONTRIBUTION' ||
+        data.parentProposalCode === data.proposalCode || data.sourceRevisionNumber === undefined ||
+        data.sourceProposalId === undefined) {
+      context.addIssue({ code: 'custom', message: 'Identidade de contribuição adicional inválida.' });
+    }
+  } else if (data.proposalKind || data.parentProposalCode || data.additionalProposalId || data.contributionKey || data.budgetOperation) {
+    context.addIssue({ code: 'custom', message: 'Adicionais exigem contrato 3.' });
+  }
+  if (data.documents && (new Set(data.documents.map(row => row.kind)).size !== 2 ||
+      new Set(data.documents.map(row => row.id)).size !== 2)) {
+    context.addIssue({ code: 'custom', message: 'Documentos precisam pertencer aos dois tipos da revisão.' });
+  }
+  if (data.documentsReference && (data.documentsReference.proposalCode !== data.proposalCode ||
+      data.documentsReference.revisionNumber !== data.revisionNumber)) {
+    context.addIssue({ code: 'custom', message: 'Referência dos documentos diverge da revisão.' });
+  }
   if (data.estimateSummary && (data.plannedTotalCost === null ||
     Math.abs(data.estimateSummary.costs.total - data.plannedTotalCost) > 0.02)) {
     context.addIssue({ code: 'custom', path: ['estimateSummary', 'costs', 'total'],
@@ -62,8 +97,14 @@ export const commercialAppPayloadSchema = z.object({
   }
 });
 
+export const commercialAppPayloadSchema = payloadSchema.superRefine((data, context) => {
+  if (data.contractVersion === 3 && (!data.documents || !data.documentsReference)) {
+    context.addIssue({ code: 'custom', message: 'Push adicional exige documentos e referência da revisão.' });
+  }
+});
+
 // Uma consulta pode anteceder a aprovação no CRM e não representa uma entrega.
-export const commercialAppQueryPayloadSchema = commercialAppPayloadSchema.safeExtend({
+export const commercialAppQueryPayloadSchema = payloadSchema.safeExtend({
   eventId: z.string().uuid().optional(),
   approvedAt: z.iso.datetime().nullable()
 });
@@ -78,18 +119,19 @@ function hash(value) { return createHash('sha256').update(JSON.stringify(sorted(
 
 function withoutEstimateSummary(value) {
   const { estimateSummary: _estimateSummary, eventId: _eventId, approvedAt: _approvedAt,
-    nectarOpportunityId: _nectarOpportunityId, ...base } = value;
+    nectarOpportunityId: _nectarOpportunityId, documents: _documents, documentsReference: _documentsReference, ...base } = value;
   return base;
 }
 
 function proposalSnapshotHash(value) {
   const { eventId: _eventId, approvedAt: _approvedAt,
-    nectarOpportunityId: _nectarOpportunityId, ...immutable } = value;
+    nectarOpportunityId: _nectarOpportunityId, documents: _documents,
+    documentsReference: _documentsReference, ...immutable } = value;
   return hash({ ...immutable, estimateSummary: value.estimateSummary ?? null });
 }
 
 export function canUpgradeLegacyProposal(existing, data, { sameEvent = false } = {}) {
-  if (!existing?.snapshot || sameEvent &&
+  if (!existing?.snapshot || existing.snapshot.contractVersion === 3 || data.contractVersion === 3 || sameEvent &&
     (existing.snapshot.eventId !== data.eventId || existing.snapshot.approvedAt !== data.approvedAt)) return false;
   const old = withoutEstimateSummary(existing.snapshot);
   const next = withoutEstimateSummary(data);
@@ -104,10 +146,6 @@ export function canUpgradeLegacyProposal(existing, data, { sameEvent = false } =
   if (scopeUpgrade) old.scope = updatedScope;
   return hash(old) === hash(next) &&
     (!existing.snapshot.estimateSummary || hash(existing.snapshot.estimateSummary) === hash(data.estimateSummary));
-}
-
-export class CommercialAppBridgeError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
 }
 
 function budgetFields(proposal) {
@@ -129,11 +167,41 @@ function budgetFields(proposal) {
 
 async function storeCommercialAppProposal(tx, data) {
   const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
+  const revision = await tx.commercialAppProposal.findUnique({ where: {
+    proposalCode_revisionNumber: { proposalCode: data.proposalCode, revisionNumber: data.revisionNumber }
+  } });
+  if (revision && revision.externalId !== data.proposalId) {
+    throw new CommercialAppBridgeError(409, 'Número/revisão já armazenados com outra identidade.');
+  }
+  if (data.proposalKind === 'ADDITIONAL') {
+    const sibling = await tx.commercialAppProposal.findFirst({ where: { OR: [
+      { proposalCode: data.proposalCode }, { additionalProposalId: data.additionalProposalId }
+    ] } });
+    if (sibling && (sibling.additionalProposalId !== data.additionalProposalId ||
+        sibling.parentProposalCode !== data.parentProposalCode || sibling.projectId !== data.projectId ||
+        sibling.proposalCode !== data.proposalCode || sibling.clientCnpj.replace(/\D/g, '') !== data.client.cnpj.replace(/\D/g, '') ||
+        sibling.sourceProposalId !== data.sourceProposalId || sibling.sourceRevisionNumber !== data.sourceRevisionNumber ||
+        sibling.prismaProjectId && data.prismaProjectId && sibling.prismaProjectId !== data.prismaProjectId)) {
+      throw new CommercialAppBridgeError(409, 'A identidade estável do adicional diverge das revisões recebidas.');
+    }
+  }
   if (existing && (existing.projectId !== data.projectId ||
       proposalSnapshotHash(existing.snapshot) !== proposalSnapshotHash(data) && !canUpgradeLegacyProposal(existing, data))) {
     throw new CommercialAppBridgeError(409, 'Proposta e revisão já recebidas com conteúdo ou projeto diferente.');
   }
-  const snapshot = { ...data,
+  if (existing?.snapshot?.documents && data.documents) {
+    for (const document of data.documents) {
+      const old = existing.snapshot.documents.find(row => row.kind === document.kind);
+      if (!old || ['id', 'byteSize', 'generationId', 'sha256'].some(key =>
+        old[key] != null && document[key] != null && old[key] !== document[key])) {
+        throw new CommercialAppBridgeError(409, 'Documentos da revisão já recebidos com conteúdo incompatível.');
+      }
+    }
+  }
+  const documents = data.documents?.map(document => ({
+    ...existing?.snapshot?.documents?.find(row => row.id === document.id), ...document
+  })) ?? existing?.snapshot?.documents;
+  const snapshot = { ...data, ...(documents ? { documents } : {}),
     approvedAt: data.approvedAt ?? existing?.snapshot?.approvedAt ?? null,
     nectarOpportunityId: data.nectarOpportunityId ?? existing?.nectarOpportunityId ?? null,
     ...(data.eventId || !existing?.snapshot?.eventId ? {} : { eventId: existing.snapshot.eventId })
@@ -141,6 +209,9 @@ async function storeCommercialAppProposal(tx, data) {
   const fields = {
     externalId: data.proposalId, proposalCode: data.proposalCode,
     revisionNumber: data.revisionNumber, projectId: data.projectId,
+    proposalKind: data.proposalKind ?? 'MAIN', parentProposalCode: data.parentProposalCode ?? null,
+    additionalProposalId: data.additionalProposalId ?? null, sourceProposalId: data.sourceProposalId ?? null,
+    sourceRevisionNumber: data.sourceRevisionNumber ?? null, prismaProjectId: data.prismaProjectId ?? null,
     nectarOpportunityId: snapshot.nectarOpportunityId,
     approvedAt: snapshot.approvedAt ? new Date(snapshot.approvedAt) : null,
     clientName: data.client.name, clientCnpj: data.client.cnpj, title: data.title, site: data.site,
@@ -153,8 +224,19 @@ async function storeCommercialAppProposal(tx, data) {
 }
 
 export async function storeQueriedCommercialAppProposal(tx, project, bundle) {
+  if (bundle.projectId && bundle.projectId !== project.id) {
+    throw new CommercialAppBridgeError(422, 'A consulta aponta para outro projeto do FiltroAPP.');
+  }
   const data = commercialAppQueryPayloadSchema.parse({ ...bundle, projectId: project.id });
   const proposal = await storeCommercialAppProposal(tx, data);
+  if (data.proposalKind === 'ADDITIONAL') {
+    await validateContributionParent(tx, project, proposal, 'COMERCIAL_APP', { staged: true });
+    const selection = await tx.projectAdditionalProposal.findUnique({
+      where: contributionWhere(project.id, 'COMERCIAL_APP', proposal.proposalCode)
+    });
+    const selected = selection?.active && selection.commercialAppProposalId === proposal.externalId;
+    return { proposal, budgetStatus: selected ? 'SELECTED' : 'STAGED', scopeAllowed: Boolean(selected) };
+  }
   const budget = await tx.projectBudget.findUnique({
     where: { projectId_version: { projectId: project.id, version: 1 } }
   });
@@ -172,7 +254,7 @@ export async function storeQueriedCommercialAppProposal(tx, project, bundle) {
     });
     await tx.project.update({ where: { id: project.id }, data: { commercialProposalCode: proposal.proposalCode } });
     await tx.commercialAppProposal.updateMany({
-      where: { projectId: project.id, selectionStatus: 'SELECTED', id: { not: proposal.id } },
+      where: { projectId: project.id, proposalKind: 'MAIN', selectionStatus: 'SELECTED', id: { not: proposal.id } },
       data: { selectionStatus: 'STAGED' }
     });
     await tx.commercialAppProposal.update({ where: { id: proposal.id },
@@ -192,11 +274,13 @@ export async function storeQueriedCommercialAppProposal(tx, project, bundle) {
 
 export async function receiveCommercialAppProposal(raw) {
   const data = commercialAppPayloadSchema.parse(raw);
+  if (data.proposalKind === 'ADDITIONAL') return receiveAdditionalProposal(data, raw);
   const deliveryHash = hash(data);
   const snapshotHash = proposalSnapshotHash(data);
   let result;
   try {
-    result = await prisma.$transaction(async tx => {
+    result = await commercialTransaction(async tx => {
+      await lockCommercialProject(tx, data.projectId);
       const delivered = await tx.commercialAppDelivery.findUnique({ where: { eventId: data.eventId } });
       if (delivered) {
         const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
@@ -264,19 +348,32 @@ export async function receiveCommercialAppProposal(raw) {
 }
 
 export async function listCommercialAppRevisions(projectId) {
-  return prisma.commercialAppProposal.findMany({
+  const rows = await prisma.commercialAppProposal.findMany({
     where: { projectId }, orderBy: [{ proposalCode: 'asc' }, { revisionNumber: 'desc' }],
     select: { id: true, externalId: true, proposalCode: true, revisionNumber: true,
+      proposalKind: true, parentProposalCode: true, additionalProposalId: true, snapshot: true,
       title: true, clientName: true, salePrice: true, plannedTotalCost: true,
       selectionStatus: true, approvedAt: true, receivedAt: true }
+  });
+  const selections = await prisma.projectAdditionalProposal.findMany({ where: { projectId, source: 'COMERCIAL_APP' } });
+  return rows.map(({ snapshot, ...row }) => {
+    const selection = selections.find(item => item.proposalCode === row.proposalCode);
+    return { ...row, selectionVersion: selection?.selectionVersion ?? 0,
+      metricInclusion: selection?.metricInclusion ?? {}, scopeImport: selection?.scopeImport ?? null,
+      documents: snapshot.documents ?? [], estimateSummary: snapshot.estimateSummary ?? null };
   });
 }
 
 export async function selectCommercialAppRevision(projectId, externalId, userId,
-  { replaceLegacy = false } = {}) {
-  const result = await prisma.$transaction(async tx => {
+  { replaceLegacy = false, ...options } = {}) {
+  const result = await commercialTransaction(async tx => {
+    const lockedProject = await lockCommercialProject(tx, projectId);
     const proposal = await tx.commercialAppProposal.findFirst({ where: { projectId, externalId } });
     if (!proposal) throw new CommercialAppBridgeError(404, 'Revisão do ComercialAPP não encontrada para este projeto.');
+    if (proposal.proposalKind === 'ADDITIONAL') {
+      return selectContribution(tx, lockedProject, proposal, 'COMERCIAL_APP', { ...options, userId });
+    }
+    await assertPrincipalContributionCompatibility(tx, projectId, proposal.proposalCode);
     const budget = await tx.projectBudget.findUnique({
       where: { projectId_version: { projectId, version: 1 } }
     });
@@ -292,7 +389,7 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
       return { budgetStatus: 'SELECTED', duplicate: true,
         scopeImport: await syncCommercialAppScope(tx, projectId, proposal) };
     }
-    await tx.commercialAppProposal.updateMany({ where: { projectId, selectionStatus: 'SELECTED' },
+    await tx.commercialAppProposal.updateMany({ where: { projectId, proposalKind: 'MAIN', selectionStatus: 'SELECTED' },
       data: { selectionStatus: 'STAGED' } });
     await tx.projectBudget.upsert({
       where: { projectId_version: { projectId, version: 1 } },
@@ -308,5 +405,38 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
     return { budgetStatus: 'SELECTED', duplicate: false, scopeImport };
   });
   clearProjectDerivedCaches();
+  return result;
+}
+
+async function receiveAdditionalProposal(data, raw) {
+  const result = await commercialTransaction(async tx => {
+    const delivered = await tx.commercialAppDelivery.findUnique({ where: { eventId: data.eventId } });
+    if (delivered) {
+      if (delivered.snapshotHash !== hash(raw) || delivered.externalId !== data.proposalId) {
+        throw new CommercialAppBridgeError(409, 'ID de evento reutilizado com outro conteúdo.');
+      }
+      if (delivered.acknowledgement?.budgetStatus === 'STAGED') {
+        const selected = await tx.projectAdditionalProposal.findUnique({
+          where: contributionWhere(data.projectId, 'COMERCIAL_APP', data.proposalCode)
+        });
+        if (selected?.active && selected.commercialAppProposalId === data.proposalId) {
+          const acknowledgement = { ...delivered.acknowledgement, budgetStatus: 'SELECTED' };
+          await tx.commercialAppDelivery.update({ where: { eventId: data.eventId }, data: { acknowledgement } });
+          return { ...acknowledgement, duplicate: true };
+        }
+      }
+      return { ...delivered.acknowledgement, duplicate: true };
+    }
+    const project = await lockCommercialProject(tx, data.projectId);
+    const proposal = await storeCommercialAppProposal(tx, data);
+    const selection = await selectContribution(tx, project, proposal, 'COMERCIAL_APP', { automatic: true });
+    const acknowledgement = { contractVersion: 3, budgetStatus: selection.budgetStatus,
+      proposalId: data.proposalId, projectId: data.projectId, parentProposalCode: data.parentProposalCode,
+      contributionKey: data.contributionKey, budgetOperation: data.budgetOperation };
+    await tx.commercialAppDelivery.create({ data: { eventId: data.eventId, externalId: data.proposalId,
+      snapshotHash: hash(raw), acknowledgement } });
+    return { ...acknowledgement, duplicate: false };
+  });
+  if (!result.duplicate && result.budgetStatus === 'SELECTED') clearProjectDerivedCaches();
   return result;
 }

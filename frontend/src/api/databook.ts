@@ -1,3 +1,4 @@
+import type { ProposalScope } from './proposalScopes';
 import { apiClient, rdoApiPath } from './client';
 
 export type DatabookStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
@@ -5,6 +6,8 @@ export type DatabookStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export interface DatabookIntervalo {
   inicio: string;
   fim: string;
+  contributionKey?: string;
+  scopeVersion?: string;
 }
 
 export interface DatabookResumo extends DatabookIntervalo {
@@ -19,6 +22,7 @@ export interface DatabookResumo extends DatabookIntervalo {
 }
 
 export interface DatabookDialogo {
+  propostas?: ProposalScope[];
   padrao: DatabookIntervalo | null;
   resumo: DatabookResumo | null;
 }
@@ -108,7 +112,9 @@ export interface DatabookResponsavel {
 }
 
 export interface DatabookRevisaoPreparada {
+  proposta?: ProposalScope | null;
   dados: {
+    proposta?: ProposalScope;
     projeto: { servico: string; doc: string; rev: string; periodo: string };
     unidade_escopo: string;
     ocorrencias_sms: number;
@@ -170,6 +176,7 @@ export interface DatabookPrevia {
 }
 
 export interface DatabookRevisao {
+  proposta?: ProposalScope | null;
   id: string;
   revisao: number;
   descricao: string;
@@ -186,6 +193,7 @@ export interface DatabookRevisao {
 }
 
 export interface DatabookDocumento extends DatabookIntervalo {
+  proposta?: ProposalScope | null;
   id: string;
   doc: string;
   revisoes: DatabookRevisao[];

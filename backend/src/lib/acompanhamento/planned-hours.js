@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
+import { commercialTransaction } from './commercial-contributions.js';
 import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 import { normalizeAdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
 
@@ -121,17 +122,16 @@ export async function loadPlannedHours(projectIds, client = prisma) {
       plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
       budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
-      additionalProposals: { select: { sourceProposalCodBd: true, metricInclusion: true } }
+      additionalProposals: { where: { active: true }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true, metricInclusion: true } }
     }
   });
-  const accessSelections = project => project.budgets[0]?.source === 'COMERCIAL_APP' ? []
-    : [...new Set([...project.budgets, ...project.additionalProposals.filter(row =>
-      normalizeAdditionalMetricInclusion(row.metricInclusion).hours
-    )].map(row => row.sourceProposalCodBd).filter(Number.isInteger))];
+  const selectedSources = project => [project.budgets[0], ...project.additionalProposals.filter(row =>
+    normalizeAdditionalMetricInclusion(row.metricInclusion).hours)].filter(Boolean);
+  const accessSelections = project => [...new Set(selectedSources(project)
+    .filter(row => row.source !== 'COMERCIAL_APP').map(row => row.sourceProposalCodBd).filter(Number.isInteger))];
   const codBds = [...new Set(projects.flatMap(accessSelections))];
-  const appIds = [...new Set(projects.map(project => project.budgets[0])
-    .filter(budget => budget?.source === 'COMERCIAL_APP')
-    .map(budget => budget.commercialAppProposalId).filter(Boolean))];
+  const appIds = [...new Set(projects.flatMap(selectedSources)
+    .filter(row => row.source === 'COMERCIAL_APP').map(row => row.commercialAppProposalId).filter(Boolean))];
   const proposals = codBds.length ? await client.commercialProposal.findMany({
     where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
   }) : [];
@@ -144,13 +144,13 @@ export async function loadPlannedHours(projectIds, client = prisma) {
   const hoursRow = row => ({ ...row, roleName: row.roleName ?? row.jobRole?.name ?? null });
   return new Map(projects.map(project => [project.id, resolvePlannedHours({
     normalHours: project.plannedNormalHours.map(hoursRow), overtime: project.plannedOvertime.map(hoursRow),
-    sources: project.budgets[0]?.source === 'COMERCIAL_APP'
-      ? [byAppId.get(project.budgets[0].commercialAppProposalId) ?? {
-        externalId: project.budgets[0].commercialAppProposalId, proposalCode: project.budgets[0].commercialAppProposalId,
-        revisionNumber: 0
-      }].map(proposal => ({ source: 'COMERCIAL_APP', ...proposal,
-        estimateSummary: proposal.snapshot?.estimateSummary }))
-      : accessSelections(project).map(codBd => byCodBd.get(codBd) ?? { codBd }),
+    sources: selectedSources(project).map(row => {
+      if (row.source !== 'COMERCIAL_APP') return byCodBd.get(row.sourceProposalCodBd) ?? { codBd: row.sourceProposalCodBd };
+      const proposal = byAppId.get(row.commercialAppProposalId) ?? {
+        externalId: row.commercialAppProposalId, proposalCode: row.commercialAppProposalId, revisionNumber: 0
+      };
+      return { source: 'COMERCIAL_APP', ...proposal, estimateSummary: proposal.snapshot?.estimateSummary };
+    }),
     resolution: project.plannedHoursResolution,
     proposalPercentage: project.proposalPercentage
   })]));
@@ -165,7 +165,7 @@ export function plannedHoursConflict(message = 'As horas ou a proposta mudaram. 
 }
 
 export async function resolvePlannedHoursDecision(projectId, { choice, fingerprint }, userId, client = prisma) {
-  await client.$transaction(async tx => {
+  await commercialTransaction(async tx => {
     const current = (await loadPlannedHours([projectId], tx)).get(projectId);
     if (!current) throw Object.assign(new Error('Projeto não encontrado.'), { status: 404 });
     if (current.hoursPlan.fingerprint !== fingerprint) throw plannedHoursConflict();
@@ -175,5 +175,5 @@ export async function resolvePlannedHoursDecision(projectId, { choice, fingerpri
       basis: current.basis, choice, resolvedByUserId: userId, resolvedAt: new Date().toISOString(),
       manual: current.hoursPlan.manual, commercial: current.hoursPlan.commercial
     } } });
-  }, { isolationLevel: 'Serializable' });
+  }, client);
 }

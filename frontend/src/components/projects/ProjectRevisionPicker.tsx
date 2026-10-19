@@ -10,7 +10,8 @@ import {
   setProjectAdditionalRevision,
   setProjectRevision
 } from '../../api/acompanhamentoComercial';
-import { Button, Select } from '../ui/ds';
+import { CommercialAppAdditionalProposals } from './CommercialAppAdditionalProposals';
+import { Button, Select, Input } from '../ui/ds';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { useToast } from '../ui/ToastContext';
@@ -37,10 +38,16 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => getProjectRevisions(projectId) });
   const { data: appData, isLoading: appLoading } = useQuery({
     queryKey: ['commercialapp-revisions', projectId],
-    queryFn: () => getCommercialAppRevisions(projectId)
+    queryFn: () => getCommercialAppRevisions(projectId),
+    refetchInterval: query => query.state.data?.queries?.some(job => ['PENDING', 'APPLYING'].includes(job.status)) ? 2000
+      : query.state.data?.queries?.some(job => job.status === 'ERROR') ? 10000 : false
   });
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedApp, setSelectedApp] = useState('');
+  const [removeAccess, setRemoveAccess] = useState<number | null>(null);
+  const [removeReason, setRemoveReason] = useState('');
+  const [oldAccess, setOldAccess] = useState<{ codBd: number; version: number } | null>(null);
+  const [oldAccessReason, setOldAccessReason] = useState('');
   const [pendingAppRevision, setPendingAppRevision] = useState<{ externalId: string; label: string } | null>(null);
   const [selectedAdditionals, setSelectedAdditionals] = useState<Record<string, number | null>>({});
 
@@ -65,8 +72,11 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   });
 
   const additionalMutation = useMutation({
-    mutationFn: (codBd: number) => setProjectAdditionalRevision(projectId, codBd),
+    mutationFn: ({ codBd, version, reason }: { codBd: number; version: number; reason?: string }) =>
+      setProjectAdditionalRevision(projectId, codBd, undefined, { expectedSelectionVersion: version,
+        allowOlderRevision: Boolean(reason), reason }),
     onSuccess: () => {
+      setOldAccess(null); setOldAccessReason('');
       showToast('Proposta adicional atualizada.');
       refreshAcompanhamentoQueries();
     },
@@ -74,8 +84,9 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   });
 
   const removeAdditionalMutation = useMutation({
-    mutationFn: (codProp: number) => removeProjectAdditionalRevision(projectId, codProp),
+    mutationFn: (codProp: number) => removeProjectAdditionalRevision(projectId, codProp, data?.additionalSelectionVersions?.[codProp] ?? 1, removeReason),
     onSuccess: () => {
+      setRemoveAccess(null); setRemoveReason('');
       showToast('Proposta adicional removida.');
       refreshAcompanhamentoQueries();
     },
@@ -107,10 +118,11 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   }
 
   const revisions = data?.revisions ?? [];
-  const appRevisions = appData?.items ?? [];
+  const appRevisions = (appData?.items ?? []).filter(row => row.proposalKind !== 'ADDITIONAL');
+  const appAdditionals = (appData?.items ?? []).filter(row => row.proposalKind === 'ADDITIONAL');
   const additionalGroups = data?.additionalProposals ?? [];
   const current = data?.currentCodBd ?? null;
-  if (revisions.length === 0 && additionalGroups.length === 0 && appRevisions.length === 0) return null;
+
 
   const chosen = selected ?? current ?? revisions[0]?.codBd ?? null;
   const currentApp = appRevisions.find(item => item.selectionStatus === 'SELECTED');
@@ -119,7 +131,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
   return (
     <div className="project-revision-picker">
       {appRevisions.length > 0 ? <div className="det-row project-revision-picker__row">
-        <span className="det-label">Revisão do ComercialAPP</span>
+        <span className="det-label">Principal · ComercialAPP</span>
         <span className="det-val det-inline-actions project-revision-picker__actions">
           <Select
             aria-label="Revisão do ComercialAPP"
@@ -155,7 +167,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
       </div> : null}
       {revisions.length > 0 ? (
         <div className="det-row project-revision-picker__row">
-          <span className="det-label">Revisão que vale</span>
+          <span className="det-label">Principal · Access</span>
           <span className="det-val det-inline-actions project-revision-picker__actions">
             <Select
               aria-label="Revisão que vale"
@@ -189,7 +201,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
         const additionalChosen = selectedAdditionals[group.proposalCode] ?? group.currentCodBd ?? group.revisions[0]?.codBd ?? null;
         return (
           <div className="det-row acp-additional-proposal-row project-revision-picker__row" key={group.proposalCode}>
-            <span className="det-label">Proposta adicional {group.proposalCode}</span>
+            <span className="det-label">Adicional {group.proposalCode} · Mãe {group.parentProposalCode} · Access</span>
             <span className="det-val det-inline-actions project-revision-picker__actions">
               <Select
                 aria-label={`Revisão da proposta adicional ${group.proposalCode}`}
@@ -213,7 +225,15 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
                 size="sm"
                 type="button"
                 disabled={additionalMutation.isPending || additionalChosen === null || additionalChosen === group.currentCodBd}
-                onClick={() => additionalChosen !== null && additionalMutation.mutate(additionalChosen)}
+                onClick={() => {
+                  if (additionalChosen === null) return;
+                  const version = data?.additionalSelectionVersions?.[group.proposalCode] ?? 0;
+                  const previous = group.revisions.find(row => row.codBd === group.currentCodBd);
+                  const next = group.revisions.find(row => row.codBd === additionalChosen);
+                  if (previous && next && previous.nRev > next.nRev) {
+                    setOldAccess({ codBd: additionalChosen, version }); setOldAccessReason('');
+                  } else additionalMutation.mutate({ codBd: additionalChosen, version });
+                }}
               >
                 {additionalMutation.isPending ? 'Aplicando…' : group.currentCodBd ? 'Aplicar' : 'Adicionar'}
               </Button>
@@ -223,13 +243,27 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
                   label="Remover revisão adicional"
                   disabled={removeAdditionalMutation.isPending || !Number.isInteger(proposalCode)}
                   loading={removeAdditionalMutation.isPending}
-                  onClick={() => Number.isInteger(proposalCode) && removeAdditionalMutation.mutate(proposalCode)}
+                  onClick={() => { if (Number.isInteger(proposalCode)) { setRemoveAccess(proposalCode); setRemoveReason(''); } }}
                 />
               ) : null}
             </span>
           </div>
         );
       })}
+      <CommercialAppAdditionalProposals projectId={projectId} items={appAdditionals} queries={appData?.queries} onSaved={refreshAcompanhamentoQueries} />
+      <ConfirmDialog open={oldAccess !== null} appearance="design-system" title="Selecionar revisão Access anterior?"
+        confirmLabel="Selecionar revisão anterior" danger={false} confirmDisabled={additionalMutation.isPending || !oldAccessReason.trim()}
+        onConfirm={() => oldAccess && additionalMutation.mutate({ ...oldAccess, reason: oldAccessReason })} onCancel={() => setOldAccess(null)}>
+        <label htmlFor="old-access-reason">Motivo obrigatório</label>
+        <Input id="old-access-reason" value={oldAccessReason} maxLength={1000} onChange={event => setOldAccessReason(event.target.value)} />
+      </ConfirmDialog>
+      <ConfirmDialog open={removeAccess !== null} appearance="design-system" title="Remover contribuição adicional?"
+        description="O histórico da contribuição será preservado." confirmLabel="Confirmar remoção"
+        confirmDisabled={removeAdditionalMutation.isPending || !removeReason.trim()}
+        onConfirm={() => removeAccess !== null && removeAdditionalMutation.mutate(removeAccess)} onCancel={() => setRemoveAccess(null)}>
+        <label htmlFor="remove-additional-reason">Motivo da remoção</label>
+        <Input id="remove-additional-reason" value={removeReason} maxLength={1000} onChange={event => setRemoveReason(event.target.value)} />
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(pendingAppRevision)}
         appearance="design-system"

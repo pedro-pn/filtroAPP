@@ -24,6 +24,8 @@ services:
       - backend/.env.staging
     environment:
       ASSINATURAS_MAX_PDF_MB: "200"
+      APP_ENV: staging
+      COMERCIALAPP_ALLOW_STAGING_HTTP: ${COMERCIALAPP_ALLOW_STAGING_HTTP:-false}
     depends_on:
       - postgres
     volumes:

@@ -68,6 +68,8 @@ test('escopo salva e recarrega mangotes em UN sem diâmetro e rejeita contagens 
   };
   stub(prisma.projectRealizedCorrection, 'findMany', async () => []);
   stub(prisma.project, 'findUnique', async () => ({ id: 'p' }));
+  stub(prisma.project, 'findFirst', async () => ({ id: 'p', isActive: true }));
+  stub(prisma, '$queryRaw', async () => [{ id: 'p' }]);
   stub(prisma.project, 'findMany', async () => [{ id: 'p', plannedNormalHours: [], plannedOvertime: [], budgets: [], additionalProposals: [] }]);
   stub(prisma.project, 'update', async () => ({}));
   stub(prisma.projectServiceSystem, 'upsert', async () => system);

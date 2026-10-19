@@ -23,7 +23,7 @@ export function criarFilaPreviaDatabook(executar: (pedido: PedidoPreviaDatabook)
     limparCache() { versao += 1; cache = null; },
     async obter(pedido: PedidoPreviaDatabook): Promise<ResultadoPreviaDatabook> {
       const versaoPedido = versao;
-      const chave = JSON.stringify([versaoPedido, pedido.projetoId, pedido.dados.origem?.id, pedido.periodo, pedido.formulario]);
+      const chave = JSON.stringify([versaoPedido, pedido.projetoId, pedido.dados.origem?.id, pedido.dados.proposta?.key || pedido.dados.dados.proposta?.key, pedido.periodo, pedido.formulario]);
       if (cache?.chave === chave) return cache.resultado;
       if (pendente?.chave === chave) return pendente.promessa;
       const anterior = pendente?.promessa;

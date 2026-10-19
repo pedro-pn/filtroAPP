@@ -996,6 +996,8 @@ model Project {
   managementNotes            ProjectManagementNote[]
   weeklyProgressTargets      MissionWeeklyProgressTarget[]
   additionalProposals        ProjectAdditionalProposal[]
+  commercialSyncJobs        CommercialProposalSyncJob[]
+  contributionEvents        ProjectContributionEvent[]
   acompanhamentoGroupMembers AcompanhamentoMissionGroupMember[]
   primaryLaborMissionGroups  AcompanhamentoMissionGroup[]       @relation("AcompanhamentoMissionGroupPrimaryLaborProject")
   qualityRecords             QualityRecord[]
@@ -1826,6 +1828,8 @@ model ProjectDatabook {
   docNumber       String                    @unique
   startDate       DateTime                  @db.Date
   endDate         DateTime                  @db.Date
+  scopeKey        String                    @default("ALL")
+  scopeSnapshot   Json?
   createdByUserId String?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
@@ -1834,11 +1838,12 @@ model ProjectDatabook {
   revisions       ProjectDatabookRevision[]
 
   @@unique([projectId, sequence])
-  @@unique([projectId, startDate, endDate])
+  @@unique([projectId, startDate, endDate, scopeKey])
 }
 
 // Cada geração do mesmo Data Book é uma revisão (0, 1, 2…) processada pelo worker.
 model ProjectDatabookRevision {
+  scopeSnapshot   Json?
   id              String                 @id @default(cuid())
   databookId      String
   revision        Int
@@ -1939,6 +1944,7 @@ model Report {
   chemicalCleanings          ChemicalCleaning[]
   operationalReviewAudits    OperationalReviewAudit[]
   measurementLinks           ReportMeasurementLink[]
+  contributionAssignments    Json                              @default("{}")
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])
@@ -3520,6 +3526,7 @@ model CommercialProposal {
   codProp              Int // cod_prop (nº da proposta)
   parentCodProp        Int? // cod_proposta_mae/cod_prop_mae: proposta principal quando esta linha é adicional
   nRev                 Int              @default(0) // n_rev (revisão)
+  legacyDuplicate      Boolean          @default(false) // aliases históricos preservados; unicidade parcial no SQL
   codNectar            Int? // cod_nectar (código externo CRM)
   proposalDate         DateTime? // data_proposta
   createdInAccessAt    DateTime? // dataCriacao
@@ -3619,6 +3626,12 @@ model CommercialAppProposal {
   externalId       String   @unique
   proposalCode     String
   revisionNumber   Int
+  proposalKind     String   @default("MAIN")
+  parentProposalCode String?
+  additionalProposalId String?
+  sourceProposalId String?
+  sourceRevisionNumber Int?
+  prismaProjectId  String?
   projectId        String
   project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   nectarOpportunityId String?
@@ -3645,6 +3658,7 @@ model CommercialAppDelivery {
   externalId       String
   receivedAt       DateTime @default(now())
   snapshotHash     String
+  acknowledgement Json?
 }
 
 // Revisão de proposta adicional selecionada para compor o orçamento previsto de um projeto.
@@ -3652,8 +3666,15 @@ model CommercialAppDelivery {
 model ProjectAdditionalProposal {
   id                  String   @id @default(cuid())
   projectId           String
-  codProp             Int
-  sourceProposalCodBd Int
+  source              String   @default("ACCESS_IMPORT")
+  proposalCode        String   @default("")
+  codProp             Int?
+  sourceProposalCodBd Int?
+  commercialAppProposalId String?
+  selectionVersion    Int      @default(1)
+  selectionOrigin     String   @default("MANUAL")
+  active              Boolean  @default(true)
+  scopeImport         Json?
   metricInclusion     Json     @default("{}")
   selectedByUserId    String?
   selectedAt          DateTime @default(now())
@@ -3663,9 +3684,40 @@ model ProjectAdditionalProposal {
   selectedBy          User?    @relation("ProjectAdditionalProposalSelectedBy", fields: [selectedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, codProp])
+  @@unique([projectId, source, proposalCode])
   @@index([projectId])
   @@index([sourceProposalCodBd])
   @@index([selectedByUserId])
+}
+
+// Auditoria de seleção, substituição e remoção explícita; não é apagada na troca de revisão.
+model ProjectContributionEvent {
+  id               String @id @default(cuid())
+  projectId        String
+  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  source           String
+  proposalCode     String
+  selectionVersion Int
+  operation        String
+  actorUserId      String?
+  reason           String?
+  data             Json
+  createdAt        DateTime @default(now())
+
+  @@unique([projectId, source, proposalCode, selectionVersion])
+}
+
+// Consulta/documentos de adicionais têm fila própria, sem disputar o JSON da principal.
+model CommercialProposalSyncJob {
+  id               String @id @default(cuid())
+  projectId        String
+  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proposalCode     String
+  state            Json
+  nextAttemptAt    DateTime?
+
+  @@unique([projectId, proposalCode])
+  @@index([nextAttemptAt])
 }
 
 // Serviço vendido previsto no cronograma. Pode ser importado do levantamento do ComercialAPP
@@ -3673,6 +3725,7 @@ model ProjectAdditionalProposal {
 model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
+  contributionKey String?
   serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
   scopeName   String?                       @db.VarChar(180) // agrupamento do cronograma; seleção por serviço no RDO
   weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)

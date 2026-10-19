@@ -89,3 +89,17 @@ test('produção exige origem HTTPS sem credenciais embutidas nem caminho', () =
     assert.throws(() => commercialAppConnection({ apiUrl, token: 'test', production: true }), error => error.code === 'COMERCIALAPP_URL_INVALID');
   }
 });
+
+test('HTTP remoto exige ambiente staging e habilitação explícita; valida a origem e preserva o contrato', async () => {
+  const options = { apiUrl: 'http://staging.example:8087/', token: 'test', production: true, appEnv: 'staging', allowStagingHttp: true };
+  assert.equal(commercialAppConnection(options).origin, 'http://staging.example:8087');
+  for (const change of [{ appEnv: 'production' }, { appEnv: '' }, { allowStagingHttp: false },
+    { apiUrl: 'http://user:pass@staging.example:8087' }, { apiUrl: 'http://staging.example:8087/api' },
+    { apiUrl: 'http://staging.example:8087/?token=bad' }, { apiUrl: 'http://staging.example:8087/#fragment' }]) {
+    assert.throws(() => commercialAppConnection({ ...options, ...change }), error => error.code === 'COMERCIALAPP_URL_INVALID');
+  }
+  const f = fixture();
+  await fetchCommercialProposal(f.project, f.state, { ...f.options, ...options });
+  assert.equal(f.calls.length, 3);
+  assert.ok(f.calls.every(call => call.request.headers['X-Comercial-Contract'] === '3' && call.request.redirect === 'error'));
+});

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getProjectRevisions, setProjectAdditionalRevision, type CommercialRevision } from '../../api/acompanhamentoComercial';
+import { CommercialAppAdditionalProposals } from './CommercialAppAdditionalProposals';
+import { getCommercialAppRevisions, getProjectRevisions, setProjectAdditionalRevision, type CommercialRevision } from '../../api/acompanhamentoComercial';
 import { ADDITIONAL_PROPOSAL_METRICS, normalizeAdditionalMetricInclusion, type AdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
 import { Modal } from '../ui/Modal';
 import { Alert, Button, Skeleton, Switch } from '../ui/ds';
@@ -16,12 +17,26 @@ function formatContribution(value: string | number | null | undefined, unit: 'di
     : `${amount.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${unit}`;
 }
 
-export function ProjectAdditionalContributionDialog({ projectId, proposalCode, canManage, onClose }: {
-  projectId: string; proposalCode: string; canManage: boolean; onClose: () => void;
+export function ProjectAdditionalContributionDialog({ projectId, proposalCode, source, canManage, onClose }: {
+  projectId: string; proposalCode: string; source?: 'ACCESS_IMPORT' | 'COMERCIAL_APP'; canManage: boolean; onClose: () => void;
 }) {
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['commercial-revisions', projectId], queryFn: () => getProjectRevisions(projectId)
   });
+  const queryClient = useQueryClient();
+  const app = useQuery({ queryKey: ['commercialapp-revisions', projectId], queryFn: () => getCommercialAppRevisions(projectId),
+    enabled: source === 'COMERCIAL_APP' });
+  if (source === 'COMERCIAL_APP') return <Modal open appearance="design-system" size="md"
+    title={`Contribuição ComercialAPP ${proposalCode}`} onClose={onClose}>
+    {app.isPending ? <Skeleton variant="text" lines={5} label="Carregando contribuição" />
+      : app.isError ? <Alert tone="warning">Não foi possível carregar a contribuição.</Alert>
+      : <CommercialAppAdditionalProposals projectId={projectId} items={(app.data?.items ?? []).filter(row => row.proposalCode === proposalCode)}
+        canManage={canManage} showQuery={false} onSaved={() => {
+          for (const key of [['commercialapp-revisions', projectId], ['commercial-dashboard'], ['project-cards'], ['project-detail'], ['planned-scope'], ['mission-group-detail']]) {
+            void queryClient.invalidateQueries({ queryKey: key });
+          }
+        }} />}
+  </Modal>;
   const group = data?.additionalProposals?.find(item => item.proposalCode === proposalCode);
   const revision = group?.revisions.find(item => item.codBd === group.currentCodBd);
   if (isPending || isError || !revision) return <Modal open appearance="design-system" size="md"
@@ -32,19 +47,19 @@ export function ProjectAdditionalContributionDialog({ projectId, proposalCode, c
       </Alert>}
   </Modal>;
   return <ContributionEditor key={`${projectId}-${revision.codBd}`} projectId={projectId}
-    proposalCode={proposalCode} revision={revision} initialInclusion={group?.metricInclusion}
+    proposalCode={proposalCode} revision={revision} selectionVersion={data?.additionalSelectionVersions?.[proposalCode] ?? 0} initialInclusion={group?.metricInclusion}
     percentage={data?.proposalPercentage ?? 100} canManage={canManage} onClose={onClose} />;
 }
 
-function ContributionEditor({ projectId, proposalCode, revision, initialInclusion, percentage, canManage, onClose }: {
-  projectId: string; proposalCode: string; revision: CommercialRevision;
+function ContributionEditor({ projectId, proposalCode, revision, selectionVersion, initialInclusion, percentage, canManage, onClose }: {
+  projectId: string; proposalCode: string; revision: CommercialRevision; selectionVersion: number;
   initialInclusion?: AdditionalMetricInclusion; percentage: number; canManage: boolean; onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const showToast = useToast();
   const [inclusion, setInclusion] = useState(() => normalizeAdditionalMetricInclusion(initialInclusion));
   const save = useMutation({
-    mutationFn: () => setProjectAdditionalRevision(projectId, revision.codBd, inclusion),
+    mutationFn: () => setProjectAdditionalRevision(projectId, revision.codBd, inclusion, { expectedSelectionVersion: selectionVersion }),
     onSuccess: async () => {
       await Promise.all([
         ['commercial-revisions', projectId], ['commercial-dashboard'], ['project-cards'],

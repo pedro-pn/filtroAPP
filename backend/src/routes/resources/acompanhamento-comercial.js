@@ -1,3 +1,5 @@
+import { assignReportContribution } from '../../lib/acompanhamento/proposal-scopes.js';
+import { getProposalScopeTracking } from '../../lib/acompanhamento/proposal-scope-tracking.js';
 /*
  * Módulo Acompanhamento de Projetos — importação do banco comercial Access.
  *
@@ -53,6 +55,9 @@ import {
   CommercialAppBridgeError, receiveCommercialAppProposal,
   listCommercialAppRevisions, selectCommercialAppRevision
 } from '../../lib/acompanhamento/comercialapp-bridge.js';
+import { resolveProjectDocumentFile } from '../../lib/efetivo/project-workflow/documents.js';
+import { removeContribution, resolveContributionScope } from '../../lib/acompanhamento/commercial-contributions.js';
+import { requestAdditionalProposalQuery } from '../../lib/projects/commercial-proposal-sync.js';
 
 const router = Router();
 
@@ -110,6 +115,12 @@ function requireComercialAppToken(req, res, next) {
   next();
 }
 
+router.get('/comercialapp/capabilities', requireComercialAppToken, (_req, res) => {
+  const ready = env.comercialAppAdditionalContract === '3';
+  res.set('Cache-Control', 'no-store').json(ready ? { contractVersion: 3, additionalProposals: true, budgetMode: 'CONTRIBUTIONS' }
+    : { contractVersion: 1, additionalProposals: false, budgetMode: 'MAIN' });
+});
+
 router.post('/comercialapp/propostas', requireComercialAppToken, asyncHandler(async (req, res) => {
   try {
     const result = await receiveCommercialAppProposal(req.body);
@@ -137,27 +148,79 @@ router.get('/comercialapp/projetos', requireComercialAppToken, asyncHandler(asyn
 
 router.get('/projetos/:projectId/comercialapp/revisoes', requireAuth, requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
-    const [items, budget] = await Promise.all([
+    const [items, budget, jobs] = await Promise.all([
       listCommercialAppRevisions(req.params.projectId),
       prisma.projectBudget.findUnique({
         where: { projectId_version: { projectId: req.params.projectId, version: 1 } },
         select: { source: true }
-      })
+      }),
+      prisma.commercialProposalSyncJob.findMany({ where: { projectId: req.params.projectId }, select: { proposalCode: true, state: true } })
     ]);
-    res.json({ items, budgetSource: budget?.source || null });
+    res.json({ items, budgetSource: budget?.source || null, queries: jobs.map(job => ({
+      proposalCode: job.proposalCode, revisionNumber: job.state.revisionNumber, status: job.state.status
+    })) });
   }));
 
 router.post('/projetos/:projectId/comercialapp/selecionar', requireAuth, requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
-    const { externalId, replaceLegacy } = z.object({ externalId: z.string().min(1),
-      replaceLegacy: z.boolean().optional().default(false) }).parse(req.body);
+    const { externalId, replaceLegacy, ...options } = z.object({ externalId: z.string().min(1),
+      replaceLegacy: z.boolean().optional().default(false),
+      expectedSelectionVersion: z.number().int().nonnegative().optional(),
+      allowOlderRevision: z.boolean().optional(), reason: z.string().trim().min(1).max(1000).optional(),
+      metricInclusion: z.object({ plannedDays: z.boolean(), workedDays: z.boolean(), plannedCost: z.boolean(),
+        salePrice: z.boolean(), expectedProfit: z.boolean(), taxes: z.boolean(), hours: z.boolean() }).strict().optional()
+    }).parse(req.body);
     try {
       res.json(await selectCommercialAppRevision(req.params.projectId, externalId,
-        req.auth?.user?.id, { replaceLegacy }));
+        req.auth?.user?.id, { replaceLegacy, ...options }));
     } catch (error) {
       if (error instanceof CommercialAppBridgeError) return res.status(error.status).json({ error: error.message });
       throw error;
     }
+  }));
+
+
+router.get('/projetos/:projectId/comercialapp/documentos', requireAuth, requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const { proposalId, documentId } = z.object({ proposalId: z.string().min(1), documentId: z.string().min(1) }).parse(req.query);
+    const proposal = await prisma.commercialAppProposal.findFirst({ where: { projectId: req.params.projectId, externalId: proposalId } });
+    if (!proposal?.snapshot?.documents?.some(document => document.id === documentId)) {
+      return res.status(404).json({ error: 'Documento não pertence a esta proposta/revisão.' });
+    }
+    const version = await prisma.projectDocumentVersion.findFirst({ where: {
+      document: { projectId: req.params.projectId }, source: 'SYSTEM',
+      externalId: { startsWith: `comercialapp:${proposal.proposalCode}:` },
+      OR: [{ sourceVersion: `${proposal.proposalCode}:${proposal.revisionNumber}:${documentId}` },
+        { sourceVersion: { startsWith: `${proposal.proposalCode}:${proposal.revisionNumber}:${documentId}:` } }]
+    } });
+    if (!version) return res.status(404).json({ error: 'Documento ainda não sincronizado. Aguarde a consulta da revisão.' });
+    const file = await resolveProjectDocumentFile(req.params.projectId, version.documentId, version.id);
+    res.type(file.mimeType).setHeader('Content-Disposition', file.disposition);
+    res.sendFile(file.targetPath);
+  }));
+
+router.post('/projetos/:projectId/comercialapp/consultar-adicional', requireAuth, requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const reference = z.object({ proposalCode: z.string().regex(/^\d{1,40}$/),
+      revisionNumber: z.number().int().nonnegative().max(2_147_483_647) }).parse(req.body);
+    res.status(202).json(await requestAdditionalProposalQuery(req.params.projectId, reference));
+  }));
+
+router.post('/projetos/:projectId/comercialapp/resolver-escopo', requireAuth, requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const { proposalCode, ...options } = z.object({ proposalCode: z.string().min(1).max(40),
+      expectedSelectionVersion: z.number().int().positive(), choice: z.enum(['MANUAL', 'COMMERCIAL']),
+      reason: z.string().trim().min(1).max(1000) }).parse(req.body);
+    res.json(await resolveContributionScope(req.params.projectId, proposalCode, { ...options, userId: req.auth.user.id }));
+  }));
+
+router.post('/projetos/:projectId/comercialapp/remover-adicional', requireAuth, requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const { proposalCode, ...options } = z.object({ proposalCode: z.string().min(1).max(40),
+      expectedSelectionVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(1000)
+    }).parse(req.body);
+    res.json(await removeContribution(req.params.projectId, 'COMERCIAL_APP', proposalCode,
+      { ...options, userId: req.auth.user.id }));
   }));
 
 router.use('/projetos/:projectId/conciliacao', createSystemReconciliationRouter());
@@ -641,6 +704,18 @@ router.get(
   })
 );
 
+// Mesmo vínculo operacional usado na projeção do Data Book por proposta.
+router.get('/projetos/:projectId/escopos-propostas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  res.json(await getProposalScopeTracking(req.params.projectId));
+}));
+router.put('/projetos/:projectId/escopos-propostas/:reportId', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const payload = z.object({ serviceKey: z.string().length(64), contributionKey: z.string().min(1).max(200).nullable(),
+    version: z.string().length(64), reason: z.string().trim().min(1).max(1000) }).parse(req.body);
+  const result = await assignReportContribution(req.params.projectId, req.params.reportId, payload, req.auth.user.id);
+  clearProjectDerivedCaches();
+  res.json(result);
+}));
+
 // Revisões da proposta de um projeto (interface simples para escolher qual revisão vale).
 router.get(
   '/projetos/:projectId/revisoes',
@@ -658,6 +733,8 @@ router.get(
 
 const revisionSchema = z.object({ codBd: z.number().int() });
 const additionalRevisionSchema = revisionSchema.extend({
+  expectedSelectionVersion: z.number().int().nonnegative().optional(),
+  allowOlderRevision: z.boolean().optional(), reason: z.string().trim().min(1).max(1000).optional(),
   metricInclusion: z.object({
     plannedDays: z.boolean(), workedDays: z.boolean(), plannedCost: z.boolean(),
     salePrice: z.boolean(), expectedProfit: z.boolean(), taxes: z.boolean(), hours: z.boolean()
@@ -686,16 +763,16 @@ router.post(
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
-    const { codBd, metricInclusion } = additionalRevisionSchema.parse(req.body);
+    const { codBd, metricInclusion, ...options } = additionalRevisionSchema.parse(req.body);
     try {
       const selection = await setProjectAdditionalProposalRevision(req.params.projectId, codBd, {
-        metricInclusion,
+        metricInclusion, ...options,
         selectedByUserId: req.auth?.user?.id ?? null
       });
       clearProjectDerivedCaches();
       res.json(selection);
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(error.status || 400).json({ error: error.message });
     }
   })
 );
@@ -707,7 +784,10 @@ router.delete(
   asyncHandler(async (req, res) => {
     const codProp = proposalCodeParamSchema.parse(req.params.codProp);
     try {
-      const result = await removeProjectAdditionalProposal(req.params.projectId, codProp);
+      const result = await removeProjectAdditionalProposal(req.params.projectId, codProp, {
+        ...z.object({ expectedSelectionVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(1000) }).parse(req.body),
+        userId: req.auth.user.id
+      });
       clearProjectDerivedCaches();
       res.json(result);
     } catch (error) {
@@ -772,7 +852,7 @@ router.post(
       clearProjectDerivedCaches();
       res.status(201).json(cost);
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(error.status || 400).json({ error: error.message });
     }
   })
 );
@@ -808,6 +888,7 @@ const plannedSystemSchema = z.object({
 });
 
 const plannedServiceSchema = z.object({
+  contributionKey: z.string().max(100).nullable().optional(),
   serviceType: z.string().trim().min(1).max(60),
   scopeName: z.string().trim().max(180).nullable().optional(),
   weight: z.number().nonnegative().max(100).optional(), // peso do serviço no avanço, em % (0–100)
@@ -827,7 +908,8 @@ const plannedScopeSchema = z.object({
   normalHours: z.array(plannedHoursSchema).max(50).optional(),
   overtime: z.array(plannedHoursSchema).max(50).optional(),
   hoursFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  commercialScopeFingerprint: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional()
+  commercialScopeFingerprint: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
+  contributionsFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional()
 });
 
 router.get(

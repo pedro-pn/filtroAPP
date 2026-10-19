@@ -65,6 +65,7 @@ jobs:
       PROPOSAL_PERCENTAGE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       ADDITIONAL_METRICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       DATABOOK_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
+      PROPOSAL_SCOPE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       DRAFTS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       TRUST_PROXY: "false"
       SIGNATURE_TOKEN_SECRET: ci-signature-token-secret
@@ -123,6 +124,53 @@ jobs:
         env:
           DATABOOK_PYTHON: python
         run: npm test
+
+  commercial-contributions:
+    name: Commercial contributions (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtroapp_bridge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtroapp_bridge_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
+      PLANNED_HOURS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
+      ADDITIONAL_METRICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify contributions, migration, mixed sources and v1 regression
+        run: >-
+          node --test test/commercial-additional-contributions.integration.test.js
+          test/commercial-additional-migration.integration.test.js
+          test/proposal-scope-databook.integration.test.js
+          test/comercialapp-bridge.integration.test.js test/commercial-proposal-sync.test.js
+          test/commercialapp-scope.test.js test/acompanhamento-planned-hours.test.js
+          test/acompanhamento-planned-hours.integration.test.js
+          test/acompanhamento-additional-metrics.integration.test.js
 
   frontend:
     name: Frontend

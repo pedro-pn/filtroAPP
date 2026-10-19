@@ -1,0 +1,35 @@
+{
+  "producerCommit": "109efb4",
+  "totals": [
+    120000,
+    125000,
+    130000
+  ],
+  "duplicateAck": {
+    "projectId": "cmvfn6xh600005sws6fr9bdlb",
+    "proposalId": "cmvfn6xo200085swslcvb71zn",
+    "budgetStatus": "SELECTED",
+    "budgetOperation": "UPSERT_ADDITIONAL_CONTRIBUTION",
+    "contractVersion": 3,
+    "contributionKey": "COMERCIAL_APP:113624386",
+    "parentProposalCode": "113624385",
+    "duplicate": true
+  },
+  "documents": {
+    "identities": 6,
+    "versions": 8
+  },
+  "costsAndHours": "checked",
+  "explicitRemovalTotal": 105000,
+  "date": "2026-10-19",
+  "filtroBase": "48f468ec",
+  "database": "PostgreSQL 16 descartável",
+  "transport": "HTTP real em loopback; perda de ACK induzida após commit",
+  "data": "Propostas, levantamentos e PDFs sintéticos; código do produtor e receptor reais",
+  "freshDatabaseSuite": {
+    "tests": 18,
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0
+  }
+}

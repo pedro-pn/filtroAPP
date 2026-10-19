@@ -172,3 +172,17 @@ The default fixture uses a synthetic three-page PDF with real editing annotation
 metadata. Python tests separately cover the real generator, blank-cell annotation geometry, unchanged
 preview/final page text, edits that cause repagination, and final PDFs without editing links. Frontend
 unit tests cover serial preview generation, reuse when saving and recovery after failures/cache reset.
+
+For ComercialAPP v3 additional proposals, start Vite on `127.0.0.1:5193`, open
+`/test/browser/commercial-additionals.html` and run
+`playwright-cli run-code --filename frontend/test/browser/commercial-additionals.js`.
+This UI fixture simulates HTTP responses and checks independent revision selection, metric inclusion,
+explicit rollback/removal with reason and selection version, document identity, querying and responsive
+layout at 360/768/1440 px. Operational composition is tested separately against the real producer in
+`backend/test/commercial-additional-real.integration.test.js`; see `docs/COMERCIALAPP_EXTRA_ESCOPO.md`.
+
+For independent proposal scopes/Data Books, open `/test/browser/databook-previa.html?propostas=1`
+and run `playwright-cli run-code --filename frontend/test/browser/databook-propostas.js`.
+It checks an audited, versioned assignment in the tracking panel and carries the selected additional
+and scope version through preparation, preview and save at 360/768/1440 px. Database/generator
+coverage lives in `backend/test/proposal-scope-databook.integration.test.js`.
