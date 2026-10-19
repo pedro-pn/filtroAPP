@@ -57,6 +57,18 @@ export interface MeasurementDimension {
   default: string;
 }
 
+export interface EquipmentTechnicalStandard {
+  id: string;
+  name: string;
+  technicalSchema: TechnicalFieldDefinition[];
+  categories: Array<{ id: string; name: string; isActive: boolean; _count: { equipment: number } }>;
+}
+
+export interface TechnicalStandardPayload {
+  name: string;
+  technicalSchema: TechnicalFieldDefinition[];
+}
+
 export interface EquipmentCategory {
   id: string;
   systemKey: string;
@@ -67,6 +79,7 @@ export interface EquipmentCategory {
   order: number;
   fieldSchema: EquipmentFieldDefinition[];
   technicalSchema: TechnicalFieldDefinition[];
+  technicalStandardId?: string | null;
   checklistEnabled: boolean;
   checklistDisplayMode: ChecklistDisplayMode;
   checklistItems: string[];
@@ -143,6 +156,7 @@ export interface EquipmentCategoryPayload {
   order?: number;
   fieldSchema?: EquipmentFieldDefinition[];
   technicalSchema?: TechnicalFieldDefinition[];
+  technicalStandardId?: string | null;
   checklistEnabled?: boolean;
   checklistDisplayMode?: ChecklistDisplayMode;
   checklistItems?: string[];
@@ -176,6 +190,25 @@ export interface EquipmentPayload {
 }
 
 // === Categorias ===
+
+export async function listTechnicalStandards() {
+  const response = await apiClient.get<EquipmentTechnicalStandard[]>(equipamentosApiPath('/technical-standards'));
+  return response.data;
+}
+
+export async function createTechnicalStandard(payload: TechnicalStandardPayload) {
+  const response = await apiClient.post<EquipmentTechnicalStandard>(equipamentosApiPath('/technical-standards'), payload);
+  return response.data;
+}
+
+export async function updateTechnicalStandard(id: string, payload: TechnicalStandardPayload) {
+  const response = await apiClient.put<EquipmentTechnicalStandard>(equipamentosApiPath(`/technical-standards/${id}`), payload);
+  return response.data;
+}
+
+export async function removeTechnicalStandard(id: string) {
+  await apiClient.delete(equipamentosApiPath(`/technical-standards/${id}`));
+}
 
 export async function listEquipmentCategories() {
   const response = await apiClient.get<EquipmentCategory[]>(

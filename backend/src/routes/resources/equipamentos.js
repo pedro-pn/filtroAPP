@@ -6,6 +6,7 @@ import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipme
 import { generateTechnicalDatasheetPdf } from '../../lib/equipment-technical-docx.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
+import { removeTechnicalStandard, saveCategoryTechnicalStandard, updateTechnicalStandard } from '../../lib/equipamentos/technical-standards.js';
 import { normalizeChecklistDisplayMode, normalizeChecklistItems } from '../../lib/equipamentos/equipment-checklist.js';
 import { getEquipmentNotificationConfig, listEquipmentNotificationRecipients, normalizeEmail, updateEquipmentNotificationConfig } from '../../lib/equipment-notifications.js';
 import { getSlot, resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
@@ -49,7 +50,11 @@ const fieldDefinitionSchema = z.object({
 
 // Campos do datasheet (Dados Técnicos): validação pesada fica em normalizeTechnicalSchema;
 // aqui o schema é permissivo para não duplicar regras (tipos/grupos/unidades).
-const technicalFieldSchema = z.record(z.any());
+const technicalFieldSchema = z.record(z.string(), z.any());
+const technicalStandardSchema = z.object({
+  name: z.string().trim().min(1).max(150),
+  technicalSchema: z.array(technicalFieldSchema)
+});
 const checklistItemsSchema = z.array(z.string().trim().min(1).max(300)).max(100);
 
 const categorySchema = z.object({
@@ -60,6 +65,7 @@ const categorySchema = z.object({
   order: z.number().int().optional(),
   fieldSchema: z.array(fieldDefinitionSchema).optional(),
   technicalSchema: z.array(technicalFieldSchema).optional(),
+  technicalStandardId: z.string().trim().min(1).nullable().optional(),
   technicalDocEnabled: z.boolean().optional(),
   checklistEnabled: z.boolean().optional(),
   checklistDisplayMode: z.enum(['AUTO', 'TAG', 'NAME']).optional(),
@@ -75,9 +81,9 @@ const equipmentSchema = z.object({
   categoryId: z.string().trim().min(1),
   maintenanceProfileId: z.string().trim().min(1).nullable().optional(),
   maintenanceProfileOverride: z.boolean().optional(),
-  attributes: z.record(z.any()).optional(),
-  technicalData: z.record(z.any()).optional(),
-  technicalFieldOverrides: z.record(z.boolean()).optional(),
+  attributes: z.record(z.string(), z.any()).optional(),
+  technicalData: z.record(z.string(), z.any()).optional(),
+  technicalFieldOverrides: z.record(z.string(), z.boolean()).optional(),
   checklistItems: checklistItemsSchema.nullable().optional(),
   bumpRevision: z.boolean().optional(),
   hasCalibration: z.boolean().optional(),
@@ -249,6 +255,56 @@ router.get(
 // === Categorias ===
 
 router.get(
+  '/technical-standards',
+  asyncHandler(async (_req, res) => {
+    const standards = await prisma.equipmentTechnicalStandard.findMany({
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      include: {
+        categories: {
+          select: { id: true, name: true, isActive: true, _count: { select: { equipment: true } } },
+          orderBy: { name: 'asc' }
+        }
+      }
+    });
+    res.json(standards);
+  })
+);
+
+router.post(
+  '/technical-standards',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = technicalStandardSchema.parse(req.body);
+    const standard = await prisma.equipmentTechnicalStandard.create({
+      data: { name: data.name, technicalSchema: normalizeTechnicalSchema(data.technicalSchema) }
+    });
+    invalidateCaches();
+    res.status(201).json(standard);
+  })
+);
+
+router.put(
+  '/technical-standards/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = technicalStandardSchema.partial().parse(req.body);
+    const standard = await prisma.$transaction(tx => updateTechnicalStandard(tx, req.params.id, data));
+    invalidateCaches();
+    res.json(standard);
+  })
+);
+
+router.delete(
+  '/technical-standards/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    await prisma.$transaction(tx => removeTechnicalStandard(tx, req.params.id));
+    invalidateCaches();
+    res.status(204).end();
+  })
+);
+
+router.get(
   '/categories',
   asyncHandler(async (_req, res) => {
     const categories = await prisma.equipmentCategory.findMany({
@@ -265,25 +321,27 @@ router.post(
   asyncHandler(async (req, res) => {
     const data = categorySchema.parse(req.body);
     const systemKey = await uniqueSystemKey(data.name);
-    const category = await prisma.equipmentCategory.create({
-      data: {
-        systemKey,
-        name: data.name,
-        maintenanceProfileId: data.maintenanceProfileId || null,
-        maintenanceIntervalDays: data.maintenanceIntervalDays ?? null,
-        showInMaintenance: data.showInMaintenance ?? true,
-        order: data.order ?? 0,
-        fieldSchema: normalizeFieldSchema(data.fieldSchema),
-        technicalSchema: normalizeTechnicalSchema(data.technicalSchema),
-        checklistEnabled: data.checklistEnabled ?? false,
-        checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
-        checklistItems: normalizeChecklistItems(data.checklistItems),
-        technicalDocEnabled: data.technicalDocEnabled ?? false,
-        supportsCalibration: data.supportsCalibration ?? false,
-        supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
-        syncToRomaneio: data.syncToRomaneio ?? false
-      }
-    });
+    const payload = {
+      systemKey,
+      name: data.name,
+      maintenanceProfileId: data.maintenanceProfileId || null,
+      maintenanceIntervalDays: data.maintenanceIntervalDays ?? null,
+      showInMaintenance: data.showInMaintenance ?? true,
+      order: data.order ?? 0,
+      fieldSchema: normalizeFieldSchema(data.fieldSchema),
+      technicalSchema: normalizeTechnicalSchema(data.technicalSchema),
+      ...(data.technicalStandardId !== undefined ? { technicalStandardId: data.technicalStandardId } : {}),
+      checklistEnabled: data.checklistEnabled ?? false,
+      checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
+      checklistItems: normalizeChecklistItems(data.checklistItems),
+      technicalDocEnabled: data.technicalDocEnabled ?? false,
+      supportsCalibration: data.supportsCalibration ?? false,
+      supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
+      syncToRomaneio: data.syncToRomaneio ?? false
+    };
+    const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
+      ? await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, null, payload))
+      : await prisma.equipmentCategory.create({ data: payload });
     const importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
     invalidateCaches();
     if (category.syncToRomaneio) await syncRomaneioCatalog();
@@ -310,6 +368,7 @@ router.put(
       ...(data.order !== undefined ? { order: data.order } : {}),
       ...(data.fieldSchema !== undefined ? { fieldSchema: normalizeFieldSchema(data.fieldSchema) } : {}),
       ...(data.technicalSchema !== undefined ? { technicalSchema: normalizeTechnicalSchema(data.technicalSchema) } : {}),
+      ...(data.technicalStandardId !== undefined ? { technicalStandardId: data.technicalStandardId } : {}),
       ...(data.checklistEnabled !== undefined ? { checklistEnabled: data.checklistEnabled } : {}),
       ...(data.checklistDisplayMode !== undefined
         ? {
@@ -330,10 +389,9 @@ router.put(
       where: { id: req.params.id },
       select: { name: true, syncToRomaneio: true }
     });
-    const category = await prisma.equipmentCategory.update({
-      where: { id: req.params.id },
-      data: payload
-    });
+    const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
+      ? await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, req.params.id, payload))
+      : await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: payload });
     const nameChanged = data.name !== undefined && previous && data.name !== previous.name;
     const syncChanged = data.syncToRomaneio !== undefined && previous && data.syncToRomaneio !== previous.syncToRomaneio;
     // Ao mudar nome/sync, reaproveita equipamentos do romaneio que casem com a categoria
@@ -827,6 +885,13 @@ router.put(
         technicalUpdatedAt: true
       }
     });
+    // Uma edição com outro padrão não deve apagar chaves que ficaram fora do formulário.
+    if (fields.technicalData !== undefined) {
+      fields.technicalData = { ...technicalRecord(previous?.technicalData), ...fields.technicalData };
+    }
+    if (fields.technicalFieldOverrides !== undefined) {
+      fields.technicalFieldOverrides = { ...technicalRecord(previous?.technicalFieldOverrides), ...fields.technicalFieldOverrides };
+    }
     const technicalChanged = technicalPayloadChanged(previous, fields, {
       technicalPhotos,
       removeTechnicalPhotoIds

@@ -6,6 +6,7 @@ import prisma from '../src/lib/prisma.js';
 import { slugifySystemKey, normalizeTechnicalSchema } from '../src/lib/equipment-categories.js';
 import { buildTechnicalSchemaFromTracking, countTechnicalFields } from '../src/lib/equipment-technical-seed.js';
 import { curatedTechnicalSchema } from '../data/technical-schema-curated.js';
+import { saveCategoryTechnicalStandard } from '../src/lib/equipamentos/technical-standards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Versionado em backend/data (vai na imagem via Dockerfile) — dispensa --file/dc cp.
@@ -206,10 +207,7 @@ async function main() {
       stats.fieldsSeeded += fieldCount;
       console.log(`  ~ ${group.displayName} ⇐ ${group.sources.join(' + ')}: ${fieldCount} campos${dryRun ? ' (dry)' : ''}`);
       if (!dryRun) {
-        await prisma.equipmentCategory.update({
-          where: { id: group.existing.id },
-          data: { technicalSchema, technicalDocEnabled: true }
-        });
+        await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, group.existing.id, { technicalSchema, technicalDocEnabled: true }));
       }
     } else {
       stats.categoriesCreated += 1;
@@ -217,18 +215,16 @@ async function main() {
       console.log(`  + ${group.displayName}: NOVA categoria, ${fieldCount} campos${dryRun ? ' (dry)' : ''}${mergeNote}`);
       if (!dryRun) {
         const systemKey = await uniqueSystemKey(slugifySystemKey(group.displayName));
-        const created = await prisma.equipmentCategory.create({
-          data: {
-            systemKey,
-            name: group.displayName,
-            order: nextOrder++,
-            technicalSchema,
-            technicalDocEnabled: true,
-            supportsTechnicalDoc: true,
-            supportsCalibration: false,
-            syncToRomaneio: false
-          }
-        });
+        const created = await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, null, {
+          systemKey,
+          name: group.displayName,
+          order: nextOrder++,
+          technicalSchema,
+          technicalDocEnabled: true,
+          supportsTechnicalDoc: true,
+          supportsCalibration: false,
+          syncToRomaneio: false
+        }));
         byName.set(normalizeName(group.displayName), created);
       }
     }

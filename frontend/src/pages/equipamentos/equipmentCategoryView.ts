@@ -1,5 +1,6 @@
 import type { CompanyEquipment, EquipmentCategory, RdoEquipmentSlot } from '../../api/equipamentos';
 import type { ProjectSortDirection } from '../../utils/projectSort';
+import { calibrationStatus, type CalibrationStatus } from './equipmentStatus';
 
 export type EquipmentTab = 'dashboard' | 'categories' | 'config' | 'maintenance' | 'notifications';
 
@@ -47,6 +48,11 @@ export function equipmentTabFromParam(value: string): EquipmentTab {
   return EQUIPMENT_TAB_VALUES.has(value as EquipmentTab) ? value as EquipmentTab : 'dashboard';
 }
 
+export function equipmentCategoryFromParam<T extends Pick<EquipmentCategory, 'id'>>(value: string, categories: readonly T[]): T | null {
+  if (!value.startsWith('cat:')) return null;
+  return categories.find(category => category.id === value.slice(4)) || null;
+}
+
 export function equipmentCategoryShortLabel(category: EquipmentCategory, equipment: readonly CompanyEquipment[]) {
   const name = category.name.trim();
   if (name.length <= 18) return name;
@@ -69,12 +75,14 @@ export function filterAndSortEquipment(
   equipment: readonly CompanyEquipment[],
   categories: readonly EquipmentCategory[],
   search: string,
-  direction: ProjectSortDirection
+  direction: ProjectSortDirection,
+  categoryId?: string
 ) {
   const categoryNames = new Map(categories.map(category => [category.id, category.name]));
   const query = search.trim().toLocaleLowerCase('pt-BR');
+  const scoped = categoryId === undefined ? equipment : equipment.filter(item => item.categoryId === categoryId);
   const filtered = query
-    ? equipment.filter(item => {
+    ? scoped.filter(item => {
         const haystack = [
           item.code,
           item.name,
@@ -83,7 +91,36 @@ export function filterAndSortEquipment(
         ].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
         return haystack.includes(query);
       })
-    : equipment;
+    : scoped;
   const multiplier = direction === 'asc' ? 1 : -1;
   return [...filtered].sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { sensitivity: 'base' }) * multiplier);
+}
+
+export interface EquipmentListFilters {
+  search: string;
+  categoryId: string;
+  calibration: CalibrationStatus | 'all' | 'not-applicable';
+  technicalDoc: 'all' | 'with' | 'without' | 'outdated';
+  certificate: 'all' | 'with' | 'without';
+}
+
+export const EMPTY_EQUIPMENT_FILTERS: EquipmentListFilters = {
+  search: '', categoryId: '', calibration: 'all', technicalDoc: 'all', certificate: 'all'
+};
+
+export function filterAllEquipment(equipment: readonly CompanyEquipment[], categories: readonly EquipmentCategory[], filters: EquipmentListFilters) {
+  return filterAndSortEquipment(equipment, categories, filters.search, 'asc', filters.categoryId || undefined)
+    .filter(item => {
+      if (filters.calibration === 'not-applicable') return !item.hasCalibration;
+      if (filters.calibration === 'all') return true;
+      return item.hasCalibration && calibrationStatus(item) === filters.calibration;
+    })
+    .filter(item => {
+      const hasDoc = Boolean(item.technicalDoc || item.technicalDocGenerated);
+      if (filters.technicalDoc === 'with') return hasDoc;
+      if (filters.technicalDoc === 'without') return !hasDoc;
+      if (filters.technicalDoc === 'outdated') return Boolean(item.technicalDocGenerated && item.technicalDocGeneratedOutdated);
+      return true;
+    })
+    .filter(item => filters.certificate === 'all' || Boolean(item.calibrationCertificate) === (filters.certificate === 'with'));
 }

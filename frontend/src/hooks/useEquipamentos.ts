@@ -4,25 +4,30 @@ import {
   addNotificationRecipient,
   createEquipamento,
   createEquipmentCategory,
+  createTechnicalStandard,
   generateTechnicalDoc,
   getNotificationConfig,
   listEquipamentos,
   listEquipmentCategories,
+  listTechnicalStandards,
   listNotificationAccounts,
   listNotificationRecipients,
   listRdoSlots,
   listUnitsCatalog,
   removeEquipamento,
   removeEquipmentCategory,
+  removeTechnicalStandard,
   removeNotificationRecipient,
   setNotificationRecipientActive,
   updateEquipamento,
   updateEquipmentCategory,
+  updateTechnicalStandard,
   updateNotificationConfig,
   updateRdoSlot,
   type EquipmentCategoryPayload,
   type EquipmentPayload,
-  type NotificationConfig
+  type NotificationConfig,
+  type TechnicalStandardPayload
 } from '../api/equipamentos';
 import { queryKeys } from './queryKeys';
 
@@ -76,6 +81,10 @@ export function useEquipmentCategories() {
   });
 }
 
+export function useTechnicalStandards(enabled = true) {
+  return useQuery({ queryKey: ['equipamentos', 'technical-standards'], queryFn: listTechnicalStandards, enabled });
+}
+
 export function useEquipamentos(categoryId?: string) {
   return useQuery({
     queryKey: queryKeys.equipamentos(categoryId),
@@ -113,6 +122,12 @@ export function useEquipamentoMutations() {
     mutationFn: (id: string) => removeEquipmentCategory(id),
     onSuccess: invalidateAll
   });
+  const createStandard = useMutation({ mutationFn: createTechnicalStandard, onSuccess: invalidateAll });
+  const updateStandard = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: TechnicalStandardPayload }) => updateTechnicalStandard(id, payload),
+    onSuccess: invalidateAll
+  });
+  const removeStandard = useMutation({ mutationFn: removeTechnicalStandard, onSuccess: invalidateAll });
 
   const createEquipment = useMutation({
     mutationFn: (payload: EquipmentPayload) => createEquipamento(payload),
@@ -139,5 +154,5 @@ export function useEquipamentoMutations() {
     ])
   });
 
-  return { createCategory, updateCategory, removeCategory, createEquipment, updateEquipment, removeEquipment, generateDatasheet, updateSlot };
+  return { createCategory, updateCategory, removeCategory, createStandard, updateStandard, removeStandard, createEquipment, updateEquipment, removeEquipment, generateDatasheet, updateSlot };
 }

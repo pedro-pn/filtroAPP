@@ -2394,6 +2394,15 @@ model CalibrationNotificationLog {
 
 // === Módulo Equipamentos ===
 
+model EquipmentTechnicalStandard {
+  id              String              @id @default(cuid())
+  name            String
+  technicalSchema Json                @default("[]")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  categories      EquipmentCategory[]
+}
+
 model EquipmentCategory {
   id                      String                                 @id @default(cuid())
   systemKey               String                                 @unique // slug imutável usado pelo RDO/romaneio
@@ -2404,6 +2413,7 @@ model EquipmentCategory {
   order                   Int                                    @default(0)
   fieldSchema             Json                                   @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
   technicalSchema         Json                                   @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
+  technicalStandardId     String?
   checklistEnabled        Boolean                                @default(false)
   checklistItems          Json                                   @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
   checklistDisplayMode    String                                 @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
@@ -2417,10 +2427,12 @@ model EquipmentCategory {
   createdAt               DateTime                               @default(now())
   updatedAt               DateTime                               @updatedAt
   maintenanceProfile      MaintenanceProfile?                    @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
+  technicalStandard       EquipmentTechnicalStandard?            @relation(fields: [technicalStandardId], references: [id], onDelete: Restrict)
   equipment               CompanyEquipment[]
   projectWorkflowPlans    ProjectWorkflowEquipmentCategoryPlan[]
 
   @@index([maintenanceProfileId])
+  @@index([technicalStandardId])
 }
 
 model CompanyEquipment {
