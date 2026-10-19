@@ -5,6 +5,10 @@ Base do filtroAPP: `48f468ec`. Código final no PR desta alteração.
 Bancos PostgreSQL 16 e servidores HTTP descartáveis, em loopback, com credenciais próprias.
 Nenhum serviço de staging/produção ou variável de habilitação desses serviços foi alterado.
 
+O registro acima descreve a execução inicial em bancos descartáveis. A homologação posterior
+nos serviços implantados, com configuração de staging, filas nativas e databooks reais, está em
+[COMERCIALAPP_STAGING_20261019.md](COMERCIALAPP_STAGING_20261019.md).
+
 ## Composição persistida
 
 Cenário determinístico em PostgreSQL, exercitado pelo serviço transacional real do filtroAPP:
@@ -78,4 +82,5 @@ esse fluxo depende do receptor e credenciais do PrismaCRM.
 Capabilities v3 permanece desligada por padrão. A ordem de migração, implantação, habilitação
 coordenada e exemplos completos de payload/ACK estão em
 [COMERCIALAPP_EXTRA_ESCOPO.md](COMERCIALAPP_EXTRA_ESCOPO.md). O push de staging do ComercialAPP
-continua desligado. Não automatizar cancelamento/recusa como remoção financeira.
+continuou desligado nessa execução inicial; a ativação isolada posterior está documentada no
+registro de staging acima. Não automatizar cancelamento/recusa como remoção financeira.

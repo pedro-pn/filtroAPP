@@ -48,3 +48,5 @@ node --test test/proposal-scopes.test.js test/proposal-scope-databook.integratio
 ```
 
 A geração por proposta usa os serviços estruturados dos relatórios aprovados, como o Data Book completo atual. Um PDF histórico sem serviços estruturados precisa ser conferido/cadastrado antes de um recorte exclusivo; o arquivo inteiro não comprova a qual contribuição pertence cada atividade.
+
+Quando a principal selecionada no Access tem seu escopo consultado no ComercialAPP (ou vice-versa), o mesmo número continua compondo o escopo principal, preservando a origem dos itens importados. A versão preparada do databook inclui essas metas. A [homologação no staging](COMERCIALAPP_STAGING_20261019.md) confirmou esse cenário, os vínculos do RDO misto e três PDFs separados no mesmo período.

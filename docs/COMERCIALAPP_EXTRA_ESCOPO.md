@@ -155,8 +155,9 @@ ACK com mãe resolvida (mãe ausente: mesmo ACK com `budgetStatus: "STAGED"`):
    `{ "contractVersion": 3, "additionalProposals": true, "budgetMode": "CONTRIBUTIONS" }`.
    O padrão vazio mantém a capacidade desligada mesmo com o receptor instalado.
 4. Conferir a capability autenticada. Somente depois definir **no ComercialAPP**
-   `FILTROAPP_ADDITIONAL_CONTRACT=3`. O Compose de staging existente continua sem push ao filtroAPP;
-   o teste usa dois servidores HTTP e PostgreSQL descartáveis em loopback, fora desses serviços.
+   `FILTROAPP_ADDITIONAL_CONTRACT=3`. O Compose base de staging mantém o push desligado. A execução
+   original usa dois servidores HTTP e PostgreSQL descartáveis em loopback; a homologação posterior
+   no par implantado e seu override isolado estão em [COMERCIALAPP_STAGING_20261019.md](COMERCIALAPP_STAGING_20261019.md).
 5. Monitorar filas, conflitos e ACKs. Não automatizar retirada por cancelamento; usar a operação auditada.
 
 O teste real usa o código do ComercialAPP em `109efb4`, suas migrações, banco PostgreSQL próprio,

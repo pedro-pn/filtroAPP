@@ -1,0 +1,994 @@
+{
+  "executedAt": "2026-10-19",
+  "environments": {
+    "filtroApp": "http://76.13.171.70:8080",
+    "comercialApp": "http://76.13.171.70:8087",
+    "filtroCommit": "733fa8ea1af6dc3f8d730e10af6d5cb1c24f418a",
+    "comercialCommit": "3180fbb29ae6c033823130eba4a74a9790f44576"
+  },
+  "method": {
+    "transport": "real HTTP via nginx",
+    "databases": "deployed PostgreSQL staging databases; synthetic QA records only",
+    "approval": "real producer recordManualSelection; PrismaCRM decision excluded",
+    "delivery": "A0 deliverToFiltro with induced ACK loss after real commit; A1 and B0 native scheduled producer worker",
+    "consumerSync": "native scheduled per-contribution worker",
+    "producerDocuments": "valid synthetic PDFs pinned to revision and generation",
+    "databook": "real native worker and Python generator; PDF text extracted by pypdf"
+  },
+  "run": "QA-EXTRA-20261019204026",
+  "projectId": "cmvfpxvoc00002gryxw5x3ec3",
+  "code": 753498482,
+  "checks": [
+    {
+      "phase": "query",
+      "capabilities": 3,
+      "withoutContract": 409,
+      "queried": "STAGED",
+      "approvedAt": null,
+      "mainSalePrice": 100000
+    },
+    {
+      "phase": "total120000",
+      "salePrice": 120000,
+      "plannedTotalCost": 60626.27,
+      "plannedHours": 1008.8,
+      "selected": [
+        {
+          "code": "753498483",
+          "revision": 0
+        }
+      ],
+      "mainSource": "ACCESS_IMPORT"
+    },
+    {
+      "phase": "total125000",
+      "salePrice": 125000,
+      "plannedTotalCost": 61252.54,
+      "plannedHours": 1017.6,
+      "selected": [
+        {
+          "code": "753498483",
+          "revision": 1
+        }
+      ],
+      "mainSource": "ACCESS_IMPORT"
+    },
+    {
+      "phase": "total130000",
+      "salePrice": 130000,
+      "plannedTotalCost": 61878.81,
+      "plannedHours": 1026.4,
+      "selected": [
+        {
+          "code": "753498483",
+          "revision": 1
+        },
+        {
+          "code": "753498484",
+          "revision": 0
+        }
+      ],
+      "mainSource": "ACCESS_IMPORT"
+    },
+    {
+      "phase": "documents",
+      "documents": 6,
+      "versions": 8,
+      "separateIdentityAndHashes": true,
+      "authenticatedDownload": 200
+    },
+    {
+      "phase": "scope-and-databook",
+      "pendingBefore": 4,
+      "pendingAfter": 0,
+      "assignmentConcurrency": [
+        200,
+        409
+      ],
+      "formalReportVersionPreserved": true,
+      "plannedA": 25,
+      "previousA": 5,
+      "currentA": 20,
+      "books": [
+        {
+          "key": "COMERCIAL_APP:753498483",
+          "id": "cmvfq83z801sc1mldit6dxxg3",
+          "doc": "DB-QA-EXTRA-20261019204026-01",
+          "pages": 8,
+          "bytes": 285362,
+          "sha256": "337db6f8a592e07d15a1441bef39aaa590ee6e84dd7eefa83e834d21f4f89a98"
+        },
+        {
+          "key": "ACCESS_IMPORT:753498482",
+          "id": "cmvfq8pxs01se1mldpkf2x6wz",
+          "doc": "DB-QA-EXTRA-20261019204026-02",
+          "pages": 8,
+          "bytes": 285254,
+          "sha256": "2741c545adedda5090eae7d633e7faf65d97d3ee50292579c87967ac4a352076"
+        },
+        {
+          "key": "ALL",
+          "id": "cmvfq8qvt01sj1mld1tfqo2fp",
+          "doc": "DB-QA-EXTRA-20261019204026-03",
+          "pages": 9,
+          "bytes": 287605,
+          "sha256": "433815a0d04b23ccefff3803c08cb9700b8f4e264159168b1339eda626731756"
+        }
+      ]
+    },
+    {
+      "phase": "events-concurrency-manual-scope",
+      "duplicateAcknowledgement": {
+        "projectId": "cmvfpxvoc00002gryxw5x3ec3",
+        "proposalId": "cmvfpxwab000896o0ry8a2wz4",
+        "budgetStatus": "SELECTED",
+        "budgetOperation": "UPSERT_ADDITIONAL_CONTRIBUTION",
+        "contractVersion": 3,
+        "contributionKey": "COMERCIAL_APP:753498483",
+        "parentProposalCode": "753498482",
+        "duplicate": true
+      },
+      "changedEvent": 409,
+      "changedRevision": 409,
+      "delayedNewEvent": {
+        "contractVersion": 3,
+        "budgetStatus": "STAGED",
+        "proposalId": "cmvfpxwab000896o0ry8a2wz4",
+        "projectId": "cmvfpxvoc00002gryxw5x3ec3",
+        "parentProposalCode": "753498482",
+        "contributionKey": "COMERCIAL_APP:753498483",
+        "budgetOperation": "UPSERT_ADDITIONAL_CONTRIBUTION",
+        "duplicate": false
+      },
+      "manualOldRevisionWithoutCommand": 409,
+      "selectionConcurrency": [
+        200,
+        409
+      ],
+      "manualOverridePreserved": true,
+      "otherServiceIdsPreserved": true,
+      "scopeRestored": 25
+    },
+    {
+      "phase": "total130000",
+      "salePrice": 130000,
+      "plannedTotalCost": 61878.81,
+      "plannedHours": 1026.4,
+      "selected": [
+        {
+          "code": "753498484",
+          "revision": 0
+        },
+        {
+          "code": "753498483",
+          "revision": 1
+        }
+      ],
+      "mainSource": "ACCESS_IMPORT"
+    },
+    {
+      "phase": "explicit-removal-validation-history",
+      "afterRemoval": 105000,
+      "lateEventDoesNotReactivate": true,
+      "versionsPreserved": 8,
+      "historicalDatabookRevision": 1,
+      "historicalPlannedScope": 25,
+      "restoredTotal": 130000,
+      "clientMismatch": 422,
+      "parentMismatch": 422
+    },
+    {
+      "phase": "total130000",
+      "salePrice": 130000,
+      "plannedTotalCost": 61878.81,
+      "plannedHours": 1026.4,
+      "selected": [
+        {
+          "code": "753498484",
+          "revision": 0
+        },
+        {
+          "code": "753498483",
+          "revision": 1
+        }
+      ],
+      "mainSource": "ACCESS_IMPORT"
+    },
+    {
+      "phase": "documents",
+      "documents": 6,
+      "versions": 8,
+      "separateIdentityAndHashes": true,
+      "authenticatedDownload": 200
+    }
+  ],
+  "lostAckDelivery": {
+    "request": {
+      "contractVersion": 3,
+      "eventId": "e0fdee38-1bcb-4e64-888f-d03ab753fb89",
+      "source": "COMERCIAL_APP",
+      "proposalKind": "ADDITIONAL",
+      "additionalProposalId": "cmvfpxw9o000596o02sful5tc",
+      "parentProposalCode": "753498482",
+      "sourceProposalId": null,
+      "sourceRevisionNumber": 0,
+      "contributionKey": "COMERCIAL_APP:753498483",
+      "prismaProjectId": "qa-prisma-cmvfpxvoc00002gryxw5x3ec3",
+      "budgetOperation": "UPSERT_ADDITIONAL_CONTRIBUTION",
+      "proposalId": "cmvfpxwab000896o0ry8a2wz4",
+      "proposalCode": "753498483",
+      "revisionNumber": 0,
+      "projectId": "cmvfpxvoc00002gryxw5x3ec3",
+      "nectarOpportunityId": null,
+      "approvedAt": "2026-10-19T20:45:01.024Z",
+      "client": {
+        "name": "Cliente fictício de homologação",
+        "cnpj": "12345678000190",
+        "contact": "",
+        "email": ""
+      },
+      "title": "QA-EXTRA-20261019204026 a0",
+      "site": "STAGING",
+      "scope": [
+        {
+          "title": "Teste de pressão — mesmo título entre propostas"
+        }
+      ],
+      "salePrice": 20000,
+      "plannedTotalCost": 626.27,
+      "expectedMargin": 15,
+      "costBreakdown": {
+        "title": "Levantamento de custos Filtrovali",
+        "filters": [
+          {
+            "id": "lec-filter-1",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 800,
+            "filterName": "Filtro 18\" Hy-Pro",
+            "micronRating": "Referência até 2.500 L"
+          },
+          {
+            "id": "lec-filter-2",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 1270,
+            "filterName": "Filtro 36\" Hy-Pro",
+            "micronRating": "Referência até 5.000 L"
+          },
+          {
+            "id": "lec-filter-3",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 507,
+            "filterName": "Filtro Parker",
+            "micronRating": ""
+          },
+          {
+            "id": "lec-filter-4",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 24.19,
+            "filterName": "Filtro Bag",
+            "micronRating": "50 micra"
+          },
+          {
+            "id": "lec-filter-5",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 24.8,
+            "filterName": "Filtro Bag",
+            "micronRating": "20 micra"
+          },
+          {
+            "id": "lec-filter-6",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 29.34,
+            "filterName": "Filtro Bag",
+            "micronRating": "10 micra"
+          },
+          {
+            "id": "lec-filter-7",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 30.61,
+            "filterName": "Filtro Bag",
+            "micronRating": "5 micra"
+          },
+          {
+            "id": "lec-filter-8",
+            "unit": "un.",
+            "included": false,
+            "quantity": 0,
+            "unitCost": 38.21,
+            "filterName": "Filtro Bag",
+            "micronRating": "1 micra"
+          }
+        ],
+        "effluent": {
+          "multiplier": 4,
+          "unitCostPerM3": 0,
+          "clientResponsible": true,
+          "includeDisposalCost": false
+        },
+        "products": [
+          {
+            "id": "acido-citrico",
+            "dose": 5,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 15.58,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Ácido cítrico",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "barrilha-leve",
+            "dose": 7.5,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 3.14,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Barrilha leve",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "soda-caustica",
+            "dose": 1.5,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 7.36,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Soda cáustica",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "nitrito-sodio",
+            "dose": 1.5,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 8.34,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Nitrito de sódio",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "tripolifosfato-sodio",
+            "dose": 0.75,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 12.75,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Tripolifosfato de sódio",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "metassilicato-sodio",
+            "dose": 0.75,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 3.63,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Metassilicato de sódio",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "acido-fosforico",
+            "dose": 3,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "carbono",
+            "unitCost": 15.31,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Ácido fosfórico",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "acido-muriatico",
+            "dose": 0,
+            "unit": "kg",
+            "doseMode": "manual",
+            "included": false,
+            "systemId": "carbono",
+            "unitCost": 6.37,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Ácido muriático",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "bd-clinox",
+            "dose": 10,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": false,
+            "systemId": "inox",
+            "unitCost": 20,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "BD-Clinox",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "passivante-avesta-302",
+            "dose": 0,
+            "unit": "kg",
+            "doseMode": "manual",
+            "included": false,
+            "systemId": "inox",
+            "unitCost": 32.9,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Passivante Avesta® 302",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "quimipan",
+            "dose": 0,
+            "unit": "kg",
+            "doseMode": "manual",
+            "included": false,
+            "systemId": "carbono",
+            "unitCost": 4,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Quimipan",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "acido-nitrico",
+            "dose": 10,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "inox",
+            "unitCost": 3.89,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Ácido nítrico 53%",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "oleo-flushing",
+            "dose": 0,
+            "unit": "L",
+            "doseMode": "manual",
+            "included": false,
+            "unitCost": 40,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Óleo para flushing",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          },
+          {
+            "id": "acido-fluoridrico",
+            "dose": 1,
+            "unit": "kg",
+            "doseMode": "percent_volume",
+            "included": true,
+            "systemId": "inox",
+            "unitCost": 12.17,
+            "priceBasis": "unit",
+            "packageSize": 0,
+            "productName": "Ácido fluorídrico 65%",
+            "wastePercent": 0,
+            "densityKgPerL": 1,
+            "manualQuantity": 0
+          }
+        ],
+        "logistics": [
+          {
+            "id": "mobilizacao-equipe",
+            "basis": "fixed",
+            "trips": 1,
+            "category": "personnel",
+            "included": true,
+            "quantity": 1,
+            "slotType": "crew",
+            "unitCost": 0,
+            "direction": "mobilization",
+            "rentalUse": "",
+            "taxPercent": 20,
+            "description": "Mobilização da equipe",
+            "returnSetup": "custom",
+            "requiredSlot": true,
+            "vehicleCount": 0,
+            "destinationId": "obra-principal",
+            "marginPercent": 30,
+            "travelerCount": 0,
+            "rentalSiteDays": 0,
+            "additionalCosts": [],
+            "calculationMode": "",
+            "rentalDailyRate": 0,
+            "busOvernightMode": "",
+            "mealPerPersonDay": 175,
+            "tollPerVehicleKm": 0.2,
+            "travelSundayDays": 0,
+            "vehicleCountMode": "automatic",
+            "fuelPricePerLiter": 6.5,
+            "travelHoursPerDay": 10,
+            "travelerCountMode": "automatic",
+            "contingencyPercent": 0,
+            "travelSaturdayDays": 0,
+            "lodgingPerPersonDay": 200,
+            "travelerAssignments": [],
+            "dailyDistanceLimitKm": 750,
+            "distanceKmPerVehicle": 0,
+            "lodgingNightsPerTrip": 0,
+            "passengersPerVehicle": 4,
+            "ticketPerPersonPerTrip": 0,
+            "calculationModeConfirmed": false,
+            "fuelEfficiencyKmPerLiter": 10,
+            "travelCalendarDaysPerTrip": 1,
+            "vehicleOperatingCostPerKm": 0,
+            "autoSyncedFromMobilization": false,
+            "travelerAssignmentsConfirmed": true
+          },
+          {
+            "id": "desmobilizacao-equipe",
+            "basis": "fixed",
+            "trips": 1,
+            "category": "personnel",
+            "included": true,
+            "quantity": 1,
+            "slotType": "crew",
+            "unitCost": 0,
+            "direction": "demobilization",
+            "rentalUse": "",
+            "taxPercent": 20,
+            "description": "Desmobilização da equipe",
+            "returnSetup": "pending",
+            "requiredSlot": true,
+            "vehicleCount": 0,
+            "destinationId": "obra-principal",
+            "marginPercent": 30,
+            "travelerCount": 0,
+            "rentalSiteDays": 0,
+            "additionalCosts": [],
+            "calculationMode": "",
+            "rentalDailyRate": 0,
+            "busOvernightMode": "",
+            "mealPerPersonDay": 175,
+            "tollPerVehicleKm": 0.2,
+            "travelSundayDays": 0,
+            "vehicleCountMode": "automatic",
+            "fuelPricePerLiter": 6.5,
+            "travelHoursPerDay": 10,
+            "travelerCountMode": "automatic",
+            "contingencyPercent": 0,
+            "travelSaturdayDays": 0,
+            "lodgingPerPersonDay": 200,
+            "travelerAssignments": [],
+            "dailyDistanceLimitKm": 750,
+            "distanceKmPerVehicle": 0,
+            "lodgingNightsPerTrip": 0,
+            "passengersPerVehicle": 4,
+            "ticketPerPersonPerTrip": 0,
+            "calculationModeConfirmed": false,
+            "fuelEfficiencyKmPerLiter": 10,
+            "travelCalendarDaysPerTrip": 1,
+            "vehicleOperatingCostPerKm": 0,
+            "autoSyncedFromMobilization": true,
+            "travelerAssignmentsConfirmed": true
+          },
+          {
+            "id": "mobilizacao-equipamento",
+            "basis": "fixed",
+            "trips": 1,
+            "category": "equipment",
+            "included": true,
+            "quantity": 1,
+            "slotType": "equipment",
+            "unitCost": 0,
+            "direction": "mobilization",
+            "rentalUse": "",
+            "taxPercent": 20,
+            "description": "Mobilização da equipamento",
+            "returnSetup": "custom",
+            "requiredSlot": true,
+            "vehicleCount": 0,
+            "destinationId": "obra-principal",
+            "marginPercent": 30,
+            "travelerCount": 0,
+            "rentalSiteDays": 0,
+            "additionalCosts": [],
+            "calculationMode": "",
+            "rentalDailyRate": 0,
+            "busOvernightMode": "",
+            "mealPerPersonDay": 175,
+            "tollPerVehicleKm": 0.2,
+            "travelSundayDays": 0,
+            "vehicleCountMode": "automatic",
+            "fuelPricePerLiter": 6.3,
+            "travelHoursPerDay": 10,
+            "travelerCountMode": "automatic",
+            "contingencyPercent": 0,
+            "travelSaturdayDays": 0,
+            "lodgingPerPersonDay": 200,
+            "travelerAssignments": [],
+            "dailyDistanceLimitKm": 750,
+            "distanceKmPerVehicle": 0,
+            "lodgingNightsPerTrip": 0,
+            "passengersPerVehicle": 4,
+            "ticketPerPersonPerTrip": 0,
+            "calculationModeConfirmed": false,
+            "fuelEfficiencyKmPerLiter": 3,
+            "travelCalendarDaysPerTrip": 1,
+            "vehicleOperatingCostPerKm": 0,
+            "autoSyncedFromMobilization": false,
+            "travelerAssignmentsConfirmed": true
+          },
+          {
+            "id": "desmobilizacao-equipamento",
+            "basis": "fixed",
+            "trips": 1,
+            "category": "equipment",
+            "included": true,
+            "quantity": 1,
+            "slotType": "equipment",
+            "unitCost": 0,
+            "direction": "demobilization",
+            "rentalUse": "",
+            "taxPercent": 20,
+            "description": "Desmobilização da equipamento",
+            "returnSetup": "pending",
+            "requiredSlot": true,
+            "vehicleCount": 0,
+            "destinationId": "obra-principal",
+            "marginPercent": 30,
+            "travelerCount": 0,
+            "rentalSiteDays": 0,
+            "additionalCosts": [],
+            "calculationMode": "",
+            "rentalDailyRate": 0,
+            "busOvernightMode": "",
+            "mealPerPersonDay": 175,
+            "tollPerVehicleKm": 0.2,
+            "travelSundayDays": 0,
+            "vehicleCountMode": "automatic",
+            "fuelPricePerLiter": 6.3,
+            "travelHoursPerDay": 10,
+            "travelerCountMode": "automatic",
+            "contingencyPercent": 0,
+            "travelSaturdayDays": 0,
+            "lodgingPerPersonDay": 200,
+            "travelerAssignments": [],
+            "dailyDistanceLimitKm": 750,
+            "distanceKmPerVehicle": 0,
+            "lodgingNightsPerTrip": 0,
+            "passengersPerVehicle": 4,
+            "ticketPerPersonPerTrip": 0,
+            "calculationModeConfirmed": false,
+            "fuelEfficiencyKmPerLiter": 3,
+            "travelCalendarDaysPerTrip": 1,
+            "vehicleOperatingCostPerKm": 0,
+            "autoSyncedFromMobilization": true,
+            "travelerAssignmentsConfirmed": true
+          }
+        ],
+        "materials": [],
+        "commercial": {
+          "lines": [],
+          "includeQqp": false,
+          "globalValue": 0,
+          "pricingMode": "calculated",
+          "hiddenQqpIds": [],
+          "employeeReferralBonuses": [],
+          "presentationAdjustments": [],
+          "representativeCommission": {
+            "basis": "net_after_tax",
+            "enabled": false,
+            "percent": 0,
+            "representativeName": ""
+          }
+        },
+        "assumptions": {
+          "taxPercent": 17.54,
+          "monthlyHours": 193.6,
+          "pricingModel": "filtrovali_net_revenue_v1",
+          "overtimePolicy": "union_monthly_30_v1",
+          "overheadPercent": 24,
+          "workdaysPerMonth": 22,
+          "commercialPercent": 5,
+          "commissionPercent": 9,
+          "laborPricingModel": "lec_v1_2",
+          "defaultHoursPerDay": 8.8,
+          "desiredMarginPercent": 15
+        },
+        "indirectCosts": [],
+        "laborContexts": [
+          {
+            "id": "pre-engenharia",
+            "name": "",
+            "enabled": true,
+            "expenses": [
+              {
+                "id": "pre-engenharia-expense-1",
+                "code": "lodging_calendar_day",
+                "name": "Hospedagem",
+                "basis": "per_person_calendar_day",
+                "included": false,
+                "quantity": 1,
+                "unitValue": 200
+              },
+              {
+                "id": "pre-engenharia-expense-2",
+                "code": "meal_calendar_day",
+                "name": "Alimentação",
+                "basis": "per_person_calendar_day",
+                "included": false,
+                "quantity": 1,
+                "unitValue": 175
+              },
+              {
+                "id": "pre-engenharia-expense-3",
+                "code": "laundry_calendar_day",
+                "name": "Lavagem de roupa",
+                "basis": "per_person_calendar_day",
+                "included": false,
+                "quantity": 1,
+                "unitValue": 30
+              },
+              {
+                "id": "pre-engenharia-expense-4",
+                "code": "hotel_site_commute",
+                "name": "Deslocamento hotel ↔ obra (combustível)",
+                "basis": "per_vehicle_staffed_day",
+                "included": true,
+                "quantity": 1,
+                "unitValue": 50
+              },
+              {
+                "id": "pre-engenharia-expense-5",
+                "code": "vehicle_rental_calendar_day",
+                "name": "Locação de veículo",
+                "basis": "per_vehicle_calendar_day",
+                "included": false,
+                "quantity": 1,
+                "unitValue": 0
+              }
+            ],
+            "assignments": [
+              {
+                "id": "pre-engenharia-coordenador",
+                "role": "COORDENADOR",
+                "shift": "day",
+                "quantity": 1,
+                "adjustment": 0,
+                "monthlySalary": 5392.37,
+                "allocationPercent": 100,
+                "nightPremiumPercent": 35
+              }
+            ],
+            "description": "",
+            "hoursPerDay": 8.8,
+            "sundayCount": 0,
+            "vehicleType": "",
+            "workingDays": 22,
+            "durationDays": 1,
+            "vehicleCount": 0,
+            "saturdayCount": 0,
+            "workCondition": "",
+            "integrationDays": 0,
+            "startOffsetDays": 0,
+            "workingDaysMode": "automatic",
+            "vehicleCountMode": "automatic",
+            "sundayHoursPerDay": 8.8,
+            "saturdayHoursPerDay": 8.8,
+            "workConditionConfirmed": false,
+            "hotelSiteDistanceKmPerDay": 50,
+            "weekdayExtra70HoursPerDay": 0
+          }
+        ],
+        "schemaVersion": 2,
+        "volumeSystems": [
+          {
+            "id": "circuit",
+            "name": "QA Caldeira",
+            "enabled": true,
+            "pipeSegments": [
+              {
+                "id": "pipe",
+                "lengthM": 20,
+                "quantity": 1,
+                "description": "QA Linha comum",
+                "diameterUnit": "in",
+                "internalDiameterMm": 50.8
+              }
+            ]
+          }
+        ],
+        "circuitServices": [
+          {
+            "itemId": "pipe",
+            "itemType": "pipes",
+            "systemId": "circuit",
+            "serviceId": "teste_hidrostatico"
+          }
+        ],
+        "financialConfigId": "cmv9u0zto000301nktbvt402k",
+        "scopeConfirmations": {
+          "noLabor": false,
+          "noInputs": false,
+          "noLogistics": false,
+          "mobilizationCrewAlreadyOnSite": false,
+          "demobilizationCrewAlreadyOnSite": false,
+          "combinedCrewAndEquipmentTransport": false
+        },
+        "logisticsDestinations": [
+          {
+            "id": "obra-principal",
+            "name": "Obra principal",
+            "address": "",
+            "nameSource": "custom",
+            "oneWayDistanceKm": 0
+          }
+        ],
+        "logisticsStructureVersion": 1
+      },
+      "estimateSummary": {
+        "schemaVersion": 1,
+        "hours": {
+          "normal": 8.8,
+          "overtime": 0,
+          "total": 8.8
+        },
+        "workload": {
+          "personDays": 1,
+          "peakHeadcount": 1,
+          "phases": [
+            {
+              "name": "",
+              "durationDays": 1,
+              "workingDays": 1,
+              "headcount": 1,
+              "normalHours": 8.8,
+              "overtimeHours": 0,
+              "totalHours": 8.8
+            }
+          ]
+        },
+        "costs": {
+          "labor": 626.27,
+          "indirect": 0,
+          "materials": 0,
+          "inputs": 0,
+          "filters": 0,
+          "effluent": 0,
+          "mobilization": 0,
+          "demobilization": 0,
+          "referralBonus": 0,
+          "direct": 626.27,
+          "overhead": 343.09,
+          "total": 626.27,
+          "taxesAtEstimatePrice": 304.08,
+          "commissionAtEstimatePrice": 128.66,
+          "representativeCommissionAtEstimatePrice": 0,
+          "commercialExpenseAtEstimatePrice": 71.48
+        }
+      },
+      "proposalSnapshot": {
+        "title": "QA-EXTRA-20261019204026 a0",
+        "scopeItems": [
+          {
+            "title": "Teste de pressão — mesmo título entre propostas"
+          }
+        ],
+        "technicalServices": [
+          {
+            "serviceId": "teste_hidrostatico"
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "cmvfpxwaj000996o03d56u982",
+          "kind": "COMERCIAL",
+          "format": "PDF",
+          "fileName": "Proposta Comercial - 753498483.pdf",
+          "byteSize": 624,
+          "createdAt": "2026-10-19T20:40:27.067Z"
+        },
+        {
+          "id": "cmvfpxwap000a96o0bks0o65y",
+          "kind": "TECNICA",
+          "format": "PDF",
+          "fileName": "Proposta Técnica - 753498483.pdf",
+          "byteSize": 622,
+          "createdAt": "2026-10-19T20:40:27.073Z"
+        }
+      ],
+      "documentsReference": {
+        "proposalCode": "753498483",
+        "revisionNumber": 0
+      }
+    },
+    "attempts": [
+      {
+        "status": 201,
+        "ack": {
+          "contractVersion": 3,
+          "budgetStatus": "SELECTED",
+          "proposalId": "cmvfpxwab000896o0ry8a2wz4",
+          "projectId": "cmvfpxvoc00002gryxw5x3ec3",
+          "parentProposalCode": "753498482",
+          "contributionKey": "COMERCIAL_APP:753498483",
+          "budgetOperation": "UPSERT_ADDITIONAL_CONTRIBUTION",
+          "duplicate": false
+        },
+        "eventId": "e0fdee38-1bcb-4e64-888f-d03ab753fb89",
+        "requestSha256": "1db7268545197ea83b60df9de55fc42e0536f31f7844335a7e2fffa657205d7d"
+      },
+      {
+        "status": 200,
+        "ack": {
+          "projectId": "cmvfpxvoc00002gryxw5x3ec3",
+          "proposalId": "cmvfpxwab000896o0ry8a2wz4",
+          "budgetStatus": "SELECTED",
+          "budgetOperation": "UPSERT_ADDITIONAL_CONTRIBUTION",
+          "contractVersion": 3,
+          "contributionKey": "COMERCIAL_APP:753498483",
+          "parentProposalCode": "753498482",
+          "duplicate": true
+        },
+        "eventId": "e0fdee38-1bcb-4e64-888f-d03ab753fb89",
+        "requestSha256": "1db7268545197ea83b60df9de55fc42e0536f31f7844335a7e2fffa657205d7d"
+      }
+    ],
+    "sameEventAndContent": true
+  }
+}
