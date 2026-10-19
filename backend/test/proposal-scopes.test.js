@@ -45,3 +45,15 @@ test('retenta conflito PostgreSQL na confirmação da transação via adapter se
   assert.equal(await commercialTransaction(async () => 'confirmed', database), 'confirmed');
   assert.equal(attempts, 2);
 });
+
+test('meta global ou escopo ausente da mãe não permite atribuir automaticamente seu realizado ao adicional', () => {
+  const projectSystem = { id: 'sys', equipment: 'Unidade', name: 'Linha' };
+  const linked = { contributionKey: a, serviceType: 'TESTE_PRESSAO', systems: [{ projectSystemId: 'sys', projectSystem,
+    systemType: 'TUBULACAO', quantity: 20, diameter: '2', diameterUnit: 'pol' }] };
+  const contextWithGlobal = { ...context, options: [{ key: main }, { key: a }], planned: [planned(main), linked] };
+  const reported = service('s', 15, { __projectSystemId: 'sys' });
+  assert.equal(resolveServiceContribution(reported, {}, contextWithGlobal).key, null, 'o cadastro global da principal também pode ser o dono');
+  assert.equal(resolveServiceContribution(reported, {}, { ...contextWithGlobal, planned: [linked] }).key, null, 'principal sem escopo estruturado exige conferência');
+  const distinct = { ...planned(main), systems: [{ systemType: 'MANGOTE', quantity: 10 }] };
+  assert.equal(resolveServiceContribution(reported, {}, { ...contextWithGlobal, planned: [distinct, linked] }).key, a, 'métricas distintas permitem vínculo único');
+});

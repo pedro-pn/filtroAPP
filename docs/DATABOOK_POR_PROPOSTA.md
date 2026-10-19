@@ -13,7 +13,7 @@ O mesmo projeto pode ter o escopo da principal e um escopo para cada adicional, 
 
 O previsto, o avanço anterior ao período e as quantidades do período usam apenas a contribuição escolhida. Entram seus serviços, relatórios técnicos vinculados, fotos de serviço, produtos/FDS e certificados de equipamentos utilizados por esses relatórios. O campo Contrato/Proposta do PDF identifica o número e a revisão escolhidos.
 
-A associação automática usa o cadastro completo, antes do filtro. Quando tipo/sistema podem pertencer a várias propostas, o serviço fica pendente. O gestor resolve explicitamente; esconder a mãe nunca torna uma associação ambígua em única. Referências técnicas são resolvidas por IDs/chaves estáveis, sem inferir uma proposta somente por data, título ou TAG.
+A associação automática usa o cadastro completo, antes do filtro. Quando tipo/sistema podem pertencer a várias propostas, o serviço fica pendente. Metas globais da principal também são candidatas; uma contribuição sem escopo estruturado exige vínculo explícito, em vez de presumir o dono pelo cadastro parcial das demais. O gestor resolve explicitamente; esconder a mãe nunca torna uma associação ambígua em única. Referências técnicas são resolvidas por IDs/chaves estáveis, sem inferir uma proposta somente por data, título ou TAG.
 
 Um RDO misto conserva os serviços/fotos do recorte, mas omite descrição, fotos gerais e observações gerais de horas extras/stand-by: esses dados podem descrever outras propostas. Equipe, DDS e jornada do RDO que contém o serviço são contexto diário compartilhado, não horas ou custos exclusivos atribuídos ao adicional. Um aviso registra as omissões. RDOs inteiramente atribuídos à proposta conservam também sua descrição e fotos gerais.
 

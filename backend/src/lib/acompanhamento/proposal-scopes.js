@@ -65,6 +65,8 @@ export function resolveServiceContribution(service, report, context) {
   if (assignment) return { key: assignment.contributionKey || null, method: 'MANUAL' };
   if (context.hasRetired) return { key: null, method: 'INFERRED' };
   if (context.options.length === 1) return { key: context.main.key, method: 'INFERRED' };
+  const covered = new Set(context.planned.map(context.plannedKey));
+  if (context.options.some(option => !covered.has(option.key))) return { key: null, method: 'INFERRED' };
   const type = normalizeRdoServiceType(service.serviceType) || service.serviceType;
   const candidates = context.planned.filter(row => (normalizeRdoServiceType(row.serviceType) || row.serviceType) === type);
   const registry = [...new Map(context.planned.flatMap(row => row.systems || []).filter(row => row.projectSystem)
@@ -73,7 +75,7 @@ export function resolveServiceContribution(service, report, context) {
   const keysFor = measurement => {
     const match = resolveProjectSystem(registry, { ...measurement, serviceType: type });
     if (!match) return new Set();
-    return new Set(candidates.filter(row => row.systems.some(system => system.projectSystemId === match.id
+    return new Set(candidates.filter(row => !row.systems.length || row.systems.some(system => (!system.projectSystemId || system.projectSystemId === match.id)
       && system.systemType === measurement.systemType
       && (system.systemType !== 'TUBULACAO' || !system.diameter || diameterKey(system.diameter, system.diameterUnit) === measurement.bitola)))
       .map(context.plannedKey));
