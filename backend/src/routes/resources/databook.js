@@ -26,7 +26,10 @@ const servicosPadrao = {
 };
 
 function intervalo(source) {
-  return { inicio: String(source?.inicio || ''), fim: String(source?.fim || '') };
+  if (source?.contributionKey != null && (typeof source.contributionKey !== 'string' || source.contributionKey.length > 200 || !source.contributionKey)) throw Object.assign(new Error('Proposta inválida.'), { status: 400 });
+  if (source?.scopeVersion != null && (typeof source.scopeVersion !== 'string' || !/^[a-f0-9]{64}$/.test(source.scopeVersion))) throw Object.assign(new Error('Versão do escopo inválida.'), { status: 400 });
+  return { inicio: String(source?.inicio || ''), fim: String(source?.fim || ''),
+    ...(source?.contributionKey != null ? { contributionKey: source.contributionKey } : {}), ...(source?.scopeVersion ? { scopeVersion: source.scopeVersion } : {}) };
 }
 
 export function createDatabookRouter({ authenticate = requireAuth, servicos = servicosPadrao } = {}) {
@@ -39,8 +42,8 @@ export function createDatabookRouter({ authenticate = requireAuth, servicos = se
   }));
 
   router.get('/projects/:projectId/intervalo', asyncHandler(async (req, res) => {
-    const { inicio, fim } = intervalo(req.query);
-    res.json(await s.resumoDoDialogo(req.params.projectId, { inicio: inicio || undefined, fim: fim || undefined }));
+    const { inicio, fim, contributionKey } = intervalo(req.query);
+    res.json(await s.resumoDoDialogo(req.params.projectId, { inicio: inicio || undefined, fim: fim || undefined, ...(contributionKey != null ? { contributionKey } : {}) }));
   }));
 
   router.post('/projects/:projectId/revisao', asyncHandler(async (req, res) => {

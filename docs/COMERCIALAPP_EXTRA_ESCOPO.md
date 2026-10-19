@@ -182,3 +182,7 @@ A suíte CI adiciona o job **Commercial contributions (PostgreSQL)** para migra�
 mistas, eventos, custos/horas e regressão v1. A homologação real exige o checkout externo preparado
 acima e é opt-in; não é substituída por mocks nem pelo job de banco. Evidências e limites do teste
 executado estão em [COMERCIALAPP_EXTRA_ESCOPO_EVIDENCIAS.md](COMERCIALAPP_EXTRA_ESCOPO_EVIDENCIAS.md).
+
+## Escopo operacional e Data Book independente
+
+Ver [Escopo e Data Book por proposta](DATABOOK_POR_PROPOSTA.md): editor com origem do escopo, acompanhamento de serviços por contribuição, vínculos operacionais auditados e geração/numeração/histórico separados por proposta. A migração adicional `20261019210000_proposal_scope_databooks` deve preceder a atualização das aplicações.

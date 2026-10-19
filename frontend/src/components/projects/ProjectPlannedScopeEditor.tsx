@@ -1,3 +1,4 @@
+import { fetchProposalScopes } from '../../api/proposalScopes';
 import { forwardRef, type ReactNode, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiClientError } from '../../api/client';
@@ -141,6 +142,16 @@ function withWeights(services: ServiceRow[], ints: number[]): ServiceRow[] {
 // não editados dividem igualmente o que sobra para o total tentar fechar 100%. Assim dá para
 // digitar cada um manualmente — quando todos estão fixos, nada é mexido (a soma guia via aviso).
 function rebalanceUntouched(services: ServiceRow[], touched: Set<string>): ServiceRow[] {
+  const groups = new Map<string, ServiceRow[]>();
+  for (const service of services) {
+    const key = service.contributionKey || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(service);
+  }
+  if (groups.size > 1) {
+    const adjusted = new Map([...groups.values()].flatMap(rows => rebalanceUntouched(rows, touched)).map(row => [row.key, row]));
+    return services.map(row => adjusted.get(row.key)!);
+  }
   const untouched = services.filter(s => !touched.has(s.key));
   if (untouched.length === 0) return services;
   const touchedSum = services
@@ -244,6 +255,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   const queryKey = ['planned-scope', projectId];
 
   const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => getPlannedScope(projectId) });
+  const { data: proposalScopes } = useQuery({ queryKey: ['proposal-scopes', projectId], queryFn: () => fetchProposalScopes(projectId) });
   const { data: roles } = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
 
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -303,6 +315,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['proposal-scopes', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['databook'] });
       queryClient.invalidateQueries({ queryKey: ['project-systems'] });
       queryClient.invalidateQueries({ queryKey: ['system-reconciliation', projectId] });
     },
@@ -417,6 +431,10 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       [...prev, { key: nextKey(), scopeKey, scopeName: '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] }],
       touchedWeights.current
     ));
+  }
+
+  function changeScopeProposal(scopeKey: string, contributionKey: string) {
+    setServices(prev => prev.map(service => service.scopeKey === scopeKey ? { ...service, contributionKey: contributionKey || null } : service));
   }
 
   function changeScopeName(scopeKey: string, name: string) {
@@ -570,6 +588,14 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               <Input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
               {!group.name.trim() ? <small>Sem escopo definido — os serviços existentes foram preservados.</small> : null}
             </div>
+            {proposalScopes ? <div className="field-group">
+              <label htmlFor={`scope-proposal-${group.key}`}>Proposta de origem</label>
+              <Select id={`scope-proposal-${group.key}`} value={group.services[0]?.contributionKey || ''}
+                disabled={!canManage} onChange={event => changeScopeProposal(group.key, event.target.value)}>
+                <option value="">Principal / manual legado</option>
+                {proposalScopes.scopes.map(proposal => <option key={proposal.key} value={proposal.key}>{proposal.label}</option>)}
+              </Select>
+            </div> : null}
             <div className="acp-svc-list">
           {group.services.map(svc => {
             const collapsed = collapsedServices.has(svc.key);
@@ -749,9 +775,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         + Adicionar escopo
       </Button>
       {services.length > 0 ? (
-        <div className={`acp-weight-sum ${Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>
+        <div className={`acp-weight-sum ${services.some(service => service.contributionKey) || Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>
           Soma dos pesos: {weightSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
-          {Math.round(weightSum) !== 100 ? ' — o ideal é somar 100%' : ''}
+          {services.some(service => service.contributionKey) ? ' — pesos tratados separadamente por proposta' : Math.round(weightSum) !== 100 ? ' — o ideal é somar 100%' : ''}
         </div>
       ) : null}
 

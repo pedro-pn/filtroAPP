@@ -1828,6 +1828,8 @@ model ProjectDatabook {
   docNumber       String                    @unique
   startDate       DateTime                  @db.Date
   endDate         DateTime                  @db.Date
+  scopeKey        String                    @default("ALL")
+  scopeSnapshot   Json?
   createdByUserId String?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
@@ -1836,11 +1838,12 @@ model ProjectDatabook {
   revisions       ProjectDatabookRevision[]
 
   @@unique([projectId, sequence])
-  @@unique([projectId, startDate, endDate])
+  @@unique([projectId, startDate, endDate, scopeKey])
 }
 
 // Cada geração do mesmo Data Book é uma revisão (0, 1, 2…) processada pelo worker.
 model ProjectDatabookRevision {
+  scopeSnapshot   Json?
   id              String                 @id @default(cuid())
   databookId      String
   revision        Int
@@ -1941,6 +1944,7 @@ model Report {
   chemicalCleanings          ChemicalCleaning[]
   operationalReviewAudits    OperationalReviewAudit[]
   measurementLinks           ReportMeasurementLink[]
+  contributionAssignments    Json                              @default("{}")
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])

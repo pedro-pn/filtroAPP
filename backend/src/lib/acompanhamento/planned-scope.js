@@ -8,8 +8,9 @@
  */
 
 import prisma from '../prisma.js';
+import { loadProposalScopes } from './proposal-scopes.js';
 import { createHash } from 'node:crypto';
-import { lockCommercialProject } from './commercial-contributions.js';
+import { commercialTransaction, lockCommercialProject } from './commercial-contributions.js';
 import { resolvePlannedSystem } from './project-systems.js';
 import { normalizeRdoServiceType } from './avanco.js';
 import { latestRealizedCorrections } from './realized-corrections.js';
@@ -116,7 +117,7 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
         ? 'Mangueiras por unidade exigem teste de pressão, equipamento do cliente, nome do sistema e quantidade inteira positiva.'
         : 'Sistemas por unidade exigem limpeza química, equipamento do cliente, nome do sistema e quantidade inteira positiva.');
     }
-    const key = `${normalizeRdoServiceType(service.serviceType) ?? service.serviceType}:${row.systemType}`;
+    const key = `${service.contributionKey || 'MAIN'}:${normalizeRdoServiceType(service.serviceType) ?? service.serviceType}:${row.systemType}`;
     const linked = Boolean(row.projectSystemId || row.equipment || row.systemName);
     if (modes.has(key) && modes.get(key) !== linked) throw new Error('Para o mesmo serviço e tipo de medição, preencha equipamento do cliente e sistema em todas as linhas ou mantenha todas globais. Não misture uma meta total com suas partes.');
     modes.set(key, linked);
@@ -132,7 +133,7 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
     : [];
   const roleNameById = new Map(roles.map(r => [r.id, r.name]));
 
-  await prisma.$transaction(async (tx) => {
+  await commercialTransaction(async (tx) => {
     await lockCommercialProject(tx, projectId);
     const currentServices = editingServices ? await tx.projectPlannedService.findMany({
       where: { projectId }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
@@ -143,6 +144,10 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
       throw Object.assign(new Error('Uma contribuição mudou. Atualize o cronograma antes de salvar.'), { status: 409 });
     }
     const existingKeys = new Set(currentServices.map(row => row.contributionKey).filter(Boolean));
+    if ((services ?? []).some(row => row.contributionKey && !existingKeys.has(row.contributionKey))) {
+      const context = await loadProposalScopes(projectId, tx);
+      for (const option of context.options) existingKeys.add(option.key);
+    }
     if ((services ?? []).some(row => row.contributionKey && !existingKeys.has(row.contributionKey))) {
       throw Object.assign(new Error('Contribuição de escopo desconhecida.'), { status: 409 });
     }
@@ -202,8 +207,9 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
       });
     }
     if (editingServices) for (const key of changedKeys) {
-      const additional = key?.startsWith('COMERCIAL_APP:') ? await tx.projectAdditionalProposal.findUnique({
-        where: { projectId_source_proposalCode: { projectId, source: 'COMERCIAL_APP', proposalCode: key.slice('COMERCIAL_APP:'.length) } }
+      const [source, proposalCode] = key?.split(':') || [];
+      const additional = ['COMERCIAL_APP', 'ACCESS_IMPORT'].includes(source) ? await tx.projectAdditionalProposal.findUnique({
+        where: { projectId_source_proposalCode: { projectId, source, proposalCode } }
       }) : null;
       if (additional) await tx.projectAdditionalProposal.update({ where: { id: additional.id },
         data: { scopeImport: { ...additional.scopeImport, status: 'MANUAL_OVERRIDE' } } });
@@ -242,7 +248,7 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
         })
       });
     }
-  }, { timeout: 30000, isolationLevel: 'Serializable' });
+  });
 
   return getPlannedScope(projectId);
 }

@@ -155,3 +155,15 @@ test('same scope titles from different commercial contributions keep identity, q
   const groups = await functionsFrom('../src/utils/plannedScopeGroups.ts', ['groupServicesByScope']);
   assert.equal(groups.groupServicesByScope(scope.services).length, 2);
 });
+
+test('rebalancing weights in an additional leaves the principal and other contributions unchanged', async () => {
+  const { rebalanceUntouched } = await functionsFrom('../src/components/projects/ProjectPlannedScopeEditor.tsx', ['toNum', 'roundToSum', 'rebalanceUntouched'], {});
+  const original = [
+    { key: 'main', contributionKey: 'ACCESS_IMPORT:500', weight: '100' },
+    { key: 'a1', contributionKey: 'COMERCIAL_APP:502', weight: '100' },
+    { key: 'a2', contributionKey: 'COMERCIAL_APP:502', weight: '' },
+    { key: 'b', contributionKey: 'COMERCIAL_APP:503', weight: '100' }
+  ];
+  const adjusted = plain(rebalanceUntouched(original, new Set(['main', 'b'])));
+  assert.deepEqual(adjusted.map(row => row.weight), ['100', '50', '50', '100']);
+});

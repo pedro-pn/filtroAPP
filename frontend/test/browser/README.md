@@ -180,3 +180,9 @@ This UI fixture simulates HTTP responses and checks independent revision selecti
 explicit rollback/removal with reason and selection version, document identity, querying and responsive
 layout at 360/768/1440 px. Operational composition is tested separately against the real producer in
 `backend/test/commercial-additional-real.integration.test.js`; see `docs/COMERCIALAPP_EXTRA_ESCOPO.md`.
+
+For independent proposal scopes/Data Books, open `/test/browser/databook-previa.html?propostas=1`
+and run `playwright-cli run-code --filename frontend/test/browser/databook-propostas.js`.
+It checks an audited, versioned assignment in the tracking panel and carries the selected additional
+and scope version through preparation, preview and save at 360/768/1440 px. Database/generator
+coverage lives in `backend/test/proposal-scope-databook.integration.test.js`.

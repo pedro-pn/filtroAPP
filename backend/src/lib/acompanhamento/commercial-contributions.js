@@ -19,7 +19,8 @@ export async function commercialTransaction(operation, database = prisma) {
   for (let attempt = 0; ; attempt++) {
     try { return await database.$transaction(operation, { isolationLevel: 'Serializable', timeout: 30_000 }); }
     catch (error) {
-      if (attempt >= 3 || !['P2034', 'P2002', '40001'].includes(error.code)) throw error;
+      const code = error.code || error.cause?.originalCode || error.meta?.driverAdapterError?.cause?.originalCode;
+      if (attempt >= 3 || !['P2034', 'P2002', '40001'].includes(code)) throw error;
     }
   }
 }

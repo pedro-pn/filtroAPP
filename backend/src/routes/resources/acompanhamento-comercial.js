@@ -1,3 +1,5 @@
+import { assignReportContribution } from '../../lib/acompanhamento/proposal-scopes.js';
+import { getProposalScopeTracking } from '../../lib/acompanhamento/proposal-scope-tracking.js';
 /*
  * Módulo Acompanhamento de Projetos — importação do banco comercial Access.
  *
@@ -701,6 +703,18 @@ router.get(
     res.json(pendencias);
   })
 );
+
+// Mesmo vínculo operacional usado na projeção do Data Book por proposta.
+router.get('/projetos/:projectId/escopos-propostas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  res.json(await getProposalScopeTracking(req.params.projectId));
+}));
+router.put('/projetos/:projectId/escopos-propostas/:reportId', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const payload = z.object({ serviceKey: z.string().length(64), contributionKey: z.string().min(1).max(200).nullable(),
+    version: z.string().length(64), reason: z.string().trim().min(1).max(1000) }).parse(req.body);
+  const result = await assignReportContribution(req.params.projectId, req.params.reportId, payload, req.auth.user.id);
+  clearProjectDerivedCaches();
+  res.json(result);
+}));
 
 // Revisões da proposta de um projeto (interface simples para escolher qual revisão vale).
 router.get(

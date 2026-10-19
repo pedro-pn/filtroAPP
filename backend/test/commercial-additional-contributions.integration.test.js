@@ -7,6 +7,7 @@ import { listCommercialDashboard, setProjectAdditionalProposalRevision, setProje
 import { loadPlannedHours } from '../src/lib/acompanhamento/planned-hours.js';
 import { getPlannedScope, setPlannedScope } from '../src/lib/acompanhamento/planned-scope.js';
 import { commercialTransaction, lockCommercialProject, removeContribution, resolveContributionScope } from '../src/lib/acompanhamento/commercial-contributions.js';
+import { loadProposalScopes } from '../src/lib/acompanhamento/proposal-scopes.js';
 import { rawHours, additionalPayload } from './helpers/commercial-additional-fixture.js';
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const conflict = error => error.status === 409;
@@ -135,6 +136,17 @@ test('fontes mistas e mãe ausente: principal ComercialAPP + adicional Access; l
   const [row] = await listCommercialDashboard({ projectIds: [projects[0].id], includeProgress: false });
   assert.equal(Number(row.salePrice), 120_000); assert.equal(Number(row.plannedTotalCost), 72_000);
   assert.equal((await loadPlannedHours([projects[0].id])).get(projects[0].id).hoursPlan.commercial.total, 1200);
+  const context = await loadProposalScopes(projects[0].id);
+  assert.equal(context.main.key, `COMERCIAL_APP:${code}`);
+  assert.equal(context.main.revision, 0);
+  assert.equal(context.options.find(option => option.kind === 'ADDITIONAL').key, `ACCESS_IMPORT:${code + 1}`);
+  const oldScope = await getPlannedScope(projects[0].id);
+  const mainServices = await prisma.projectPlannedService.findMany({ where: { projectId: projects[0].id } });
+  await setPlannedScope(projects[0].id, { contributionsFingerprint: oldScope.contributionsFingerprint,
+    services: [...oldScope.services, { contributionKey: `ACCESS_IMPORT:${code + 1}`, scopeName: 'Escopo independente Access', serviceType: 'LIMPEZA_QUIMICA', weight: 100, systems: [] }] });
+  for (const service of mainServices) assert.ok(await prisma.projectPlannedService.findUnique({ where: { id: service.id } }), 'escopo da principal preservado');
+  assert.equal((await prisma.projectAdditionalProposal.findFirst({ where: { projectId: projects[0].id } })).scopeImport.status, 'MANUAL_OVERRIDE');
+
   const sameNumberOtherOrigin = additionalPayload(projects[0].id, code, code + 1); ids.push(sameNumberOtherOrigin.proposalId);
   await assert.rejects(receiveCommercialAppProposal(sameNumberOtherOrigin), conflict);
   const unresolved = additionalPayload(projects[1].id, code + 20, code + 21); ids.push(unresolved.proposalId);

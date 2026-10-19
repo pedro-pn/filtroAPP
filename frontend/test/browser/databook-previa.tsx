@@ -1,3 +1,4 @@
+import { ProjectProposalScopes } from '../../src/components/projects/ProjectProposalScopes';
 // Diálogo de produção com API simulada. Nenhum dado real é alterado.
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -16,6 +17,12 @@ import '../../src/styles/utilities.css';
 import '../../src/styles/legacy.css';
 
 const periodo = { inicio: '2026-10-01', fim: '2026-10-01' };
+const porProposta = new URLSearchParams(location.search).has('propostas');
+const propostas = [
+  { key: 'ACCESS_IMPORT:500', proposalCode: '500', source: 'ACCESS_IMPORT', kind: 'MAIN', revision: 0, parentProposalCode: null, label: 'Principal 500 · Rev. 0 · Access', version: 'a'.repeat(64) },
+  { key: 'COMERCIAL_APP:502', proposalCode: '502', source: 'COMERCIAL_APP', kind: 'ADDITIONAL', revision: 1, parentProposalCode: '500', label: 'Adicional 502 · Rev. 1 · ComercialAPP', version: 'b'.repeat(64) }
+];
+let assigned = false;
 const interativo = new URLSearchParams(location.search).has('interativo');
 const todosCampos = !new URLSearchParams(location.search).has('longo');
 const preparada: DatabookRevisaoPreparada = {
@@ -45,9 +52,14 @@ apiClient.defaults.adapter = async config => {
   const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
   chamadas.push({ url, body });
   let data: unknown;
-  if (url.endsWith('/intervalo')) data = { padrao: periodo, resumo: preparada.resumo };
+  if (url.includes('/escopos-propostas')) {
+    if (config.method === 'put') assigned = true;
+    data = config.method === 'put' ? { saved: true } : { pending: assigned ? 0 : 1, scopes: propostas.map(p => ({ ...p, progress: { progressPct: 50, services: [] }, serviceCount: 1 })),
+      services: [{ reportId: 'r1', reportType: 'RDO', number: 1, serviceKey: 'c'.repeat(64), version: 'd'.repeat(64), serviceType: 'pressao', system: 'Linha A', contributionKey: assigned ? 'COMERCIAL_APP:502' : null, method: assigned ? 'MANUAL' : 'INFERRED', count: 1 }] };
+  }
+  else if (url.endsWith('/intervalo')) data = { padrao: periodo, resumo: preparada.resumo, ...(porProposta ? { propostas } : {}) };
   else if (url.endsWith('/projects/p1')) data = [{ id: 'db1', doc: 'DB-9001-01', ...periodo, revisoes }];
-  else if (url.endsWith('/revisao')) data = { ...preparada, documento: { ...preparada.documento, rev: 1 } };
+  else if (url.endsWith('/revisao')) data = { ...preparada, ...(body.contributionKey && body.contributionKey !== 'ALL' ? { proposta: propostas.find(p => p.key === body.contributionKey) } : {}), documento: { ...preparada.documento, rev: 1 } };
   else if (url.endsWith('/edicao')) data = { ...preparada, origem: { id: 'rev-0', revisao: 0 } };
   else if (url.endsWith('/previa')) {
     await new Promise(resolve => setTimeout(resolve, lenta && previas.size ? 900 : 100));
@@ -70,7 +82,8 @@ apiClient.defaults.adapter = async config => {
 };
 
 function Fixture() {
-  return <div className="fv-ds">
+  return <div className="fv-ds" style={{ maxWidth: 1000, margin: 'auto', padding: 16 }}>
+    {porProposta ? <ProjectProposalScopes projectId="p1" canManage /> : null}
     <ProjectDatabookButton project={{ id: 'p1', code: '9001', name: 'Projeto de prévia' }} />
   </div>;
 }

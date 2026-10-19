@@ -1,3 +1,4 @@
+import { ProjectProposalScopes } from './ProjectProposalScopes';
 import { SortableTable } from '../ui/SortableTable';
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -914,6 +915,7 @@ export function ProjectDetailDashboard({
 
       <Modal open={scopeOpen} onClose={() => setScopeOpen(false)} title="Escopo do projeto" appearance="design-system" size="lg">
         <div className="fv-ds acp-detail-scope">
+          {projectId && !isGroup ? <ProjectProposalScopes projectId={projectId} canManage={canManage} /> : null}
           <PlannedScopeView scope={data.plannedScope} />
           <RequiredWeeklyProgressCard target={shownRequiredWeeklyProgress} />
         </div>

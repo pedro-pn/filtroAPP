@@ -1,4 +1,5 @@
 import prisma from '../prisma.js';
+import { loadProposalScopes, reportServicesWithContributions, selectProposalScope } from '../acompanhamento/proposal-scopes.js';
 import { formatCnpj } from '../cnpj.js';
 import { currentCalibrationCertificateInclude } from '../calibration-certificates.js';
 import { extractReportUploadAttachments } from '../report-upload-attachments.js';
@@ -78,7 +79,7 @@ function tagsDoDerivado(report) {
  * (parentRdoId + serviceId), depois chaves de histórico na mesma data, depois data + tipo + tags
  * e, em último caso, data + tipo quando só houver um candidato.
  */
-export function ligarRelatoriosTecnicos(rdos, derivados) {
+export function ligarRelatoriosTecnicos(rdos, derivados, { strict = false } = {}) {
   const livres = new Set(derivados.map(r => r.id));
   const porServico = new Map();
   const mesmoDia = (r, rdo) => dayKey(r.reportDate) === dayKey(rdo.reportDate);
@@ -93,7 +94,7 @@ export function ligarRelatoriosTecnicos(rdos, derivados) {
     } },
     { unico: true, casa: (r, rdo) => mesmoDia(r, rdo) }
   ];
-  for (const { unico, casa } of criterios) {
+  for (const { unico, casa } of (strict ? criterios.slice(0, 2) : criterios)) {
     for (const rdo of rdos) {
       for (const service of rdo.services || []) {
         const tipo = tipoDataBook(service.serviceType);
@@ -223,13 +224,14 @@ async function carregar(client, projetoId, inicio, fim) {
     }),
     client.report.findMany({
       where: { projectId: projetoId, reportType: 'RDO', deletedAt: null, status: { in: STATUS_INCLUIDOS }, reportDate: { lte: ate } },
-      select: { id: true, reportType: true, sequenceNumber: true, reportDate: true, createdAt: true, services: true, measurementLinks: true }
+      select: { id: true, reportType: true, sequenceNumber: true, reportDate: true, createdAt: true, services: true, measurementLinks: true, contributionAssignments: true, updatedAt: true }
     }),
     client.report.findMany({
       where: { projectId: projetoId, reportType: 'RDO', deletedAt: null, status: { in: STATUS_INCLUIDOS }, reportDate: { gte: desde, lte: ate } },
       orderBy: [{ reportDate: 'asc' }, { sequenceNumber: 'asc' }, { createdAt: 'asc' }],
       include: {
         services: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+        measurementLinks: true,
         collaborators: { include: { collaborator: { select: { id: true, name: true, jobRole: { select: { name: true } } } } } }
       }
     }),
@@ -266,12 +268,26 @@ export async function intervaloPadrao(projetoId, client = prisma) {
  * Arquivos ficam como referências do app ("upload:", "stockdoc:", "cert:"), resolvidas por
  * anexos.js#materializar antes de chamar o Python.
  */
-export async function montarDadosDatabook(projetoId, inicio, fim, { client = prisma, documento = {}, agora = new Date(), vinculosFds = {} } = {}) {
-  const { projeto, rdosAvanco, rdos, derivados, contadores } = await carregar(client, projetoId, inicio, fim);
+export async function montarDadosDatabook(projetoId, inicio, fim, { client = prisma, documento = {}, agora = new Date(), vinculosFds = {}, contributionKey, scopeContext, scopeVersion, consistent = false } = {}) {
+  if (client === prisma && !consistent) return client.$transaction(tx => montarDadosDatabook(projetoId, inicio, fim, {
+    client: tx, documento, agora, vinculosFds, contributionKey, scopeContext, scopeVersion, consistent: true
+  }), { isolationLevel: 'RepeatableRead', timeout: 30000 });
+  let { projeto, rdosAvanco, rdos, derivados, contadores } = await carregar(client, projetoId, inicio, fim);
   if (!projeto) throw Object.assign(new Error('Projeto não encontrado.'), { status: 404 });
   const avisos = [];
+  let proposta = null;
+  if (contributionKey && contributionKey !== 'ALL') {
+    const context = scopeContext || await loadProposalScopes(projetoId, client, projeto);
+    proposta = selectProposalScope(context, contributionKey);
+    if (scopeVersion && proposta.version !== scopeVersion) throw Object.assign(new Error('A revisão ou o escopo da proposta mudou. Prepare o Data Book novamente.'), { status: 409 });
+    const projected = projectReportsToProposal(rdosAvanco, rdos, derivados, context, proposta.key);
+    ({ rdosAvanco, rdos, derivados } = projected);
+    avisos.push(...projected.avisos);
+    projeto = { ...projeto, plannedServices: context.planned.filter(service => context.plannedKey(service) === proposta.key),
+      contractCode: `${proposta.proposalCode || 'Escopo principal'}${proposta.revision != null ? ` REV ${proposta.revision}` : ''}` };
+  }
   const avanco = calcularAvanco(rdosAvanco, projeto.plannedServices, { dataInicio: inicio, dataFim: fim });
-  const { porServico, semRdo } = ligarRelatoriosTecnicos(rdos, derivados);
+  const { porServico, semRdo } = ligarRelatoriosTecnicos(rdos, derivados, { strict: Boolean(proposta) });
 
   const datas = [...new Set([...rdos, ...derivados].map(r => dayKey(r.reportDate)))].sort();
   const dias = datas.map(data => {
@@ -318,6 +334,7 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
 
   const unidade = avanco.escopo.unidade;
   const dados = {
+    ...(proposta ? { proposta } : {}),
     projeto: {
       missao: `Missão ${projeto.code} – ${projeto.name}`,
       cliente: projeto.clientName,
@@ -357,5 +374,41 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
     fds: dados.fds.length,
     certificados: dados.certificados.length
   };
-  return { dados, avisos, resumo, sugestoes: { fds: fds.candidatas, estoqueFds: fds.estoque, certificados: certificados.itens } };
+  return { dados, avisos, resumo, proposta, sugestoes: { fds: fds.candidatas, estoqueFds: fds.estoque, certificados: certificados.itens } };
+}
+
+
+// Atribui antes de filtrar: ocultar a mãe não pode tornar uma associação ambígua em única.
+export function projectReportsToProposal(allProgress, allRdos, allDerived, context, key) {
+  const avisos = [];
+  const ownership = new Map();
+  const scoped = report => {
+    const services = reportServicesWithContributions(report, context);
+    for (const service of services) ownership.set(service.id, service.contribution.key);
+    return services;
+  };
+  const progress = allProgress.map(report => ({ ...report, measurementLinks: [], services: scoped(report).filter(service => service.contribution.key === key) }));
+  const rdos = allRdos.flatMap(report => {
+    const all = scoped(report), services = all.filter(service => service.contribution.key === key);
+    if (!services.length) return [];
+    const exclusive = services.length === all.length;
+    if (!exclusive) avisos.push(`RDO nº ${report.sequenceNumber}: texto e fotos gerais omitidos por conter serviços de outras propostas ou sem vínculo.`);
+    return [{ ...report, services, ...(exclusive ? {} : { dailyDescription: '', overtimeReason: '', specialConditions: {
+      ...report.specialConditions, generalUploads: [], standbyDetails: null
+    } }) }];
+  });
+  // Só vínculos explícitos ou chaves estáveis. Data/título/TAG não provam a proposta de origem.
+  const { porServico } = ligarRelatoriosTecnicos(allRdos, allDerived, { strict: true });
+  const derivedOwner = new Map([...porServico].map(([serviceId, report]) => [report.id, ownership.get(serviceId)]));
+  const derivados = allDerived.filter(report => {
+    if (derivedOwner.has(report.id)) return derivedOwner.get(report.id) === key;
+    // Referência a um RDO sem vínculo resolvido não vira relatório independente.
+    if (report.specialConditions?.parentRdoId) return false;
+    if ((report.specialConditions?.serviceId || report.specialConditions?.serviceLinkKey) && !Object.keys(report.contributionAssignments || {}).length) return false;
+    const services = scoped(report);
+    return services.length > 0 && services.every(service => service.contribution.key === key);
+  });
+  const pending = allProgress.flatMap(report => reportServicesWithContributions(report, context)).filter(service => !service.contribution.key).length;
+  if (pending) avisos.push(`${pending} serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.`);
+  return { rdosAvanco: progress, rdos, derivados, avisos };
 }

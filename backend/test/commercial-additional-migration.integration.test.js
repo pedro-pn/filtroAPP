@@ -63,3 +63,35 @@ test('migração preserva duplicatas/seleções Access, escopo e versões existe
     await rejected(`UPDATE "CommercialAppProposal" SET "parentProposalCode" = '499' WHERE id = 'additional-0'`);
   } finally { await client.query('ROLLBACK'); await client.end(); }
 });
+
+test('migração de Data Book conserva emissões e relatórios legados; separa documentos por contribuição', { skip: !process.env.TEST_DATABASE_URL }, async () => {
+  assert.equal(new URL(process.env.TEST_DATABASE_URL).pathname, '/filtroapp_bridge_test');
+  const client = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+  await client.connect();
+  const schema = `books_${randomUUID().replaceAll('-', '')}`;
+  try {
+    await client.query('BEGIN');
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    await client.query(`SET LOCAL search_path = "${schema}"`);
+    await client.query(`CREATE TABLE "ProjectDatabook" (id TEXT PRIMARY KEY, "projectId" TEXT, "startDate" DATE, "endDate" DATE);
+      CREATE UNIQUE INDEX "ProjectDatabook_projectId_startDate_endDate_key" ON "ProjectDatabook" ("projectId", "startDate", "endDate");
+      CREATE TABLE "ProjectDatabookRevision" (id TEXT PRIMARY KEY, "databookId" TEXT, input JSONB);
+      CREATE TABLE "Report" (id TEXT PRIMARY KEY, "specialConditions" JSONB);
+      INSERT INTO "ProjectDatabook" VALUES ('original', 'project', '2026-10-01', '2026-10-19');
+      INSERT INTO "ProjectDatabookRevision" VALUES ('rev-0', 'original', '{"dias":[{"rdo":1}],"projeto":{"doc":"DB-500-01"}}');
+      INSERT INTO "Report" VALUES ('rdo-1', '{"serviceLinkKey":"preservado"}');`);
+    await client.query(await readFile(new URL('../prisma/migrations/20261019210000_proposal_scope_databooks/migration.sql', import.meta.url), 'utf8'));
+    assert.equal((await client.query('SELECT "scopeKey" FROM "ProjectDatabook"')).rows[0].scopeKey, 'ALL');
+    assert.equal((await client.query('SELECT input FROM "ProjectDatabookRevision"')).rows[0].input.projeto.doc, 'DB-500-01');
+    const report = (await client.query('SELECT * FROM "Report"')).rows[0];
+    assert.deepEqual(report.contributionAssignments, {});
+    assert.equal(report.specialConditions.serviceLinkKey, 'preservado');
+    await client.query(`INSERT INTO "ProjectDatabook" (id,"projectId","startDate","endDate","scopeKey")
+      VALUES ('extra-a','project','2026-10-01','2026-10-19','COMERCIAL_APP:502'), ('main','project','2026-10-01','2026-10-19','ACCESS_IMPORT:500')`);
+    assert.equal((await client.query('SELECT COUNT(*) FROM "ProjectDatabook"')).rows[0].count, '3');
+    await client.query('SAVEPOINT duplicate');
+    await assert.rejects(() => client.query(`INSERT INTO "ProjectDatabook" (id,"projectId","startDate","endDate","scopeKey")
+      VALUES ('duplicate','project','2026-10-01','2026-10-19','COMERCIAL_APP:502')`), error => error.code === '23505');
+    await client.query('ROLLBACK TO SAVEPOINT duplicate');
+  } finally { await client.query('ROLLBACK'); await client.end(); }
+});
