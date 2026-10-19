@@ -3,7 +3,7 @@
   "environments": {
     "filtroApp": "http://76.13.171.70:8080",
     "comercialApp": "http://76.13.171.70:8087",
-    "filtroCommit": "733fa8ea1af6dc3f8d730e10af6d5cb1c24f418a",
+    "filtroCommit": "25e6b69f33766115c4cd0de5f038e30d7bbe5b5e",
     "comercialCommit": "3180fbb29ae6c033823130eba4a74a9790f44576"
   },
   "method": {
@@ -168,6 +168,48 @@
     },
     {
       "phase": "explicit-removal-validation-history",
+      "afterRemoval": 105000,
+      "lateEventDoesNotReactivate": true,
+      "versionsPreserved": 8,
+      "historicalDatabookRevision": 1,
+      "historicalPlannedScope": 25,
+      "restoredTotal": 130000,
+      "clientMismatch": 422,
+      "parentMismatch": 422
+    },
+    {
+      "phase": "total130000",
+      "salePrice": 130000,
+      "plannedTotalCost": 61878.81,
+      "plannedHours": 1026.4,
+      "selected": [
+        {
+          "code": "753498484",
+          "revision": 0
+        },
+        {
+          "code": "753498483",
+          "revision": 1
+        }
+      ],
+      "mainSource": "ACCESS_IMPORT"
+    },
+    {
+      "phase": "documents",
+      "documents": 6,
+      "versions": 8,
+      "separateIdentityAndHashes": true,
+      "authenticatedDownload": 200
+    },
+    {
+      "phase": "explicit-removal-validation-history",
+      "restoredScope": {
+        "serviceCount": 1,
+        "plannedMeters": 25,
+        "realizedMeters": 25,
+        "databookPlannedMeters": 25,
+        "otherIdsPreserved": true
+      },
       "afterRemoval": 105000,
       "lateEventDoesNotReactivate": true,
       "versionsPreserved": 8,

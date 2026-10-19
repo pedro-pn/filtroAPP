@@ -1,6 +1,6 @@
 # Homologação no staging — 19/10/2026
 
-Executada entre [filtroAPP :8080](http://76.13.171.70:8080/) e [ComercialAPP :8087](http://76.13.171.70:8087/), com autenticação de serviço, nginx, bancos e workers dos serviços implantados. filtroAPP `733fa8ea`, ComercialAPP `3180fbb2` (inclui PR 81). Esta execução complementa o teste anterior em bancos descartáveis; não usa mocks de transporte, receptor ou composição.
+Executada entre [filtroAPP :8080](http://76.13.171.70:8080/) e [ComercialAPP :8087](http://76.13.171.70:8087/), com autenticação de serviço, nginx, bancos e workers dos serviços implantados. filtroAPP `25e6b69f` (correções anteriores em `733fa8ea`), ComercialAPP `3180fbb2` (inclui PR 81). Esta execução complementa o teste anterior em bancos descartáveis; não usa mocks de transporte, receptor ou composição.
 
 Foram inseridos apenas registros sintéticos identificados por `QA-EXTRA-20261019204026`. O usuário técnico temporário foi criado para autenticar as verificações. Os parâmetros de custo existentes do ComercialAPP foram consultados sem alteração; o aceite usou `recordManualSelection`. Os PDFs comerciais são arquivos sintéticos válidos, com revisão e geração próprias. Os databooks foram produzidos pelo gerador Python implantado.
 
@@ -52,6 +52,8 @@ A prévia e os PDFs foram gerados pelas APIs e worker implantados. O texto extra
 
 1. O staging usa HTTP com IP/porta; o consumidor exigia HTTPS remoto. Foi acrescentada uma exceção optativa que exige **simultaneamente** `APP_ENV=staging` e `COMERCIALAPP_ALLOW_STAGING_HTTP=true`. Produção continua exigindo HTTPS; redirects, credenciais na URL e origens com caminho/query/fragmento seguem recusados. Testes de configuração/conexão e CI cobrem a restrição.
 2. A consulta da mãe no ComercialAPP gravava o escopo com origem `COMERCIAL_APP`, enquanto o orçamento selecionado permanecia Access. O recorte agora reconhece o mesmo número como principal, conservando a procedência persistida. A versão do databook considera essas metas. Teste cobre as duas origens e alteração da versão ao editar as metas.
+
+3. A retirada explícita removia as linhas automáticas, mas mantinha o fingerprint da importação. Restaurar a mesma revisão podia pular a reconstrução dessas linhas. A sincronização agora também verifica a presença dos serviços antes de considerar o escopo importado. Regressão em PostgreSQL e repetição no staging confirmaram a restauração de A com 25 m previstos/25 m executados, sua preparação do databook e a preservação dos IDs das outras contribuições.
 
 No filtroAPP staging: `COMERCIALAPP_API_URL=http://76.13.171.70:8087/`, `APP_ENV=staging`, opção HTTP explícita e contrato 3. O backend foi reconstruído e atualizado; as migrações já estavam aplicadas. A modificação preexistente em `deploy/nginx/staging.conf` foi preservada.
 
