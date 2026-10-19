@@ -776,6 +776,11 @@ function PressureField({ data, onChange, disabled, invalidKey, groupKey, field, 
 
 function VolumeField({ data, onChange, disabled, invalidKey, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'>) {
   const inputId = fieldId(groupKey, 'volumeOleo');
+  const volume = getString(data.volumeOleo);
+  const formattedVolume = /^\d+$/.test(volume)
+    ? volume.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    : volume;
+  const integerPattern = /^(?:\d+|\d{1,3}(?:\.\d{3})+)$/;
 
   return (
     <div className={fieldClass(invalidKey, 'volumeOleo')}>
@@ -783,11 +788,45 @@ function VolumeField({ data, onChange, disabled, invalidKey, groupKey }: Pick<Se
       <div className="num-unit">
         <input
           id={inputId}
-          inputMode="decimal"
+          inputMode="numeric"
           placeholder="0"
-          value={getString(data.volumeOleo)}
+          value={formattedVolume}
           disabled={disabled}
-          onChange={event => onChange({ volumeOleo: onlyNumberPunctuation(event.target.value) })}
+          onBeforeInput={event => {
+            const text = (event.nativeEvent as InputEvent).data;
+            if (text && !integerPattern.test(text)) event.preventDefault();
+          }}
+          onKeyDown={event => {
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+            if (event.key.length === 1 && /\D/.test(event.key)) event.preventDefault();
+            const input = event.currentTarget;
+            const start = input.selectionStart;
+            if (start === null || start !== input.selectionEnd) return;
+            if (event.key === 'Backspace' && input.value[start - 1] === '.') {
+              input.setSelectionRange(start - 2, start);
+            } else if (event.key === 'Delete' && input.value[start] === '.') {
+              input.setSelectionRange(start, start + 2);
+            }
+          }}
+          onPaste={event => {
+            const text = event.clipboardData.getData('text');
+            if (!integerPattern.test(text)) event.preventDefault();
+          }}
+          onChange={event => {
+            const input = event.currentTarget;
+            if (/[^\d.]/.test(input.value)) return;
+            const digitsAfterCursor = input.value.slice(input.selectionStart ?? input.value.length).replace(/\D/g, '').length;
+            onChange({ volumeOleo: input.value.replace(/\D/g, '') });
+            requestAnimationFrame(() => {
+              let cursor = input.value.length;
+              let remaining = digitsAfterCursor;
+              while (cursor > 0 && remaining > 0) {
+                cursor -= 1;
+                if (/\d/.test(input.value[cursor])) remaining -= 1;
+              }
+              input.setSelectionRange(cursor, cursor);
+            });
+          }}
         />
         <select
           id={fieldId(groupKey, 'volumeOleoUnit')}
