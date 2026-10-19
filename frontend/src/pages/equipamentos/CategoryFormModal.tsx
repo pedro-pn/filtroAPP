@@ -6,20 +6,21 @@ import type {
   EquipmentCategoryPayload,
   EquipmentFieldDefinition,
   EquipmentFieldType,
-  MeasurementDimension,
-  TechnicalFieldDefinition
+  EquipmentTechnicalStandard
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
-import { TechnicalSchemaBuilder } from './TechnicalSchemaBuilder';
 
 interface Props {
   open: boolean;
   category: EquipmentCategory | null;
   saving: boolean;
-  unitsCatalog: MeasurementDimension[];
+  technicalStandards: EquipmentTechnicalStandard[];
+  standardsLoading: boolean;
+  standardsError: boolean;
+  onRetryStandards: () => void;
   onClose: () => void;
   onSubmit: (payload: EquipmentCategoryPayload) => void;
 }
@@ -42,7 +43,7 @@ function emptyField(): EquipmentFieldDefinition {
   return { key: '', label: '', type: 'text', required: false, showInDashboard: false };
 }
 
-export function CategoryFormModal({ open, category, saving, unitsCatalog, onClose, onSubmit }: Props) {
+export function CategoryFormModal({ open, category, saving, technicalStandards, standardsLoading, standardsError, onRetryStandards, onClose, onSubmit }: Props) {
   const [name, setName] = useState(category?.name || '');
   const [supportsCalibration, setSupportsCalibration] = useState(Boolean(category?.supportsCalibration));
   const [supportsTechnicalDoc, setSupportsTechnicalDoc] = useState(category?.supportsTechnicalDoc ?? true);
@@ -53,7 +54,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
   const [checklistItems, setChecklistItems] = useState<string[]>(category?.checklistItems?.length ? category.checklistItems : []);
   const [fields, setFields] = useState<EquipmentFieldDefinition[]>(category?.fieldSchema?.length ? category.fieldSchema : []);
   const [technicalDocEnabled, setTechnicalDocEnabled] = useState(Boolean(category?.technicalDocEnabled));
-  const [technicalSchema, setTechnicalSchema] = useState<TechnicalFieldDefinition[]>(category?.technicalSchema?.length ? category.technicalSchema : []);
+  const [technicalStandardId, setTechnicalStandardId] = useState(category?.technicalStandardId || '');
 
   function updateField(index: number, patch: Partial<EquipmentFieldDefinition>) {
     setFields(prev => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)));
@@ -71,16 +72,14 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
       checklistDisplayMode,
       checklistItems: checklistItems.map(item => item.trim()).filter(Boolean),
       technicalDocEnabled,
+      technicalStandardId: technicalStandardId || null,
       fieldSchema: fields
         .filter(field => field.label.trim())
         .map((field, index) => ({
           ...field,
           order: index,
           options: field.type === 'select' ? (field.options || []).filter(Boolean) : undefined
-        })),
-      technicalSchema: technicalDocEnabled
-        ? technicalSchema.filter(field => field.label.trim()).map((field, index) => ({ ...field, order: index }))
-        : technicalSchema
+        }))
     });
   }
 
@@ -193,9 +192,17 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
           ))}
         </div>
 
-        {technicalDocEnabled && (
-          <TechnicalSchemaBuilder value={technicalSchema} onChange={setTechnicalSchema} unitsCatalog={unitsCatalog} />
-        )}
+        <div className="field-group">
+          <label htmlFor="cat-technical-standard">Padrão de dados técnicos</label>
+          <select id="cat-technical-standard" value={technicalStandardId} disabled={saving || standardsLoading || standardsError} onChange={e => { setTechnicalStandardId(e.target.value); if (e.target.value) setTechnicalDocEnabled(true); }}>
+            <option value="">{category?.technicalSchema?.length ? 'Manter campos atuais (sem padrão compartilhado)' : 'Sem padrão'}</option>
+            {technicalStandardId && !technicalStandards.some(standard => standard.id === technicalStandardId) && <option value={technicalStandardId}>Padrão atual</option>}
+            {technicalStandards.map(standard => <option key={standard.id} value={standard.id}>{standard.name}</option>)}
+          </select>
+          <p className="form-hint">Crie e edite os campos no bloco “Padrões de dados técnicos” das configurações. As alterações são aplicadas a todos os equipamentos das categorias que usam o padrão. Os valores preenchidos são preservados ao trocar o padrão.</p>
+          {!technicalStandardId && Boolean(category?.technicalSchema?.length) && <p className="form-hint">Os campos atuais foram preservados nesta categoria. Selecione outro padrão para voltar a compartilhar a configuração.</p>}
+          {standardsError && <div role="alert"><p className="field-error">Não foi possível carregar os padrões.</p><Button variant="secondary" size="sm" type="button" onClick={onRetryStandards}>Tentar novamente</Button></div>}
+        </div>
 
         <div className="admin-form-actions equip-form-actions">
           <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={saving}>Cancelar</Button>

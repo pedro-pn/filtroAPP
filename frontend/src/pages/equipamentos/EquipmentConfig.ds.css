@@ -131,6 +131,35 @@
 .equip-page-v2 .equip-category-manager__item .rel-meta { margin: 0; }
 .equip-page-v2 .equip-category-manager__item .equip-category-manager__actions { justify-content: flex-end; align-items: center; }
 
+.equip-page-v2 .equip-technical-standards__list:not(:empty) {
+  margin-top: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.equip-page-v2 .equip-technical-standards__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--line);
+}
+
+.equip-page-v2 .equip-technical-standards__item:last-child { border-bottom: 0; }
+.equip-page-v2 .equip-technical-standards__item:hover { background: var(--surface-2); }
+.equip-page-v2 .equip-technical-standards__summary { display: grid; min-width: 0; gap: var(--space-1); }
+.equip-page-v2 .equip-technical-standards__summary > strong,
+.equip-page-v2 .equip-technical-standards__categories {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.equip-page-v2 .equip-technical-standards__item .rel-meta { margin: 0; }
+.equip-page-v2 .equip-technical-standards__actions { align-items: center; flex-wrap: nowrap; }
+
 .equip-page-v2 .equip-rdo-slots-config .equip-slots-service {
   color: var(--brand-text);
   font-size: var(--text-sm);
@@ -292,6 +321,15 @@
   color: var(--ink);
 }
 
+.fv-ds .equip-standard-fieldset {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 .fv-ds .equip-config-form :is(.rel-meta, .form-hint) { color: var(--muted); }
 .fv-ds .equip-config-form :is(.sec, .section-title) { color: var(--ink); }
 .fv-ds .equip-config-form .equip-flags {
@@ -381,6 +419,12 @@
 }
 
 @media (max-width: 767.98px) {
+  .equip-page-v2 .equip-technical-standards__item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-2);
+  }
+  .equip-page-v2 .equip-technical-standards__categories { grid-column: 1 / -1; }
+  .equip-page-v2 .equip-technical-standards__actions { grid-column: 2; grid-row: 1; }
   .equip-page-v2 .equip-category-manager .admin-toolbar > .fv-button { margin-inline-start: auto; }
   .equip-page-v2 .equip-maintenance-config .operational-equipment-profile-list > div,
   .fv-ds .equip-config-form .equip-flags,

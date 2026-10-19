@@ -488,7 +488,7 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
         <div className="sec">Campos dos Dados Técnicos</div>
         <button className="mini-btn alt" type="button" onClick={() => onChange([...value, emptyTechField()])}>Adicionar campo</button>
       </div>
-      {value.length === 0 && <p className="rel-meta">Nenhum campo técnico. Adicione os campos que comporão o datasheet desta categoria.</p>}
+      {value.length === 0 && <p className="rel-meta">Nenhum campo técnico. Adicione os campos que comporão o datasheet dos equipamentos.</p>}
       {value.map((field, index) => (
         <FieldEditor
           key={index}

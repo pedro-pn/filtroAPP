@@ -485,12 +485,9 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Remove do payload os campos opcionais desligados (não vão para o documento).
-    const cleaned: Record<string, unknown> = {};
-    for (const field of fields) {
-      if (isIncluded(field)) cleaned[field.key] = data[field.key];
-    }
-    onSubmit(cleaned, overrides, { add: newPhotos, removeIds: removedPhotoIds }, willBumpRevision);
+    // Mantém também valores de campos removidos/trocados no padrão. Os overrides
+    // controlam a exibição no documento sem apagar o histórico preenchido.
+    onSubmit(data, overrides, { add: newPhotos, removeIds: removedPhotoIds }, willBumpRevision);
   }
 
   return (

@@ -17,14 +17,18 @@ async function loadView() {
   }
 }
 
-test('links antigos de categoria abrem a aba unificada', async () => {
-  const { equipmentTabFromParam, parseEquipmentTabParam } = await loadView();
+test('URL distingue a página de todos os equipamentos da categoria escolhida', async () => {
+  const { equipmentCategoryFromParam, equipmentTabFromParam, parseEquipmentTabParam } = await loadView();
+  const categories = [{ id: 'categoria-1' }, { id: 'categoria-2' }];
 
   assert.equal(parseEquipmentTabParam('cat:categoria-1'), 'cat:categoria-1');
   assert.equal(equipmentTabFromParam('cat:categoria-1'), 'categories');
   assert.equal(equipmentTabFromParam('categories'), 'categories');
   assert.equal(parseEquipmentTabParam('cat:'), 'dashboard');
   assert.equal(parseEquipmentTabParam('inexistente'), 'dashboard');
+  assert.equal(equipmentCategoryFromParam('categories', categories), null);
+  assert.equal(equipmentCategoryFromParam('cat:categoria-2', categories)?.id, 'categoria-2');
+  assert.equal(equipmentCategoryFromParam('cat:excluida', categories), null);
 });
 
 test('busca abrange todas as categorias, códigos e atributos sem perder a ordenação', async () => {
@@ -42,6 +46,31 @@ test('busca abrange todas as categorias, códigos e atributos sem perder a orden
   assert.deepEqual(filterAndSortEquipment(equipment, categories, 'BOMBAS', 'asc').map(item => item.code), ['B-01', 'B-20']);
   assert.deepEqual(filterAndSortEquipment(equipment, categories, 'sn-10', 'asc').map(item => item.code), ['F-10']);
   assert.deepEqual(filterAndSortEquipment(equipment, categories, '', 'desc').map(item => item.code), ['F-10', 'B-20', 'B-01']);
+  assert.deepEqual(filterAndSortEquipment(equipment, categories, '', 'asc', 'bombas').map(item => item.code), ['B-01', 'B-20']);
+  assert.deepEqual(filterAndSortEquipment(equipment, categories, 'sn-10', 'asc', 'bombas'), []);
+  assert.deepEqual(filterAndSortEquipment(equipment, categories, '', 'asc', 'excluida'), []);
+});
+
+test('tabela geral combina busca, categoria, calibração, PDF técnico e certificado', async () => {
+  const { EMPTY_EQUIPMENT_FILTERS, filterAllEquipment } = await loadView();
+  const categories = [{ id: 'bombas', name: 'Bombas' }, { id: 'filtros', name: 'Filtros' }];
+  const attachment = { id: 'pdf' };
+  const equipment = [
+    { id: '1', categoryId: 'bombas', code: 'B-01', name: 'Bomba principal', attributes: { serie: 'SN-10' }, hasCalibration: true, expiresAt: '2000-01-01', calibrationCertificate: attachment, technicalDocGenerated: attachment, technicalDocGeneratedOutdated: true },
+    { id: '2', categoryId: 'bombas', code: 'B-02', name: 'Bomba auxiliar', hasCalibration: true, expiresAt: '2999-01-01', technicalDoc: attachment },
+    { id: '3', categoryId: 'filtros', code: 'F-01', name: 'Filtro', hasCalibration: false },
+    { id: '4', categoryId: 'filtros', code: 'F-02', name: 'Medidor', hasCalibration: true, expiresAt: null }
+  ];
+  const codes = filters => filterAllEquipment(equipment, categories, { ...EMPTY_EQUIPMENT_FILTERS, ...filters }).map(item => item.code);
+  assert.deepEqual(codes({}), ['B-01', 'B-02', 'F-01', 'F-02']);
+  assert.deepEqual(codes({ search: 'SN-10', categoryId: 'bombas', calibration: 'expired', technicalDoc: 'outdated', certificate: 'with' }), ['B-01']);
+  assert.deepEqual(codes({ categoryId: 'filtros', calibration: 'expired' }), []);
+  assert.deepEqual(codes({ calibration: 'ok', technicalDoc: 'with', certificate: 'without' }), ['B-02']);
+  assert.deepEqual(codes({ technicalDoc: 'without' }), ['F-01', 'F-02']);
+  assert.deepEqual(codes({ calibration: 'not-applicable' }), ['F-01']);
+  assert.deepEqual(codes({ calibration: 'none' }), ['F-02']);
+  assert.deepEqual(codes({ categoryId: 'filtros', certificate: 'with' }), []);
+  assert.deepEqual(EMPTY_EQUIPMENT_FILTERS, { search: '', categoryId: '', calibration: 'all', technicalDoc: 'all', certificate: 'all' });
 });
 
 test('nomes longos usam prefixos dos códigos e preservam fallback legível', async () => {

@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-10-16';
+export const DATA_CATALOG_VERSION = '2026-10-19';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -74,7 +74,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'equipment', label: 'Equipamentos, calibração e inibição',
-    models: [...modelEntries(['Equipment', 'InhibitionVessel', 'InhibitionSystem', 'Unit', 'Manometer', 'ParticleCounter', 'CalibrationCertificate', 'EquipmentCategory', 'CompanyEquipment'], 'PLANNED'), ...modelEntries(['EquipmentAttachment'], 'SENSITIVE'), ...modelEntries(['CalibrationNotificationLog', 'EquipmentNotificationRecipient', 'EquipmentNotificationConfig', 'RdoEquipmentSlot'], 'RESERVED')],
+    models: [...modelEntries(['Equipment', 'InhibitionVessel', 'InhibitionSystem', 'Unit', 'Manometer', 'ParticleCounter', 'CalibrationCertificate', 'EquipmentCategory', 'CompanyEquipment'], 'PLANNED'), ...modelEntries(['EquipmentAttachment'], 'SENSITIVE'), ...modelEntries(['CalibrationNotificationLog', 'EquipmentNotificationRecipient', 'EquipmentNotificationConfig', 'RdoEquipmentSlot', 'EquipmentTechnicalStandard'], 'RESERVED')],
     candidateScopes: ['equipamentos.read', 'equipamentos.categorias.read', 'equipamentos.calibracoes.read', 'equipamentos.certificados.metadata.read', 'equipamentos.documentos.download', 'equipamentos.inibicao.read'], endpointFamilies: ['/equipamentos', '/equipamentos/calibracoes', '/equipamentos/inibicao'],
     excludedFields: ['e-mails de notificação', 'regras internas', 'caminho/URL/token', 'logs de envio', 'slots internos']
   }),
