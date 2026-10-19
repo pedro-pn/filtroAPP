@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
+import { commercialTransaction } from './commercial-contributions.js';
 import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 import { normalizeAdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
 
@@ -164,7 +165,7 @@ export function plannedHoursConflict(message = 'As horas ou a proposta mudaram. 
 }
 
 export async function resolvePlannedHoursDecision(projectId, { choice, fingerprint }, userId, client = prisma) {
-  await client.$transaction(async tx => {
+  await commercialTransaction(async tx => {
     const current = (await loadPlannedHours([projectId], tx)).get(projectId);
     if (!current) throw Object.assign(new Error('Projeto não encontrado.'), { status: 404 });
     if (current.hoursPlan.fingerprint !== fingerprint) throw plannedHoursConflict();
@@ -174,5 +175,5 @@ export async function resolvePlannedHoursDecision(projectId, { choice, fingerpri
       basis: current.basis, choice, resolvedByUserId: userId, resolvedAt: new Date().toISOString(),
       manual: current.hoursPlan.manual, commercial: current.hoursPlan.commercial
     } } });
-  }, { isolationLevel: 'Serializable' });
+  }, client);
 }

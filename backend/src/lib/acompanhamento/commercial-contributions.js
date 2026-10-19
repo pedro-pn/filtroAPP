@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
@@ -20,7 +21,9 @@ export async function commercialTransaction(operation, database = prisma) {
     try { return await database.$transaction(operation, { isolationLevel: 'Serializable', timeout: 30_000 }); }
     catch (error) {
       const code = error.code || error.cause?.originalCode || error.meta?.driverAdapterError?.cause?.originalCode;
-      if (attempt >= 3 || !['P2034', 'P2002', '40001'].includes(code)) throw error;
+      if (!['P2034', 'P2002', '40001'].includes(code)) throw error;
+      if (attempt >= 7) throw conflict('Outra alteração comercial está em andamento. Atualize e tente novamente.');
+      await delay(25 * 2 ** attempt + Math.floor(Math.random() * 25));
     }
   }
 }
