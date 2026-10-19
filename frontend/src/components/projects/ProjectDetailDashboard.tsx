@@ -99,7 +99,7 @@ export function ProjectDetailDashboard({
   const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
   const [qualityDeviationsNoveltyActive, setQualityDeviationsNoveltyActive] = useState(true);
   const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
-  const [additionalContribution, setAdditionalContribution] = useState<{ projectId: string; proposalCode: string } | null>(null);
+  const [additionalContribution, setAdditionalContribution] = useState<{ projectId: string; proposalCode: string; source?: 'ACCESS_IMPORT' | 'COMERCIAL_APP' } | null>(null);
   const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
   const [standbyHistoryOpen, setStandbyHistoryOpen] = useState(false);
   const [hoursDetail, setHoursDetail] = useState<{
@@ -479,7 +479,7 @@ export function ProjectDetailDashboard({
         <ProjectFinancialSnapshot data={data} onViewAdditionalContribution={proposal => {
           const ownerProjectId = proposal.projectId ?? projectId;
           if (ownerProjectId && proposal.codProp != null) setAdditionalContribution({
-            projectId: ownerProjectId, proposalCode: String(proposal.codProp)
+            projectId: ownerProjectId, proposalCode: String(proposal.codProp), source: proposal.source
           });
         }}>
           {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (

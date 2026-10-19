@@ -95,6 +95,8 @@ interface SystemRow {
   quantity: string;
 }
 interface ServiceRow {
+  contributionKey?: string | null;
+  note?: string | null;
   key: string;
   scopeKey: string;
   scopeName: string;
@@ -162,12 +164,14 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
   const scopeKeys = new Map<string, string>();
   const services = scope.services.map(s => {
     const scopeName = s.scopeName?.trim() || '';
-    if (!scopeKeys.has(scopeName)) scopeKeys.set(scopeName, nextKey());
+    const scopeIdentity = JSON.stringify([s.contributionKey ?? null, scopeName]);
+    if (!scopeKeys.has(scopeIdentity)) scopeKeys.set(scopeIdentity, nextKey());
     const serviceType = s.serviceType || 'LIMPEZA_QUIMICA';
     const allowed = allowedSystems(serviceType);
     return {
       key: nextKey(),
-      scopeKey: scopeKeys.get(scopeName)!, scopeName,
+      scopeKey: scopeKeys.get(scopeIdentity)!, scopeName,
+      contributionKey: s.contributionKey, note: s.note,
       serviceType,
       weight: s.weight === null || s.weight === undefined ? '' : toStr(s.weight),
       systems: (s.systems ?? [])
@@ -185,7 +189,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
     };
   });
   return {
-    services: rescaleTo100(services), // garante soma 100% (corrige dados antigos)
+    services: services.some(s => s.contributionKey) ? services : rescaleTo100(services), // garante soma 100% (corrige dados antigos)
     normalHours: (scope.normalHours ?? []).map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
@@ -204,6 +208,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
 function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: HoursRow[]) {
   return JSON.stringify({
     services: services.map(s => ({
+      contributionKey: s.contributionKey ?? null,
       scopeName: (s.scopeName ?? '').trim(),
       serviceType: s.serviceType,
       weight: s.weight,
@@ -329,7 +334,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     if (!canManage || !data || staleHours || resolutionMutation.isPending) return;
     const names = new Set<string>();
     for (const group of scopeGroups) {
-      const name = group.name.trim();
+      const name = JSON.stringify([group.services?.[0]?.contributionKey ?? null, group.name.trim()]);
       if (names.has(name)) {
         showToast('Há escopos com o mesmo nome ou mais de um sem nome. Renomeie-os ou mova os serviços para um único escopo.', 'error');
         return;
@@ -345,7 +350,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     const payload: PlannedScopeInput = {
       hoursFingerprint: loadedFingerprint,
       commercialScopeFingerprint: data.commercialScopeImport?.fingerprint ?? null,
+      contributionsFingerprint: data.contributionsFingerprint,
       services: services.map(s => ({
+        contributionKey: s.contributionKey, note: s.note,
         scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
         weight: toNum(s.weight) ?? 0,
@@ -399,7 +406,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   function addService(scopeKey?: string) {
     const group = scopeGroups.find(item => item.key === scopeKey) ?? scopeGroups.at(-1);
     setServices(prev => rebalanceUntouched(
-      [...prev, { key: nextKey(), scopeKey: group?.key ?? nextKey(), scopeName: group?.name ?? '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
+      [...prev, { key: nextKey(), scopeKey: group?.key ?? nextKey(), scopeName: group?.name ?? '', contributionKey: group?.services?.[0]?.contributionKey, serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
       touchedWeights.current
     ));
   }
@@ -419,7 +426,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   function moveService(key: string, scopeKey: string) {
     const group = scopeGroups.find(item => item.key === scopeKey);
     if (!group) return;
-    setServices(prev => prev.map(service => service.key === key ? { ...service, scopeKey, scopeName: group.name } : service));
+    setServices(prev => prev.map(service => service.key === key ? { ...service, scopeKey, scopeName: group.name, contributionKey: group.services?.[0]?.contributionKey } : service));
   }
 
   function duplicateService(key: string) {
@@ -555,7 +562,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
           {scopeGroups.map(group => <details className="acp-scope-group" key={group.key}>
             <summary className="acp-scope-group-toggle">
               <span>{group.name.trim() || 'Escopo sem nome'}</span>
-              <small>{group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small>
+              <small>{group.services[0]?.contributionKey?.replace('COMERCIAL_APP:', 'ComercialAPP · Proposta ') ?? 'Manual'} · {group.services.length} serviço{group.services.length === 1 ? '' : 's'}</small>
             </summary>
             <div className="acp-scope-group-content" role="region" aria-label={`Serviços do escopo ${group.name.trim() || 'sem nome'}`} tabIndex={0}>
             <div className="field-group acp-scope-group-name">

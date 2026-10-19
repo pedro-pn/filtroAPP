@@ -135,7 +135,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'commercial', label: 'Comercial, orçamento e planejamento',
-    models: [...modelEntries(['CommercialProposal', 'CommercialAppProposal', 'ProjectBudget', 'ProjectAdditionalProposal', 'ProjectPlannedService', 'ProjectPlannedServiceSystem', 'ProjectPlannedNormalHours', 'ProjectPlannedOvertime'], 'SENSITIVE'), ...modelEntries(['CommercialAppDelivery', 'AccessImport', 'ProjectServiceSystem'], 'RESERVED')],
+    models: [...modelEntries(['CommercialProposal', 'CommercialAppProposal', 'ProjectBudget', 'ProjectAdditionalProposal', 'ProjectPlannedService', 'ProjectPlannedServiceSystem', 'ProjectPlannedNormalHours', 'ProjectPlannedOvertime'], 'SENSITIVE'), ...modelEntries(['CommercialAppDelivery', 'CommercialProposalSyncJob', 'ProjectContributionEvent', 'AccessImport', 'ProjectServiceSystem'], 'RESERVED')],
     candidateScopes: ['comercial.propostas.read', 'comercial.orcamentos.read', 'comercial.servicos-planejados.read', 'comercial.horas.read', 'comercial.contatos.read'], candidateAvailability: 'SENSITIVE', endpointFamilies: ['/comercial/propostas', '/comercial/orcamentos'],
     excludedFields: ['rawRow', 'arquivo/hash de importação', 'contato/CNPJ sem escopo', 'observações', 'custos/margens sem escopo']
   }),

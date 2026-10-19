@@ -140,14 +140,17 @@ test('selected ComercialAPP hours use the same manual divergence and revision ru
   ] }).hoursPlan.source, 'MANUAL');
 });
 
-test('planned hours load only the selected ComercialAPP revision, even when Access additions exist', async () => {
+test('planned hours compose selected ComercialAPP revision with Access additions', async () => {
   const database = {
     project: { findMany: async () => [{
       id: 'project-1', plannedHoursResolution: null, plannedNormalHours: [], plannedOvertime: [],
       budgets: [{ source: 'COMERCIAL_APP', commercialAppProposalId: 'selected-revision', sourceProposalCodBd: null }],
       additionalProposals: [{ sourceProposalCodBd: 99 }]
     }] },
-    commercialProposal: { findMany: async () => { throw new Error('Access não deve ser consultado'); } },
+    commercialProposal: { findMany: async query => {
+      assert.deepEqual(query.where.codBd.in, [99]);
+      return [{ codBd: 99, codProp: 8701, nRev: 1, rawRow: raw(20, 5) }];
+    } },
     commercialAppProposal: { findMany: async query => {
       assert.deepEqual(query.where.externalId.in, ['selected-revision']);
       return [{ externalId: 'selected-revision', proposalCode: '8700', revisionNumber: 2,
@@ -155,6 +158,6 @@ test('planned hours load only the selected ComercialAPP revision, even when Acce
     } }
   };
   const result = (await loadPlannedHours(['project-1'], database)).get('project-1');
-  assert.deepEqual(result.hoursPlan.commercial, { normal: 130, overtime: 15, total: 145 });
-  assert.equal(result.hoursPlan.proposals[0].nRev, 2);
+  assert.deepEqual(result.hoursPlan.commercial, { normal: 150, overtime: 20, total: 170 });
+  assert.equal(result.hoursPlan.proposals.find(row => row.source === 'COMERCIAL_APP').nRev, 2);
 });

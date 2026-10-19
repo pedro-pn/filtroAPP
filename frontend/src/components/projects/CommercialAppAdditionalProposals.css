@@ -1,0 +1,24 @@
+.commercial-additional {
+  display: grid;
+  gap: var(--space-3, 12px);
+  margin-block: var(--space-3, 12px);
+  padding-block: var(--space-4, 16px);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  min-width: 0;
+}
+.commercial-additional p { margin: 0; }
+.commercial-additional .project-revision-picker__actions,
+.commercial-additional-query {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  padding-block: var(--space-2, 8px);
+}
+.commercial-additional .fv-select-shell { min-width: 0; max-width: 100%; }
+.commercial-additional details,
+.commercial-additional-query-details { min-width: 0; overflow-wrap: anywhere; }
+.commercial-additional summary,
+.commercial-additional-query-details summary { cursor: pointer; }
+.commercial-additional .fv-switch { padding-block: var(--space-2, 8px); }
+.commercial-additional-query .fv-field { flex: 1 1 140px; min-width: 0; }

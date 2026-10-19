@@ -114,7 +114,7 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   project = received.project;
   assert.equal(received.status, 'created');
   const [first] = await processCommercialProposalSyncs(options);
-  assert.equal(first.status, 'SYNCED');
+  assert.equal(first.status, 'SYNCED', JSON.stringify({ first, error: transactionError?.message }));
   assert.equal(first.scope.status, 'IMPORTED');
   const budget = () => prisma.projectBudget.findUnique({ where: { projectId_version: { projectId: project.id, version: 1 } } });
   const firstBudget = await budget();

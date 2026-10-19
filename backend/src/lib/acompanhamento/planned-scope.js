@@ -8,6 +8,8 @@
  */
 
 import prisma from '../prisma.js';
+import { createHash } from 'node:crypto';
+import { lockCommercialProject } from './commercial-contributions.js';
 import { resolvePlannedSystem } from './project-systems.js';
 import { normalizeRdoServiceType } from './avanco.js';
 import { latestRealizedCorrections } from './realized-corrections.js';
@@ -38,6 +40,7 @@ export function buildPlannedScope(services, hours, { integral = false } = {}) {
     hoursPlan,
     services: services.map(s => ({
       id: s.id,
+      contributionKey: s.contributionKey ?? null,
       serviceType: s.serviceType,
       scopeName: s.scopeName ?? null,
       weight: s.weight,
@@ -86,12 +89,12 @@ export async function getPlannedScope(projectId) {
     loadPlannedHours([projectId])
   ]);
   const hours = hoursByProject.get(projectId);
-  return { ...buildPlannedScope(services, hours, { integral: true }), commercialScopeImport: project.commercialScopeImport };
+  return { ...buildPlannedScope(services, hours, { integral: true }), contributionsFingerprint: scopeEditFingerprint(services), commercialScopeImport: project.commercialScopeImport };
 }
 
 // Substitui os conjuntos enviados para o projeto (já validados pela rota).
 export async function setPlannedScope(projectId, { services, normalHours, overtime, hoursFingerprint,
-  commercialScopeFingerprint } = {}) {
+  commercialScopeFingerprint, contributionsFingerprint } = {}) {
   const editingServices = services !== undefined;
   if (editingServices) assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
   const currentCorrections = latestRealizedCorrections(await prisma.projectRealizedCorrection.findMany({ where: { projectId } }));
@@ -130,6 +133,24 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
   const roleNameById = new Map(roles.map(r => [r.id, r.name]));
 
   await prisma.$transaction(async (tx) => {
+    await lockCommercialProject(tx, projectId);
+    const currentServices = editingServices ? await tx.projectPlannedService.findMany({
+      where: { projectId }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      include: { systems: { orderBy: { order: 'asc' }, include: { projectSystem: true } } }
+    }) : [];
+    if (editingServices && (contributionsFingerprint !== undefined || currentServices.some(row => row.contributionKey)) &&
+        contributionsFingerprint !== scopeEditFingerprint(currentServices)) {
+      throw Object.assign(new Error('Uma contribuição mudou. Atualize o cronograma antes de salvar.'), { status: 409 });
+    }
+    const existingKeys = new Set(currentServices.map(row => row.contributionKey).filter(Boolean));
+    if ((services ?? []).some(row => row.contributionKey && !existingKeys.has(row.contributionKey))) {
+      throw Object.assign(new Error('Contribuição de escopo desconhecida.'), { status: 409 });
+    }
+    const changedKeys = new Set();
+    for (const key of new Set([...currentServices, ...(services ?? [])].map(row => row.contributionKey ?? null))) {
+      if (JSON.stringify(canonicalServices(currentServices.filter(row => (row.contributionKey ?? null) === key))) !==
+          JSON.stringify(canonicalServices((services ?? []).filter(row => (row.contributionKey ?? null) === key)))) changedKeys.add(key);
+    }
     if (editingServices && commercialScopeFingerprint !== undefined) {
       const currentProject = await tx.project.findUnique({ where: { id: projectId },
         select: { commercialScopeImport: true } });
@@ -146,11 +167,14 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
     }
     const resolvedSystems = new Map();
     // Reescreve somente os conjuntos enviados; horas isoladas preservam o escopo comercial.
-    if (editingServices) await tx.projectPlannedService.deleteMany({ where: { projectId } });
+    if (editingServices) for (const key of changedKeys) {
+      await tx.projectPlannedService.deleteMany({ where: { projectId, contributionKey: key } });
+    }
     if (normalHours !== undefined) await tx.projectPlannedNormalHours.deleteMany({ where: { projectId } });
     if (overtime !== undefined) await tx.projectPlannedOvertime.deleteMany({ where: { projectId } });
 
     for (const [index, s] of (services ?? []).entries()) {
+      if (!changedKeys.has(s.contributionKey ?? null)) continue;
       const systems = [];
       for (const [sysIndex, sys] of (s.systems ?? []).entries()) {
         const identity = JSON.stringify([sys.projectSystemId || '', sys.equipment || '', sys.systemName || '']);
@@ -167,6 +191,7 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
       await tx.projectPlannedService.create({
         data: {
           projectId,
+          contributionKey: s.contributionKey ?? null,
           serviceType: s.serviceType,
           scopeName: text(s.scopeName),
           weight: num(s.weight) ?? 1,
@@ -176,8 +201,15 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
         }
       });
     }
-    if (editingServices) await tx.project.update({ where: { id: projectId },
-      data: { commercialScopeImport: { status: 'MANUAL_OVERRIDE' } } });
+    if (editingServices) for (const key of changedKeys) {
+      const additional = key?.startsWith('COMERCIAL_APP:') ? await tx.projectAdditionalProposal.findUnique({
+        where: { projectId_source_proposalCode: { projectId, source: 'COMERCIAL_APP', proposalCode: key.slice('COMERCIAL_APP:'.length) } }
+      }) : null;
+      if (additional) await tx.projectAdditionalProposal.update({ where: { id: additional.id },
+        data: { scopeImport: { ...additional.scopeImport, status: 'MANUAL_OVERRIDE' } } });
+      else await tx.project.update({ where: { id: projectId },
+        data: { commercialScopeImport: { status: 'MANUAL_OVERRIDE' } } });
+    }
 
     if (normalHours?.length) {
       await tx.projectPlannedNormalHours.createMany({
@@ -213,4 +245,23 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
   }, { timeout: 30000, isolationLevel: 'Serializable' });
 
   return getPlannedScope(projectId);
+}
+
+function canonicalServices(services) {
+  return services.map(service => ({
+    serviceType: service.serviceType, scopeName: text(service.scopeName),
+    weight: num(service.weight) ?? 1, note: text(service.note),
+    systems: (service.systems ?? []).map(row => ({
+      projectSystemId: row.projectSystemId ?? null,
+      equipment: text(row.equipment ?? row.projectSystem?.equipment),
+      systemName: text(row.systemName ?? row.projectSystem?.name), systemType: row.systemType,
+      description: text(row.description), diameter: row.systemType === 'TUBULACAO' ? text(row.diameter) : null,
+      diameterUnit: row.systemType === 'TUBULACAO' && text(row.diameter) ? row.diameterUnit || 'pol' : null,
+      quantity: num(row.quantity)
+    }))
+  }));
+}
+function scopeEditFingerprint(services) {
+  return createHash('sha256').update(JSON.stringify(services.map(row =>
+    [row.id, row.contributionKey ?? null, row.updatedAt]))).digest('hex');
 }

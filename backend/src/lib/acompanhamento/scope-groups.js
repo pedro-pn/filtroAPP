@@ -20,7 +20,7 @@ export function assertDistinctScopeMeasurements(services, normalizeServiceType) 
     for (const row of service.systems ?? []) {
       const equipment = systemNameKey(row.equipment), system = systemNameKey(row.systemName);
       const linked = Boolean(row.projectSystemId || equipment || system);
-      const key = JSON.stringify([type, row.systemType, equipment, system]);
+      const key = JSON.stringify([service.contributionKey ?? null, type, row.systemType, equipment, system]);
       const bitola = linked && row.systemType === 'TUBULACAO' ? diameterKey(row.diameter, row.diameterUnit) : '';
       const previous = seen.get(key) ?? [];
       const conflict = previous.find(item => item.name !== name && (!item.bitola || !bitola || item.bitola === bitola));

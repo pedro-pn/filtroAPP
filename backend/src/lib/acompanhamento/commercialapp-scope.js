@@ -168,29 +168,41 @@ function scopeFingerprint(services) {
 
 // Mantém o escopo manual. Uma nova revisão só substitui o escopo que a
 // integração anterior criou, e a edição manual retira esse vínculo.
-export async function syncCommercialAppScope(tx, projectId, proposal) {
+export async function syncCommercialAppScope(tx, projectId, proposal, { replaceEmpty = false } = {}) {
+  const additional = proposal.proposalKind === 'ADDITIONAL' || proposal.snapshot?.proposalKind === 'ADDITIONAL';
+  const contributionKey = `COMERCIAL_APP:${proposal.proposalCode ?? proposal.snapshot?.proposalCode ?? 'legacy'}`;
   const project = await tx.project.findUnique({
     where: { id: projectId }, select: { commercialScopeImport: true }
   });
-  const current = await tx.projectPlannedService.count({ where: { projectId } });
-  if (project?.commercialScopeImport?.status === 'MANUAL_OVERRIDE') {
+  const selectionWhere = { projectId_source_proposalCode: {
+    projectId, source: 'COMERCIAL_APP', proposalCode: proposal.proposalCode
+  } };
+  const selection = additional ? await tx.projectAdditionalProposal.findUnique({ where: selectionWhere }) : null;
+  if (additional && (!selection?.active || selection.commercialAppProposalId !== proposal.externalId)) {
+    return { status: 'SELECTION_PRESERVED', issues: [] };
+  }
+  const metadata = additional ? selection.scopeImport : project?.commercialScopeImport;
+  const saveMetadata = value => additional
+    ? tx.projectAdditionalProposal.update({ where: selectionWhere, data: { scopeImport: value } })
+    : tx.project.update({ where: { id: projectId }, data: { commercialScopeImport: value } });
+  const where = { projectId, contributionKey };
+  const current = await tx.projectPlannedService.count({ where });
+  if (metadata?.status === 'MANUAL_OVERRIDE') return { status: 'MANUAL_PRESERVED', issues: [] };
+  // Projetos anteriores à integração podem ter escopo manual sem vínculo.
+  if (!additional && !metadata && await tx.projectPlannedService.count({ where: { projectId, contributionKey: null } })) {
     return { status: 'MANUAL_PRESERVED', issues: [] };
   }
-  if (current && !project?.commercialScopeImport) return { status: 'MANUAL_PRESERVED', issues: [] };
   const mapped = projectScopeFromCommercialApp(proposal.snapshot);
   const fingerprint = scopeFingerprint(mapped.services);
-  if (!mapped.services.length && current) {
+  if (!replaceEmpty && !mapped.services.length && current) {
     const issues = [...mapped.issues, 'O escopo da revisão anterior foi preservado até a conferência da nova revisão.'];
-    await tx.project.update({ where: { id: projectId }, data: { commercialScopeImport: {
-      ...project.commercialScopeImport, pendingExternalId: proposal.externalId, issues
-    } } });
+    await saveMetadata({ ...metadata, pendingExternalId: proposal.externalId, issues });
     return { status: 'NEEDS_REVIEW', issues };
   }
-  if (project?.commercialScopeImport?.externalId === proposal.externalId &&
-    project.commercialScopeImport.fingerprint === fingerprint) {
+  if (metadata?.externalId === proposal.externalId && metadata.fingerprint === fingerprint) {
     return { status: 'UNCHANGED', issues: mapped.issues };
   }
-  await tx.projectPlannedService.deleteMany({ where: { projectId } });
+  await tx.projectPlannedService.deleteMany({ where });
   for (const [order, service] of mapped.services.entries()) {
     const systems = [];
     for (const [index, row] of service.systems.entries()) {
@@ -199,11 +211,10 @@ export async function syncCommercialAppScope(tx, projectId, proposal) {
         description: row.description, diameter: row.diameter, diameterUnit: row.diameterUnit,
         quantity: row.quantity, unit: row.unit, order: index });
     }
-    await tx.projectPlannedService.create({ data: { projectId, serviceType: service.serviceType,
+    await tx.projectPlannedService.create({ data: { projectId, contributionKey, serviceType: service.serviceType,
       scopeName: service.scopeName, weight: service.weight, order, systems: { create: systems } } });
   }
-  const metadata = { externalId: proposal.externalId, fingerprint, issues: mapped.issues };
-  await tx.project.update({ where: { id: projectId }, data: { commercialScopeImport: metadata } });
+  await saveMetadata({ externalId: proposal.externalId, contributionKey, fingerprint, issues: mapped.issues });
   return { status: !mapped.services.length ? 'NEEDS_REVIEW'
     : mapped.issues.length ? 'PARTIAL' : 'IMPORTED', issues: mapped.issues };
 }

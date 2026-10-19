@@ -21,6 +21,7 @@ import { applyProposalPercentage, scaleProposalValue, validateProposalPercentage
 import { buildPresumedProfitTaxEstimate } from './presumed-profit-taxes.js';
 import { progressContributionWeight } from './progress-groups.js';
 import { readCommercialHours } from './planned-hours.js';
+import { commercialTransaction, lockCommercialProject, selectContribution, removeContribution } from './commercial-contributions.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 
 const PROPOSAL_TABLE = 'proposta';
@@ -253,6 +254,9 @@ function ratioPct(numerator, denominator) {
 function proposalBudgetSlice(proposal, overrides = {}) {
   if (!proposal) return null;
   return {
+    source: proposal.source ?? 'ACCESS_IMPORT',
+    contributionKey: `${proposal.source ?? 'ACCESS_IMPORT'}:${proposal.codProp}`,
+    externalId: proposal.externalId ?? null,
     codBd: proposal.codBd,
     codProp: proposal.codProp,
     parentCodProp: proposal.parentCodProp ?? null,
@@ -277,6 +281,20 @@ function combineComponents(sources) {
     if (value !== null) components[key] = value;
   }
   return components;
+}
+
+export function commercialAppBudgetSource(proposal) {
+  if (!proposal) return null;
+  return { source: 'COMERCIAL_APP', externalId: proposal.externalId, codBd: null,
+    codProp: proposal.proposalCode, parentCodProp: proposal.parentProposalCode ?? null,
+    nRev: proposal.revisionNumber, salePrice: proposal.salePrice, plannedCost: proposal.plannedTotalCost,
+    expectedProfit: proposal.plannedTotalCost == null ? null : Number(proposal.salePrice) - Number(proposal.plannedTotalCost),
+    expectedMargin: proposal.expectedMargin, plannedDays: null, workedDays: null,
+    components: proposal.snapshot?.estimateSummary?.costs
+      ? Object.fromEntries(Object.entries(proposal.snapshot.estimateSummary.costs)
+        .filter(([key]) => !['direct', 'total', 'taxesAtEstimatePrice', 'commissionAtEstimatePrice',
+          'representativeCommissionAtEstimatePrice', 'commercialExpenseAtEstimatePrice'].includes(key))
+        .map(([key, value]) => [`commercial_${key}`, value])) : {} };
 }
 
 export function buildBudgetBreakdown({ originalSource, originalBudget = null, additionalSources = [] }) {
@@ -574,12 +592,12 @@ export async function listProjectRevisions(projectId) {
       select: { sourceProposalCodBd: true, approvedAt: true, mobilizationLeadDays: true }
     }),
     prisma.projectAdditionalProposal.findMany({
-      where: { projectId },
-      select: { codProp: true, sourceProposalCodBd: true, metricInclusion: true }
+      where: { projectId, source: 'ACCESS_IMPORT' },
+      select: { codProp: true, sourceProposalCodBd: true, metricInclusion: true, selectionVersion: true, active: true }
     })
   ]);
   const currentAdditionalByCodProp = new Map(
-    selectedAdditionals.map(selection => [selection.codProp, selection.sourceProposalCodBd])
+    selectedAdditionals.filter(selection => selection.active).map(selection => [selection.codProp, selection.sourceProposalCodBd])
   );
   return {
     proposalCode: String(codProp),
@@ -605,7 +623,8 @@ export async function listProjectRevisions(projectId) {
       currentAdditionalByCodProp,
       new Map(selectedAdditionals.map(selection => [selection.codProp, selection.metricInclusion]))
     ),
-    currentAdditionalCodBds: selectedAdditionals.map(selection => selection.sourceProposalCodBd),
+    additionalSelectionVersions: Object.fromEntries(selectedAdditionals.map(row => [row.codProp, row.selectionVersion])),
+    currentAdditionalCodBds: selectedAdditionals.filter(row => row.active).map(selection => selection.sourceProposalCodBd),
     revisions
   };
 }
@@ -765,7 +784,7 @@ export async function setProjectBudgetRevisionWithClient(client, projectId, codB
     const budget = await upsertBudget(tx, projectId, proposal);
     if (tx.commercialAppProposal) {
       await tx.commercialAppProposal.updateMany({
-        where: { projectId, selectionStatus: 'SELECTED' }, data: { selectionStatus: 'STAGED' }
+        where: { projectId, proposalKind: 'MAIN', selectionStatus: 'SELECTED' }, data: { selectionStatus: 'STAGED' }
       });
     }
     await tx.project.update({
@@ -786,46 +805,18 @@ export async function setProjectBudgetRevision(projectId, codBd) {
   return setProjectBudgetRevisionWithClient(prisma, projectId, codBd);
 }
 
-export async function setProjectAdditionalProposalRevision(projectId, codBd, { selectedByUserId = null, metricInclusion } = {}) {
-  const proposal = await prisma.commercialProposal.findUnique({ where: { codBd } });
-  if (!proposal) throw new Error('Revisão adicional não encontrada.');
-  if (proposal.parentCodProp === null || proposal.parentCodProp === undefined) {
-    throw new Error('A revisão informada não é de uma proposta adicional.');
-  }
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true, contractCode: true, code: true }
-  });
-  if (!project) throw new Error('Projeto não encontrado.');
-  const codProp = projectProposalCode(project);
-  if (proposal.parentCodProp !== codProp) {
-    throw new Error('A proposta adicional informada não pertence a este projeto.');
-  }
-  return prisma.projectAdditionalProposal.upsert({
-    where: { projectId_codProp: { projectId, codProp: proposal.codProp } },
-    create: {
-      projectId,
-      codProp: proposal.codProp,
-      sourceProposalCodBd: proposal.codBd,
-      ...(metricInclusion === undefined ? {} : { metricInclusion: normalizeAdditionalMetricInclusion(metricInclusion) }),
-      selectedByUserId,
-      selectedAt: new Date()
-    },
-    update: {
-      sourceProposalCodBd: proposal.codBd,
-      ...(metricInclusion === undefined ? {} : { metricInclusion: normalizeAdditionalMetricInclusion(metricInclusion) }),
-      selectedByUserId,
-      selectedAt: new Date()
-    }
+export async function setProjectAdditionalProposalRevision(projectId, codBd, { selectedByUserId = null, metricInclusion, ...options } = {}) {
+  return commercialTransaction(async tx => {
+    const project = await lockCommercialProject(tx, projectId);
+    const proposal = await tx.commercialProposal.findUnique({ where: { codBd } });
+    if (!proposal || proposal.parentCodProp == null) throw new Error('Revisão adicional não encontrada.');
+    return selectContribution(tx, project, proposal, 'ACCESS_IMPORT', { userId: selectedByUserId, metricInclusion, ...options });
   });
 }
 
-export async function removeProjectAdditionalProposal(projectId, codProp) {
+export async function removeProjectAdditionalProposal(projectId, codProp, options) {
   if (!Number.isInteger(codProp)) throw new Error('Proposta adicional inválida.');
-  const result = await prisma.projectAdditionalProposal.deleteMany({
-    where: { projectId, codProp }
-  });
-  return { ok: true, deleted: result.count };
+  return removeContribution(projectId, 'ACCESS_IMPORT', String(codProp), options);
 }
 
 export function summarizeOmieRevenue(receivables) {
@@ -954,8 +945,8 @@ async function listCommercialDashboardUncached({
       }
     }),
     prisma.projectAdditionalProposal.findMany({
-      where: projectIds ? { projectId: { in: projectIds } } : undefined,
-      select: { projectId: true, codProp: true, sourceProposalCodBd: true, metricInclusion: true }
+      where: { active: true, ...(projectIds ? { projectId: { in: projectIds } } : {}) },
+      select: { projectId: true, source: true, proposalCode: true, codProp: true, sourceProposalCodBd: true, commercialAppProposalId: true, metricInclusion: true }
     }),
     prisma.report.groupBy({
       by: ['projectId'],
@@ -979,7 +970,7 @@ async function listCommercialDashboardUncached({
     }),
     prisma.commercialAppProposal.findMany({
       where: { selectionStatus: 'SELECTED', ...(projectIds ? { projectId: { in: projectIds } } : {}) },
-      select: { externalId: true, projectId: true, proposalCode: true, revisionNumber: true,
+      select: { externalId: true, projectId: true, proposalCode: true, parentProposalCode: true, revisionNumber: true,
         salePrice: true, plannedTotalCost: true, expectedMargin: true, snapshot: true }
     })
   ]);
@@ -1009,28 +1000,19 @@ async function listCommercialDashboardUncached({
     const budget = budgetByProject.get(project.id) || null;
     const appProposal = budget?.source === 'COMERCIAL_APP'
       ? commercialAppByExternalId.get(budget.commercialAppProposalId) : null;
-    const codProp = appProposal ? Number(appProposal.proposalCode) : projectProposalCode(project);
+    const codProp = appProposal ? appProposal.proposalCode : projectProposalCode(project);
     if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp))) continue;
     const resolved = appProposal ? true : Boolean(project.commercialProposalCode) && Boolean(budget);
-    const source = appProposal ? {
-      codBd: null, codProp, nRev: appProposal.revisionNumber,
-      salePrice: appProposal.salePrice, plannedCost: appProposal.plannedTotalCost,
-      expectedMargin: appProposal.expectedMargin,
-      components: appProposal.snapshot?.estimateSummary?.costs
-        ? Object.fromEntries(Object.entries(appProposal.snapshot.estimateSummary.costs)
-          .filter(([key]) => !['direct', 'total', 'taxesAtEstimatePrice',
-            'commissionAtEstimatePrice', 'representativeCommissionAtEstimatePrice',
-            'commercialExpenseAtEstimatePrice'].includes(key))
-          .map(([key, value]) => [`commercial_${key}`, value])) : {},
-      plannedDays: null, workedDays: null
-    } : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
-    const additionalSources = (appProposal ? [] : selectedAdditionalsByProject.get(project.id) ?? [])
+    const source = appProposal ? commercialAppBudgetSource(appProposal) : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
+    const additionalSources = (selectedAdditionalsByProject.get(project.id) ?? [])
       .map(selection => {
-        const proposal = byCodBd.get(selection.sourceProposalCodBd);
+        const proposal = selection.source === 'COMERCIAL_APP'
+          ? commercialAppBudgetSource(commercialAppByExternalId.get(selection.commercialAppProposalId))
+          : byCodBd.get(selection.sourceProposalCodBd);
         return proposal ? applyAdditionalMetricInclusion(proposal, selection.metricInclusion) : null;
       })
-      .filter(proposal => proposal && proposal.parentCodProp === codProp)
-      .sort((a, b) => a.codProp - b.codProp || b.nRev - a.nRev);
+      .filter(proposal => proposal && String(proposal.parentCodProp) === String(codProp))
+      .sort((a, b) => Number(a.codProp) - Number(b.codProp) || b.nRev - a.nRev);
     const budgetBreakdown = buildBudgetBreakdown({
       originalSource: source,
       originalBudget: budget,
@@ -1216,6 +1198,7 @@ export async function listCommercialPendencias() {
       select: { id: true, code: true, contractCode: true, commercialProposalCode: true }
     }),
     prisma.projectAdditionalProposal.findMany({
+      where: { source: 'ACCESS_IMPORT', active: true },
       select: { projectId: true, codProp: true }
     })
   ]);

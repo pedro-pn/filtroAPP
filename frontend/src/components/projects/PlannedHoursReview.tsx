@@ -31,7 +31,7 @@ export function PlannedHoursReview({ plan, disabled, canManage, onResolve }: {
       {plan.commercial ? (
         <>
           <p className="acp-schedule-ds__muted">
-            {plan.proposals.map(proposal => `Proposta ${proposal.codProp}, rev. ${proposal.nRev}`).join(' + ')}.
+            {plan.proposals.map(proposal => `Proposta ${proposal.proposalCode ?? proposal.codProp}, rev. ${proposal.nRev}${proposal.source === 'COMERCIAL_APP' ? ' · ComercialAPP' : ''}`).join(' + ')}.
             {' '}Horas totais da equipe, com os adicionais selecionados.
           </p>
           <DataTable rows={['normal', 'overtime', 'total'] as HoursKind[]} getRowId={kind => kind}

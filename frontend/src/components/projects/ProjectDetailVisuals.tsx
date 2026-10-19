@@ -30,7 +30,7 @@ export function ProposalContributionDetails({
       </summary>
       <div className="acp-detail-proposal-list">
         {rows.map((proposal, index) => (
-          <div className="acp-detail-proposal-item" key={`${proposal.contributionKind}-${proposal.projectId ?? ''}-${proposal.codBd ?? proposal.codProp ?? index}`}>
+          <div className="acp-detail-proposal-item" key={`${proposal.contributionKind}-${proposal.source ?? 'ACCESS_IMPORT'}-${proposal.projectId ?? ''}-${proposal.codBd ?? proposal.codProp ?? index}`}>
             <div className="acp-detail-proposal-item-head">
               <strong>{proposalContributionLabel(proposal, proposal.contributionKind === 'ORIGINAL' ? 'Proposta original' : 'Proposta adicional')}</strong>
               <span>{proposal.contributionKind === 'ORIGINAL' ? 'Original' : 'Adicional'}</span>
@@ -184,8 +184,8 @@ export function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
   }
   return (
     <div className="acp-detail-scope">
-      {groupServicesByScope(scope.services).map(group => <section key={group.scopeName ?? ''}>
-      {scope.services.some(service => service.scopeName) ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+      {groupServicesByScope(scope.services).map(group => <section key={`${group.contributionKey ?? ''}:${group.scopeName ?? ''}`}>
+      {scope.services.some(service => service.scopeName) ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}{group.contributionKey ? ` · ${group.contributionKey.replace('COMERCIAL_APP:', 'ComercialAPP · Proposta ')}` : ''}</h3> : null}
       {group.services.map((svc, i) => (
         <div className="acp-detail-scope-svc" key={i}>
           <div className="acp-detail-scope-head">
