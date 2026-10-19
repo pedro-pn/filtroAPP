@@ -35,6 +35,68 @@ async function loadReportDraft() {
   }
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('draft saves run one at a time and use the ID returned by the first creation', async () => {
+  const { createDraftSaveQueue } = await loadDraftAutosave();
+  const queue = createDraftSaveQueue();
+  const response = deferred();
+  const calls = [];
+  let activeId = '';
+  const first = queue.enqueue(async () => {
+    calls.push(['POST']);
+    await response.promise;
+    activeId = 'created-id';
+    return true;
+  });
+  const second = queue.enqueue(async () => {
+    calls.push(['PUT', activeId]);
+    return true;
+  });
+  await Promise.resolve();
+  assert.deepEqual(calls, [['POST']]);
+  response.resolve();
+  assert.deepEqual(await Promise.all([first, second]), [true, true]);
+  assert.deepEqual(calls, [['POST'], ['PUT', 'created-id']]);
+});
+
+test('submission waits for the active save and cancels queued writes before draft cleanup', async () => {
+  const { createDraftSaveQueue } = await loadDraftAutosave();
+  const queue = createDraftSaveQueue();
+  const response = deferred();
+  const events = [];
+  const active = queue.enqueue(async () => {
+    events.push('save-start');
+    await response.promise;
+    events.push('save-finished');
+    return true;
+  });
+  await Promise.resolve();
+  const queued = queue.enqueue(async () => { events.push('stale-save'); return true; });
+  const submit = queue.pause().then(() => events.push('submit-and-cleanup'));
+  await Promise.resolve();
+  assert.deepEqual(events, ['save-start']);
+  response.resolve();
+  await Promise.all([active, submit]);
+  assert.equal(await queued, false);
+  assert.deepEqual(events, ['save-start', 'save-finished', 'submit-and-cleanup']);
+  assert.equal(await queue.enqueue(async () => { events.push('late-save'); return true; }), false);
+});
+
+test('failed writes do not poison the queue and a failed submission can resume saving', async () => {
+  const { createDraftSaveQueue } = await loadDraftAutosave();
+  const queue = createDraftSaveQueue();
+  await assert.rejects(queue.enqueue(async () => { throw new Error('Offline'); }), /Offline/);
+  assert.equal(await queue.enqueue(async () => true), true);
+  await queue.pause();
+  queue.resume();
+  assert.equal(await queue.enqueue(async () => true), true);
+});
+
 test('rascunho restaura o local escolhido e o escopo de cada serviço', async () => {
   const { reportDraftToRdoState } = await loadReportDraft();
   const state = reportDraftToRdoState({ id: 'draft-1', projectId: 'project-1', payload: {
