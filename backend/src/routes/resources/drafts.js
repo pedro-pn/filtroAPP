@@ -35,14 +35,37 @@ function normalizeDraftPayload(data) {
   };
 }
 
-async function deleteRdoDrafts(where) {
-  const drafts = await prisma.reportDraft.findMany({
-    where,
-    select: { id: true, payload: true }
+export async function saveRdoDraft(database, userId, data, draftId = null) {
+  return database.$transaction(async tx => {
+    // A trava de transação funciona também entre processos/instâncias da API.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rdo-drafts:${userId}`}))`;
+    const payload = normalizeDraftPayload(data);
+    let current = null;
+    if (draftId) {
+      current = await tx.reportDraft.findUniqueOrThrow({ where: { id: draftId } });
+      if (current.userId !== userId || !isRdoDraftPayload(current.payload)) {
+        throw Object.assign(new Error('Você não tem permissão para alterar este rascunho.'), { statusCode: 403 });
+      }
+    } else if (data.projectId && data.reportDate) {
+      const drafts = await tx.reportDraft.findMany({
+        where: { userId, projectId: data.projectId, reportDate: data.reportDate },
+        select: { id: true, payload: true },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }]
+      });
+      current = drafts.find(draft => isRdoDraftPayload(draft.payload)
+        && (draft.payload?.serviceOnly === true) === (payload.serviceOnly === true)) || null;
+    }
+    const values = {
+      projectId: data.projectId || null,
+      title: data.title || null,
+      reportDate: data.reportDate || null,
+      payload
+    };
+    const item = current
+      ? await tx.reportDraft.update({ where: { id: current.id }, data: values, include: { project: true } })
+      : await tx.reportDraft.create({ data: { ...values, userId }, include: { project: true } });
+    return { item, created: !current };
   });
-  const ids = rdoDraftItems(drafts).map(item => item.id);
-  if (!ids.length) return;
-  await prisma.reportDraft.deleteMany({ where: { id: { in: ids } } });
 }
 
 router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
@@ -56,52 +79,13 @@ router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) =
 
 router.post('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
-  const payload = normalizeDraftPayload(data);
-  if (data.projectId && data.reportDate) {
-    await deleteRdoDrafts({
-      userId: req.auth.user.id,
-      projectId: data.projectId,
-      reportDate: data.reportDate
-    });
-  }
-  const item = await prisma.reportDraft.create({
-    data: {
-      userId: req.auth.user.id,
-      projectId: data.projectId || null,
-      title: data.title || null,
-      reportDate: data.reportDate || null,
-      payload
-    },
-    include: { project: true }
-  });
-  res.status(201).json(item);
+  const { item, created } = await saveRdoDraft(prisma, req.auth.user.id, data);
+  res.status(created ? 201 : 200).json(item);
 }));
 
 router.put('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.omit({ id: true }).parse(req.body);
-  const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
-  if (current.userId !== req.auth.user.id || !isRdoDraftPayload(current.payload)) {
-    return res.status(403).json({ error: 'Você não tem permissão para alterar este rascunho.' });
-  }
-  const payload = normalizeDraftPayload(data);
-  if (data.projectId && data.reportDate) {
-    await deleteRdoDrafts({
-      userId: req.auth.user.id,
-      projectId: data.projectId,
-      reportDate: data.reportDate,
-      id: { not: req.params.id }
-    });
-  }
-  const item = await prisma.reportDraft.update({
-    where: { id: req.params.id },
-    data: {
-      projectId: data.projectId || null,
-      title: data.title || null,
-      reportDate: data.reportDate || null,
-      payload
-    },
-    include: { project: true }
-  });
+  const { item } = await saveRdoDraft(prisma, req.auth.user.id, data, req.params.id);
   res.json(item);
 }));
 

@@ -56,7 +56,8 @@ import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } fr
 import { dateInputValue, formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { sortProjects } from '../../utils/projectSort';
-import { autosaveDraftTargetId } from '../../utils/draftAutosave';
+import { autosaveDraftTargetId, createDraftSaveQueue } from '../../utils/draftAutosave';
+import { ApiClientError } from '../../api/client';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
 import { hubModulesForUser } from '../hubModules';
 import { formatMinutes } from './newReportFormatting';
@@ -168,9 +169,19 @@ function SiteRdoFormPage() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const lastAutoSaveSignatureRef = useRef('');
   const isSubmittingRef = useRef(false);
+  const draftEditorMountedRef = useRef(false);
+  const [draftSaveQueue] = useState(createDraftSaveQueue);
+
+  useEffect(() => {
+    draftEditorMountedRef.current = true;
+    draftSaveQueue.resume();
+    return () => {
+      draftEditorMountedRef.current = false;
+      void draftSaveQueue.pause();
+    };
+  }, [draftSaveQueue]);
 
   const {
-    draftId,
     serviceOnly,
     projectId,
     reportDate,
@@ -764,7 +775,8 @@ function SiteRdoFormPage() {
   }, [draftProjectDateKey, draftsQuery.data, effectiveServiceOnly, projectId, reportDate]);
 
   const saveDraftNow = useCallback(
-    async ({ notifyOnError = false } = {}) => {
+    ({ notifyOnError = false } = {}) => draftSaveQueue.enqueue(async () => {
+      if (!draftEditorMountedRef.current) return false;
       if (!projectId || !reportDate) {
         return true;
       }
@@ -776,23 +788,30 @@ function SiteRdoFormPage() {
         payload: buildDraftPayload()
       };
       const sameProjectDateIds = matchingDraftIds();
-      const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
-      const signature = JSON.stringify({ targetId: targetId || '', payload });
+      // A criação anterior pode ter terminado depois que esta edição entrou na fila.
+      const targetId = autosaveDraftTargetId(useRdoStore.getState().draftId, sameProjectDateIds);
+      const signature = JSON.stringify(payload);
       if (signature === lastAutoSaveSignatureRef.current) {
         setDraftSaveStatus('saved');
         return true;
       }
-      lastAutoSaveSignatureRef.current = signature;
       setDraftSaveStatus('saving');
 
       try {
-        const saved = targetId ? await updateDraftAsync({ id: targetId, payload }) : await createDraftAsync(payload);
-        if (draftId !== saved.id) setDraftId(saved.id);
-
-        await Promise.all(sameProjectDateIds.filter((id) => id !== saved.id).map((id) => removeDraftAsync(id).catch(() => undefined)));
+        const saved = targetId
+          ? await updateDraftAsync({ id: targetId, payload }).catch(error => {
+              // Recupera IDs removidos por versões antigas sem repetir erros 404.
+              if (error instanceof ApiClientError && error.status === 404) return createDraftAsync(payload);
+              throw error;
+            })
+          : await createDraftAsync(payload);
+        if (!draftEditorMountedRef.current) return false;
+        setDraftId(saved.id);
+        lastAutoSaveSignatureRef.current = signature;
         setDraftSaveStatus('saved');
         return true;
       } catch (error) {
+        if (!draftEditorMountedRef.current) return false;
         lastAutoSaveSignatureRef.current = '';
         setDraftSaveStatus('error');
         console.error('Falha ao salvar rascunho de relatório.', error);
@@ -801,8 +820,8 @@ function SiteRdoFormPage() {
         }
         return false;
       }
-    },
-    [projectId, reportDate, draftId, selectedProject, buildDraftPayload, matchingDraftIds, updateDraftAsync, createDraftAsync, setDraftId, removeDraftAsync, showToast]
+    }),
+    [projectId, reportDate, selectedProject, buildDraftPayload, matchingDraftIds, updateDraftAsync, createDraftAsync, setDraftId, showToast, draftSaveQueue]
   );
 
   useEffect(() => {
@@ -823,9 +842,10 @@ function SiteRdoFormPage() {
     return () => {
       if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
     };
-  }, [projectId, reportDate, saveDraftNow]);
+  }, [projectId, reportDate, saveDraftNow, isSubmitting]);
 
   const handleBack = useCallback(async () => {
+    if (isSubmittingRef.current) return;
     if (draftSaveTimerRef.current) {
       window.clearTimeout(draftSaveTimerRef.current);
       draftSaveTimerRef.current = null;
@@ -861,8 +881,12 @@ function SiteRdoFormPage() {
     }
 
     try {
+      // Cancela gravações ainda na fila e aguarda a requisição já iniciada.
+      // Assim nenhuma resposta tardia recria o rascunho depois do envio.
+      await draftSaveQueue.pause();
       const draftIdsToRemove = matchingDraftIds();
-      if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
+      const activeDraftId = useRdoStore.getState().draftId;
+      if (activeDraftId && !draftIdsToRemove.includes(activeDraftId)) draftIdsToRemove.push(activeDraftId);
       const servicePayloads = services.map((service) =>
         buildReportServicePayload(
           effectiveServiceOnly
@@ -958,6 +982,7 @@ function SiteRdoFormPage() {
       reset();
       navigate(roleHomePath(user.role));
     } catch (err) {
+      draftSaveQueue.resume();
       isSubmittingRef.current = false;
       setIsSubmitting(false);
       showToast(err instanceof Error ? err.message : TEXT.errorCreate, 'error');
@@ -1003,6 +1028,7 @@ function SiteRdoFormPage() {
               size="sm"
               iconLeft={<AppIcon icon={DS_ICONS.previous} size="sm" />}
               onClick={handleBack}
+              disabled={isSubmitting}
             >
               Voltar aos relatórios
             </Button>
@@ -1026,7 +1052,7 @@ function SiteRdoFormPage() {
           <DraftSaveStatus status={draftSaveStatus} visible={Boolean(projectId && reportDate)} />
         </Card>
 
-        <div className="rdo-form-stage">
+        <div className="rdo-form-stage" inert={isSubmitting}>
 
         {step === 0 ? (
         <div className={`rdo-form-grid rdo-form-grid--header ${effectiveServiceOnly ? 'is-service-only' : ''}`}>
@@ -1454,6 +1480,7 @@ function SiteRdoFormPage() {
             type="button"
             iconLeft={step > 0 ? <AppIcon icon={DS_ICONS.previous} size="sm" /> : undefined}
             onClick={step === 0 ? handleBack : () => setStep(current => Math.max(current - 1, 0))}
+            disabled={isSubmitting}
           >
             {step === 0 ? 'Cancelar' : TEXT.back}
           </Button>

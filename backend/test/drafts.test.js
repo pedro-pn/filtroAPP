@@ -6,7 +6,7 @@ import app from '../src/app.js';
 import { hasModuleRole } from '../src/lib/module-roles.js';
 import prisma from '../src/lib/prisma.js';
 import { RDO_INTERNAL_ROLES } from '../src/middleware/auth.js';
-import { isRdoDraftPayload, rdoDraftItems } from '../src/routes/resources/drafts.js';
+import { isRdoDraftPayload, rdoDraftItems, saveRdoDraft } from '../src/routes/resources/drafts.js';
 
 const bearerToken = 'coordinator-draft-test-token';
 
@@ -101,11 +101,13 @@ test('coordinator can persist an RDO draft through the authenticated endpoint', 
   const originals = {
     sessionFindUnique: prisma.userSession.findUnique,
     draftFindMany: prisma.reportDraft.findMany,
-    draftCreate: prisma.reportDraft.create
+    draftCreate: prisma.reportDraft.create,
+    transaction: prisma.$transaction
   };
   let createData = null;
   prisma.userSession.findUnique = async () => coordinatorSession();
   prisma.reportDraft.findMany = async () => [];
+  prisma.$transaction = async callback => callback({ reportDraft: prisma.reportDraft, $executeRaw: async () => 0 });
   prisma.reportDraft.create = async args => {
     createData = args.data;
     return {
@@ -120,6 +122,7 @@ test('coordinator can persist an RDO draft through the authenticated endpoint', 
     prisma.userSession.findUnique = originals.sessionFindUnique;
     prisma.reportDraft.findMany = originals.draftFindMany;
     prisma.reportDraft.create = originals.draftCreate;
+    prisma.$transaction = originals.transaction;
   });
 
   const response = await dispatchApp('POST', '/api/rdo/drafts', {
@@ -158,4 +161,82 @@ test('RDO draft payload check only excludes romaneio drafts', () => {
   assert.equal(isRdoDraftPayload({ projectId: 'project-1' }), true);
   assert.equal(isRdoDraftPayload({ __module: 'rdo' }), true);
   assert.equal(isRdoDraftPayload({ __module: 'romaneio' }), false);
+});
+
+function draftDatabase(items = []) {
+  const rows = new Map(items.map(item => [item.id, structuredClone(item)]));
+  const client = {
+    $executeRaw: async () => 0,
+    reportDraft: {
+      async findMany({ where }) {
+        return [...rows.values()].filter(row => Object.entries(where).every(([key, value]) => row[key] === value));
+      },
+      async findUniqueOrThrow({ where }) {
+        if (!rows.has(where.id)) throw Object.assign(new Error('Not found'), { code: 'P2025' });
+        return rows.get(where.id);
+      },
+      async create({ data }) {
+        const row = { id: `draft-${rows.size + 1}`, ...data };
+        rows.set(row.id, row);
+        return row;
+      },
+      async update({ where, data }) {
+        const row = { ...rows.get(where.id), ...data };
+        rows.set(row.id, row);
+        return row;
+      }
+    }
+  };
+  return { rows, $transaction: callback => callback(client) };
+}
+
+test('repeated creation updates the existing RDO ID without deleting its contents first', async () => {
+  const database = draftDatabase();
+  const initial = { projectId: 'project-1', reportDate: '2026-10-17', payload: { dailyDescription: 'Inicial' } };
+  const first = await saveRdoDraft(database, 'user-1', initial);
+  const retry = await saveRdoDraft(database, 'user-1', { ...initial, payload: { dailyDescription: 'Atualizado' } });
+  assert.equal(first.created, true);
+  assert.equal(retry.created, false);
+  assert.equal(retry.item.id, first.item.id);
+  assert.equal(retry.item.payload.dailyDescription, 'Atualizado');
+  assert.equal(database.rows.size, 1);
+});
+
+test('RDO creation preserves romaneio, service-only, other dates and other users', async () => {
+  const common = { userId: 'user-1', projectId: 'project-1', reportDate: '2026-10-17' };
+  const existing = [
+    { ...common, id: 'romaneio', payload: { __module: 'romaneio' } },
+    { ...common, id: 'service', payload: { __module: 'rdo', serviceOnly: true } },
+    { ...common, id: 'another-user', userId: 'user-2', payload: {} },
+    { ...common, id: 'another-date', reportDate: '2026-10-16', payload: {} }
+  ];
+  const database = draftDatabase(existing);
+  const saved = await saveRdoDraft(database, common.userId, { ...common, payload: {} });
+  assert.equal(saved.created, true);
+  for (const draft of existing) assert.deepEqual(database.rows.get(draft.id), draft);
+  assert.equal(database.rows.size, 5);
+});
+
+test('legacy RDO IDs remain reusable and editing a draft does not delete another draft', async () => {
+  const common = { userId: 'user-1', projectId: 'project-1', reportDate: '2026-10-17' };
+  const database = draftDatabase([
+    { ...common, id: 'legacy', payload: { dailyDescription: 'Legado' } },
+    { ...common, id: 'duplicate', payload: { dailyDescription: 'Outra edição' } }
+  ]);
+  const saved = await saveRdoDraft(database, common.userId, { ...common, payload: { dailyDescription: 'Atualizado' } });
+  assert.equal(saved.item.id, 'legacy');
+  await saveRdoDraft(database, common.userId, { ...common, reportDate: '2026-10-18', payload: {} }, 'legacy');
+  assert.equal(database.rows.get('duplicate').payload.dailyDescription, 'Outra edição');
+  assert.equal(database.rows.size, 2);
+});
+
+test('editing cannot take ownership of another user or module draft', async () => {
+  for (const draft of [
+    { id: 'protected', userId: 'other-user', payload: {} },
+    { id: 'protected', userId: 'user-1', payload: { __module: 'romaneio' } }
+  ]) {
+    const database = draftDatabase([draft]);
+    await assert.rejects(saveRdoDraft(database, 'user-1', { payload: {} }, draft.id), { statusCode: 403 });
+    assert.deepEqual(database.rows.get(draft.id), draft);
+  }
 });

@@ -298,16 +298,18 @@ test('new report keeps the existing server-backed autosave contract', () => {
   );
   assert.match(
     page,
-    /const targetId = autosaveDraftTargetId\(draftId, sameProjectDateIds\)/
+    /const targetId = autosaveDraftTargetId\(useRdoStore\.getState\(\)\.draftId, sameProjectDateIds\)/
   );
   assert.match(
     page,
     /targetId[\s\S]*updateDraftAsync\(\{ id: targetId, payload \}\)[\s\S]*createDraftAsync\(payload\)/
   );
-  assert.match(
-    page,
-    /sameProjectDateIds[\s\S]*filter\(\(?id\)? => id !== saved\.id\)[\s\S]*removeDraftAsync\(id\)/
-  );
+  const saveDraft = page.slice(page.indexOf('const saveDraftNow ='), page.indexOf('const handleBack ='));
+  assert.doesNotMatch(saveDraft, /removeDraftAsync/, 'autosave must not delete another in-flight draft');
+  assert.match(saveDraft, /draftSaveQueue\.enqueue/);
+  const submit = page.slice(page.indexOf('async function handleSubmit()'), page.indexOf('return (', page.indexOf('async function handleSubmit()')));
+  const pauseIndex = submit.indexOf('await draftSaveQueue.pause()');
+  assert.ok(pauseIndex >= 0 && pauseIndex < submit.indexOf('const draftIdsToRemove'));
   assert.match(
     page,
     /draftSaveTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*void saveDraftNow\(\);[\s\S]*\}, 150\)/
