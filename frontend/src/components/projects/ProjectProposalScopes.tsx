@@ -112,7 +112,7 @@ export function ProjectProposalScopes({ projectId, canManage = false, onEditingC
       <Badge tone={pending ? 'warning' : 'success'}>{pending ? pending + ' pendente' + (pending === 1 ? '' : 's') : 'Em dia'}</Badge>
     </div>
     <div className="proposal-scopes__toolbar">
-      <Field label="Buscar serviço ou RDO" optionalText=""><Input type="search" placeholder="Ex.: vaso, TAG ou número do RDO"
+      <Field label="Buscar serviço ou RDO" optionalText=""><Input type="search" aria-label="Buscar serviço ou RDO" placeholder="Ex.: vaso, TAG ou número do RDO"
         value={search} disabled={Boolean(editing)} onChange={event => setSearch(event.target.value)} /></Field>
       <div className="proposal-scopes__filters" role="group" aria-label="Filtrar vínculos">
         <Button size="sm" variant={!pendingOnly ? 'primary' : 'secondary'} aria-pressed={!pendingOnly}
