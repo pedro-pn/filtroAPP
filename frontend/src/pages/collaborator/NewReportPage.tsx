@@ -165,7 +165,6 @@ function SiteRdoFormPage() {
   const draftMutations = useDraftMutations();
   const createDraftAsync = draftMutations.createDraft.mutateAsync;
   const updateDraftAsync = draftMutations.updateDraft.mutateAsync;
-  const removeDraftAsync = draftMutations.removeDraft.mutateAsync;
   const draftSaveTimerRef = useRef<number | null>(null);
   const lastAutoSaveSignatureRef = useRef('');
   const isSubmittingRef = useRef(false);
@@ -895,9 +894,7 @@ function SiteRdoFormPage() {
       // Cancela gravações ainda na fila e aguarda a requisição já iniciada.
       // Assim nenhuma resposta tardia recria o rascunho depois do envio.
       await draftSaveQueue.pause();
-      const draftIdsToRemove = matchingDraftIds();
       const activeDraftId = useRdoStore.getState().draftId;
-      if (activeDraftId && !draftIdsToRemove.includes(activeDraftId)) draftIdsToRemove.push(activeDraftId);
       const servicePayloads = services.map((service) =>
         buildReportServicePayload(
           effectiveServiceOnly
@@ -920,6 +917,7 @@ function SiteRdoFormPage() {
 
       if (effectiveServiceOnly) {
         await reportMutations.createServiceOnlyReports.mutateAsync({
+          draftId: activeDraftId,
           projectId: projectId!,
           createdByUserId: user.id,
           reportDate,
@@ -928,6 +926,7 @@ function SiteRdoFormPage() {
         });
       } else {
         await reportMutations.createReport.mutateAsync({
+          draftId: activeDraftId,
           projectId: projectId!,
           createdByUserId: user.id,
           reportType: 'RDO',
@@ -986,7 +985,6 @@ function SiteRdoFormPage() {
 
       // Relatório criado: efetiva a exclusão global das fotos removidas no editor.
       await flushStagedUploadDeletions();
-      await Promise.all(draftIdsToRemove.map((id) => removeDraftAsync(id).catch(() => undefined)));
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';
 

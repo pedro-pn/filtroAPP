@@ -3,12 +3,14 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
+import { isRdoDraftPayload } from '../../lib/reports/drafts.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
+
+export { isRdoDraftPayload } from '../../lib/reports/drafts.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
 const RDO_DRAFT_MODULE = 'rdo';
-const ROMANEIO_DRAFT_MODULE = 'romaneio';
 
 const schema = z.object({
   id: z.string().optional(),
@@ -17,10 +19,6 @@ const schema = z.object({
   reportDate: z.string().nullable().optional(),
   payload: z.any()
 });
-
-export function isRdoDraftPayload(payload) {
-  return !payload || typeof payload !== 'object' || payload.__module !== ROMANEIO_DRAFT_MODULE;
-}
 
 export function rdoDraftItems(items) {
   return items.filter(item => !item.project?.deletedAt && isRdoDraftPayload(item.payload));

@@ -4,11 +4,12 @@ import test from 'node:test';
 import pg from 'pg';
 
 import { createPrismaClient } from '../src/lib/prisma.js';
+import { removeSubmittedRdoDrafts } from '../src/lib/reports/drafts.js';
 import { saveRdoDraft } from '../src/routes/resources/drafts.js';
 
 const databaseUrl = process.env.DRAFTS_TEST_DATABASE_URL;
 
-test('PostgreSQL serializes repeated draft creation across independent connections', {
+test('PostgreSQL serializes draft saves and consumes submitted drafts atomically', {
   skip: !databaseUrl
 }, async t => {
   const url = new URL(databaseUrl);
@@ -20,6 +21,7 @@ test('PostgreSQL serializes repeated draft creation across independent connectio
   t.after(async () => {
     try {
       if (user) await database.reportDraft.deleteMany({ where: { userId: user.id } });
+      if (project) await database.report.deleteMany({ where: { projectId: project.id } });
       if (project) await database.project.delete({ where: { id: project.id } });
       if (user) await database.user.delete({ where: { id: user.id } });
     } finally {
@@ -49,4 +51,25 @@ test('PostgreSQL serializes repeated draft creation across independent connectio
   const independent = await saveRdoDraft(database, user.id, { ...input, payload: { serviceOnly: true } });
   assert.notEqual(independent.item.id, draftId);
   assert.equal(await database.reportDraft.count({ where: { userId: user.id } }), 2);
+
+  const submit = tx => tx.report.create({ data: {
+    projectId: project.id, createdByUserId: user.id, reportType: 'RDO', status: 'PENDING',
+    reportDate: new Date(input.reportDate), arrivalTime: '08:00', departureTime: '17:00',
+    lunchBreak: '01:00', daytimeCount: 0
+  } });
+  await assert.rejects(database.$transaction(async tx => {
+    await submit(tx);
+    await removeSubmittedRdoDrafts(tx, user.id, { ...input, draftId });
+    throw new Error('Rollback after cleanup');
+  }), /Rollback after cleanup/);
+  assert.equal(await database.report.count({ where: { projectId: project.id } }), 0);
+  assert.equal(await database.reportDraft.count({ where: { userId: user.id } }), 2);
+
+  await database.$transaction(async tx => {
+    await submit(tx);
+    await removeSubmittedRdoDrafts(tx, user.id, { ...input, draftId });
+  });
+  assert.equal(await database.report.count({ where: { projectId: project.id } }), 1);
+  assert.equal(await database.reportDraft.count({ where: { id: draftId } }), 0);
+  assert.equal(await database.reportDraft.count({ where: { id: independent.item.id } }), 1);
 });

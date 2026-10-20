@@ -287,6 +287,7 @@ export interface ReportServiceInput {
 }
 
 export interface ReportPayload {
+  draftId?: string | null;
   projectId: string;
   createdByUserId: string;
   reportType: ReportType;
@@ -331,6 +332,7 @@ export interface ReportAuditLog {
 }
 
 export interface ServiceOnlyReportPayload {
+  draftId?: string | null;
   projectId: string;
   createdByUserId: string;
   reportDate: string;

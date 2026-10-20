@@ -309,7 +309,7 @@ test('new report keeps the existing server-backed autosave contract', () => {
   assert.match(saveDraft, /draftSaveQueue\.enqueue/);
   const submit = page.slice(page.indexOf('async function handleSubmit()'), page.indexOf('return (', page.indexOf('async function handleSubmit()')));
   const pauseIndex = submit.indexOf('await draftSaveQueue.pause()');
-  assert.ok(pauseIndex >= 0 && pauseIndex < submit.indexOf('const draftIdsToRemove'));
+  assert.ok(pauseIndex >= 0 && pauseIndex < submit.indexOf('const activeDraftId'));
   assert.match(
     page,
     /draftSaveTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*void saveDraftNow\(\);[\s\S]*\}, 150\)/
