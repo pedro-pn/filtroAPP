@@ -5,7 +5,7 @@ O mesmo projeto pode ter o escopo da principal e um escopo para cada adicional, 
 ## Uso
 
 1. No acompanhamento, abra o projeto → **Consultar escopo** → **Escopo e execução por proposta**. Em projetos mesclados, o mesmo diálogo tem uma aba para cada projeto, com seu próprio escopo, propostas e serviços. Escolha a proposta para conferir metas e avanço dos serviços aprovados. O escopo consolidado do grupo continua disponível ao final.
-2. Em **Vínculos dos serviços**, use a busca por TAG, sistema ou RDO e o filtro **Pendentes** para localizar os registros. Clique em **Vincular proposta** ou **Alterar vínculo**: proposta, motivo e ações aparecem dentro do próprio cartão do serviço. A alteração exige gestor do acompanhamento, motivo e versão corrente do relatório. Salve ou cancele antes de trocar de projeto. O vínculo é operacional: não altera o conteúdo nem o PDF aprovado do RDO. Relatórios técnicos derivados acompanham seu serviço de origem.
+2. Em **Vínculos dos serviços**, use a busca por TAG, sistema ou RDO e o filtro **Pendentes** para localizar os registros. Clique em **Vincular proposta** ou **Alterar vínculo**: seleção da proposta e ações aparecem dentro do próprio cartão do serviço. A alteração exige gestor do acompanhamento e versão corrente do relatório. Salve ou cancele antes de trocar de projeto. O vínculo é operacional: não altera o conteúdo nem o PDF aprovado do RDO. Relatórios técnicos derivados acompanham seu serviço de origem.
 3. No editor do escopo previsto, **Proposta de origem** permite atribuir um grupo de serviços a um adicional, inclusive Access. A alteração marca somente a contribuição editada como `MANUAL_OVERRIDE`. O ajuste de pesos ocorre dentro da mesma contribuição.
 4. No diálogo do Data Book, escolha **Projeto completo**, **Principal** ou um **Adicional**, além do período. Revise a prévia e salve. A proposta, origem e revisão aparecem também no histórico.
 
@@ -21,7 +21,7 @@ As opções de escopo distinguem proposta e nome. Dois grupos “Vasos” de pro
 
 Um RDO misto conserva os serviços/fotos do recorte, mas omite descrição, fotos gerais e observações gerais de horas extras/stand-by: esses dados podem descrever outras propostas. Equipe, DDS e jornada do RDO que contém o serviço são contexto diário compartilhado, não horas ou custos exclusivos atribuídos ao adicional. Um aviso registra as omissões. RDOs inteiramente atribuídos à proposta conservam também sua descrição e fotos gerais.
 
-O vínculo fica em `Report.contributionAssignments`, separado de `specialConditions` e dos IDs recriados na edição dos serviços. A chave usa o conteúdo do serviço/medição. Alterar esse conteúdo exige rever o vínculo. Registros de conteúdo idêntico recebem o mesmo vínculo e aparecem agrupados na interface. Uma atividade que efetivamente reúne escopos precisa ser registrada em serviços separados para permitir recortes exclusivos. Atribuições manuais têm histórico com autor, motivo e data. Após remoção de qualquer adicional, registros sem vínculo manual voltam à conferência; não migram automaticamente para a mãe.
+O vínculo fica em `Report.contributionAssignments`, separado de `specialConditions` e dos IDs recriados na edição dos serviços. A chave usa o conteúdo do serviço/medição. Alterar esse conteúdo exige rever o vínculo. Registros de conteúdo idêntico recebem o mesmo vínculo e aparecem agrupados na interface. Uma atividade que efetivamente reúne escopos precisa ser registrada em serviços separados para permitir recortes exclusivos. Atribuições manuais têm histórico com autor e data; motivos registrados anteriormente são preservados. Após remoção de qualquer adicional, registros sem vínculo manual voltam à conferência; não migram automaticamente para a mãe.
 
 ## Persistência e concorrência
 
@@ -42,7 +42,7 @@ Históricos que nunca registraram a origem precisam de conferência pela aplica�
 ## API
 
 - `GET /api/acompanhamento/comercial/projetos/:id/escopos-propostas`: propostas, avanço independente, serviços e vínculos pendentes. Mesma autenticação do acompanhamento.
-- `PUT /api/acompanhamento/comercial/projetos/:id/escopos-propostas/:reportId`: `{ serviceKey, contributionKey, version, reason }`; gestor do acompanhamento. `contributionKey: null` deixa o serviço sem proposta definida, com registro no histórico.
+- `PUT /api/acompanhamento/comercial/projetos/:id/escopos-propostas/:reportId`: `{ serviceKey, contributionKey, version }`; gestor do acompanhamento. `reason` continua aceito como campo opcional para clientes anteriores. `contributionKey: null` deixa o serviço sem proposta definida, com registro no histórico.
 - Os endpoints de intervalo, preparação, prévia e geração de Data Book aceitam `contributionKey` opcional (`ALL` preserva a geração anterior). A preparação devolve `proposta.version`, enviado como `scopeVersion` ao montar a prévia. A edição histórica usa a identidade da revisão armazenada.
 
 ## Implantação e validação

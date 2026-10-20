@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiClientError } from '../../api/client';
 import { assignProposalScope, fetchProposalScopes, type ProposalScopeService } from '../../api/proposalScopes';
-import { Alert, Badge, Button, EmptyState, Field, Input, ProgressBar, Select, Spinner, Textarea } from '../ui/ds';
+import { Alert, Badge, Button, EmptyState, Field, Input, ProgressBar, Select, Spinner } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 import { fmtDate, SERVICE_LABELS, SYSTEM_LABELS, UNIT_LABELS } from './projectDetailModel';
 import './ProjectProposalScopes.css';
@@ -22,7 +22,6 @@ export function ProjectProposalScopes({ projectId, canManage = false, onEditingC
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<ProposalScopeService | null>(null);
   const [target, setTarget] = useState('');
-  const [reason, setReason] = useState('');
   const id = useId();
   const proposalRef = useRef<HTMLSelectElement>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -31,8 +30,8 @@ export function ProjectProposalScopes({ projectId, canManage = false, onEditingC
   const toast = useToast();
   const query = useQuery({ queryKey: ['proposal-scopes', projectId], queryFn: () => fetchProposalScopes(projectId) });
   const save = useMutation({
-    mutationFn: ({ service, contributionKey, reason }: { service: ProposalScopeService; contributionKey: string | null; reason: string }) =>
-      assignProposalScope(projectId, service, contributionKey, reason),
+    mutationFn: ({ service, contributionKey }: { service: ProposalScopeService; contributionKey: string | null }) =>
+      assignProposalScope(projectId, service, contributionKey),
     onSuccess: async (_, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['proposal-scopes', projectId] }),
@@ -58,8 +57,8 @@ export function ProjectProposalScopes({ projectId, canManage = false, onEditingC
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!editing || !canManage || !reason.trim() || save.isPending) return;
-    save.mutate({ service: editing, contributionKey: target || null, reason: reason.trim() });
+    if (!editing || !canManage || save.isPending) return;
+    save.mutate({ service: editing, contributionKey: target || null });
   }
 
   async function refreshService() {
@@ -142,27 +141,23 @@ export function ProjectProposalScopes({ projectId, canManage = false, onEditingC
               aria-expanded={Boolean(isEditing)} aria-controls={id + '-' + identity} onClick={event => {
                 if (isEditing) { cancelEdit(); return; }
                 triggerRef.current = event.currentTarget;
-                save.reset(); setEditing(item); setTarget(item.contributionKey || selected); setReason(''); onEditingChange?.(true);
+                save.reset(); setEditing(item); setTarget(item.contributionKey || selected); onEditingChange?.(true);
               }}>{isEditing ? 'Cancelar edição' : item.contributionKey ? 'Alterar vínculo' : 'Vincular proposta'}</Button> : null}
           </div>
           {isEditing ? <form id={id + '-' + identity} className="proposal-scopes__editor" aria-label="Vincular serviço à proposta" onSubmit={submit}
             onKeyDown={event => { if (event.key === 'Escape' && !save.isPending) { event.preventDefault(); event.stopPropagation(); cancelEdit(); } }}>
             <div><h4>Proposta de origem · {item.reportType} {item.number}</h4>
               <p>O vínculo organiza o Data Book e preserva o relatório aprovado.</p></div>
-            <div className="proposal-scopes__editor-fields">
-              <Field label="Proposta de origem" optionalText=""><Select ref={proposalRef} value={target} disabled={save.isPending} onChange={event => setTarget(event.target.value)}>
-                <option value="">Sem proposta definida</option>{scopes.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
-              </Select></Field>
-              <Field label="Motivo" required><Textarea rows={2} value={reason} maxLength={1000} disabled={save.isPending}
-                placeholder="Ex.: serviço executado na proposta adicional 4586" onChange={event => setReason(event.target.value)} /></Field>
-            </div>
+            <Field label="Proposta de origem" optionalText=""><Select ref={proposalRef} value={target} disabled={save.isPending} onChange={event => setTarget(event.target.value)}>
+              <option value="">Sem proposta definida</option>{scopes.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+            </Select></Field>
             {save.isError ? <Alert tone="danger" title="Não foi possível salvar o vínculo."
               action={conflict ? { label: 'Atualizar serviço', onClick: () => void refreshService() } : undefined}>
               {save.error instanceof Error ? save.error.message : 'Tente novamente.'}
             </Alert> : null}
             <div className="proposal-scopes__editor-actions">
               <Button variant="secondary" disabled={save.isPending} onClick={cancelEdit}>Cancelar</Button>
-              <Button type="submit" variant="primary" loading={save.isPending} loadingLabel="Salvando vínculo" disabled={!reason.trim()}>Salvar vínculo</Button>
+              <Button type="submit" variant="primary" loading={save.isPending} loadingLabel="Salvando vínculo">Salvar vínculo</Button>
             </div>
           </form> : null}
         </li>;

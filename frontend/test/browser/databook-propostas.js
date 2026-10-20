@@ -16,7 +16,7 @@ async page => {
     await page.getByRole('heading', { name: 'Vínculos dos serviços', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Vincular proposta', exact: true }).click();
     assert(await page.getByRole('form', { name: 'Vincular serviço à proposta' }).getByRole('combobox').inputValue() === 'COMERCIAL_APP:502', 'A proposta filtrada não foi sugerida para o serviço pendente.');
-    await page.getByRole('textbox', { name: 'Motivo', exact: true }).fill('Conferência da proposta adicional');
+    assert(await page.getByRole('form', { name: 'Vincular serviço à proposta' }).getByRole('textbox').count() === 0, 'Vinculação ainda exibe motivo.');
     await page.getByRole('button', { name: 'Salvar vínculo', exact: true }).click();
     await page.getByText('Vínculo manual', { exact: false }).waitFor();
     const assignment = await page.evaluate(() => window.databookChamadas.find(c => c.url.endsWith('/escopos-propostas/r1')));

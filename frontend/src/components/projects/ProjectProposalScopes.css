@@ -26,7 +26,6 @@
 .proposal-scopes__service-description { min-width: 0; overflow-wrap: anywhere; }
 .proposal-scopes__service-description > span { display: block; margin-top: var(--space-2); }
 .proposal-scopes__editor { display: grid; gap: var(--space-4); margin-top: var(--space-4); padding: var(--space-4); border-radius: var(--radius-sm); background: var(--brand-softer); border-top: var(--border-width) solid var(--line); }
-.proposal-scopes__editor-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: var(--space-4); }
 .proposal-scopes__editor-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
 .project-scope-dialog { display: grid; gap: var(--space-5); min-width: 0; }
 .project-scope-dialog__tabs { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-2); border-bottom: var(--border-width) solid var(--line); }
@@ -45,7 +44,6 @@
   .proposal-scopes__service-body { flex-direction: column; align-items: stretch; gap: var(--space-3); }
   .proposal-scopes__service-body > .fv-button { align-self: flex-start; }
   .proposal-scopes__editor { padding: var(--space-3); }
-  .proposal-scopes__editor-fields { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
   .proposal-scopes__editor-actions { flex-direction: column-reverse; align-items: stretch; }
   .project-scope-dialog__tab { max-width: 12rem; }
 }

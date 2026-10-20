@@ -81,11 +81,31 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
     assert.equal((await fetch(url)).status, 401);
     const headers = role => ({ Authorization: `Bearer ${tokens[role]}`, 'Content-Type': 'application/json' });
     assert.equal((await fetch(url, { headers: headers('ACOMPANHAMENTO_VIEWER') })).status, 200);
-    const body = row => JSON.stringify({ serviceKey: row.serviceKey, version: row.version, contributionKey: a, reason: 'Conferência por HTTP' });
+    const body = (row, contributionKey = a, reason) => JSON.stringify({ serviceKey: row.serviceKey, version: row.version, contributionKey, reason });
     assert.equal((await fetch(`${url}/${mixed.id}`, { method: 'PUT', headers: headers('ACOMPANHAMENTO_VIEWER'), body: body(stale) })).status, 403);
+    for (const reason of [123, null, 'x'.repeat(1001)]) {
+      assert.equal((await fetch(`${url}/${mixed.id}`, { method: 'PUT', headers: headers('ACOMPANHAMENTO_MANAGER'),
+        body: body(stale, a, reason) })).status, 400);
+    }
     const mixedRows = before.services.filter(row => row.reportId === mixed.id).slice(0, 2);
     const responses = await Promise.all(mixedRows.map(row => fetch(`${url}/${mixed.id}`, { method: 'PUT', headers: headers('ACOMPANHAMENTO_MANAGER'), body: body(row) })));
     assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+    const assigned = await prisma.report.findUnique({ where: { id: mixed.id } });
+    const audit = Object.values(assigned.contributionAssignments)[0];
+    assert.equal(audit.reason, null, 'o vínculo sem motivo não inventa uma justificativa');
+    assert.equal(audit.userId, managerId);
+    assert.ok(Number.isFinite(Date.parse(audit.at)), 'a autoria e a data continuam auditadas');
+    const previousRow = async () => (await getProposalScopeTracking(project.id)).services.find(row => row.reportId === previous.id);
+    assert.equal((await fetch(`${url}/${previous.id}`, { method: 'PUT', headers: headers('ACOMPANHAMENTO_MANAGER'),
+      body: body(await previousRow(), a, '  Conferência de cliente anterior  ') })).status, 200);
+    assert.equal((await fetch(`${url}/${previous.id}`, { method: 'PUT', headers: headers('ACOMPANHAMENTO_MANAGER'),
+      body: body(await previousRow(), null) })).status, 200, 'remover o vínculo também dispensa motivo');
+    const removed = (await prisma.report.findUnique({ where: { id: previous.id } })).contributionAssignments;
+    const history = Object.values(removed)[0].history;
+    assert.equal(history.at(-2).reason, 'Conferência de cliente anterior', 'motivos anteriores são preservados');
+    assert.equal(history.at(-1).reason, null);
+    assert.equal(history.at(-1).contributionKey, null);
+    assert.equal(history.at(-1).userId, managerId);
     const dialog = await fetch(`http://127.0.0.1:${server.address().port}/api/rdo/databook/projects/${project.id}/intervalo?contributionKey=${encodeURIComponent(a)}`, { headers: headers('ACOMPANHAMENTO_MANAGER') });
     assert.equal(dialog.status, 200);
     assert.equal((await dialog.json()).propostas.length, 3);
