@@ -34,12 +34,12 @@ export async function lockCommercialProject(tx, projectId) {
   return project;
 }
 
-export async function validateContributionParent(tx, project, proposal, source, { staged = false } = {}) {
+export async function validateContributionParent(tx, project, proposal, source, { staged = false, checkProjectClient = true } = {}) {
   const parentCode = String(source === 'COMERCIAL_APP' ? proposal.parentProposalCode : proposal.parentCodProp);
   const childCnpj = digits(proposal.clientCnpj);
   const projectCnpj = digits(project.clientCnpj);
-  if (source === 'COMERCIAL_APP' ? childCnpj.length !== 14 || childCnpj !== projectCnpj
-    : childCnpj && projectCnpj && childCnpj !== projectCnpj) {
+  if (checkProjectClient && (source === 'COMERCIAL_APP' ? childCnpj.length !== 14 || childCnpj !== projectCnpj
+    : childCnpj && projectCnpj && childCnpj !== projectCnpj)) {
     throw new CommercialAppBridgeError(422, 'Cliente/CNPJ do adicional não corresponde ao projeto.');
   }
   const budget = await tx.projectBudget.findUnique({ where: { projectId_version: { projectId: project.id, version: 1 } } });
@@ -81,9 +81,6 @@ export async function selectContribution(tx, project, proposal, source, {
   automatic = false, userId = null, expectedSelectionVersion, allowOlderRevision = false,
   reason = null, metricInclusion
 } = {}) {
-  if (!await validateContributionParent(tx, project, proposal, source, { staged: automatic })) {
-    return { budgetStatus: 'STAGED', reason: 'PARENT_UNRESOLVED' };
-  }
   const proposalCode = String(source === 'COMERCIAL_APP' ? proposal.proposalCode : proposal.codProp);
   const otherOrigin = await tx.projectAdditionalProposal.findFirst({ where: {
     projectId: project.id, proposalCode, active: true, source: { not: source }
@@ -97,6 +94,14 @@ export async function selectContribution(tx, project, proposal, source, {
   }
   const same = current && (source === 'COMERCIAL_APP'
     ? current.commercialAppProposalId === proposal.externalId : current.sourceProposalCodBd === proposal.codBd);
+  // Alterar campos da revisão já vinculada preserva o cliente histórico do vínculo. A mãe e
+  // seu CNPJ continuam validados; novos vínculos, reativações e trocas de revisão validam tudo.
+  const updatingMetrics = !automatic && current?.active && same && metricInclusion !== undefined;
+  if (!await validateContributionParent(tx, project, proposal, source, {
+    staged: automatic, checkProjectClient: !updatingMetrics
+  })) {
+    return { budgetStatus: 'STAGED', reason: 'PARENT_UNRESOLVED' };
+  }
   const previous = !current ? null : source === 'COMERCIAL_APP'
     ? await tx.commercialAppProposal.findUnique({ where: { externalId: current.commercialAppProposalId } })
     : await tx.commercialProposal.findUnique({ where: { codBd: current.sourceProposalCodBd } });

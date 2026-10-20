@@ -416,10 +416,11 @@ export async function deleteMissionAllocationCycle(missionId: string, allocation
 export async function autoAllocateMission(missionId: string) {
   return (await apiClient.post<{ created: MissionAllocation[]; remainingDeficits: Array<{ jobRoleId: string; jobRoleName: string; deficit: number }> }>(`${base}/missions/${encodeURIComponent(missionId)}/auto-allocate`)).data;
 }
-export async function movePlanningMission(id: string, version: number, stage: MissionStage, order: number, returnDate?: DateOnly | null) {
+export async function movePlanningMission(id: string, version: number, stage: MissionStage, order: number, returnDate?: DateOnly | null, executionStart?: { startDate: string; operatorId: string }) {
   return (await apiClient.patch<PlanningMission>(`${base}/missions/${encodeURIComponent(id)}/stage`, {
     stage,
     order,
+    ...executionStart,
     ...(returnDate !== undefined ? { returnDate } : {})
   }, { headers: { 'If-Match-Version': version } })).data;
 }

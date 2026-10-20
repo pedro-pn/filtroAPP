@@ -101,14 +101,21 @@ type ExecutionStartTarget = {
   project: ProjectWorkflowProject;
   plannedStartDate: string | null;
   executedAtHeadquarters: boolean;
+} & ({
   patch: Extract<ProjectWorkflowPatch, { action: 'stage' }>;
   move?: ManagedMove;
-};
+  legacyMove?: never;
+} | {
+  legacyMove: LegacyMove;
+  patch?: never;
+  move?: never;
+});
 type LegacyMove = {
   project: ProjectWorkflowSummary;
   stage: MissionStage;
   order: number;
   returnDate?: string | null;
+  executionStart?: { startDate: string; operatorId: string };
   snapshot: ProjectKanbanColumns;
 };
 
@@ -486,6 +493,7 @@ export function ProjectWorkflowBoard({
   };
 
   const refreshExecutionStart = async (projectId: string) => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['projects'] }),
     queryClient.invalidateQueries({ queryKey: ['project-execution', projectId] }),
     queryClient.invalidateQueries({ queryKey: ['commercial-revisions', projectId] }),
     queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] }),
@@ -611,9 +619,9 @@ export function ProjectWorkflowBoard({
   });
 
   const moveLegacyMission = useMutation({
-    mutationFn: ({ project, stage, order, returnDate }: LegacyMove) => {
+    mutationFn: ({ project, stage, order, returnDate, executionStart }: LegacyMove) => {
       const mission = project.operationalMission!;
-      return movePlanningMission(mission.id, mission.version, stage, order, returnDate);
+      return movePlanningMission(mission.id, mission.version, stage, order, returnDate, executionStart);
     },
     onSuccess: async (_, variables) => {
       setCompletionTarget(null);
@@ -623,6 +631,7 @@ export function ProjectWorkflowBoard({
         queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] }),
         queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
       ]);
+      if (variables.stage === 'EXECUTION') await refreshExecutionStart(variables.project.id);
       const projectStage = Object.entries(LEGACY_PROJECT_STAGE_TO_MISSION)
         .find(([, missionStage]) => missionStage === variables.stage)?.[0] || 'HANDOVER';
       onMobileStageChange(projectStage as ProjectKanbanStage);
@@ -780,6 +789,13 @@ export function ProjectWorkflowBoard({
       return;
     }
     const order = legacyOrder(targetMissionStage);
+    if (targetMissionStage === 'EXECUTION') {
+      setExecutionStartTarget({
+        project, plannedStartDate: mission.executionStartDate, executedAtHeadquarters: false,
+        legacyMove: { project, stage: targetMissionStage, order, snapshot }
+      });
+      return;
+    }
     if (targetMissionStage === 'FINISHED' && mission.stage !== 'FINISHED') {
       setCompletionTarget({ project, mission, order, snapshot });
       return;
@@ -1204,13 +1220,19 @@ export function ProjectWorkflowBoard({
         project={executionStartTarget.project}
         plannedStartDate={executionStartTarget.plannedStartDate}
         executedAtHeadquarters={executionStartTarget.executedAtHeadquarters}
-        saving={update.isPending || managedMove.isPending}
+        saving={update.isPending || managedMove.isPending || moveLegacyMission.isPending}
         onClose={() => {
-          if (!update.isPending && !managedMove.isPending) setExecutionStartTarget(null);
+          if (!update.isPending && !managedMove.isPending && !moveLegacyMission.isPending) setExecutionStartTarget(null);
         }}
-        onConfirm={startDate => {
-          const patch = { ...executionStartTarget.patch, startDate };
+        onConfirm={(startDate, operatorId) => {
           const callbacks = { onSuccess: () => setExecutionStartTarget(null), onError: () => setExecutionStartTarget(null) };
+          if (executionStartTarget.legacyMove) {
+            const move = executionStartTarget.legacyMove;
+            setColumns(moveProjectInColumns(columns, move.project.id, 'EXECUTION'));
+            moveLegacyMission.mutate({ ...move, executionStart: { startDate, operatorId } }, callbacks);
+            return;
+          }
+          const patch = { ...executionStartTarget.patch, startDate, operatorId };
           if (executionStartTarget.move) {
             const move = executionStartTarget.move;
             setColumns(moveProjectInColumns(columns, move.project.id, 'EXECUTION'));

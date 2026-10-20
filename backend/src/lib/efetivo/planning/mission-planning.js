@@ -12,6 +12,7 @@ import {
 import { resolveSelectedMissionTeam, syncSelectedMissionTeam } from './mission-team.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { assertProjectMobilizationAuthorized } from '../project-workflow/operational-gate.js';
+import { assignMissionReportTeam, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
 import {
   bumpPlanRevision,
   requireEditablePlan,
@@ -478,7 +479,22 @@ export async function deleteMission(missionId, context = {}, dependencies = {}) 
 export async function moveMissionStage(missionId, payload, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   return runPlanningTransaction(database, async tx => {
-    const existing = await tx.efetivoMissionPlan.findUnique({ where: { id: missionId }, include: { ...missionInclude, plan: true } });
+    const existing = await tx.efetivoMissionPlan.findUnique({
+      where: { id: missionId },
+      include: {
+        ...missionInclude,
+        plan: true,
+        ...(payload.stage === 'EXECUTION' ? {
+          allocations: {
+            ...missionInclude.allocations,
+            include: {
+              ...missionInclude.allocations.include,
+              collaborator: { select: { ...missionInclude.allocations.include.collaborator.select, user: { select: reportOperatorUserSelect } } }
+            }
+          }
+        } : {})
+      }
+    });
     if (!existing || existing.deletedAt) throw notFound('Missão operacional não encontrada.');
     const plan = await requireEditablePlan(tx, existing.planId, { actorUserId: context.actorUserId });
     if (context.version && existing.version !== context.version) throw conflictError('A posição da missão ficou desatualizada.', [], 'MISSION_VERSION_CONFLICT');
@@ -508,6 +524,17 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
     );
     if (entersOperationalMobilization) {
       await assertProjectMobilizationAuthorized(tx, existing.projectId);
+    }
+    const startsExecution = plan.kind === 'OFFICIAL' && existing.stage !== 'EXECUTION' && payload.stage === 'EXECUTION';
+    if (startsExecution) {
+      if (!payload.startDate) throw planningError('Confirme a data de início real da execução.', { code: 'PROJECT_WORKFLOW_EXECUTION_START_REQUIRED' });
+      const today = (dependencies.now || new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      const mobilizationDate = existing.project.mobilizationDate ? parseDateKey(existing.project.mobilizationDate) : null;
+      if (payload.startDate > today || (mobilizationDate && payload.startDate < mobilizationDate)) {
+        throw planningError('O início real deve ser uma data já ocorrida e não pode ser anterior à mobilização efetiva.', { code: 'INVALID_PROJECT_WORKFLOW_EXECUTION_START' });
+      }
+      const reportTeam = validateMissionReportOperator(existing, payload.operatorId);
+      await assignMissionReportTeam(tx, existing.projectId, payload.operatorId, reportTeam, payload.startDate);
     }
     const updatesDemobilization = payload.stage === 'FINISHED' && payload.returnDate !== undefined;
     if (updatesDemobilization) {
@@ -545,7 +572,8 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
     await bumpPlanRevision(tx, plan);
     await recordEfetivoAudit(tx, {
       planId: plan.id, actorUserId: context.actorUserId, action: 'MISSION_STAGE_CHANGE', entityType: 'MISSION', entityId: missionId,
-      summary: `${existing.project.name} movida para ${payload.stage}.`, beforeData: { stage: existing.stage, order: existing.kanbanOrder }, afterData: { stage: payload.stage, order: index }, evidence: context.evidence
+      summary: `${existing.project.name} movida para ${payload.stage}.`, beforeData: { stage: existing.stage, order: existing.kanbanOrder },
+      afterData: { stage: payload.stage, order: index, ...(startsExecution ? { startDate: payload.startDate, operatorId: payload.operatorId } : {}) }, evidence: context.evidence
     });
     return missionWithCurrentRoles(moved);
   });

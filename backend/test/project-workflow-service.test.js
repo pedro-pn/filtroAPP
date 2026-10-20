@@ -63,6 +63,7 @@ function fakeDatabase() {
     measurement: null,
     relatedPostJobs: [],
     operationalMission: null,
+    authorizedUsers: [],
     lastProjectFindManyInput: null,
     lastUserFindManyInput: null
   };
@@ -135,6 +136,15 @@ function fakeDatabase() {
       }
     },
     efetivoMissionPlan: { findFirst: async () => state.operationalMission },
+    projectAuthorizedUser: {
+      createMany: async ({ data }) => {
+        for (const link of data) {
+          if (!state.authorizedUsers.some(item => item.projectId === link.projectId && item.userId === link.userId)) {
+            state.authorizedUsers.push(link);
+          }
+        }
+      }
+    },
     user: {
       findFirst: async input => users[input.where.id] && !['viewer-1', 'commercial-1'].includes(input.where.id) ? users[input.where.id] : null,
       findMany: async input => {
@@ -1084,7 +1094,8 @@ function makeStateReadyForMobilization(state) {
       id: 'allocation-ready',
       collaboratorId: 'collaborator-1',
       jobRoleId: 'role-1',
-      collaborator: { id: 'collaborator-1', name: 'João da Silva', isActive: true, jobRole: { id: 'role-1', name: 'Mecânico' } },
+      collaborator: { id: 'collaborator-1', name: 'João da Silva', isActive: true, jobRole: { id: 'role-1', name: 'Mecânico' },
+        user: { id: 'report-user-1', isActive: true, accountType: 'INTERNAL', role: 'COLLABORATOR', moduleRoles: [{ role: 'RDO_COLLABORATOR' }] } },
       jobRole: { id: 'role-1', name: 'Mecânico' }
     }]
   };
@@ -1425,7 +1436,7 @@ test('avanço para execução não passa mais por "Pronto para mobilizar"', asyn
   });
   await assert.rejects(updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
   await updateProjectWorkflow('project-1', { action: 'mobilization', version: 2, mobilizationDate: '2026-09-10' }, leader, { database, confirmOfficialMissionMobilization: async () => null });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-10' }, leader, {
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-10' }, leader, {
     database,
     now: new Date('2026-09-10T09:00:00Z'),
     synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
@@ -1449,7 +1460,7 @@ test('início real confirmado na execução alimenta o acompanhamento, em campo 
     const dependencies = { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null };
 
     let detail = await updateProjectWorkflow('project-1', {
-      action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12'
+      action: 'stage', version: 1, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-12'
     }, leader, dependencies);
     assert.equal(detail.workflow.stage, 'EXECUTION');
     assert.equal(detail.project.startDate, '2026-09-12');
@@ -1466,9 +1477,82 @@ test('início real confirmado na execução alimenta o acompanhamento, em campo 
     }, leader, dependencies);
     assert.equal(detail.project.startDate, '2026-09-12');
     detail = await updateProjectWorkflow('project-1', {
-      action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-12'
+      action: 'stage', version: 3, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-12'
     }, leader, dependencies);
     assert.equal(detail.project.startDate, '2026-09-12');
+  }
+});
+
+test('início da execução define operador e autoriza toda a equipe habilitada sem remover acessos existentes', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  state.workflow.stage = 'MOBILIZATION';
+  state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+  state.authorizedUsers.push({ projectId: 'project-1', userId: 'already-authorized' });
+  const base = state.operationalMission.allocations[0];
+  state.operationalMission.allocations.push(...[
+    ['collaborator-2', { ...base.collaborator.user, id: 'report-user-2' }],
+    ['coordinator', { ...base.collaborator.user, id: 'report-coordinator', role: 'COORDINATOR', moduleRoles: [{ role: 'RDO_COORDINATOR' }] }],
+    ['no-account', null],
+    ['inactive-user', { ...base.collaborator.user, id: 'inactive', isActive: false }],
+    ['client-user', { ...base.collaborator.user, id: 'client', accountType: 'CLIENT' }],
+    ['no-rdo-access', { ...base.collaborator.user, id: 'no-rdo', moduleRoles: [{ role: 'EFETIVO_VIEWER' }] }]
+  ].map(([collaboratorId, user]) => ({ ...base, id: `allocation-${collaboratorId}`, collaboratorId,
+    collaborator: { ...base.collaborator, id: collaboratorId, user } })));
+  for (const allocation of state.operationalMission.allocations.slice(1)) {
+    state.teamMemberChecks.push(...PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => ({
+      id: `team-check-${allocation.collaboratorId}-${item.key}`, projectId: 'project-1',
+      collaboratorId: allocation.collaboratorId, key: item.key, status: 'DONE', source: 'MANUAL'
+    })));
+  }
+  const dependencies = { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null };
+  const result = await updateProjectWorkflow('project-1', {
+    action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12', operatorId: 'collaborator-2'
+  }, leader, dependencies);
+  assert.equal(state.project.operatorId, 'collaborator-2');
+  assert.equal(result.project.operatorId, 'collaborator-2');
+  assert.deepEqual(state.authorizedUsers.map(link => link.userId), ['already-authorized', 'report-user-1', 'report-user-2']);
+  assert.equal(state.events.at(-1).data.operatorId, 'collaborator-2');
+  const publicTeam = result.project.operationalMission.allocations;
+  assert.deepEqual(publicTeam.filter(item => item.collaborator.canOperateReports).map(item => item.collaboratorId), ['collaborator-1', 'collaborator-2', 'coordinator']);
+  assert.equal(Object.hasOwn(publicTeam[0].collaborator, 'user'), false);
+  const list = await listProjectWorkflows({}, manager, dependencies);
+  assert.equal(list.items[0].operatorId, 'collaborator-2');
+  await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION' }, leader, dependencies);
+  await updateProjectWorkflow('project-1', {
+    action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-12', operatorId: 'collaborator-2'
+  }, leader, dependencies);
+  assert.equal(state.authorizedUsers.length, 3);
+});
+
+test('execução exige operador da missão com colaborador e conta interna ativos e acesso ao Relatório', async () => {
+  for (const invalid of ['missing', 'outsider', 'no-account', 'inactive-user', 'inactive-collaborator', 'client', 'no-rdo']) {
+    const { database, state } = fakeDatabase();
+    await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+    makeStateReadyForMobilization(state);
+    state.workflow.stage = 'MOBILIZATION';
+    state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+    const collaborator = state.operationalMission.allocations[0].collaborator;
+    if (invalid === 'no-account') collaborator.user = null;
+    if (invalid === 'inactive-user') collaborator.user.isActive = false;
+    if (invalid === 'inactive-collaborator') collaborator.isActive = false;
+    if (invalid === 'client') collaborator.user.accountType = 'CLIENT';
+    if (invalid === 'no-rdo') collaborator.user.moduleRoles = [];
+    const beforeEvents = state.events.length;
+    let syncCount = 0;
+    await assert.rejects(updateProjectWorkflow('project-1', {
+      action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12',
+      operatorId: invalid === 'missing' ? undefined : invalid === 'outsider' ? 'outsider' : 'collaborator-1'
+    }, leader, { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => { syncCount += 1; } }),
+    error => error.code === (invalid === 'missing' ? 'PROJECT_WORKFLOW_REPORT_OPERATOR_REQUIRED' : 'INVALID_PROJECT_WORKFLOW_REPORT_OPERATOR'), invalid);
+    assert.equal(state.workflow.version, 1);
+    assert.equal(state.workflow.stage, 'MOBILIZATION');
+    assert.equal(state.project.operatorId, undefined);
+    assert.equal(state.project.startDate, null);
+    assert.equal(state.authorizedUsers.length, 0);
+    assert.equal(state.events.length, beforeEvents);
+    assert.equal(syncCount, 0);
   }
 });
 
@@ -1482,14 +1566,14 @@ test('execução recusa início sem confirmação, anterior à mobilização ou 
 
   for (const startDate of [undefined, '2026-09-09', '2026-09-14']) {
     await assert.rejects(updateProjectWorkflow('project-1', {
-      action: 'stage', version: 1, stage: 'EXECUTION', startDate
+      action: 'stage', version: 1, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate
     }, leader, dependencies), error => error.code === (startDate ? 'INVALID_PROJECT_WORKFLOW_EXECUTION_START' : 'PROJECT_WORKFLOW_EXECUTION_START_REQUIRED'));
     assert.equal(state.workflow.stage, 'MOBILIZATION');
     assert.equal(state.workflow.version, 1);
     assert.equal(state.project.startDate, null);
   }
   const detail = await updateProjectWorkflow('project-1', {
-    action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-13'
+    action: 'stage', version: 1, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-13'
   }, leader, dependencies);
   assert.equal(detail.project.startDate, '2026-09-13');
 });
@@ -1501,15 +1585,19 @@ test('falha ao salvar a etapa desfaz o início real e preserva a data anterior',
   state.workflow.stage = 'MOBILIZATION';
   state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
   state.project.startDate = new Date('2026-09-11T00:00:00Z');
+  state.project.operatorId = 'previous-operator';
+  state.authorizedUsers.push({ projectId: 'project-1', userId: 'previous-user' });
   const originalUpdate = database.projectWorkflow.update;
   database.projectWorkflow.update = async input => {
     if (input.data.stage === 'EXECUTION') throw new Error('Falha ao gravar etapa');
     return originalUpdate(input);
   };
   await assert.rejects(updateProjectWorkflow('project-1', {
-    action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12'
+    action: 'stage', version: 1, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-12'
   }, leader, { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null }), /Falha ao gravar etapa/);
   assert.equal(state.project.startDate.toISOString(), '2026-09-11T00:00:00.000Z');
+  assert.equal(state.project.operatorId, 'previous-operator');
+  assert.deepEqual(state.authorizedUsers, [{ projectId: 'project-1', userId: 'previous-user' }]);
   assert.equal(state.workflow.stage, 'MOBILIZATION');
   assert.equal(state.workflow.version, 1);
 });
@@ -1526,7 +1614,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'MOBILIZATION' }, leader, stageDependencies);
   await assert.rejects(updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
   await updateProjectWorkflow('project-1', { action: 'mobilization', version: 2, mobilizationDate: '2026-09-10' }, leader, { database, confirmOfficialMissionMobilization: async () => null });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-10' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-10' }, leader, stageDependencies);
   result = await updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
   assert.equal(result.workflow.stage, 'DEMOBILIZATION');
   assert.equal(result.workflow.demobilizationReadiness.total, 17);

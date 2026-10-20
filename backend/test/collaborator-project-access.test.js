@@ -82,6 +82,36 @@ test('project authorization grants report viewing without edit ownership', async
   assert.equal(collaboratorCanMutateReport(auth, report), false);
 });
 
+test('integrantes autorizados da missão podem preencher relatórios de outros autores sem estar no RDO', async () => {
+  const missionAuth = { user: { ...auth.user, accountType: 'INTERNAL', isActive: true }, rawUser: auth.rawUser };
+  const report = {
+    createdByUserId: 'other-author',
+    collaborators: [],
+    project: {
+      isActive: true, visibleToCollaborators: false, managerOnly: false, operatorId: 'another-operator',
+      authorizedUsers: [{ userId: auth.user.id }],
+      efetivoMissionPlans: [{ allocations: [{ collaboratorId: auth.user.collaboratorId }] }]
+    }
+  };
+  assert.equal(await canAccessReport(missionAuth, report), true);
+  assert.equal(collaboratorCanMutateReport(missionAuth, report), true);
+  const coordinatorAuth = { user: { ...missionAuth.user, role: 'COORDINATOR' } };
+  assert.equal(collaboratorCanMutateReport(coordinatorAuth, { ...report, project: { ...report.project, authorizedUsers: [] } }), true);
+  assert.equal(collaboratorCanMutateReport(coordinatorAuth, { ...report, project: { ...report.project, efetivoMissionPlans: [] } }), false);
+  for (const project of [
+    { ...report.project, efetivoMissionPlans: [] },
+    { ...report.project, authorizedUsers: [] },
+    { ...report.project, isActive: false },
+    { ...report.project, managerOnly: true },
+    { ...report.project, deletedAt: new Date() }
+  ]) assert.equal(collaboratorCanMutateReport(missionAuth, { ...report, project }), false);
+  for (const user of [
+    { ...missionAuth.user, accountType: 'CLIENT' },
+    { ...missionAuth.user, isActive: false },
+    { ...missionAuth.user, collaboratorId: 'not-on-mission' }
+  ]) assert.equal(collaboratorCanMutateReport({ user }, report), false);
+});
+
 test('collaborator report access rejects hidden projects even for operator and participant', async () => {
   const baseReport = {
     id: 'report-1',

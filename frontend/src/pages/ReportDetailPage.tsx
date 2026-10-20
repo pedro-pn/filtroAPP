@@ -68,6 +68,7 @@ import { requiresSystemType, systemTypeValue } from '../utils/cleaningMeasuremen
 import { isPressureHoseUnits, pressureHoseQuantity } from '../utils/pressureHoseMeasurement';
 import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../utils/ongoingServices';
 import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js';
+import { canEditMissionReports } from '../../../shared/modules/mission-report-access.js';
 import type { AuthUser } from '../types/auth';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
 import { normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
@@ -1837,7 +1838,9 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
 }
 
 function collaboratorCanEditReport(user: ReturnType<typeof useAuth>['user'], report: ReportSummary) {
-  if (!user || user.role !== 'COLLABORATOR') return false;
+  if (!user) return false;
+  if (canEditMissionReports(user, report.project)) return true;
+  if (user.role !== 'COLLABORATOR') return false;
   if (report.createdByUserId === user.id) return true;
   const collaboratorId = user.collaboratorId;
   if (!collaboratorId) return false;

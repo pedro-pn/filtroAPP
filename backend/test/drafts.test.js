@@ -138,6 +138,43 @@ test('coordinator can persist an RDO draft through the authenticated endpoint', 
   assert.equal(createData.payload.__module, 'rdo');
 });
 
+test('API autenticada bloqueia criar e editar rascunhos de arquivados para operador e usuário autorizado', async t => {
+  const originals = {
+    session: prisma.userSession.findUnique, transaction: prisma.$transaction,
+    findMany: prisma.reportDraft.findMany, findUnique: prisma.reportDraft.findUniqueOrThrow,
+    create: prisma.reportDraft.create, update: prisma.reportDraft.update
+  };
+  t.after(() => {
+    prisma.userSession.findUnique = originals.session;
+    prisma.$transaction = originals.transaction;
+    prisma.reportDraft.findMany = originals.findMany;
+    prisma.reportDraft.findUniqueOrThrow = originals.findUnique;
+    prisma.reportDraft.create = originals.create;
+    prisma.reportDraft.update = originals.update;
+  });
+  let writes = 0;
+  prisma.reportDraft.create = prisma.reportDraft.update = async () => { writes += 1; throw new Error('Gravação indevida'); };
+  const user = { ...coordinatorSession().user, role: 'COLLABORATOR', collaboratorId: 'collaborator-1', moduleRoles: [{ role: 'RDO_COLLABORATOR' }] };
+  prisma.userSession.findUnique = async () => ({ ...coordinatorSession(), user });
+  prisma.reportDraft.findMany = async () => [];
+  prisma.reportDraft.findUniqueOrThrow = async () => ({ id: 'draft-1', userId: user.id, projectId: 'archived', payload: {} });
+  for (const authorized of [false, true]) {
+    const project = {
+      isActive: false, deletedAt: null, operatorId: authorized ? 'other' : user.collaboratorId,
+      authorizedUsers: authorized ? [{ userId: user.id }] : []
+    };
+    prisma.$transaction = callback => callback({
+      project: { findUnique: async () => project }, reportDraft: prisma.reportDraft, $executeRaw: async () => 0
+    });
+    for (const [method, path] of [['POST', '/api/rdo/drafts'], ['PUT', '/api/rdo/drafts/draft-1']]) {
+      const response = await dispatchApp(method, path, { projectId: 'archived', reportDate: '2026-10-20', payload: {} });
+      assert.equal(response.statusCode, 403);
+      assert.equal(response.json.code, 'PROJECT_ARCHIVED_READ_ONLY');
+    }
+  }
+  assert.equal(writes, 0);
+});
+
 test('RDO draft filtering keeps legacy untagged drafts visible', () => {
   const items = [
     { id: 'legacy', payload: { projectId: 'project-1' } },
@@ -163,10 +200,11 @@ test('RDO draft payload check only excludes romaneio drafts', () => {
   assert.equal(isRdoDraftPayload({ __module: 'romaneio' }), false);
 });
 
-function draftDatabase(items = []) {
+function draftDatabase(items = [], projects = {}) {
   const rows = new Map(items.map(item => [item.id, structuredClone(item)]));
   const client = {
     $executeRaw: async () => 0,
+    project: { findUnique: async ({ where }) => projects[where.id] ?? { isActive: true, deletedAt: null } },
     reportDraft: {
       async findMany({ where }) {
         return [...rows.values()].filter(row => Object.entries(where).every(([key, value]) => row[key] === value));
@@ -239,4 +277,38 @@ test('editing cannot take ownership of another user or module draft', async () =
     await assert.rejects(saveRdoDraft(database, 'user-1', { payload: {} }, draft.id), { statusCode: 403 });
     assert.deepEqual(database.rows.get(draft.id), draft);
   }
+});
+
+test('colaborador não cria nem atualiza rascunho de projeto arquivado, mesmo trocando ou removendo o projeto', async () => {
+  const draft = { id: 'archived-draft', userId: 'user-1', projectId: 'archived', reportDate: '2026-10-20', payload: { dailyDescription: 'Preservar' } };
+  const projects = { archived: { isActive: false, deletedAt: null }, active: { isActive: true, deletedAt: null } };
+  for (const [draftId, projectId] of [
+    [null, 'archived'], ['archived-draft', 'archived'], ['archived-draft', 'active'], ['archived-draft', null]
+  ]) {
+    const database = draftDatabase([draft], projects);
+    await assert.rejects(saveRdoDraft(database, 'user-1', {
+      projectId, reportDate: '2026-10-20', payload: { dailyDescription: 'Não salvar' }
+    }, draftId), error => error.statusCode === 403 && error.code === 'PROJECT_ARCHIVED_READ_ONLY');
+    assert.equal(database.rows.size, 1);
+    assert.deepEqual(database.rows.get(draft.id), draft);
+  }
+});
+
+test('rascunho legado também mantém somente leitura quando o projeto arquivado está no payload', async () => {
+  const draft = { id: 'legacy', userId: 'user-1', payload: { projectId: 'archived', dailyDescription: 'Preservar' } };
+  const database = draftDatabase([draft], { archived: { isActive: false, deletedAt: null } });
+  await assert.rejects(saveRdoDraft(database, 'user-1', { payload: {} }, draft.id), { statusCode: 403, code: 'PROJECT_ARCHIVED_READ_ONLY' });
+  assert.deepEqual(database.rows.get(draft.id), draft);
+});
+
+test('colaborador mantém rascunhos sem projeto e em projetos ativos; arquivar passa a bloquear novos salvamentos', async () => {
+  const projects = { project: { isActive: true, deletedAt: null } };
+  const database = draftDatabase([], projects);
+  const input = { projectId: 'project', reportDate: '2026-10-20', payload: { dailyDescription: 'Inicial' } };
+  const first = await saveRdoDraft(database, 'user-1', input);
+  projects.project.isActive = false;
+  await assert.rejects(saveRdoDraft(database, 'user-1', { ...input, payload: { dailyDescription: 'Depois de arquivar' } }, first.item.id), { statusCode: 403 });
+  assert.equal(database.rows.get(first.item.id).payload.dailyDescription, 'Inicial');
+  const unassigned = await saveRdoDraft(database, 'user-1', { payload: {} });
+  assert.equal(unassigned.created, true);
 });

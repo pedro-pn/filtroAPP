@@ -23,6 +23,10 @@
   gap: var(--space-3, 12px);
 }
 
+.additional-contribution__error {
+  flex-basis: 100%;
+}
+
 .additional-contribution__fields .fv-switch {
   border-bottom: 1px solid var(--border, #e2e8f0);
   padding-bottom: var(--space-3, 12px);

@@ -32,7 +32,7 @@ apiClient.defaults.adapter = async config => {
     if (failNext) {
       failNext = false;
       throw new AxiosError('Falha simulada', 'ERR_BAD_REQUEST', config, undefined,
-        { ...response({ error: 'Falha simulada' }), status: 500 });
+        { ...response({ error: 'Cliente/CNPJ do adicional não corresponde ao projeto.' }), status: 422 });
     }
     const input = JSON.parse(config.data);
     const group = groups.find(item => item.revisions.some(item => item.codBd === input.codBd))!;
