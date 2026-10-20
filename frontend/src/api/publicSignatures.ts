@@ -71,6 +71,20 @@ export async function getPublicSignature(token: string) {
   return response.data;
 }
 
+export type PublicReportPayload = Pick<PublicSignaturePayload, 'status' | 'expiresAt'> & {
+  report?: Omit<NonNullable<PublicSignaturePayload['report']>, 'sourceDocumentHash'>;
+};
+
+export async function getPublicReport(token: string) {
+  const response = await apiClient.get<PublicReportPayload>(`/reports/public-view/${encodeURIComponent(token)}`);
+  return response.data;
+}
+
+export function publicReportPdfUrl(token: string) {
+  const baseUrl = String(apiClient.defaults.baseURL || '/api').replace(/\/+$/, '');
+  return `${baseUrl}/reports/public-view/${encodeURIComponent(token)}/pdf`;
+}
+
 export interface PublicSignatureConfirmPayload {
   signatureId?: string;
   signerName: string;

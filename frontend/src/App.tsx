@@ -102,6 +102,7 @@ export default function App() {
         <Route path="/notificacoes/:token" element={<NotificationPreferencesPage />} />
         <Route path="/pesquisa/:token" element={<SurveyPage />} />
         <Route path="/assinar/:token" element={<PublicSignaturePage />} />
+        <Route path="/rdo-publico/:token" element={<PublicSignaturePage readOnly />} />
         <Route path="/epi/assinar/:token" element={<EpiPublicSignaturePage />} />
         <Route path="/assinaturas/assinar" element={<AssinaturasPublicSignPage />} />
         <Route path="/validar-assinatura/:validationCode" element={<SignatureValidationPage />} />

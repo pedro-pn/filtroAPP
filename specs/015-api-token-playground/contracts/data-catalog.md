@@ -2,7 +2,7 @@
 
 ## Finalidade e regra de publicação
 
-Este catálogo cobre os **162 modelos Prisma de negócio** existentes em `backend/prisma/schema.prisma` em 2026-10-19, excluindo os seis modelos da própria infraestrutura de credenciais de API. Ele responde quais dados podem ser avaliados para endpoint, quais exigem revisão reforçada e quais nunca devem ser expostos por tokens desta funcionalidade.
+Este catálogo cobre os **163 modelos Prisma de negócio** existentes em `backend/prisma/schema.prisma` em 2026-10-20, excluindo os seis modelos da própria infraestrutura de credenciais de API. Ele responde quais dados podem ser avaliados para endpoint, quais exigem revisão reforçada e quais nunca devem ser expostos por tokens desta funcionalidade.
 
 Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quando estiver `DISPONÍVEL` e possuir contrato versionado, projeção por allowlist, autorização, limites, auditoria e testes de concessão/negação.
 
@@ -19,6 +19,8 @@ Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quand
 Quando um modelo mistura campos, a coluna descreve a classificação por subconjunto. Toda futura projeção deve listar os campos, nunca retornar o modelo integral.
 
 ## Matriz completa por domínio
+
+**Atualização 2026-10-20:** as credenciais de consulta pública de RDO foram incluídas em autenticação e tokens internos como PROIBIDO, sem habilitar escopos ou endpoints de integração.
 
 **Atualização 2026-10-19:** os padrões reutilizáveis de dados técnicos de equipamentos foram incluídos como RESERVADO, sem habilitar escopos ou endpoints de integração.
 
@@ -61,13 +63,13 @@ Quando um modelo mistura campos, a coluna descreve a classificação por subconj
 | 13 | **Relatórios de alocação e entregas** — `AllocationReportRecipient`, `AllocationReportDelivery`, `AllocationReportRecipientDelivery` | Entrega agregada: PLANEJADO; destinatários e detalhe de envio: RESERVADO/SENSÍVEL | `alocacao.relatorios.read`, `alocacao.entregas.read` | período, projeto, situação, contagens e timestamps de entrega | e-mail/destinatário por padrão, mensagem de erro bruta, conteúdo do arquivo e configuração de distribuição |
 | 14 | **Operações, retenção e jobs** — `DataRetentionRun`, `JobRun`, `JobLock`, `IntegrationSyncRun` | Estados sanitizados de execução/sync: RESERVADO; trava: PROIBIDO | `operacoes.jobs.read`, `operacoes.integracoes.read`, `operacoes.retencao.read` | nome conhecido, início/fim, situação, totais e erro redigido | lock/lease, stack trace, segredo/configuração, payload/raw metadata, comando e caminho de backup |
 | 15 | **Pesquisa de satisfação** — `SatisfactionSurvey`, `SatisfactionSurveyQuestion` | Agregados anônimos: PLANEJADO; respostas individuais/identidade: SENSÍVEL | `pesquisas.agregados.read`, `pesquisas.respostas.read` | pergunta, período, contagem e métricas; resposta individual apenas com base/finalidade aprovada | token/hash/material criptográfico, destinatário/contato, vínculo identificável, IP/user-agent e texto livre sem revisão |
-| 16 | **Autenticação e tokens internos** — `NotificationPreferenceToken`, `PasswordResetToken`, `EmailChangeToken`, `UserSession` | PROIBIDO | nenhum | nenhuma | todos os campos; nem hash, seletor, validade, sessão, e-mail pendente ou metadados viram endpoint de integração |
+| 16 | **Autenticação e tokens internos** — `NotificationPreferenceToken`, `PasswordResetToken`, `EmailChangeToken`, `UserSession`, `ReportClientAccess` | PROIBIDO | nenhum | nenhuma | todos os campos; nem hash, seletor, validade, sessão, e-mail pendente ou metadados viram endpoint de integração |
 | 17 | **Privacidade/LGPD** — `DataSubjectRequest`, `DataSubjectRequestResponseAttempt` | RESERVADO e SENSÍVEL; fora da API geral | eventual `privacidade.solicitacoes.read` somente após especificação jurídica própria | nenhuma na v1 | identidade/contato do titular, documento, prova, anexos, resposta, tentativas de entrega, IP/user-agent, justificativas e trilha completa |
 | 18 | **Comercial, orçamento e planejamento** — `CommercialProposal`, `CommercialAppProposal`, `CommercialAppDelivery`, `CommercialProposalSyncJob`, `ProjectContributionEvent`, `AccessImport`, `ProjectBudget`, `ProjectAdditionalProposal`, `ProjectPlannedService`, `ProjectPlannedServiceSystem`, `ProjectPlannedNormalHours`, `ProjectPlannedOvertime`, `ProjectServiceSystem` | Proposta/orçamento/horas/custos: SENSÍVEL; registro de entrega, fila de sincronização, auditoria de contribuição, importação bruta e sistemas do cliente: RESERVADO | `comercial.propostas.read`, `comercial.orcamentos.read`, `comercial.servicos-planejados.read`, `comercial.horas.read`, `comercial.contatos.read` | projeto, versão, estado, composição e valores somente conforme finalidade financeira | `rawRow`, snapshot comercial, arquivo/hash de importação, contato/e-mail/CNPJ sem escopo, observação livre, custo/margem sem escopo e identidade interna desnecessária |
 | 19 | **Integração Omie** — `OmieProject`, `OmieCategory`, `OmiePurchase`, `OmieReceivable`, `OmieInvoice` | Projetos/categorias: PLANEJADO; compras/recebíveis/faturamentos: SENSÍVEL | `omie.projetos.read`, `omie.categorias.read`, `omie.compras.read`, `omie.recebiveis.read` | IDs externos necessários, projeto/categoria, documento, datas, situação e valores com escopo financeiro | credencial Omie, payload bruto, logs técnicos, dados bancários/fiscais excessivos e contato sem finalidade |
 | 20 | **Assinaturas avulsas** — `SignatureDocumentBatch`, `SignatureInviteGroup`, `SignatureDocument`, `SignatureDocumentSigner`, `SignatureDocumentField`, `SignatureDocumentAuditLog`, `SignatureDocumentFilePurge`, `SignatureDocumentCompletionNotification` | Lotes/documentos/status/campos: SENSÍVEL; convites agrupados, auditoria, purge e notificação: RESERVADO | `assinaturas.documentos.read`, `assinaturas.signatarios.read`, `assinaturas.campos.read`, `assinaturas.arquivos.download`, `assinaturas.auditoria.read` | título, estado, datas, signatários minimizados e definição de campos quando justificado | token/hash/cifra/IV/auth tag, assinatura desenhada, CPF/documento, IP/user-agent, caminho do arquivo, prova integral, erro e configuração de notificação |
 
-**Cobertura**: **157 modelos** distribuídos nos 20 domínios acima.
+**Cobertura**: **163 modelos** distribuídos nos 20 domínios acima.
 
 ## Famílias de endpoints candidatas
 

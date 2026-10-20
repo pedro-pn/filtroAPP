@@ -340,7 +340,23 @@ export function buildDataSubjectRequestResponseEmailTemplate({ protocol, typeLab
   };
 }
 
-export function buildReportApprovedEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, appUrl }) {
+function reportAccessEmailContent({ accessUrl, canSign, expiresAt }) {
+  if (!accessUrl) return { html: '', text: '' };
+  const label = canSign ? 'Conferir e assinar RDO' : 'Consultar e baixar RDO';
+  const expiresLabel = new Date(expiresAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const validity = `Link individual com validade de 30 dias. Expira em ${expiresLabel} (horário de Brasília).`;
+  const safeUrl = escapeHtml(accessUrl);
+  return {
+    html: `<p style="margin:24px 0 12px"><a href="${safeUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:16px 24px;border-radius:10px;font-size:16px;font-weight:700">${label}</a></p>
+      <p style="font-size:13px;line-height:1.7">${validity}</p>
+      ${canSign ? '' : '<p style="font-size:14px;line-height:1.7">Acesso para consulta e download, sem necessidade de assinatura.</p>'}
+      <p style="font-size:12px;line-height:1.7;word-break:break-all">Se preferir, copie e cole no navegador: <a href="${safeUrl}">${safeUrl}</a></p>`,
+    text: `${label}: ${accessUrl}\n${validity}${canSign ? '' : '\nAcesso para consulta e download, sem necessidade de assinatura.'}`
+  };
+}
+
+export function buildReportApprovedEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, appUrl, accessUrl, canSign, expiresAt }) {
+  const access = reportAccessEmailContent({ accessUrl, canSign, expiresAt });
   const title = 'Relatório gerado no sistema Filtrovali';
   const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} foi gerado e está disponível no sistema.`;
   const body = `
@@ -352,6 +368,7 @@ export function buildReportApprovedEmailTemplate({ projectCode, projectName, cli
         <div><strong>Data:</strong> ${reportDate}</div>
       </div>
     </div>
+    ${access.html}
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
     ${privacyHtmlLine()}
   `;
@@ -365,6 +382,7 @@ export function buildReportApprovedEmailTemplate({ projectCode, projectName, cli
       `Cliente: ${clientName}`,
       `Projeto: ${projectCode} - ${projectName}`,
       `Data: ${reportDate}`,
+      access.text,
       appUrl ? `Acesso: ${appUrl}` : '',
       privacyTextLine()
     ].filter(Boolean).join('\n'),
@@ -672,7 +690,8 @@ export function buildClientAccessReminderEmailTemplate({ clientName, cnpj, newPa
   };
 }
 
-export function buildReportReapprovedEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, appUrl }) {
+export function buildReportReapprovedEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, appUrl, accessUrl, canSign, expiresAt }) {
+  const access = reportAccessEmailContent({ accessUrl, canSign, expiresAt });
   const title = 'Relatório revisado e disponível para nova avaliação';
   const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName}, que havia sido reprovado anteriormente, foi revisado pelo gestor e está disponível para sua avaliação.`;
   const body = `
@@ -684,6 +703,7 @@ export function buildReportReapprovedEmailTemplate({ projectCode, projectName, c
         <div><strong>Data:</strong> ${reportDate}</div>
       </div>
     </div>
+    ${access.html}
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para avaliar: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
     ${privacyHtmlLine()}
   `;
@@ -697,6 +717,7 @@ export function buildReportReapprovedEmailTemplate({ projectCode, projectName, c
       `Cliente: ${clientName}`,
       `Projeto: ${projectCode} - ${projectName}`,
       `Data: ${reportDate}`,
+      access.text,
       appUrl ? `Acesso: ${appUrl}` : ''
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })

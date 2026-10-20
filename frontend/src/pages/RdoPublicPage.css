@@ -93,6 +93,60 @@
   width: fit-content;
 }
 
+.public-signature-card {
+  width: min(100%, 56rem);
+}
+
+.public-report-document {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.public-report-document__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.public-report-document__heading h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.public-report-document__heading span,
+.public-report-document__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-sm);
+}
+
+.public-report-document .signature-pdf-scroll {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.public-report-document__paper {
+  background: var(--white);
+}
+
+.public-report-document__paper img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.public-report-document__loading {
+  display: grid;
+  min-height: 20rem;
+  place-items: center;
+}
+
 .rdo-public-shell .privacy-notice {
   border-color: var(--line);
   background: var(--brand-softer);
@@ -327,6 +381,10 @@
   .public-signature-actions .fv-button {
     width: 100%;
     padding-inline: var(--space-2);
+  }
+
+  .public-signature-actions.public-report-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .signature-validation-file {

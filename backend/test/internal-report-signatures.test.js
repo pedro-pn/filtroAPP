@@ -37,6 +37,7 @@ import {
 import app from '../src/app.js';
 import env, { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import prisma from '../src/lib/prisma.js';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../src/lib/privacy-consent.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
@@ -2203,6 +2204,105 @@ function publicSignatureFixture(overrides = {}) {
   ];
   return signature;
 }
+
+function publicReportAccessFixture() {
+  const signature = publicSignatureFixture();
+  return {
+    tokenHash: internalSignatureTokenHash('a'.repeat(64)),
+    recipientEmail: 'copia@example.com',
+    expiresAt: new Date(Date.now() + 30 * 86_400_000),
+    approvedAt: null,
+    versionId: signature.version.id,
+    report: {
+      ...signature.report,
+      project: { ...signature.report.project, clientEmailCc: ['copia@example.com'] },
+      versions: [signature.version]
+    }
+  };
+}
+
+test('public report view exposes only its RDO and allows unauthenticated PDF download', async t => {
+  const originalFind = prisma.reportClientAccess.findUnique;
+  const originalVersions = prisma.reportVersion.findFirst;
+  const originalReportsDir = env.reportsDir;
+  env.reportsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-public-view-'));
+  const pdf = Buffer.from('pdf-for-view-only-recipient');
+  await fs.writeFile(path.join(env.reportsDir, 'view.pdf'), pdf);
+  const access = publicReportAccessFixture();
+  access.report.versions[0].sourcePdfUrl = '/relatorios/view.pdf';
+  access.report.versions[0].sourceDocumentHash = sha256Hex(pdf);
+  prisma.reportClientAccess.findUnique = async args => {
+    assert.equal(args.where.tokenHash, access.tokenHash);
+    return access;
+  };
+  prisma.reportVersion.findFirst = async () => null;
+  t.after(async () => {
+    prisma.reportClientAccess.findUnique = originalFind;
+    prisma.reportVersion.findFirst = originalVersions;
+    const reportsDir = env.reportsDir;
+    env.reportsDir = originalReportsDir;
+    await fs.rm(reportsDir, { recursive: true, force: true });
+  });
+
+  const response = await dispatchAppGet(`/api/reports/public-view/${'a'.repeat(64)}`);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.status, 'ACTIVE');
+  assert.equal(response.json.report.id, access.report.id);
+  assert.equal(response.json.report.sequenceNumber, 12);
+  assert.equal(response.json.signer, undefined);
+  assert.equal(response.json.recipientEmail, undefined);
+  assert.equal(response.json.tokenHash, undefined);
+  const download = await dispatchAppGet(`/api/reports/public-view/${'a'.repeat(64)}/pdf?reportId=another-report`);
+  assert.equal(download.statusCode, 200);
+  assert.deepEqual(download.buffer, pdf);
+});
+
+test('public report links hide report data and block downloads when unavailable', async t => {
+  const originalFind = prisma.reportClientAccess.findUnique;
+  let access;
+  prisma.reportClientAccess.findUnique = async () => access;
+  t.after(() => { prisma.reportClientAccess.findUnique = originalFind; });
+  const cases = [
+    [item => { item.expiresAt = new Date(Date.now() - 1); }, 'EXPIRED'],
+    [item => { item.report.deletedAt = new Date(); }, 'UNAVAILABLE'],
+    [item => { item.report.project.managerOnly = true; }, 'UNAVAILABLE'],
+    [item => { item.report.project.clientEmailCc = []; }, 'UNAVAILABLE'],
+    [item => { item.report.status = 'PENDING'; }, 'UNAVAILABLE'],
+    [item => { item.report.versions[0].status = 'SUPERSEDED'; }, 'INVALIDATED'],
+    [item => { item.report.approvedAt = new Date(); }, 'INVALIDATED']
+  ];
+  for (const [mutate, status] of cases) {
+    access = publicReportAccessFixture();
+    mutate(access);
+    const response = await dispatchAppGet(`/api/reports/public-view/${'a'.repeat(64)}`);
+    assert.deepEqual(response.json, { status });
+    const download = await dispatchAppGet(`/api/reports/public-view/${'a'.repeat(64)}/pdf`);
+    assert.equal(download.statusCode, 410);
+    assert.equal(download.json.status, status);
+  }
+  access = null;
+  const invalid = await dispatchAppGet(`/api/reports/public-view/${'b'.repeat(64)}/pdf`);
+  assert.equal(invalid.statusCode, 404);
+});
+
+test('view-only token does not authorize public signature confirmation or rejection', async t => {
+  const originalFind = prisma.reportSignature.findUnique;
+  const originalTransaction = prisma.$transaction;
+  prisma.reportSignature.findUnique = async () => null;
+  prisma.$transaction = async callback => callback(prisma);
+  t.after(() => {
+    prisma.reportSignature.findUnique = originalFind;
+    prisma.$transaction = originalTransaction;
+  });
+  const base = `/api/reports/public-sign/${'a'.repeat(64)}`;
+  const confirmation = await dispatchApp('POST', `${base}/confirm`, {
+    signerName: 'Cliente Teste', signatureImageDataUrl: validSignatureImageDataUrl,
+    privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+  });
+  assert.equal(confirmation.statusCode, 404);
+  const rejection = await dispatchApp('POST', `${base}/reject`, { comment: 'Tentativa de reprovação' });
+  assert.equal(rejection.statusCode, 404);
+});
 
 test('public signature link returns only the token report without batching sibling reports', async t => {
   const originalFindUnique = prisma.reportSignature.findUnique;
