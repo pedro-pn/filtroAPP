@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import env from '../../config/env.js';
 import { z } from 'zod';
 
 import { makeApiCredentialSchemas } from '../../../../shared/schemas/api-credentials.js';
@@ -16,6 +17,7 @@ import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from './job-role-salary.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../projects/crm-opportunities.js';
+import { getCrmPlanningState, listCrmPlanningStates, validatePlanningDetailParams, validatePlanningListQuery, validatePlanningReadAccess } from '../projects/crm-planning-read.js';
 
 const PLAYGROUND_MAX_ITEMS = 20;
 const requestSchema = makeApiCredentialSchemas(z).playground;
@@ -45,6 +47,8 @@ export function validatePlaygroundRequest(input) {
   else if (operation.operationId === 'jobRoles.salary.get') validateJobRoleSalaryRequest(parsed.pathParams, parsed.query);
   else if (operation.operationId === 'efetivo.projects.create') validateProjectCreation(parsed.body);
   else if (operation.operationId === 'acompanhamento.opportunities.post') validateCrmOpportunity(parsed.body);
+  else if (operation.operationId === 'acompanhamento.opportunities.links.list') validatePlanningListQuery(parsed.query);
+  else if (operation.operationId === 'acompanhamento.opportunities.get') validatePlanningDetailParams(parsed.pathParams, parsed.query);
   else if (operation.operationId === 'efetivo.projects.commercialFact.post') validateCommercialFact(parsed.body);
   else if (operation.operationId === 'efetivo.projects.document.post') validateCrmDocument(parsed.body);
   else if (getOperationalResource(operation.operationId)) parsed.query = makeOperationalReadQuerySchema(z).parse(parsed.query);
@@ -69,7 +73,8 @@ function curlForPath(path, download = false, method = 'GET', body) {
   if (download) return `curl --fail -H "Authorization: Bearer $FILTRO_API_TOKEN" --output "arquivo-baixado.bin" "${url}"`;
   if (method === 'POST') {
     const quotedBody = JSON.stringify(body).replaceAll("'", "'\\''");
-    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json" --data-raw '${quotedBody}' "${url}"`;
+    const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' ? ` -H "Idempotency-Key: ${body.eventId}"` : '';
+    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency} --data-raw '${quotedBody}' "${url}"`;
   }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }
@@ -118,6 +123,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   if (getOperationalResource(parsed.operationId)) prepareOperationalQuery(parsed.operationId, query, context);
   if (parsed.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, query, context);
   if (operation.method === 'POST') validateProjectWriteAccess(parsed.pathParams.id, query, context, { create: ['efetivo.projects.create', 'acompanhamento.opportunities.post'].includes(parsed.operationId) });
+  if (['acompanhamento.opportunities.links.list', 'acompanhamento.opportunities.get'].includes(parsed.operationId)) validatePlanningReadAccess(credential);
   const requestId = options.requestId || randomUUID();
   const isDownload = operation.responseKind === 'DOWNLOAD_CHECK';
   const requestedRows = isDownload ? 0 : parsed.operationId.endsWith('.list') ? Number(query.limit) || PLAYGROUND_MAX_ITEMS : 1;
@@ -134,6 +140,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   });
   let body;
   let rows = 0;
+  let responseStatus;
   try {
     if (isDownload) {
       body = await checkPlaygroundDownload(prisma, operation, parsed.pathParams, context, options.fileRoots);
@@ -158,8 +165,17 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
       };
       rows = 1;
     } else if (parsed.operationId === 'acompanhamento.opportunities.post') {
-      body = await receiveCrmOpportunity(prisma, parsed.body);
+      const received = await receiveCrmOpportunity(prisma, parsed.body, { envConfig: options.envConfig || env, idempotencyKey: parsed.body.eventId });
+      body = received.body;
+      responseStatus = received.statusCode;
       rows = 1;
+    } else if (parsed.operationId === 'acompanhamento.opportunities.get') {
+      body = await getCrmPlanningState(prisma, parsed.pathParams.externalId, options.envConfig || env);
+      rows = 1;
+    } else if (parsed.operationId === 'acompanhamento.opportunities.links.list') {
+      body = await listCrmPlanningStates(prisma, query, { envConfig: options.envConfig || env, maxPageSize: context.maxPageSize,
+        cursorKey: options.cursorKey || env.apiTokenHashKeys[env.apiTokenActiveKeyVersion] });
+      rows = body.items.length;
     } else if (parsed.operationId === 'efetivo.projects.create') {
       body = await createCrmProject(prisma, parsed.body);
       rows = 1;
@@ -191,7 +207,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   return {
     request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload, operation.method, parsed.body), body: operation.method === 'POST' ? parsed.body : null },
     response: {
-      status: operation.method === 'POST' && ['created', 'CREATED'].includes(body?.status || body?.outcome) ? 201 : 200,
+      status: responseStatus ?? (operation.method === 'POST' && ['created', 'CREATED'].includes(body?.status || body?.outcome) ? 201 : 200),
       durationMs: Number((process.hrtime.bigint() - started) / 1_000_000n),
       requestId,
       truncated: rows >= PLAYGROUND_MAX_ITEMS,

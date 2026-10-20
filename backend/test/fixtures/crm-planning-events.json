@@ -1,0 +1,893 @@
+{
+  "notice": "Proposta não implementada. Todos os dados são sintéticos; não enviar estes exemplos em produção.",
+  "contractVersion": "planning-1.0",
+  "examples": [
+    {
+      "name": "01_sinalizacao",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "2a9b7110-424a-52bc-9266-21726dd866c4",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-primary-100",
+        "sourceVersion": 1,
+        "sourceUpdatedAt": "2026-10-20T09:00:00-03:00",
+        "change": {
+          "kind": "PLANNING_REQUESTED",
+          "occurredAt": "2026-10-20T09:00:00-03:00",
+          "reason": "Reservar capacidade preliminar para a negociação.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "OPEN",
+          "sourceCommercialStatus": "open",
+          "commercialStatusDecision": {
+            "occurredAt": null,
+            "reason": null,
+            "actor": null
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "125000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": null
+          },
+          "closedAt": null,
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-primary-100"
+        }
+      }
+    },
+    {
+      "name": "02_atualizacao",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "8b28ff19-f2ba-5b52-a983-c20ea863f5a8",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-primary-100",
+        "sourceVersion": 2,
+        "sourceUpdatedAt": "2026-10-20T10:00:00-03:00",
+        "change": {
+          "kind": "STATE_UPDATED",
+          "occurredAt": "2026-10-20T10:00:00-03:00",
+          "reason": "Valor e previsão comercial revisados.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "OPEN",
+          "sourceCommercialStatus": "open",
+          "commercialStatusDecision": {
+            "occurredAt": null,
+            "reason": null,
+            "actor": null
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": null,
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-primary-100"
+        }
+      }
+    },
+    {
+      "name": "03_retirada",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "dc438ae2-083d-5b3b-8ebb-934ff9ae6b03",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-primary-100",
+        "sourceVersion": 3,
+        "sourceUpdatedAt": "2026-10-20T11:00:00-03:00",
+        "change": {
+          "kind": "PLANNING_WITHDRAWN",
+          "occurredAt": "2026-10-20T11:00:00-03:00",
+          "reason": "Cliente adiou a decisão; retirar da previsão de capacidade.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": false,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T09:00:00-03:00",
+            "withdrawnAt": "2026-10-20T11:00:00-03:00",
+            "reason": "Cliente adiou a decisão; retirar da previsão de capacidade.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "OPEN",
+          "sourceCommercialStatus": "open",
+          "commercialStatusDecision": {
+            "occurredAt": null,
+            "reason": null,
+            "actor": null
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": null,
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-primary-100"
+        }
+      }
+    },
+    {
+      "name": "04_nova_sinalizacao",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "20ebc48b-b5b7-5647-b749-d2b4b7b73fd7",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-primary-100",
+        "sourceVersion": 4,
+        "sourceUpdatedAt": "2026-10-20T12:00:00-03:00",
+        "change": {
+          "kind": "PLANNING_REQUESTED",
+          "occurredAt": "2026-10-20T12:00:00-03:00",
+          "reason": "Cliente retomou a negociação.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T12:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Cliente retomou a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "OPEN",
+          "sourceCommercialStatus": "open",
+          "commercialStatusDecision": {
+            "occurredAt": null,
+            "reason": null,
+            "actor": null
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": null,
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-primary-100"
+        }
+      }
+    },
+    {
+      "name": "05_ganho_principal",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "c8e22795-e4e5-5b71-89f7-22b0bab95f78",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-primary-100",
+        "sourceVersion": 5,
+        "sourceUpdatedAt": "2026-10-21T14:00:00-03:00",
+        "change": {
+          "kind": "COMMERCIAL_STATUS_CHANGED",
+          "occurredAt": "2026-10-21T14:00:00-03:00",
+          "reason": "Negociação ganha com revisão expressamente aceita.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T12:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Cliente retomou a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "WON",
+          "sourceCommercialStatus": "won",
+          "commercialStatusDecision": {
+            "occurredAt": "2026-10-21T14:00:00-03:00",
+            "reason": "Negociação ganha com revisão expressamente aceita.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": "2026-10-21T14:00:00-03:00"
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": {
+            "prismaMissionId": "17efca42-f840-5c42-81c7-2ff2418a3ac3",
+            "number": "6100",
+            "numberScope": "filtrovali",
+            "filtroappProjectId": null
+          },
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": "2026-10-21T14:00:00-03:00",
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-primary-100"
+        }
+      }
+    },
+    {
+      "name": "06_lost",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "8024d3ea-6080-5c6d-9c73-b51cfe9c0ef5",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-lost",
+        "sourceVersion": 3,
+        "sourceUpdatedAt": "2026-10-21T15:00:00-03:00",
+        "change": {
+          "kind": "COMMERCIAL_STATUS_CHANGED",
+          "occurredAt": "2026-10-21T15:00:00-03:00",
+          "reason": "Cliente selecionou outro fornecedor.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "LOST",
+          "sourceCommercialStatus": "lost",
+          "commercialStatusDecision": {
+            "occurredAt": "2026-10-21T15:00:00-03:00",
+            "reason": "Cliente selecionou outro fornecedor.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": "2026-10-21T15:00:00-03:00",
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-lost"
+        }
+      }
+    },
+    {
+      "name": "07_discarded",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "578f0b59-b703-56be-b873-c3f61d0ca19e",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-discarded",
+        "sourceVersion": 3,
+        "sourceUpdatedAt": "2026-10-21T15:00:00-03:00",
+        "change": {
+          "kind": "COMMERCIAL_STATUS_CHANGED",
+          "occurredAt": "2026-10-21T15:00:00-03:00",
+          "reason": "Demanda não prosseguirá.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "DISCARDED",
+          "sourceCommercialStatus": "discarded",
+          "commercialStatusDecision": {
+            "occurredAt": "2026-10-21T15:00:00-03:00",
+            "reason": "Demanda não prosseguirá.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": "2026-10-21T15:00:00-03:00",
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-discarded"
+        }
+      }
+    },
+    {
+      "name": "08_cancelled",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "e32bc7d6-a53e-5d63-87b5-d406d7b067b4",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-cancelled",
+        "sourceVersion": 3,
+        "sourceUpdatedAt": "2026-10-21T15:00:00-03:00",
+        "change": {
+          "kind": "COMMERCIAL_STATUS_CHANGED",
+          "occurredAt": "2026-10-21T15:00:00-03:00",
+          "reason": "Cancelamento comercial explícito — estado novo proposto, ainda não nativo.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Serviço industrial — oportunidade principal fictícia",
+          "description": "Escopo comercial preliminar para planejamento.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-20T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "CANCELLED",
+          "sourceCommercialStatus": "cancelled",
+          "commercialStatusDecision": {
+            "occurredAt": "2026-10-21T15:00:00-03:00",
+            "reason": "Cancelamento comercial explícito — estado novo proposto, ainda não nativo.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-main-r0",
+            "externalId": "proposal-external-synthetic-main-r0",
+            "code": "910001",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "PRIMARY",
+            "primaryOpportunityExternalId": null,
+            "primaryProposal": null,
+            "additionalProposalId": null,
+            "contributionKey": null
+          },
+          "project": null,
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "140000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": "2026-11-25"
+          },
+          "closedAt": "2026-10-21T15:00:00-03:00",
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-cancelled"
+        }
+      }
+    },
+    {
+      "name": "09_extra_escopo_em_negociacao",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "a8e84759-3831-5991-ae18-614628befd71",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-additional-101",
+        "sourceVersion": 1,
+        "sourceUpdatedAt": "2026-10-22T09:00:00-03:00",
+        "change": {
+          "kind": "PLANNING_REQUESTED",
+          "occurredAt": "2026-10-22T09:00:00-03:00",
+          "reason": "Reservar capacidade preliminar para a negociação.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Adicional de escopo fictício — mesma missão",
+          "description": "Serviço adicional independente da principal.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-22T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "OPEN",
+          "sourceCommercialStatus": "open",
+          "commercialStatusDecision": {
+            "occurredAt": null,
+            "reason": null,
+            "actor": null
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-additional-r0",
+            "externalId": "proposal-external-synthetic-additional-r0",
+            "code": "910002",
+            "revision": 0,
+            "acceptedAt": null
+          },
+          "scope": {
+            "kind": "ADDITIONAL",
+            "primaryOpportunityExternalId": "deal-synthetic-primary-100",
+            "primaryProposal": {
+              "system": "COMERCIALAPP",
+              "id": "proposal-local-synthetic-main-r0",
+              "externalId": "proposal-external-synthetic-main-r0",
+              "code": "910001",
+              "revision": 0
+            },
+            "additionalProposalId": "additional-synthetic-101",
+            "contributionKey": "contribution-synthetic-101"
+          },
+          "project": {
+            "prismaMissionId": "17efca42-f840-5c42-81c7-2ff2418a3ac3",
+            "number": "6100",
+            "numberScope": "filtrovali",
+            "filtroappProjectId": "fapp-synthetic-project-100"
+          },
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "18000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": null
+          },
+          "closedAt": null,
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-additional-101"
+        }
+      }
+    },
+    {
+      "name": "10_ganho_extra_escopo",
+      "request": {
+        "contractVersion": "planning-1.0",
+        "eventId": "afbee9f7-9b6a-5d88-b37b-04ce478c3357",
+        "sourceSystem": "prismaCRM",
+        "environment": "sandbox",
+        "tenantId": "filtrovali",
+        "externalId": "deal-synthetic-additional-101",
+        "sourceVersion": 2,
+        "sourceUpdatedAt": "2026-10-23T13:00:00-03:00",
+        "change": {
+          "kind": "COMMERCIAL_STATUS_CHANGED",
+          "occurredAt": "2026-10-23T13:00:00-03:00",
+          "reason": "Adicional aprovado separadamente da principal.",
+          "actor": {
+            "id": "user-synthetic-joao",
+            "name": "João — exemplo fictício",
+            "type": "USER"
+          }
+        },
+        "opportunity": {
+          "title": "Adicional de escopo fictício — mesma missão",
+          "description": "Serviço adicional independente da principal.",
+          "planningRequested": true,
+          "planningDecision": {
+            "requestedAt": "2026-10-22T09:00:00-03:00",
+            "withdrawnAt": null,
+            "reason": "Reservar capacidade preliminar para a negociação.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialStatus": "WON",
+          "sourceCommercialStatus": "won",
+          "commercialStatusDecision": {
+            "occurredAt": "2026-10-23T13:00:00-03:00",
+            "reason": "Adicional aprovado separadamente da principal.",
+            "actor": {
+              "id": "user-synthetic-joao",
+              "name": "João — exemplo fictício",
+              "type": "USER"
+            }
+          },
+          "commercialOwner": {
+            "id": "owner-synthetic-1",
+            "name": "Vendedor fictício"
+          },
+          "client": {
+            "externalId": "company-synthetic-1",
+            "name": "Cliente Exemplo Ltda.",
+            "legalName": null,
+            "taxId": null
+          },
+          "proposal": {
+            "system": "COMERCIALAPP",
+            "id": "proposal-local-synthetic-additional-r0",
+            "externalId": "proposal-external-synthetic-additional-r0",
+            "code": "910002",
+            "revision": 0,
+            "acceptedAt": "2026-10-23T13:00:00-03:00"
+          },
+          "scope": {
+            "kind": "ADDITIONAL",
+            "primaryOpportunityExternalId": "deal-synthetic-primary-100",
+            "primaryProposal": {
+              "system": "COMERCIALAPP",
+              "id": "proposal-local-synthetic-main-r0",
+              "externalId": "proposal-external-synthetic-main-r0",
+              "code": "910001",
+              "revision": 0
+            },
+            "additionalProposalId": "additional-synthetic-101",
+            "contributionKey": "contribution-synthetic-101"
+          },
+          "project": {
+            "prismaMissionId": "17efca42-f840-5c42-81c7-2ff2418a3ac3",
+            "number": "6100",
+            "numberScope": "filtrovali",
+            "filtroappProjectId": "fapp-synthetic-project-100"
+          },
+          "location": "Unidade industrial fictícia, Itajaí/SC",
+          "value": {
+            "amount": "18000.00",
+            "currency": "BRL"
+          },
+          "expectedDates": {
+            "closeOn": "2026-11-05",
+            "executionStartOn": "2026-11-20",
+            "executionEndOn": null
+          },
+          "closedAt": "2026-10-23T13:00:00-03:00",
+          "sourceRecordDeleted": false,
+          "recordUrl": "https://prismacrm.filtrovali.com.br/#deals?deal=deal-synthetic-additional-101"
+        }
+      }
+    }
+  ]
+}

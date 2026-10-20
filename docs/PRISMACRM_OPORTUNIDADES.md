@@ -1,169 +1,158 @@
-# Oportunidades quentes do PrismaCRM no Acompanhamento
+# Planejamento PrismaCRM → FiltroAPP — planning-1.0
 
-O PrismaCRM sinaliza oportunidades para planejamento antecipado por decisão de um
-usuário. Não é necessário número de projeto, proposta importada, orçamento ou
-probabilidade numérica. O Prisma deve confirmar se já existe essa marcação em sua
-interface e disparar os envios quando ela mudar.
+Implementação do receptor e da interface do FiltroAPP. A ativação em staging/produção depende do emissor PrismaCRM e da homologação conjunta. A tag comercial **Quente** não solicita planejamento automaticamente.
 
-## Endpoint e credencial
+## Decisões confirmadas
 
-`POST /api/integracoes/v1/acompanhamento/oportunidades`
+1. No Prisma, qualquer usuário autorizado a editar a oportunidade pode usar **Sinalizar para planejamento no FiltroAPP**, sem aprovação adicional.
+2. Retirar a sinalização exige motivo; decisões, versões e vínculos anteriores permanecem no histórico.
+3. Negociação adiada (`POSTPONED`) sinalizada fica em **Pausadas**, fora de **Futuros**.
+4. Venda ganha com cadastro incompleto é aceita e permanece em **Futuros**, com **Fechada — cadastro pendente**. O número de projeto não é requisito para receber a oportunidade.
 
-- `Authorization: Bearer <token>` e `Content-Type: application/json`.
-- Credencial da Central de API com acesso a projetos `ALL` e os escopos
-  `acompanhamento.oportunidades.write` e `efetivo.projetos.create`. O primeiro
-  depende do segundo, pois o fechamento pode criar um projeto.
-- A operação aparece no playground. Enviar um POST pelo playground grava dados.
-- A URL base e a credencial devem corresponder ao ambiente de homologação ou produção.
+## Transporte e autorização
 
-O contrato completo está no [OpenAPI](../specs/015-api-token-playground/contracts/openapi.yaml).
+Base: `/api/integracoes/v1`. Bearer opaco emitido pelo painel administrativo de tokens. O receptor usa o catálogo, as cotas, a auditoria e o playground existentes.
 
-## Marcação inicial
-
-```json
-{
-  "externalId": "id-estavel-da-oportunidade-no-prisma",
-  "sourceVersion": 1,
-  "sourceUpdatedAt": "2026-10-20T12:00:00Z",
-  "status": "HOT",
-  "name": "Limpeza química da unidade",
-  "clientName": "Cliente Industrial"
-}
-```
-
-Esses seis campos são obrigatórios. `externalId` identifica a oportunidade durante
-toda sua vida; não deve mudar quando ela fechar ou ganhar um número de projeto.
-`sourceVersion` é um inteiro positivo, crescente por oportunidade, até 2147483647.
-`sourceUpdatedAt` informa o instante da alteração na origem, com fuso horário.
-
-Campos opcionais: `clientCnpj`, `location`, `proposalCode` (numérico em texto),
-`revision` (inteiro a partir de zero), `estimatedValue` (reais, até duas casas
-decimais), `expectedCloseDate`, `expectedStartDate` (datas `YYYY-MM-DD`) e
-`externalUrl` (HTTP ou HTTPS).
-
-Cada envio é um retrato completo: campos opcionais ausentes ou nulos são limpos.
-Para manter uma previsão ou valor, repita esse campo nas atualizações seguintes.
-Não envie número fictício de projeto. `project` só é aceito no estado `WON`.
-
-O FiltroAPP guarda um cadastro preliminar e um histórico por versão. O card aparece
-em **Acompanhamento → Projetos → Futuros**, como “Oportunidade quente · Em
-negociação”. Não cria `Project`, RDO, fluxo de Efetivo ou alocação de pessoas.
-Valores e datas desconhecidos permanecem em branco.
-
-## Fechamento e vínculo do projeto
-
-Envie ao mesmo endpoint, com o mesmo `externalId` e uma versão maior:
-
-```json
-{
-  "externalId": "id-estavel-da-oportunidade-no-prisma",
-  "sourceVersion": 2,
-  "sourceUpdatedAt": "2026-10-22T15:30:00Z",
-  "status": "WON",
-  "name": "Limpeza química da unidade",
-  "clientName": "Cliente Industrial",
-  "project": {
-    "code": "05801",
-    "name": "Limpeza química da unidade",
-    "clientName": "Cliente Industrial",
-    "clientCnpj": "12345678000190",
-    "proposalCode": "4621",
-    "revision": 0,
-    "location": "Ilha Solteira - SP"
-  }
-}
-```
-
-O objeto `project` usa o mesmo contrato de `POST /api/integracoes/v1/efetivo/projetos`.
-Todos os seus sete campos são obrigatórios. Se `clientCnpj` também vier no nível da
-oportunidade, deve corresponder ao CNPJ do projeto.
-
-O recebimento cria ou localiza o projeto pelo código, vincula-o à oportunidade e
-grava o histórico na mesma transação. O projeto nasce pendente de conferência do
-cadastro, como no fluxo normal. Se já existe com dados incompatíveis, retorna
-`409 PROJECT_CODE_CONFLICT`; não sobrescreve o cadastro existente. Revisão superior
-da mesma proposta é aceita e agenda uma nova busca no ComercialAPP.
-
-A oportunidade deixa de ser emitida como card preliminar. O projeto ocupa seu
-lugar em Futuros, mantendo o vínculo e histórico. Mesmo antes da importação do
-orçamento, ele aparece com “Aguardando orçamento”. Depois segue a classificação
-normal: trabalho ou avanço o coloca em “Em andamento”; fechar a venda não inicia
-a execução automaticamente.
-
-Para uma oportunidade enviada previamente, use este fechamento com correlação.
-Enviar apenas ao endpoint antigo de projetos não informa qual oportunidade deve
-ser vinculada. Se um projeto já foi criado por outra via, o fechamento com seus
-mesmos dados o associa sem duplicá-lo. Um projeto só pode pertencer a uma oportunidade.
-
-Depois de vinculado, o projeto não pode ser trocado e o estado não pode regredir
-para `HOT`, `WITHDRAWN`, `LOST` ou `CANCELLED`. Correções cadastrais e tratamento de
-um projeto já confirmado seguem o fluxo operacional existente. Cancelamento de
-oportunidade não arquiva um projeto em execução.
-
-## Retirada da sinalização, perda e cancelamento
-
-Antes do fechamento, envie o mesmo retrato com versão maior e um destes estados:
-
-| Estado | Significado | Efeito em Futuros |
+| Método e caminho relativo | Escopos exigidos | Acesso |
 | --- | --- | --- |
-| `HOT` | Usuário sinalizou para planejamento | Exibe a oportunidade |
-| `WITHDRAWN` | Usuário retirou a sinalização | Retira o card e mantém histórico |
-| `LOST` | Negociação perdida | Retira o card e mantém histórico |
-| `CANCELLED` | Oportunidade cancelada | Retira o card e mantém histórico |
-| `WON` | Negociação fechada, com `project` completo | Substitui pelo projeto vinculado |
+| `POST /acompanhamento/oportunidades` | `acompanhamento.oportunidades.write` **e** `efetivo.projetos.create` | `ALL` |
+| `GET /acompanhamento/oportunidades/por-origem/prismaCRM/{externalId}` | `acompanhamento.oportunidades.read` | `ALL` |
+| `GET /acompanhamento/oportunidades/vinculos?limit=100&after=...&updatedSince=...` | `acompanhamento.oportunidades.read` | `ALL` |
 
-Uma nova sinalização `HOT` com versão maior pode reativar uma oportunidade ainda
-não convertida. Não existe exclusão física pelo contrato.
+Tokens existentes não ganham novos escopos automaticamente. Leituras podem usar credencial separada, sem permissão de escrita.
 
-## Respostas, repetição e recuperação
+O POST exige `Content-Type: application/json` e `Idempotency-Key` **igual ao `eventId`**. O playground monta esse cabeçalho. Respostas definitivas são síncronas: `201` na primeira aplicação e `200` nas seguintes/duplicadas/obsoletas, após a confirmação da transação. Não há `202` ou fila assíncrona no receptor.
+
+`sourceSystem=prismaCRM`, `tenantId` e `environment` são verificados contra a configuração do servidor, sem permitir acesso a outro namespace pelo corpo. Configurações:
+
+- `CRM_PLANNING_TENANT_ID`: padrão `filtrovali`.
+- `CRM_PLANNING_ENVIRONMENT`: `sandbox` ou `production`. Se omitido, desenvolvimento/testes/staging usam `sandbox`; produção usa `production`.
+
+Confirmar essa configuração e emitir tokens próprios em cada ambiente antes de conectar o emissor.
+
+## Retrato completo
+
+O [JSON Schema](prisma-planning.schema.json) e o [OpenAPI 1.8.0](../specs/015-api-token-playground/contracts/openapi.yaml) descrevem os campos, limites e respostas. Os [dez exemplos recebidos do Prisma](../backend/test/fixtures/crm-planning-events.json) são sintéticos e foram mantidos intactos como fixtures de contrato; não são instruções de envio em produção.
+
+Todos os campos são obrigatórios na estrutura; valores desconhecidos aceitam `null` somente onde previsto. Não é PATCH: omitir uma propriedade obrigatória retorna `422`. Propriedades extras também são rejeitadas. Não inventar ator, motivo, CNPJ ou identificadores para preencher lacunas históricas.
+
+| Grupo | Conteúdo |
+| --- | --- |
+| Envelope | `contractVersion=planning-1.0`, `eventId` UUID, namespace, `externalId`, `sourceVersion`, `sourceUpdatedAt` |
+| `change` | Tipo do evento, instante, motivo e ator nullable |
+| `opportunity` | Título, descrição nullable, decisão de planejamento, estado comercial e decisão, responsável nullable |
+| `client` | ID de origem, nome, razão social e CNPJ nullable; CNPJ conhecido com 14 dígitos |
+| `proposal` | Objeto nullable com sistema, IDs, código, revisão e aceite nullable |
+| `scope` | `PRIMARY`, `ADDITIONAL` ou `UNCLASSIFIED`; principal, proposta mãe, adicional e contribuição nullable |
+| `project` | Objeto nullable com `prismaMissionId`, `number`, `numberScope`, `filtroappProjectId`, todos nullable |
+| Demais dados | Local nullable, valor nullable (`amount` decimal em texto com duas casas, `currency=BRL`), três datas previstas nullable, fechamento nullable, tombstone booleano e URL HTTP(S) |
+
+`externalId` identifica a oportunidade e nunca é reaproveitado. `prismaMissionId` identifica a missão na origem. `number` é o número visível do projeto e não substitui esses IDs. IDs são textos opacos; zeros e formatos não são normalizados para procurar projetos. `sourceVersion` é inteiro positivo crescente por oportunidade, até `9007199254740991`, persistido como BIGINT. Lacunas entre versões são aceitas porque cada evento contém o retrato inteiro.
+
+Tipos de evento: `PLANNING_REQUESTED`, `PLANNING_WITHDRAWN`, `STATE_UPDATED`, `COMMERCIAL_STATUS_CHANGED`, `SOURCE_RECORD_DELETED`. O tipo explica a mudança; o retrato determina o estado. Retirada exige `planningRequested=false` e motivo tanto em `change.reason` quanto em `planningDecision.reason`. Mesmo um `STATE_UPDATED` que muda de sinalizada para não sinalizada exige motivo de retirada. Exclusão exige `sourceRecordDeleted=true`. A data final prevista não pode preceder a inicial.
+
+As invariantes entre campos e transições são aplicadas pelo serviço além da validação estrutural do JSON Schema. Para regenerar os dois schemas estruturais: `node backend/scripts/generate-crm-planning-contract.js`.
+
+## Visibilidade e criação do projeto
+
+| Estado recebido, sem projeto confirmado | Resultado |
+| --- | --- |
+| `OPEN` e `planningRequested=true` | Futuros, em negociação |
+| `POSTPONED` e `planningRequested=true` | Pausadas |
+| `WON`, mesmo sem sinalização ativa | Futuros enquanto faltar cadastro/vínculo |
+| Retirada, `LOST`, `DISCARDED`, `CANCELLED` ou tombstone | Fora das listas ativas; histórico e consulta de reconciliação preservados |
+
+A oportunidade não cria fluxo operacional, RDO, reserva de equipe ou orçamento durante a negociação. Valores recebidos são estimativas comerciais.
+
+Ao receber `WON` principal, o receptor cria o cadastro operacional pelo fluxo normal somente quando há classificação `PRIMARY`, missão estável, número e escopo do número, nome do cliente, CNPJ, local e proposta aceita com código/revisão suportados pelo cadastro atual. Os sete campos do cadastro são derivados desse retrato. Os demais dados podem continuar nullable. O registro antecipado mantém o mesmo `accompanimentId` e passa a guardar `projectId`; o acompanhamento exibe um único card de projeto. Orçamento comercial ainda pendente continua indicado pelo fluxo existente.
+
+O exemplo `05_ganho_principal` tem `client.taxId=null`: ele é **válido e resulta em `PENDING_DATA`**. Para homologar a criação, usar outra versão/evento com CNPJ conhecido e os demais dados completos, sem alterar/reutilizar a versão original.
+
+Identificação de projeto existente exige mapeamento confirmado da missão ou `filtroappProjectId` explícito, validando número, cliente e proposta mãe quando conhecidos. Coincidência de número, nome ou CNPJ não estabelece vínculo. Se o número já existir sem mapeamento, o evento fica em `NEEDS_REVIEW`, motivo `EXISTING_PROJECT_MAPPING_REQUIRED`; uma nova versão com ID confirmado resolve o vínculo. IDs/numeração contraditórios retornam `409`.
+
+Retirada, perda, cancelamento, exclusão ou reabertura não removem `projectId` nem cancelam o projeto operacional. Referência de projeto ausente em retrato posterior preserva o vínculo e sinaliza conferência. Remapeamento de missão/projeto ou troca de classificação consolidada exige correção administrativa auditada; não é feito por eventos comuns.
+
+## Várias oportunidades e extra escopo
+
+O relacionamento é vários-para-um: principal e diversos adicionais podem apontar para a mesma missão/projeto.
+
+- `targetProjectId` registra a referência operacional já resolvida, inclusive para adicional ainda em negociação.
+- `projectId` confirma a associação comercial no ganho; um vínculo confirmado permanece preservado.
+- `ADDITIONAL` nunca cria projeto. É necessário resolver a missão e conferir a proposta mãe. Se a principal ainda não chegou, o adicional fica em `PENDING_LINK` e em Futuros quando elegível.
+- Ao confirmar o vínculo da principal, o receptor tenta resolver adicionais pendentes da mesma missão; registra essas mudanças no histórico de vínculos.
+- `UNCLASSIFIED` fica em `NEEDS_REVIEW`; não cria projeto.
+
+O evento de planejamento não aplica valores ao orçamento nem acrescenta serviços. O ComercialAPP e o fluxo existente de contribuições continuam responsáveis pelo orçamento, escopo e documentos. `contributionKey` recebido é referência comercial preservada no retrato; não substitui automaticamente a chave interna de contribuição. A homologação precisa comprovar que um adicional aparece uma vez no orçamento pelo fluxo comercial existente, independentemente dos reenvios deste webhook.
+
+## Confirmação e confiabilidade
+
+Exemplo de ACK (IDs sintéticos):
 
 ```json
 {
-  "outcome": "CREATED",
-  "opportunity": {
-    "id": "id-interno-filtroapp",
-    "externalId": "id-estavel-da-oportunidade-no-prisma",
-    "status": "HOT",
-    "sourceVersion": 1,
-    "projectId": null
-  },
-  "requestId": "id-da-requisicao"
+  "eventId": "2a9b7110-424a-52bc-9266-21726dd866c4",
+  "externalId": "deal-synthetic-primary-100",
+  "receivedSourceVersion": 1,
+  "currentSourceVersion": 1,
+  "disposition": "applied",
+  "accompanimentId": "fapp-opportunity-synthetic",
+  "projectId": null,
+  "targetProjectId": null,
+  "projectLinkStatus": "NOT_REQUESTED",
+  "projectLinkReason": null,
+  "receivedAt": "2026-10-20T12:00:00.000Z",
+  "requestId": "synthetic-request"
 }
 ```
 
-- `201 CREATED`: novo cadastro preliminar.
-- `200 UPDATED`: versão mais nova aplicada.
-- `200 CONVERTED`: fechamento associado ao projeto; inclui `project` e
-  `commercialRevision`. Pode ocorrer como primeiro evento, sem um `HOT` anterior.
-- `200 REPLAYED`: mesma versão e mesmo conteúdo; não duplica histórico ou projeto.
-- `200 IGNORED_OLDER`: versão menor que a vigente; não muda o cadastro.
-- `400 VALIDATION_ERROR`: campos inválidos ou dados definitivos ausentes em `WON`.
-- `403 INSUFFICIENT_SCOPE` / `PROJECT_NOT_ALLOWED`: escopos ou recorte incompatíveis.
-- `409 SOURCE_VERSION_CONFLICT`: mesma versão com conteúdo diferente.
-- `409 OPPORTUNITY_ALREADY_CONVERTED`: tentativa de regredir ou trocar o projeto.
-- `409 PROJECT_OPPORTUNITY_CONFLICT`: projeto já associado a outra oportunidade.
-- `409 PROJECT_UNAVAILABLE`: projeto inativo ou excluído.
-- `409 CONCURRENT_UPDATE`: conflito concorrente persistente; reenvie a mesma versão.
+| Situação | Resultado |
+| --- | --- |
+| Evento novo, versão maior | `applied`; grava retrato, evento, recibo e eventuais projeto/vínculo na mesma transação |
+| Mesmo evento e conteúdo | `duplicate`; não reaplica efeitos |
+| Mesmo evento com conteúdo diferente | `409 EVENT_CONTENT_CONFLICT`, inclusive evento antigo |
+| Outro evento, mesma versão e mesmo conteúdo de versão | `duplicate_version`; grava novo recibo, sem reaplicar |
+| Mesma versão com conteúdo divergente | `409 VERSION_CONTENT_CONFLICT`, inclusive versão antiga |
+| Evento novo e versão antiga ainda não conhecida | `stale_ignored`; registra retrato/recibo no histórico, sem regredir o estado |
 
-A versão, e não o horário, ordena os eventos. Reenvios devem repetir o mesmo
-conteúdo e versão. Em timeout, erro transitório ou `429`, o Prisma deve manter uma
-fila de entrega, respeitar `Retry-After` e reenviar. Conflitos de conteúdo exigem
-correção na origem e nova versão. O Prisma deve reenviar periodicamente o retrato
-vigente e disponibilizar a carga inicial das oportunidades já sinalizadas,
-incluindo retiradas/perdas/cancelamentos necessários para reconciliar o destino.
+Hash de evento: SHA-256 do JSON validado, com chaves de objetos ordenadas recursivamente e ordem dos arrays preservada. Hash canônico de versão: mesma operação excluindo apenas `eventId`. O serviço valida/normaliza espaços nos campos de texto previstos. Metadados, datas e demais campos fazem parte do conteúdo; mudar uma data textual não é uma retentativa idêntica. `canonicalHash` nas consultas é o hash da versão atual, não o do vínculo operacional.
 
-## Implantação e validação
+ACKs de reenvio informam o estado **atual**, que pode estar em versão superior à recebida. `receivedAt` é o instante deste recebimento. Histórico de versões e recibos é imutável pelo serviço; histórico de vínculos registra reconciliações internas que não alteram a versão comercial.
 
-1. Aplicar `20261020190000_crm_hot_opportunities` e gerar o Prisma Client.
-2. Publicar backend e frontend compatíveis. Configurar o worker e as credenciais
-   do ComercialAPP para a busca normal das propostas após o fechamento.
-3. Emitir uma credencial com os dois escopos e acesso `ALL`. Credenciais antigas
-   não ganham novos escopos automaticamente.
-4. Homologar marcação mínima, atualização, retirada, fechamento, repetição e perda
-   junto ao desenvolvedor do Prisma. A marcação na interface do Prisma ainda precisa
-   ser confirmada/implementada por ele.
+| `projectLinkStatus` | Significado |
+| --- | --- |
+| `NOT_REQUESTED` | Nenhum vínculo operacional resolvido ou exigível nesta etapa |
+| `PENDING_DATA` | Ganho recebido, faltam dados do cadastro |
+| `PENDING_LINK` | Aguarda missão/projeto/proposta principal |
+| `LINKED` | Referência operacional resolvida; conferir `projectId` e `targetProjectId` para distinguir ganho de planejamento |
+| `NEEDS_REVIEW` | Cadastro, classificação ou referência exige conferência; motivo em `projectLinkReason` |
 
-Testes: `backend/test/crm-opportunities.test.js` e
-`backend/test/crm-opportunities.integration.test.js`. O teste PostgreSQL exige
-`CRM_OPPORTUNITIES_TEST_DATABASE_URL=DATABASE_URL` em banco isolado cujo nome termine
-em `_test`, com migrações aplicadas e uma `API_TOKEN_HASH_KEY_V1` de teste configurada.
+Erros comuns: `400` para cabeçalho/filtros/cursor, `401` para token, `403` para escopo/recorte/namespace, `409` para conflito de identidade/conteúdo ou concorrência, `422` para retrato inválido e `429` para cotas. Retentativas de timeout, `429`, `5xx` e `CONCURRENT_UPDATE` mantêm mesmo evento/conteúdo, com backoff e respeito a `Retry-After`. Conflitos de conteúdo exigem análise; não gerar evento novo para contornar uma divergência de versão.
+
+## Reconciliação
+
+A consulta individual retorna versão/evento/hash atuais, decisões comerciais, tombstone, IDs e estado/motivo do vínculo. A listagem inclui todos os estados recebidos do namespace, sem eliminar retiradas/perdas/exclusões. Não expõe os retratos com dados pessoais.
+
+`limit` vai de 1 a 500, limitado também pelo token e pelo teto global. `after` recebe `page.nextCursor`; repetir os mesmos filtros até `hasMore=false`. `updatedSince` é inclusivo. Cursor assinado é vinculado à operação, namespace e filtros.
+
+A paginação lê **registros atuais** até `page.snapshotAt`; não oferece snapshot histórico entre requisições. Uma atualização concorrente pode mover uma linha para depois desse limite. Ao terminar, fazer nova varredura desde `page.reconcileFrom` (snapshotAt menos 60 segundos), com sobreposição, e repetir incrementalmente. Atualizar o estado local por `externalId` e `updatedAt`; não descartar uma resposta só porque `currentSourceVersion` é igual, pois reconciliações internas podem mudar o vínculo sem nova versão do Prisma. Na dúvida, consultar o ID individual. O Prisma precisa oferecer sua própria consulta de estado completo para a reconciliação nos dois sentidos.
+
+## Transição e homologação com o Prisma
+
+A migração preserva oportunidades/eventos do contrato inicial em namespace `legacy`, sem convertê-los automaticamente em novas sinalizações. O antigo payload `HOT/WITHDRAWN` não é aceito por este endpoint após a atualização. Eventual reaproveitamento de vínculos legados deve ser confirmado por ID; não presumir equivalência só pelo número.
+
+Durante a transição, escolher **um criador por missão**: oportunidades já exportadas por este fluxo usam o ganho neste endpoint; as demais podem continuar pelo cadastro anterior. O conector antigo precisa repassar o ID de projeto confirmado antes de associar uma oportunidade já existente. Essa escolha e o mapeamento ficam no emissor, evitando dois pedidos concorrentes de criação.
+
+O desenvolvedor do Prisma deve implementar a ação/retirada com as permissões confirmadas, motivo obrigatório, ID estável, versões crescentes, outbox transacional, tombstones, retentativas e consultas de reconciliação. Não usar a tag Quente como gatilho. Registrar o ACK e os IDs retornados sem mudar a identidade da oportunidade.
+
+Homologar em sandbox: sinalização sem número; atualização; retirada com motivo; nova sinalização; adiamento/Pausadas; ganho incompleto; complemento/criação única; projeto pré-existente com ID confirmado; dois adicionais no mesmo projeto; adicional antes da principal; perdas/exclusão após ganho; duplicidades/conflitos/fora de ordem; timeout/reenvio e reconciliação. Antes de produção, alinhar os hosts/tokens, valores exatos de namespace, criador por missão e como o ComercialAPP identifica a contribuição de cada adicional.
+
+## Verificação local — 2026-10-20
+
+- 803 testes de frontend aprovados, incluindo separação das listas e cabeçalho no console.
+- 539 verificações de backend aprovadas nas suites de API, acompanhamento, contrato e cadastro; seis testes de outras integrações dependentes de banco ficaram condicionados aos respectivos ambientes.
+- 13 testes aprovados no fluxo HTTP com PostgreSQL descartável, incluindo concorrência, rollback, permissões, reconciliação, vários adicionais e coincidência de código com proposta do Access.
+- Migrações aplicadas em banco de teste vazio; preservação dos dados do contrato inicial também verificada em PGlite. Schema Prisma validado e cliente gerado.
+- Build de produção do frontend e verificação de arquitetura aprovados.
+- Cards conferidos com Playwright em desktop e celular (390 px), usando dados sintéticos; contadores, mudança de aba, busca por projeto de referência e ausência de overflow verificados.
+
+Essas verificações cobrem o receptor e a interface local. Envio real do PrismaCRM e implantação em staging/produção ainda dependem da homologação entre os dois sistemas.

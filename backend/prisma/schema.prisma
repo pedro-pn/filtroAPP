@@ -982,7 +982,9 @@ model Project {
   romaneios                  Romaneio[]
   budgets                    ProjectBudget[]
   commercialAppProposals      CommercialAppProposal[]
-  crmOpportunity             CrmOpportunity?
+  crmOpportunities            CrmOpportunity[] @relation("CrmConfirmedProject")
+  crmPlanningTargets          CrmOpportunity[] @relation("CrmPlanningTarget")
+  crmProjectMappings          CrmProjectMapping[]
   omieProjects               OmieProject[]
   omiePurchases              OmiePurchase[]
   omieReceivables            OmieReceivable[]
@@ -1017,57 +1019,134 @@ model Project {
   @@index([commercialProposalCode])
 }
 
-// Frozen versions for meetings; excluded from operational and financial calculations.
-enum CrmOpportunityStatus {
-  HOT
-  WITHDRAWN
-  LOST
-  CANCELLED
+enum CrmCommercialStatus {
+  OPEN
   WON
+  LOST
+  DISCARDED
+  CANCELLED
+  POSTPONED
 }
 
 // Planejamento antecipado: não é um projeto operacional até o fechamento no CRM.
 model CrmOpportunity {
   id                String               @id @default(cuid())
-  externalId        String               @unique
-  status            CrmOpportunityStatus
+  externalId        String
+  sourceSystem      String               @default("legacy")
+  tenantId          String               @default("legacy")
+  environment       String               @default("legacy")
+  contractVersion   String               @default("legacy")
+  legacyStatus      String?
+  commercialStatus  CrmCommercialStatus?
+  planningRequested Boolean              @default(false)
+  sourceRecordDeleted Boolean            @default(false)
+  scopeKind         String               @default("UNCLASSIFIED")
+  description       String?
   name              String
-  clientName        String
+  clientName        String?
+  clientExternalId  String?
   clientCnpj        String?
   location          String?
   proposalCode      String?
+  proposalSystem    String?
   revision          Int?
   estimatedValue    Decimal?             @db.Decimal(14, 2)
   expectedCloseDate DateTime?            @db.Date
   expectedStartDate DateTime?            @db.Date
+  expectedEndDate   DateTime?            @db.Date
   externalUrl       String?
-  sourceVersion     Int
+  sourceVersion     BigInt
   sourceUpdatedAt   DateTime
   payloadHash       String
+  snapshot          Json?
+  currentEventId    String?
+  prismaMissionId   String?
+  projectLinkStatus String               @default("NOT_REQUESTED")
+  projectLinkReason String?
   lastSyncedAt      DateTime             @default(now())
   convertedAt       DateTime?
-  projectId         String?              @unique
-  project           Project?             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  projectId         String?
+  project           Project?             @relation("CrmConfirmedProject", fields: [projectId], references: [id], onDelete: Restrict)
+  targetProjectId   String?
+  targetProject     Project?             @relation("CrmPlanningTarget", fields: [targetProjectId], references: [id], onDelete: Restrict)
   events            CrmOpportunityEvent[]
+  receipts          CrmPlanningReceipt[]
+  linkHistory       CrmOpportunityLinkEvent[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  @@index([status, updatedAt])
+  @@unique([sourceSystem, tenantId, environment, externalId], map: "CrmOpportunity_namespace_external_key")
+  @@index([sourceSystem, tenantId, environment, updatedAt, id], map: "CrmOpportunity_namespace_updated_idx")
+  @@index([sourceSystem, tenantId, environment, prismaMissionId], map: "CrmOpportunity_namespace_mission_idx")
+  @@index([commercialStatus, planningRequested])
+  @@index([projectId])
+  @@index([targetProjectId])
 }
 
 model CrmOpportunityEvent {
   id              String         @id @default(cuid())
   opportunityId   String
   opportunity     CrmOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  sourceVersion   Int
+  sourceVersion   BigInt
   sourceUpdatedAt DateTime
-  status          CrmOpportunityStatus
+  legacyStatus    String?
+  eventId         String?
+  versionHash     String?
+  applied         Boolean        @default(false)
+  receipts        CrmPlanningReceipt[]
   snapshot        Json
   receivedAt      DateTime       @default(now())
 
   @@unique([opportunityId, sourceVersion])
 }
 
+model CrmPlanningReceipt {
+  id              String @id @default(cuid())
+  sourceSystem    String
+  tenantId        String
+  environment     String
+  eventId         String
+  payloadHash     String
+  opportunityId   String
+  opportunity     CrmOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  versionEventId  String
+  versionEvent    CrmOpportunityEvent @relation(fields: [versionEventId], references: [id], onDelete: Cascade)
+  disposition     String
+  receivedAt      DateTime @default(now())
+  @@unique([sourceSystem, tenantId, environment, eventId], map: "CrmPlanningReceipt_namespace_event_key")
+  @@index([opportunityId])
+}
+
+model CrmProjectMapping {
+  id              String @id @default(cuid())
+  sourceSystem    String
+  tenantId        String
+  environment     String
+  prismaMissionId String
+  projectId       String
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  number          String?
+  numberScope     String?
+  createdAt       DateTime @default(now())
+  @@unique([sourceSystem, tenantId, environment, prismaMissionId], map: "CrmProjectMapping_namespace_mission_key")
+  @@unique([sourceSystem, tenantId, environment, projectId], map: "CrmProjectMapping_namespace_project_key")
+}
+
+model CrmOpportunityLinkEvent {
+  id              String @id @default(cuid())
+  opportunityId   String
+  opportunity     CrmOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  sourceVersion   BigInt
+  fromStatus      String?
+  toStatus        String
+  projectId       String?
+  targetProjectId String?
+  reason          String?
+  createdAt       DateTime @default(now())
+  @@index([opportunityId, createdAt])
+}
+
+// Frozen versions for meetings; excluded from operational and financial calculations.
 model ProjectPresentationCopy {
   id              String    @id
   sourceProjectId String

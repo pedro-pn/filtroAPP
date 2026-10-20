@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -339,6 +339,8 @@ paths:
                     - efetivo.projects.status.get
                     - efetivo.projects.create
                     - acompanhamento.opportunities.post
+                    - acompanhamento.opportunities.links.list
+                    - acompanhamento.opportunities.get
                     - efetivo.projects.commercialFact.post
                     - efetivo.projects.document.post
                     - operational.ReportAttachment.download
@@ -564,14 +566,22 @@ paths:
     post:
       tags: [IntegrationOperational]
       operationId: postIntegrationCrmOpportunity
-      summary: Recebe oportunidade quente sem número de projeto e vincula o projeto no fechamento
+      summary: Recebe retrato planning-1.0 e resolve o projeto sem duplicar a oportunidade
       description: >-
-        Retrato completo com versão inteira crescente por externalId. HOT aparece em Futuros
-        sem proposta importada. WON exige project com os dados do cadastro definitivo e faz
-        a conversão atômica. WITHDRAWN, LOST e CANCELLED retiram a oportunidade de Futuros.
-        O fechamento não pode regredir nem trocar o projeto vinculado. Exige acesso ALL.
+        Exige ALL e Idempotency-Key igual ao eventId. Retrato completo; desconhecidos são null explícito.
+        OPEN sinalizada aparece em Futuros; POSTPONED sinalizada aparece em Pausadas. WON incompleto
+        é aceito com PENDING_DATA, em Futuros. Retirada exige motivo e preserva projeto confirmado.
+        EventId e versão são imutáveis: repetição divergente retorna 409 mesmo se antiga.
+        Cada organização/ambiente é fixado pelo servidor. Os identificadores de oportunidade,
+        missão e projeto são distintos; várias oportunidades podem compartilhar um projeto.
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [acompanhamento.oportunidades.write, efetivo.projetos.create]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Mesmo UUID do eventId; retentativas preservam UUID e conteúdo.
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -579,12 +589,12 @@ paths:
             schema: { $ref: '#/components/schemas/CrmOpportunityInput' }
       responses:
         '201':
-          description: Oportunidade criada.
+          description: Primeira versão aplicada e persistida atomicamente.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CrmOpportunityResult' }
         '200':
-          description: Atualizada, convertida, reenvio idêntico ou versão antiga ignorada.
+          description: Aplicada, duplicada, versão duplicada ou versão obsoleta registrada sem aplicação.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CrmOpportunityResult' }
@@ -592,6 +602,88 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: Retrato incompleto ou regra de negócio inválida; corrigir em nova versão/evento.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/acompanhamento/oportunidades/vinculos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationCrmPlanningLinks
+      summary: Reconcilia estados e vínculos de todas as oportunidades recebidas
+      description: >-
+        Exige ALL. Inclui retiradas, estados terminais e tombstones. Cursor assinado por updatedAt,id;
+        snapshotAt é limite de leitura de registros atuais, sem isolamento histórico entre páginas.
+        Após a varredura, repetir desde reconcileFrom para capturar alterações concorrentes.
+        Preservar updatedSince em todas as páginas e atualizar por externalId/updatedAt. Vínculos podem mudar sem nova sourceVersion.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [acompanhamento.oportunidades.read]
+      parameters:
+        - name: after
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 4096 }
+        - $ref: '#/components/parameters/IntegrationLimit'
+        - name: updatedSince
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Página de estados conhecidos pelo receptor.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, requestId]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/CrmPlanningState' } }
+                  page:
+                    type: object
+                    additionalProperties: false
+                    required: [hasMore, nextCursor, snapshotAt, reconcileFrom]
+                    properties:
+                      hasMore: { type: boolean }
+                      nextCursor: { type: [string, 'null'] }
+                      snapshotAt: { type: string, format: date-time }
+                      reconcileFrom: { type: string, format: date-time }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/acompanhamento/oportunidades/por-origem/prismaCRM/{externalId}:
+    get:
+      tags: [IntegrationOperational]
+      operationId: getIntegrationCrmPlanningState
+      summary: Consulta estado atual pelo ID estável da oportunidade
+      description: Exige ALL; namespace fixado pelo servidor, sem filtros de organização ou ambiente no consumidor.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [acompanhamento.oportunidades.read]
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 180 }
+      responses:
+        '200':
+          description: Estado atual e vínculo resolvido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CrmPlanningState'
+                  - type: object
+                    required: [requestId]
+                    properties:
+                      requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /integracoes/v1/efetivo/projetos:
@@ -2081,54 +2173,539 @@ components:
   schemas:
     CrmOpportunityInput:
       type: object
-      additionalProperties: false
-      required: [externalId, sourceVersion, sourceUpdatedAt, status, name, clientName]
       properties:
-        externalId: { type: string, minLength: 1, maxLength: 180 }
-        sourceVersion: { type: integer, minimum: 1, maximum: 2147483647 }
-        sourceUpdatedAt: { type: string, format: date-time }
-        status: { type: string, enum: [HOT, WITHDRAWN, LOST, CANCELLED, WON] }
-        name: { type: string, minLength: 1, maxLength: 240 }
-        clientName: { type: string, minLength: 1, maxLength: 240 }
-        clientCnpj: { type: [string, 'null'], description: CNPJ de 14 dígitos; pontuação opcional. }
-        location: { type: [string, 'null'], minLength: 1, maxLength: 240 }
-        proposalCode: { type: [string, 'null'], pattern: '^\d{1,40}$' }
-        revision: { type: [integer, 'null'], minimum: 0, maximum: 2147483647 }
-        estimatedValue: { type: [number, 'null'], minimum: 0, maximum: 999999999999.99, multipleOf: 0.01 }
-        expectedCloseDate: { type: [string, 'null'], format: date }
-        expectedStartDate: { type: [string, 'null'], format: date }
-        externalUrl: { type: [string, 'null'], format: uri, pattern: '^https?://', maxLength: 2000 }
-        project:
-          oneOf:
-            - { $ref: '#/components/schemas/CrmProjectIntake' }
-            - { type: 'null' }
-      allOf:
-        - if:
-            properties: { status: { const: WON } }
-          then:
-            required: [project]
-            properties: { project: { $ref: '#/components/schemas/CrmProjectIntake' } }
-          else:
-            properties: { project: { type: 'null' } }
+        contractVersion:
+          type: string
+          const: planning-1.0
+        eventId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        sourceSystem:
+          type: string
+          const: prismaCRM
+        tenantId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        environment:
+          type: string
+          enum:
+            - production
+            - sandbox
+        externalId:
+          type: string
+          minLength: 1
+          maxLength: 180
+        sourceVersion:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        sourceUpdatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        change:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - PLANNING_REQUESTED
+                - PLANNING_WITHDRAWN
+                - STATE_UPDATED
+                - COMMERCIAL_STATUS_CHANGED
+                - SOURCE_RECORD_DELETED
+            occurredAt:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                - type: "null"
+            reason:
+              anyOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 1000
+                - type: "null"
+            actor:
+              anyOf:
+                - type: object
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                      maxLength: 180
+                    name:
+                      type: string
+                      minLength: 1
+                      maxLength: 240
+                    type:
+                      type: string
+                      enum:
+                        - USER
+                        - SYSTEM
+                  required:
+                    - id
+                    - name
+                    - type
+                  additionalProperties: false
+                - type: "null"
+          required:
+            - kind
+            - occurredAt
+            - reason
+            - actor
+          additionalProperties: false
+        opportunity:
+          type: object
+          properties:
+            title:
+              type: string
+              minLength: 1
+              maxLength: 240
+            description:
+              anyOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 4000
+                - type: "null"
+            planningRequested:
+              type: boolean
+            planningDecision:
+              type: object
+              properties:
+                requestedAt:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                    - type: "null"
+                withdrawnAt:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                    - type: "null"
+                reason:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 1000
+                    - type: "null"
+                actor:
+                  anyOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                          maxLength: 180
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 240
+                        type:
+                          type: string
+                          enum:
+                            - USER
+                            - SYSTEM
+                      required:
+                        - id
+                        - name
+                        - type
+                      additionalProperties: false
+                    - type: "null"
+              required:
+                - requestedAt
+                - withdrawnAt
+                - reason
+                - actor
+              additionalProperties: false
+            commercialStatus:
+              type: string
+              enum:
+                - OPEN
+                - WON
+                - LOST
+                - DISCARDED
+                - CANCELLED
+                - POSTPONED
+            sourceCommercialStatus:
+              type: string
+              minLength: 1
+              maxLength: 80
+            commercialStatusDecision:
+              type: object
+              properties:
+                occurredAt:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                    - type: "null"
+                reason:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 1000
+                    - type: "null"
+                actor:
+                  anyOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                          maxLength: 180
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 240
+                        type:
+                          type: string
+                          enum:
+                            - USER
+                            - SYSTEM
+                      required:
+                        - id
+                        - name
+                        - type
+                      additionalProperties: false
+                    - type: "null"
+              required:
+                - occurredAt
+                - reason
+                - actor
+              additionalProperties: false
+            commercialOwner:
+              anyOf:
+                - type: object
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                      maxLength: 180
+                    name:
+                      type: string
+                      minLength: 1
+                      maxLength: 240
+                  required:
+                    - id
+                    - name
+                  additionalProperties: false
+                - type: "null"
+            client:
+              type: object
+              properties:
+                externalId:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 180
+                    - type: "null"
+                name:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 240
+                    - type: "null"
+                legalName:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 240
+                    - type: "null"
+                taxId:
+                  anyOf:
+                    - type: string
+                      pattern: ^\d{14}$
+                    - type: "null"
+              required:
+                - externalId
+                - name
+                - legalName
+                - taxId
+              additionalProperties: false
+            proposal:
+              anyOf:
+                - type: object
+                  properties:
+                    system:
+                      type: string
+                      enum:
+                        - COMERCIALAPP
+                        - PRISMA
+                    id:
+                      anyOf:
+                        - type: string
+                          minLength: 1
+                          maxLength: 180
+                        - type: "null"
+                    externalId:
+                      anyOf:
+                        - type: string
+                          minLength: 1
+                          maxLength: 180
+                        - type: "null"
+                    code:
+                      type: string
+                      minLength: 1
+                      maxLength: 160
+                    revision:
+                      type: integer
+                      minimum: 0
+                      maximum: 2147483647
+                    acceptedAt:
+                      anyOf:
+                        - type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                        - type: "null"
+                  required:
+                    - system
+                    - id
+                    - externalId
+                    - code
+                    - revision
+                    - acceptedAt
+                  additionalProperties: false
+                - type: "null"
+            scope:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - PRIMARY
+                    - ADDITIONAL
+                    - UNCLASSIFIED
+                primaryOpportunityExternalId:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 180
+                    - type: "null"
+                primaryProposal:
+                  anyOf:
+                    - type: object
+                      properties:
+                        system:
+                          type: string
+                          enum:
+                            - COMERCIALAPP
+                            - PRISMA
+                        id:
+                          anyOf:
+                            - type: string
+                              minLength: 1
+                              maxLength: 180
+                            - type: "null"
+                        externalId:
+                          anyOf:
+                            - type: string
+                              minLength: 1
+                              maxLength: 180
+                            - type: "null"
+                        code:
+                          type: string
+                          minLength: 1
+                          maxLength: 160
+                        revision:
+                          type: integer
+                          minimum: 0
+                          maximum: 2147483647
+                      required:
+                        - system
+                        - id
+                        - externalId
+                        - code
+                        - revision
+                      additionalProperties: false
+                    - type: "null"
+                additionalProposalId:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 180
+                    - type: "null"
+                contributionKey:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 240
+                    - type: "null"
+              required:
+                - kind
+                - primaryOpportunityExternalId
+                - primaryProposal
+                - additionalProposalId
+                - contributionKey
+              additionalProperties: false
+            project:
+              anyOf:
+                - type: object
+                  properties:
+                    prismaMissionId:
+                      anyOf:
+                        - type: string
+                          minLength: 1
+                          maxLength: 180
+                        - type: "null"
+                    number:
+                      anyOf:
+                        - type: string
+                          minLength: 1
+                          maxLength: 80
+                        - type: "null"
+                    numberScope:
+                      anyOf:
+                        - type: string
+                          minLength: 1
+                          maxLength: 180
+                        - type: "null"
+                    filtroappProjectId:
+                      anyOf:
+                        - type: string
+                          minLength: 1
+                          maxLength: 100
+                        - type: "null"
+                  required:
+                    - prismaMissionId
+                    - number
+                    - numberScope
+                    - filtroappProjectId
+                  additionalProperties: false
+                - type: "null"
+            location:
+              anyOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 240
+                - type: "null"
+            value:
+              anyOf:
+                - type: object
+                  properties:
+                    amount:
+                      type: string
+                      pattern: ^(0|[1-9]\d{0,11})\.\d{2}$
+                    currency:
+                      type: string
+                      const: BRL
+                  required:
+                    - amount
+                    - currency
+                  additionalProperties: false
+                - type: "null"
+            expectedDates:
+              type: object
+              properties:
+                closeOn:
+                  anyOf:
+                    - type: string
+                      format: date
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                    - type: "null"
+                executionStartOn:
+                  anyOf:
+                    - type: string
+                      format: date
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                    - type: "null"
+                executionEndOn:
+                  anyOf:
+                    - type: string
+                      format: date
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                    - type: "null"
+              required:
+                - closeOn
+                - executionStartOn
+                - executionEndOn
+              additionalProperties: false
+            closedAt:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                - type: "null"
+            sourceRecordDeleted:
+              type: boolean
+            recordUrl:
+              type: string
+              maxLength: 2000
+              format: uri
+              pattern: ^https?://
+          required:
+            - title
+            - description
+            - planningRequested
+            - planningDecision
+            - commercialStatus
+            - sourceCommercialStatus
+            - commercialStatusDecision
+            - commercialOwner
+            - client
+            - proposal
+            - scope
+            - project
+            - location
+            - value
+            - expectedDates
+            - closedAt
+            - sourceRecordDeleted
+            - recordUrl
+          additionalProperties: false
+      required:
+        - contractVersion
+        - eventId
+        - sourceSystem
+        - tenantId
+        - environment
+        - externalId
+        - sourceVersion
+        - sourceUpdatedAt
+        - change
+        - opportunity
+      additionalProperties: false
     CrmOpportunityResult:
       type: object
       additionalProperties: false
-      required: [outcome, opportunity, requestId]
+      required: [eventId, externalId, receivedSourceVersion, currentSourceVersion, disposition, accompanimentId, projectId, targetProjectId, projectLinkStatus, projectLinkReason, receivedAt, requestId]
       properties:
-        outcome: { type: string, enum: [CREATED, UPDATED, CONVERTED, REPLAYED, IGNORED_OLDER] }
-        opportunity:
-          type: object
-          additionalProperties: false
-          required: [id, externalId, status, sourceVersion, projectId]
-          properties:
-            id: { type: string }
-            externalId: { type: string }
-            status: { type: string, enum: [HOT, WITHDRAWN, LOST, CANCELLED, WON] }
-            sourceVersion: { type: integer }
-            projectId: { type: [string, 'null'] }
-        project: { type: object, description: Cadastro retornado pelo recebimento normal de projetos no fechamento. }
-        commercialRevision: { type: object }
+        eventId: { type: string, format: uuid }
+        externalId: { type: string }
+        receivedSourceVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        currentSourceVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        disposition: { type: string, enum: [applied, duplicate, duplicate_version, stale_ignored] }
+        accompanimentId: { type: string }
+        projectId: { type: [string, 'null'] }
+        targetProjectId: { type: [string, 'null'] }
+        projectLinkStatus: { type: string, enum: [NOT_REQUESTED, PENDING_DATA, PENDING_LINK, LINKED, NEEDS_REVIEW] }
+        projectLinkReason: { type: [string, 'null'] }
+        receivedAt: { type: string, format: date-time }
         requestId: { type: string }
+    CrmPlanningState:
+      type: object
+      required: [externalId, accompanimentId, projectId, targetProjectId, prismaMissionId, projectNumber, numberScope, currentSourceVersion, currentEventId, canonicalHash, projectLinkStatus, projectLinkReason, commercialStatus, planningRequested, sourceRecordDeleted, updatedAt]
+      properties:
+        externalId: { type: string }
+        accompanimentId: { type: string }
+        projectId: { type: [string, 'null'] }
+        targetProjectId: { type: [string, 'null'] }
+        prismaMissionId: { type: [string, 'null'] }
+        projectNumber: { type: [string, 'null'] }
+        numberScope: { type: [string, 'null'] }
+        currentSourceVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        currentEventId: { type: string, format: uuid }
+        canonicalHash: { type: string, pattern: '^[0-9a-f]{64}$' }
+        projectLinkStatus: { type: string, enum: [NOT_REQUESTED, PENDING_DATA, PENDING_LINK, LINKED, NEEDS_REVIEW] }
+        projectLinkReason: { type: [string, 'null'] }
+        commercialStatus: { type: string, enum: [OPEN, WON, LOST, DISCARDED, CANCELLED, POSTPONED] }
+        planningRequested: { type: boolean }
+        sourceRecordDeleted: { type: boolean }
+        updatedAt: { type: string, format: date-time }
     CrmProjectIntake:
       type: object
       additionalProperties: false

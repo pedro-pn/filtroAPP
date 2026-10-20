@@ -1,111 +1,117 @@
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { z } from 'zod';
-
+import env from '../../config/env.js';
 import prisma from '../prisma.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
-import { projectIntakeInputSchema, projectIntakeSchema, receiveProjectIntake } from './project-intake.js';
+import { stableJson } from '../api-credentials/cursor.js';
+import { CRM_PLANNING_VERSION, opportunityKey, opportunityWhere, receiptWhere, planningNamespace, validatePlanningNamespace, validateCrmOpportunity } from './crm-planning-schema.js';
+import { validatePlanningTransition, resolvePlanningProject, storePlanningLinkHistory, reconcileMissionPlanningLinks } from './crm-planning-links.js';
 
-const text = max => z.string().trim().min(1).max(max);
-const optionalText = max => text(max).nullable().default(null);
-const cnpj = z.string().trim().transform(value => value.replace(/\D/g, ''))
-  .refine(value => value.length === 14, 'CNPJ deve conter exatamente 14 dígitos.');
+export { validateCrmOpportunity } from './crm-planning-schema.js';
+const hash = value => createHash('sha256').update(stableJson(value)).digest('hex');
+const conflict = code => new IntegrationApiError(409, code, 'O identificador recebido já existe com conteúdo diferente.');
+const date = value => value ? new Date(value + 'T00:00:00Z') : null;
 
-// Retrato completo da oportunidade. Versão crescente por externalId é a ordem oficial.
-export const crmOpportunitySchema = z.object({
-  externalId: text(180),
-  sourceVersion: z.number().int().positive().max(2_147_483_647),
-  sourceUpdatedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value).toISOString()),
-  status: z.enum(['HOT', 'WITHDRAWN', 'LOST', 'CANCELLED', 'WON']),
-  name: text(240),
-  clientName: text(240),
-  clientCnpj: cnpj.nullable().default(null),
-  location: optionalText(240),
-  proposalCode: z.string().trim().regex(/^\d{1,40}$/).nullable().default(null),
-  revision: z.number().int().min(0).max(2_147_483_647).nullable().default(null),
-  estimatedValue: z.number().min(0).max(999_999_999_999.99).multipleOf(0.01).nullable().default(null),
-  expectedCloseDate: z.iso.date().nullable().default(null),
-  expectedStartDate: z.iso.date().nullable().default(null),
-  externalUrl: z.url().max(2000).refine(value => /^https?:\/\//i.test(value), 'Informe uma URL HTTP ou HTTPS.').nullable().default(null),
-  project: projectIntakeInputSchema.nullable().default(null)
-}).strict().superRefine((value, context) => {
-  if (value.status === 'WON') {
-    const project = projectIntakeSchema.safeParse(value.project);
-    if (!project.success) for (const issue of project.error.issues) {
-      context.addIssue({ ...issue, path: ['project', ...issue.path] });
-    }
-    if (value.clientCnpj && value.project && value.clientCnpj !== value.project.clientCnpj) {
-      context.addIssue({ code: 'custom', path: ['project', 'clientCnpj'], message: 'O cliente do projeto deve corresponder à oportunidade.' });
-    }
-  } else if (value.project) {
-    context.addIssue({ code: 'custom', path: ['project'], message: 'Dados do projeto são enviados somente no fechamento (WON).' });
-  }
-});
-
-export const validateCrmOpportunity = input => crmOpportunitySchema.parse(input);
-const conflict = (code, message) => new IntegrationApiError(409, code, message);
-
-function result(outcome, opportunity, projectResult = null) {
-  return { outcome, opportunity: {
-    id: opportunity.id, externalId: opportunity.externalId, status: opportunity.status,
-    sourceVersion: opportunity.sourceVersion, projectId: opportunity.projectId
-  }, ...(projectResult ? { project: projectResult.project, commercialRevision: projectResult.commercialRevision } : {}) };
+function stateData(input, versionHash, now) {
+  const op = input.opportunity;
+  return { ...opportunityKey(input), contractVersion: input.contractVersion, commercialStatus: op.commercialStatus,
+    planningRequested: op.planningRequested, sourceRecordDeleted: op.sourceRecordDeleted, scopeKind: op.scope.kind,
+    name: op.title, description: op.description, clientName: op.client.name, clientExternalId: op.client.externalId, clientCnpj: op.client.taxId,
+    location: op.location, proposalCode: op.proposal?.code ?? null, proposalSystem: op.proposal?.system ?? null, revision: op.proposal?.revision ?? null,
+    estimatedValue: op.value?.amount ?? null, expectedCloseDate: date(op.expectedDates.closeOn),
+    expectedStartDate: date(op.expectedDates.executionStartOn), expectedEndDate: date(op.expectedDates.executionEndOn),
+    externalUrl: op.recordUrl, sourceVersion: BigInt(input.sourceVersion), sourceUpdatedAt: new Date(input.sourceUpdatedAt),
+    payloadHash: versionHash, snapshot: input, currentEventId: input.eventId,
+    prismaMissionId: op.project?.prismaMissionId ?? null, lastSyncedAt: now };
 }
 
-export async function receiveCrmOpportunity(database, rawInput, { now = new Date() } = {}) {
+export function planningAck(input, current, disposition, receivedAt = new Date()) {
+  return { eventId: input.eventId, externalId: input.externalId,
+    receivedSourceVersion: input.sourceVersion, currentSourceVersion: Number(current.sourceVersion),
+    disposition, accompanimentId: current.id, projectId: current.projectId,
+    targetProjectId: current.targetProjectId, projectLinkStatus: current.projectLinkStatus,
+    projectLinkReason: current.projectLinkReason, receivedAt: receivedAt.toISOString() };
+}
+
+export async function receiveCrmOpportunity(database, rawInput, { now = new Date(), envConfig = env, idempotencyKey } = {}) {
   const input = validateCrmOpportunity(rawInput);
-  const payloadHash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  validatePlanningNamespace(input, planningNamespace(envConfig));
+  if (idempotencyKey !== undefined && idempotencyKey !== input.eventId) {
+    throw new IntegrationApiError(400, 'IDEMPOTENCY_KEY_MISMATCH', 'Idempotency-Key deve corresponder ao eventId.');
+  }
+  const payloadHash = hash(input);
+  const { eventId: _eventId, ...version } = input;
+  const versionHash = hash(version);
   for (let attempt = 0; ; attempt++) {
     try {
       const response = await database.$transaction(async tx => {
-        const existing = await tx.crmOpportunity.findUnique({ where: { externalId: input.externalId }, include: { project: { select: { code: true } } } });
-        if (existing) {
-          if (input.sourceVersion < existing.sourceVersion) return result('IGNORED_OLDER', existing);
-          if (input.sourceVersion === existing.sourceVersion) {
-            if (existing.payloadHash !== payloadHash) throw conflict('SOURCE_VERSION_CONFLICT', 'Esta versão da oportunidade já foi recebida com dados diferentes.');
-            await tx.crmOpportunity.update({ where: { id: existing.id }, data: { lastSyncedAt: now } });
-            return result('REPLAYED', existing);
-          }
-          if (existing.projectId && (input.status !== 'WON' || input.project.code !== existing.project.code)) {
-            throw conflict('OPPORTUNITY_ALREADY_CONVERTED', 'A oportunidade já está vinculada a um projeto e não pode regredir ou trocar de projeto.');
-          }
+        const receipt = await tx.crmPlanningReceipt.findUnique({ where: receiptWhere(input) });
+        if (receipt) {
+          if (receipt.payloadHash !== payloadHash) throw conflict('EVENT_CONTENT_CONFLICT');
+          const current = await tx.crmOpportunity.findUniqueOrThrow({ where: { id: receipt.opportunityId } });
+          return { statusCode: 200, body: planningAck(input, current, 'duplicate', now) };
         }
-        let projectResult = null;
-        if (input.status === 'WON') {
-          projectResult = await receiveProjectIntake(input.project, tx, { inTransaction: true });
-          const owner = await tx.crmOpportunity.findUnique({ where: { projectId: projectResult.project.id } });
-          if (owner && owner.externalId !== input.externalId) throw conflict('PROJECT_OPPORTUNITY_CONFLICT', 'Este projeto já está vinculado a outra oportunidade.');
-          const project = await tx.project.findUnique({ where: { id: projectResult.project.id }, select: { isActive: true, deletedAt: true } });
-          if (!project?.isActive || project.deletedAt) throw conflict('PROJECT_UNAVAILABLE', 'O projeto está inativo ou excluído.');
+        const existing = await tx.crmOpportunity.findUnique({ where: opportunityWhere(input) });
+        const previousVersion = existing ? await tx.crmOpportunityEvent.findUnique({ where: {
+          opportunityId_sourceVersion: { opportunityId: existing.id, sourceVersion: BigInt(input.sourceVersion) }
+        } }) : null;
+        let current = existing;
+        let versionEvent = previousVersion;
+        let disposition = 'applied';
+        if (previousVersion) {
+          if (previousVersion.versionHash !== versionHash) throw conflict('VERSION_CONTENT_CONFLICT');
+          disposition = 'duplicate_version';
+        } else {
+          const applied = !existing || BigInt(input.sourceVersion) > existing.sourceVersion;
+          if (applied) {
+            validatePlanningTransition(existing, input);
+            const links = await resolvePlanningProject(tx, input, existing, { now });
+            const data = stateData(input, versionHash, now);
+            if (!data.prismaMissionId && (existing?.projectId || existing?.targetProjectId)) data.prismaMissionId = existing.prismaMissionId;
+            current = await tx.crmOpportunity.upsert({ where: opportunityWhere(input),
+              create: { ...data, ...links }, update: { ...data, ...links } });
+            await storePlanningLinkHistory(tx, existing, current);
+            if (current.projectLinkStatus === 'LINKED') await reconcileMissionPlanningLinks(tx, input, current.id);
+          } else disposition = 'stale_ignored';
+          versionEvent = await tx.crmOpportunityEvent.create({ data: { opportunityId: current.id,
+            sourceVersion: BigInt(input.sourceVersion), sourceUpdatedAt: new Date(input.sourceUpdatedAt),
+            eventId: input.eventId, versionHash, applied, snapshot: input, receivedAt: now } });
         }
-        const { externalId, sourceVersion, sourceUpdatedAt, status, name, clientName, clientCnpj, location,
-          proposalCode, revision, estimatedValue, expectedCloseDate, expectedStartDate, externalUrl } = input;
-        const data = { status, name, clientName, clientCnpj, location, proposalCode, revision, estimatedValue, externalUrl,
-          expectedCloseDate: expectedCloseDate ? new Date(`${expectedCloseDate}T00:00:00Z`) : null,
-          expectedStartDate: expectedStartDate ? new Date(`${expectedStartDate}T00:00:00Z`) : null,
-          sourceVersion, sourceUpdatedAt: new Date(sourceUpdatedAt), payloadHash, lastSyncedAt: now,
-          projectId: projectResult?.project.id ?? null, convertedAt: existing?.convertedAt ?? (projectResult ? now : null) };
-        const saved = await tx.crmOpportunity.upsert({ where: { externalId }, create: { externalId, ...data }, update: data });
-        await tx.crmOpportunityEvent.create({ data: { opportunityId: saved.id, sourceVersion,
-          sourceUpdatedAt: data.sourceUpdatedAt, status, snapshot: input, receivedAt: now } });
-        return result(projectResult && !existing?.projectId ? 'CONVERTED' : existing ? 'UPDATED' : 'CREATED', saved, projectResult);
+        await tx.crmPlanningReceipt.create({ data: {
+          sourceSystem: input.sourceSystem, tenantId: input.tenantId, environment: input.environment,
+          eventId: input.eventId, payloadHash, opportunityId: current.id, versionEventId: versionEvent.id, disposition, receivedAt: now
+        } });
+        return { statusCode: existing ? 200 : 201, body: planningAck(input, current, disposition, now) };
       }, { isolationLevel: 'Serializable', timeout: 15_000 });
       clearProjectDerivedCaches();
       return response;
     } catch (error) {
       if (!['P2034', 'P2002'].includes(error.code)) throw error;
-      if (attempt >= 3) throw conflict('CONCURRENT_UPDATE', 'Outra atualização está em andamento. Reenvie a mesma versão.');
+      if (attempt >= 4) throw new IntegrationApiError(409, 'CONCURRENT_UPDATE', 'Outra atualização está em andamento. Reenvie o mesmo evento.');
       await delay(20 * 2 ** attempt);
     }
   }
 }
 
-export async function listCrmOpportunityCards(database = prisma) {
-  const rows = await database.crmOpportunity.findMany({ where: { status: 'HOT', projectId: null },
+export function planningCardCategory(record) {
+  if (record.sourceRecordDeleted || record.contractVersion !== CRM_PLANNING_VERSION || record.projectId) return null;
+  if (record.commercialStatus === 'WON') return 'FUTURO';
+  if (!record.planningRequested) return null;
+  if (record.commercialStatus === 'OPEN') return 'FUTURO';
+  return record.commercialStatus === 'POSTPONED' ? 'PAUSADA' : null;
+}
+
+export async function listCrmOpportunityCards(database = prisma, envConfig = env) {
+  const rows = await database.crmOpportunity.findMany({ where: { ...planningNamespace(envConfig),
+    contractVersion: CRM_PLANNING_VERSION, sourceRecordDeleted: false, projectId: null,
+    OR: [{ commercialStatus: 'WON' }, { commercialStatus: { in: ['OPEN', 'POSTPONED'] }, planningRequested: true }] },
     orderBy: [{ expectedStartDate: 'asc' }, { name: 'asc' }, { id: 'asc' }],
-    select: { id: true, externalId: true, name: true, clientName: true, clientCnpj: true, location: true,
-      proposalCode: true, revision: true, estimatedValue: true, expectedCloseDate: true, expectedStartDate: true, externalUrl: true, sourceUpdatedAt: true } });
-  return rows.map(row => ({ ...row, kind: 'OPPORTUNITY', category: 'FUTURO',
+    select: { id: true, externalId: true, name: true, description: true, clientName: true, clientCnpj: true, location: true,
+      proposalCode: true, revision: true, estimatedValue: true, expectedCloseDate: true, expectedStartDate: true, expectedEndDate: true,
+      externalUrl: true, sourceUpdatedAt: true, planningRequested: true, commercialStatus: true, sourceRecordDeleted: true,
+      contractVersion: true, projectId: true, projectLinkStatus: true, projectLinkReason: true, scopeKind: true,
+      targetProject: { select: { id: true, code: true } } } });
+  return rows.map(row => ({ ...row, kind: 'OPPORTUNITY', category: planningCardCategory(row),
     estimatedValue: row.estimatedValue === null ? null : Number(row.estimatedValue) }));
 }

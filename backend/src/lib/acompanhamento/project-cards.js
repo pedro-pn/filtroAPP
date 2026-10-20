@@ -289,6 +289,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       code: row.code,
       name: row.name,
       crmOpportunity: row.crmOpportunity ?? null,
+      crmOpportunities: row.crmOpportunities ?? [],
       awaitingCommercialBudget: row.awaitingCommercialBudget ?? false,
       cardName: projById.get(row.projectId)?.acompanhamentoCardName ?? null,
       clientName: row.clientName,

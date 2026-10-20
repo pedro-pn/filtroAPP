@@ -128,7 +128,7 @@ export function projectMatchesIntake(project, intake) {
   return PROJECT_INTAKE_COMPARISON_FIELDS.every(field => comparableProject[field] === intake[field]);
 }
 
-async function resolveExistingProject(project, intake, client, attempts = 0) {
+async function resolveExistingProject(project, intake, client, attempts = 0, selectAccessRevision = true) {
   let status = 'already_exists';
   if (!projectMatchesIntake(project, intake)) {
     const previousReference = commercialProposalReference(project.contractCode);
@@ -148,7 +148,7 @@ async function resolveExistingProject(project, intake, client, attempts = 0) {
     if (!current) throw new ProjectIntakeConflictError();
     if (changed.count !== 1 || current.contractCode !== intake.contractCode) {
       if (attempts >= 2) throw new ProjectIntakeConflictError();
-      return resolveExistingProject(current, intake, client, attempts + 1);
+      return resolveExistingProject(current, intake, client, attempts + 1, selectAccessRevision);
     }
     project = current;
     status = 'updated';
@@ -162,7 +162,7 @@ async function resolveExistingProject(project, intake, client, attempts = 0) {
     }
   }
   clearProjectDerivedCaches();
-  const commercialRevision = await selectProjectIntakeCommercialRevision(project, intake, client);
+  const commercialRevision = selectAccessRevision ? await selectProjectIntakeCommercialRevision(project, intake, client) : null;
   return projectIntakeResult(status, project, commercialRevision);
 }
 
@@ -177,14 +177,14 @@ function isUniqueConstraintError(error) {
   return error?.code === 'P2002';
 }
 
-export async function receiveProjectIntake(rawInput, client = prisma, { inTransaction = false } = {}) {
+export async function receiveProjectIntake(rawInput, client = prisma, { inTransaction = false, selectAccessRevision = true } = {}) {
   const intake = projectIntakeSchema.parse(rawInput || {});
   const existing = await client.project.findUnique({
     where: { code: intake.code },
     select: projectIntakePublicSelect
   });
 
-  if (existing) return resolveExistingProject(existing, intake, client);
+  if (existing) return resolveExistingProject(existing, intake, client, 0, selectAccessRevision);
 
   try {
     const project = await client.project.create({
@@ -192,7 +192,7 @@ export async function receiveProjectIntake(rawInput, client = prisma, { inTransa
       select: projectIntakePublicSelect
     });
     clearProjectDerivedCaches();
-    const commercialRevision = await selectProjectIntakeCommercialRevision(project, intake, client);
+    const commercialRevision = selectAccessRevision ? await selectProjectIntakeCommercialRevision(project, intake, client) : null;
     return projectIntakeResult('created', project, commercialRevision);
   } catch (error) {
     // Uma transação PostgreSQL que sofreu conflito deve ser refeita por inteiro.
@@ -202,7 +202,7 @@ export async function receiveProjectIntake(rawInput, client = prisma, { inTransa
       select: projectIntakePublicSelect
     });
     if (!concurrentProject) throw error;
-    return resolveExistingProject(concurrentProject, intake, client);
+    return resolveExistingProject(concurrentProject, intake, client, 0, selectAccessRevision);
   }
 }
 

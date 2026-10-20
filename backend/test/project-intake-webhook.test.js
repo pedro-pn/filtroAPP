@@ -610,3 +610,15 @@ test('POST /api/webhooks/projects rejects the obsolete contractCode field withou
   assert.equal(response.statusCode, 400);
   assert.equal(touchedDatabase, false);
 });
+
+test('planning pode criar cadastro sem selecionar orçamento legado de código coincidente', async () => {
+  const created = projectFromPayload();
+  const result = await receiveProjectIntake(validPayload, {
+    project: { findUnique: async () => null, create: async () => created },
+    commercialProposal: { findFirst: async () => assert.fail('Não selecionar proposta do Access neste fluxo') },
+    projectBudget: { findUnique: async () => assert.fail('Seleção pertence ao fluxo comercial') }
+  }, { inTransaction: true, selectAccessRevision: false });
+  assert.equal(result.status, 'created');
+  assert.equal(result.commercialRevision, null);
+  assert.equal(result.project.id, created.id);
+});

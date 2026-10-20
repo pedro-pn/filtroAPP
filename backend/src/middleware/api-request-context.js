@@ -75,7 +75,7 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
       }
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', writePath ? 'GET, POST' : 'GET');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id, Idempotency-Key');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Request-Id, Retry-After');
       if (req.method === 'OPTIONS') return res.status(204).end();
     }

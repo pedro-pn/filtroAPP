@@ -779,6 +779,7 @@ export interface ProjectCard {
   kind?: 'PROJECT';
   projectId: string;
   crmOpportunity?: { id: string; externalId: string; externalUrl: string | null } | null;
+  crmOpportunities?: Array<{ id: string; externalId: string; externalUrl: string | null; scopeKind: string }>;
   awaitingCommercialBudget?: boolean;
   code: string;
   name: string;
@@ -842,11 +843,11 @@ export type ProjectCardItem = ProjectCard | MissionGroupCard;
 
 export interface CrmOpportunityCard {
   kind: 'OPPORTUNITY';
-  category: 'FUTURO';
+  category: 'FUTURO' | 'PAUSADA';
   id: string;
   externalId: string;
   name: string;
-  clientName: string;
+  clientName: string | null;
   clientCnpj: string | null;
   location: string | null;
   proposalCode: string | null;
@@ -856,6 +857,12 @@ export interface CrmOpportunityCard {
   expectedStartDate: string | null;
   externalUrl: string | null;
   sourceUpdatedAt: string;
+  description?: string | null;
+  commercialStatus: 'OPEN' | 'WON' | 'LOST' | 'DISCARDED' | 'CANCELLED' | 'POSTPONED';
+  planningRequested: boolean;
+  projectLinkStatus: 'NOT_REQUESTED' | 'PENDING_DATA' | 'PENDING_LINK' | 'LINKED' | 'NEEDS_REVIEW';
+  scopeKind: 'PRIMARY' | 'ADDITIONAL' | 'UNCLASSIFIED';
+  targetProject: { id: string; code: string } | null;
 }
 
 export interface ProjectStandbyHistoryEntry {

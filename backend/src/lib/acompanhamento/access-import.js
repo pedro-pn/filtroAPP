@@ -930,7 +930,7 @@ async function listCommercialDashboardUncached({
         contractCode: true,
         commercialProposalCode: true,
         startDate: true,
-        crmOpportunity: { select: { id: true, externalId: true, externalUrl: true } },
+        crmOpportunities: { select: { id: true, externalId: true, externalUrl: true, scopeKind: true, proposalSystem: true }, orderBy: { createdAt: 'asc' } },
         proposalPercentage: true,
         isActive: true,
         acompanhamentoArchivedAt: true,
@@ -1003,9 +1003,12 @@ async function listCommercialDashboardUncached({
     const appProposal = budget?.source === 'COMERCIAL_APP'
       ? commercialAppByExternalId.get(budget.commercialAppProposalId) : null;
     const codProp = appProposal ? appProposal.proposalCode : projectProposalCode(project);
-    if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !project.crmOpportunity) continue;
+    const crmOpportunity = project.crmOpportunities?.find(item => item.scopeKind === 'PRIMARY') ?? project.crmOpportunities?.[0] ?? null;
+    if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !crmOpportunity) continue;
     const resolved = appProposal ? true : Boolean(project.commercialProposalCode) && Boolean(budget);
-    const source = appProposal ? commercialAppBudgetSource(appProposal) : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
+    const crmUsesCommercialApp = project.crmOpportunities?.some(item => item.scopeKind === 'PRIMARY' && item.proposalSystem === 'COMERCIALAPP');
+    const source = appProposal ? commercialAppBudgetSource(appProposal)
+      : (budget && byCodBd.get(budget.sourceProposalCodBd)) || (crmUsesCommercialApp ? null : latestByProp.get(codProp));
     const additionalSources = (selectedAdditionalsByProject.get(project.id) ?? [])
       .map(selection => {
         const proposal = selection.source === 'COMERCIAL_APP'
@@ -1030,7 +1033,8 @@ async function listCommercialDashboardUncached({
       projectId: project.id,
       code: project.code,
       name: project.name,
-      crmOpportunity: project.crmOpportunity ?? null,
+      crmOpportunity,
+      crmOpportunities: project.crmOpportunities ?? [],
       awaitingCommercialBudget: !source,
       clientName: project.clientName,
       clientCnpj: project.clientCnpj,

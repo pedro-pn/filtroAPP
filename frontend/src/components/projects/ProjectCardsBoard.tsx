@@ -90,9 +90,10 @@ export function ProjectCardsBoard({
   const projectCards = useMemo(() => data?.filter((card): card is ProjectCardItem => card.kind !== 'OPPORTUNITY'), [data]);
   const opportunities = useMemo(() => data?.filter((card): card is Opportunity => card.kind === 'OPPORTUNITY') ?? [], [data]);
   const visibleOpportunities = useMemo(() => {
-    if (view !== 'futuros') return [];
+    if (view !== 'futuros' && view !== 'pausadas') return [];
     const term = search.trim().toLowerCase();
-    return opportunities.filter(item => !term || [item.name, item.clientName, item.clientCnpj, item.location, item.proposalCode].filter(Boolean).join(' ').toLowerCase().includes(term));
+    return opportunities.filter(item => item.category === (view === 'pausadas' ? 'PAUSADA' : 'FUTURO'))
+      .filter(item => !term || [item.name, item.clientName, item.clientCnpj, item.location, item.proposalCode, item.targetProject?.code].filter(Boolean).join(' ').toLowerCase().includes(term));
   }, [opportunities, search, view]);
   const createGroupMutation = useMutation({
     mutationFn: (projectIds: string[]) => createMissionGroup({ projectIds }),
@@ -219,7 +220,8 @@ export function ProjectCardsBoard({
     const list = projectCards ?? [];
     return {
       andamento: list.filter(c => cardMatchesView(c, 'andamento')).length,
-      futuros: list.filter(c => cardMatchesView(c, 'futuros')).length + opportunities.length,
+      futuros: list.filter(c => cardMatchesView(c, 'futuros')).length + opportunities.filter(item => item.category === 'FUTURO').length,
+      pausadas: opportunities.filter(item => item.category === 'PAUSADA').length,
       arquivados: list.filter(c => cardMatchesView(c, 'arquivados')).length,
       conferidas: list.filter(c => cardMatchesView(c, 'conferidas')).length
     };
@@ -296,7 +298,7 @@ export function ProjectCardsBoard({
         </div> : data ? cards.length === 0 && visibleOpportunities.length === 0 ? <EmptyState variant={search.trim() ? 'search' : 'default'}
           title={search.trim() ? 'Nenhum projeto encontrado para a busca nesta situação.'
             : data.length === 0 ? 'Nenhum projeto ou oportunidade para acompanhar.'
-              : view === 'conferidas' ? 'Nenhuma missão conferida.' : view === 'arquivados' ? 'Nenhum projeto arquivado aguardando conferência.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
+              : view === 'pausadas' ? 'Nenhuma oportunidade pausada.' : view === 'conferidas' ? 'Nenhuma missão conferida.' : view === 'arquivados' ? 'Nenhum projeto arquivado aguardando conferência.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
           description={data.length === 0 ? 'Projetos cadastrados e oportunidades sinalizadas no PrismaCRM aparecerão aqui.' : 'Altere a situação ou a busca para consultar outros projetos.'}
           action={search.trim() ? { label: 'Limpar busca', onClick: () => setSearch('') } : undefined} />
           : <div className="acp-projects__grid">

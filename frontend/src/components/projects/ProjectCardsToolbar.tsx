@@ -3,6 +3,7 @@ import type { CardsView } from './projectCardViews';
 
 const PROJECT_CARD_VIEWS: { id: CardsView; label: string }[] = [
   { id: 'andamento', label: 'Em andamento' }, { id: 'futuros', label: 'Futuros' },
+  { id: 'pausadas', label: 'Pausadas' },
   { id: 'arquivados', label: 'Arquivados' }, { id: 'conferidas', label: 'Conferidas' }
 ];
 
