@@ -710,7 +710,7 @@ router.get('/projetos/:projectId/escopos-propostas', requireAuth, requireAcompan
 }));
 router.put('/projetos/:projectId/escopos-propostas/:reportId', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const payload = z.object({ serviceKey: z.string().length(64), contributionKey: z.string().min(1).max(200).nullable(),
-    version: z.string().length(64), reason: z.string().trim().min(1).max(1000) }).parse(req.body);
+    version: z.string().length(64), reason: z.string().trim().max(1000).optional() }).parse(req.body);
   const result = await assignReportContribution(req.params.projectId, req.params.reportId, payload, req.auth.user.id);
   clearProjectDerivedCaches();
   res.json(result);

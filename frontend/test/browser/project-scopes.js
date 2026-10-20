@@ -31,7 +31,7 @@ async page => {
     assert(await firstTab.isDisabled(), 'Troca de projeto pode descartar a edição em andamento.');
     assert(await form.getByRole('combobox').evaluate(element => element === document.activeElement), 'Editor não recebeu foco.');
     await form.getByRole('combobox').selectOption('ACCESS_IMPORT:4800');
-    await form.getByRole('textbox', { name: 'Motivo', exact: true }).fill('Escopo contratado do projeto 5816');
+    assert(await form.getByRole('textbox').count() === 0, 'Vinculação ainda exige motivo.');
     await form.getByRole('button', { name: 'Salvar vínculo', exact: true }).click({ trial: true });
     await page.screenshot({ path: 'output/playwright/project-scopes-editor-' + width + '.png' });
     await form.getByRole('button', { name: 'Salvar vínculo', exact: true }).click();
@@ -39,6 +39,7 @@ async page => {
     const saved = await page.evaluate(() => window.scopeCalls.filter(call => call.method === 'put').at(-1));
     assert(saved.url.endsWith('/projetos/p2/escopos-propostas/r3') && saved.body.contributionKey === 'ACCESS_IMPORT:4800'
       && saved.body.version === 'd'.repeat(64), 'Salvamento perdeu o projeto, o relatório ou a versão.');
+    assert(!('reason' in saved.body), 'Salvamento enviou um motivo oculto.');
     await firstTab.click();
     await list.getByText('Vaso do compressor · 845-VK-001A1', { exact: true }).waitFor();
     await dialog.getByRole('button', { name: 'Pendentes (2)', exact: true }).click();
@@ -50,8 +51,7 @@ async page => {
     await pending.getByRole('button', { name: 'Vincular proposta', exact: true }).click();
     const cancelForm = pending.getByRole('form', { name: 'Vincular serviço à proposta' });
     assert(await cancelForm.getByRole('combobox').inputValue() === 'ACCESS_IMPORT:4586', 'Proposta filtrada não foi sugerida.');
-    await cancelForm.getByRole('textbox', { name: 'Motivo', exact: true }).fill('Edição descartada');
-    await cancelForm.getByRole('textbox', { name: 'Motivo', exact: true }).press('Escape');
+    await cancelForm.getByRole('button', { name: 'Cancelar', exact: true }).press('Escape');
     assert(await dialog.count() === 1 && await dialog.getByRole('form', { name: 'Vincular serviço à proposta' }).count() === 0, 'Escape fechou o escopo inteiro.');
     assert(await pending.getByRole('button', { name: 'Vincular proposta', exact: true }).evaluate(element => element === document.activeElement), 'Cancelar não devolveu foco ao serviço.');
     assert(await page.evaluate(() => window.scopeCalls.filter(call => call.method === 'put').length) === 1, 'Cancelar enviou alteração ao servidor.');
@@ -75,10 +75,8 @@ async page => {
     await row.getByRole('button', { name: 'Vincular proposta', exact: true }).click();
     const form = row.getByRole('form', { name: 'Vincular serviço à proposta' });
     await form.getByRole('combobox').selectOption('ACCESS_IMPORT:4586');
-    await form.getByRole('textbox', { name: 'Motivo', exact: true }).fill('Conferência preservada');
     await form.getByRole('button', { name: 'Salvar vínculo', exact: true }).click();
     await form.getByText('Não foi possível salvar o vínculo.', { exact: true }).waitFor();
-    assert(await form.getByRole('textbox', { name: 'Motivo', exact: true }).inputValue() === 'Conferência preservada', 'Falha apagou o motivo.');
     assert(await form.getByRole('combobox').inputValue() === 'ACCESS_IMPORT:4586', 'Falha apagou a proposta.');
     if (mode === 'conflito') {
       await form.getByRole('button', { name: 'Atualizar serviço', exact: true }).click();

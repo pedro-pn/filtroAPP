@@ -25,7 +25,7 @@ export async function fetchProposalScopes(projectId: string) {
   const { data } = await apiClient.get<ProposalScopeTracking>(base(projectId));
   return data;
 }
-export async function assignProposalScope(projectId: string, service: ProposalScopeService, contributionKey: string | null, reason: string) {
-  const { data } = await apiClient.put(`${base(projectId)}/${service.reportId}`, { serviceKey: service.serviceKey, version: service.version, contributionKey, reason });
+export async function assignProposalScope(projectId: string, service: ProposalScopeService, contributionKey: string | null) {
+  const { data } = await apiClient.put(`${base(projectId)}/${service.reportId}`, { serviceKey: service.serviceKey, version: service.version, contributionKey });
   return data;
 }

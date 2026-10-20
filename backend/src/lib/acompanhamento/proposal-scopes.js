@@ -107,7 +107,8 @@ export function reportServicesWithContributions(report, context) {
 }
 
 export async function assignReportContribution(projectId, reportId, { serviceKey, contributionKey, version, reason }, userId, client = prisma) {
-  if (!version || !serviceKey || typeof reason !== 'string' || !reason.trim() || reason.length > 1000) throw fail(400, 'Informe o vínculo, a versão e o motivo da alteração.');
+  if (!version || !serviceKey) throw fail(400, 'Informe o vínculo e a versão da alteração.');
+  if (reason !== undefined && (typeof reason !== 'string' || reason.length > 1000)) throw fail(400, 'Motivo inválido.');
   return client.$transaction(async tx => {
     // Mesma ordem de bloqueio da seleção comercial: projeto antes dos dados dependentes.
     await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
@@ -121,7 +122,7 @@ export async function assignReportContribution(projectId, reportId, { serviceKey
     if (report.specialConditions?.parentRdoId) throw fail(409, 'Vincule o serviço no RDO de origem deste relatório técnico.');
     const assignments = { ...(report.contributionAssignments || {}) };
     const previous = assignments[serviceKey];
-    const audit = { projectId, contributionKey: contributionKey || null, userId, reason: reason.trim(), at: new Date().toISOString() };
+    const audit = { projectId, contributionKey: contributionKey || null, userId, reason: reason?.trim() || null, at: new Date().toISOString() };
     assignments[serviceKey] = { ...audit, history: [...(previous?.history || []), audit] };
     const updated = await tx.report.updateMany({ where: { id: reportId, updatedAt: report.updatedAt }, data: { contributionAssignments: assignments, updatedAt: report.updatedAt } });
     if (updated.count !== 1) throw fail(409, 'O relatório mudou. Atualize antes de salvar.');
