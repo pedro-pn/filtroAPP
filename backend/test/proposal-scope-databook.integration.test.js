@@ -12,8 +12,10 @@ import { receiveCommercialAppProposal } from '../src/lib/acompanhamento/comercia
 import { assignReportContribution, contributionServiceKey } from '../src/lib/acompanhamento/proposal-scopes.js';
 import { getProposalScopeTracking } from '../src/lib/acompanhamento/proposal-scope-tracking.js';
 import { montarDadosDatabook } from '../src/lib/databook/montar-dados.js';
-import { criarPrevia, listarDatabooks, prepararEdicao, prepararRevisao, solicitarGeracao } from '../src/lib/databook/service.js';
+import { criarPrevia, listarDatabooks, prepararEdicao, prepararRevisao, resumoDoDialogo, solicitarGeracao } from '../src/lib/databook/service.js';
 import { gerarPdf } from '../src/lib/databook/python.js';
+import { assertRdoProjectContext } from '../src/lib/reports/project-context-validation.js';
+import { projectScopeOptions } from '../../shared/modules/rdo-project-context.js';
 const databaseUrl = process.env.PROPOSAL_SCOPE_TEST_DATABASE_URL || process.env.TEST_DATABASE_URL;
 const python = process.env.DATABOOK_PYTHON || 'python3';
 const pythonReady = spawnSync(python, ['-c', 'import reportlab, pypdf, PIL'], { encoding: 'utf8' }).status === 0;
@@ -25,7 +27,7 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
   assert.ok(new URL(databaseUrl).pathname === '/filtroapp_bridge_test' || process.env.CI === 'true' && new URL(databaseUrl).pathname === '/filtrovali');
   assert.equal(process.env.DATABASE_URL, databaseUrl);
   const code = randomInt(30_000_000, 40_000_000), externalIds = [], userIds = [];
-  let server;
+  let server, managerToken, managerId;
   const project = await prisma.project.create({ data: { code: `scope-${randomUUID()}`, name: 'Escopos QA', clientName: 'Cliente QA',
     clientCnpj: '12345678000190', contractCode: String(code), commercialProposalCode: String(code), location: 'Sede' } });
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'proposal-book-'));
@@ -58,6 +60,9 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
     reportDate: new Date('2026-10-19'), specialConditions: { parentRdoId: mixed.id, serviceId: service.id, serviceData: { 'Desenhos / TAGs': service.extraData.drawingsTags } } } });
   const before = await getProposalScopeTracking(project.id);
   assert.equal(before.pending, 4);
+  const unlinkedDialog = await resumoDoDialogo(project.id, { contributionKey: a });
+  assert.equal(unlinkedDialog.resumo.rdos, 0);
+  assert.ok(unlinkedDialog.avisos.some(warning => /4 serviço\(s\) sem proposta definida/.test(warning)));
   const stale = before.services.find(s => s.reportId === mixed.id);
   await t.test('HTTP: leitura autorizada, escrita de gestor e conflito entre vínculos concorrentes', async () => {
     const { default: app } = await import('../src/app.js');
@@ -65,9 +70,11 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
     await new Promise(resolve => server.once('listening', resolve));
     const tokens = {};
     for (const role of ['ACOMPANHAMENTO_MANAGER', 'ACOMPANHAMENTO_VIEWER']) {
-      const user = await prisma.user.create({ data: { username: `scope-${randomUUID()}`, name: 'Escopo QA', role: 'COLLABORATOR',
-        passwordHash: 'synthetic', accountType: 'INTERNAL', moduleRoles: { create: [{ module: 'ACOMPANHAMENTO', role }, ...(role.endsWith('MANAGER') ? [{ module: 'RDO', role: 'RDO_MANAGER' }] : [])] } } });
+      const user = await prisma.user.create({ data: { username: `scope-${randomUUID()}`, name: 'Escopo QA', role: role.endsWith('MANAGER') ? 'MANAGER' : 'COLLABORATOR',
+        passwordHash: 'synthetic', accountType: 'INTERNAL', reportEmissionPermissions: role.endsWith('MANAGER') ? ['SITE_RDO'] : [],
+        moduleRoles: { create: [{ module: 'ACOMPANHAMENTO', role }, ...(role.endsWith('MANAGER') ? [{ module: 'RDO', role: 'RDO_MANAGER' }] : [])] } } });
       userIds.push(user.id); const token = randomUUID(); tokens[role] = token;
+      if (role.endsWith('MANAGER')) { managerId = user.id; managerToken = token; }
       await prisma.userSession.create({ data: { userId: user.id, tokenHash: createHash('sha256').update(token).digest('hex'), expiresAt: new Date(Date.now() + 600_000) } });
     }
     const url = `http://127.0.0.1:${server.address().port}/api/acompanhamento/comercial/projetos/${project.id}/escopos-propostas`;
@@ -82,6 +89,9 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
     const dialog = await fetch(`http://127.0.0.1:${server.address().port}/api/rdo/databook/projects/${project.id}/intervalo?contributionKey=${encodeURIComponent(a)}`, { headers: headers('ACOMPANHAMENTO_MANAGER') });
     assert.equal(dialog.status, 200);
     assert.equal((await dialog.json()).propostas.length, 3);
+    const bootstrap = await fetch(`http://127.0.0.1:${server.address().port}/api/rdo/bootstrap/new-report`, { headers: headers('ACOMPANHAMENTO_MANAGER') });
+    assert.equal(bootstrap.status, 200);
+    assert.ok((await bootstrap.json()).projects.find(row => row.id === project.id).plannedServices.some(row => row.contributionKey === a));
   });
 
   for (const row of before.services) {
@@ -94,6 +104,9 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
   assert.equal((await prisma.report.findUnique({ where: { id: mixed.id } })).updatedAt.toISOString(), mixed.updatedAt.toISOString(), 'vínculo operacional não altera a versão formal do relatório assinado');
   const linked = await getProposalScopeTracking(project.id);
   assert.equal(linked.pending, 0);
+  const linkedDialog = await resumoDoDialogo(project.id, { contributionKey: a });
+  assert.equal(linkedDialog.resumo.rdos, 2);
+  assert.ok(!linkedDialog.avisos.some(warning => /sem proposta definida/.test(warning)));
   assert.equal(linked.scopes.find(s => s.key === a).progress.services[0].systems[0].realizedQty, 20);
   const mounted = await montarDadosDatabook(project.id, '2026-10-19', '2026-10-19', { contributionKey: a });
   assert.equal(mounted.dados.escopo_total, 20);
@@ -128,5 +141,52 @@ test('escopo independente: PostgreSQL, fontes mistas, RDO misto, histórico e PD
     assert.match(extracted.stdout, /SOMENTE-ADICIONAL-A/);
     assert.doesNotMatch(extracted.stdout, /SOMENTE-MAE|SOMENTE-ADICIONAL-B|SERVICO EXCLUSIVO MAE/);
     assert.match(extracted.stdout, new RegExp(String(code + 1)));
+  });
+
+  await t.test('origem do RDO: oito dias de vasos entram no adicional mesmo com outro adicional sem escopo', async () => {
+    await prisma.projectPlannedService.deleteMany({ where: { projectId: project.id, contributionKey: { in: [a, b] } } });
+    await prisma.projectPlannedService.create({ data: { projectId: project.id, contributionKey: a, scopeName: 'Extra Vaso compressor',
+      serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: { create: { systemType: 'SISTEMA', quantity: 2, unit: 'UN' } } } });
+    const projectContext = await prisma.project.findUnique({ where: { id: project.id },
+      include: { plannedServices: { select: { scopeName: true, contributionKey: true } } } });
+    const option = projectScopeOptions(projectContext).find(row => row.contributionKey === a && row.name === 'Extra Vaso compressor');
+    for (let day = 10; day <= 17; day++) {
+      const tags = day <= 14 ? ['VASO-1'] : ['VASO-2'];
+      if (day === 14) tags.push('VASO-2');
+      const data = { reportType: 'RDO', services: tags.map(tag => ({ serviceType: 'limpeza', system: 'Vaso do compressor',
+        finalized: day === 14 && tag === 'VASO-1' || day === 17, extraData: { __scopeKey: option.value,
+          equipmentId: 'Compressores', drawingsTags: tag, limpezaTubulacao: 'Não', quantidadeSistemas: 1 } })) };
+      assertRdoProjectContext(projectContext, data);
+      const rdo = await prisma.report.create({ data: { ...data, projectId: project.id, status: 'APPROVED', sequenceNumber: day + 15,
+        reportDate: new Date(`2026-11-${day}`), arrivalTime: '07:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 1,
+        services: { create: data.services } }, include: { services: true } });
+      for (const service of rdo.services.filter(row => row.finalized)) await prisma.report.create({ data: {
+        projectId: project.id, reportType: 'RLQ', status: 'APPROVED', sequenceNumber: day, reportDate: rdo.reportDate,
+        arrivalTime: '07:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 1,
+        specialConditions: { parentRdoId: rdo.id, serviceId: service.id, serviceData: { 'Desenhos / TAGs': service.extraData.drawingsTags } }
+      } });
+    }
+    const mounted = await montarDadosDatabook(project.id, '2026-11-10', '2026-11-17', { contributionKey: a });
+    assert.equal(mounted.resumo.rdos, 8);
+    assert.equal(mounted.resumo.rlq, 2);
+    assert.equal(mounted.dados.dias.flatMap(day => day.servicos).reduce((sum, service) => sum + service.concluidas, 0), 2);
+    assert.equal((await resumoDoDialogo(project.id, { contributionKey: main, inicio: '2026-11-10', fim: '2026-11-17' })).resumo.rdos, 0);
+    const missingScope = await resumoDoDialogo(project.id, { contributionKey: b });
+    assert.ok(missingScope.avisos.some(warning => /não tem escopo previsto vinculado/.test(warning)));
+    assert.equal((await prisma.report.findMany({ where: { projectId: project.id, reportType: 'RDO', sequenceNumber: { gte: 25 } } }))
+      .every(report => Object.keys(report.contributionAssignments).length === 0), true, 'a origem vem do RDO, sem reparo em contributionAssignments');
+    await prisma.projectReportSeq.create({ data: { projectId: project.id, reportType: 'RDO', nextNumber: 32 } });
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/rdo/reports`, {
+      method: 'POST', headers: { Authorization: `Bearer ${managerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: project.id, createdByUserId: managerId, reportType: 'RDO', status: 'PENDING',
+        reportDate: '2026-12-20', arrivalTime: '07:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 0,
+        services: [{ serviceType: 'limpeza', system: 'Vaso', startTime: '07:00', endTime: '17:00', finalized: false, extraData: { __scopeKey: option.value,
+          __proposalScope: { projectId: 'outro', contributionKey: b }, equipmentId: 'Compressores', system: 'Vaso',
+          limpezaTubulacao: 'Não', quantidadeSistemas: 1, tipoSistema: 'Vaso compressor' } }] })
+    });
+    const saved = await response.json();
+    assert.equal(response.status, 201, JSON.stringify(saved));
+    assert.deepEqual((await prisma.reportService.findFirst({ where: { reportId: saved.id } })).extraData.__proposalScope,
+      { projectId: project.id, contributionKey: a }, 'HTTP persiste a origem validada, substituindo metadados fornecidos pelo cliente');
   });
 });

@@ -21,6 +21,8 @@ test('fontes mistas: o escopo consultado da mãe acompanha a principal e partici
     const loaded = await load();
     assert.deepEqual(services.map(loaded.plannedKey), [`${source}:500`, `${other}:502`, `${source}:500`]);
     assert.equal(services[0].contributionKey, `${other}:500`, 'a procedência persistida não muda');
+    assert.equal(resolveServiceContribution(service('rdo', 15, { __proposalScope: { projectId: 'project', contributionKey: `${other}:500` } }),
+      { reportType: 'RDO' }, loaded).key, loaded.main.key, 'origem da mãe em outra fonte acompanha a principal selecionada');
     services[0].systems[0].quantity++;
     assert.notEqual((await load()).main.version, loaded.main.version, 'editar o escopo consultado invalida a versão do databook da mãe');
   }
@@ -75,4 +77,24 @@ test('meta global ou escopo ausente da mãe não permite atribuir automaticament
   assert.equal(resolveServiceContribution(reported, {}, { ...contextWithGlobal, planned: [linked] }).key, null, 'principal sem escopo estruturado exige conferência');
   const distinct = { ...planned(main), systems: [{ systemType: 'MANGOTE', quantity: 10 }] };
   assert.equal(resolveServiceContribution(reported, {}, { ...contextWithGlobal, planned: [distinct, linked] }).key, a, 'métricas distintas permitem vínculo único');
+});
+
+test('proposta registrada no escopo do RDO resolve o serviço mesmo com outros adicionais sem escopo', () => {
+  const project = { id: 'project' };
+  const incomplete = { ...context, project, planned: [planned(main)], hasRetired: true };
+  const rdo = { reportType: 'RDO' };
+  for (const key of [main, a, b]) {
+    const reported = service('s', 15, { __proposalScope: { projectId: project.id, contributionKey: key } });
+    assert.equal(resolveServiceContribution(reported, rdo, incomplete).key, key);
+    const assignment = { contributionAssignments: { [contributionServiceKey(reported)]: { contributionKey: a } } };
+    assert.equal(resolveServiceContribution(reported, { ...rdo, ...assignment }, incomplete).key, a, 'conferência manual tem prioridade sobre o escopo do RDO');
+    const unassigned = { contributionAssignments: { [contributionServiceKey(reported)]: { contributionKey: null } } };
+    assert.equal(resolveServiceContribution(reported, { ...rdo, ...unassigned }, incomplete).key, null);
+    assert.equal(resolveServiceContribution(reported, { reportType: 'RLQ' }, incomplete).key, null, 'técnico independente não usa metadados exclusivos do RDO');
+  }
+  for (const scope of [{ projectId: 'other', contributionKey: a }, { projectId: project.id, contributionKey: 'ACCESS_IMPORT:removed' }]) {
+    assert.equal(resolveServiceContribution(service('s', 15, { __proposalScope: scope }), rdo, incomplete).key, null);
+  }
+  assert.equal(resolveServiceContribution(service('s'), {}, { ...incomplete, hasRetired: false }).key, null,
+    'dados antigos sem origem comprovada continuam pendentes');
 });

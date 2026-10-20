@@ -6462,7 +6462,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: { include: { jobRole: true } }, authorizedUsers: true, plannedServices: { select: { scopeName: true } } }
+      include: { operator: { include: { jobRole: true } }, authorizedUsers: true, plannedServices: { select: { scopeName: true, contributionKey: true } } }
     });
     assertProjectReadyForReports(project);
     await assertReportServicesProject(tx, project, data.services);
@@ -6682,7 +6682,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: { include: { jobRole: true } }, authorizedUsers: true, plannedServices: { select: { scopeName: true } } }
+      include: { operator: { include: { jobRole: true } }, authorizedUsers: true, plannedServices: { select: { scopeName: true, contributionKey: true } } }
     });
     assertProjectReadyForReports(project);
     await assertReportServicesProject(tx, project, data.services);

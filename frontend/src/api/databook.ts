@@ -25,6 +25,7 @@ export interface DatabookDialogo {
   propostas?: ProposalScope[];
   padrao: DatabookIntervalo | null;
   resumo: DatabookResumo | null;
+  avisos?: string[];
 }
 
 export interface DatabookFds {

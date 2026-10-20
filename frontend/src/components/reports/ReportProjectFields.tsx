@@ -1,5 +1,6 @@
 import { Select } from '../ui/ds';
 import type { RdoScopeOption } from '../../../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption } from '../../../../shared/modules/rdo-project-context.js';
 
 export function ReportWorkLocationField({
   locations,
@@ -68,7 +69,7 @@ export function ReportServiceScopeField({
       </label>
       <Select
         id={`service-scope-${serviceId}`}
-        value={options.some((option) => option.value === value) ? value : ''}
+        value={findProjectScopeOption(options, value)?.value || ''}
         disabled={disabled}
         invalid={invalid}
         required

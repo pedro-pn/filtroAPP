@@ -230,7 +230,7 @@ async function invalidateProjectInternalSignatureRounds(tx, projectId, {
 }
 
 export const projectListInclude = {
-  plannedServices: { select: { id: true, scopeName: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
+  plannedServices: { select: { id: true, scopeName: true, contributionKey: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
   operator: { include: { jobRole: true } },
   authorizedUsers: {
     include: {

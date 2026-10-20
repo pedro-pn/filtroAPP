@@ -103,7 +103,7 @@ export interface Project {
   contractCode: string;
   location: string;
   additionalWorkLocations?: string[];
-  plannedServices?: Array<{ id: string; scopeName?: string | null }>;
+  plannedServices?: Array<{ id: string; scopeName?: string | null; contributionKey?: string | null }>;
   workdayHours: string;
   weekendWorkdayHours: string;
   includesSaturday: boolean;
