@@ -5,6 +5,7 @@ const SENSITIVE_ERROR_TEXT = /fva_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{20,}|\bBearer\
 
 function isCrmWritePath(path) {
   return path === '/api/integracoes/v1/efetivo/projetos'
+    || path === '/api/integracoes/v1/acompanhamento/oportunidades'
     || /^\/api\/integracoes\/v1\/efetivo\/projetos\/[^/]+\/(?:fatos-comerciais|documentos)$/.test(path);
 }
 

@@ -3,7 +3,7 @@ import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 
-export const API_CATALOG_VERSION = '2026-10-15.1';
+export const API_CATALOG_VERSION = '2026-10-20.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -24,6 +24,7 @@ export const API_SCOPES = Object.freeze([
   { code: 'qualidade.excluidos.read', domain: 'Qualidade', label: 'Ler excluídos', description: 'Inclui tombstones e registros excluídos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
   { code: 'efetivo.projetos.status.read', domain: 'Planejamento de efetivo', label: 'Ler situação operacional de projetos', description: 'Resumo por projeto para o CRM, sem equipe, textos de pendências ou documentos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], exposedFields: ['projectId', 'projectCode', 'workflowStarted', 'stage', 'workflowVersion', 'plannedMobilizationDate', 'plannedExecutionStartDate', 'plannedExecutionEndDate', 'fieldCompletionDate', 'demobilizationDate', 'commercialReadiness', 'mobilizationReady', 'closureReady', 'openIssueCount', 'criticalIssueCount', 'progressPercent', 'progressMethod', 'closedAt', 'generatedAt', 'schemaVersion', 'requestId'], excludedFields: ['pessoas', 'observações livres', 'documentos', 'valores financeiros', 'fatos comerciais de origem'] },
   { code: 'efetivo.projetos.create', domain: 'Planejamento de efetivo', label: 'Criar projetos pelo CRM', description: 'Criação idempotente com os dados mínimos do projeto. Exige acesso a todos os projetos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
+  { code: 'acompanhamento.oportunidades.write', domain: 'Acompanhamento e custos', label: 'Enviar oportunidades quentes do CRM', description: 'Recebe oportunidades sem número de projeto e vincula o projeto no fechamento. Exige acesso a todos os projetos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: ['efetivo.projetos.create'] },
   { code: 'efetivo.projetos.fatos-comerciais.write', domain: 'Planejamento de efetivo', label: 'Enviar fatos comerciais do CRM', description: 'Atualiza fatos comerciais em projetos autorizados com controle de versão.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'efetivo.projetos.documentos.write', domain: 'Planejamento de efetivo', label: 'Enviar documentos do CRM', description: 'Envia referências e versões de documentos comerciais de projetos autorizados.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   ...[...new Set(OPERATIONAL_RESOURCES.map(item => item.scope))].map(code => {
@@ -45,6 +46,12 @@ export const API_SCOPES = Object.freeze([
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([
+  {
+    operationId: 'acompanhamento.opportunities.post', openApiOperationId: 'postIntegrationCrmOpportunity', method: 'POST', path: '/acompanhamento/oportunidades',
+    label: 'Enviar ou fechar oportunidade do Prisma', requiredScopes: ['acompanhamento.oportunidades.write', 'efetivo.projetos.create'],
+    optionalScopes: [], pathParams: [], queryParams: [], supportsPlayground: true,
+    bodyExample: { externalId: 'prisma-opportunity-123', sourceVersion: 1, sourceUpdatedAt: '2026-10-20T12:00:00Z', status: 'HOT', name: 'Limpeza da unidade', clientName: 'Cliente exemplo' }
+  },
   {
     operationId: 'jobRoles.salary.get', openApiOperationId: 'getIntegrationJobRoleSalary', method: 'GET', path: '/cargos/:id/salario',
     label: 'Consultar salário por cargo e data', requiredScopes: ['cargos.salarios.read'],

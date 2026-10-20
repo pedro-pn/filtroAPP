@@ -8,6 +8,7 @@ import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-ope
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from '../../../lib/api-credentials/job-role-salary.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
+import { receiveCrmOpportunity, validateCrmOpportunity } from '../../../lib/projects/crm-opportunities.js';
 import { openOperationalDownload, validateOperationalDownload } from '../../../lib/api-credentials/operational-downloads.js';
 import {
   listOperationalResources,
@@ -23,6 +24,18 @@ export function createOperationalRouter({
   envConfig = env
 } = {}) {
   const router = Router();
+  router.post('/acompanhamento/oportunidades', requireApiOperation('acompanhamento.opportunities.post'), asyncHandler(async (req, res) => {
+    validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
+    validateCrmOpportunity(req.body);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'acompanhamento.opportunities.post', requestedRows: 1,
+      execute: async () => {
+        const body = await receiveCrmOpportunity(prismaClient, req.body);
+        return { rows: 1, statusCode: body.outcome === 'CREATED' ? 201 : 200, outcomeCode: body.outcome, body: { ...body, requestId: req.requestId } };
+      }
+    });
+    res.status(result.statusCode).json(result.body);
+  }));
   router.get('/cargos/:id/salario', requireApiOperation('jobRoles.salary.get'), asyncHandler(async (req, res) => {
     validateJobRoleSalaryRequest(req.params, req.query);
     const result = await runMeteredApiOperation(req, {

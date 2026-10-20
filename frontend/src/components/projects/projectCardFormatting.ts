@@ -27,5 +27,5 @@ export function isGroupCard(card: ProjectCardItem): card is MissionGroupCard {
 }
 
 export function cardKey(card: ProjectCardItem) {
-  return isGroupCard(card) ? `group-${card.groupId}` : card.projectId;
+  return isGroupCard(card) ? `group-${card.groupId}` : card.crmOpportunity ? `opportunity-${card.crmOpportunity.id}` : card.projectId;
 }

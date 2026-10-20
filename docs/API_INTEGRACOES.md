@@ -274,3 +274,8 @@ O painel lista status efetivo, prefixo/últimos quatro caracteres, escopos, proj
 Uma edição só pode reduzir acesso. Para ampliar escopo, projetos, CIDRs, validade ou limites, use **Rotacionar**, armazene o novo segredo no cofre e encerre a sobreposição em até 60 minutos. **Revogar** é terminal e exige motivo; nunca cole o segredo no motivo.
 
 O catálogo do painel contém os 126 modelos de negócio em 20 domínios. Há 33 permissões disponíveis (5 de Qualidade, 12 operacionais iniciais e 16 desta expansão), selecionáveis dentro de cada domínio; 49 candidatos de outros grupos continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
+
+## Oportunidades quentes do PrismaCRM
+
+O contrato de oportunidades sem número de projeto, exibição em Futuros e vínculo
+no fechamento está em [PRISMACRM_OPORTUNIDADES.md](PRISMACRM_OPORTUNIDADES.md).

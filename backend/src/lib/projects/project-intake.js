@@ -23,7 +23,7 @@ const cnpjSchema = z.string()
   .transform(value => value.replace(/\D/g, ''))
   .refine(value => value.length === 14, 'CNPJ deve conter exatamente 14 dígitos.');
 
-const rawProjectIntakeSchema = z.object({
+export const projectIntakeInputSchema = z.object({
   code: requiredText('Número do projeto', 80),
   name: requiredText('Nome do projeto', 240),
   clientName: requiredText('Cliente', 240),
@@ -36,7 +36,7 @@ const rawProjectIntakeSchema = z.object({
   location: requiredText('Local', 240)
 }).strict('O payload contém campos não reconhecidos.');
 
-export const projectIntakeSchema = rawProjectIntakeSchema
+export const projectIntakeSchema = projectIntakeInputSchema
   .superRefine((data, ctx) => {
     const proposalCode = contractToProposalCode(data.proposalCode);
     if (!Number.isSafeInteger(proposalCode) || proposalCode <= 0 || proposalCode > 2_147_483_647) {
@@ -177,7 +177,7 @@ function isUniqueConstraintError(error) {
   return error?.code === 'P2002';
 }
 
-export async function receiveProjectIntake(rawInput, client = prisma) {
+export async function receiveProjectIntake(rawInput, client = prisma, { inTransaction = false } = {}) {
   const intake = projectIntakeSchema.parse(rawInput || {});
   const existing = await client.project.findUnique({
     where: { code: intake.code },
@@ -195,7 +195,8 @@ export async function receiveProjectIntake(rawInput, client = prisma) {
     const commercialRevision = await selectProjectIntakeCommercialRevision(project, intake, client);
     return projectIntakeResult('created', project, commercialRevision);
   } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
+    // Uma transação PostgreSQL que sofreu conflito deve ser refeita por inteiro.
+    if (inTransaction || !isUniqueConstraintError(error)) throw error;
     const concurrentProject = await client.project.findUnique({
       where: { code: intake.code },
       select: projectIntakePublicSelect

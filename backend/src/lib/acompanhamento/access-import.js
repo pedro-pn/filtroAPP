@@ -930,6 +930,7 @@ async function listCommercialDashboardUncached({
         contractCode: true,
         commercialProposalCode: true,
         startDate: true,
+        crmOpportunity: { select: { id: true, externalId: true, externalUrl: true } },
         proposalPercentage: true,
         isActive: true,
         acompanhamentoArchivedAt: true,
@@ -1002,7 +1003,7 @@ async function listCommercialDashboardUncached({
     const appProposal = budget?.source === 'COMERCIAL_APP'
       ? commercialAppByExternalId.get(budget.commercialAppProposalId) : null;
     const codProp = appProposal ? appProposal.proposalCode : projectProposalCode(project);
-    if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp))) continue;
+    if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !project.crmOpportunity) continue;
     const resolved = appProposal ? true : Boolean(project.commercialProposalCode) && Boolean(budget);
     const source = appProposal ? commercialAppBudgetSource(appProposal) : (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
     const additionalSources = (selectedAdditionalsByProject.get(project.id) ?? [])
@@ -1029,6 +1030,8 @@ async function listCommercialDashboardUncached({
       projectId: project.id,
       code: project.code,
       name: project.name,
+      crmOpportunity: project.crmOpportunity ?? null,
+      awaitingCommercialBudget: !source,
       clientName: project.clientName,
       clientCnpj: project.clientCnpj,
       proposalCode: appProposal?.proposalCode ?? String(codProp),

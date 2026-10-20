@@ -10,6 +10,7 @@ import {
   renameMissionGroup,
   renameProjectCard,
   setProjectTrackingState,
+  type CrmOpportunityCard as Opportunity,
   type MissionGroupCard,
   type ProjectCardItem
 } from '../../api/acompanhamentoComercial';
@@ -32,6 +33,7 @@ import {
 import { Alert, EmptyState, Skeleton } from '../ui/ds';
 import { isGroupCard, cardKey } from './projectCardFormatting';
 import { ProjectOverviewCard } from './ProjectOverviewCard';
+import { CrmOpportunityCard } from './CrmOpportunityCard';
 import { ProjectCardsToolbar } from './ProjectCardsToolbar';
 import './ProjectCardsBoard.ds.css';
 
@@ -85,6 +87,13 @@ export function ProjectCardsBoard({
     queryFn: () => getProjectCards(),
     ...acompanhamentoRefreshQueryOptions
   });
+  const projectCards = useMemo(() => data?.filter((card): card is ProjectCardItem => card.kind !== 'OPPORTUNITY'), [data]);
+  const opportunities = useMemo(() => data?.filter((card): card is Opportunity => card.kind === 'OPPORTUNITY') ?? [], [data]);
+  const visibleOpportunities = useMemo(() => {
+    if (view !== 'futuros') return [];
+    const term = search.trim().toLowerCase();
+    return opportunities.filter(item => !term || [item.name, item.clientName, item.clientCnpj, item.location, item.proposalCode].filter(Boolean).join(' ').toLowerCase().includes(term));
+  }, [opportunities, search, view]);
   const createGroupMutation = useMutation({
     mutationFn: (projectIds: string[]) => createMissionGroup({ projectIds }),
     onSuccess: async () => {
@@ -207,25 +216,25 @@ export function ProjectCardsBoard({
 
   // Separa pelo status operacional e tira dos arquivados as missões já conferidas.
   const counts = useMemo(() => {
-    const list = data ?? [];
+    const list = projectCards ?? [];
     return {
       andamento: list.filter(c => cardMatchesView(c, 'andamento')).length,
-      futuros: list.filter(c => cardMatchesView(c, 'futuros')).length,
+      futuros: list.filter(c => cardMatchesView(c, 'futuros')).length + opportunities.length,
       arquivados: list.filter(c => cardMatchesView(c, 'arquivados')).length,
       conferidas: list.filter(c => cardMatchesView(c, 'conferidas')).length
     };
-  }, [data]);
+  }, [projectCards, opportunities]);
 
   const cards = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return (data ?? [])
+    return (projectCards ?? [])
       .filter(c => cardMatchesView(c, view))
       .filter(c => {
         if (!term) return true;
         const members = isGroupCard(c) ? c.members.map(member => `${member.code} ${member.name} ${member.clientName} ${member.clientCnpj ?? ''}`).join(' ') : '';
         return `${c.code} ${c.name} ${!isGroupCard(c) ? c.cardName ?? '' : ''} ${c.clientName} ${c.clientCnpj ?? ''} ${members}`.toLowerCase().includes(term);
       });
-  }, [data, search, view]);
+  }, [projectCards, search, view]);
   const isRecentlyFinalized = useCallback((card: ProjectCardItem) => {
     if (!card.reportArchivedAt || seenFinalizations.has(cardKey(card))) return false;
     return !hasSeenAcompanhamentoFinalizedMission(progressHistoryNoveltyUser, cardKey(card), card.reportArchivedAt);
@@ -284,13 +293,14 @@ export function ProjectCardsBoard({
       <div aria-busy={isFetching}>
         {isLoading ? <div className="acp-projects__grid" role="status" aria-label="Carregando projetos">
           <Skeleton variant="card" decorative style={{ gridColumn: "1 / -1" }} />
-        </div> : data ? cards.length === 0 ? <EmptyState variant={search.trim() ? 'search' : 'default'}
+        </div> : data ? cards.length === 0 && visibleOpportunities.length === 0 ? <EmptyState variant={search.trim() ? 'search' : 'default'}
           title={search.trim() ? 'Nenhum projeto encontrado para a busca nesta situação.'
-            : data.length === 0 ? 'Nenhum projeto com proposta comercial importada.'
+            : data.length === 0 ? 'Nenhum projeto ou oportunidade para acompanhar.'
               : view === 'conferidas' ? 'Nenhuma missão conferida.' : view === 'arquivados' ? 'Nenhum projeto arquivado aguardando conferência.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
-          description={data.length === 0 ? 'Importe o banco do comercial e cadastre a missão com o número da proposta.' : 'Altere a situação ou a busca para consultar outros projetos.'}
+          description={data.length === 0 ? 'Projetos cadastrados e oportunidades sinalizadas no PrismaCRM aparecerão aqui.' : 'Altere a situação ou a busca para consultar outros projetos.'}
           action={search.trim() ? { label: 'Limpar busca', onClick: () => setSearch('') } : undefined} />
           : <div className="acp-projects__grid">
+          {visibleOpportunities.map(opportunity => <CrmOpportunityCard key={`opportunity-${opportunity.id}`} opportunity={opportunity} />)}
           {cards.map(card => (
             <ProjectOverviewCard
               key={cardKey(card)}

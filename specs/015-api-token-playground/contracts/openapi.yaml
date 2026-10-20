@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -338,6 +338,7 @@ paths:
                     - jobRoles.salary.get
                     - efetivo.projects.status.get
                     - efetivo.projects.create
+                    - acompanhamento.opportunities.post
                     - efetivo.projects.commercialFact.post
                     - efetivo.projects.document.post
                     - operational.ReportAttachment.download
@@ -557,6 +558,40 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/acompanhamento/oportunidades:
+    post:
+      tags: [IntegrationOperational]
+      operationId: postIntegrationCrmOpportunity
+      summary: Recebe oportunidade quente sem número de projeto e vincula o projeto no fechamento
+      description: >-
+        Retrato completo com versão inteira crescente por externalId. HOT aparece em Futuros
+        sem proposta importada. WON exige project com os dados do cadastro definitivo e faz
+        a conversão atômica. WITHDRAWN, LOST e CANCELLED retiram a oportunidade de Futuros.
+        O fechamento não pode regredir nem trocar o projeto vinculado. Exige acesso ALL.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [acompanhamento.oportunidades.write, efetivo.projetos.create]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CrmOpportunityInput' }
+      responses:
+        '201':
+          description: Oportunidade criada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmOpportunityResult' }
+        '200':
+          description: Atualizada, convertida, reenvio idêntico ou versão antiga ignorada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmOpportunityResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /integracoes/v1/efetivo/projetos:
@@ -2044,6 +2079,56 @@ components:
                   code: { const: RATE_LIMITED }
 
   schemas:
+    CrmOpportunityInput:
+      type: object
+      additionalProperties: false
+      required: [externalId, sourceVersion, sourceUpdatedAt, status, name, clientName]
+      properties:
+        externalId: { type: string, minLength: 1, maxLength: 180 }
+        sourceVersion: { type: integer, minimum: 1, maximum: 2147483647 }
+        sourceUpdatedAt: { type: string, format: date-time }
+        status: { type: string, enum: [HOT, WITHDRAWN, LOST, CANCELLED, WON] }
+        name: { type: string, minLength: 1, maxLength: 240 }
+        clientName: { type: string, minLength: 1, maxLength: 240 }
+        clientCnpj: { type: [string, 'null'], description: CNPJ de 14 dígitos; pontuação opcional. }
+        location: { type: [string, 'null'], minLength: 1, maxLength: 240 }
+        proposalCode: { type: [string, 'null'], pattern: '^\d{1,40}$' }
+        revision: { type: [integer, 'null'], minimum: 0, maximum: 2147483647 }
+        estimatedValue: { type: [number, 'null'], minimum: 0, maximum: 999999999999.99, multipleOf: 0.01 }
+        expectedCloseDate: { type: [string, 'null'], format: date }
+        expectedStartDate: { type: [string, 'null'], format: date }
+        externalUrl: { type: [string, 'null'], format: uri, pattern: '^https?://', maxLength: 2000 }
+        project:
+          oneOf:
+            - { $ref: '#/components/schemas/CrmProjectIntake' }
+            - { type: 'null' }
+      allOf:
+        - if:
+            properties: { status: { const: WON } }
+          then:
+            required: [project]
+            properties: { project: { $ref: '#/components/schemas/CrmProjectIntake' } }
+          else:
+            properties: { project: { type: 'null' } }
+    CrmOpportunityResult:
+      type: object
+      additionalProperties: false
+      required: [outcome, opportunity, requestId]
+      properties:
+        outcome: { type: string, enum: [CREATED, UPDATED, CONVERTED, REPLAYED, IGNORED_OLDER] }
+        opportunity:
+          type: object
+          additionalProperties: false
+          required: [id, externalId, status, sourceVersion, projectId]
+          properties:
+            id: { type: string }
+            externalId: { type: string }
+            status: { type: string, enum: [HOT, WITHDRAWN, LOST, CANCELLED, WON] }
+            sourceVersion: { type: integer }
+            projectId: { type: [string, 'null'] }
+        project: { type: object, description: Cadastro retornado pelo recebimento normal de projetos no fechamento. }
+        commercialRevision: { type: object }
+        requestId: { type: string }
     CrmProjectIntake:
       type: object
       additionalProperties: false

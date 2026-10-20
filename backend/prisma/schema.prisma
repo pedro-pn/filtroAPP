@@ -982,6 +982,7 @@ model Project {
   romaneios                  Romaneio[]
   budgets                    ProjectBudget[]
   commercialAppProposals      CommercialAppProposal[]
+  crmOpportunity             CrmOpportunity?
   omieProjects               OmieProject[]
   omiePurchases              OmiePurchase[]
   omieReceivables            OmieReceivable[]
@@ -1017,6 +1018,56 @@ model Project {
 }
 
 // Frozen versions for meetings; excluded from operational and financial calculations.
+enum CrmOpportunityStatus {
+  HOT
+  WITHDRAWN
+  LOST
+  CANCELLED
+  WON
+}
+
+// Planejamento antecipado: não é um projeto operacional até o fechamento no CRM.
+model CrmOpportunity {
+  id                String               @id @default(cuid())
+  externalId        String               @unique
+  status            CrmOpportunityStatus
+  name              String
+  clientName        String
+  clientCnpj        String?
+  location          String?
+  proposalCode      String?
+  revision          Int?
+  estimatedValue    Decimal?             @db.Decimal(14, 2)
+  expectedCloseDate DateTime?            @db.Date
+  expectedStartDate DateTime?            @db.Date
+  externalUrl       String?
+  sourceVersion     Int
+  sourceUpdatedAt   DateTime
+  payloadHash       String
+  lastSyncedAt      DateTime             @default(now())
+  convertedAt       DateTime?
+  projectId         String?              @unique
+  project           Project?             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  events            CrmOpportunityEvent[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model CrmOpportunityEvent {
+  id              String         @id @default(cuid())
+  opportunityId   String
+  opportunity     CrmOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  sourceVersion   Int
+  sourceUpdatedAt DateTime
+  status          CrmOpportunityStatus
+  snapshot        Json
+  receivedAt      DateTime       @default(now())
+
+  @@unique([opportunityId, sourceVersion])
+}
+
 model ProjectPresentationCopy {
   id              String    @id
   sourceProjectId String
