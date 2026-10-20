@@ -734,23 +734,25 @@ export function useReportMutations() {
   });
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
-    onSuccess: report => {
+    onSuccess: async report => {
       clearAccumulatedReportsCache();
       queryClient.setQueryData(['report', report.id], report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       invalidateAcompanhamentoReportCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.drafts(user?.id), refetchType: 'all' });
     }
   });
 
   const createServiceOnlyMutation = useMutation({
     mutationFn: (payload: ServiceOnlyReportPayload) => createServiceOnlyReports(payload),
-    onSuccess: reports => {
+    onSuccess: async reports => {
       clearAccumulatedReportsCache();
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       reports.forEach(report => queryClient.invalidateQueries({ queryKey: ['report', report.id] }));
       invalidateAcompanhamentoReportCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.drafts(user?.id), refetchType: 'all' });
     }
   });
 

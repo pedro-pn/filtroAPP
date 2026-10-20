@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
+import { removeSubmittedRdoDrafts } from '../../lib/reports/drafts.js';
 import { reportApprovalAccessLink } from '../../lib/reports/client-access.js';
 import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
 import { isPressureHoseUnits } from '../../lib/reports/pressure-hose-measurement.js';
@@ -3411,6 +3412,7 @@ const reportSpecialConditionsSchema = z.object({
 }).passthrough();
 
 const schema = z.object({
+  draftId: z.string().min(1).nullish(),
   projectId: z.string().min(1),
   createdByUserId: z.string().min(1),
   reportType: z.nativeEnum(ReportType).default(ReportType.RDO),
@@ -3428,6 +3430,7 @@ const schema = z.object({
 });
 
 const serviceOnlySchema = z.object({
+  draftId: z.string().min(1).nullish(),
   projectId: z.string().min(1),
   createdByUserId: z.string().min(1),
   reportDate: z.string().min(1).refine(isValidReportDate, REPORT_DATE_ERROR),
@@ -3438,6 +3441,7 @@ const serviceOnlySchema = z.object({
 const positiveIntSchema = z.coerce.number().int().positive();
 
 const updateSchema = schema.omit({
+  draftId: true,
   createdByUserId: true,
   status: true
 }).extend({
@@ -6435,10 +6439,12 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
     assertProjectReadyForReports(project);
     await assertReportServicesProject(tx, project, data.services);
 
-    return createIndependentServiceReports(tx, project, {
+    const reports = await createIndependentServiceReports(tx, project, {
       ...data,
       createdByUserId: req.auth.user.id
     }, req.auth.user.id);
+    await removeSubmittedRdoDrafts(tx, req.auth.user.id, { ...data, serviceOnly: true });
+    return reports;
   });
 
   for (const report of createdReports) {
@@ -6567,6 +6573,9 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     await syncApprovedRlmReports(tx, created);
     await syncApprovedRlfReports(tx, created);
     await syncApprovedRliReports(tx, created);
+    if (data.reportType === ReportType.RDO) {
+      await removeSubmittedRdoDrafts(tx, req.auth.user.id, data);
+    }
     return created;
   });
   const tPostTx = Date.now();
