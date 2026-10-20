@@ -186,3 +186,11 @@ and run `playwright-cli run-code --filename frontend/test/browser/databook-propo
 It checks an audited, versioned assignment in the tracking panel and carries the selected additional
 and scope version through preparation, preview and save at 360/768/1440 px. Database/generator
 coverage lives in `backend/test/proposal-scope-databook.integration.test.js`.
+
+For project scope tabs in merged groups, open `/test/browser/project-scopes.html?grupo=1`
+and run `playwright-cli run-code --filename frontend/test/browser/project-scopes.js`.
+The production dashboard uses a simulated API. The regression checks the same scope
+screen for individual and grouped projects, keyboard navigation, isolated reads/writes,
+inline editing, pending/search filters, cancellation and focus, read-only access,
+retry after errors and refreshing a concurrent-edit version at 360/768/1440 px.
+Screenshots are saved under `output/playwright/project-scopes-*.png`; no real records change.

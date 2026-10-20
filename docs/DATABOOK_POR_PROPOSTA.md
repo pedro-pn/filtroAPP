@@ -4,8 +4,8 @@ O mesmo projeto pode ter o escopo da principal e um escopo para cada adicional, 
 
 ## Uso
 
-1. No acompanhamento, abra **Escopo do projeto** → **Escopo e execução por proposta**. Escolha a proposta para conferir metas e avanço dos serviços aprovados.
-2. Em **Revisar vínculos dos serviços**, associe os registros pendentes à principal ou ao adicional. A alteração exige gestor do acompanhamento, motivo e versão corrente do relatório. O vínculo é operacional: não altera o conteúdo nem o PDF aprovado do RDO. Relatórios técnicos derivados acompanham seu serviço de origem.
+1. No acompanhamento, abra o projeto → **Consultar escopo** → **Escopo e execução por proposta**. Em projetos mesclados, o mesmo diálogo tem uma aba para cada projeto, com seu próprio escopo, propostas e serviços. Escolha a proposta para conferir metas e avanço dos serviços aprovados. O escopo consolidado do grupo continua disponível ao final.
+2. Em **Vínculos dos serviços**, use a busca por TAG, sistema ou RDO e o filtro **Pendentes** para localizar os registros. Clique em **Vincular proposta** ou **Alterar vínculo**: proposta, motivo e ações aparecem dentro do próprio cartão do serviço. A alteração exige gestor do acompanhamento, motivo e versão corrente do relatório. Salve ou cancele antes de trocar de projeto. O vínculo é operacional: não altera o conteúdo nem o PDF aprovado do RDO. Relatórios técnicos derivados acompanham seu serviço de origem.
 3. No editor do escopo previsto, **Proposta de origem** permite atribuir um grupo de serviços a um adicional, inclusive Access. A alteração marca somente a contribuição editada como `MANUAL_OVERRIDE`. O ajuste de pesos ocorre dentro da mesma contribuição.
 4. No diálogo do Data Book, escolha **Projeto completo**, **Principal** ou um **Adicional**, além do período. Revise a prévia e salve. A proposta, origem e revisão aparecem também no histórico.
 
@@ -37,7 +37,7 @@ No caso investigado do projeto 5815, havia 32 RDOs aprovados, os grupos de APVs 
 
 A correção preserva a origem nos novos salvamentos e exibe os avisos já na escolha do período, incluindo proposta sem escopo previsto. A revisão mantém os serviços pendentes visíveis mesmo com uma proposta filtrada e sugere essa proposta ao abrir o vínculo.
 
-Históricos que nunca registraram a origem precisam de conferência pela aplicação: atribua a proposta de origem ao grupo no editor do escopo para os próximos RDOs e use **Revisar vínculos dos serviços** para os relatórios anteriores. O vínculo operacional auditado não reemite nem altera o PDF assinado. Não há migração que deduza a proposta por nomes como “extra”, TAG ou proximidade de datas; selecionar um adicional comercial não comprova quais serviços históricos lhe pertencem. A publicação desta correção não altera dados existentes nem vincula automaticamente os RDOs do projeto 5815.
+Históricos que nunca registraram a origem precisam de conferência pela aplicação: atribua a proposta de origem ao grupo no editor do escopo para os próximos RDOs e use **Vínculos dos serviços** para os relatórios anteriores. O vínculo operacional auditado não reemite nem altera o PDF assinado. Não há migração que deduza a proposta por nomes como “extra”, TAG ou proximidade de datas; selecionar um adicional comercial não comprova quais serviços históricos lhe pertencem. A publicação desta correção não altera dados existentes nem vincula automaticamente os RDOs do projeto 5815.
 
 ## API
 
