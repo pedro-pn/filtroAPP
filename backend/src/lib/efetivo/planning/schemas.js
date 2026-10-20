@@ -172,6 +172,8 @@ export const mobilizationCycleInputSchema = z.object({
 export const stageInputSchema = z.object({
   stage: missionStageSchema,
   order: z.coerce.number().int().min(0),
+  startDate: dateOnlySchema.optional(),
+  operatorId: idSchema.optional(),
   returnDate: dateOnlySchema.nullable().optional()
 });
 

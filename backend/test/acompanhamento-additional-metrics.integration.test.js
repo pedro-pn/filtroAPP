@@ -114,4 +114,50 @@ test('HTTP + PostgreSQL: contribuição por campo persiste por adicional e atual
   const imported = await prisma.commercialProposal.findUnique({ where: { codBd: code + 1 } });
   assert.equal(Number(imported.plannedCost), 300);
   assert.equal(imported.workedDays, 4);
+
+  await t.test('campos de adicional já vinculado podem mudar com CNPJ legado divergente, sem liberar novos vínculos', async () => {
+    const proposalCnpj = '60435351002109';
+    const projectCnpj = '04872297001612';
+    await prisma.commercialProposal.updateMany({ where: { id: { in: proposals.map(row => row.id) } },
+      data: { clientCnpj: proposalCnpj } });
+    await prisma.project.update({ where: { id: project.id }, data: { clientCnpj: projectCnpj } });
+    const selection = await prisma.projectAdditionalProposal.findFirstOrThrow({ where: {
+      projectId: project.id, sourceProposalCodBd: code + 2, active: true
+    } });
+    const changed = { ...all, workedDays: false };
+    const command = { codBd: code + 2, expectedSelectionVersion: selection.selectionVersion, metricInclusion: changed };
+    const saved = await save(command);
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    assert.equal(saved.data.selectionVersion, selection.selectionVersion + 1);
+    assert.deepEqual((await read(`${path}/revisoes`)).additionalProposals
+      .find(row => row.proposalCode === String(code + 1)).metricInclusion, changed);
+    assert.equal((await read(`${path}/detalhe`)).diasTrabalhados.planned, 8);
+    const event = await prisma.projectContributionEvent.findFirstOrThrow({ where: {
+      projectId: project.id, proposalCode: String(code + 1), selectionVersion: saved.data.selectionVersion
+    } });
+    assert.deepEqual(event.data.metricInclusion, changed);
+    assert.equal((await save(command)).status, 409, 'a versão anterior continua protegida contra sobrescrita');
+    assert.equal((await save({ codBd: code + 1, metricInclusion: changed,
+      expectedSelectionVersion: saved.data.selectionVersion })).status, 422, 'trocar revisão ainda valida CNPJ');
+    assert.equal((await save({ codBd: code + 2,
+      expectedSelectionVersion: saved.data.selectionVersion })).status, 422, 'seleção sem edição de campos ainda valida CNPJ');
+    await prisma.commercialProposal.update({ where: { codBd: code + 2 }, data: { clientCnpj: '12345678000190' } });
+    assert.equal((await save({ ...command, expectedSelectionVersion: saved.data.selectionVersion })).status, 422,
+      'edição de campos continua validando o CNPJ contra a mãe');
+    await prisma.commercialProposal.update({ where: { codBd: code + 2 },
+      data: { clientCnpj: proposalCnpj, parentCodProp: code + 99 } });
+    assert.equal((await save({ ...command, expectedSelectionVersion: saved.data.selectionVersion })).status, 422,
+      'edição de campos continua validando o vínculo com a mãe');
+    await prisma.commercialProposal.update({ where: { codBd: code + 2 }, data: { parentCodProp: code } });
+    await prisma.projectAdditionalProposal.updateMany({ where: { projectId: project.id, codProp: code + 3 },
+      data: { active: false } });
+    assert.equal((await save({ codBd: code + 3, metricInclusion: all })).status, 422, 'reativar contribuição ainda valida CNPJ');
+    const newAdditional = await prisma.commercialProposal.create({ data: {
+      ...base, codBd: code + 4, codProp: code + 4, parentCodProp: code, clientCnpj: proposalCnpj
+    } });
+    proposals.push(newAdditional);
+    assert.equal((await save({ codBd: code + 4, metricInclusion: all })).status, 422, 'novo vínculo ainda valida CNPJ');
+    assert.equal((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).clientCnpj, projectCnpj);
+    assert.equal((await prisma.commercialProposal.findUniqueOrThrow({ where: { codBd: code + 2 } })).clientCnpj, proposalCnpj);
+  });
 });

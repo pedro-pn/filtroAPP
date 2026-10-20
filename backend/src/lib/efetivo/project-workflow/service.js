@@ -19,6 +19,7 @@ import {
   projectWorkflowReferenceDate
 } from '../../../../../shared/schemas/project-workflow.js';
 import { canEditEfetivoChecklistArea } from '../access.js';
+import { assignMissionReportTeam, canOperateReports, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
@@ -79,6 +80,7 @@ const PROJECT_FIELDS = {
   commercialProposalSync: true,
   location: true,
   startDate: true,
+  operatorId: true,
   mobilizationDate: true,
   demobilizationDate: true
 };
@@ -141,6 +143,7 @@ const OPERATIONAL_MISSION_QUERY = {
             id: true,
             name: true,
             isActive: true,
+            user: { select: reportOperatorUserSelect },
             jobRole: { select: { id: true, name: true } }
           }
         },
@@ -294,6 +297,7 @@ function operationalMissionSummary(project) {
         id: allocation.collaborator.id,
         name: allocation.collaborator.name,
         isActive: allocation.collaborator.isActive,
+        canOperateReports: canOperateReports(allocation.collaborator),
         role: allocation.collaborator.jobRole?.name || allocation.jobRole?.name || ''
       } : null,
       jobRole: allocation.jobRole
@@ -1019,6 +1023,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         clientName: project.clientName,
         location: project.location,
         startDate: dateKey(project.startDate),
+        operatorId: project.operatorId || null,
         mobilizationDate: dateKey(project.mobilizationDate),
         operationalMission: mission,
         workflow: workflow ? {
@@ -1137,6 +1142,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       } : null,
       location: project.location,
       startDate: dateKey(project.startDate),
+      operatorId: project.operatorId || null,
       mobilizationDate: dateKey(project.mobilizationDate),
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
@@ -2178,6 +2184,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       issues: issues.map(message => ({ message }))
     });
   }
+  let reportTeam = [];
   if (payload.stage === 'EXECUTION') {
     if (!payload.startDate) {
       throw planningError('Confirme a data de início real da execução.', {
@@ -2190,6 +2197,12 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
         code: 'INVALID_PROJECT_WORKFLOW_EXECUTION_START'
       });
     }
+    const mission = await tx.efetivoMissionPlan.findFirst({
+      where: { ...OPERATIONAL_MISSION_QUERY.where, projectId: workflow.projectId },
+      orderBy: OPERATIONAL_MISSION_QUERY.orderBy,
+      select: OPERATIONAL_MISSION_QUERY.select
+    });
+    reportTeam = validateMissionReportOperator(mission, payload.operatorId);
   }
   // Voltar para a Preparação (da Mobilização em campo, ou da Execução na Sede) devolve a missão a Stand by:
   // sem "Pronto para mobilizar", essa é a única forma de sair de uma etapa operacional de volta à Preparação.
@@ -2204,7 +2217,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
     );
   }
   if (payload.stage === 'EXECUTION') {
-    await tx.project.update({ where: { id: workflow.projectId }, data: { startDate: utcDate(payload.startDate) } });
+    await assignMissionReportTeam(tx, workflow.projectId, payload.operatorId, reportTeam, payload.startDate);
   }
   const data = { stage: payload.stage };
   if (payload.stage === 'FINISHED') {

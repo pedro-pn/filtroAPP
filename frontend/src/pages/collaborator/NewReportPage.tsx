@@ -274,6 +274,7 @@ function SiteRdoFormPage() {
   const previousServiceCollaboratorOptionIdsRef = useRef<string[]>([]);
 
   const selectedProject = useMemo(() => (bootstrapQuery.data?.projects || []).find((project) => project.id === projectId) || null, [projectId, bootstrapQuery.data?.projects]);
+  const unavailableProject = user?.role === 'COLLABORATOR' && bootstrapQuery.isSuccess && !selectedProject?.isActive;
   const scopeOptions = useMemo(() => projectScopeOptions(selectedProject), [selectedProject]);
   const workLocations = useMemo(() => projectWorkLocations(selectedProject), [selectedProject]);
   const effectiveWorkLocation = workLocations.length === 1 ? workLocations[0] : workLocations.includes(workLocation) ? workLocation : '';
@@ -575,6 +576,7 @@ function SiteRdoFormPage() {
 
   function validateHeader() {
     if (!projectId) return failRequired('Projeto', 'header:projectId', 0);
+    if (unavailableProject) return failValidation('Selecione um projeto ativo. Projetos arquivados permitem apenas visualizar relatórios.', 'header:projectId', 0);
     if (!reportDate) return failRequired('Data do relatório', 'header:reportDate', 0);
     if (isCheckingDuplicateReportDate) return failValidation(TEXT.duplicateReportDateChecking, 'header:reportDate', 0);
     if (duplicateReportForDate) return failValidation(TEXT.duplicateReportDate, 'header:reportDate', 0);
@@ -780,6 +782,10 @@ function SiteRdoFormPage() {
       if (!projectId || !reportDate) {
         return true;
       }
+      if (unavailableProject) {
+        setDraftSaveStatus('idle');
+        return true;
+      }
 
       const payload = {
         projectId,
@@ -812,6 +818,11 @@ function SiteRdoFormPage() {
         return true;
       } catch (error) {
         if (!draftEditorMountedRef.current) return false;
+        if (error instanceof ApiClientError && error.code === 'PROJECT_ARCHIVED_READ_ONLY') {
+          setDraftSaveStatus('idle');
+          if (notifyOnError) showToast(error.message, 'error');
+          return true;
+        }
         lastAutoSaveSignatureRef.current = '';
         setDraftSaveStatus('error');
         console.error('Falha ao salvar rascunho de relatório.', error);
@@ -821,7 +832,7 @@ function SiteRdoFormPage() {
         return false;
       }
     }),
-    [projectId, reportDate, selectedProject, buildDraftPayload, matchingDraftIds, updateDraftAsync, createDraftAsync, setDraftId, showToast, draftSaveQueue]
+    [projectId, reportDate, selectedProject, unavailableProject, buildDraftPayload, matchingDraftIds, updateDraftAsync, createDraftAsync, setDraftId, showToast, draftSaveQueue]
   );
 
   useEffect(() => {

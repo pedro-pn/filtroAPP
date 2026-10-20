@@ -67,12 +67,16 @@ function ContributionEditor({ projectId, proposalCode, revision, selectionVersio
       ].map(queryKey => queryClient.invalidateQueries({ queryKey })));
       showToast('Contribuição da proposta adicional salva.');
       onClose();
-    }
+    },
+    onError: (error: Error) => showToast(error.message || 'Não foi possível salvar. Tente novamente.', 'error')
   });
   return <Modal open appearance="design-system" size="md"
     title={`Contribuição da proposta adicional ${proposalCode}`}
     onClose={() => { if (!save.isPending) onClose(); }}
     footer={<>
+      {save.isError ? <Alert tone="danger" className="additional-contribution__error">
+        {save.error.message || 'Não foi possível salvar. Tente novamente.'}
+      </Alert> : null}
       <Button variant="secondary" disabled={save.isPending} onClick={onClose}>{canManage ? 'Cancelar' : 'Fechar'}</Button>
       {canManage ? <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
         {save.isPending ? 'Salvando…' : 'Salvar contribuição'}
@@ -101,7 +105,6 @@ function ContributionEditor({ projectId, proposalCode, revision, selectionVersio
             onChange={event => setInclusion(current => ({ ...current, [key]: event.target.checked }))} />;
         })}
       </div>
-      {save.isError ? <p role="alert">Não foi possível salvar. Tente novamente.</p> : null}
     </div>
   </Modal>;
 }

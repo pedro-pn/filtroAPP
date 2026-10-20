@@ -35,7 +35,7 @@ function normalizeDraftPayload(data) {
   };
 }
 
-export async function saveRdoDraft(database, userId, data, draftId = null) {
+export async function saveRdoDraft(database, userId, data, draftId = null, userRole = 'COLLABORATOR') {
   return database.$transaction(async tx => {
     // A trava de transação funciona também entre processos/instâncias da API.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rdo-drafts:${userId}`}))`;
@@ -54,6 +54,22 @@ export async function saveRdoDraft(database, userId, data, draftId = null) {
       });
       current = drafts.find(draft => isRdoDraftPayload(draft.payload)
         && (draft.payload?.serviceOnly === true) === (payload.serviceOnly === true)) || null;
+    }
+    if (userRole === 'COLLABORATOR') {
+      // Check both ends so changing/removing the project cannot rewrite an
+      // existing draft after its project has been archived.
+      const projectIds = new Set([current?.projectId || current?.payload?.projectId, data.projectId].filter(Boolean));
+      for (const projectId of projectIds) {
+        const project = await tx.project.findUnique({ where: { id: projectId }, select: { isActive: true, deletedAt: true } });
+        if (!project || project.deletedAt) {
+          throw Object.assign(new Error('Projeto não encontrado.'), { statusCode: 404 });
+        }
+        if (!project.isActive) {
+          throw Object.assign(new Error('Projeto arquivado: você pode apenas visualizar os relatórios existentes.'), {
+            statusCode: 403, code: 'PROJECT_ARCHIVED_READ_ONLY'
+          });
+        }
+      }
     }
     const values = {
       projectId: data.projectId || null,
@@ -79,13 +95,13 @@ router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) =
 
 router.post('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
-  const { item, created } = await saveRdoDraft(prisma, req.auth.user.id, data);
+  const { item, created } = await saveRdoDraft(prisma, req.auth.user.id, data, null, req.auth.user.role);
   res.status(created ? 201 : 200).json(item);
 }));
 
 router.put('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.omit({ id: true }).parse(req.body);
-  const { item } = await saveRdoDraft(prisma, req.auth.user.id, data, req.params.id);
+  const { item } = await saveRdoDraft(prisma, req.auth.user.id, data, req.params.id, req.auth.user.role);
   res.json(item);
 }));
 

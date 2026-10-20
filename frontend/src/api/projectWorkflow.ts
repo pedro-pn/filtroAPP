@@ -54,7 +54,7 @@ export interface ProjectOperationalMissionSummary {
     id: string;
     collaboratorId: string;
     jobRoleId: string;
-    collaborator: { id: string; name: string; isActive: boolean; role: string } | null;
+    collaborator: { id: string; name: string; isActive: boolean; role: string; canOperateReports?: boolean } | null;
     jobRole: { id: string; name: string } | null;
   }>;
 }
@@ -68,6 +68,7 @@ export interface ProjectWorkflowProject {
   commercialProposalSync?: { status: string; proposalCode: string; revisionNumber: number } | null;
   location: string;
   startDate?: string | null;
+  operatorId?: string | null;
   mobilizationDate?: string | null;
   demobilizationDate?: string | null;
   operationalMission?: ProjectOperationalMissionSummary | null;
@@ -923,7 +924,7 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'documentation_requirement_archive'; version: number; requirementId: string; archived: boolean }
   | { action: 'issue'; version: number; issueId: string; description: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
-  | { action: 'stage'; version: number; stage: ProjectWorkflowStage; startDate?: string; reason?: string }
+  | { action: 'stage'; version: number; stage: ProjectWorkflowStage; startDate?: string; operatorId?: string; reason?: string }
   | { action: 'mobilization'; version: number; mobilizationDate: string }
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }

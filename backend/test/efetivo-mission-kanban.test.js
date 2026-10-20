@@ -103,3 +103,82 @@ test('concluir missão aceita desmobilização anterior ao fim previsto e sincro
   assert.equal(moved.returnDate.toISOString(), '2026-08-08T00:00:00.000Z');
   assert.equal(moved.executionEndDate.toISOString(), '2026-08-10T00:00:00.000Z');
 });
+
+function legacyExecutionDatabase(kind = 'OFFICIAL') {
+  const state = {
+    plan: { id: 'plan-1', kind, status: kind === 'OFFICIAL' ? 'ACTIVE' : 'DRAFT' },
+    project: { id: 'project-1', name: 'Missão antiga', mobilizationDate: new Date('2026-09-10T00:00:00Z') },
+    users: [], audits: [],
+    mission: {
+      id: 'mission-1', projectId: 'project-1', planId: 'plan-1', version: 1, stage: 'MOBILIZATION', kanbanOrder: 0,
+      scheduleStatus: 'CONFIRMED', headquartersResponsibleUserId: 'leader', headquartersResponsibleName: 'Líder', headquartersResponsibleRole: 'Supervisor',
+      mobilizationDate: new Date('2026-09-10T00:00:00Z'), executionStartDate: new Date('2026-09-11T00:00:00Z'), executionEndDate: new Date('2026-09-20T00:00:00Z'),
+      demands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
+      allocations: ['ana', 'carlos'].map(collaboratorId => ({
+        id: `allocation-${collaboratorId}`, collaboratorId, jobRoleId: 'role-1', deletedAt: null,
+        collaborator: { id: collaboratorId, name: collaboratorId, isActive: true,
+          user: { id: `user-${collaboratorId}`, isActive: true, accountType: 'INTERNAL', role: 'COLLABORATOR', moduleRoles: [{ role: 'RDO_COLLABORATOR' }] } }
+      }))
+    }
+  };
+  const database = {
+    $transaction: async callback => {
+      const before = structuredClone(state);
+      try { return await callback(database); } catch (error) { Object.assign(state, before); throw error; }
+    },
+    efetivoPlan: { findUnique: async () => state.plan, update: async () => state.plan },
+    projectWorkflow: { findUnique: async () => null },
+    project: { update: async ({ data }) => { Object.assign(state.project, data); } },
+    projectAuthorizedUser: { createMany: async ({ data }) => state.users.push(...data) },
+    efetivoMissionPlan: {
+      findUnique: async () => ({ ...state.mission, project: state.project }),
+      findMany: async () => [],
+      update: async ({ data }) => {
+        if (typeof data.version === 'object') state.mission.version += 1;
+        if (data.stage) state.mission.stage = data.stage;
+        return { ...state.mission, project: state.project };
+      }
+    },
+    efetivoAuditEvent: { create: async ({ data }) => state.audits.push(data) }
+  };
+  return { database, state };
+}
+
+test('missão antiga também confirma operador e início real e libera a equipe para relatórios', async () => {
+  const { database, state } = legacyExecutionDatabase();
+  const input = stageInputSchema.parse({ stage: 'EXECUTION', order: 0, startDate: '2026-09-12', operatorId: 'ana' });
+  await moveMissionStage('mission-1', input, { version: 1 }, { database, now: new Date('2026-09-14T12:00:00Z') });
+  assert.equal(state.project.operatorId, 'ana');
+  assert.equal(state.project.startDate.toISOString(), '2026-09-12T00:00:00.000Z');
+  assert.deepEqual(state.users.map(link => link.userId), ['user-ana', 'user-carlos']);
+  assert.equal(state.mission.stage, 'EXECUTION');
+  assert.equal(state.audits[0].afterData.operatorId, 'ana');
+  // Reordenar na mesma etapa não redefine o responsável nem repete a liberação.
+  await moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0 }, { version: 2 }, { database });
+  assert.equal(state.users.length, 2);
+});
+
+test('missão antiga rejeita execução sem responsável ou data válida e preserva o estado', async () => {
+  for (const [overrides, code] of [
+    [{ startDate: undefined }, 'PROJECT_WORKFLOW_EXECUTION_START_REQUIRED'],
+    [{ startDate: '2026-09-09' }, 'INVALID_PROJECT_WORKFLOW_EXECUTION_START'],
+    [{ startDate: '2026-09-15' }, 'INVALID_PROJECT_WORKFLOW_EXECUTION_START'],
+    [{ operatorId: undefined }, 'PROJECT_WORKFLOW_REPORT_OPERATOR_REQUIRED'],
+    [{ operatorId: 'outsider' }, 'INVALID_PROJECT_WORKFLOW_REPORT_OPERATOR']
+  ]) {
+    const { database, state } = legacyExecutionDatabase();
+    await assert.rejects(moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0, startDate: '2026-09-12', operatorId: 'ana', ...overrides },
+      { version: 1 }, { database, now: new Date('2026-09-14T12:00:00Z') }), error => error.code === code);
+    assert.equal(state.mission.stage, 'MOBILIZATION');
+    assert.equal(state.users.length, 0);
+    assert.equal(state.project.operatorId, undefined);
+  }
+});
+
+test('mover cenário para execução não altera operador ou acessos do projeto oficial', async () => {
+  const { database, state } = legacyExecutionDatabase('SCENARIO');
+  await moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0 }, { version: 1 }, { database });
+  assert.equal(state.project.operatorId, undefined);
+  assert.equal(state.users.length, 0);
+  assert.equal(state.project.startDate, undefined);
+});

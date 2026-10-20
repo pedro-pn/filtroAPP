@@ -7,6 +7,7 @@ const FIELD_LABELS = {
   token: 'Token',
   email: 'E-mail',
   projectId: 'Projeto',
+  operatorId: 'Operador responsável',
   createdByUserId: 'Usuário criador',
   reportDate: 'Data do relatório',
   arrivalTime: 'Chegada',

@@ -41,6 +41,9 @@ async page => {
   await dialog().getByRole('button', { name: 'Desconsiderar todos', exact: true }).click();
   await dialog().getByRole('button', { name: 'Salvar contribuição', exact: true }).click();
   await dialog().getByRole('alert').waitFor();
+  assert((await dialog().getByRole('alert').innerText()).includes('Cliente/CNPJ do adicional não corresponde ao projeto.'),
+    'falha exibe o motivo retornado pela API junto ao botão de salvar');
+  assert(await dialog().locator('.fv-modal__footer').getByRole('alert').isVisible(), 'erro permanece visível no rodapé');
   assert((await included()).every(value => !value), 'falha conserva o rascunho para tentar novamente');
   await dialog().getByRole('button', { name: 'Salvar contribuição', exact: true }).click();
   await dialog().waitFor({ state: 'hidden' });
@@ -63,6 +66,18 @@ async page => {
     await page.screenshot({ path: `output/playwright/additional-metrics-${width}.png`, fullPage: true });
     await dialog().getByRole('button', { name: 'Cancelar', exact: true }).click();
   }
+  await page.getByRole('button', { name: 'Simular falha ao salvar', exact: true }).click();
+  await open('12');
+  await dialog().getByRole('checkbox', { name: 'Orçamento previsto', exact: true }).uncheck();
+  await dialog().getByRole('button', { name: 'Salvar contribuição', exact: true }).click();
+  await dialog().getByRole('alert').waitFor();
+  const errorBox = await dialog().getByRole('alert').boundingBox();
+  assert(errorBox && errorBox.y >= 0 && errorBox.y + errorBox.height <= 844,
+    'motivo da falha fica visível junto ao salvar também no celular');
+  assert(await dialog().getByRole('checkbox', { name: 'Orçamento previsto', exact: true }).isChecked() === false,
+    'falha mantém a alteração individual para nova tentativa');
+  await dialog().getByRole('button', { name: 'Salvar contribuição', exact: true }).click();
+  await dialog().waitFor({ state: 'hidden' });
   await page.goto('http://127.0.0.1:5188/test/browser/additional-metrics.html?readonly');
   await expand();
   await open('11');

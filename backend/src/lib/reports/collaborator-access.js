@@ -13,3 +13,15 @@ export function collaboratorCanAccessReportProject(auth, project) {
     authorized || (collaboratorId && project.operatorId === collaboratorId)
   );
 }
+
+export const missionReportTeamQuery = {
+  where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+  orderBy: { updatedAt: 'desc' },
+  take: 1,
+  select: {
+    allocations: {
+      where: { deletedAt: null, collaborator: { isActive: true } },
+      select: { collaboratorId: true }
+    }
+  }
+};

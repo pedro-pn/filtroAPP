@@ -118,6 +118,7 @@ export function HomePage() {
   }
 
   function handleResumeDraft(draft: ReportDraft) {
+    if (draft.project?.isActive === false) return;
     const payload = draft.payload || {};
 
     hydrate({
@@ -223,10 +224,11 @@ export function HomePage() {
                       <div className="rdo-role-draft-card__meta">
                         <span>{draft.project?.code || draft.projectId || 'Projeto'}</span>
                         <span>{draftDateLabel(draft)}</span>
+                        {draft.project?.isActive === false ? <span>Projeto arquivado · somente leitura</span> : null}
                       </div>
                     </div>
                     <div className="rdo-role-draft-card__actions">
-                      <Button variant="primary" size="sm" onClick={() => handleResumeDraft(draft)}>
+                      <Button variant="primary" size="sm" disabled={draft.project?.isActive === false} onClick={() => handleResumeDraft(draft)}>
                         {TEXT.continue}
                       </Button>
                       <RemoveIconButton label={`Remover rascunho ${draft.title || 'RDO em andamento'}`} onClick={() => draftMutations.removeDraft.mutate(draft.id)} />

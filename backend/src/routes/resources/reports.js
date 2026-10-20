@@ -106,7 +106,8 @@ import { MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH, decodeManualReportPdfDataUrl, ex
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
 import { createReportPdfAccessChecker, reportDateFromWhere, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
-import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink } from '../../lib/reports/collaborator-access.js';
+import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink, missionReportTeamQuery } from '../../lib/reports/collaborator-access.js';
+import { canEditMissionReports } from '../../../../shared/modules/mission-report-access.js';
 export { collaboratorCanAccessReportProject } from '../../lib/reports/collaborator-access.js';
 import { createProjectSystemsRouter } from './project-systems.js';
 import { assertRdoProjectContext } from '../../lib/reports/project-context-validation.js';
@@ -1284,7 +1285,8 @@ const include = {
   project: {
     include: {
       operator: { include: { jobRole: true } },
-      authorizedUsers: true
+      authorizedUsers: true,
+      efetivoMissionPlans: missionReportTeamQuery
     }
   },
   createdBy: {
@@ -1792,6 +1794,7 @@ export function collaboratorCanMutateReport(auth, report) {
   if (auth.user?.role === 'COLLABORATOR'
     && (!report.project?.isActive || !collaboratorCanAccessReportProject(auth, report.project))) return false;
   if (report.createdByUserId === auth.user.id) return true;
+  if (canEditMissionReports(auth.user, report.project)) return true;
   const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
   if (collabId && Array.isArray(report.collaborators)) {
@@ -6639,6 +6642,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   }
   if (req.auth.user.role === 'COORDINATOR'
     && !canReviewRdoReports(req.auth.user)
+    && !canEditMissionReports(req.auth.user, existing.project)
     && existing.createdByUserId !== req.auth.user.id) {
     return res.status(403).json({ error: 'O coordenador só pode editar relatórios criados por ele.' });
   }

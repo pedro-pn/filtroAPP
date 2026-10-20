@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { projectExecutionStartSuggestion } from '../src/utils/projectExecutionStart.ts';
+import { projectExecutionStartSuggestion, projectReportOperatorOptions } from '../src/utils/projectExecutionStart.ts';
 
 const today = '2026-10-09';
+
+test('operadores vêm da equipe da missão, ativos e habilitados no Relatório, sem duplicatas', () => {
+  const allocation = (id, name, extra = {}) => ({ collaboratorId: id, collaborator: { name, isActive: true, canOperateReports: true, ...extra } });
+  const project = { operationalMission: { allocations: [
+    allocation('c2', 'Zeca'), allocation('c1', 'Ana'), allocation('c1', 'Ana'),
+    allocation('c3', 'Sem conta', { canOperateReports: false }),
+    allocation('c4', 'Inativo', { isActive: false }),
+    { collaboratorId: 'c5', collaborator: null }
+  ] } };
+  assert.deepEqual(projectReportOperatorOptions(project), [{ id: 'c1', name: 'Ana' }, { id: 'c2', name: 'Zeca' }]);
+  assert.deepEqual(projectReportOperatorOptions({}), []);
+});
 
 test('início real já registrado prevalece ao retornar à execução', () => {
   assert.deepEqual(projectExecutionStartSuggestion({

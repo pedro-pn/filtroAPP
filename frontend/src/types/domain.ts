@@ -116,6 +116,7 @@ export interface Project {
     userId: string;
     user?: InternalUserSummary;
   }>;
+  efetivoMissionPlans?: Array<{ allocations: Array<{ collaboratorId: string }> }>;
   reportSequences?: ProjectReportSequence[];
   surveys?: SatisfactionSurveySummary[];
   createdAt?: string;
