@@ -15,7 +15,8 @@ test('relatórios permanecem na execução em projeto individual e grupo mesclad
   const reportsIndex = source.indexOf('<ProjectReportsDialog');
 
   assert.ok(reportsIndex >= 0, 'o acesso aos relatórios deve permanecer');
-  assert.match(source, /<Modal open=\{scopeOpen\}[\s\S]*?<PlannedScopeView/);
+  assert.match(source, /<ProjectScopeDialog open=\{scopeOpen\}/);
+  assert.match(await readSource('src/components/projects/ProjectScopeDialog.tsx'), /<PlannedScopeView/);
   assert.match(source, /isGroup \? Boolean\(data\.group\?\.members\.some\(member => member\.visible !== false\)\) : Boolean\(projectId\)/);
   assert.match(source, /groupMembers=\{isGroup \? data\.group\?\.members : undefined\}/);
   assert.match(source, /signedReportDateFrom=\{data\.division\?\.startDate\}/);

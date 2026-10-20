@@ -4,7 +4,7 @@ async page => {
   for (const width of [360, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(url);
-    await page.getByText('1 serviço(s) sem proposta definida', { exact: true }).waitFor();
+    await page.getByText('1 serviço sem proposta definida', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Data Book', exact: true }).click();
     await page.getByRole('combobox', { name: 'Escopo do Data Book', exact: true }).selectOption('COMERCIAL_APP:502');
     await page.getByText('1 serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.', { exact: true }).waitFor();
@@ -13,9 +13,9 @@ async page => {
     await page.getByText('1 serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.', { exact: true }).waitFor({ state: 'hidden' });
     await page.getByRole('contentinfo').getByRole('button', { name: 'Fechar', exact: true }).click();
     await page.getByRole('combobox', { name: 'Proposta do escopo', exact: true }).selectOption('COMERCIAL_APP:502');
-    await page.getByText('Revisar vínculos dos serviços (1)', { exact: true }).click();
+    await page.getByRole('heading', { name: 'Vínculos dos serviços', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Vincular proposta', exact: true }).click();
-    assert(await page.getByRole('group', { name: 'Vincular serviço à proposta' }).getByRole('combobox').inputValue() === 'COMERCIAL_APP:502', 'A proposta filtrada não foi sugerida para o serviço pendente.');
+    assert(await page.getByRole('form', { name: 'Vincular serviço à proposta' }).getByRole('combobox').inputValue() === 'COMERCIAL_APP:502', 'A proposta filtrada não foi sugerida para o serviço pendente.');
     await page.getByRole('textbox', { name: 'Motivo', exact: true }).fill('Conferência da proposta adicional');
     await page.getByRole('button', { name: 'Salvar vínculo', exact: true }).click();
     await page.getByText('Vínculo manual', { exact: false }).waitFor();

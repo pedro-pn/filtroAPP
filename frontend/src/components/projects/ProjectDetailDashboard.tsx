@@ -1,4 +1,4 @@
-import { ProjectProposalScopes } from './ProjectProposalScopes';
+import { ProjectScopeDialog } from './ProjectScopeDialog';
 import { SortableTable } from '../ui/SortableTable';
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,7 +50,6 @@ import { ProjectDetailPeople } from './ProjectDetailPeople';
 import { ProjectDetailTaxes } from './ProjectDetailCosts';
 import { ProjectDetailOverview, ProjectDetailServiceComposition } from './ProjectDetailOverview';
 import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectTimeSnapshot } from './ProjectDetailStory';
-import { PlannedScopeView, RequiredWeeklyProgressCard } from './ProjectDetailVisuals';
 import { ProjectScopeDailyTable } from './ProjectScopeDailyTable';
 import { brl, fmtDate, fmtDateTime, fmtPct, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from './projectDetailModel';
 import { ProjectDetailSection } from './ProjectDetailSection';
@@ -913,13 +912,10 @@ export function ProjectDetailDashboard({
       <ProjectCollaboratorRatesDialog collaborator={ratesCollaborator} referenceDate={planningReferenceDate}
         onClose={() => setRatesCollaborator(null)} />
 
-      <Modal open={scopeOpen} onClose={() => setScopeOpen(false)} title="Escopo do projeto" appearance="design-system" size="lg">
-        <div className="fv-ds acp-detail-scope">
-          {projectId && !isGroup ? <ProjectProposalScopes projectId={projectId} canManage={canManage} /> : null}
-          <PlannedScopeView scope={data.plannedScope} />
-          <RequiredWeeklyProgressCard target={shownRequiredWeeklyProgress} />
-        </div>
-      </Modal>
+      <ProjectScopeDialog open={scopeOpen} onClose={() => setScopeOpen(false)}
+        projects={isGroup ? group?.members.filter(member => member.visible !== false) || [] : projectId ? [{ projectId, code: h.code }] : []}
+        canManage={canManageDivisions}
+        summary={isGroup ? { plannedScope: data.plannedScope, requiredWeeklyProgress: shownRequiredWeeklyProgress } : undefined} />
       <Modal open={scheduleProject !== null} onClose={closeSchedule} appearance="design-system" size="lg"
         panelClassName="acp-schedule-modal" title={`Cronograma — Missão ${scheduleProject?.code ?? h.code}`}
         footer={<div className="acp-schedule-modal__actions">

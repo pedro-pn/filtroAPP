@@ -1,0 +1,51 @@
+.proposal-scopes { display: grid; gap: var(--space-4); min-width: 0; }
+.proposal-scopes__heading, .proposal-scopes__services-head, .proposal-scopes__service-head,
+.proposal-scopes__progress-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.proposal-scopes h3, .proposal-scopes h4 { margin: 0; color: var(--ink); }
+.proposal-scopes h3 { font-size: var(--text-base); }
+.proposal-scopes h4 { font-size: var(--text-sm); }
+.proposal-scopes p { margin: var(--space-1) 0 0; }
+.proposal-scopes__heading p, .proposal-scopes__services-head p, .proposal-scopes__context,
+.proposal-scopes__report, .proposal-scopes__service-description > span, .proposal-scopes__progress-head > span,
+.proposal-scopes__editor > div:first-child p { color: var(--muted); font-size: var(--text-sm); }
+.proposal-scopes__progress { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+.proposal-scopes__progress-head { flex-wrap: wrap; font-size: var(--text-sm); }
+.proposal-scopes .proposal-scopes__quantities, .proposal-scopes .proposal-scopes__services { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3); min-width: 0; }
+.proposal-scopes__quantities li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); font-size: var(--text-sm); }
+.proposal-scopes__services-head { padding-top: var(--space-3); border-top: var(--border-width) solid var(--line); }
+.proposal-scopes__toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: var(--space-3); }
+.proposal-scopes__toolbar > .fv-field { flex: 1 1 16rem; min-width: 0; }
+.proposal-scopes__filters { display: flex; gap: var(--space-2); padding-bottom: 1px; flex-wrap: wrap; }
+.proposal-scopes__service { padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface); min-width: 0; }
+.proposal-scopes__service--editing { border-color: var(--brand); }
+.proposal-scopes__service-head { align-items: center; flex-wrap: wrap; }
+.proposal-scopes__report { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.proposal-scopes__report strong { color: var(--ink); }
+.proposal-scopes__service-body { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); }
+.proposal-scopes__service-body > .fv-button { flex-shrink: 0; }
+.proposal-scopes__service-description { min-width: 0; overflow-wrap: anywhere; }
+.proposal-scopes__service-description > span { display: block; margin-top: var(--space-2); }
+.proposal-scopes__editor { display: grid; gap: var(--space-4); margin-top: var(--space-4); padding: var(--space-4); border-radius: var(--radius-sm); background: var(--brand-softer); border-top: var(--border-width) solid var(--line); }
+.proposal-scopes__editor-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: var(--space-4); }
+.proposal-scopes__editor-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
+.project-scope-dialog { display: grid; gap: var(--space-5); min-width: 0; }
+.project-scope-dialog__tabs { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-2); border-bottom: var(--border-width) solid var(--line); }
+.project-scope-dialog__tab { appearance: none; display: grid; gap: var(--space-1); flex: 0 0 auto; max-width: 15rem; min-height: 3rem; padding: var(--space-3) var(--space-4); color: var(--muted); text-align: left; background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
+.project-scope-dialog__tab span { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); }
+.project-scope-dialog__tab[aria-selected="true"] { color: var(--brand-text); background: var(--brand-softer); border-color: var(--brand); }
+.project-scope-dialog__tab:disabled { cursor: default; opacity: .5; }
+.project-scope-dialog__tab:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.project-scope-dialog__project { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius-md); }
+.project-scope-dialog__project h3 { margin: 0; font-size: var(--text-base); }
+.project-scope-dialog__project p, .project-scope-dialog__hint { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.project-scope-dialog__panel { display: grid; gap: var(--space-5); min-width: 0; }
+.project-scope-dialog__planned { display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: var(--border-width) solid var(--line); }
+@media (max-width: 600px) {
+  .proposal-scopes__service, .proposal-scopes__progress { padding: var(--space-3); }
+  .proposal-scopes__service-body { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+  .proposal-scopes__service-body > .fv-button { align-self: flex-start; }
+  .proposal-scopes__editor { padding: var(--space-3); }
+  .proposal-scopes__editor-fields { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .proposal-scopes__editor-actions { flex-direction: column-reverse; align-items: stretch; }
+  .project-scope-dialog__tab { max-width: 12rem; }
+}

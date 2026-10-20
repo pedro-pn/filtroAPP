@@ -416,7 +416,8 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   assert.match(main, /<ProjectReportsDialog/);
   assert.match(main, /<ProjectDetailOverview/);
   assert.doesNotMatch(main, /<ProjectTimelineCard|Prazos com contexto/);
-  assert.match(main, /<PlannedScopeView/);
+  assert.match(main, /<ProjectScopeDialog/);
+  assert.match(source('ProjectScopeDialog.tsx'), /<PlannedScopeView/);
   assert.doesNotMatch(main, /Conferir cálculo de dias e horas|Detalhar metas e composição do avanço/);
   assert.match(source('ProjectDetailOverview.tsx'), /id="acp-progress"/);
   assert.match(main, /<ProjectFinancialSnapshot data=\{data\}[\s\S]*data-acp-manual-costs[\s\S]*<\/ProjectFinancialSnapshot>/);
