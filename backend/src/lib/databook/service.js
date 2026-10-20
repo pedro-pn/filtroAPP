@@ -46,11 +46,11 @@ export async function resumoDoDialogo(projetoId, consulta = {}, client = prisma)
   const proposta = selectProposalScope(scopeContext, consulta.contributionKey);
   const propostas = scopeContext.options;
   const padrao = await intervaloPadrao(projetoId, client);
-  if (!padrao) return { padrao: null, resumo: null, propostas };
+  if (!padrao) return { padrao: null, resumo: null, propostas, avisos: [] };
   const intervalo = validarIntervalo({ inicio: consulta.inicio || padrao.inicio, fim: consulta.fim || padrao.fim }, padrao);
   // O mapper só consulta o banco (não lê fotos nem PDFs): dá a contagem real de FDS do intervalo.
-  const { resumo } = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, scopeContext, contributionKey: proposta?.key });
-  return { padrao, resumo, propostas };
+  const { resumo, avisos } = await montarDadosDatabook(projetoId, intervalo.inicio, intervalo.fim, { client, scopeContext, contributionKey: proposta?.key });
+  return { padrao, resumo, propostas, avisos };
 }
 
 // Elaborado/Verificado por: só gestores e coordenadores do RDO (os mesmos papéis que geram o Data Book).

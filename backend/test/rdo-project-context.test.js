@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { projectScopeOptions, projectWorkLocations } from '../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../shared/modules/rdo-project-context.js';
 import { assertRdoProjectContext } from '../src/lib/reports/project-context-validation.js';
 
 const project = {
@@ -59,6 +59,8 @@ test('sem serviços não exige escopo; grupo sem nome pode ser selecionado', () 
   data.services[0].extraData.__scopeKey = 'null';
   assertRdoProjectContext({ ...project, plannedServices: [{ scopeName: null }, { scopeName: 'UG 1' }] }, data);
   assert.equal(data.services[0].extraData.__scopeName, null);
+  data.services[0].extraData.__scopeKey = null;
+  assert.throws(() => assertRdoProjectContext({ ...project, plannedServices: [{ scopeName: null }, { scopeName: 'UG 1' }] }, data), invalid);
 });
 
 test('editar preserva o local histórico, mas trocar de projeto exige local válido', () => {
@@ -80,4 +82,47 @@ test('escopo removido não bloqueia edição quando a lista deixa de aparecer', 
 
 test('relatórios de serviço mantêm o fluxo existente', () => {
   assert.doesNotThrow(() => assertRdoProjectContext(project, { reportType: 'RLQ', services: [{ extraData: {} }] }));
+});
+
+test('escopos homônimos de propostas distintas permanecem opções distintas', () => {
+  const options = projectScopeOptions({ plannedServices: [
+    { scopeName: 'Vasos', contributionKey: 'ACCESS_IMPORT:4586' },
+    { scopeName: 'Vasos', contributionKey: 'ACCESS_IMPORT:4619' }
+  ] });
+  assert.equal(options.length, 2);
+  assert.notEqual(options[0].value, options[1].value);
+  assert.match(options[0].label, /4586/);
+  assert.match(options[1].label, /4619/);
+  assert.equal(findProjectScopeOption(options, '"Vasos"'), undefined);
+  assert.equal(findProjectScopeOption(options, options[1].value), options[1]);
+});
+
+test('salvar o RDO registra a proposta do escopo pelo cadastro e aceita seleção antiga não ambígua', () => {
+  const scopedProject = { id: project.id, plannedServices: [
+    { scopeName: 'Vasos', contributionKey: 'ACCESS_IMPORT:4586' },
+    { scopeName: 'APVs' }
+  ] };
+  const data = { reportType: 'RDO', services: [{ extraData: { __scopeKey: '"Vasos"',
+    __proposalScope: { projectId: 'outro', contributionKey: 'ACCESS_IMPORT:4619' } } }] };
+  assertRdoProjectContext(scopedProject, data);
+  assert.equal(data.services[0].extraData.__scopeKey, '["ACCESS_IMPORT:4586","Vasos"]');
+  assert.deepEqual(data.services[0].extraData.__proposalScope, { projectId: project.id, contributionKey: 'ACCESS_IMPORT:4586' });
+  data.services[0].extraData.__scopeKey = '"APVs"';
+  assertRdoProjectContext(scopedProject, data);
+  assert.equal(data.services[0].extraData.__proposalScope, undefined, 'trocar de escopo limpa a origem anterior');
+});
+
+test('um único escopo também salva a proposta, mesmo sem campo de seleção', () => {
+  const data = { reportType: 'RDO', services: [{ extraData: {} }] };
+  assertRdoProjectContext({ id: 'p', plannedServices: [{ scopeName: 'Vasos', contributionKey: 'COMERCIAL_APP:4586' }] }, data);
+  assert.deepEqual(data.services[0].extraData.__proposalScope, { projectId: 'p', contributionKey: 'COMERCIAL_APP:4586' });
+});
+
+test('seleção antiga ambígua exige escolher a proposta; troca de projeto remove origem forjada', () => {
+  const data = { reportType: 'RDO', services: [{ extraData: { __scopeKey: '"Vasos"',
+    __proposalScope: { projectId: 'outro', contributionKey: 'ACCESS_IMPORT:4586' } } }] };
+  const plannedServices = ['ACCESS_IMPORT:4586', 'ACCESS_IMPORT:4619'].map(contributionKey => ({ scopeName: 'Vasos', contributionKey }));
+  assert.throws(() => assertRdoProjectContext({ id: 'p', plannedServices }, data), invalid);
+  assertRdoProjectContext({ id: 'p', plannedServices: [] }, data);
+  assert.equal(data.services[0].extraData.__proposalScope, undefined);
 });

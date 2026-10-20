@@ -5,9 +5,17 @@ async page => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(url);
     await page.getByText('1 serviço(s) sem proposta definida', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Data Book', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Escopo do Data Book', exact: true }).selectOption('COMERCIAL_APP:502');
+    await page.getByText('1 serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.', { exact: true }).waitFor();
+    assert(await page.getByRole('button', { name: 'Continuar', exact: true }).isDisabled(), 'Proposta sem vínculos permite continuar.');
+    await page.getByRole('combobox', { name: 'Escopo do Data Book', exact: true }).selectOption('ALL');
+    await page.getByText('1 serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.', { exact: true }).waitFor({ state: 'hidden' });
+    await page.getByRole('contentinfo').getByRole('button', { name: 'Fechar', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Proposta do escopo', exact: true }).selectOption('COMERCIAL_APP:502');
     await page.getByText('Revisar vínculos dos serviços (1)', { exact: true }).click();
     await page.getByRole('button', { name: 'Vincular proposta', exact: true }).click();
-    await page.getByRole('group', { name: 'Vincular serviço à proposta' }).getByRole('combobox').selectOption('COMERCIAL_APP:502');
+    assert(await page.getByRole('group', { name: 'Vincular serviço à proposta' }).getByRole('combobox').inputValue() === 'COMERCIAL_APP:502', 'A proposta filtrada não foi sugerida para o serviço pendente.');
     await page.getByRole('textbox', { name: 'Motivo', exact: true }).fill('Conferência da proposta adicional');
     await page.getByRole('button', { name: 'Salvar vínculo', exact: true }).click();
     await page.getByText('Vínculo manual', { exact: false }).waitFor();
@@ -15,6 +23,8 @@ async page => {
     assert(assignment.body.contributionKey === 'COMERCIAL_APP:502' && assignment.body.version === 'd'.repeat(64), 'Vínculo sem identidade/versão.');
     await page.getByRole('button', { name: 'Data Book', exact: true }).click();
     await page.getByRole('combobox', { name: 'Escopo do Data Book', exact: true }).selectOption('COMERCIAL_APP:502');
+    await page.getByText('1 dia · 1 RDO · 1 RLQ', { exact: true }).waitFor();
+    assert(await page.getByText('1 serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.', { exact: true }).count() === 0, 'Aviso permanece após vincular o serviço.');
     await page.screenshot({ path: `output/playwright/databook-proposta-selecao-${width}.png`, fullPage: true });
     await page.getByRole('button', { name: 'Continuar', exact: true }).click();
     await page.getByText(/DB-9001-01 · Rev. 1/).first().waitFor();
@@ -27,6 +37,14 @@ async page => {
     await page.getByText(/Rev. 1 pronto/).waitFor();
     await page.screenshot({ path: `output/playwright/databook-proposta-${width}.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow em ${width}px`);
+    await page.goto(`${url}&origem=1`);
+    const origin = page.getByRole('combobox', { name: 'Escopo' });
+    await origin.waitFor();
+    assert(await origin.inputValue() === '', 'Escopo antigo homônimo escolheu uma proposta automaticamente.');
+    assert(await origin.locator('option').count() === 3, 'Escopos homônimos de propostas diferentes foram agrupados.');
+    await origin.selectOption({ label: 'Vasos · Proposta 502' });
+    const data = JSON.parse(await page.getByLabel('Dados do serviço', { exact: true }).textContent());
+    assert(data.__scopeKey === JSON.stringify(['COMERCIAL_APP:502', 'Vasos']), 'Seleção do escopo perdeu a identidade da proposta.');
   }
   return { ok: true, widths: [360, 768, 1440], proposal: 'COMERCIAL_APP:502' };
 }

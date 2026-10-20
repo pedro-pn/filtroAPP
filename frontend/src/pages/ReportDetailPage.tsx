@@ -1,4 +1,4 @@
-import { projectScopeOptions, projectWorkLocations } from '../../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../../shared/modules/rdo-project-context.js';
 import { ReportServiceScopeField, ReportWorkLocationField } from '../components/reports/ReportProjectFields';
 import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
@@ -784,7 +784,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         document.getElementById('rdo-work-location')?.focus();
         return false;
       }
-      const missingScope = scopeOptions.length > 1 ? form.services.find(service => !scopeOptions.some(option => option.value === service.data.__scopeKey)) : null;
+      const missingScope = scopeOptions.length > 1 ? form.services.find(service => !findProjectScopeOption(scopeOptions, service.data.__scopeKey)) : null;
       if (missingScope) {
         setInvalidScopeServiceId(missingScope.id);
         showToast('Selecione o escopo de cada serviço.', 'error');

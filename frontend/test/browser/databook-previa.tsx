@@ -8,6 +8,8 @@ import { AuthContext } from '../../src/auth/AuthContext';
 import { ToastProvider } from '../../src/components/ui/Toast';
 import { ThemeProvider } from '../../src/theme/ThemeProvider';
 import { ProjectDatabookButton } from '../../src/components/databook/ProjectDatabookButton';
+import { ReportServiceScopeField } from '../../src/components/reports/ReportProjectFields';
+import { projectScopeOptions } from '../../../shared/modules/rdo-project-context.js';
 import type { DatabookEdicoes, DatabookRevisaoPreparada } from '../../src/api/databook';
 import { camposDoDocumento, pdfInterativo } from './databook-pdf-fixture';
 import pdfUrl from '../../../backend/databook/referencia/DataBook_exemplo_projeto_completo.pdf?url';
@@ -57,7 +59,13 @@ apiClient.defaults.adapter = async config => {
     data = config.method === 'put' ? { saved: true } : { pending: assigned ? 0 : 1, scopes: propostas.map(p => ({ ...p, progress: { progressPct: 50, services: [] }, serviceCount: 1 })),
       services: [{ reportId: 'r1', reportType: 'RDO', number: 1, serviceKey: 'c'.repeat(64), version: 'd'.repeat(64), serviceType: 'pressao', system: 'Linha A', contributionKey: assigned ? 'COMERCIAL_APP:502' : null, method: assigned ? 'MANUAL' : 'INFERRED', count: 1 }] };
   }
-  else if (url.endsWith('/intervalo')) data = { padrao: periodo, resumo: preparada.resumo, ...(porProposta ? { propostas } : {}) };
+  else if (url.endsWith('/intervalo')) {
+    const semVinculo = porProposta && !assigned && config.params?.contributionKey === 'COMERCIAL_APP:502';
+    data = { padrao: periodo,
+      resumo: semVinculo ? { ...preparada.resumo, dias: 0, rdos: 0, rlq: 0 } : preparada.resumo,
+      avisos: semVinculo ? ['1 serviço(s) sem proposta definida foram excluídos. Revise os vínculos no acompanhamento.'] : [],
+      ...(porProposta ? { propostas } : {}) };
+  }
   else if (url.endsWith('/projects/p1')) data = [{ id: 'db1', doc: 'DB-9001-01', ...periodo, revisoes }];
   else if (url.endsWith('/revisao')) data = { ...preparada, ...(body.contributionKey && body.contributionKey !== 'ALL' ? { proposta: propostas.find(p => p.key === body.contributionKey) } : {}), documento: { ...preparada.documento, rev: 1 } };
   else if (url.endsWith('/edicao')) data = { ...preparada, origem: { id: 'rev-0', revisao: 0 } };
@@ -81,7 +89,17 @@ apiClient.defaults.adapter = async config => {
   return { config, status: 200, statusText: 'OK', headers: {}, data: structuredClone(data) };
 };
 
+function OriginFixture() {
+  const [data, setData] = React.useState<Record<string, unknown>>({ __scopeKey: '"Vasos"' });
+  const options = projectScopeOptions({ plannedServices: propostas.map(proposal => ({ scopeName: 'Vasos', contributionKey: proposal.key })) });
+  return <div className="fv-ds" style={{ maxWidth: 1000, margin: 'auto', padding: 16 }}>
+    <ReportServiceScopeField options={options} serviceId="origin" value={String(data.__scopeKey)} onChange={update => setData(current => ({ ...current, ...update }))} />
+    <output aria-label="Dados do serviço">{JSON.stringify(data)}</output>
+  </div>;
+}
+
 function Fixture() {
+  if (new URLSearchParams(location.search).has('origem')) return <OriginFixture />;
   return <div className="fv-ds" style={{ maxWidth: 1000, margin: 'auto', padding: 16 }}>
     {porProposta ? <ProjectProposalScopes projectId="p1" canManage /> : null}
     <ProjectDatabookButton project={{ id: 'p1', code: '9001', name: 'Projeto de prévia' }} />

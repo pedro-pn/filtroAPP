@@ -283,7 +283,9 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
     const projected = projectReportsToProposal(rdosAvanco, rdos, derivados, context, proposta.key);
     ({ rdosAvanco, rdos, derivados } = projected);
     avisos.push(...projected.avisos);
-    projeto = { ...projeto, plannedServices: context.planned.filter(service => context.plannedKey(service) === proposta.key),
+    const plannedServices = context.planned.filter(service => context.plannedKey(service) === proposta.key);
+    if (!plannedServices.length) avisos.push(`A proposta ${proposta.proposalCode || 'principal'} não tem escopo previsto vinculado. Defina a proposta de origem do escopo no acompanhamento.`);
+    projeto = { ...projeto, plannedServices,
       contractCode: `${proposta.proposalCode || 'Escopo principal'}${proposta.revision != null ? ` REV ${proposta.revision}` : ''}` };
   }
   const avanco = calcularAvanco(rdosAvanco, projeto.plannedServices, { dataInicio: inicio, dataFim: fim });

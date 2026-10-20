@@ -22,7 +22,7 @@ export function ProjectProposalScopes({ projectId, canManage = false }: { projec
   if (!query.data) return null;
   const { scopes, services, pending } = query.data;
   const scope = scopes.find(item => item.key === selected);
-  const shown = services.filter(item => !selected || item.contributionKey === selected);
+  const shown = services.filter(item => !selected || !item.contributionKey || item.contributionKey === selected);
   return <section aria-label="Escopos por proposta">
     <h3>Escopo e execução por proposta</h3>
     <Field label="Proposta"><Select aria-label="Proposta do escopo" value={selected} onChange={e => setSelected(e.target.value)}>
@@ -42,7 +42,7 @@ export function ProjectProposalScopes({ projectId, canManage = false }: { projec
       <ul>{shown.map(item => <li key={`${item.reportId}-${item.serviceKey}`}>
         <strong>{item.reportType} {item.number}</strong> · {item.serviceType} {item.system} {item.count > 1 ? `(${item.count} registros iguais)` : ''}
         <p>{scopes.find(s => s.key === item.contributionKey)?.label || 'Sem proposta definida'} · {item.method === 'MANUAL' ? 'Vínculo manual' : 'Vínculo automático'}</p>
-        {canManage ? <Button type="button" size="sm" variant="secondary" disabled={save.isPending} onClick={() => { setEditing(item); setTarget(item.contributionKey || ''); setReason(''); }}>Vincular proposta</Button> : null}
+        {canManage ? <Button type="button" size="sm" variant="secondary" disabled={save.isPending} onClick={() => { setEditing(item); setTarget(item.contributionKey || selected); setReason(''); }}>Vincular proposta</Button> : null}
       </li>)}</ul>
     </details>
     {editing ? <div role="group" aria-label="Vincular serviço à proposta">

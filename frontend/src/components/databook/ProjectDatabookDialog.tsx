@@ -262,6 +262,11 @@ export function ProjectDatabookDialog({ project, userId, onClose }: ProjectDatab
                 {resumoQuery.isFetching ? 'Calculando o que entra no intervalo…' : resumoTexto}
               </p>
             ) : null}
+            {!erroIntervalo && !resumoQuery.isFetching && resumoQuery.data?.avisos?.length ? (
+              <Alert tone="warning" title="Confira os dados do intervalo.">
+                <ul>{resumoQuery.data.avisos.map((aviso, index) => <li key={index}>{aviso}</li>)}</ul>
+              </Alert>
+            ) : null}
           </>
         ) : null}
         <DatabookHistorico

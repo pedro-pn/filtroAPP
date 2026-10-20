@@ -67,6 +67,12 @@ export function resolveServiceContribution(service, report, context) {
   const assignment = report.contributionAssignments?.[contributionServiceKey(service)];
   if (assignment?.projectId && assignment.projectId !== context.project.id) return { key: null, method: 'MANUAL' };
   if (assignment) return { key: assignment.contributionKey || null, method: 'MANUAL' };
+  const scope = report.reportType === 'RDO' ? service.extraData?.__proposalScope : null;
+  if (scope) {
+    const key = typeof scope.contributionKey === 'string' && scope.contributionKey ? context.plannedKey({ contributionKey: scope.contributionKey }) : null;
+    const valid = scope.projectId === context.project.id && context.options.some(option => option.key === key);
+    return { key: valid ? key : null, method: 'INFERRED' };
+  }
   if (context.hasRetired) return { key: null, method: 'INFERRED' };
   if (context.options.length === 1) return { key: context.main.key, method: 'INFERRED' };
   const covered = new Set(context.planned.map(context.plannedKey));

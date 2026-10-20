@@ -15,6 +15,10 @@ O previsto, o avanço anterior ao período e as quantidades do período usam ape
 
 A associação automática usa o cadastro completo, antes do filtro. Quando tipo/sistema podem pertencer a várias propostas, o serviço fica pendente. Metas globais da principal também são candidatas; uma contribuição sem escopo estruturado exige vínculo explícito, em vez de presumir o dono pelo cadastro parcial das demais. O gestor resolve explicitamente; esconder a mãe nunca torna uma associação ambígua em única. Referências técnicas são resolvidas por IDs/chaves estáveis, sem inferir uma proposta somente por data, título ou TAG.
 
+Quando um grupo do escopo previsto tem **Proposta de origem** definida, a seleção desse escopo no RDO também registra sua proposta. O backend valida a seleção no projeto e grava `extraData.__proposalScope` com o projeto e a contribuição; metadados enviados pelo cliente são substituídos pelo cadastro validado. Essa origem tem prioridade sobre a inferência por tipo/sistema, inclusive se outro adicional estiver sem escopo. A conferência manual em `contributionAssignments` continua prevalecendo. Relatórios técnicos derivados acompanham o serviço de origem; técnicos independentes não usam esses metadados exclusivos do RDO.
+
+As opções de escopo distinguem proposta e nome. Dois grupos “Vasos” de propostas diferentes não são a mesma escolha. Rascunhos antigos que guardam só o nome continuam aceitos quando ele identifica uma única opção; se houver ambiguidade, a aplicação exige escolher o escopo novamente. Um único escopo com origem definida também registra a proposta, mesmo quando não há seletor na tela.
+
 Um RDO misto conserva os serviços/fotos do recorte, mas omite descrição, fotos gerais e observações gerais de horas extras/stand-by: esses dados podem descrever outras propostas. Equipe, DDS e jornada do RDO que contém o serviço são contexto diário compartilhado, não horas ou custos exclusivos atribuídos ao adicional. Um aviso registra as omissões. RDOs inteiramente atribuídos à proposta conservam também sua descrição e fotos gerais.
 
 O vínculo fica em `Report.contributionAssignments`, separado de `specialConditions` e dos IDs recriados na edição dos serviços. A chave usa o conteúdo do serviço/medição. Alterar esse conteúdo exige rever o vínculo. Registros de conteúdo idêntico recebem o mesmo vínculo e aparecem agrupados na interface. Uma atividade que efetivamente reúne escopos precisa ser registrada em serviços separados para permitir recortes exclusivos. Atribuições manuais têm histórico com autor, motivo e data. Após remoção de qualquer adicional, registros sem vínculo manual voltam à conferência; não migram automaticamente para a mãe.
@@ -27,6 +31,14 @@ A prévia mantém a identidade e o token do escopo preparado. Se revisão/metas 
 
 A atribuição de serviços usa transação, bloqueio do projeto e comparação da versão do relatório. Atualizações concorrentes/edições antigas retornam 409. O cache é invalidado depois da confirmação da transação.
 
+## Projetos anteriores à origem por proposta
+
+No caso investigado do projeto 5815, havia 32 RDOs aprovados, os grupos de APVs e “Extra Vaso compressor” estavam sem `contributionKey`, e os serviços não tinham atribuições por proposta. Selecionar o adicional 4586, portanto, não encontrava serviços atribuídos. O cadastro anterior do RDO guardava apenas o nome do escopo; o caminho de leitura para o formulário também não incluía a proposta do grupo. A ausência de escopo em outros adicionais impedia a inferência global. O diálogo de intervalo descartava os avisos do mapper, mostrando apenas zero, e filtrar uma proposta na revisão ocultava justamente os serviços pendentes.
+
+A correção preserva a origem nos novos salvamentos e exibe os avisos já na escolha do período, incluindo proposta sem escopo previsto. A revisão mantém os serviços pendentes visíveis mesmo com uma proposta filtrada e sugere essa proposta ao abrir o vínculo.
+
+Históricos que nunca registraram a origem precisam de conferência pela aplicação: atribua a proposta de origem ao grupo no editor do escopo para os próximos RDOs e use **Revisar vínculos dos serviços** para os relatórios anteriores. O vínculo operacional auditado não reemite nem altera o PDF assinado. Não há migração que deduza a proposta por nomes como “extra”, TAG ou proximidade de datas; selecionar um adicional comercial não comprova quais serviços históricos lhe pertencem. A publicação desta correção não altera dados existentes nem vincula automaticamente os RDOs do projeto 5815.
+
 ## API
 
 - `GET /api/acompanhamento/comercial/projetos/:id/escopos-propostas`: propostas, avanço independente, serviços e vínculos pendentes. Mesma autenticação do acompanhamento.
@@ -38,6 +50,8 @@ A atribuição de serviços usa transação, bloqueio do projeto e comparação 
 Aplicar `20261019210000_proposal_scope_databooks` antes de backend/frontend. Não é necessário habilitar o contrato adicional no ComercialAPP para usar os recortes de propostas já selecionadas. A ativação de push v3 continua seguindo `COMERCIALAPP_EXTRA_ESCOPO.md`.
 
 Os testes de integração usam exclusivamente `filtroapp_bridge_test`: principal Access e dois adicionais ComercialAPP com o mesmo tipo/sistema, vínculo explícito de um RDO misto, acumulado anterior exclusivo, três documentos para o mesmo período, troca da revisão A, prévia desatualizada e reabertura do histórico. O teste gera um PDF com Python/ReportLab e extrai seu texto com pypdf para confirmar a presença de A e a ausência da mãe/B. O mapper também verifica a separação de FDS/certificados/fotos. Os testes de interface são simulados apenas no transporte e exercitam os componentes de produção em 360, 768 e 1440 pixels.
+
+A regressão da origem por proposta reproduz oito dias de limpeza de dois vasos com outro adicional sem escopo: o Data Book inclui 8 RDOs e 2 RLQs sem criar atribuições de reparo. Também verifica o bootstrap e o salvamento HTTP do RDO, a substituição de metadados adulterados, seleções antigas, escopos homônimos, troca de projeto e prioridade da conferência manual. A interface verifica pendentes com filtro ativo e a identidade da proposta no seletor de escopos.
 
 ```sh
 cd backend

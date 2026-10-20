@@ -1,16 +1,22 @@
-import { projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
 
 export function assertRdoProjectContext(project, data, existingReport) {
   if (data.reportType !== 'RDO') return;
   const scopes = projectScopeOptions(project);
   for (const [index, service] of (data.services || []).entries()) {
     const scopeKey = service.extraData?.__scopeKey;
-    const scope = scopes.find(option => option.value === scopeKey);
+    const scope = findProjectScopeOption(scopes, scopeKey) || (!scopeKey && scopes.length === 1 ? scopes[0] : undefined);
     if (scopes.length > 1 && !scope) {
       throw Object.assign(new Error(`Selecione um escopo do projeto para o serviço ${index + 1}.`), { statusCode: 400 });
     }
-    if (scope) service.extraData.__scopeName = scope.name;
-    else if (service.extraData && typeof service.extraData === 'object') {
+    service.extraData = { ...service.extraData };
+    // Sempre derivado do cadastro atual, nunca de uma proposta enviada pelo cliente.
+    delete service.extraData.__proposalScope;
+    if (scope) {
+      service.extraData.__scopeKey = scope.value;
+      service.extraData.__scopeName = scope.name;
+      if (scope.contributionKey) service.extraData.__proposalScope = { projectId: project.id, contributionKey: scope.contributionKey };
+    } else {
       delete service.extraData.__scopeKey;
       delete service.extraData.__scopeName;
     }

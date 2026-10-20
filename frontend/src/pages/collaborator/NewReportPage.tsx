@@ -1,4 +1,4 @@
-import { projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
 import { ReportServiceScopeField, ReportWorkLocationField } from '../../components/reports/ReportProjectFields';
 import { ProjectSystemInput } from '../../components/projects/ProjectSystemInput';
 import { Shell } from '../../layout/Shell';
@@ -624,7 +624,7 @@ function SiteRdoFormPage() {
       if (effectiveServiceOnly && !serviceOnlySupportedTypes.has(type)) {
         return failRequired('Tipo de serviço com relatório independente disponível', target('serviceType'), 1);
       }
-      if (!effectiveServiceOnly && scopeOptions.length > 1 && !scopeOptions.some(option => option.value === data.__scopeKey)) return failRequired('Escopo', target('__scopeKey'), 1);
+      if (!effectiveServiceOnly && scopeOptions.length > 1 && !findProjectScopeOption(scopeOptions, data.__scopeKey)) return failRequired('Escopo', target('__scopeKey'), 1);
       if (!hasText(data.equipmentId)) return failRequired(type === 'inibicao' ? 'Embarcação' : 'Equipamento(s)', target('equipmentId'), 1);
       if (!hasText(data.system)) return failRequired('Sistema', target('system'), 1);
       if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
