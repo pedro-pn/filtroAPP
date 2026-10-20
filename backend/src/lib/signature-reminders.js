@@ -92,22 +92,14 @@ export function signatureReminderDueWhere(now = new Date()) {
 }
 
 export async function ensureReminderSignatureToken(signature, client = prisma, now = new Date()) {
-  if (hasEncryptedToken(signature)) {
+  if (hasEncryptedToken(signature) && signature.tokenExpiresAt && new Date(signature.tokenExpiresAt).getTime() > now.getTime()) {
     const token = decryptSignatureToken(encryptedTokenPayload(signature));
-    const expiresAt = tokenExpiresAt(now);
-    if (!signature.tokenHash || signature.tokenHash !== signatureTokenHash(token) || !signature.tokenExpiresAt || new Date(signature.tokenExpiresAt).getTime() <= now.getTime()) {
-      await client.reportSignature.update({
-        where: { id: signature.id },
-        data: {
-          tokenHash: signatureTokenHash(token),
-          tokenExpiresAt: expiresAt
-        }
-      });
-      return { token, expiresAt };
+    if (signature.tokenHash === signatureTokenHash(token)) {
+      return { token, expiresAt: signature.tokenExpiresAt };
     }
-    return { token, expiresAt: signature.tokenExpiresAt };
   }
 
+  // A reminder may issue a new link, but must never extend an expired link.
   const token = createSignatureToken();
   const encrypted = encryptSignatureToken(token);
   const expiresAt = tokenExpiresAt(now);

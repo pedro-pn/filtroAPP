@@ -1938,6 +1938,7 @@ model Report {
   clientReviews              ClientReportReview[]
   versions                   ReportVersion[]
   reportSignatures           ReportSignature[]
+  clientAccessTokens         ReportClientAccess[]
   auditLogs                  ReportAuditLog[]
   approvalPostProcessingJobs ReportApprovalPostProcessingJob[]
   maintenanceRecords         MaintenanceRecord[]
@@ -1993,6 +1994,21 @@ model ClientReportReview {
   clientUser   User?              @relation("ClientReportReviewer", fields: [clientUserId], references: [id], onDelete: SetNull)
 
   @@index([reportId, createdAt])
+}
+
+model ReportClientAccess {
+  id             String   @id @default(cuid())
+  reportId       String
+  recipientEmail String
+  tokenHash      String   @unique
+  expiresAt      DateTime
+  approvedAt     DateTime?
+  versionId      String?
+  createdAt      DateTime @default(now())
+  report         Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([expiresAt])
 }
 
 model ReportVersion {

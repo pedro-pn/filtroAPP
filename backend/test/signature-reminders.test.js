@@ -8,7 +8,7 @@ import {
   publicSignatureUrl,
   signatureReminderDueWhere
 } from '../src/lib/signature-reminders.js';
-import { encryptSignatureToken, signatureTokenHash } from '../src/lib/signature-token.js';
+import { decryptSignatureToken, encryptSignatureToken, signatureTokenHash } from '../src/lib/signature-token.js';
 
 test('signatureReminderDueWhere selects pending signatures every three days', () => {
   const now = new Date('2026-06-02T12:00:00.000Z');
@@ -61,6 +61,20 @@ test('ensureReminderSignatureToken reuses an encrypted signature token', async (
   assert.equal(result.token, token);
   assert.equal(result.expiresAt.toISOString(), '2026-06-10T12:00:00.000Z');
   assert.deepEqual(updates, []);
+});
+
+test('signature reminders rotate expired links instead of extending their original 30 days', async () => {
+  const token = 'expired-approval-link';
+  const now = new Date('2026-10-20T12:00:00Z');
+  let stored;
+  const result = await ensureReminderSignatureToken({
+    id: 'sig-expired', tokenHash: signatureTokenHash(token),
+    tokenExpiresAt: now, ...encryptSignatureToken(token)
+  }, { reportSignature: { async update({ data }) { stored = data; } } }, now);
+  assert.notEqual(result.token, token);
+  assert.equal(stored.tokenHash, signatureTokenHash(result.token));
+  assert.equal(decryptSignatureToken(stored), result.token);
+  assert.equal(result.expiresAt.getTime(), now.getTime() + 30 * 86_400_000);
 });
 
 test('processSignatureReminders sends a reusable public signing link and records cadence', async () => {

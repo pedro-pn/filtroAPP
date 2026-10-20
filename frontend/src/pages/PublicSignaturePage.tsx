@@ -4,20 +4,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   confirmPublicSignature,
+  getPublicReport,
   getPublicSignature,
   type PublicSignatureConfirmPayload,
   type PublicSignaturePayload,
   type PublicSignatureReportPayload,
   publicSignaturePdfUrl,
+  publicReportPdfUrl,
   rejectPublicSignature
 } from '../api/publicSignatures';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { SignatureDialog } from '../components/reports/SignatureDialog';
+import { PublicReportDocumentPreview } from '../components/reports/PublicReportDocumentPreview';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { Alert, Button, Card, Field, Skeleton, StatusPill, Textarea, type SemanticTone } from '../components/ui/ds';
 import { useToast } from '../components/ui/ToastContext';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
+import previewRdoPdf from '../assets/previews/rdo-assinatura-exemplo.pdf?url';
 
 import './RdoPublicPage.css';
 
@@ -43,15 +47,15 @@ const statusTone: Record<string, SemanticTone> = {
 
 const previewSignature: PublicSignaturePayload = {
   status: 'ACTIVE',
-  expiresAt: '2030-12-31T00:00:00.000Z',
+  expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
   signer: { signatureId: 'visual-preview', name: 'Marina Costa', prefillName: true, email: 'marina@exemplo.com', status: 'PENDING' },
-  report: { id: 'visual-preview', reportType: 'RDO', sequenceNumber: 5824, reportDate: '2026-09-30', status: 'APPROVED', sourceDocumentHash: 'visual-preview', project: { code: '5917', name: 'Ilha Solteira', clientName: 'Cliente de demonstração' } }
+  report: { id: 'visual-preview', reportType: 'RDO', sequenceNumber: 42, reportDate: '2026-10-20', status: 'APPROVED', sourceDocumentHash: 'visual-preview', project: { code: '5800', name: 'Projeto de demonstração', clientName: 'Cliente Exemplo' } }
 };
 
-export function PublicSignaturePage() {
+export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }) {
   const { token = '' } = useParams();
   const location = useLocation();
-  const preview = import.meta.env.DEV && new URLSearchParams(location.search).get('visualizar') === '1';
+  const preview = !readOnly && import.meta.env.DEV && new URLSearchParams(location.search).get('visualizar') === '1';
   const queryClient = useQueryClient();
   const showToast = useToast();
   const [signatureOpen, setSignatureOpen] = useState(false);
@@ -62,8 +66,12 @@ export function PublicSignaturePage() {
   const [previewSigned, setPreviewSigned] = useState(false);
 
   const signatureQuery = useQuery({
-    queryKey: ['public-signature', token],
-    queryFn: () => getPublicSignature(token),
+    queryKey: [readOnly ? 'public-report' : 'public-signature', token],
+    queryFn: async (): Promise<PublicSignaturePayload> => {
+      if (!readOnly) return getPublicSignature(token);
+      const data = await getPublicReport(token);
+      return { ...data, report: data.report ? { ...data.report, sourceDocumentHash: '' } : undefined };
+    },
     enabled: !!token && !preview
   });
 
@@ -106,7 +114,7 @@ export function PublicSignaturePage() {
       : [];
   const batchMode = reportItems.length > 1;
   const selectedItem = reportItems.find(item => item.signatureId === selectedSignatureId) || reportItems[0];
-  const canSign = !previewSigned && reportItems.some(item => item.status === 'ACTIVE');
+  const canSign = !readOnly && !previewSigned && reportItems.some(item => item.status === 'ACTIVE');
 
   function handleRejectSubmit(event: FormEvent) {
     event.preventDefault();
@@ -149,17 +157,17 @@ export function PublicSignaturePage() {
       <header className="rdo-public-header">
         <BrandLogo className="rdo-public-logo" />
       </header>
-      <Card className="rdo-public-card public-signature-card" padding="lg" title="Assinatura eletrônica">
+      <Card className="rdo-public-card public-signature-card" padding="lg" title={readOnly ? 'Consulta do RDO' : 'Assinatura eletrônica'}>
         {preview ? <Alert tone="info">Demonstração visual · nenhuma assinatura será enviada.</Alert> : null}
-        {!preview && signatureQuery.isLoading ? <Skeleton variant="text" lines={5} label="Carregando assinatura" /> : null}
+        {!preview && signatureQuery.isLoading ? <Skeleton variant="text" lines={5} label={readOnly ? 'Carregando RDO' : 'Carregando assinatura'} /> : null}
         {!preview && signatureQuery.isError ? (
-          <Alert tone="danger" title="Não foi possível carregar a assinatura">
+          <Alert tone="danger" title={readOnly ? 'Não foi possível carregar o RDO' : 'Não foi possível carregar a assinatura'}>
             {signatureQuery.error instanceof Error ? signatureQuery.error.message : 'Não foi possível carregar o link.'}
           </Alert>
         ) : null}
         {(preview || (!signatureQuery.isLoading && !signatureQuery.isError)) ? (
           <>
-            <StatusPill className="rdo-public-status" status={status} label={statusText[status] || status} tone={statusTone[status] || 'neutral'} />
+            <StatusPill className="rdo-public-status" status={status} label={readOnly && status === 'ACTIVE' ? 'Disponível para consulta' : statusText[status] || status} tone={statusTone[status] || 'neutral'} />
             {report ? (
               <dl className="rdo-public-details">
                 <div><dt>Projeto</dt><dd>{report.project.code} - {report.project.name}</dd></div>
@@ -171,11 +179,30 @@ export function PublicSignaturePage() {
                     <div><dt>Data</dt><dd>{formatDateOnlyPtBr(report.reportDate || '')}</dd></div>
                   </>
                 )}
-                <div><dt>Signatário</dt><dd>{signer?.name || '-'} ({signer?.email || '-'})</dd></div>
+                {!readOnly ? <div><dt>Signatário</dt><dd>{signer?.name || '-'} ({signer?.email || '-'})</dd></div> : null}
+                {readOnly && payload?.expiresAt ? <div><dt>Link válido até</dt><dd>{new Date(payload.expiresAt).toLocaleString('pt-BR')}</dd></div> : null}
               </dl>
             ) : (
-              <Alert tone="warning">Não foi possível localizar uma assinatura ativa para este link.</Alert>
+              <Alert tone="warning">{readOnly ? 'O link de consulta está inválido, expirado ou indisponível.' : 'Não foi possível localizar uma assinatura ativa para este link.'}</Alert>
             )}
+            {status === 'ACTIVE' && report ? (
+              readOnly ? <PublicReportDocumentPreview key={token} pdfUrl={publicReportPdfUrl(token)} title={`${report.reportType} ${report.sequenceNumber || ''}`.trim()} />
+                : reportItems.filter(item => item.status === 'ACTIVE').map(item => (
+                  <PublicReportDocumentPreview key={item.signatureId || item.report.id}
+                    pdfUrl={preview ? previewRdoPdf : publicSignaturePdfUrl(token, item.signatureId)}
+                    title={reportLabel(item)} />
+                ))
+            ) : null}
+            {readOnly && status === 'ACTIVE' && report ? (
+              <>
+                <p>Acesso para consulta e download, sem necessidade de assinatura.</p>
+                <div className="public-signature-actions public-report-actions">
+                  <a className="fv-button fv-button--primary" href={publicReportPdfUrl(token)} target="_blank" rel="noopener noreferrer">
+                    Baixar PDF do RDO
+                  </a>
+                </div>
+              </>
+            ) : null}
             {canSign ? (
               <>
                 <PrivacyNotice
@@ -194,7 +221,7 @@ export function PublicSignaturePage() {
                         </div>
                       ) : null}
                       <div className="public-signature-actions">
-                        <a className="fv-button fv-button--secondary fv-button--sm" href={preview ? '#' : publicSignaturePdfUrl(token, item.signatureId)} onClick={preview ? event => event.preventDefault() : undefined} aria-disabled={preview || undefined} target="_blank" rel="noopener noreferrer">
+                        <a className="fv-button fv-button--secondary fv-button--sm" href={preview ? previewRdoPdf : publicSignaturePdfUrl(token, item.signatureId)} target="_blank" rel="noopener noreferrer">
                           Abrir PDF
                         </a>
                         <Button size="sm" variant="primary" type="button" onClick={() => openSignatureDialog(item.signatureId)} disabled={!privacyAccepted || item.status !== 'ACTIVE'}>

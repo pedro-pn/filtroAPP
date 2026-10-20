@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
+import { reportApprovalAccessLink } from '../../lib/reports/client-access.js';
 import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
 import { isPressureHoseUnits } from '../../lib/reports/pressure-hose-measurement.js';
 import {
@@ -115,6 +116,7 @@ import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-m
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
 import historicalServicesRouter from './historical-services.js';
 import { registerReportReleaseRoutes } from './report-release-routes.js';
+import { registerReportPublicViewRoutes } from './report-public-view-routes.js';
 import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
@@ -274,34 +276,48 @@ export function projectEmailRecipients(project) {
   return { to: cc[0] || '', cc: cc.slice(1), recipients };
 }
 
-function queueApprovedReportNotification(report) {
+export async function sendApprovedReportNotifications(report, options = {}) {
+  const client = options.client || prisma;
+  const mailer = options.mailer || sendClientMail;
+  report = await client.report.findUnique({ where: { id: report.id }, include });
+  if (!report || isReportUnavailable(report) || ![ReportStatus.APPROVED, ReportStatus.SIGNED].includes(report.status)) return;
   if (report.project?.managerOnly) return;
   const { recipients } = projectEmailRecipients(report.project);
   if (!recipients.length) return;
 
-  const missingMailerConfig = getMissingMailerConfig();
+  const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
   if (clientEmailsEnabled() && missingMailerConfig.length) {
     console.warn('SMTP não configurado; notificação de aprovação não enviada.', missingMailerConfig.join(', '));
     return;
   }
 
-  const template = buildReportApprovedEmailTemplate({
-    projectCode: report.project?.code || '---',
-    projectName: report.project?.name || 'Sem projeto',
-    clientName: report.project?.clientName || 'Cliente',
-    reportType: report.reportType,
-    reportNumber: reportNumberLabel(report),
-    reportDate: formatDatePtBr(report.reportDate),
-    appUrl: env.appUrl || ''
-  });
+  const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS, { client });
+  await Promise.all(enabledRecipients.map(async recipient => {
+    const access = report.reportType === ReportType.RDO
+      ? await reportApprovalAccessLink(report, recipient.email, client)
+      : {};
+    const buildTemplate = options.reapproved ? buildReportReapprovedEmailTemplate : buildReportApprovedEmailTemplate;
+    const template = buildTemplate({
+      projectCode: report.project?.code || '---',
+      projectName: report.project?.name || 'Sem projeto',
+      clientName: report.project?.clientName || 'Cliente',
+      reportType: report.reportType,
+      reportNumber: reportNumberLabel(report),
+      reportDate: formatDatePtBr(report.reportDate),
+      appUrl: env.appUrl || '',
+      ...access
+    });
+    await mailer({
+      to: recipient.email,
+      ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+    });
+  }));
+}
 
+function queueApprovedReportNotification(report, options = {}) {
   setImmediate(async () => {
     try {
-      const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS);
-      await Promise.all(enabledRecipients.map(recipient => sendClientMail({
-        to: recipient.email,
-        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
-      })));
+      await sendApprovedReportNotifications(report, options);
     } catch (error) {
       console.error('Falha ao enviar notificação de aprovação do relatório.', {
         reportId: report.id,
@@ -313,41 +329,7 @@ function queueApprovedReportNotification(report) {
 }
 
 function queueReapprovedReportNotification(report) {
-  if (report.project?.managerOnly) return;
-  const { recipients } = projectEmailRecipients(report.project);
-  if (!recipients.length) return;
-
-  const missingMailerConfig = getMissingMailerConfig();
-  if (clientEmailsEnabled() && missingMailerConfig.length) {
-    console.warn('SMTP não configurado; notificação de reaprovação não enviada.', missingMailerConfig.join(', '));
-    return;
-  }
-
-  const template = buildReportReapprovedEmailTemplate({
-    projectCode: report.project?.code || '---',
-    projectName: report.project?.name || 'Sem projeto',
-    clientName: report.project?.clientName || 'Cliente',
-    reportType: report.reportType,
-    reportNumber: reportNumberLabel(report),
-    reportDate: formatDatePtBr(report.reportDate),
-    appUrl: env.appUrl || ''
-  });
-
-  setImmediate(async () => {
-    try {
-      const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS);
-      await Promise.all(enabledRecipients.map(recipient => sendClientMail({
-        to: recipient.email,
-        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
-      })));
-    } catch (error) {
-      console.error('Falha ao enviar notificação de reaprovação do relatório.', {
-        reportId: report.id,
-        projectId: report.projectId,
-        error: error?.message || error
-      });
-    }
-  });
+  queueApprovedReportNotification(report, { reapproved: true });
 }
 
 function queueClientRejectionNotification(report, comment) {
@@ -6148,6 +6130,11 @@ registerReportReleaseRoutes(router, {
   saveManualReportPdf, supersedeActiveReportVersions, createManualReportVersion,
   releasedServiceReportsAfterRdoSignature, queueReleasedServiceReportsEmailAfterRdoSignature,
   sendReleasedServiceReportsEmail
+});
+
+registerReportPublicViewRoutes(router, {
+  database: prisma, reportInclude: include, limiter: publicSignatureLimiter,
+  getReportPdfDownload, sendDownloadBuffer, projectEmailRecipients, hasActiveClientRejection
 });
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
