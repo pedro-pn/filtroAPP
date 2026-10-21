@@ -53,6 +53,10 @@ com banco chamado `filtroapp_notifications_test`, e ambas as variáveis
 node --test test/notification-center.integration.test.js
 ```
 
+O workflow `.github/workflows/ci.yml` executa esses testes no job
+`Notifications (PostgreSQL)`, com banco isolado e migrações aplicadas antes da
+validação. O job é executado nas PRs para `main`.
+
 A fixture `/test/browser/notification-center.html` usa o componente de produção
 com respostas simuladas, sem alterar dados reais. Executar
 `playwright-cli run-code --filename frontend/test/browser/notification-center.js`
