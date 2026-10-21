@@ -8,7 +8,7 @@
 }
 
 .additional-contribution__hint {
-  color: var(--ink-muted, #64748b);
+  color: var(--muted);
   font-size: var(--text-sm, 14px);
 }
 

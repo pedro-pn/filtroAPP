@@ -1732,7 +1732,7 @@
 .efetivo-day-conflict-flag {
   background: var(--rd);
   border-radius: 50%;
-  color: var(--wh);
+  color: var(--on-danger);
   display: inline-flex;
   font-size: 9px;
   height: 13px;
@@ -2777,7 +2777,7 @@
 .project-execution-scope-group ul { color: var(--mu); font-size: 12px; margin: 5px 0 0; padding-left: 18px; overflow-wrap: anywhere; }
 .project-execution-scope-hours { border-top: 1px solid var(--br); margin-top: 9px; padding-top: 9px; }
 .project-execution-scope-hours ul { color: var(--mu); font-size: 12px; margin: 5px 0 0; padding-left: 18px; }
-.project-execution-weekly > header > strong { background: var(--g); border-radius: 999px; color: var(--wh); flex: 0 0 auto; font-size: 11px; padding: 5px 9px; }
+.project-execution-weekly > header > strong { background: var(--brand); border-radius: 999px; color: var(--on-brand); flex: 0 0 auto; font-size: 11px; padding: 5px 9px; }
 .project-execution-weekly > header > strong.is-pending { background: var(--warning-bg); color: var(--warning-text); }
 .project-execution-weekly-form,
 .project-execution-weekly-preview,
