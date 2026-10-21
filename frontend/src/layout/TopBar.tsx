@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../auth/AuthContext';
 import { BrandLogo } from '../components/brand/BrandLogo';
+import { NotificationCenter } from '../components/notifications/NotificationCenter';
 import { AppIcon } from '../components/icons/AppIcon';
 import { IconButton } from '../components/ui/ds';
 import { ThemeToggle } from '../theme/ThemeToggle';
@@ -64,6 +65,7 @@ function LegacyTopBar({
 
   return (
     <header className="topbar-react">
+      <NotificationCenter />
       {leading}
       {showLogo ? (
         <div className="topbar-brand">
@@ -109,6 +111,7 @@ function DesignSystemTopBar({
   return (
     <header className="fv-ds fv-topbar">
       <div className="fv-topbar__leading">
+        {notifications ?? <NotificationCenter />}
         {onOpenMenu ? (
           <IconButton
             className="fv-topbar__menu"
@@ -145,7 +148,6 @@ function DesignSystemTopBar({
         {actions ? (
           <div className="fv-topbar__context-actions">{actions}</div>
         ) : null}
-        {notifications}
         {showThemeToggle ? <ThemeToggle /> : null}
         {profile ? (
           <button

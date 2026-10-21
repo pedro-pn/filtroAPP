@@ -195,3 +195,10 @@ test('autosave do romaneio não renova módulos que não receberam alterações'
   assert.deepEqual(updates.dataUpdatesForRequest('put', '/romaneio/drafts/d1'), ['romaneio-drafts']);
   assert.ok(updates.matchesDataUpdate(['report', 'r1'], updates.dataUpdatesForRequest('delete', '/rdo/uploads/file')));
 });
+
+test('central renova após eventos de projetos, relatórios, propostas e leituras', () => {
+  for (const path of ['/rdo/projects/p1', '/rdo/reports/r1/status', '/rdo/operational-reports/r1', '/acompanhamento/comercial/comercialapp/propostas', '/notifications/read-all']) {
+    assert.ok(updates.matchesDataUpdate(['notifications', 'user1', 'all'], updates.dataUpdatesForRequest('post', path)), path);
+  }
+  assert.deepEqual(updates.dataUpdatesForRequest('get', '/notifications'), []);
+});

@@ -212,6 +212,44 @@ jobs:
       - name: Verify planning contract, lifecycle, links and idempotency
         run: node --test test/crm-opportunities.test.js test/crm-opportunities.integration.test.js
 
+  notifications:
+    name: Notifications (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtroapp_notifications_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtroapp_notifications_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_notifications_test
+      TEST_NOTIFICATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_notifications_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify notification events, permissions, read state and API
+        run: node --test test/notification-center-migration.test.js test/notification-center.integration.test.js
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
