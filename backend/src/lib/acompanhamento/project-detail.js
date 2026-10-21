@@ -432,7 +432,8 @@ export async function getProjectDetail(projectId, {
       .map(field => [field, scaleProposalValue(division[field], row.proposalPercentage)])) };
   }
   const categoryWhere = await buildOmieCostCategoryWhere({
-    includeAdminOnly: includeAdminOnlyCategories
+    includeAdminOnly: includeAdminOnlyCategories,
+    excludeChemicalProducts: true
   });
 
   const [
