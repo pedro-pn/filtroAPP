@@ -2905,7 +2905,7 @@ a {
 .help-tip-portal {
   position: fixed; z-index: 9999;
   max-width: min(260px, 90vw); white-space: normal; text-align: left;
-  background: var(--wh); color: var(--tx); border: 1px solid var(--br); border-radius: var(--rs);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--rs);
   box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; font-weight: 400; line-height: 1.45;
   overflow-y: auto; pointer-events: none;
 }
