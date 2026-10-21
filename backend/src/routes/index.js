@@ -37,6 +37,7 @@ import workforceRouter from './workforce.js';
 import assinaturasRouter from './resources/assinaturas.js';
 import apiCredentialsRouter from './resources/api-credentials.js';
 import integrationsV1Router from './integrations/v1/index.js';
+import notificationsRouter from './resources/notifications.js';
 // module:scaffold import
 
 const router = Router();
@@ -67,6 +68,7 @@ const rdoRouter = Router();
 mountRdoRoutes(rdoRouter);
 
 router.use('/auth', authRouter);
+router.use('/notifications', notificationsRouter);
 router.use('/privacy', privacyRouter);
 router.use('/webhooks/projects', projectIntakeWebhookRouter);
 router.use('/rdo', rdoRouter);

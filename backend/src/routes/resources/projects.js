@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
-import { clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
+import { projectListWhereForAuth } from '../../lib/projects/access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import { ModuleRoleCodes } from '../../lib/module-roles.js';
@@ -14,6 +14,8 @@ import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { commercialProposalReference, commercialProposalSyncData } from '../../lib/projects/commercial-proposal-sync-state.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
+
+export { projectListWhereForAuth } from '../../lib/projects/access.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -282,41 +284,6 @@ function projectWithCurrentRoles(project) {
       user: link.user ? { ...link.user, collaborator: collaboratorWithCurrentRole(link.user.collaborator) } : link.user
     }))
   };
-}
-
-export async function projectListWhereForAuth(auth, activeParam, prismaClient = prisma, options = {}) {
-  const where = { deletedAt: null };
-  if (options.includeRegistrationPending === false) {
-    where.registrationPending = false;
-  }
-  if (auth.user.role === 'MANAGER') {
-    if (activeParam === 'true') where.isActive = true;
-    if (activeParam === 'false') where.isActive = false;
-  } else if (auth.user.role === 'COORDINATOR') {
-    where.managerOnly = false;
-    if (activeParam === 'true') where.isActive = true;
-    if (activeParam === 'false') where.isActive = false;
-  } else if (auth.user.role === 'CLIENT') {
-    Object.assign(where, await clientProjectAccessWhereWithSigners(prismaClient, auth));
-    if (activeParam === 'true') where.isActive = true;
-    if (activeParam === 'false') where.isActive = false;
-  } else {
-    const collaboratorId = auth.user.collaboratorId;
-    where.isActive = true;
-    where.managerOnly = false;
-    where.OR = [
-      {
-        visibleToCollaborators: true,
-        operatorId: collaboratorId || '__NO_MATCH__'
-      },
-      {
-        authorizedUsers: {
-          some: { userId: auth.user.id }
-        }
-      }
-    ];
-  }
-  return where;
 }
 
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {

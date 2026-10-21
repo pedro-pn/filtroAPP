@@ -1,0 +1,21 @@
+.notification-center-trigger { position: relative; display: inline-flex; flex: 0 0 auto; }
+.notification-center-count { position: absolute; top: -2px; right: -4px; min-width: 18px; padding: 1px 4px; border: 2px solid var(--surface); border-radius: 20px; background: var(--danger, #b42318); color: white; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; pointer-events: none; }
+.notification-center-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.notification-center-filters { display: flex; gap: var(--space-1); }
+.notification-center-hint { margin: var(--space-3) 0; color: var(--muted); font-size: var(--text-sm); }
+.notification-center-list { padding: 0; margin: 0; list-style: none; }
+.notification-center-item { border-bottom: 1px solid var(--line); }
+.notification-center-link { display: flex; width: 100%; gap: var(--space-3); padding: var(--space-4) var(--space-2); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.notification-center-item.is-unread { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
+.notification-center-link:hover { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
+.notification-center-link:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.notification-center-link:disabled { cursor: wait; opacity: .6; }
+.notification-center-item-icon { flex: 0 0 auto; color: var(--muted); padding-top: 2px; }
+.notification-center-copy { display: grid; min-width: 0; gap: var(--space-1); overflow-wrap: anywhere; }
+.notification-center-copy strong { font-size: var(--text-sm); }
+.notification-center-copy > span, .notification-center-copy time { color: var(--muted); font-size: var(--text-xs); }
+.notification-center-dot { display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--brand); }
+.notification-center-empty { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-8) var(--space-2); text-align: center; color: var(--muted); }
+.notification-center-empty p { margin: 0; }
+.notification-center-error { color: var(--danger, #b42318); font-size: var(--text-sm); }
+.notification-center-more { margin-top: var(--space-4); }

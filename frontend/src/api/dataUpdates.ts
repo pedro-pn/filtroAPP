@@ -39,6 +39,7 @@ export function dataUpdatesForRequest(method = 'get', url = ''): string[] {
     || /^\/admin\/api-credentials\/[^/]+\/test$/.test(path)) return [];
 
   let prefixes: string[] = [];
+  if (/^\/notifications(?:\/|$)/.test(path)) return ['notifications'];
   if (/^\/rdo\/projects(?:\/|$)/.test(path)) prefixes = projects;
   else if (/^\/rdo\/collaborators(?:\/|$)/.test(path)) prefixes = collaborators;
   else if (/^\/rdo\/(reports|public-signatures)(?:\/|$)/.test(path) || /^\/reports\/public-sign\//.test(path)) prefixes = [...reports, 'public-signature', 'signature-validation'];
@@ -68,7 +69,8 @@ export function dataUpdatesForRequest(method = 'get', url = ''): string[] {
   else if (/^\/assinaturas(?:\/|$)/.test(path)) prefixes = ['assinaturas', 'signature-validation', 'project-documents', 'project-workflow', 'project-workflows', 'project-closeout'];
   else if (/^\/privacy(?:\/|$)/.test(path)) prefixes = ['privacy-requests'];
   else if (path === '/auth/account' || path === '/auth/confirm-email-change' || /^\/auth\/notification-preferences\//.test(path)) prefixes = ['users', 'equipamentos'];
-  return [...new Set(prefixes)];
+  const createsNotifications = /^\/(rdo\/(projects|reports|operational-reports)|acompanhamento\/comercial|efetivo|workforce|admin\/accounts)(?:\/|$)/.test(path);
+  return [...new Set(createsNotifications && prefixes.length ? [...prefixes, 'notifications'] : prefixes)];
 }
 
 export function notifyDataWrite(method?: string, url?: string) {

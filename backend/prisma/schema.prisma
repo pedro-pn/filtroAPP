@@ -973,6 +973,7 @@ model Project {
   updatedAt                  DateTime                           @updatedAt
   deletedAt                  DateTime?
   operator                   Collaborator?                      @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  notificationEvents         NotificationEvent[]
   reportSequences            ProjectReportSeq[]
   authorizedUsers            ProjectAuthorizedUser[]
   reports                    Report[]
@@ -2070,6 +2071,7 @@ model Report {
   reportSignatures           ReportSignature[]
   clientAccessTokens         ReportClientAccess[]
   auditLogs                  ReportAuditLog[]
+  notificationEvents         NotificationEvent[]
   approvalPostProcessingJobs ReportApprovalPostProcessingJob[]
   maintenanceRecords         MaintenanceRecord[]
   chemicalCleanings          ChemicalCleaning[]
@@ -2836,6 +2838,7 @@ model User {
   completedDataSubjectRequests         DataSubjectRequest[]                @relation("DataSubjectRequestCompletedByUser")
   identityVerifiedDataSubjectRequests  DataSubjectRequest[]                @relation("DataSubjectRequestIdentityVerifiedByUser")
   dataSubjectResponseAttempts          DataSubjectRequestResponseAttempt[] @relation("DataSubjectRequestResponseAttemptUser")
+  notificationReads                    NotificationRead[]
   notificationPreferenceTokens         NotificationPreferenceToken[]
   accessImports                        AccessImport[]                      @relation("AccessImportUser")
   selectedBudgets                      ProjectBudget[]                     @relation("ProjectBudgetSelectedBy")
@@ -4330,4 +4333,33 @@ model SignatureDocumentCompletionNotification {
 
   @@index([status, nextAttemptAt])
   @@index([createdAt])
+}
+
+// Eventos globais; o destinatário é resolvido pelas permissões atuais em cada consulta.
+model NotificationEvent {
+  id        String   @id @default(cuid())
+  kind      String
+  dedupeKey String   @unique
+  projectId String
+  reportId  String?
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  report    Report?  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reads     NotificationRead[]
+
+  @@index([createdAt, id])
+  @@index([projectId, kind])
+  @@index([reportId])
+}
+
+model NotificationRead {
+  userId         String
+  notificationId String
+  readAt         DateTime          @default(now())
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification   NotificationEvent @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, notificationId])
+  @@index([notificationId])
 }

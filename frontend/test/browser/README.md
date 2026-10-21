@@ -1,5 +1,12 @@
 # Search regression in a browser
 
+For the notification center, open `/test/browser/notification-center.html` and run
+`playwright-cli run-code --filename frontend/test/browser/notification-center.js`.
+It covers pagination/retry, individual and bulk reads, persistence after reload,
+failed reads, account isolation, keyboard focus and mobile layout at 390/320 px.
+The API is simulated; no real records or emails are changed. Deployment requires
+migration `20261021120000_notification_center` before starting the updated API.
+
 For management notes in merged projects, open `/test/browser/project-scopes.html?grupo=1&notas=1`
 and run `playwright-cli run-code --filename frontend/test/browser/project-management-notes.js`.
 The production dashboard uses a simulated API. It checks notes from visible group members,
