@@ -67,3 +67,63 @@ test('categorias exclusivas de admin são omitidas somente para as demais contas
     prisma.omiePurchase.groupBy = originalPurchaseGroupBy;
   }
 });
+
+test('químicos do Omie são excluídos somente nos projetos com saída de químicos em romaneio', async t => {
+  const originalCategoryFindMany = prisma.omieCategory.findMany;
+  const originalPurchaseGroupBy = prisma.omiePurchase.groupBy;
+  t.after(() => {
+    prisma.omieCategory.findMany = originalCategoryFindMany;
+    prisma.omiePurchase.groupBy = originalPurchaseGroupBy;
+  });
+  prisma.omieCategory.findMany = async ({ where }) => {
+    if (where.includeInAcompanhamentoCosts === false) return [{ codigo: 'manual' }];
+    if (where.adminOnly === true) return [{ codigo: 'admin' }];
+    return [
+      { codigo: 'chemical-catalog', descricao: 'PRODUTOS QUÍMICOS' },
+      { codigo: 'other', descricao: 'Insumos petroquímicos' }
+    ];
+  };
+  prisma.omiePurchase.groupBy = async () => [
+    { categoriaCodigo: 'chemical-legacy', categoriaDescricao: 'Compra de produtos quimicos' },
+    { categoriaCodigo: null, categoriaDescricao: 'Químicos' },
+    { categoriaCodigo: 'cleaning', categoriaDescricao: 'Serviços de limpeza química' },
+    { categoriaCodigo: 'other', categoriaDescricao: 'Insumos petroquímicos' }
+  ];
+
+  const where = await buildOmieCostCategoryWhere({
+    excludeChemicalProducts: true,
+    includeAdminOnly: false
+  });
+  const baseOmittedCodes = where.AND[0].OR[1].categoriaCodigo.notIn;
+  assert.ok(baseOmittedCodes.includes('manual'));
+  assert.ok(baseOmittedCodes.includes('admin'));
+  assert.ok(!baseOmittedCodes.includes('chemical-catalog'));
+  assert.ok(!baseOmittedCodes.includes('chemical-legacy'));
+  const [fallback, chemicalFilter] = where.AND[1].OR;
+  assert.deepEqual(fallback, { project: { stockMovements: { none: {
+    type: 'SAIDA', reason: 'USO_EM_PROJETO', quantity: { gt: 0 },
+    item: { type: 'PRODUTO_QUIMICO' }, romaneio: { type: 'OUTBOUND' }, reversedBy: null
+  } } } });
+  const omittedCodes = chemicalFilter.AND[0].OR[1].categoriaCodigo.notIn;
+  assert.deepEqual(omittedCodes, ['chemical-catalog', 'chemical-legacy']);
+  assert.ok(!omittedCodes.includes('cleaning'));
+  assert.ok(!omittedCodes.includes('other'));
+  assert.deepEqual(chemicalFilter.AND[0].OR[0], { categoriaCodigo: null });
+  assert.deepEqual(chemicalFilter.AND[1], {
+    OR: [
+      { categoriaDescricao: null },
+      { categoriaDescricao: { notIn: ['Compra de produtos quimicos', 'Químicos'] } }
+    ]
+  });
+
+  // A sede mantém a apuração financeira do Omie, sem trocar compras por consumo.
+  const sedeWhere = await buildOmieCostCategoryWhere();
+  assert.ok(!sedeWhere.AND[0].OR[1].categoriaCodigo.notIn.includes('chemical-catalog'));
+  assert.equal(sedeWhere.AND.length, 1);
+
+  const selectedCategory = await buildOmieCostCategoryWhere({
+    categoryCode: 'chemical-catalog', excludeChemicalProducts: true
+  });
+  assert.deepEqual(selectedCategory.AND[0], { categoriaCodigo: 'chemical-catalog' });
+  assert.ok(selectedCategory.AND[2].OR[1].AND[0].OR[1].categoriaCodigo.notIn.includes('chemical-catalog'));
+});

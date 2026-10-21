@@ -880,10 +880,11 @@ async function listCommercialDashboardUncached({
   includeProgress = true
 } = {}) {
   const projectIdFilter = projectIds ? { in: projectIds } : { not: null };
-  // Salários do Omie nunca entram no realizado (serão calculados no app via ponto).
+  // Salários vêm do ponto; químicos usam Omie até haver saída no romaneio.
   const categoryWhere = await buildOmieCostCategoryWhere({
     categoryCode,
-    includeAdminOnly: includeAdminOnlyCategories
+    includeAdminOnly: includeAdminOnlyCategories,
+    excludeChemicalProducts: true
   });
   const realizedWhere = {
     projectId: projectIdFilter,

@@ -117,3 +117,32 @@ test('getStockConsumptionCostByProject busca movimentos de projeto e custo das c
   assert.deepEqual(calls[1].where.batchId, { in: ['batch-1'] });
   assert.equal(result.get('project-1').total, 55);
 });
+
+test('romaneios custeiam somente a quantidade enviada e descontam as sobras na entrada', async () => {
+  const movements = [
+    stockMovement({ romaneioId: 'outbound-1', quantity: '7.500' }),
+    stockMovement({ romaneioId: 'outbound-2', quantity: '2.500' })
+  ];
+  const client = {
+    stockMovement: {
+      findMany: async ({ where }) => where.reason?.in
+        ? movements
+        : [purchaseMovement({ quantity: 100, unitCost: '12.50' })]
+    }
+  };
+
+  // Compra de R$ 1.250,00; somente 10 kg enviados à obra entram no custo.
+  assert.equal((await getStockConsumptionCostByProject(['project-1'], client)).get('project-1').total, 125);
+
+  movements.push(stockMovement({
+    romaneioId: 'inbound-1', type: 'ENTRADA', reason: 'DEVOLUCAO_OBRA', quantity: '2.000'
+  }));
+  assert.equal((await getStockConsumptionCostByProject(['project-1'], client)).get('project-1').total, 100);
+
+  movements.push(stockMovement({
+    romaneioId: 'inbound-2', type: 'ENTRADA', reason: 'DEVOLUCAO_OBRA', quantity: '8.000'
+  }));
+  assert.deepEqual((await getStockConsumptionCostByProject(['project-1'], client)).get('project-1'), {
+    total: 0, categories: []
+  });
+});
