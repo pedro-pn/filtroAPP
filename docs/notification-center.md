@@ -1,6 +1,6 @@
 # Central de notificações
 
-O sininho fica à esquerda do header, nas duas versões do layout. A central tem
+O sininho fica à direita do header, nas duas versões do layout. A central tem
 contador de não lidas, filtros Todas/Não lidas, paginação, atualização manual e
 atualização automática a cada 30 segundos enquanto a aba está ativa. Abrir um
 aviso salva a leitura para aquela conta e leva à área correspondente. Abrir o

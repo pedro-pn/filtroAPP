@@ -65,7 +65,6 @@ function LegacyTopBar({
 
   return (
     <header className="topbar-react">
-      <NotificationCenter />
       {leading}
       {showLogo ? (
         <div className="topbar-brand">
@@ -79,7 +78,7 @@ function LegacyTopBar({
         </div>
       )}
       {step ? <div className="topbar-step">{step}</div> : null}
-      {canShowModulesButton || actions ? (
+      {user || actions ? (
         <div className="topbar-actions-react">
           {canShowModulesButton ? (
             <button
@@ -91,6 +90,7 @@ function LegacyTopBar({
             </button>
           ) : null}
           {actions}
+          <NotificationCenter />
         </div>
       ) : null}
     </header>
@@ -111,7 +111,6 @@ function DesignSystemTopBar({
   return (
     <header className="fv-ds fv-topbar">
       <div className="fv-topbar__leading">
-        {notifications ?? <NotificationCenter />}
         {onOpenMenu ? (
           <IconButton
             className="fv-topbar__menu"
@@ -148,6 +147,7 @@ function DesignSystemTopBar({
         {actions ? (
           <div className="fv-topbar__context-actions">{actions}</div>
         ) : null}
+        {notifications ?? <NotificationCenter />}
         {showThemeToggle ? <ThemeToggle /> : null}
         {profile ? (
           <button

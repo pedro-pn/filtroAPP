@@ -11,6 +11,7 @@ import { ThemeProvider } from '../../src/theme/ThemeProvider';
 import '../../src/styles/variables.css';
 import '../../src/styles/foundation.css';
 import '../../src/layout/AppShell.css';
+import '../../src/styles/legacy.css';
 
 const state = { userId: 'manager', failRead: false, failList: false, failPage: false, failAll: false, read: JSON.parse(sessionStorage.getItem('notification-fixture-reads') || '{}') as Record<string, string[]> };
 Object.assign(window, { notificationFixture: state });
@@ -55,7 +56,9 @@ function Fixture() {
   return <AuthContext.Provider value={{ user, token: 'fake', isAuthenticated: true, isBootstrapping: false,
     login: async () => {}, logout: async () => {}, refreshUser: async () => {}, replaceUser: () => {} }}>
     <ThemeProvider>
-      <TopBar appearance="design-system" title="Projetos" profile={{ name: 'Conta de teste' }} />
+      {new URLSearchParams(location.search).get('header') === 'legacy'
+        ? <TopBar title="Projetos" showLogo={false} />
+        : <TopBar appearance="design-system" title="Projetos" profile={{ name: 'Conta de teste' }} />}
       <main className="fv-ds" style={{ padding: 24 }}>
         <h1>Central de notificações</h1>
         <button onClick={() => { const next = userId === 'manager' ? 'equipment' : 'manager'; state.userId = next; setUserId(next); }}>Trocar conta</button>
