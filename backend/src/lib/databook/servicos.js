@@ -1,5 +1,6 @@
 import { projectRdoService } from '../api-credentials/rdo-projection.js';
 import { quantidadeDoServico } from './progresso.js';
+import { materialSelection, orderedCleaningStages, selectedChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 
 // Serviço do RDO → relatório técnico do Data Book (RLF/RLI ficam fora por decisão do projeto).
 export const TIPO_POR_SERVICO = {
@@ -136,6 +137,13 @@ export function montarServico({ service, derivado = null, concluidas = 0, contad
   if (l) out.laudo = l;
   if (!out.relatorio) out.laudo_observacao = finalizado ? 'Não emitido' : `Em andamento – ${tipoDb} emitido na finalização`;
   if (tipoDb === 'RLQ') {
+    const productsData = service.extraData?.chemicalProducts || service.extraData?.['Produtos químicos utilizados']
+      ? service.extraData : derivado?.specialConditions?.serviceData || service.extraData || {};
+    out.etapas = orderedCleaningStages(out.etapas, { ...productsData, material: out.material });
+    if (Array.isArray(productsData.chemicalProducts ?? productsData['Produtos químicos utilizados'])) {
+      out.materialSelection = materialSelection({ ...productsData, material: out.material });
+      out.chemicalProducts = selectedChemicalProducts(productsData);
+    }
     out.rlq = out.relatorio;
     out.metodo = juntar(sd.cleaningMethods);
     out.inspecao = juntar(sd.inspectionTypes);

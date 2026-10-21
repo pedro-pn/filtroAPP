@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { formatCnpj } from './cnpj.js';
 import { buildReportCollaboratorRows } from './report-collaborators.js';
+import { reportWorkLocation } from '../../../shared/modules/rdo-project-context.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -459,7 +460,7 @@ export async function buildReportPdf(report, prisma) {
     y -= 22;
     tableRow([
       { text: 'Local', bold: true, color: COLORS.gray },
-      { text: report.specialConditions?.workLocation || report.project.location || '—' },
+      { text: reportWorkLocation(report.project, report.specialConditions?.workLocation) || report.project.location || '—' },
       { text: 'Proposta', bold: true, color: COLORS.gray },
       { text: report.project.contractCode || '—' }
     ], widths, y, 22, { fill: COLORS.white });

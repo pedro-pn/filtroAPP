@@ -8,12 +8,7 @@ import { readStoredImageAsset, resolveStoredUploadPath } from '../stored-image.j
 import { currentCalibrationCertificateInclude } from '../calibration-certificates.js';
 import { resolvePublicStockAttachment } from '../estoque/stock-attachments.js';
 import { dataPt } from './servicos.js';
-
-// Ordem das etapas de limpeza química no formulário do RDO (ServiceFields.tsx).
-const ORDEM_ETAPAS_RLQ = [
-  'Montagem do sistema', 'Teste de estanqueidade', 'Desengraxe', 'Fase ácida', 'Fase sequestrante',
-  'Fase neutralizante', 'Fase passivante', 'Secagem', 'Desmontagem do sistema', 'Inspeção por boroscopia'
-];
+import { CLEANING_STAGES, orderedCleaningStages } from '../../../../shared/modules/rdo-material.js';
 
 export function normalizarNome(texto) {
   return String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -30,8 +25,8 @@ export function etapasProdutoDosRlqs(dias) {
   for (const dia of dias) {
     for (const s of dia.servicos) {
       if (s.tipo !== 'RLQ') continue;
-      for (const etapa of s.etapas || []) {
-        const produto = getProductForStep(etapa, s.material) || null;
+      for (const etapa of orderedCleaningStages(s.etapas, s)) {
+        const produto = getProductForStep(etapa, s.material, s) || null;
         const atual = vistas.get(etapa);
         // Inox e aço carbono podem dar produtos diferentes na mesma etapa: une os dois.
         const produtos = new Set([...separarProdutos(atual?.produto), ...separarProdutos(produto)]);
@@ -40,8 +35,8 @@ export function etapasProdutoDosRlqs(dias) {
     }
   }
   const ordem = etapa => {
-    const i = ORDEM_ETAPAS_RLQ.indexOf(etapa);
-    return i < 0 ? ORDEM_ETAPAS_RLQ.length : i;
+    const i = CLEANING_STAGES.indexOf(etapa);
+    return i < 0 ? CLEANING_STAGES.length : i;
   };
   return [...vistas.values()].sort((a, b) => ordem(a.etapa) - ordem(b.etapa));
 }

@@ -1,4 +1,5 @@
-import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations, reportWorkLocation } from '../../../shared/modules/rdo-project-context.js';
+import { cleaningChemicalSelectionLabel, hasRequiredCleaningChemicalProducts, materialSelection, selectedChemicalProducts } from '../../../shared/modules/rdo-material.js';
 import { ReportServiceScopeField, ReportWorkLocationField } from '../components/reports/ReportProjectFields';
 import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { legacyServiceData, serviceFinalizedValue } from './reportDetailServiceData';
@@ -56,7 +57,7 @@ import {
 } from '../components/ui/ds';
 import { DS_ICONS } from '../components/ui/ds/icons';
 import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../components/ui/photoDeletionStaging';
-import type { Collaborator, Equipment, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
+import type { Collaborator, Equipment, Project, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
@@ -313,7 +314,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
     projectId: report.projectId,
     sequenceNumber: report.sequenceNumber ? String(report.sequenceNumber) : '',
     reportDate: toDateInput(report.reportDate),
-    workLocation: getString(specialConditions.workLocation) || (projectWorkLocations(report.project).length <= 1 ? report.project.location || '' : ''),
+    workLocation: reportWorkLocation(report.project, specialConditions.workLocation),
     arrivalTime: report.arrivalTime || '',
     departureTime: report.departureTime || '',
     lunchBreak: report.lunchBreak || '',
@@ -365,6 +366,7 @@ function buildPayload(
     collaborators: Collaborator[] | undefined;
     equipment: Equipment[] | undefined;
     units: Unit[] | undefined;
+    project?: Project | null;
   },
   options: {
     acceptOvertime?: boolean;
@@ -418,7 +420,7 @@ function buildPayload(
       : {
           ...asRecord(report.specialConditions),
           ...manualServiceData,
-          workLocation: form.workLocation,
+          workLocation: reportWorkLocation(resources.project || report.project, form.workLocation),
           standby: form.standby,
           noturno: form.noturno,
           standbyDetails: {
@@ -812,6 +814,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       return false;
     }
     setInvalidSystemTypeServiceId(null);
+    const invalidOtherMaterial = form.services.find(service => materialSelection(service.data) === 'Outro' && !String(service.data.material || '').trim());
+    if (invalidOtherMaterial) {
+      showToast('Informe o outro material do serviço.', 'error');
+      document.getElementById(`svc-${invalidOtherMaterial.id}-material-outro`)?.focus();
+      return false;
+    }
+    const missingChemicalProducts = form.services.find(service => normalizeServiceType(service.type) === 'limpeza'
+      && !hasRequiredCleaningChemicalProducts(service.data));
+    if (missingChemicalProducts) {
+      showToast(`Selecione ${cleaningChemicalSelectionLabel(missingChemicalProducts.data).toLowerCase()} na limpeza química.`, 'error');
+      document.getElementById(`svc-${missingChemicalProducts.id}-chemical-products-label`)?.parentElement?.querySelector('input')?.focus();
+      return false;
+    }
     if (!serviceReportMode) {
       const missingFinalizationIndex = form.services.findIndex(service => typeof service.data.finalized !== 'boolean');
       if (missingFinalizationIndex >= 0) {
@@ -859,7 +874,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       const payload = buildPayload(report, form, {
         collaborators,
         equipment,
-        units
+        units,
+        project: selectedProject
       }, {
         acceptOvertime
       });
@@ -1489,6 +1505,8 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
     if (metodos) rows.push({ label: 'Método', value: metodos });
     if (local) rows.push({ label: 'Local', value: local });
     if (inspecao) rows.push({ label: 'Inspeção', value: inspecao });
+    const products = selectedChemicalProducts(data);
+    if (cleaningChemicalSelectionLabel(data) && products.length) rows.push({ label: cleaningChemicalSelectionLabel(data), value: products.join(', ') });
   }
 
   if (type === 'pressao') {

@@ -6,6 +6,7 @@ import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { ClientReviewAction, Prisma, ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } from '@prisma/client';
 import { z } from 'zod';
+import { cleaningChemicalOptions, materialSelection, selectedChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
@@ -4857,6 +4858,17 @@ export function buildHistoricalServiceData(currentFields, serviceHistory) {
     }
   }
   if (allSteps.length) data['Etapas realizadas no dia'] = allSteps;
+
+  const chemicalOptions = cleaningChemicalOptions(data);
+  if (chemicalOptions.length) {
+    const chemicalProducts = [...new Set([data, ...serviceHistory.map(item => item.fields)]
+      .filter(fields => materialSelection(fields) === materialSelection(data))
+      .flatMap(fields => selectedChemicalProducts(fields)))].filter(product => chemicalOptions.includes(product));
+    if (chemicalProducts.length) {
+      data.chemicalProducts = chemicalProducts;
+      data['Produtos químicos utilizados'] = chemicalProducts;
+    }
+  }
 
   const hasParticleData = serviceHistory.some(item => (
     isYesReportField(getReportField(item.fields, ['Houve contagem de partículas?', 'Houve contagem de particulas?'])) ||

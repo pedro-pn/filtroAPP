@@ -10,5 +10,6 @@ export interface RdoScopeOption {
   contributionKey?: string | null;
 }
 export function projectWorkLocations(project?: RdoProjectContext | null): string[];
+export function reportWorkLocation(project?: RdoProjectContext | null, savedLocation?: unknown): string;
 export function projectScopeOptions(project?: RdoProjectContext | null): RdoScopeOption[];
 export function findProjectScopeOption(options: RdoScopeOption[], value: unknown): RdoScopeOption | undefined;

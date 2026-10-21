@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 
 import { REPORT_FILE_SUFFIX } from '../report-filename.js';
+import { projectWorkLocations, reportWorkLocation } from '../../../../shared/modules/rdo-project-context.js';
 
 function conflict(message) {
   return Object.assign(new Error(message), { statusCode: 409 });
@@ -25,7 +26,8 @@ export function assertReportCanRegenerate(report) {
 }
 
 function contentToken(report) {
-  return JSON.stringify([report.updatedAt, report.project?.updatedAt, report.project?.code, report.project?.name]);
+  return JSON.stringify([report.updatedAt, report.project?.updatedAt, report.project?.code, report.project?.name,
+    report.project?.location, report.project?.additionalWorkLocations]);
 }
 
 // Renderiza em arquivos separados antes de publicar. Assim, uma assinatura ou
@@ -46,9 +48,14 @@ export function createReportRegenerator({ database, include, isUnavailable, gene
         throw Object.assign(new Error('Relatório não encontrado.'), { statusCode: 404 });
       }
       assertReportCanRegenerate(report);
-      saved = await generatePdf({ ...report, [REPORT_FILE_SUFFIX]: `atualizado-${randomUUID()}` });
+      const refreshLocation = report.reportType === 'RDO' && projectWorkLocations(report.project).length === 1
+        && report.specialConditions?.workLocation !== reportWorkLocation(report.project, report.specialConditions?.workLocation);
+      const prepared = refreshLocation ? { ...report, specialConditions: {
+        ...report.specialConditions, workLocation: reportWorkLocation(report.project, report.specialConditions?.workLocation)
+      } } : report;
+      saved = await generatePdf({ ...prepared, [REPORT_FILE_SUFFIX]: `atualizado-${randomUUID()}` });
       const hash = createHash('sha256').update(await fs.readFile(saved.targetPath)).digest('hex');
-      await writeMetadata(saved.targetPath, report);
+      await writeMetadata(saved.targetPath, prepared);
 
       const signatureRound = await database.$transaction(async tx => {
         // Usa a mesma trava das assinaturas internas antes de trocar o PDF-base.
@@ -60,13 +67,17 @@ export function createReportRegenerator({ database, include, isUnavailable, gene
         // linhas também para detectar assinaturas concluídas durante a geração.
         await tx.$queryRawUnsafe('SELECT id FROM "ReportSignature" WHERE "reportId" = $1 FOR UPDATE', String(id));
         await tx.$queryRawUnsafe('SELECT id FROM "Report" WHERE id = $1 FOR UPDATE', String(id));
-        const current = await tx.report.findUniqueOrThrow({ where: { id }, include });
+        let current = await tx.report.findUniqueOrThrow({ where: { id }, include });
         if (isUnavailable(current)) {
           throw Object.assign(new Error('Relatório não encontrado.'), { statusCode: 404 });
         }
         assertReportCanRegenerate(current);
         if (contentToken(current) !== contentToken(report)) {
           throw conflict('O relatório ou projeto foi alterado durante a geração. Tente novamente.');
+        }
+        if (refreshLocation) {
+          current = await tx.report.update({ where: { id }, data: { specialConditions: prepared.specialConditions }, include });
+          await writeMetadata(saved.targetPath, current);
         }
         const nextRound = await replaceSignatureRound(tx, current, saved, hash, context);
         if (!nextRound) {

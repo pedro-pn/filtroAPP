@@ -26,7 +26,14 @@ async function fixture(t, initial = report(), options = {}) {
   let current = initial;
   const tx = {
     $queryRawUnsafe: async (_query, id) => assert.equal(id, initial.id),
-    report: { findUniqueOrThrow: async () => current },
+    report: {
+      findUniqueOrThrow: async () => current,
+      update: async args => {
+        updates.push(['report', args]);
+        current = { ...current, ...args.data, updatedAt: new Date('2026-10-06T12:00:00Z') };
+        return current;
+      }
+    },
     reportVersion: { update: async args => updates.push(['version', args]) },
     reportSignature: { updateMany: async args => updates.push(['signatures', args]) }
   };
@@ -44,7 +51,7 @@ async function fixture(t, initial = report(), options = {}) {
       current = options.currentAfterGenerate || initial;
       return { targetPath, fileName, publicUrl: `/relatorios/${encodeURIComponent(fileName)}` };
     },
-    writeMetadata: async (file, item) => fs.writeFile(`${file}.meta.json`, JSON.stringify({ reportId: item.id })),
+    writeMetadata: async (file, item) => fs.writeFile(`${file}.meta.json`, JSON.stringify({ reportId: item.id, updatedAt: item.updatedAt, workLocation: item.specialConditions?.workLocation })),
     pdfTarget: () => ({ targetPath: canonical }),
     replaceSignatureRound: options.replaceSignatureRound || (async () => null),
     notifySignatureRound: options.notifySignatureRound || (async () => ({ ok: true }))
@@ -60,6 +67,30 @@ test('regeneration replaces pending PDF and DOCX with the current project name w
   assert.equal(await fs.readFile(canonical.replace(/\.pdf$/, '.docx'), 'utf8'), 'DOCX Nome atualizado');
   assert.equal(initial.status, 'PENDING');
   assert.equal((await fs.readdir(root)).length, 3);
+  assert.deepEqual(updates, []);
+});
+
+test('reemitir atualiza o local único no documento, no RDO salvo e nos metadados do PDF', async t => {
+  const initial = report({ project: { code: 'P-100', name: 'Projeto', location: 'Local atualizado' },
+    specialConditions: { workLocation: 'Local anterior', standby: true } });
+  const { regenerate, canonical, updates } = await fixture(t, initial, {
+    onGenerate: item => assert.equal(item.specialConditions.workLocation, 'Local atualizado')
+  });
+  await regenerate(initial.id);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0][1].data.specialConditions, { workLocation: 'Local atualizado', standby: true });
+  const metadata = JSON.parse(await fs.readFile(`${canonical}.meta.json`, 'utf8'));
+  assert.equal(metadata.workLocation, 'Local atualizado');
+  assert.equal(metadata.updatedAt, '2026-10-06T12:00:00.000Z');
+});
+
+test('reemitir preserva a escolha de local nos projetos com vários locais', async t => {
+  const initial = report({ project: { code: 'P-100', name: 'Projeto', location: 'Oficina', additionalWorkLocations: ['Canteiro'] },
+    specialConditions: { workLocation: 'Canteiro' } });
+  const { regenerate, updates } = await fixture(t, initial, {
+    onGenerate: item => assert.equal(item.specialConditions.workLocation, 'Canteiro')
+  });
+  await regenerate(initial.id);
   assert.deepEqual(updates, []);
 });
 
@@ -114,7 +145,8 @@ test('a signature or content change during conversion preserves the previous PDF
   for (const currentAfterGenerate of [
     report({ reportSignatures: [{ status: 'SIGNED' }] }),
     report({ updatedAt: new Date('2026-10-05T13:00:00Z') }),
-    report({ project: { code: 'P-100', name: 'Outra alteração' } })
+    report({ project: { code: 'P-100', name: 'Outra alteração' } }),
+    report({ project: { code: 'P-100', name: 'Nome atualizado', location: 'Local alterado durante a conversão' } })
   ]) {
     const { regenerate, canonical, root, updates } = await fixture(t, report(), { currentAfterGenerate });
     await assert.rejects(regenerate('report-1'), { statusCode: 409 });

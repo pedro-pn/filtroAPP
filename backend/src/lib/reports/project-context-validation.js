@@ -1,4 +1,4 @@
-import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations, reportWorkLocation } from '../../../../shared/modules/rdo-project-context.js';
 
 export function assertRdoProjectContext(project, data, existingReport) {
   if (data.reportType !== 'RDO') return;
@@ -22,8 +22,8 @@ export function assertRdoProjectContext(project, data, existingReport) {
     }
   }
   const locations = projectWorkLocations(project);
-  const location = data.specialConditions?.workLocation;
-  // O local salvo no RDO continua válido se o cadastro do projeto mudar depois.
+  const location = reportWorkLocation(project, data.specialConditions?.workLocation);
+  // Projetos com vários locais preservam a escolha explícita do RDO existente.
   const historicalLocation = Boolean(location) && existingReport?.projectId === project.id
     && existingReport?.specialConditions?.workLocation === location;
   if (!historicalLocation && ((locations.length > 1 && !location) || (location && !locations.includes(location)))) {

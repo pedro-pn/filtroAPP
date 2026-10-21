@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'vite';
+import { materialSelection, selectedChemicalProducts } from '../../shared/modules/rdo-material.js';
 
 async function loadReportServicePayload() {
   const server = await createServer({
@@ -16,6 +17,52 @@ async function loadReportServicePayload() {
     await server.close();
   }
 }
+
+test('Outro, material digitado e produtos marcados sobrevivem a salvar e reabrir', async () => {
+  const { buildReportServicePayload } = await loadReportServicePayload();
+  for (const type of ['limpeza', 'pressao', 'mecanica', 'inibicao']) {
+    const first = buildReportServicePayload({
+      type,
+      data: { materialSelection: 'Outro', material: 'PVC', materialOther: 'PVC', chemicalProducts: ['Ácido fosfórico', 'Carbonato de sódio'] }
+    });
+    const reopened = buildReportServicePayload({ type, data: first.extraData });
+    assert.equal(reopened.material, 'PVC');
+    assert.equal(materialSelection(reopened.extraData), 'Outro');
+    assert.equal(reopened.extraData.materialOther, 'PVC');
+    if (type === 'limpeza') {
+      assert.deepEqual(selectedChemicalProducts(reopened.extraData), ['Ácido fosfórico', 'Carbonato de sódio']);
+      assert.deepEqual(reopened.extraData['Produtos químicos utilizados'], ['Ácido fosfórico', 'Carbonato de sódio']);
+    }
+  }
+});
+
+test('rascunho preserva Outro sem material digitado e material padrão descarta produtos manuais', async () => {
+  const { buildReportServicePayload } = await loadReportServicePayload();
+  const draft = buildReportServicePayload({ type: 'limpeza', data: { materialSelection: 'Outro', material: '' } });
+  assert.equal(materialSelection(draft.extraData), 'Outro');
+  assert.equal(draft.material, null);
+  const standard = buildReportServicePayload({
+    type: 'limpeza',
+    data: { material: 'Inox', chemicalProducts: ['Ácido cítrico'], 'Produtos químicos utilizados': ['Ácido cítrico'] }
+  });
+  assert.deepEqual(standard.extraData.chemicalProducts, []);
+  assert.equal(standard.extraData['Produtos químicos utilizados'], undefined);
+});
+
+test('aço carbono preserva múltiplos ácidos e salva etapas na ordem do formulário', async () => {
+  const { buildReportServicePayload } = await loadReportServicePayload();
+  const payload = buildReportServicePayload({ type: 'limpeza', data: {
+    material: 'Aço carbono', chemicalProducts: ['Ácido cítrico', 'Ácido clorídrico (muriático)', 'Ácido nítrico'],
+    etapas: ['Secagem', 'Fase ácida', 'Desengraxe', 'Fase sequestrante']
+  } });
+  const saved = buildReportServicePayload({ type: 'limpeza', data: payload.extraData });
+  assert.deepEqual(new Set(saved.extraData.chemicalProducts), new Set(['Ácido cítrico', 'Ácido clorídrico']));
+  assert.deepEqual(saved.extraData['Produtos químicos utilizados'], saved.extraData.chemicalProducts);
+  assert.deepEqual(saved.extraData.etapas, ['Desengraxe', 'Fase ácida', 'Fase sequestrante', 'Secagem']);
+  assert.deepEqual(saved.extraData['Etapas realizadas no dia'], saved.extraData.etapas);
+  const inox = buildReportServicePayload({ type: 'limpeza', data: { material: 'Inox', etapas: ['Fase passivante', 'Fase sequestrante', 'Fase ácida'] } });
+  assert.deepEqual(inox.extraData.etapas, ['Fase ácida', 'Fase passivante']);
+});
 
 test('escopo selecionado permanece associado ao serviço após salvar e retomar', async () => {
   const { buildReportServicePayload } = await loadReportServicePayload();

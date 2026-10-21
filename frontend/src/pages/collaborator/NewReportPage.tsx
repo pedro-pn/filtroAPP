@@ -1,4 +1,5 @@
 import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../../../shared/modules/rdo-project-context.js';
+import { cleaningChemicalSelectionLabel, hasRequiredCleaningChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 import { ReportServiceScopeField, ReportWorkLocationField } from '../../components/reports/ReportProjectFields';
 import { ProjectSystemInput } from '../../components/projects/ProjectSystemInput';
 import { Shell } from '../../layout/Shell';
@@ -652,6 +653,9 @@ function SiteRdoFormPage() {
       }
 
       if (type === 'limpeza') {
+        if (!hasRequiredCleaningChemicalProducts(data)) {
+          return failRequired(cleaningChemicalSelectionLabel(data), target('chemicalProducts'), 1);
+        }
         if (!hasStringItem(data.metodos)) return failRequired('Método de limpeza', target('metodos'), 1);
         if (!hasTextOrStringItem(data.ulq)) return failRequired('Unidade de Limpeza Química', target('ulq'), 1);
         if (!hasStringItem(data.local)) return failRequired('Local de limpeza', target('local'), 1);
