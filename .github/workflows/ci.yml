@@ -173,6 +173,45 @@ jobs:
           test/acompanhamento-planned-hours.integration.test.js
           test/acompanhamento-additional-metrics.integration.test.js
 
+  prisma-planning:
+    name: PrismaCRM planning (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtroapp_crm_planning_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtroapp_crm_planning_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_crm_planning_test
+      CRM_OPPORTUNITIES_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_crm_planning_test
+      API_TOKEN_HASH_KEY_V1: ci-prisma-planning-hash-key-over-32-characters
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify planning contract, lifecycle, links and idempotency
+        run: node --test test/crm-opportunities.test.js test/crm-opportunities.integration.test.js
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
