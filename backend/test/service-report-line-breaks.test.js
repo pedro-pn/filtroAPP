@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import AdmZip from 'adm-zip';
+import { DOMParser } from '@xmldom/xmldom';
 
 import { buildRcpDocx } from '../src/lib/report-rcp.js';
 import { buildRlfDocx } from '../src/lib/report-rlf.js';
@@ -99,7 +100,7 @@ test('service report templates with a collaborator table render the saved role',
   }
 });
 
-test('RLQ uses sodium carbonate in neutralizing and sequestering phases', async () => {
+test('RLQ uses citric acid for sequestering and sodium carbonate only for neutralizing', async () => {
   const base = reportFor('RLQ');
   const zip = new AdmZip(await buildRlqDocx({
     ...base,
@@ -107,13 +108,19 @@ test('RLQ uses sodium carbonate in neutralizing and sequestering phases', async 
       ...base.specialConditions,
       serviceData: {
         ...base.specialConditions.serviceData,
+        'Material da tubulação': 'Aço carbono',
+        chemicalProducts: ['Ácido cítrico'],
         'Etapas realizadas no dia': ['Fase neutralizante', 'Fase sequestrante']
       }
     }
   }));
   const xml = zip.readAsText('word/document.xml');
 
-  assert.equal((xml.match(/Carbonato de sódio/g) || []).length, 2);
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const phases = Array.from(doc.getElementsByTagName('w:tr'))
+    .map(row => Array.from(row.getElementsByTagName('w:tc')).map(cell => cell.textContent))
+    .filter(cells => ['Fase sequestrante', 'Fase neutralizante'].includes(cells[0]));
+  assert.deepEqual(phases, [['Fase sequestrante', 'Ácido cítrico'], ['Fase neutralizante', 'Carbonato de sódio']]);
   assert.doesNotMatch(xml, /Carbonato de cálcio/i);
 });
 
