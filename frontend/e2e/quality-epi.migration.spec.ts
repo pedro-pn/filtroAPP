@@ -28,7 +28,8 @@ const account = {
 
 const nature = {
   id: 'nature-1', name: 'Documentação', isActive: true, position: 0,
-  inUse: true, recordCount: 1, createdAt: '2026-09-01', updatedAt: '2026-09-01'
+  inUse: true, recordCount: 1, createdAt: '2026-09-01', updatedAt: '2026-09-01',
+  subnatures: [{ id: 'subnature-1', natureId: 'nature-1', name: 'Documento incorreto', position: 0, inUse: false, recordCount: 0 }]
 };
 
 test('Naturezas: arraste por toque grava a ordem e libera a rolagem', async ({ browser, browserName }) => {
@@ -110,6 +111,7 @@ async function useFixtures(page: Page, theme: 'light' | 'dark') {
     const path = new URL(route.request().url()).pathname;
     if (!path.startsWith('/api/')) return route.continue();
     let body: unknown = {};
+    if (path === '/api/notifications') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], unreadCount: 0, nextCursor: null, snapshotAt: '2026-10-21T12:00:00Z' }) });
     if (path === '/api/auth/me') body = { user: account };
     else if (path === '/api/qualidade/registros') body = { items: [qualityRecord], total: 1, page: 1, pageSize: 50 };
     else if (path === '/api/qualidade/projetos') body = [{ id: 'project-1', code: '5917', name: 'Ilha Solteira', isActive: true }];
@@ -204,8 +206,12 @@ test('Qualidade: validação, Interno/SGQ e links no envio do registro', async (
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(dialog.getByText('Campo obrigatório.').first()).toBeVisible();
-  await dialog.getByLabel('Origem').fill('Inspeção interna');
-  await dialog.getByLabel('Natureza').selectOption('nature-1');
+  await expect(dialog.getByLabel('Origem')).toHaveCount(0);
+  await expect(dialog.locator('.quality-destination-preview')).toHaveCount(0);
+  await expect(dialog.getByLabel('RNC ou RIAI vinculada')).toBeVisible();
+  await expect(dialog.getByLabel('Subnatureza', { exact: true })).toBeDisabled();
+  await dialog.getByLabel(/^Natureza/).selectOption('nature-1');
+  await dialog.getByLabel('Subnatureza', { exact: true }).selectOption('subnature-1');
   await dialog.getByLabel('Descrição do evento').fill('Documento revisado');
   await dialog.getByRole('button', { name: 'Adicionar link' }).click();
   await dialog.getByRole('textbox', { name: 'Link de evidência 1' }).fill('link-inválido');
@@ -221,8 +227,8 @@ test('Qualidade: validação, Interno/SGQ e links no envio do registro', async (
   await expect(dialog).toHaveCount(0);
   expect(submitted).toMatchObject({
     projectId: null,
-    origin: 'Inspeção interna',
     natureId: 'nature-1',
+    subnatureId: 'subnature-1',
     description: 'Documento revisado',
     evidences: [
       { kind: 'LINK', url: 'https://example.com/evidencia' },

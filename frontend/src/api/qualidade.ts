@@ -6,6 +6,15 @@ export type QualityImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
 export type QualityDisposition = 'TRATAR' | 'MONITORAR' | 'ARQUIVAR_DIVULGAR';
 export type QualityStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
 
+export interface QualitySubnature {
+  id: string;
+  natureId: string;
+  name: string;
+  position: number;
+  inUse: boolean;
+  recordCount: number;
+}
+
 export interface QualityNature {
   id: string;
   name: string;
@@ -13,6 +22,7 @@ export interface QualityNature {
   position: number;
   inUse: boolean;
   recordCount: number;
+  subnatures: QualitySubnature[];
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +78,8 @@ export interface QualityRecord {
   eventDate: string;
   natureId: string | null;
   nature: { id: string; name: string; isActive?: boolean } | null;
+  subnatureId: string | null;
+  subnature: { id: string; name: string; natureId: string } | null;
   description: string | null;
   impact: QualityImpact | null;
   occurrences12m: number;
@@ -93,6 +105,7 @@ export interface QualityRecordPayload {
   projectId?: string | null;
   eventDate: string;
   natureId?: string | null;
+  subnatureId?: string | null;
   description?: string | null;
   impact?: QualityImpact | null;
   linkedRnc?: string | null;
@@ -117,6 +130,7 @@ export interface QualityRecordListParams {
   impact?: QualityImpact | '';
   projectId?: string | '';
   natureId?: string | '';
+  subnatureId?: string | '';
 }
 
 export interface QualityRecordListResponse {
@@ -135,6 +149,7 @@ export interface ProjectDeviation {
   eventDate: string;
   origin: string;
   nature: { id?: string; name: string; isActive?: boolean } | null;
+  subnature?: { id?: string; name: string; natureId?: string } | null;
   description: string;
   impact: QualityImpact;
   occurrences12m: number;
@@ -149,6 +164,7 @@ export interface ProjectDeviation {
 
 export interface QualityNaturePayload {
   name: string;
+  subnatures?: { id?: string; name: string }[];
 }
 
 export interface QualityProjectOption {

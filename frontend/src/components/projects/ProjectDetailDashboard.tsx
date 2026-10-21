@@ -695,6 +695,7 @@ export function ProjectDetailDashboard({
                       <div className="acp-detail-deviation-main">
                         <strong>{deviation.number}</strong>
                         <span>{deviation.nature?.name || '—'}</span>
+                        {deviation.subnature ? <span>{deviation.subnature.name}</span> : null}
                         <small>{fmtDate(deviation.eventDate)}</small>
                         {deviation.cost != null ? <strong>Custo: {brl(deviation.cost)}</strong> : null}
                       </div>
@@ -724,13 +725,9 @@ export function ProjectDetailDashboard({
                             <dt>Disposição</dt>
                             <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
                           </div>
-                          <div>
-                            <dt>Origem</dt>
-                            <dd>{deviation.origin || '—'}</dd>
-                          </div>
                           {deviation.linkedRnc ? (
                             <div>
-                              <dt>RNC vinculada</dt>
+                              <dt>RNC ou RIAI vinculada</dt>
                               <dd>{deviation.linkedRnc}</dd>
                             </div>
                           ) : null}

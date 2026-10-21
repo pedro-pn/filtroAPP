@@ -13,9 +13,15 @@ import { calculateQualityRecurrence } from './recurrence.js';
 const RECORD_INCLUDE = {
   project: { select: { id: true, code: true, name: true, isActive: true } },
   nature: { select: { id: true, name: true, isActive: true } },
+  subnature: { select: { id: true, name: true, natureId: true } },
   createdBy: { select: { id: true, name: true } },
   updatedBy: { select: { id: true, name: true } },
   evidences: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }
+};
+
+const NATURE_INCLUDE = {
+  _count: { select: { records: true } },
+  subnatures: { orderBy: [{ position: 'asc' }, { name: 'asc' }], include: { _count: { select: { records: true } } } }
 };
 
 export class QualidadeError extends Error {
@@ -87,7 +93,6 @@ function recordWhereFromQuery(query = {}) {
     ...(q ? {
       OR: [
         { number: { contains: q, mode: 'insensitive' } },
-        { origin: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
         { linkedRnc: { contains: q, mode: 'insensitive' } },
         { evidence: { contains: q, mode: 'insensitive' } },
@@ -104,6 +109,7 @@ function recordWhereFromQuery(query = {}) {
     ...(query.status ? { status: String(query.status) } : {}),
     ...(query.impact ? { impact: String(query.impact) } : {}),
     ...(query.natureId ? { natureId: String(query.natureId) } : {}),
+    ...(query.subnatureId ? { subnatureId: String(query.subnatureId) } : {}),
     ...projectFilter(query.projectId)
   };
 }
@@ -196,6 +202,8 @@ export function serializeQualityRecord(record, recurrence = {}) {
       isActive: record.nature.isActive
     } : null,
     natureId: record.natureId,
+    subnatureId: record.subnatureId || null,
+    subnature: record.subnature ? { id: record.subnature.id, name: record.subnature.name, natureId: record.subnature.natureId } : null,
     description: record.description,
     impact: record.impact,
     occurrences12m: recurrence.occurrences12m ?? 1,
@@ -225,6 +233,14 @@ export function serializeQualityNature(nature) {
     position: Number.isFinite(Number(nature.position)) ? Number(nature.position) : 0,
     inUse: (nature?._count?.records ?? nature.recordCount ?? 0) > 0,
     recordCount: nature?._count?.records ?? nature.recordCount ?? 0,
+    subnatures: (nature.subnatures || []).map(item => ({
+      id: item.id,
+      natureId: item.natureId,
+      name: item.name,
+      position: item.position,
+      inUse: (item._count?.records || 0) > 0,
+      recordCount: item._count?.records || 0
+    })),
     createdAt: nature.createdAt,
     updatedAt: nature.updatedAt
   };
@@ -300,6 +316,14 @@ async function assertNatureForRecord(client, natureId, { currentNatureId = null 
   return nature.id;
 }
 
+async function assertSubnatureForRecord(client, subnatureId, natureId) {
+  if (!subnatureId) return;
+  const subnature = await client.qualitySubnature.findUnique({ where: { id: subnatureId }, select: { natureId: true } });
+  if (!subnature || !natureId || subnature.natureId !== natureId) {
+    throw new QualidadeError('Subnatureza inválida para a Natureza selecionada.', 400);
+  }
+}
+
 function recordDataFromPayload(data) {
   const firstLink = (Array.isArray(data.evidences) ? data.evidences : [])
     .find(item => item?.kind === 'LINK' && item.url)?.url;
@@ -309,6 +333,7 @@ function recordDataFromPayload(data) {
     projectId: normalizeOptionalText(data.projectId),
     eventDate: dateOnly(data.eventDate),
     natureId: normalizeOptionalText(data.natureId),
+    subnatureId: normalizeOptionalText(data.subnatureId),
     description: normalizeOptionalText(data.description),
     impact: data.impact || null,
     linkedRnc: data.linkedRnc,
@@ -409,7 +434,8 @@ async function replaceRecordEvidences(tx, recordId, rows) {
 export async function createRecord(client = prisma, { data, userId = null }) {
   await Promise.all([
     assertProject(client, data.projectId),
-    assertNatureForRecord(client, data.natureId)
+    assertNatureForRecord(client, data.natureId),
+    assertSubnatureForRecord(client, data.subnatureId, data.natureId)
   ]);
 
   const evidence = await evidenceRowsFromPayload(data);
@@ -454,7 +480,8 @@ export async function updateRecord(client = prisma, id, { data, userId = null })
 
   await Promise.all([
     assertProject(client, data.projectId),
-    assertNatureForRecord(client, data.natureId, { currentNatureId: current.natureId })
+    assertNatureForRecord(client, data.natureId, { currentNatureId: current.natureId }),
+    assertSubnatureForRecord(client, data.subnatureId, data.natureId)
   ]);
 
   const evidence = await evidenceRowsFromPayload(data, current.evidences);
@@ -523,6 +550,7 @@ export async function listProjectDeviations(client = prisma, projectId) {
     eventDate: record.eventDate,
     origin: record.origin,
     nature: record.nature,
+    subnature: record.subnature,
     description: record.description,
     impact: record.impact,
     occurrences12m: record.occurrences12m,
@@ -548,7 +576,7 @@ export async function listNatures(client = prisma, query = {}) {
   const includeInactive = parseBoolean(query.includeInactive);
   const natures = await client.qualityNature.findMany({
     where: includeInactive ? {} : { isActive: true },
-    include: { _count: { select: { records: true } } },
+    include: NATURE_INCLUDE,
     orderBy: [{ position: 'asc' }, { name: 'asc' }]
   });
   return natures.map(serializeQualityNature);
@@ -577,23 +605,49 @@ export async function createNature(client = prisma, data) {
     throw new QualidadeError('Natureza já cadastrada.', 409);
   }
   const position = await nextNaturePosition(client);
+  if (data.subnatures?.some(item => item.id)) throw new QualidadeError('Uma nova Natureza deve conter apenas novas Subnaturezas.', 400);
   const nature = await client.qualityNature.create({
-    data: { name: data.name, position },
-    include: { _count: { select: { records: true } } }
+    data: {
+      name: data.name,
+      position,
+      subnatures: { create: (data.subnatures || []).map((item, position) => ({ name: item.name, position })) }
+    },
+    include: NATURE_INCLUDE
   });
   return serializeQualityNature(nature);
 }
 
 export async function renameNature(client = prisma, id, data) {
-  const current = await client.qualityNature.findUnique({ where: { id }, select: { id: true } });
-  if (!current) throw new QualidadeError('Natureza não encontrada.', 404);
-  if (await findNatureByName(client, data.name, id)) {
-    throw new QualidadeError('Natureza já cadastrada.', 409);
-  }
-  const nature = await client.qualityNature.update({
-    where: { id },
-    data: { name: data.name },
-    include: { _count: { select: { records: true } } }
+  const nature = await client.$transaction(async tx => {
+    const current = await tx.qualityNature.findUnique({ where: { id }, include: NATURE_INCLUDE });
+    if (!current) throw new QualidadeError('Natureza não encontrada.', 404);
+    if (await findNatureByName(tx, data.name, id)) throw new QualidadeError('Natureza já cadastrada.', 409);
+    const changes = { name: data.name };
+    if (data.subnatures !== undefined) {
+      const currentItems = current.subnatures || [];
+      const currentIds = new Set(currentItems.map(item => item.id));
+      if (data.subnatures.some(item => item.id && !currentIds.has(item.id))) {
+        throw new QualidadeError('Subnatureza inválida para a Natureza selecionada.', 400);
+      }
+      const keptIds = new Set(data.subnatures.map(item => item.id).filter(Boolean));
+      const removed = currentItems.filter(item => !keptIds.has(item.id));
+      if (removed.some(item => item._count.records > 0)) {
+        throw new QualidadeError('Subnatureza em uso; mantenha-a no cadastro.', 409);
+      }
+      // Free names before applying the final list, including swaps between existing children.
+      await tx.qualitySubnature.deleteMany({ where: { id: { in: removed.map(item => item.id) } } });
+      for (const item of data.subnatures) {
+        if (item.id && currentItems.find(current => current.id === item.id).name !== item.name) {
+          await tx.qualitySubnature.update({ where: { id: item.id }, data: { name: `__rename_${randomUUID()}` } });
+        }
+      }
+      // Update existing rows individually so their identities and record links survive edits.
+      changes.subnatures = {
+        update: data.subnatures.flatMap((item, position) => item.id ? [{ where: { id: item.id }, data: { name: item.name, position } }] : []),
+        create: data.subnatures.flatMap((item, position) => item.id ? [] : [{ name: item.name, position }])
+      };
+    }
+    return tx.qualityNature.update({ where: { id }, data: changes, include: NATURE_INCLUDE });
   });
   return serializeQualityNature(nature);
 }
@@ -643,7 +697,7 @@ export async function setNatureActive(client = prisma, id, isActive) {
   const nature = await client.qualityNature.update({
     where: { id },
     data: { isActive },
-    include: { _count: { select: { records: true } } }
+    include: NATURE_INCLUDE
   });
   return serializeQualityNature(nature);
 }

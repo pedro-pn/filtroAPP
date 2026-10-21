@@ -260,9 +260,9 @@ export function QualityRecordsTab({ isManager }: Props) {
   }
 
   const columns: DataTableColumn<QualityRecord>[] = [
-    { key: 'number', sortValue: record => record.number, header: 'Registro', rowHeader: true, render: record => <div className="quality-record-identity"><strong>{record.number}</strong>{record.origin ? <span>{record.origin}</span> : null}{recordEvidence(record)}</div> },
+    { key: 'number', sortValue: record => record.number, header: 'Registro', rowHeader: true, render: record => <div className="quality-record-identity"><strong>{record.number}</strong>{recordEvidence(record)}</div> },
     { key: 'type', header: 'Tipo', render: record => typeLabels.get(record.type) || record.type },
-    { key: 'destination', sortValue: record => projectLabel(record), header: 'Projeto e natureza', render: record => <div className="quality-record-detail"><strong>{projectLabel(record)}</strong><span>{natureName(record)}</span></div> },
+    { key: 'destination', sortValue: record => projectLabel(record), header: 'Projeto e natureza', render: record => <div className="quality-record-detail"><strong>{projectLabel(record)}</strong><span>{natureName(record)}</span>{record.subnature ? <span>{record.subnature.name}</span> : null}</div> },
     { key: 'status', header: 'Impacto e status', render: record => <div className="quality-record-status"><Badge tone={record.impact === 'ALTO' ? 'danger' : record.impact === 'MEDIO' ? 'warning' : record.impact ? 'success' : 'neutral'}>{impactLabels.get(record.impact || '') || record.impact || 'Sem impacto'}</Badge><Badge>{statusLabels.get(record.status || '') || record.status || 'Sem status'}</Badge></div> },
     { key: 'event', sortValue: record => record.eventDate, header: 'Evento', render: record => <div className="quality-record-detail"><strong>{formatDate(record.eventDate)}</strong><span>{record.occurrences12m} ocorrência(s) · {record.recurrent ? 'Recorrente' : 'Sem recorrência'}</span></div> }
   ];
@@ -285,7 +285,7 @@ export function QualityRecordsTab({ isManager }: Props) {
       <SearchBar
         value={q}
         onChange={setQ}
-        placeholder="Buscar por Nº, origem, descrição ou RNC"
+        placeholder="Buscar por Nº, descrição, RNC ou RIAI"
         ariaLabel="Buscar registros de qualidade"
         count={{ shown: records.length, total: recordsQuery.data?.total || records.length }}
       />
@@ -353,6 +353,7 @@ export function QualityRecordsTab({ isManager }: Props) {
           metadata: [
             { label: 'Projeto', value: projectLabel(record) },
             { label: 'Natureza', value: natureName(record) },
+            { label: 'Subnatureza', value: record.subnature?.name || '-' },
             { label: 'Evento', value: formatDate(record.eventDate) },
             { label: 'Ocorrências', value: `${record.occurrences12m}${record.recurrent ? ' · Recorrente' : ''}` }
           ],
