@@ -15,6 +15,7 @@ import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
 import { cleaningSystemQuantity, isSystemCleaning } from './reports/cleaning-measurement.js';
+import { cleaningProductsForStep, orderedCleaningStages } from '../../../shared/modules/rdo-material.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -328,14 +329,8 @@ function embedSignature(zip, doc, asset) {
 
 // ── RLQ data building ──
 
-export function getProductForStep(stepName, material) {
-  const s = String(stepName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const isInox = /inox/i.test(material || '');
-  if (s.includes('desengraxe')) return 'Hidróxido de sódio, Metassilicato de sódio e Tripolifosfato de sódio';
-  if (s.includes('fase acida')) return isInox ? 'Ácido nítrico e Ácido fluorídrico' : 'Ácido cítrico';
-  if (s.includes('fase sequestrant') || s.includes('fase neutralizant')) return 'Carbonato de sódio';
-  if (s.includes('fase passivant')) return isInox ? '' : 'Nitrito de sódio';
-  return '';
+export function getProductForStep(stepName, material, data = {}) {
+  return cleaningProductsForStep(stepName, material, data);
 }
 
 function buildRlqBaseData(report) {
@@ -359,7 +354,7 @@ function buildRlqBaseData(report) {
     date: formatDatePt(report.reportDate),
     equipament: stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])),
     system: stringify(getField(sd, ['Sistema'])),
-    material: stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento'])),
+    material: stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento', 'material'])),
     cleaningunit: units.join(', '),
     ulq: units.join(', '),
     inspectiontype: stringify(inspectionTypeRaw),
@@ -429,9 +424,9 @@ function expandProductRows(doc, sd) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{steps}}');
   if (!templateRow) return;
 
-  const etapasRaw = getField(sd, ['Etapas realizadas no dia']);
-  const etapas = Array.isArray(etapasRaw) ? etapasRaw.filter(Boolean) : (etapasRaw ? [String(etapasRaw)] : []);
-  const material = stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento']));
+  const etapasRaw = getField(sd, ['Etapas realizadas no dia', 'etapas']);
+  const material = stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento', 'material']));
+  const etapas = orderedCleaningStages(etapasRaw, { ...sd, material });
 
   if (!etapas.length) {
     replacePlaceholders(templateRow, { steps: '', products: '' });
@@ -442,7 +437,7 @@ function expandProductRows(doc, sd) {
     const clone = templateRow.cloneNode(true);
     replacePlaceholders(clone, {
       steps: etapa,
-      products: getProductForStep(etapa, material)
+      products: getProductForStep(etapa, material, sd)
     });
     return clone;
   });

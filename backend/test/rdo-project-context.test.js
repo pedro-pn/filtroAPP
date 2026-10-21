@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findProjectScopeOption, projectScopeOptions, projectWorkLocations } from '../../shared/modules/rdo-project-context.js';
+import { findProjectScopeOption, projectScopeOptions, projectWorkLocations, reportWorkLocation } from '../../shared/modules/rdo-project-context.js';
 import { assertRdoProjectContext } from '../src/lib/reports/project-context-validation.js';
 
 const project = {
@@ -24,6 +24,20 @@ test('escopos são únicos e incluem o grupo legado sem nome', () => {
 test('locais existentes continuam disponíveis, sem espaços ou duplicatas', () => {
   assert.deepEqual(projectWorkLocations({ location: ' Oficina ', additionalWorkLocations: ['Oficina', ' Canteiro ', ''] }), ['Oficina', 'Canteiro']);
   assert.deepEqual(projectWorkLocations({ location: 'Oficina' }), ['Oficina']);
+});
+
+test('local único acompanha o cadastro atual; vários locais preservam a escolha do RDO', () => {
+  assert.equal(reportWorkLocation({ location: 'Local atualizado' }, 'Local anterior'), 'Local atualizado');
+  assert.equal(reportWorkLocation(project, 'Canteiro'), 'Canteiro');
+  assert.equal(reportWorkLocation(project, ''), '');
+});
+
+test('salvar RDO antigo atualiza o local único e preserva as demais condições especiais', () => {
+  const updatedProject = { id: project.id, location: 'Local atualizado' };
+  const existing = { projectId: project.id, specialConditions: { workLocation: 'Local anterior' } };
+  const data = { reportType: 'RDO', services: [], specialConditions: { ...existing.specialConditions, standby: true } };
+  assertRdoProjectContext(updatedProject, data, existing);
+  assert.deepEqual(data.specialConditions, { workLocation: 'Local atualizado', standby: true });
 });
 
 test('RDO exige escopo válido em cada serviço quando há vários grupos', () => {

@@ -12,6 +12,7 @@ import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
 import { loadRdoProgressRows, rdoServiceName } from './reports/rdo-progress-table.js';
+import { reportWorkLocation } from '../../../shared/modules/rdo-project-context.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -503,7 +504,7 @@ function buildDocxData(report) {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
     client: report.project.clientName || '',
     cnpj: formatCnpj(report.project.clientCnpj) || '',
-    local: report.specialConditions?.workLocation || report.project.location || '',
+    local: reportWorkLocation(report.project, report.specialConditions?.workLocation) || report.project.location || '',
     proposal: report.project.contractCode || '',
     rdo: reportNumber(report),
     date: formatDatePt(report.reportDate),

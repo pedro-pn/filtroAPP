@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { CLEANING_CHEMICAL_LABELS, CLEANING_STAGES, STANDARD_MATERIALS, cleaningChemicalOptions, cleaningChemicalSelectionLabel, materialSelection, orderedCleaningStages, selectedChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibitionOptions';
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
@@ -10,11 +11,7 @@ import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseModePatch } f
 import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 
 const etapasPorTipo: Record<string, string[]> = {
-  LIMPEZA: [
-    'Montagem do sistema', 'Teste de estanqueidade', 'Desengraxe',
-    'Fase ácida', 'Fase sequestrante', 'Fase neutralizante', 'Fase passivante',
-    'Secagem', 'Desmontagem do sistema', 'Inspeção por boroscopia'
-  ],
+  LIMPEZA: CLEANING_STAGES,
   PRESSAO: ['Montagem do sistema', 'Execução do teste', 'Desmontagem do sistema'],
   FLUSHING: [
     'Abastecimento de óleo', 'Montagem do sistema', 'Realização do flushing',
@@ -360,7 +357,7 @@ function MaterialField({
 }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'> & { label?: string }) {
   const material = getString(data.material);
   const materialOther = getString(data.materialOther);
-  const selected = ['Aço carbono', 'Inox', 'CuNiFe'].includes(material) ? material : material ? 'Outro' : '';
+  const selected = materialSelection(data);
   const isPre = Boolean(data._prefilled && material);
   const materialId = fieldId(groupKey, 'material');
   const materialOtherId = fieldId(groupKey, 'material-outro');
@@ -379,24 +376,29 @@ function MaterialField({
           disabled={disabled}
           onChange={event => {
             const value = event.target.value;
-            onChange({ material: value === 'Outro' ? materialOther : value, materialOther: value === 'Outro' ? materialOther : '' });
+            onChange({
+              materialSelection: value,
+              material: value === 'Outro' ? materialOther : value,
+              materialOther: value === 'Outro' ? materialOther : '',
+              ...(value !== 'Outro' ? { chemicalProducts: [], 'Produtos químicos utilizados': [] } : {})
+            });
           }}
         >
           <option value="">Selecionar...</option>
-          <option value="Aço carbono">Aço carbono</option>
-          <option value="Inox">Inox</option>
-          <option value="CuNiFe">CuNiFe</option>
+          {STANDARD_MATERIALS.map(option => <option value={option} key={option}>{option}</option>)}
           <option value="Outro">Outro</option>
         </select>
       </div>
       {selected === 'Outro' ? (
-        <div className="field-group">
-          <label htmlFor={materialOtherId}>Outro material</label>
+        <div className={fieldClass(invalidKey, 'material')}>
+          <label htmlFor={materialOtherId}>Outro material {requiredMark()}</label>
           <input
             id={materialOtherId}
             value={materialOther || material}
             disabled={disabled}
-            onChange={event => onChange({ material: event.target.value, materialOther: event.target.value })}
+            required
+            placeholder="Digite o material"
+            onChange={event => onChange({ materialSelection: 'Outro', material: event.target.value, materialOther: event.target.value })}
           />
         </div>
       ) : null}
@@ -687,9 +689,12 @@ export function ServiceCollaboratorsBlock({
 }
 
 function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pick<ServiceFieldsProps, 'serviceType' | 'data' | 'onChange' | 'disabled' | 'invalidKey'>) {
-  const etapas = etapasPorTipo[serviceType] || etapasPorTipo[normalizeServiceType(serviceType).toUpperCase()];
+  const isCleaning = normalizeServiceType(serviceType) === 'limpeza';
+  const etapas = isCleaning ? orderedCleaningStages(CLEANING_STAGES, data)
+    : etapasPorTipo[serviceType] || etapasPorTipo[normalizeServiceType(serviceType).toUpperCase()];
   if (!etapas?.length) return null;
-  const done = getStrings(data.etapas);
+  const done = isCleaning ? orderedCleaningStages(data.etapas, data) : getStrings(data.etapas);
+  const updateStages = (next: string[]) => onChange({ etapas: isCleaning ? orderedCleaningStages(next, data) : next });
   const customDone = done.filter(etapa => !etapas.includes(etapa));
   const custom = getString(data.customEtapa);
 
@@ -703,7 +708,7 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
               type="checkbox"
               checked={done.includes(etapa)}
               disabled={disabled}
-              onChange={e => onChange({ etapas: toggleItem(done, etapa, e.target.checked) })}
+              onChange={e => updateStages(toggleItem(done, etapa, e.target.checked))}
             />
             <span>{etapa}</span>
           </label>
@@ -714,7 +719,7 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
               type="checkbox"
               checked
               disabled={disabled}
-              onChange={e => onChange({ etapas: toggleItem(done, etapa, e.target.checked) })}
+              onChange={e => updateStages(toggleItem(done, etapa, e.target.checked))}
             />
             <span>{etapa}</span>
           </label>
@@ -732,7 +737,10 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
           className="secondary-button"
           type="button"
           disabled={disabled || !custom.trim()}
-          onClick={() => onChange({ etapas: Array.from(new Set([...done, custom.trim()])), customEtapa: '' })}
+          onClick={() => {
+            const next = Array.from(new Set([...done, custom.trim()]));
+            onChange({ etapas: isCleaning ? orderedCleaningStages(next, data) : next, customEtapa: '' });
+          }}
         >
           + Add
         </button>
@@ -1085,11 +1093,27 @@ export function ServiceFields({
     const local = getStrings(data.local);
     const tipoInspecao = getStrings(data.tipoInspecao);
     const limpezaTubulacao = limpezaTubulacaoValue(data);
+    const chemicalProducts = selectedChemicalProducts(data);
+    const chemicalOptions = cleaningChemicalOptions(data);
 
     return (
       <>
         <ServiceFormSection title="Escopo e equipamentos" appearance={appearance}>
-          <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label={limpezaTubulacao === 'Sim' ? 'Material da tubulação' : 'Material do sistema'} />
+          <MaterialField data={data} onChange={patch => onChange({ ...patch, etapas: orderedCleaningStages(data.etapas, { ...data, ...patch }) })} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label={limpezaTubulacao === 'Sim' ? 'Material da tubulação' : 'Material do sistema'} />
+          {chemicalOptions.length ? (
+            <div className={`${fieldClass(invalidKey, 'chemicalProducts')} service-options-full`} role="group" aria-labelledby={fieldId(groupKey, 'chemical-products-label')}>
+              <label id={fieldId(groupKey, 'chemical-products-label')}>{cleaningChemicalSelectionLabel(data)} {requiredMark()}</label>
+              <div className="rdo-check-grid">
+                {chemicalOptions.map(product => (
+                  <label className="rdo-check-row" key={product}>
+                    <input type="checkbox" checked={chemicalProducts.includes(product)} disabled={disabled}
+                      onChange={event => onChange({ chemicalProducts: toggleItem(chemicalProducts, product, event.target.checked) })} />
+                    <span>{CLEANING_CHEMICAL_LABELS[product] || product}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className={fieldClass(invalidKey, 'metodos')}>
             <label>Método de limpeza {requiredMark()}</label>
             <div className="rdo-check-grid">
@@ -1205,7 +1229,7 @@ export function ServiceFields({
                     equipamentoTestadoOutro: option.value === 'outro' ? equipamentoTestadoOutro : '',
                     'Outro equipamento testado': option.value === 'outro' ? equipamentoTestadoOutro : '',
                     ...(option.value !== 'tubulacao'
-                      ? { material: '', materialOther: '', 'Material da tubulação': '', 'Material da tubulacao': '' }
+                      ? { material: '', materialOther: '', materialSelection: '', 'Material da tubulação': '', 'Material da tubulacao': '' }
                       : {})
                   })}
                 />

@@ -1,0 +1,12 @@
+export const STANDARD_MATERIALS: string[];
+export const CLEANING_STAGES: string[];
+export const CARBON_STEEL_ACIDS: string[];
+export const CLEANING_CHEMICAL_PRODUCTS: string[];
+export const CLEANING_CHEMICAL_LABELS: Record<string, string>;
+export function materialSelection(data?: Record<string, unknown>): string;
+export function selectedChemicalProducts(data?: Record<string, unknown>): string[];
+export function cleaningChemicalOptions(data?: Record<string, unknown>): string[];
+export function cleaningChemicalSelectionLabel(data?: Record<string, unknown>): string;
+export function hasRequiredCleaningChemicalProducts(data?: Record<string, unknown>): boolean;
+export function orderedCleaningStages(value: unknown, data?: Record<string, unknown>): string[];
+export function cleaningProductsForStep(stepName: string, material: string, data?: Record<string, unknown>): string;

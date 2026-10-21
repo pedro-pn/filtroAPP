@@ -5,6 +5,12 @@ export function projectWorkLocations(project) {
     .filter(Boolean))];
 }
 
+export function reportWorkLocation(project, savedLocation) {
+  const locations = projectWorkLocations(project);
+  // Com um único local não há escolha no formulário: vale o cadastro atual.
+  return locations.length === 1 ? locations[0] : typeof savedLocation === 'string' ? savedLocation.trim() : '';
+}
+
 export function projectScopeOptions(project) {
   const scopes = new Map();
   const withProposals = project?.plannedServices?.some(service => service.contributionKey);

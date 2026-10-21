@@ -1,4 +1,5 @@
 import type { Collaborator, Equipment, ReportServiceInput, Unit } from '../types/domain';
+import { cleaningChemicalOptions, orderedCleaningStages, selectedChemicalProducts } from '../../../shared/modules/rdo-material.js';
 import { cleaningSystemQuantity } from './cleaningMeasurement';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } from './pressureHoseMeasurement';
 import { serviceUploadLabels } from './serviceUploadGroups';
@@ -160,7 +161,7 @@ function commonExtraData(
     'Hora de término/pausa': getString(data.endTime),
     'Serviço finalizado?': finalizedLabel(data.finalized),
     'Aprovado pelo cliente?': getString(data.aprovadoCliente) || (data.finalized === true ? 'Sim' : ''),
-    'Etapas realizadas no dia': getStrings(data.etapas),
+    'Etapas realizadas no dia': type === 'limpeza' ? orderedCleaningStages(data.etapas, data) : getStrings(data.etapas),
     Observações: getString(data.notes),
     'Desenhos / TAGs': getString(data.drawingsTags),
     'Diâmetros e comprimentos': tubes,
@@ -212,6 +213,12 @@ export function buildReportServicePayload(
   }
 
   if (type === 'limpeza') {
+    const chemicalOptions = cleaningChemicalOptions(data);
+    const chemicalProducts = selectedChemicalProducts(data).filter(product => chemicalOptions.includes(product));
+    extraData.etapas = extraData['Etapas realizadas no dia'];
+    extraData.chemicalProducts = chemicalProducts;
+    if (chemicalOptions.length) extraData['Produtos químicos utilizados'] = chemicalProducts;
+    else delete extraData['Produtos químicos utilizados'];
     const unitIds = ids(data.ulq);
     extraData['Limpeza de tubulação?'] = limpezaTubulacaoLabel(data);
     extraData.limpezaTubulacao = limpezaTubulacaoLabel(data);

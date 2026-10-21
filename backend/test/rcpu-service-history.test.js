@@ -9,6 +9,26 @@ import {
   serviceHistoryKey
 } from '../src/routes/resources/reports.js';
 
+test('RLQ preserva os produtos químicos usados nos dias anteriores ao finalizar o serviço', () => {
+  const initial = { materialSelection: 'Outro', material: 'PVC', chemicalProducts: ['Hidróxido de sódio'], 'Etapas realizadas no dia': ['Desengraxe'] };
+  const final = { materialSelection: 'Outro', material: 'PVC', chemicalProducts: ['Ácido fosfórico'], 'Etapas realizadas no dia': ['Fase ácida'] };
+  const consolidated = buildHistoricalServiceData(final, [{ fields: initial }, { fields: final }]);
+  assert.deepEqual(new Set(consolidated.chemicalProducts), new Set(['Hidróxido de sódio', 'Ácido fosfórico']));
+  assert.deepEqual(consolidated['Produtos químicos utilizados'], consolidated.chemicalProducts);
+  assert.deepEqual(consolidated['Etapas realizadas no dia'], ['Desengraxe', 'Fase ácida']);
+  const standard = buildHistoricalServiceData({ material: 'Inox' }, [{ fields: initial }]);
+  assert.equal(standard.chemicalProducts, undefined);
+});
+
+test('RLQ de aço carbono consolida os ácidos escolhidos em cada dia, sem produtos de outros materiais', () => {
+  const initial = { material: 'Aço carbono', chemicalProducts: ['Ácido cítrico'], 'Etapas realizadas no dia': ['Fase ácida'] };
+  const final = { material: 'Aço carbono', chemicalProducts: ['Ácido clorídrico'], 'Etapas realizadas no dia': ['Fase sequestrante'] };
+  const unrelated = { material: 'PVC', chemicalProducts: ['Ácido nítrico'] };
+  const consolidated = buildHistoricalServiceData(final, [{ fields: initial }, { fields: final }, { fields: unrelated }]);
+  assert.deepEqual(new Set(consolidated.chemicalProducts), new Set(['Ácido cítrico', 'Ácido clorídrico']));
+  assert.deepEqual(consolidated['Produtos químicos utilizados'], consolidated.chemicalProducts);
+});
+
 test('RCPU service history joins final explicit key to legacy semantic initial service', () => {
   const initialService = {
     serviceType: 'filtragem',
