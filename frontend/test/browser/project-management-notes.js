@@ -1,0 +1,64 @@
+async page => {
+  const base = page.url().split('/test/')[0] + '/test/browser/project-scopes.html';
+  const assert = (ok, message) => { if (!ok) throw new Error(message); };
+  const panel = () => page.locator('[data-acp-project-notes]');
+  const open = async query => {
+    await page.goto(base + '?notas=1&' + query);
+    await panel().getByText('Cliente pediu revisão do escopo.', { exact: true }).waitFor();
+    return panel();
+  };
+  for (const width of [360, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(() => sessionStorage.removeItem('project-management-notes-fixture'));
+    const notes = await open('grupo=1');
+    await notes.getByText('Aguardando liberação da usina.', { exact: true }).waitFor();
+    const items = notes.getByRole('listitem');
+    assert(await items.count() === 3, 'Grupo não reuniu as notas das duas missões visíveis.');
+    assert((await items.allTextContents()).map(text => text.includes('Equipe confirmada.') ? 'new' : text.includes('usina.') ? 'middle' : 'old').join(',') === 'new,middle,old', 'Notas não estão em ordem cronológica decrescente.');
+    assert((await items.first().textContent()).includes('Gestora Ventura') && await items.first().getByRole('time').count() === 1, 'Nota perdeu autoria ou data.');
+    assert(await items.nth(1).getByText('Missão 5816', { exact: true }).count() === 1, 'Nota não identifica sua missão de origem.');
+    const selector = notes.getByRole('combobox', { name: 'Missão da nota' });
+    assert(await selector.locator('option').count() === 3, 'Seleção deve conter placeholder e duas missões visíveis.');
+    await notes.getByRole('textbox', { name: 'Nova nota' }).fill('Nota nova da usina ' + width);
+    assert(await notes.getByRole('button', { name: 'Adicionar', exact: true }).isDisabled(), 'Permite gravar sem escolher a missão.');
+    await selector.selectOption('p2');
+    await notes.getByRole('button', { name: 'Adicionar', exact: true }).click();
+    await notes.getByText('Nota nova da usina ' + width, { exact: true }).waitFor();
+    assert(await items.count() === 4, 'Criação não atualizou a lista do grupo.');
+    assert(await notes.getByRole('textbox', { name: 'Nova nota' }).inputValue() === '', 'Criação não limpou o campo.');
+    const calls = await page.evaluate(() => window.scopeCalls);
+    assert(!calls.some(call => call.url.includes('/projetos/p3/notas-gestao')), 'Consultou notas do membro oculto.');
+    const writes = calls.filter(call => call.method === 'post' && call.url.endsWith('/notas-gestao'));
+    assert(writes.length === 1 && writes[0].url.includes('/projetos/p2/') && writes[0].body.content === 'Nota nova da usina ' + width, 'Nota foi gravada na missão errada ou em duplicidade.');
+    await page.screenshot({ path: 'output/playwright/project-management-notes-' + width + '.png', fullPage: false });
+    assert(await notes.evaluate(element => element.scrollWidth <= element.clientWidth + 1), 'Notas excedem a largura em ' + width + 'px.');
+    await page.reload();
+    await panel().getByText('Nota nova da usina ' + width, { exact: true }).waitFor();
+    const single = await open('');
+    assert(await single.getByRole('listitem').count() === 2 && await single.getByRole('combobox').count() === 0, 'Missão individual perdeu suas notas ou recebeu notas de outro membro.');
+    await page.goto(base + '?notas=1&projeto=p2');
+    await panel().getByText('Nota nova da usina ' + width, { exact: true }).waitFor();
+    assert(await panel().getByText('Cliente pediu revisão do escopo.', { exact: true }).count() === 0, 'Desmesclar misturou notas de missões diferentes.');
+    await panel().getByRole('textbox', { name: 'Nova nota' }).fill('Nota individual ' + width);
+    await panel().getByRole('button', { name: 'Adicionar', exact: true }).click();
+    await panel().getByText('Nota individual ' + width, { exact: true }).waitFor();
+  }
+  const readonly = await open('grupo=1&consulta=1');
+  assert(await readonly.getByRole('textbox').count() === 0 && await readonly.getByRole('button', { name: 'Adicionar', exact: true }).count() === 0, 'Visualizador recebeu formulário de criação.');
+  await page.evaluate(() => sessionStorage.removeItem('project-management-notes-fixture'));
+  const partial = await open('grupo=1&falha-notas=1');
+  await partial.getByText('Não foi possível carregar as notas.', { exact: true }).waitFor();
+  assert(await partial.getByRole('listitem').count() === 2, 'Falha de uma missão ocultou as notas já carregadas.');
+  assert(await partial.getByText('Nenhuma nota adicionada.', { exact: true }).count() === 0, 'Falha foi apresentada como ausência de notas.');
+  await partial.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
+  await partial.getByText('Aguardando liberação da usina.', { exact: true }).waitFor();
+  const retry = await open('grupo=1&falha-nova-nota=1');
+  await retry.getByRole('combobox', { name: 'Missão da nota' }).selectOption('p2');
+  await retry.getByRole('textbox', { name: 'Nova nota' }).fill('Preservar após falha');
+  await retry.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await retry.getByText('Falha simulada ao adicionar a nota.', { exact: true }).waitFor();
+  assert(await retry.getByRole('textbox', { name: 'Nova nota' }).inputValue() === 'Preservar após falha' && await retry.getByRole('combobox').inputValue() === 'p2', 'Falha apagou o conteúdo ou a missão escolhida.');
+  await retry.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await retry.getByText('Preservar após falha', { exact: true }).waitFor();
+  return { ok: true, widths: [360, 768, 1440], groupedAndSingle: true, persistence: true, permissions: true, retries: true };
+}

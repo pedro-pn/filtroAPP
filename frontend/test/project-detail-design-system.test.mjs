@@ -408,7 +408,7 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   for (const state of ['planningContext', 'qualityDeviationQueries', 'projectNotesLoadError']) assert.ok(main.includes(state));
   assert.match(main, /acompanhamentoRefreshQueryOptions/);
   assert.match(main, /if \(!canManageManualCosts \|\| isGroup \|\| createManualCostMutation.isPending\) return/);
-  assert.match(main, /if \(!canManageProjectNotes \|\| isGroup \|\| !content \|\| createProjectNoteMutation.isPending\) return/);
+  assert.match(main, /if \(!canManageProjectNotes \|\| !activeNoteProjectId \|\| !content \|\| createProjectNoteMutation.isPending\) return/);
   assert.doesNotMatch(main, /mini-btn|page-card|className="badge|<input\b|<textarea\b/);
   for (const dialog of ['ProjectRomaneiosDialog.tsx', 'ProjectStandbyHistoryDialog.tsx']) {
     assert.match(source(dialog), /appearance="design-system"/);

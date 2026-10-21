@@ -1,5 +1,12 @@
 # Search regression in a browser
 
+For management notes in merged projects, open `/test/browser/project-scopes.html?grupo=1&notas=1`
+and run `playwright-cli run-code --filename frontend/test/browser/project-management-notes.js`.
+The production dashboard uses a simulated API. It checks notes from visible group members,
+chronological order, origin/author/date, creating in the selected mission, reload and individual
+views, read-only access, partial load failures, retrying a save and layout at 360/768/1440 px.
+No database records are changed.
+
 For additional proposal contributions, open `/test/browser/additional-metrics.html` and run
 `playwright-cli run-code --filename frontend/test/browser/additional-metrics.js`.
 It checks that the action appears only in Acompanhamento, per-field inclusion, cancellation,
