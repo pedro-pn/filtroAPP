@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-10-20';
+export const DATA_CATALOG_VERSION = '2026-10-21';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -111,9 +111,9 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'operations', label: 'Operações, retenção e jobs',
-    models: [...modelEntries(['DataRetentionRun', 'JobRun', 'IntegrationSyncRun'], 'RESERVED'), ...modelEntries(['JobLock'], 'PROHIBITED')],
+    models: [...modelEntries(['DataRetentionRun', 'JobRun', 'IntegrationSyncRun', 'NotificationEvent', 'NotificationRead'], 'RESERVED'), ...modelEntries(['JobLock'], 'PROHIBITED')],
     candidateScopes: ['operacoes.jobs.read', 'operacoes.integracoes.read', 'operacoes.retencao.read'], candidateAvailability: 'RESERVED', endpointFamilies: ['/operacoes/jobs', '/operacoes/integracoes', '/operacoes/retencao'],
-    excludedFields: ['lock/lease', 'stack trace', 'segredos', 'payload bruto', 'comandos', 'caminhos de backup']
+    excludedFields: ['lock/lease', 'stack trace', 'segredos', 'payload bruto', 'comandos', 'caminhos de backup', 'conteúdo de notificações', 'histórico de leitura por usuário']
   }),
   domain({
     code: 'surveys', label: 'Pesquisa de satisfação',
