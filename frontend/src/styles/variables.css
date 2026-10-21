@@ -283,30 +283,31 @@
   --text-inverse: var(--inverse);
 }
 
-/* 5. Temporary legacy compatibility. Keep these stable until each consumer is migrated. */
+/* 5. Legacy compatibility must follow the active theme, including body portals.
+   --wh denotes a UI surface; foregrounds on filled buttons use --on-brand. */
 :root {
   --g: var(--green-500);
   --gl: var(--green-400);
   --gd: var(--green-700);
-  --bl: var(--info-500);
-  --rd: var(--danger-500);
+  --bl: var(--info);
+  --rd: var(--danger);
   --pu: #9b93a8;
-  --bg: #f4f5f4;
-  --wh: var(--white);
+  --bg: var(--canvas);
+  --wh: var(--surface);
   --tx: var(--ink);
   --mu: var(--muted);
   --mut: var(--muted);
-  --br: var(--gray-300);
-  --bd: var(--gray-300);
+  --br: var(--line-strong);
+  --bd: var(--line-strong);
   --r: var(--radius-md);
   --rs: var(--radius-sm);
   --shadow: var(--shadow-e1);
 
-  --legacy-warning-bg: #fff7e6;
-  --warning-border: #f3d7a5;
-  --warning-text: #8a4b00;
+  --legacy-warning-bg: var(--warning-bg);
+  --warning-border: var(--warning-line);
+  --warning-text: var(--warning);
   --warning-shadow: rgba(161, 92, 0, 0.16);
-  --error: var(--danger-500);
-  --error-bg: #fdeaea;
-  --tx-soft: #64748b;
+  --error: var(--danger);
+  --error-bg: var(--danger-bg);
+  --tx-soft: var(--muted);
 }

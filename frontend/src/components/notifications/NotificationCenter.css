@@ -1,5 +1,5 @@
 .notification-center-trigger { position: relative; display: inline-flex; flex: 0 0 auto; }
-.notification-center-count { position: absolute; top: -2px; right: -4px; min-width: 18px; padding: 1px 4px; border: 2px solid var(--surface); border-radius: 20px; background: var(--danger, #b42318); color: white; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; pointer-events: none; }
+.notification-center-count { position: absolute; top: -2px; right: -4px; min-width: 18px; padding: 1px 4px; border: 2px solid var(--surface); border-radius: 20px; background: var(--danger, #b42318); color: var(--on-danger); font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; pointer-events: none; }
 .notification-center-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); }
 .notification-center-filters { display: flex; gap: var(--space-1); }
 .notification-center-hint { margin: var(--space-3) 0; color: var(--muted); font-size: var(--text-sm); }
