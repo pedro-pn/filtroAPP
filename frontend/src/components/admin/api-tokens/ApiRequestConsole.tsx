@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ApiPlaygroundResult } from '../../../api/apiCredentials';
 import { Alert, Badge, Button, Card } from '../../ui/ds';
 import { isDownloadCheckResult, redactedRequestPreview } from './apiRequestFormatting';
+import { copyTextToClipboard } from '../../../utils/clipboard';
 
 export function ApiRequestConsole({ result, loading }: { result: ApiPlaygroundResult | null; loading: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -15,8 +16,9 @@ export function ApiRequestConsole({ result, loading }: { result: ApiPlaygroundRe
 
   async function copyCurl() {
     if (!request) return;
-    try { await navigator.clipboard.writeText(request.curl); setCopied(true); setCopyError(false); }
-    catch { setCopyError(true); }
+    const success = await copyTextToClipboard(request.curl);
+    setCopied(success);
+    setCopyError(!success);
   }
 
   return (
