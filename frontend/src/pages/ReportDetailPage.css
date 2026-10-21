@@ -285,29 +285,33 @@
   line-height: var(--leading-xs);
 }
 
-.rdo-report-detail-page .report-audit-section {
+:is(.rdo-report-detail-page, .rdo-edit-page) .report-audit-section {
   display: grid;
   gap: var(--space-4);
 }
 
-.rdo-report-detail-page .report-audit-list {
+:is(.rdo-report-detail-page, .rdo-edit-page) .report-audit-list {
   display: grid;
   gap: var(--space-2);
 }
 
-.rdo-report-detail-page .report-audit-item {
+:is(.rdo-report-detail-page, .rdo-edit-page) .report-audit-item {
   padding: var(--space-3);
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface-2);
 }
 
-.rdo-report-detail-page .report-audit-title {
+:is(.rdo-report-detail-page, .rdo-edit-page) .report-audit-title {
   color: var(--ink);
 }
 
-.rdo-report-detail-page .report-audit-meta span,
-.rdo-report-detail-page .report-audit-hashes span {
+:is(.rdo-report-detail-page, .rdo-edit-page) :is(.report-audit-description, .report-audit-main time) {
+  color: var(--muted);
+}
+
+:is(.rdo-report-detail-page, .rdo-edit-page) .report-audit-meta span,
+:is(.rdo-report-detail-page, .rdo-edit-page) .report-audit-hashes span {
   border-color: var(--line);
   background: var(--surface);
   color: var(--muted);
