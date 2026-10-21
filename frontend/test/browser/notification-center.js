@@ -9,9 +9,16 @@ async (page) => {
   const closeDialog = () => page.getByRole('dialog').getByRole('button', { name: 'Fechar', exact: true }).click();
   const waitRows = count => page.waitForFunction(count => document.querySelectorAll('.notification-center-item').length === count, count);
   await waitLabel('Notificações, 23 não lidas');
-  const leading = await page.locator('.fv-topbar__leading').boundingBox();
-  const trigger = await bell().boundingBox();
-  if (!leading || !trigger || trigger.x - leading.x > 5) throw new Error('Bell is not on the left of the header');
+  const assertBellOnRight = async () => {
+    const header = page.locator('header').first();
+    const actions = header.locator('.fv-topbar__actions, .topbar-actions-react');
+    if (!await actions.locator('.notification-center-trigger').count()) throw new Error('Bell is outside the header actions');
+    const bounds = await header.boundingBox();
+    const trigger = await bell().boundingBox();
+    if (!bounds || !trigger || trigger.x + trigger.width / 2 < bounds.x + bounds.width / 2
+      || trigger.x + trigger.width > bounds.x + bounds.width + 1) throw new Error('Bell is not on the right of the header');
+  };
+  await assertBellOnRight();
   await bell().click();
   await waitRows(20);
   await page.evaluate(() => { window.notificationFixture.failPage = true; });
@@ -73,5 +80,19 @@ async (page) => {
   await waitRows(20);
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.screenshot({ path: 'output/playwright/notification-center-desktop.png' });
-  return 'Passed: pagination and retry, individual/all reads, failed writes, persistence, Escape/focus, 390/320px, account isolation and fetch retry.';
+  await closeDialog();
+  for (const width of [1365, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertBellOnRight();
+  }
+  await page.goto(base + '?header=legacy');
+  await bell().waitFor();
+  for (const width of [1365, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertBellOnRight();
+  }
+  await bell().click();
+  await page.getByRole('dialog', { name: 'Central de notificações' }).waitFor();
+  await closeDialog();
+  return 'Passed: right-side bell in both headers at 1365/390/320px, pagination and retry, individual/all reads, failed writes, persistence, Escape/focus, account isolation and fetch retry.';
 }
