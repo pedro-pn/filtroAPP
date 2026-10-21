@@ -25,6 +25,7 @@ import { computeProjectProgress, computeDivisionProgressDetails, computeProgress
 import { listRealizedCorrections, saveRealizedCorrection } from '../../lib/acompanhamento/realized-corrections-store.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
+import { listCrmOpportunityCards } from '../../lib/projects/crm-opportunities.js';
 import { setProjectCardName } from '../../lib/acompanhamento/project-card-name.js';
 import { getProjectStandbyHistory } from '../../lib/acompanhamento/standby-history.js';
 import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompanhamento/project-romaneios.js';
@@ -423,9 +424,11 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-    const [cards, groups, copies] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies()]);
+    const [cards, groups, copies, opportunities] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies(), listCrmOpportunityCards()]);
     const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
-    res.json(projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards], req.auth.user));
+    const convertedIds = new Set(cards.flatMap(card => card.crmOpportunity ? [card.crmOpportunity.id] : []));
+    res.json(projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards,
+      ...opportunities.filter(opportunity => !convertedIds.has(opportunity.id))], req.auth.user));
   })
 );
 

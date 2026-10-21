@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { makePlaygroundParameterSchema, buildPlaygroundInput, playgroundParameterDefaults } from '../../../../shared/schemas/playground-parameters.js';
 import { apiValidationError } from '../../../../shared/schemas/api-validation-messages.js';
 import { operationsForScope } from '../../components/admin/api-tokens/apiOperations';
+import { createUuid } from '../../utils/uuid';
 
 import type { CreateApiCredentialInput } from '../../../../shared/schemas/api-credentials.js';
 import { createApiCredential, getApiCredential, listApiCredentials, listApiScopes, testApiCredential, type ApiPlaygroundResult, type IssuedApiCredential } from '../../api/apiCredentials';
@@ -90,7 +91,7 @@ export function AdminTokensPage() {
 
   async function issueCredential(payload: CreateApiCredentialInput) {
     setError('');
-    const result = await createApiCredential(payload, crypto.randomUUID());
+    const result = await createApiCredential(payload, createUuid());
     // O segredo fica apenas neste estado efêmero; nunca entra no cache da consulta.
     setIssued(result);
     replaceSafeParams({ etapa: 'credenciais', credential: result.credential.id, detail: result.credential.id, cursor: '' });

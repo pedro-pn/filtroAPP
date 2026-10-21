@@ -52,7 +52,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'project-tracking', label: 'Acompanhamento e custos',
-    models: [...modelEntries(['ProjectManualProgressHistory', 'AcompanhamentoMissionGroup', 'AcompanhamentoMissionGroupMember'], 'PLANNED'), ...modelEntries(['CostProfile', 'CostParameterSet', 'ProjectManualCost', 'ProjectManagementNote'], 'SENSITIVE'), ...modelEntries(['ProjectRealizedCorrection', 'MissionWeeklyProgressTarget', 'ProjectPresentationCopy'], 'RESERVED')],
+    models: [...modelEntries(['ProjectManualProgressHistory', 'AcompanhamentoMissionGroup', 'AcompanhamentoMissionGroupMember'], 'PLANNED'), ...modelEntries(['CostProfile', 'CostParameterSet', 'ProjectManualCost', 'ProjectManagementNote'], 'SENSITIVE'), ...modelEntries(['ProjectRealizedCorrection', 'MissionWeeklyProgressTarget', 'ProjectPresentationCopy', 'CrmOpportunity', 'CrmOpportunityEvent', 'CrmPlanningReceipt', 'CrmProjectMapping', 'CrmOpportunityLinkEvent'], 'RESERVED')],
     candidateScopes: ['acompanhamento.progresso.read', 'acompanhamento.grupos.read', 'acompanhamento.custos.read', 'acompanhamento.notas.read'], endpointFamilies: ['/acompanhamento/progresso', '/acompanhamento/grupos', '/acompanhamento/custos'],
     excludedFields: ['margens', 'precificação', 'notas livres com PII', 'parâmetros internos', 'identidade do editor', 'snapshots internos de apresentação']
   }),

@@ -5,7 +5,9 @@ export function formatSafeCurl(path: string, download = false, method: 'GET' | '
   if (download) return `curl --fail -H "Authorization: Bearer $FILTRO_API_TOKEN" --output "arquivo-baixado.bin" "${url}"`;
   if (method === 'POST') {
     const quotedBody = JSON.stringify(body || {}).replaceAll("'", "'\\''");
-    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json" --data-raw '${quotedBody}' "${url}"`;
+    const eventId = typeof body?.eventId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.eventId) ? body.eventId : null;
+    const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' && eventId ? ` -H "Idempotency-Key: ${eventId}"` : '';
+    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency} --data-raw '${quotedBody}' "${url}"`;
   }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }

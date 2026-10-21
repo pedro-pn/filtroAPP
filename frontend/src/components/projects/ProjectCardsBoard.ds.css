@@ -82,7 +82,7 @@
 .acp-project__rename .acp-project__inline-actions { justify-content: flex-end; }
 
 @media (min-width: 768px) {
-  .acp-projects__views { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .acp-projects__views { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .acp-projects__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 1100px) {
@@ -98,3 +98,16 @@
   .acp-project__pair dd { text-align: end; }
   .acp-project__facts > div { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
 }
+.acp-opportunity__details {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.acp-opportunity__details > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.acp-opportunity__details dt { color: var(--muted); font-size: var(--text-xs); }
+.acp-opportunity__details dd { min-width: 0; margin: 0; text-align: end; font-size: var(--text-sm); overflow-wrap: anywhere; }

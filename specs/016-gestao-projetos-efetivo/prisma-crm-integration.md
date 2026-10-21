@@ -1,5 +1,10 @@
 # Integração do Efetivo com o CRM Prisma — levantamento de 30/09/2026
 
+Atualização de 20/10/2026: o recebimento de oportunidades quentes sem número de
+projeto e seu vínculo no fechamento estão implementados no Acompanhamento. Consulte
+[o contrato de oportunidades](../../docs/PRISMACRM_OPORTUNIDADES.md) para os estados,
+payloads, escopos e implantação. A marcação e o emissor no Prisma continuam externos.
+
 ## Proprietários dos dados
 
 O Prisma é a origem dos dados comerciais e dos aceites do cliente. O FiltroAPP é a origem do projeto operacional, das decisões da equipe e do progresso executado. A correlação deve usar o identificador nativo do Prisma e o `Project.code` do FiltroAPP; `CommercialProposal.codNectar` é um campo legado de importação do Access e não é um vínculo confirmado com o Prisma.
@@ -33,6 +38,7 @@ O status é um retrato calculado no momento da consulta. `workflowVersion` não 
 
 | Endpoint | Direção | Estado | Playground |
 | --- | --- | --- | --- |
+| `POST /api/integracoes/v1/acompanhamento/oportunidades` | Prisma → FiltroAPP | Recebe oportunidade sem projeto; `WON` vincula o cadastro definitivo, com versão e histórico | Sim, operação `acompanhamento.opportunities.post` |
 | `POST /api/integracoes/v1/efetivo/projetos` | Prisma → FiltroAPP | Adicionado; escopo `efetivo.projetos.create`, acesso a todos os projetos | Sim, operação `efetivo.projects.create` |
 | `POST /api/integracoes/v1/efetivo/projetos/{id}/fatos-comerciais` | Prisma → FiltroAPP | Adicionado; escopo `efetivo.projetos.fatos-comerciais.write`, projeto autorizado | Sim, operação `efetivo.projects.commercialFact.post` |
 | `POST /api/integracoes/v1/efetivo/projetos/{id}/documentos` | Prisma → FiltroAPP | Adicionado; escopo `efetivo.projetos.documentos.write`, projeto autorizado | Sim, operação `efetivo.projects.document.post` |

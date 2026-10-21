@@ -8,6 +8,9 @@ import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-ope
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from '../../../lib/api-credentials/job-role-salary.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
+import { receiveCrmOpportunity, validateCrmOpportunity } from '../../../lib/projects/crm-opportunities.js';
+import { getCrmPlanningState, listCrmPlanningStates, validatePlanningReadAccess, validatePlanningListQuery, validatePlanningDetailParams } from '../../../lib/projects/crm-planning-read.js';
+import { IntegrationApiError } from '../../../middleware/api-request-context.js';
 import { openOperationalDownload, validateOperationalDownload } from '../../../lib/api-credentials/operational-downloads.js';
 import {
   listOperationalResources,
@@ -23,6 +26,42 @@ export function createOperationalRouter({
   envConfig = env
 } = {}) {
   const router = Router();
+  router.post('/acompanhamento/oportunidades', requireApiOperation('acompanhamento.opportunities.post'), asyncHandler(async (req, res) => {
+    validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
+    validateCrmOpportunity(req.body);
+    if (!req.headers['idempotency-key']) throw new IntegrationApiError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Envie Idempotency-Key igual ao eventId.');
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'acompanhamento.opportunities.post', requestedRows: 1,
+      execute: async () => {
+        const received = await receiveCrmOpportunity(prismaClient, req.body, { envConfig, idempotencyKey: req.headers['idempotency-key'] });
+        return { rows: 1, statusCode: received.statusCode, outcomeCode: received.body.disposition.toUpperCase(), body: { ...received.body, requestId: req.requestId } };
+      }
+    });
+    res.status(result.statusCode).json(result.body);
+  }));
+  router.get('/acompanhamento/oportunidades/vinculos', requireApiOperation('acompanhamento.opportunities.links.list'), asyncHandler(async (req, res) => {
+    validatePlanningReadAccess(req.apiAuth.credential);
+    validatePlanningListQuery(req.query);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'acompanhamento.opportunities.links.list', requestedRows: Number(req.query.limit) || Math.min(100, req.apiAuth.credential.maxPageSize),
+      execute: async () => {
+        const body = await listCrmPlanningStates(prismaClient, req.query, { envConfig,
+          maxPageSize: Math.min(req.apiAuth.credential.maxPageSize, envConfig.apiTokenGlobalMaxPageSize),
+          cursorKey: envConfig.apiTokenHashKeys[envConfig.apiTokenActiveKeyVersion] });
+        return { rows: body.items.length, body: { ...body, requestId: req.requestId } };
+      }
+    });
+    res.json(result.body);
+  }));
+  router.get('/acompanhamento/oportunidades/por-origem/prismaCRM/:externalId', requireApiOperation('acompanhamento.opportunities.get'), asyncHandler(async (req, res) => {
+    validatePlanningReadAccess(req.apiAuth.credential);
+    const { externalId } = validatePlanningDetailParams(req.params, req.query);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'acompanhamento.opportunities.get', requestedRows: 1,
+      execute: async () => ({ rows: 1, body: { ...await getCrmPlanningState(prismaClient, externalId, envConfig), requestId: req.requestId } })
+    });
+    res.json(result.body);
+  }));
   router.get('/cargos/:id/salario', requireApiOperation('jobRoles.salary.get'), asyncHandler(async (req, res) => {
     validateJobRoleSalaryRequest(req.params, req.query);
     const result = await runMeteredApiOperation(req, {

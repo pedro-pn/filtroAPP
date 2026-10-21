@@ -2,6 +2,7 @@ import { QUALITY_RECORD_TYPES, QUALITY_STATUSES } from '../../../../shared/schem
 import { INTEGRATION_REPORT_TYPES } from '../../../../shared/schemas/integration-api.js';
 
 const queryDefinitions = {
+  after: { label: 'Cursor de reconciliação', type: 'text', maxLength: 4096, help: 'Na URI: after=<page.nextCursor>. Use o cursor da página anterior, mantendo os filtros.', advanced: true },
   referenceDate: { label: 'Data de referência', type: 'date', required: true, help: 'Na URI: referenceDate=AAAA-MM-DD. Seleciona o salário com vigência mais recente até essa data, inclusive; reajustes posteriores ficam de fora.' },
   limit: { label: 'Itens para visualizar', type: 'integer', min: 1, max: 20, help: 'Na URI: limit=20. Define o tamanho da página; o teste exibe até 20 itens e respeita o limite do token.' },
   cursor: { label: 'Cursor da próxima página', type: 'text', maxLength: 4096, help: 'Na URI: cursor=VALOR. Copie page.nextCursor, codifique-o na URL e mantenha os mesmos filtros.', advanced: true },
@@ -38,6 +39,8 @@ export function describePlaygroundParameters(operation) {
         : { label: operation.path.startsWith('/manutencao/') ? 'ID do anexo de manutenção' : 'ID do anexo do relatório', help: 'Copie id de um item retornado na listagem de metadados de anexos do mesmo módulo.' };
   return [
     ...(operation.pathParams || []).map(name => {
+      if (name === 'externalId') return { name, in: 'path', type: 'text', required: true, maxLength: 180,
+        label: 'ID da oportunidade no Prisma', help: 'Use o externalId estável enviado nos eventos de planejamento.' };
       if (name !== 'id') throw new Error(`Parâmetro de caminho sem descritor: ${name}`);
       return { name, in: 'path', type: 'text', required: true, maxLength: 100, ...identity };
     }),

@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { Modal } from '../../ui/Modal';
 import { ApiCredentialForm } from './ApiCredentialForm';
 import { ApiCredentialReductionForm } from './ApiCredentialReductionForm';
+import { createUuid } from '../../../utils/uuid';
 
 type Confirmation = { reason: string; confirmation: string; overlapMinutes?: number };
 export function ApiCredentialActions({ credential, scopes, onChanged, onIssued }: {
@@ -25,7 +26,8 @@ export function ApiCredentialActions({ credential, scopes, onChanged, onIssued }
   const { errors } = form.formState;
   const terminal = ['EXPIRED', 'REVOKED'].includes(credential.effectiveStatus);
   function open(next: 'reduce' | 'rotate' | 'revoke') {
-    setError(''); setAction(next); setActionKey(crypto.randomUUID());
+    const key = createUuid();
+    setError(''); setAction(next); setActionKey(key);
     form.reset({ reason: '', confirmation: '', ...(next === 'rotate' ? { overlapMinutes: 0 } : {}) });
     if (next === 'rotate') setRotationInput(rotationDefaults(credential));
   }

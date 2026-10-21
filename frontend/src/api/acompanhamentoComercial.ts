@@ -778,6 +778,9 @@ export interface ProjectCard {
   canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
   projectId: string;
+  crmOpportunity?: { id: string; externalId: string; externalUrl: string | null } | null;
+  crmOpportunities?: Array<{ id: string; externalId: string; externalUrl: string | null; scopeKind: string }>;
+  awaitingCommercialBudget?: boolean;
   code: string;
   name: string;
   cardName?: string | null;
@@ -838,6 +841,30 @@ export interface MissionGroupCard extends Omit<ProjectCard, 'kind' | 'projectId'
 
 export type ProjectCardItem = ProjectCard | MissionGroupCard;
 
+export interface CrmOpportunityCard {
+  kind: 'OPPORTUNITY';
+  category: 'FUTURO' | 'PAUSADA';
+  id: string;
+  externalId: string;
+  name: string;
+  clientName: string | null;
+  clientCnpj: string | null;
+  location: string | null;
+  proposalCode: string | null;
+  revision: number | null;
+  estimatedValue: number | null;
+  expectedCloseDate: string | null;
+  expectedStartDate: string | null;
+  externalUrl: string | null;
+  sourceUpdatedAt: string;
+  description?: string | null;
+  commercialStatus: 'OPEN' | 'WON' | 'LOST' | 'DISCARDED' | 'CANCELLED' | 'POSTPONED';
+  planningRequested: boolean;
+  projectLinkStatus: 'NOT_REQUESTED' | 'PENDING_DATA' | 'PENDING_LINK' | 'LINKED' | 'NEEDS_REVIEW';
+  scopeKind: 'PRIMARY' | 'ADDITIONAL' | 'UNCLASSIFIED';
+  targetProject: { id: string; code: string } | null;
+}
+
 export interface ProjectStandbyHistoryEntry {
   date: string;
   standbyMinutes: number;
@@ -862,8 +889,8 @@ export interface ProjectManagementNote {
   createdAt: string;
 }
 
-export async function getProjectCards(): Promise<ProjectCardItem[]> {
-  const { data } = await apiClient.get<ProjectCardItem[]>('/acompanhamento/comercial/projetos-cards');
+export async function getProjectCards(): Promise<Array<ProjectCardItem | CrmOpportunityCard>> {
+  const { data } = await apiClient.get<Array<ProjectCardItem | CrmOpportunityCard>>('/acompanhamento/comercial/projetos-cards');
   return data;
 }
 

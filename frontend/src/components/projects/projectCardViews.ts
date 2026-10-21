@@ -1,10 +1,10 @@
 import type { ProjectCardCategory, ProjectCardItem } from '../../api/acompanhamentoComercial';
 
-export type CardsView = 'andamento' | 'futuros' | 'arquivados' | 'conferidas';
+export type CardsView = 'andamento' | 'futuros' | 'pausadas' | 'arquivados' | 'conferidas';
 
-const CARD_VIEWS: CardsView[] = ['andamento', 'futuros', 'arquivados', 'conferidas'];
+const CARD_VIEWS: CardsView[] = ['andamento', 'futuros', 'pausadas', 'arquivados', 'conferidas'];
 
-const VIEW_CATEGORY: Record<CardsView, ProjectCardCategory> = {
+const VIEW_CATEGORY: Record<Exclude<CardsView, 'pausadas'>, ProjectCardCategory> = {
   andamento: 'ANDAMENTO',
   futuros: 'FUTURO',
   arquivados: 'ARQUIVADO',
@@ -16,6 +16,7 @@ function cardCategory(card: ProjectCardItem): ProjectCardCategory {
 }
 
 export function cardMatchesView(card: ProjectCardItem, view: CardsView) {
+  if (view === 'pausadas') return false;
   const category = cardCategory(card);
   if (view === 'conferidas') return category === 'ARQUIVADO' && card.reviewed;
   if (view === 'arquivados') return category === 'ARQUIVADO' && !card.reviewed;

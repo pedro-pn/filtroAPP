@@ -52,9 +52,10 @@ test('dynamic forms validate every required path and query parameter', () => {
     if (op.pathParams.length) {
       const requiredQuery = Object.fromEntries(op.parameters.filter(parameter => parameter.in === 'query' && parameter.required)
         .map(parameter => [parameter.name, parameter.type === 'date' ? '2026-10-15' : 'demo']));
-      assert.equal(schema(op).safeParse({ ...initial, ...requiredQuery, id: 'record-demo' }).success, true);
-      assert.equal(schema(op).safeParse({ id: ' ' }).success, false);
-      assert.equal(schema(op).safeParse({ id: 'x'.repeat(101) }).success, false);
+      const path = op.pathParams[0];
+      assert.equal(schema(op).safeParse({ ...initial, ...requiredQuery, [path]: 'record-demo' }).success, true);
+      assert.equal(schema(op).safeParse({ [path]: ' ' }).success, false);
+      assert.equal(schema(op).safeParse({ [path]: 'x'.repeat(op.parameters.find(parameter => parameter.name === path).maxLength + 1) }).success, false);
     }
     assert.equal(schema(op).safeParse({ ...initial, url: 'http://private' }).success, false);
   }
@@ -114,4 +115,11 @@ test('CRM POST form requires JSON and console builds a POST curl from the valida
   assert.match(preview.curl, /-X POST/);
   assert.match(preview.curl, /--data-raw/);
   assert.doesNotMatch(preview.curl, /untrusted/);
+});
+
+test('planning-1.0 inclui Idempotency-Key no comando copiado do console', () => {
+  const op = operation('acompanhamento.opportunities.post');
+  const input = buildPlaygroundInput(op, playgroundParameterDefaults(op));
+  const preview = redactedRequestPreview({ request: { method: 'POST', path: '/api/integracoes/v1/acompanhamento/oportunidades', authorization: 'Bearer ••••demo', body: input.body }, response: { status: 201, body: {} } });
+  assert.ok(preview.curl.includes(`Idempotency-Key: ${input.body.eventId}`));
 });

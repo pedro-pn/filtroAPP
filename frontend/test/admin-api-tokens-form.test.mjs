@@ -21,12 +21,14 @@ test('credential form uses RHF, shared Zod, scope dependencies and accessible er
 });
 
 test('one-time secret stays in component memory and never enters URL, cache or storage', async () => {
-  const [modal, api] = await Promise.all([
+  const [modal, api, clipboard] = await Promise.all([
     source('src/components/admin/api-tokens/ApiTokenRevealModal.tsx'),
-    source('src/api/apiCredentials.ts')
+    source('src/api/apiCredentials.ts'),
+    source('src/utils/clipboard.ts')
   ]);
   assert.match(modal, /FILTRO_API_TOKEN/);
-  assert.match(modal, /navigator\.clipboard/);
+  assert.match(clipboard, /navigator\.clipboard/);
   assert.doesNotMatch(modal, /localStorage|sessionStorage|URLSearchParams/);
+  assert.doesNotMatch(clipboard, /localStorage|sessionStorage|console\./);
   assert.doesNotMatch(api, /setQueryData\([^\n]*token/);
 });

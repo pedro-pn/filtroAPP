@@ -5,6 +5,7 @@ const SENSITIVE_ERROR_TEXT = /fva_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{20,}|\bBearer\
 
 function isCrmWritePath(path) {
   return path === '/api/integracoes/v1/efetivo/projetos'
+    || path === '/api/integracoes/v1/acompanhamento/oportunidades'
     || /^\/api\/integracoes\/v1\/efetivo\/projetos\/[^/]+\/(?:fatos-comerciais|documentos)$/.test(path);
 }
 
@@ -74,7 +75,7 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
       }
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', writePath ? 'GET, POST' : 'GET');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id, Idempotency-Key');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Request-Id, Retry-After');
       if (req.method === 'OPTIONS') return res.status(204).end();
     }

@@ -10,6 +10,8 @@
 
 ## Implementation status
 
+- Planejamento PrismaCRM atualizado em 2026-10-20: contrato `planning-1.0`, eventos idempotentes, vínculo de várias oportunidades por projeto e leituras de reconciliação. Regras, migração e homologação em [PRISMACRM_OPORTUNIDADES.md](../../docs/PRISMACRM_OPORTUNIDADES.md). OpenAPI 1.8.0; sem ativação automática em produção.
+
 - Implementação de código e gates automatizados concluídos em 2026-09-04; evidências não sensíveis estão em `checklists/implementation.md`.
 - O primeiro marco ligou 14 operações a handlers reais. Os dois incrementos de 2026-09-08 acrescentam 28 coleções operacionais e 3 downloads: contrato com 45 operações (10 administrativas e 35 externas).
 - Os 126 modelos de negócio permanecem catalogados. Há 33 escopos concedíveis (5 de Qualidade, 12 operacionais iniciais e 16 da expansão de relatórios/estoque/manutenção); os outros 49 candidatos continuam bloqueados. A ampliação não altera tokens já emitidos.

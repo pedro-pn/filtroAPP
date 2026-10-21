@@ -4,6 +4,7 @@ import type { IssuedApiCredential } from '../../../api/apiCredentials';
 import { Badge, Button } from '../../ui/ds';
 import { Modal } from '../../ui/Modal';
 import { exampleOperationForCredential, type ApiOperationOption } from './apiOperations';
+import { copyTextToClipboard } from '../../../utils/clipboard';
 
 interface ApiTokenRevealModalProps {
   issued: IssuedApiCredential | null;
@@ -36,12 +37,12 @@ export function ApiTokenRevealModal({ issued, operations, onClose }: ApiTokenRev
 
   async function copyValue(kind: 'token' | 'curl') {
     if (!issued) return;
-    try {
-      await navigator.clipboard.writeText(kind === 'token' ? issued.token : curlExample);
-      setCopied(previous => ({ ...previous, [kind]: true }));
+    const element = kind === 'token' ? tokenRef.current : curlRef.current;
+    const success = await copyTextToClipboard(kind === 'token' ? issued.token : curlExample, element);
+    setCopied(previous => ({ ...previous, [kind]: success }));
+    if (success) {
       setCopyError('');
-    } catch {
-      const element = kind === 'token' ? tokenRef.current : curlRef.current;
+    } else {
       if (element) {
         element.focus();
         const range = document.createRange();
@@ -50,7 +51,7 @@ export function ApiTokenRevealModal({ issued, operations, onClose }: ApiTokenRev
         selection?.removeAllRanges();
         selection?.addRange(range);
       }
-      setCopyError(`Não foi possível copiar automaticamente. O ${kind === 'token' ? 'token' : 'comando'} foi selecionado para você copiar manualmente.`);
+      setCopyError(`Não foi possível copiar automaticamente. Selecionei o ${kind === 'token' ? 'token' : 'comando'}: use Ctrl+C ou a opção Copiar do dispositivo.`);
     }
   }
 

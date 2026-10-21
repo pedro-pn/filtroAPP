@@ -51,7 +51,7 @@ test('all administrative, quality and operational operations have unique IDs and
     readFile(new URL('../src/routes/integrations/v1/qualidade.js', import.meta.url), 'utf8')
   ]);
   const operations = operationEntries(YAML.parse(source));
-  assert.equal(operations.length, 19 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
+  assert.equal(operations.length, 22 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
   assert.equal(new Set(operations.map(item => item.operation.operationId)).size, operations.length);
 
   const handlers = {
@@ -77,14 +77,19 @@ test('all administrative, quality and operational operations have unique IDs and
       assert.equal(route?.methods.get, true, `Rota operacional ausente: ${resource.path}`);
       continue;
     }
+    if (['listIntegrationCrmPlanningLinks', 'getIntegrationCrmPlanningState'].includes(operation.operationId)) {
+      const path = operation.operationId === 'listIntegrationCrmPlanningLinks' ? '/acompanhamento/oportunidades/vinculos' : '/acompanhamento/oportunidades/por-origem/prismaCRM/:externalId';
+      assert.equal(createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route?.methods.get, true);
+      continue;
+    }
     if (['getIntegrationEfetivoProjectStatus', 'getIntegrationJobRoleSalary'].includes(operation.operationId)) {
       const path = operation.operationId === 'getIntegrationJobRoleSalary' ? '/cargos/:id/salario' : '/efetivo/projetos/:id/status';
       const route = createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route;
       assert.equal(route?.methods.get, true);
       continue;
     }
-    if (['createIntegrationEfetivoProject', 'postIntegrationEfetivoCommercialFact', 'postIntegrationEfetivoDocument'].includes(operation.operationId)) {
-      const path = '/efetivo' + operationEntries(YAML.parse(source)).find(item => item.operation.operationId === operation.operationId).path.split('/efetivo')[1];
+    if (['createIntegrationEfetivoProject', 'postIntegrationEfetivoCommercialFact', 'postIntegrationEfetivoDocument', 'postIntegrationCrmOpportunity'].includes(operation.operationId)) {
+      const path = operationEntries(YAML.parse(source)).find(item => item.operation.operationId === operation.operationId).path.replace('/integracoes/v1', '');
       const route = createOperationalRouter().stack.find(layer => layer.route?.path === path.replace('{id}', ':id'))?.route;
       assert.equal(route?.methods.post, true, `Rota de escrita ausente: ${path}`);
       continue;
