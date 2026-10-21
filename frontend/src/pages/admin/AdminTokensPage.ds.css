@@ -420,6 +420,8 @@
 :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-review-actions {
   align-items: center;
   gap: var(--space-2);
+  background: var(--surface);
+  color: var(--ink);
 }
 
 :is(.api-token-page-v2, .fv-modal.api-policy-modal) .api-form-actions {

@@ -91,7 +91,7 @@ export function QualidadePage() {
         element: navSelector,
         popover: {
           title: 'Abas do modulo',
-          description: 'Registros concentra a tabela operacional. Naturezas mantem as categorias usadas no formulario e no calculo de recorrencia.',
+          description: 'Registros concentra a tabela operacional. Em Naturezas, cadastre as categorias gerais e as Subnaturezas de cada uma.',
           side: 'right',
           align: 'start'
         }
@@ -135,7 +135,7 @@ export function QualidadePage() {
       <main className="quality-page-v2 fv-ds">
         <PageHeader
           title={tab === 'naturezas' ? 'Naturezas' : 'Registros de qualidade'}
-          description={tab === 'naturezas' ? 'Categorias usadas nos registros e na recorrência.' : 'Acompanhe registros, desvios e recorrências do SGQ.'}
+          description={tab === 'naturezas' ? 'Naturezas e Subnaturezas usadas nos registros de qualidade.' : 'Acompanhe registros, desvios e recorrências do SGQ.'}
           actions={<Button variant="secondary" size="sm" onClick={() => startTutorial(true)}>Ver tutorial</Button>}
         />
         {tab === 'naturezas'

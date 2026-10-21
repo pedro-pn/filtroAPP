@@ -29,6 +29,7 @@ export function publicQualityRecord(record, { scopes = new Set(), recurrence = {
     project: record.project ? { id: record.project.id, code: record.project.code, name: record.project.name } : null,
     eventDate: dateOnly(record.eventDate),
     nature: record.nature ? { id: record.nature.id, name: record.nature.name, isActive: Boolean(record.nature.isActive) } : null,
+    subnature: record.subnature ? { id: record.subnature.id, name: record.subnature.name, natureId: record.subnature.natureId } : null,
     description: record.description ?? null,
     impact: record.impact ?? null,
     recurrence: {
@@ -62,6 +63,7 @@ export function publicQualityNature(nature) {
     isActive: Boolean(nature.isActive),
     position: Number(nature.position) || 0,
     createdAt: iso(nature.createdAt),
-    updatedAt: iso(nature.updatedAt)
+    updatedAt: iso(nature.updatedAt),
+    subnatures: (nature.subnatures || []).map(item => ({ id: item.id, name: item.name, position: Number(item.position) || 0 }))
   };
 }

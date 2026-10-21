@@ -36,10 +36,10 @@ interface Props {
 interface QualityRecordFormValues {
   type: QualityRecordType;
   registeredAt: string;
-  origin: string;
   projectId: string;
   eventDate: string;
   natureId: string;
+  subnatureId: string;
   description: string;
   impact: QualityImpact | '';
   linkedRnc: string;
@@ -149,10 +149,10 @@ function valuesToPayload(values: QualityRecordFormValues): QualityRecordPayload 
   return {
     type: values.type,
     registeredAt: values.registeredAt,
-    origin: optionalValue(values.origin),
     projectId: optionalValue(values.projectId),
     eventDate: values.eventDate,
     natureId: optionalValue(values.natureId),
+    subnatureId: optionalValue(values.subnatureId),
     description: optionalValue(values.description),
     impact: values.impact || null,
     linkedRnc: optionalValue(values.linkedRnc),
@@ -208,10 +208,10 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
   const defaultValues = useMemo<QualityRecordFormValues>(() => ({
     type: record?.type || 'DESVIO',
     registeredAt: record?.registeredAt || todayDate(),
-    origin: record?.origin || '',
     projectId: record?.projectId || '',
     eventDate: record?.eventDate || todayDate(),
     natureId: record?.natureId || '',
+    subnatureId: record?.subnatureId || '',
     description: record?.description || '',
     impact: record ? (record.impact || '') : 'BAIXO',
     linkedRnc: record?.linkedRnc || '',
@@ -223,15 +223,15 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
     status: record ? (record.status || '') : 'ABERTO'
   }), [record]);
 
-  const { register, handleSubmit, formState: { errors }, watch, clearErrors } = useForm<QualityRecordFormValues>({
+  const { register, handleSubmit, formState: { errors }, watch, clearErrors, setValue } = useForm<QualityRecordFormValues>({
     defaultValues,
     resolver: resolverFor(record)
   });
   const recordType = watch('type');
   const isDeviation = recordType === 'DESVIO';
   const disposition = watch('disposition');
-  const selectedProjectId = watch('projectId');
-  const selectedProject = projects.find(project => project.id === selectedProjectId);
+  const selectedNatureId = watch('natureId');
+  const availableSubnatures = natures.find(nature => nature.id === selectedNatureId)?.subnatures || [];
 
   useEffect(() => {
     if (!open) return;
@@ -357,30 +357,20 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
 
           <div className={fieldClass(errors, 'projectId', 'quality-destination-field')}>
             <label htmlFor="quality-project">Obra/Projeto</label>
-            <Select id="quality-project" disabled={saving} invalid={Boolean(errors.projectId)} aria-describedby="quality-destination-hint" {...register('projectId')}>
+            <Select id="quality-project" disabled={saving} invalid={Boolean(errors.projectId)} {...register('projectId')}>
               <option value="">Interno/SGQ</option>
               {projects.map(project => (
                 <option key={project.id} value={project.id}>{project.code} - {project.name}</option>
               ))}
             </Select>
-            <div className="quality-destination-preview" id="quality-destination-hint" aria-live="polite">
-              <span className="quality-destination-preview__tag">{selectedProjectId ? 'Obra' : 'Interno / SGQ'}</span>
-              <span>{selectedProjectId
-                ? selectedProject ? `Registro vinculado a ${selectedProject.code} - ${selectedProject.name}.` : 'Registro vinculado à obra selecionada.'
-                : 'Registro interno de qualidade, sem vínculo com uma obra.'}</span>
-            </div>
             {errors.projectId ? <small className="field-error">{errors.projectId.message}</small> : null}
-          </div>
-
-          <div className={fieldClass(errors, 'origin')}>
-            <label htmlFor="quality-origin">Origem{isDeviation ? ' *' : ''}</label>
-            <Input id="quality-origin" type="text" disabled={saving} invalid={Boolean(errors.origin)} {...register('origin')} />
-            {errors.origin ? <small className="field-error">{errors.origin.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'natureId')}>
             <label htmlFor="quality-nature">Natureza{isDeviation ? ' *' : ''}</label>
-            <Select id="quality-nature" disabled={saving} invalid={Boolean(errors.natureId)} {...register('natureId')}>
+            <Select id="quality-nature" disabled={saving} invalid={Boolean(errors.natureId)} {...register('natureId', {
+              onChange: () => setValue('subnatureId', '', { shouldDirty: true, shouldValidate: true })
+            })}>
               <option value="">Selecione</option>
               {availableNatures.map(nature => (
                 <option key={nature.id} value={nature.id}>
@@ -389,6 +379,15 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
               ))}
             </Select>
             {errors.natureId ? <small className="field-error">{errors.natureId.message}</small> : null}
+          </div>
+
+          <div className={fieldClass(errors, 'subnatureId')}>
+            <label htmlFor="quality-subnature">Subnatureza</label>
+            <Select id="quality-subnature" disabled={saving || !selectedNatureId || !availableSubnatures.length} invalid={Boolean(errors.subnatureId)} {...register('subnatureId')}>
+              <option value="">{!selectedNatureId ? 'Selecione a Natureza primeiro' : availableSubnatures.length ? 'Selecione' : 'Nenhuma Subnatureza cadastrada'}</option>
+              {availableSubnatures.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </Select>
+            {errors.subnatureId ? <small className="field-error">{errors.subnatureId.message}</small> : null}
           </div>
 
           <div className={fieldClass(errors, 'impact')}>
@@ -442,7 +441,7 @@ export function QualityRecordFormModal({ open, record, projects, natures, saving
           </div>
 
           <div className="field-group">
-            <label htmlFor="quality-rnc">RNC vinculada</label>
+            <label htmlFor="quality-rnc">RNC ou RIAI vinculada</label>
             <Input id="quality-rnc" type="text" disabled={saving} {...register('linkedRnc')} />
           </div>
 

@@ -8,6 +8,7 @@ const optionalValues = {
   origin: 'Reunião semanal',
   projectId: 'project-1',
   natureId: 'nature-1',
+  subnatureId: 'subnature-1',
   description: 'Melhoria no processo',
   impact: 'BAIXO',
   linkedRnc: 'D-001/26',
@@ -47,6 +48,7 @@ export function registerQualidadeContractTests(z) {
         origin: 'x'.repeat(181),
         projectId: 'x'.repeat(81),
         natureId: 'x'.repeat(81),
+        subnatureId: 'x'.repeat(81),
         description: 'x'.repeat(4001),
         impact: 'INVALIDO',
         disposition: 'INVALIDO',
@@ -82,7 +84,7 @@ export function registerQualidadeContractTests(z) {
 
   test('quality deviation creation and update still require their business fields', () => {
     for (const [schema, required] of [[schemas.recordCreate, { type: 'DESVIO', ...dates }], [schemas.recordUpdateForType('DESVIO'), dates]]) {
-      for (const key of ['origin', 'natureId', 'description', 'impact', 'disposition', 'status']) {
+      for (const key of ['natureId', 'description', 'impact', 'disposition', 'status']) {
         for (const value of [undefined, null, '', '   ']) {
           const input = { ...required, ...optionalValues, [key]: value };
           if (value === undefined) delete input[key];
@@ -92,6 +94,7 @@ export function registerQualidadeContractTests(z) {
         }
       }
       assert.equal(schema.safeParse({ ...required, ...optionalValues, disposition: 'TRATAR', definedAction: '' }).success, false);
+      assert.equal(schema.safeParse({ ...required, ...optionalValues, origin: null }).success, true);
     }
   });
 }

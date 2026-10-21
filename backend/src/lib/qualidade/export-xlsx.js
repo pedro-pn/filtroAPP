@@ -28,23 +28,23 @@ const HEADER_LAST_ROW = 3;
 const DATA_START_ROW = 4;
 const LAST_COLUMN = 'S';
 const DATA_ROW_HEIGHT = 'ht="57.75" customHeight="1" x14ac:dyDescent="0.25"';
-const DATA_COLUMN_STYLES = [2, 3, 2, 4, 4, 3, 4, 4, 2, 5, 5, 2, 4, 4, 4, 3, 4, 4, 2];
-const DATE_COLUMN_INDEXES = new Set([1, 5, 15]);
+const DATA_COLUMN_STYLES = [2, 3, 2, 4, 3, 4, 4, 4, 2, 5, 5, 2, 4, 4, 4, 3, 4, 4, 2];
+const DATE_COLUMN_INDEXES = new Set([1, 4, 15]);
 const NUMBER_COLUMN_INDEXES = new Set([9]);
 
 export const QUALITY_EXPORT_HEADERS = [
   'Nº Registro',
   'Data do Registro',
   'Tipo',
-  'Origem',
   'Obra / Projeto',
   'Data do Evento',
   'Natureza (categoria)',
+  'Subnatureza',
   'Descrição do evento',
   'Impacto',
   'Ocorrências 12m\n(automático)',
   'Recorrente?\n(automático)',
-  'RNC vinculada',
+  'RNC ou RIAI vinculada',
   'Disposição',
   'Ação definida',
   'Responsável\npela ação',
@@ -102,10 +102,10 @@ function recordRow(record) {
     record.number,
     record.registeredAt,
     typeLabels.get(record.type) || record.type,
-    record.origin || '',
     projectLabel(record),
     record.eventDate,
     record.nature?.name || '',
+    record.subnature?.name || '',
     record.description || '',
     impactLabels.get(record.impact) || record.impact || '',
     record.occurrences12m,
@@ -193,11 +193,19 @@ function updateDataValidationRanges(sheetXml, maxRow) {
 
 function worksheetXmlFromTemplate(sheetXml, records) {
   const headerRows = extractTemplateHeaderRows(sheetXml);
+  // Replace the template's column labels while preserving its title rows and styling.
+  headerRows[2] = headerRows[2].replace(/<c\b[^>]*r="([A-S])3"[^>]*>[\s\S]*?<\/c>/g, (cell, column) => {
+    const index = column.charCodeAt(0) - 65;
+    const opening = cell.match(/^<c\b[^>]*>/)[0].replace(/\s+t="[^"]*"/, '');
+    return `${opening.slice(0, -1)} t="inlineStr"><is><t xml:space="preserve">${xml(QUALITY_EXPORT_HEADERS[index])}</t></is></c>`;
+  });
   const dataRows = (records || []).map((record, index) => dataRowXml(recordRow(record), DATA_START_ROW + index));
   const maxRow = HEADER_LAST_ROW + dataRows.length;
   const sheetData = `<sheetData>${[...headerRows, ...dataRows].join('')}</sheetData>`;
 
   return updateDataValidationRanges(sheetXml, maxRow)
+    .replace(/(<col min="5" max="5" width=")[^"]+/, (_match, prefix) => `${prefix}14`)
+    .replace(/(<col min="6" max="6" width=")[^"]+/, (_match, prefix) => `${prefix}24`)
     .replace(/<dimension\b[^>]*\/>/, `<dimension ref="A1:${LAST_COLUMN}${maxRow}"/>`)
     .replace(/<sheetData>[\s\S]*?<\/sheetData>/, sheetData);
 }

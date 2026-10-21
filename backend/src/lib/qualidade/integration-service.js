@@ -27,6 +27,7 @@ export const QUALITY_RECORD_PUBLIC_SELECT = {
   updatedAt: true,
   project: { select: { id: true, code: true, name: true } },
   nature: { select: { id: true, name: true, isActive: true } },
+  subnature: { select: { id: true, name: true, natureId: true } },
   evidences: {
     select: { id: true, kind: true, label: true, fileName: true, mimeType: true, storagePath: true, position: true, createdAt: true },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }]

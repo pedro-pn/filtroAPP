@@ -3251,6 +3251,16 @@ components:
           anyOf:
             - $ref: '#/components/schemas/NatureRef'
             - type: 'null'
+        subnature:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [id, name, natureId]
+              properties:
+                id: { type: string }
+                name: { type: string }
+                natureId: { type: string }
+            - type: 'null'
         description: { type: [string, 'null'] }
         impact: { type: [string, 'null'] }
         recurrence:
@@ -3299,6 +3309,16 @@ components:
         name: { type: string }
         isActive: { type: boolean }
         position: { type: integer }
+        subnatures:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, name, position]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              position: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     QualityNaturePage:

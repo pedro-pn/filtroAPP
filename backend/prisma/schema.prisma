@@ -2900,16 +2900,31 @@ model User {
 // === Modulo Qualidade ===
 
 model QualityNature {
-  id        String          @id @default(cuid())
-  name      String
-  isActive  Boolean         @default(true)
-  position  Int             @default(0)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  records   QualityRecord[]
+  id         String           @id @default(cuid())
+  name       String
+  isActive   Boolean          @default(true)
+  position   Int              @default(0)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  records    QualityRecord[]
+  subnatures QualitySubnature[]
 
   @@index([isActive, position, name])
   @@index([position])
+}
+
+model QualitySubnature {
+  id        String          @id @default(cuid())
+  natureId  String
+  name      String
+  position  Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  nature    QualityNature   @relation(fields: [natureId], references: [id], onDelete: Cascade)
+  records   QualityRecord[]
+
+  @@unique([natureId, name])
+  @@index([natureId, position])
 }
 
 model QualityRecord {
@@ -2923,6 +2938,7 @@ model QualityRecord {
   projectId          String?
   eventDate          DateTime
   natureId           String?
+  subnatureId        String?
   description        String?
   impact             QualityImpact?
   linkedRnc          String?
@@ -2941,6 +2957,7 @@ model QualityRecord {
   updatedAt          DateTime                @updatedAt
   project            Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
   nature             QualityNature?          @relation(fields: [natureId], references: [id], onDelete: Restrict)
+  subnature          QualitySubnature?       @relation(fields: [subnatureId], references: [id], onDelete: Restrict)
   createdBy          User?                   @relation("QualityRecordCreator", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy          User?                   @relation("QualityRecordUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
   deletedBy          User?                   @relation("QualityRecordDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
@@ -2950,6 +2967,7 @@ model QualityRecord {
   @@unique([type, year, seq])
   @@index([projectId, type])
   @@index([natureId, eventDate])
+  @@index([subnatureId])
   @@index([status])
   @@index([impact])
   @@index([registeredAt])

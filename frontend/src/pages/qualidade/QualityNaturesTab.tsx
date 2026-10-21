@@ -1,5 +1,5 @@
 import { BrandLoading } from '../../components/brand/BrandLoading';
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -16,7 +16,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
-import { Badge, Button, Card, Input } from '../../components/ui/ds';
+import { Badge, Button, Card } from '../../components/ui/ds';
 import {
   createPointerDragGhost,
   movePointerDragGhost,
@@ -52,8 +52,6 @@ export function QualityNaturesTab({ isManager }: Props) {
   const [search, setSearch] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [formNature, setFormNature] = useState<QualityNature | null | undefined>(undefined);
-  const [newName, setNewName] = useState('');
-  const [newSubmitted, setNewSubmitted] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const dragNatureId = useRef<string | null>(null);
   const [draggedNatureId, setDraggedNatureId] = useState<string | null>(null);
@@ -81,8 +79,7 @@ export function QualityNaturesTab({ isManager }: Props) {
     mutationFn: (payload: QualityNaturePayload) => createQualityNature(payload),
     onSuccess: () => {
       invalidate();
-      setNewName('');
-      setNewSubmitted(false);
+      setFormNature(undefined);
       showToast('Natureza cadastrada.', 'success');
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível cadastrar.', 'error')
@@ -146,24 +143,15 @@ export function QualityNaturesTab({ isManager }: Props) {
     const rows = orderedNatures;
     const query = search.trim().toLowerCase();
     if (!query) return rows;
-    return rows.filter(nature => nature.name.toLowerCase().includes(query));
+    return rows.filter(nature => nature.name.toLowerCase().includes(query) || nature.subnatures?.some(item => item.name.toLowerCase().includes(query)));
   }, [orderedNatures, search]);
   const saving = createMutation.isPending || updateMutation.isPending;
   const canReorder = isManager && !search.trim() && natures.length > 1;
   const reorderDisabled = !canReorder || reorderMutation.isPending;
-  const newNameError = newSubmitted && !newName.trim() ? 'Informe o nome da Natureza.' : '';
 
   function handleSubmit(payload: QualityNaturePayload) {
     if (formNature) updateMutation.mutate({ id: formNature.id, payload });
     else createMutation.mutate(payload);
-  }
-
-  function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setNewSubmitted(true);
-    const name = newName.trim();
-    if (!name) return;
-    createMutation.mutate({ name });
   }
 
   function clearDragState() {
@@ -361,38 +349,17 @@ export function QualityNaturesTab({ isManager }: Props) {
       <div className="admin-toolbar">
         <div>
           <div className="sec">Naturezas</div>
-          <p className="rel-meta">Categorias padronizadas usadas no formulário e na recorrência.</p>
+          <p className="rel-meta">Cadastre as categorias gerais e, dentro de cada uma, suas Subnaturezas.</p>
         </div>
+        {isManager ? <Button variant="primary" size="sm" onClick={() => setFormNature(null)}>Nova Natureza</Button> : null}
       </div>
-
-      {isManager ? (
-        <form className="quality-nature-inline-add" onSubmit={handleCreateSubmit} noValidate>
-          <div className={newNameError ? 'field-group field-invalid' : 'field-group'}>
-            <label htmlFor="quality-new-nature">Nova Natureza *</label>
-            <Input
-              id="quality-new-nature"
-              type="text"
-              value={newName}
-              aria-invalid={Boolean(newNameError) || undefined}
-              aria-describedby={newNameError ? 'quality-new-nature-error' : undefined}
-              disabled={createMutation.isPending}
-              onChange={event => {
-                setNewName(event.target.value);
-                setNewSubmitted(false);
-              }}
-            />
-            {newNameError ? <small id="quality-new-nature-error" className="field-error">{newNameError}</small> : null}
-          </div>
-          <Button variant="primary" size="sm" type="submit" loading={createMutation.isPending}>{createMutation.isPending ? 'Adicionando…' : 'Adicionar'}</Button>
-        </form>
-      ) : null}
 
       <div className="nps-tab-toolbar">
         <div className="nps-tab-toolbar-left">
           <SearchBar
             value={search}
             onChange={setSearch}
-            placeholder="Buscar Natureza"
+            placeholder="Buscar Natureza ou Subnatureza"
             ariaLabel="Buscar Natureza"
             count={{ shown: natures.length, total: natures.length }}
           />
@@ -451,6 +418,7 @@ export function QualityNaturesTab({ isManager }: Props) {
               <div>
                 <div className="sec">{nature.name}</div>
                 <p className="rel-meta">{nature.recordCount} registro(s) vinculado(s)</p>
+                {nature.subnatures?.length ? <ul className="quality-subnature-list">{nature.subnatures.map(item => <li key={item.id}>{item.name}</li>)}</ul> : <p className="rel-meta">Sem Subnaturezas.</p>}
               </div>
             </div>
             <Badge tone={nature.isActive ? 'success' : 'neutral'}>{nature.isActive ? 'Ativa' : 'Inativa'}</Badge>

@@ -20,7 +20,7 @@ test('quality record serializer is an explicit public allowlist', () => {
   assert.deepEqual(Object.keys(result).sort(), [
     'actionDeadline', 'actionOwner', 'createdAt', 'definedAction', 'description', 'disposition', 'eventDate', 'evidenceSummary',
     'id', 'impact', 'linkedRnc', 'nature', 'number', 'origin', 'project', 'recurrence', 'registeredAt', 'resultVerification',
-    'status', 'type', 'updatedAt'
+    'status', 'subnature', 'type', 'updatedAt'
   ].sort());
   assert.equal(result.project.clientCnpj, undefined);
   assert.doesNotMatch(JSON.stringify(result), /seq|year|createdBy|updatedBy|storagePath|publicToken|user_secret/);
@@ -35,5 +35,5 @@ test('evidence metadata and tombstone are included only by their scopes and stil
 
 test('quality nature serializer contains exactly the contracted fields', () => {
   const result = publicQualityNature({ id: 'n1', name: 'Processo', isActive: true, position: 2, createdAt: new Date('2026-09-01Z'), updatedAt: new Date('2026-09-02Z'), records: ['secret'] });
-  assert.deepEqual(Object.keys(result), ['id', 'name', 'isActive', 'position', 'createdAt', 'updatedAt']);
+  assert.deepEqual(Object.keys(result), ['id', 'name', 'isActive', 'position', 'createdAt', 'updatedAt', 'subnatures']);
 });

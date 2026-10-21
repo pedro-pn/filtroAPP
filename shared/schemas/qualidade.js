@@ -116,6 +116,7 @@ function recordBaseSchema(z, { includeType = true } = {}) {
     projectId: optionalText(z, 80),
     eventDate: dateText(z),
     natureId: optionalText(z, 80),
+    subnatureId: optionalText(z, 80),
     description: optionalText(z, 4000),
     impact: optionalEnum(z, QUALITY_IMPACTS),
     linkedRnc: optionalText(z, 120),
@@ -135,7 +136,6 @@ function recordSchema(z, options = {}) {
     const recordType = options.includeType === false ? options.recordType : data.type;
     if (recordType === 'DESVIO') {
       [
-        ['origin', data.origin],
         ['natureId', data.natureId],
         ['description', data.description],
         ['impact', data.impact],
@@ -145,6 +145,9 @@ function recordSchema(z, options = {}) {
         if (value) return;
         ctx.addIssue({ code: 'custom', path: [path], message: 'Campo obrigatório.' });
       });
+    }
+    if (data.subnatureId && !data.natureId) {
+      ctx.addIssue({ code: 'custom', path: ['subnatureId'], message: 'Selecione a Natureza da Subnatureza.' });
     }
     if (recordType === 'DESVIO' && data.disposition === 'TRATAR' && !data.definedAction) {
       ctx.addIssue({
@@ -189,7 +192,21 @@ function recordSchema(z, options = {}) {
 
 function natureSchema(z) {
   return z.object({
-    name: requiredText(z, 180)
+    name: requiredText(z, 180),
+    subnatures: z.array(z.object({
+      id: optionalText(z, 80),
+      name: requiredText(z, 180)
+    })).max(300, 'Informe no máximo 300 Subnaturezas.').optional()
+  }).superRefine((data, ctx) => {
+    const names = new Set();
+    const ids = new Set();
+    (data.subnatures || []).forEach((item, index) => {
+      const key = item.name.toLocaleLowerCase('pt-BR');
+      if (names.has(key)) ctx.addIssue({ code: 'custom', path: ['subnatures', index, 'name'], message: 'Subnatureza repetida nesta Natureza.' });
+      if (item.id && ids.has(item.id)) ctx.addIssue({ code: 'custom', path: ['subnatures', index, 'id'], message: 'Subnatureza repetida.' });
+      names.add(key);
+      if (item.id) ids.add(item.id);
+    });
   });
 }
 

@@ -22,8 +22,10 @@ import {
   listRecords,
   listRecordsForExport,
   reorderNatures,
+  renameNature,
   serializeQualityRecord,
-  setNatureActive
+  setNatureActive,
+  updateRecord
 } from '../src/lib/qualidade/service.js';
 import { makeQualidadeSchemas } from '../../shared/schemas/qualidade.js';
 
@@ -61,6 +63,7 @@ function includeRecord(state, record) {
     ...record,
     project: record.projectId ? state.projects.find(project => project.id === record.projectId) || null : null,
     nature: state.natures.find(nature => nature.id === record.natureId) || null,
+    subnature: state.subnatures.find(item => item.id === record.subnatureId) || null,
     evidences: state.evidences
       .filter(evidence => evidence.recordId === record.id)
       .sort((a, b) => a.position - b.position),
@@ -95,6 +98,7 @@ function createMockQualidadeClient(seed = {}) {
   const state = {
     records: [],
     evidences: [],
+    subnatures: [],
     natures: [{ id: 'nature-1', name: 'Stand By', isActive: true, createdAt: date('2026-01-01'), updatedAt: date('2026-01-01') }],
     projects: [{ id: 'project-1', code: '5775', name: 'Projeto X', isActive: true, deletedAt: null }],
     seq: new Map(),
@@ -103,6 +107,28 @@ function createMockQualidadeClient(seed = {}) {
   state.natures = state.natures.map((nature, index) => ({ position: index, ...nature }));
   let recordCounter = 0;
   let natureCounter = state.natures.length;
+  let subnatureCounter = state.subnatures.length;
+
+  function includeNature(nature) {
+    return {
+      ...nature,
+      _count: { records: state.records.filter(record => record.natureId === nature.id).length },
+      subnatures: state.subnatures.filter(item => item.natureId === nature.id).sort((a, b) => a.position - b.position).map(item => ({
+        ...item, _count: { records: state.records.filter(record => record.subnatureId === item.id).length }
+      }))
+    };
+  }
+
+  function changeSubnatures(natureId, changes) {
+    if (!changes) return;
+    const removedIds = changes.deleteMany?.id?.in || [];
+    state.subnatures = state.subnatures.filter(item => !removedIds.includes(item.id));
+    for (const item of changes.update || []) {
+      const current = state.subnatures.find(row => row.id === item.where.id);
+      Object.assign(current, item.data);
+    }
+    for (const item of changes.create || []) state.subnatures.push({ id: `subnature-${++subnatureCounter}`, natureId, ...item });
+  }
 
   function selectedRow(row, select) {
     return Object.fromEntries(Object.keys(select).map(key => [key, row[key]]));
@@ -222,7 +248,7 @@ function createMockQualidadeClient(seed = {}) {
         const nature = state.natures.find(item => item.id === where.id) || null;
         if (!nature) return null;
         if (!include?._count) return nature;
-        return { ...nature, _count: { records: state.records.filter(record => record.natureId === nature.id).length } };
+        return includeNature(nature);
       },
       findFirst: async ({ where }) => {
         const name = where.name?.equals?.toLowerCase();
@@ -235,26 +261,41 @@ function createMockQualidadeClient(seed = {}) {
         rows = sortRows(rows, orderBy);
         if (select) return rows.map(nature => selectedRow(nature, select));
         return rows.map(nature => include?._count
-          ? { ...nature, _count: { records: state.records.filter(record => record.natureId === nature.id).length } }
+          ? includeNature(nature)
           : nature);
       },
       create: async ({ data }) => {
-        const nature = { id: `nature-${++natureCounter}`, ...data, isActive: true, createdAt: date('2026-07-22'), updatedAt: date('2026-07-22') };
+        const { subnatures, ...fields } = data;
+        const nature = { id: `nature-${++natureCounter}`, ...fields, isActive: true, createdAt: date('2026-07-22'), updatedAt: date('2026-07-22') };
+        changeSubnatures(nature.id, subnatures);
         state.natures.push(nature);
-        return { ...nature, _count: { records: 0 } };
+        return includeNature(nature);
       },
       update: async ({ where, data }) => {
         const index = state.natures.findIndex(nature => nature.id === where.id);
         if (index === -1) return null;
-        state.natures[index] = { ...state.natures[index], ...data, updatedAt: date('2026-07-22') };
+        const { subnatures, ...fields } = data;
+        changeSubnatures(where.id, subnatures);
+        state.natures[index] = { ...state.natures[index], ...fields, updatedAt: date('2026-07-22') };
         const nature = state.natures[index];
-        return { ...nature, _count: { records: state.records.filter(record => record.natureId === nature.id).length } };
+        return includeNature(nature);
       },
       delete: async ({ where }) => {
         const index = state.natures.findIndex(nature => nature.id === where.id);
         if (index === -1) throw new Error('not found');
         const [nature] = state.natures.splice(index, 1);
         return nature;
+      }
+    },
+    qualitySubnature: {
+      findUnique: async ({ where }) => state.subnatures.find(item => item.id === where.id) || null,
+      deleteMany: async ({ where }) => {
+        state.subnatures = state.subnatures.filter(item => !where.id.in.includes(item.id));
+      },
+      update: async ({ where, data }) => {
+        const current = state.subnatures.find(item => item.id === where.id);
+        Object.assign(current, data);
+        return current;
       }
     }
   };
@@ -536,6 +577,58 @@ test('quality natures are unique case-insensitively and protected when in use', 
   assert.equal(activeList.some(nature => nature.id === created.id), false);
 });
 
+test('quality nature editor creates and edits nested subnatures while preserving record links', async () => {
+  const client = createMockQualidadeClient();
+  const schemas = makeQualidadeSchemas(z);
+  const nature = await createNature(client, schemas.natureCreate.parse({ name: 'Comercial e Proposta', subnatures: [
+    { name: 'Custo não previsto no orçamento' }, { name: 'Escopo incorreto' }
+  ] }));
+  assert.equal(nature.subnatures.length, 2);
+  const detail = nature.subnatures[0];
+  const record = await createRecord(client, { data: recordPayload({ natureId: nature.id, subnatureId: detail.id, origin: null }) });
+  assert.equal(record.subnature.name, 'Custo não previsto no orçamento');
+  const renamed = await renameNature(client, nature.id, schemas.natureUpdate.parse({ name: nature.name, subnatures: [
+    { id: detail.id, name: 'Custo adicional' }, { name: 'Alinhamento Comercial-Operação' }
+  ] }));
+  assert.deepEqual(renamed.subnatures.map(item => item.name), ['Custo adicional', 'Alinhamento Comercial-Operação']);
+  assert.equal(renamed.subnatures[0].id, detail.id);
+  assert.equal(renamed.subnatures[0].inUse, true);
+  assert.equal(renamed.subnatures[0].recordCount, 1);
+  assert.equal((await listRecords(client)).items[0].subnature.name, 'Custo adicional');
+  await assert.rejects(() => renameNature(client, nature.id, { name: 'Não salvar', subnatures: [] }), /Subnatureza em uso/);
+  assert.equal(client.state.natures.find(item => item.id === nature.id).name, nature.name);
+  const nameOnly = await renameNature(client, nature.id, { name: 'Comercial' });
+  assert.equal(nameOnly.subnatures.length, 2, 'a name-only API update preserves children');
+});
+
+test('quality records reject subnatures from other natures and allow clearing the detail on update', async () => {
+  const client = createMockQualidadeClient();
+  const nature = await createNature(client, { name: 'Comercial', subnatures: [{ name: 'Custo adicional' }] });
+  const detail = nature.subnatures[0];
+  for (const natureId of ['nature-1', null]) {
+    await assert.rejects(() => createRecord(client, { data: recordPayload({ natureId, subnatureId: detail.id }) }), /Subnatureza inválida/);
+  }
+  await assert.rejects(() => createRecord(client, { data: recordPayload({ subnatureId: 'missing' }) }), /Subnatureza inválida/);
+  const record = await createRecord(client, { data: recordPayload({ natureId: nature.id, subnatureId: detail.id }) });
+  await assert.rejects(() => updateRecord(client, record.id, { data: recordPayload({ natureId: 'nature-1', subnatureId: detail.id }) }), /Subnatureza inválida/);
+  await assert.rejects(() => renameNature(client, 'nature-1', { name: 'Operação', subnatures: [{ id: detail.id, name: 'Custo' }] }), /Subnatureza inválida/);
+  const cleared = await updateRecord(client, record.id, { data: recordPayload({ natureId: 'nature-1', subnatureId: null }) });
+  assert.equal(cleared.natureId, 'nature-1');
+  assert.equal(cleared.subnatureId, null);
+  assert.equal(cleared.subnature, null);
+});
+
+test('quality nature schemas reject duplicate and blank details within a parent', () => {
+  const schemas = makeQualidadeSchemas(z);
+  for (const schema of [schemas.natureCreate, schemas.natureUpdate]) {
+    assert.equal(schema.safeParse({ name: 'Comercial', subnatures: [{ name: 'Custo' }, { name: ' custo ' }] }).success, false);
+    assert.equal(schema.safeParse({ name: 'Comercial', subnatures: [{ name: ' ' }] }).success, false);
+    assert.equal(schema.safeParse({ name: 'Comercial', subnatures: [{ id: 'same', name: 'A' }, { id: 'same', name: 'B' }] }).success, false);
+  }
+  assert.equal(schemas.recordCreate.safeParse(recordPayload({ origin: null, subnatureId: null })).success, true);
+  assert.equal(schemas.recordCreate.safeParse(recordPayload({ type: 'MELHORIA', natureId: null, subnatureId: 'detail' })).success, false);
+});
+
 test('quality natures preserve manual order for forms', async () => {
   const client = createMockQualidadeClient({
     natures: [
@@ -664,19 +757,19 @@ test('quality list enriches records with recurrence without N+1 visible contract
 
 test('quality xlsx export uses FR-3-4-11-01 template formatting with filtered rows and escaped XML', async () => {
   const client = createMockQualidadeClient();
-  await createRecord(client, { data: recordPayload({ description: 'A & <B>', linkedRnc: 'RNC-1' }) });
+  const nature = await createNature(client, { name: 'Comercial e Proposta', subnatures: [{ name: 'Escopo incorreto' }] });
+  await createRecord(client, { data: recordPayload({ natureId: nature.id, subnatureId: nature.subnatures[0].id, description: 'A & <B>', linkedRnc: 'RNC-1' }) });
   await createRecord(client, { data: recordPayload({ type: 'MELHORIA', description: 'Nao exportar no filtro' }) });
 
   const list = await listRecords(client, { type: 'DESVIO' });
   const buffer = buildQualityRecordsXlsx(list.items);
   const zip = new AdmZip(buffer);
   const sheet = zip.readAsText('xl/worksheets/sheet1.xml');
-  const sharedStrings = zip.readAsText('xl/sharedStrings.xml').replace(/\r\n/g, '\n');
   const workbook = zip.readAsText('xl/workbook.xml');
   const styles = zip.readAsText('xl/styles.xml');
 
   for (const header of QUALITY_EXPORT_HEADERS) {
-    assert.match(sharedStrings, new RegExp(header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.ok(sheet.includes(header), header);
   }
   assert.match(workbook, /name="Registro"/);
   assert.match(workbook, /name="Legenda"/);
@@ -686,5 +779,9 @@ test('quality xlsx export uses FR-3-4-11-01 template formatting with filtered ro
   assert.match(sheet, /<dimension ref="A1:S4"\/>/);
   assert.equal((sheet.match(/<row /g) || []).length, 4);
   assert.match(sheet, /A &amp; &lt;B&gt;/);
+  assert.match(sheet, /<c r="E4" s="3"><v>46223<\/v><\/c>/);
+  assert.match(sheet, /<c r="F4"[^>]*>[\s\S]*?<t>Comercial e Proposta<\/t>/);
+  assert.match(sheet, /<c r="G4"[^>]*>[\s\S]*?<t>Escopo incorreto<\/t>/);
+  assert.doesNotMatch(sheet, /Reunião semanal|Origem/);
   assert.doesNotMatch(sheet, /Nao exportar/);
 });

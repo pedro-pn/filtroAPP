@@ -86,9 +86,9 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'quality', label: 'Qualidade',
-    models: [...modelEntries(['QualityNature', 'QualityRecord', 'QualityEvidence'], 'AVAILABLE'), ...modelEntries(['QualityRecordSeq'], 'PROHIBITED')],
+    models: [...modelEntries(['QualityNature', 'QualitySubnature', 'QualityRecord', 'QualityEvidence'], 'AVAILABLE'), ...modelEntries(['QualityRecordSeq'], 'PROHIBITED')],
     candidateScopes: ['qualidade.naturezas.read', 'qualidade.registros.read', 'qualidade.evidencias.metadata.read', 'qualidade.evidencias.download', 'qualidade.excluidos.read'], candidateAvailability: 'AVAILABLE', endpointFamilies: ['/qualidade/registros', '/qualidade/naturezas', '/qualidade/evidencias/{id}/download'],
-    includedFields: ['campos públicos do contrato QualityRecord', 'referências minimizadas de projeto/natureza', 'metadados allowlisted de evidência'],
+    includedFields: ['campos públicos do contrato QualityRecord', 'referências minimizadas de projeto/natureza/subnatureza', 'metadados allowlisted de evidência'],
     excludedFields: ['storagePath', 'publicToken', 'seq', 'year', 'createdById', 'updatedById', 'deletedById', 'usuários completos']
   }),
   domain({

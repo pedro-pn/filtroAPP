@@ -2,7 +2,10 @@ import { createSignedCursor, readSignedCursor } from '../api-credentials/cursor.
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { publicQualityNature } from './public-serializer.js';
 
-const NATURE_SELECT = { id: true, name: true, isActive: true, position: true, createdAt: true, updatedAt: true };
+const NATURE_SELECT = {
+  id: true, name: true, isActive: true, position: true, createdAt: true, updatedAt: true,
+  subnatures: { select: { id: true, name: true, position: true }, orderBy: [{ position: 'asc' }, { name: 'asc' }] }
+};
 
 export async function listIntegrationQualityNatures(client, query, context) {
   const limit = Number(query.limit) || 100;
