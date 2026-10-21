@@ -54,7 +54,7 @@
     "mdb-reader": "^3.2.0",
     "morgan": "^1.12.1",
     "nodemailer": "^10.1.2",
-    "openai": "^7.32.0",
+    "openai": "^7.38.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1",
