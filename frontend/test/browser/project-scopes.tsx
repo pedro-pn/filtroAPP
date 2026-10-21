@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { AxiosError } from 'axios';
 import { apiClient } from '../../src/api/client';
 import { ProjectDetailDashboard } from '../../src/components/projects/ProjectDetailDashboard';
+import type { ProjectManagementNote } from '../../src/api/acompanhamentoComercial';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { ToastProvider } from '../../src/components/ui/Toast';
 import { ThemeProvider } from '../../src/theme/ThemeProvider';
@@ -18,6 +19,19 @@ import '../../src/styles/legacy.css';
 const params = new URLSearchParams(location.search);
 const grouped = params.has('grupo');
 const readonly = params.has('consulta');
+const notesStorageKey = 'project-management-notes-fixture';
+const notes: ProjectManagementNote[] = JSON.parse(sessionStorage.getItem(notesStorageKey) || 'null') ?? [
+  { id: 'note-1', projectId: 'p1', content: 'Cliente pediu revisão do escopo.',
+    author: { id: 'manager-1', name: 'Gestora Ventura' }, createdAt: '2026-10-19T10:00:00.000Z' },
+  { id: 'note-2', projectId: 'p2', content: 'Aguardando liberação da usina.',
+    author: { id: 'manager-2', name: 'Gestor Usina' }, createdAt: '2026-10-20T10:00:00.000Z' },
+  { id: 'note-3', projectId: 'p1', content: 'Equipe confirmada.\nMobilização amanhã.',
+    author: { id: 'manager-1', name: 'Gestora Ventura' }, createdAt: '2026-10-21T10:00:00.000Z' },
+  { id: 'note-hidden', projectId: 'p3', content: 'Nota do projeto oculto.',
+    author: { id: 'manager-3', name: 'Gestor oculto' }, createdAt: '2026-10-21T11:00:00.000Z' }
+];
+let failNotesRead = params.has('falha-notas');
+let failNoteCreate = params.has('falha-nova-nota');
 const projects = [
   { projectId: 'p1', code: '5815', name: 'VENTURA SS VICTÓRIA', clientName: 'Ventura', progressPct: 50 },
   { projectId: 'p2', code: '5816', name: 'USINA · LINHAS DE PRESSÃO', clientName: 'Usina', progressPct: 25 }
@@ -52,7 +66,28 @@ apiClient.defaults.adapter = async config => {
   const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
   calls.push({ url, method: config.method || 'get', body });
   const response = (data: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data: structuredClone(data) });
-  const projectId = url.match(/\/projetos\/(p[12])\//)?.[1] || 'p1';
+  const projectId = url.match(/\/projetos\/(p[123])\//)?.[1] || 'p1';
+  if (url.endsWith('/notas-gestao')) {
+    if (config.method === 'post') {
+      if (readonly) throw new Error('Acesso de consulta tentou criar nota.');
+      if (failNoteCreate) {
+        failNoteCreate = false;
+        throw new AxiosError('Falha de teste', 'ERR_BAD_RESPONSE', config, undefined,
+          { ...response({ error: 'Falha simulada ao adicionar a nota.' }), status: 500 });
+      }
+      const note = { id: `note-${notes.length + 1}`, projectId, content: body.content,
+        author: { id: 'manager-1', name: 'Gestora de teste' }, createdAt: new Date().toISOString() };
+      notes.push(note);
+      sessionStorage.setItem(notesStorageKey, JSON.stringify(notes));
+      return response(note);
+    }
+    if (projectId === 'p2' && failNotesRead) {
+      failNotesRead = false;
+      throw new AxiosError('Falha de teste', 'ERR_BAD_RESPONSE', config, undefined,
+        { ...response({ error: 'Falha simulada ao consultar as notas.' }), status: 500 });
+    }
+    return response(params.has('notas') ? notes.filter(note => note.projectId === projectId) : []);
+  }
   if (url.includes('/escopos-propostas')) {
     if (config.method === 'put') {
       if (readonly) throw new Error('Acesso de consulta tentou gravar.');
@@ -89,8 +124,8 @@ root.render(<QueryClientProvider client={client}><ThemeProvider>
   <AuthContext.Provider value={{ user: null, token: null, isAuthenticated: false, isBootstrapping: false,
     login: async () => {}, logout: async () => {}, refreshUser: async () => {}, replaceUser() {} }}>
     <MemoryRouter><ToastProvider><main className="fv-ds" style={{ maxWidth: 1200, padding: 16, margin: 'auto' }}>
-      <ProjectDetailDashboard {...(grouped ? { groupId: 'g1' } : { projectId: 'p1' })}
-        canManage={!readonly} canManageDivisions={!readonly} onBack={() => {}} />
+      <ProjectDetailDashboard {...(grouped ? { groupId: 'g1' } : { projectId: params.get('projeto') || 'p1' })}
+        canManage={!readonly} canManageDivisions={!readonly} canManageProjectNotes={!readonly} onBack={() => {}} />
     </main></ToastProvider></MemoryRouter>
   </AuthContext.Provider>
 </ThemeProvider></QueryClientProvider>);

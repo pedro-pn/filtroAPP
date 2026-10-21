@@ -113,6 +113,7 @@ export function ProjectDetailDashboard({
   const [laborPolicyError, setLaborPolicyError] = useState<string | null>(null);
   const [deletingManualCostId, setDeletingManualCostId] = useState<string | null>(null);
   const [projectNoteContent, setProjectNoteContent] = useState('');
+  const [projectNoteProjectId, setProjectNoteProjectId] = useState('');
   const [projectNoteError, setProjectNoteError] = useState<string | null>(null);
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<ManualCostFormValues>({
     defaultValues: manualCostFormDefaultValues,
@@ -133,17 +134,23 @@ export function ProjectDetailDashboard({
     queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!, activeDivisionKey),
     ...acompanhamentoRefreshQueryOptions
   });
-  const projectNotesKey = ['project-management-notes', projectId] as const;
-  const {
-    data: projectNotes = [],
-    isLoading: projectNotesLoading,
-    isError: projectNotesLoadError,
-    refetch: refetchNotes
-  } = useQuery<ProjectManagementNote[]>({
-    queryKey: projectNotesKey,
-    queryFn: () => listProjectManagementNotes(projectId!),
-    enabled: !isGroup && Boolean(projectId)
+  const noteProjects = isGroup
+    ? (data?.group?.members ?? []).filter(member => member.visible !== false)
+    : projectId ? [{ projectId, code: data?.header.code ?? '', name: '' }] : [];
+  const activeNoteProjectId = isGroup
+    ? noteProjects.find(project => project.projectId === projectNoteProjectId)?.projectId
+    : projectId;
+  const projectNotesQueries = useQueries({
+    queries: noteProjects.map(project => ({
+      queryKey: ['project-management-notes', project.projectId],
+      queryFn: () => listProjectManagementNotes(project.projectId)
+    }))
   });
+  const projectNotes = projectNotesQueries.flatMap(query => query.data ?? [])
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  const projectNotesLoading = projectNotesQueries.some(query => query.isLoading);
+  const projectNotesLoadError = projectNotesQueries.some(query => query.isError);
+  const refetchNotes = () => Promise.all(projectNotesQueries.map(query => query.refetch()));
   const { data: projectProgress } = useQuery({
     queryKey: ['project-progress', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])],
     queryFn: () => getProjectProgress(projectId!, activeDivisionKey),
@@ -230,12 +237,10 @@ export function ProjectDetailDashboard({
     }
   });
   const createProjectNoteMutation = useMutation({
-    mutationFn: (content: string) => {
-      if (!projectId) throw new Error('Abra uma missão individual para adicionar a nota.');
-      return createProjectManagementNote(projectId, content);
-    },
+    mutationFn: ({ projectId: noteProjectId, content }: { projectId: string; content: string }) =>
+      createProjectManagementNote(noteProjectId, content),
     onSuccess: (note) => {
-      queryClient.setQueryData<ProjectManagementNote[]>(projectNotesKey, current => [note, ...(current ?? [])]);
+      queryClient.setQueryData<ProjectManagementNote[]>(['project-management-notes', note.projectId], current => [note, ...(current ?? [])]);
       setProjectNoteContent('');
       setProjectNoteError(null);
     },
@@ -252,9 +257,9 @@ export function ProjectDetailDashboard({
   function submitProjectNote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const content = projectNoteContent.trim();
-    if (!canManageProjectNotes || isGroup || !content || createProjectNoteMutation.isPending) return;
+    if (!canManageProjectNotes || !activeNoteProjectId || !content || createProjectNoteMutation.isPending) return;
     setProjectNoteError(null);
-    createProjectNoteMutation.mutate(content);
+    createProjectNoteMutation.mutate({ projectId: activeNoteProjectId, content });
   }
 
   function closeSchedule() {
@@ -763,7 +768,6 @@ export function ProjectDetailDashboard({
         </Card>
       ) : null}
 
-      {!isGroup ? (
         <Card padding="sm" className="acp-detail-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
           <ProjectDetailSection label="Notas da gestão" header={<>
             <div className="acp-detail-notes-head">
@@ -774,6 +778,20 @@ export function ProjectDetailDashboard({
           </>}>
             {canManageProjectNotes ? (
               <form className="acp-detail-note-form" onSubmit={submitProjectNote}>
+                {isGroup ? (
+                  <Field id="acp-project-note-project" label="Missão da nota" required>
+                    <Select
+                      value={activeNoteProjectId ?? ''}
+                      onChange={event => setProjectNoteProjectId(event.target.value)}
+                      placeholder="Selecione a missão"
+                      options={noteProjects.map(project => ({
+                        value: project.projectId,
+                        label: `${project.code || 'Sem código'} · ${project.name}`
+                      }))}
+                      disabled={createProjectNoteMutation.isPending}
+                    />
+                  </Field>
+                ) : null}
                 <Field id="acp-project-note-content" label="Nova nota" optionalText="" className="acp-detail-note-field">
                   <Textarea
                     value={projectNoteContent}
@@ -787,7 +805,7 @@ export function ProjectDetailDashboard({
                 <Button
                   type="submit"
                   size="sm" variant="primary"
-                  disabled={!projectNoteContent.trim() || createProjectNoteMutation.isPending}
+                  disabled={!activeNoteProjectId || !projectNoteContent.trim() || createProjectNoteMutation.isPending}
                 >
                   {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
                 </Button>
@@ -797,11 +815,12 @@ export function ProjectDetailDashboard({
             {projectNoteError ? <Alert tone="danger">{projectNoteError}</Alert> : null}
             {projectNotesLoadError ? (
               <Alert tone="warning" title="Não foi possível carregar as notas." action={<Button size="sm" variant="secondary" onClick={() => void refetchNotes()}>Tentar novamente</Button>} />
-            ) : projectNotesLoading ? (
-              <Skeleton height={64} />
-            ) : projectNotes.length === 0 ? (
+            ) : null}
+            {projectNotesLoading ? <Skeleton height={64} /> : null}
+            {!projectNotesLoading && !projectNotesLoadError && projectNotes.length === 0 ? (
               <div className="acp-detail-muted">Nenhuma nota adicionada.</div>
-            ) : (
+            ) : null}
+            {projectNotes.length > 0 ? (
               <ol className="acp-detail-note-list">
                 {projectNotes.map(note => (
                   <li key={note.id}>
@@ -809,15 +828,17 @@ export function ProjectDetailDashboard({
                       <strong>{note.author.name}</strong>
                       <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
                     </div>
+                    {isGroup ? (
+                      <Badge tone="neutral">Missão {noteProjects.find(project => project.projectId === note.projectId)?.code || 'sem código'}</Badge>
+                    ) : null}
                     <p>{note.content}</p>
                   </li>
                 ))}
               </ol>
-            )}
+            ) : null}
           </ProjectDetailSection>
 
         </Card>
-      ) : null}
       </div>
 
       <div className="acp-detail-section-head" id="acp-resources">
