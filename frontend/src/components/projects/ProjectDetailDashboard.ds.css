@@ -169,6 +169,12 @@
 }
 .acp-detail-deviations-details:not([open]) > .acp-detail-deviations-toolbar { display: none; }
 .acp-detail-deviations-details > .quality-deviation-projects { margin-top: var(--space-2); }
+.acp-detail-deviations .quality-deviation-projects.is-grouped .quality-deviation-project {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.acp-detail-deviations .quality-deviation-project-head h3 { color: var(--ink); }
+.acp-detail-deviations .quality-deviation-project-head h3 span { color: var(--muted); }
 .acp-detail-deviation-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
 .acp-detail-deviation-main small { color: var(--muted); font-size: var(--text-xs); }
 .acp-detail-deviation-meta { gap: var(--space-2); justify-content: flex-start; }
