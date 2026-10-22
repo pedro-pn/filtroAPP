@@ -2497,7 +2497,7 @@ export function GestorPage() {
     const projectColumns: DataTableColumn<Project>[] = [
       { key: 'project', header: 'Projeto', rowHeader: true, render: project => <strong>{projectTitle(project)}</strong> },
       { key: 'client', header: 'Cliente', render: project => project.clientName || '—' },
-      { key: 'operator', header: 'Responsável', render: project => project.operator?.name || 'Não informado' },
+      { key: 'operator', header: 'Responsável', render: project => project.operator?.name || project.defaultReportResponsibleUser?.name || 'Não informado' },
       { key: 'reports', header: 'Relatórios', numeric: true, render: project => activeProjectReportCountById.get(project.id) ?? '—' },
       { key: 'updated', header: 'Atualização', sortValue: project => project.updatedAt || project.createdAt, render: project => formatDate(project.updatedAt || project.createdAt) },
       { key: 'status', header: 'Situação', render: project => <Badge tone={projectRegistrationPending(project) ? 'warning' : commercialPendenciaByProject.has(project.id) ? 'warning' : 'success'}>{projectRegistrationPending(project) ? 'Revisar cadastro' : commercialPendenciaByProject.has(project.id) ? 'Revisão comercial' : 'Ativo'}</Badge> }
@@ -2526,7 +2526,7 @@ export function GestorPage() {
         title: projectTitle(project),
         subtitle: project.clientName || 'Cliente não informado',
         status: <Badge tone={projectRegistrationPending(project) ? 'warning' : 'success'}>{projectRegistrationPending(project) ? 'Revisar cadastro' : 'Ativo'}</Badge>,
-        metadata: [{ label: 'Responsável', value: project.operator?.name || 'Não informado' }, { label: 'Relatórios', value: activeProjectReportCountById.get(project.id) ?? '—' }, { label: 'Atualização', value: formatDate(project.updatedAt || project.createdAt) }]
+        metadata: [{ label: 'Responsável', value: project.operator?.name || project.defaultReportResponsibleUser?.name || 'Não informado' }, { label: 'Relatórios', value: activeProjectReportCountById.get(project.id) ?? '—' }, { label: 'Atualização', value: formatDate(project.updatedAt || project.createdAt) }]
       }) }}
     />;
 

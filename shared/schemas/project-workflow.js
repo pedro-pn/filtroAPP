@@ -811,9 +811,6 @@ export function makeProjectWorkflowSchemas(z) {
     if (value.stage !== 'EXECUTION' && value.startDate) {
       ctx.addIssue({ code: 'custom', path: ['startDate'], message: 'O início real só pode ser confirmado ao entrar em execução.' });
     }
-    if (value.stage === 'EXECUTION' && !value.operatorId) {
-      ctx.addIssue({ code: 'custom', path: ['operatorId'], message: 'Selecione o operador responsável pelo relatório.' });
-    }
     if (value.stage !== 'EXECUTION' && value.operatorId) {
       ctx.addIssue({ code: 'custom', path: ['operatorId'], message: 'O operador responsável só pode ser selecionado ao entrar em execução.' });
     }

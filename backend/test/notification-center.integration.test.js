@@ -4,6 +4,7 @@ import test from 'node:test';
 import prisma from '../src/lib/prisma.js';
 import { createSession } from '../src/lib/auth.js';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../src/lib/notifications/center.js';
+import { assignMissionReportTeam } from '../src/lib/efetivo/report-team.js';
 import app from '../src/app.js';
 
 test('central aplica escopo real no PostgreSQL, inclusive leitura, paginação e revogação', {
@@ -192,5 +193,64 @@ test('central aplica escopo real no PostgreSQL, inclusive leitura, paginação e
     await prisma.report.update({ where: { id: maintenanceReport.id }, data: { status: 'RETURNED' } });
     assert.ok((await list(maintenance)).items.some(e => e.kind === 'REPORT_RETURNED'));
     assert.deepEqual((await list({ user: { ...maintenance.user, reportEmissionPermissions: [] } })).items, []);
+  });
+  await t.test('execução sem operador avisa administradores e gestores; leitura e resolução são individuais', async () => {
+    const project = await newProject('execution-no-operator');
+    const kind = 'EXECUTION_WITHOUT_REPORT_OPERATOR';
+    await prisma.$transaction(async tx => {
+      await assignMissionReportTeam(tx, project.id, undefined, [], '2026-10-22', manager.user.id);
+    });
+    await prisma.$transaction(async tx => {
+      await assignMissionReportTeam(tx, project.id, undefined, [], '2026-10-22', manager.user.id);
+    });
+    const event = await prisma.notificationEvent.findFirst({ where: { projectId: project.id, kind } });
+    assert.equal(await prisma.notificationEvent.count({ where: { projectId: project.id, kind } }), 1);
+    assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).defaultReportResponsibleUserId, manager.user.id);
+    assert.equal(await prisma.projectAuthorizedUser.count({ where: { projectId: project.id, userId: manager.user.id } }), 1);
+    const effectiveManager = await newUser('COLLABORATOR', 'INTERNAL', ['efetivo:manager']);
+    const trackingManager = await newUser('COLLABORATOR', 'INTERNAL', ['acompanhamento:manager']);
+    const qualityManager = await newUser('COLLABORATOR', 'INTERNAL', ['qualidade:manager']);
+    const rdoManager = await newUser('MANAGER', 'INTERNAL', ['rdo:manager']);
+    const recipients = [manager, effectiveManager, trackingManager, qualityManager, rdoManager];
+    const notification = async auth => (await list(auth)).items.find(item => item.id === event.id);
+    for (const auth of recipients) {
+      const item = await notification(auth);
+      assert.ok(item, auth.user.moduleRoles.join(','));
+      assert.ok(item.description.includes(`O projeto ${project.code}`));
+      assert.ok(item.description.includes('iniciou a execução e não possui operador responsável pela criação dos relatórios'));
+      assert.ok(item.description.includes('Gestor de Contrato definido como responsável padrão'));
+      assert.equal(item.readAt, null);
+    }
+    assert.equal((await notification(qualityManager)).href, '/modulos');
+    assert.equal((await notification({ user: { ...qualityManager.user, moduleRoles: ['qualidade:manager', 'rdo:collaborator'] } })).href, '/modulos');
+    for (const auth of [collaborator, coordinator, tracking, effective, equipment, client]) {
+      assert.equal(await notification(auth), undefined);
+      assert.equal(await markNotificationRead(auth, event.id), false);
+    }
+    await markNotificationRead(effectiveManager, event.id);
+    assert.ok((await notification(effectiveManager)).readAt);
+    assert.equal((await notification(manager)).readAt, null);
+    assert.equal(await notification({ user: { ...effectiveManager.user, moduleRoles: [] } }), undefined);
+    assert.equal(await notification({ user: { ...effectiveManager.user, isActive: false } }), undefined);
+    await assert.rejects(prisma.$transaction(async tx => {
+      await assignMissionReportTeam(tx, project.id, undefined, [], '2026-10-21');
+      throw new Error('rollback');
+    }), /rollback/);
+    assert.equal(await prisma.notificationEvent.count({ where: { projectId: project.id, kind } }), 1);
+    // Definir um responsável encerra a pendência para todos, inclusive no contador.
+    const jobRole = await prisma.jobRole.create({ data: { name: `Operador QA ${suffix}`, normalizedKey: `qa-${suffix}` } });
+    const operator = await prisma.collaborator.create({ data: { code: `operator-${suffix}`, name: 'Operador QA', jobRoleId: jobRole.id } });
+    try {
+      const before = (await list(effectiveManager)).unreadCount;
+      await prisma.$transaction(tx => assignMissionReportTeam(tx, project.id, operator.id, [], '2026-10-22'));
+      assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).defaultReportResponsibleUserId, null);
+      assert.equal(await notification(manager), undefined);
+      assert.equal(await markNotificationRead(manager, event.id), false);
+      assert.ok((await list(effectiveManager)).unreadCount <= before);
+    } finally {
+      await prisma.project.update({ where: { id: project.id }, data: { operatorId: null } });
+      await prisma.collaborator.delete({ where: { id: operator.id } });
+      await prisma.jobRole.delete({ where: { id: jobRole.id } });
+    }
   });
 });

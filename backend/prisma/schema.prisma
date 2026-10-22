@@ -959,6 +959,9 @@ model Project {
   includesSaturday           Boolean                            @default(false)
   includesSunday             Boolean                            @default(false)
   operatorId                 String?
+  // Conta do Gestor de Contrato responsável por padrão quando a equipe não possui operador habilitado.
+  defaultReportResponsibleUserId String?
+  defaultReportResponsibleUser User? @relation("ProjectDefaultReportResponsible", fields: [defaultReportResponsibleUserId], references: [id], onDelete: SetNull)
   clientSegment              String?
   commercialProposalCode     String? // = cod_prop do Access; reconciliação proposta↔projeto
   mobilizationDate           DateTime? // data de mobilização (manual, gestor/coordenador)
@@ -2821,6 +2824,7 @@ model User {
   emailChangeTokens                    EmailChangeToken[]
   drafts                               ReportDraft[]
   authorizedProjects                   ProjectAuthorizedUser[]
+  defaultReportProjects                Project[]                           @relation("ProjectDefaultReportResponsible")
   createdReports                       Report[]                            @relation("ReportCreator")
   createdDatabooks                     ProjectDatabook[]                   @relation("ProjectDatabookCreator")
   createdDatabookRevisions             ProjectDatabookRevision[]           @relation("ProjectDatabookRevisionCreator")

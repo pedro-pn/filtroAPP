@@ -1,5 +1,12 @@
 # Search regression in a browser
 
+For execution start, open `/test/browser/execution-start.html` and run
+`playwright-cli run-code --filename frontend/test/browser/execution-start.js`.
+It checks hiding the operator selector when no team account is eligible,
+the notice about the Contract Manager default, requiring a selection when
+eligible operators exist, actual start dates, cancellation and mobile layout.
+The production dialog submits to local fixture state; no real project is changed.
+
 For the notification center, open `/test/browser/notification-center.html` and run
 `playwright-cli run-code --filename frontend/test/browser/notification-center.js`.
 It covers pagination/retry, individual and bulk reads, persistence after reload,

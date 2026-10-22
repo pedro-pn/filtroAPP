@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 export type NotificationKind = 'PROJECT_CREATED' | 'PROJECT_RECEIVED' | 'PROJECT_READY'
-  | 'REPORT_PENDING' | 'REPORT_RETURNED' | 'PROPOSAL_RECEIVED';
+  | 'REPORT_PENDING' | 'REPORT_RETURNED' | 'PROPOSAL_RECEIVED' | 'EXECUTION_WITHOUT_REPORT_OPERATOR';
 
 export interface AppNotification {
   id: string;

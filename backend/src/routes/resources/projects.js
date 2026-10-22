@@ -234,6 +234,7 @@ async function invalidateProjectInternalSignatureRounds(tx, projectId, {
 export const projectListInclude = {
   plannedServices: { select: { id: true, scopeName: true, contributionKey: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
   operator: { include: { jobRole: true } },
+  defaultReportResponsibleUser: { select: { id: true, name: true } },
   authorizedUsers: {
     include: {
       user: {
@@ -316,6 +317,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
       },
       include: {
         operator: { include: { jobRole: true } },
+        defaultReportResponsibleUser: { select: { id: true, name: true } },
         authorizedUsers: {
           include: {
             user: {
@@ -458,6 +460,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       data: projectUpdateData,
       include: {
         operator: { include: { jobRole: true } },
+        defaultReportResponsibleUser: { select: { id: true, name: true } },
         authorizedUsers: {
           include: {
             user: {

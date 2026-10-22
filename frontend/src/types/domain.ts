@@ -111,6 +111,7 @@ export interface Project {
   operatorId: string | null;
   clientSegment?: string | null;
   operator?: Collaborator | null;
+  defaultReportResponsibleUser?: { id: string; name: string } | null;
   authorizedUsers?: Array<{
     projectId?: string;
     userId: string;

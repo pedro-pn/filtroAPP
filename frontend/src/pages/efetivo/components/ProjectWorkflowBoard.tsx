@@ -115,7 +115,7 @@ type LegacyMove = {
   stage: MissionStage;
   order: number;
   returnDate?: string | null;
-  executionStart?: { startDate: string; operatorId: string };
+  executionStart?: { startDate: string; operatorId?: string };
   snapshot: ProjectKanbanColumns;
 };
 

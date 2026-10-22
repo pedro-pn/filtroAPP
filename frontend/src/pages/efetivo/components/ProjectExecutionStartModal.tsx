@@ -12,7 +12,7 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
   executedAtHeadquarters: boolean;
   saving: boolean;
   onClose: () => void;
-  onConfirm: (startDate: string, operatorId: string) => void;
+  onConfirm: (startDate: string, operatorId?: string) => void;
 }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const { suggestedStartDate: suggested, futureDate } = projectExecutionStartSuggestion(project, plannedStartDate, today);
@@ -24,7 +24,7 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
   const [operatorId, setOperatorId] = useState(suggestedOperator);
   useEffect(() => setStartDate(suggested), [project.id, suggested]);
   useEffect(() => setOperatorId(suggestedOperator), [project.id, suggestedOperator]);
-  const validOperator = operators.some(operator => operator.id === operatorId);
+  const validOperator = !operators.length || operators.some(operator => operator.id === operatorId);
   const dateError = startDate > today
     ? 'O início real não pode estar no futuro. Informe a data em que a execução realmente começou.'
     : startDate && minDate && startDate < minDate
@@ -33,7 +33,7 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (startDate && !dateError && validOperator && !saving) onConfirm(startDate, operatorId);
+    if (startDate && !dateError && validOperator && !saving) onConfirm(startDate, operators.length ? operatorId : undefined);
   }
 
   return (
@@ -46,13 +46,12 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
         <Field id="project-execution-start-date" label="Início real da execução" required errorText={dateError} helperText="Confirme ou corrija a data em que os serviços começaram. Ela será registrada no cronograma do Acompanhamento.">
           <Input type="date" required min={minDate} max={today} value={startDate} disabled={saving} onChange={event => setStartDate(event.target.value)} />
         </Field>
-        <Field id="project-execution-report-operator" label="Operador responsável" required helperText="Será o responsável pelo relatório deste projeto. Todos os colaboradores da missão com conta interna ativa e acesso ao Relatório também poderão acessar e preencher os relatórios.">
+        {operators.length ? <Field id="project-execution-report-operator" label="Operador responsável" required helperText="Será o responsável pelo relatório deste projeto. Todos os colaboradores da missão com conta interna ativa e acesso ao Relatório também poderão acessar e preencher os relatórios.">
           <Select required value={operatorId} disabled={saving || !operators.length} onChange={event => setOperatorId(event.target.value)}>
             <option value="">Selecionar colaborador…</option>
             {operators.map(operator => <option key={operator.id} value={operator.id}>{operator.name}</option>)}
           </Select>
-        </Field>
-        {!operators.length ? <Alert tone="warning" title="Nenhum operador habilitado">Inclua na missão um colaborador ativo com conta interna ativa e acesso ao módulo Relatório para iniciar a execução.</Alert> : null}
+        </Field> : <Alert tone="warning" title="Execução sem operador de campo para os relatórios">A equipe não possui colaborador com conta ativa e acesso ao Relatório. O Gestor de Contrato será definido como responsável padrão e administradores e gestores serão notificados da falta de operador.</Alert>}
       </form>
     </Modal>
   );

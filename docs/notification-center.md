@@ -16,12 +16,25 @@ painel não marca automaticamente todos os avisos como lidos.
 | Relatório devolvido para correção | Autor com acesso ao projeto e revisores RDO; nos relatórios operacionais, o autor com a permissão do tipo |
 | Proposta extra escopo ou nova revisão recebida do ComercialApp | Contas com acesso ao Acompanhamento e ao projeto já cadastrado, inclusive quando a proposta aguarda seleção |
 | Adicional Access selecionado ou revisão substituída | Mesmas regras do Acompanhamento |
+| Projeto iniciado em execução sem operador habilitado da equipe | Todas as contas ativas de administradores e gestores, de qualquer módulo |
 
 As permissões são verificadas no servidor na lista, no contador e nas operações
 de leitura. Os projetos restritos, excluídos e os vínculos de clientes ou
 colaboradores seguem as regras das respectivas áreas. Revogar acesso também
 remove os avisos antigos das próximas consultas. A leitura é persistida por
 usuário, independentemente das preferências de envio de e-mail.
+
+Se nenhum colaborador da missão tiver conta ativa com acesso ao Relatório,
+o início da execução dispensa e oculta a escolha do operador. O Gestor de Contrato
+designado no fluxo é salvo como responsável padrão pela sua conta, inclusive sem
+cadastro de colaborador, e recebe o vínculo de acesso ao projeto. A seleção de
+um operador continua obrigatória quando houver candidatos habilitados na equipe.
+O responsável padrão aparece no cadastro do projeto; o aviso continua indicando
+a falta de operador de campo e deixa de aparecer quando um operador é definido.
+Cada início real gera no máximo um aviso por projeto e data. A atribuição,
+o aviso e o início da execução são gravados na mesma transação.
+Missões legadas sem Gestor de Contrato definido também podem iniciar e geram o
+aviso; nenhuma conta é presumida como responsável nesses casos.
 
 Avisos de relatórios acompanham a pendência atual: deixam de aparecer quando
 o relatório sai daquele estado. Um reenvio cria um novo aviso não lido e
@@ -31,7 +44,10 @@ novos eventos que cheguem durante a operação.
 
 ## Implantação e validação
 
-Aplicar `20261021120000_notification_center` antes de iniciar a API atualizada:
+Aplicar `20261021120000_notification_center` e
+`20261022190000_execution_report_responsible` antes de iniciar a API atualizada.
+A segunda adiciona uma referência opcional de `Project` para `User`, sem alterar
+projetos históricos:
 
 ```sh
 cd backend

@@ -64,6 +64,7 @@ function fakeDatabase() {
     relatedPostJobs: [],
     operationalMission: null,
     authorizedUsers: [],
+    notifications: [],
     lastProjectFindManyInput: null,
     lastUserFindManyInput: null
   };
@@ -123,7 +124,7 @@ function fakeDatabase() {
       }
     },
     project: {
-      findFirst: async input => input.where.id === state.project.id ? { ...state.project, plannedServices: [{ serviceType: 'FLUSHING' }], efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
+      findFirst: async input => input.where.id === state.project.id ? { ...state.project, defaultReportResponsibleUser: users[state.project.defaultReportResponsibleUserId] || null, plannedServices: [{ serviceType: 'FLUSHING' }], efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
       findUnique: async input => input.where.id === state.project.id ? { ...state.project, plannedServices: [{ serviceType: 'FLUSHING' }] } : null,
       update: async input => {
         state.project = { ...state.project, ...input.data };
@@ -132,10 +133,18 @@ function fakeDatabase() {
       count: async () => 1,
       findMany: async input => {
         state.lastProjectFindManyInput = input;
-        return [{ ...state.project, efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], workflow: withRelations() }];
+        return [{ ...state.project, defaultReportResponsibleUser: users[state.project.defaultReportResponsibleUserId] || null, efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], workflow: withRelations() }];
       }
     },
     efetivoMissionPlan: { findFirst: async () => state.operationalMission },
+    notificationEvent: {
+      upsert: async ({ create }) => {
+        const existing = state.notifications.find(item => item.dedupeKey === create.dedupeKey);
+        if (existing) return existing;
+        state.notifications.push(create);
+        return create;
+      }
+    },
     projectAuthorizedUser: {
       createMany: async ({ data }) => {
         for (const link of data) {
@@ -1511,9 +1520,11 @@ test('início da execução define operador e autoriza toda a equipe habilitada 
     action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12', operatorId: 'collaborator-2'
   }, leader, dependencies);
   assert.equal(state.project.operatorId, 'collaborator-2');
+  assert.equal(state.project.defaultReportResponsibleUserId, null);
   assert.equal(result.project.operatorId, 'collaborator-2');
   assert.deepEqual(state.authorizedUsers.map(link => link.userId), ['already-authorized', 'report-user-1', 'report-user-2']);
   assert.equal(state.events.at(-1).data.operatorId, 'collaborator-2');
+  assert.equal(state.notifications.length, 0);
   const publicTeam = result.project.operationalMission.allocations;
   assert.deepEqual(publicTeam.filter(item => item.collaborator.canOperateReports).map(item => item.collaboratorId), ['collaborator-1', 'collaborator-2', 'coordinator']);
   assert.equal(Object.hasOwn(publicTeam[0].collaborator, 'user'), false);
@@ -1554,6 +1565,63 @@ test('execução exige operador da missão com colaborador e conta interna ativo
     assert.equal(state.events.length, beforeEvents);
     assert.equal(syncCount, 0);
   }
+});
+
+test('equipe sem conta habilitada inicia sem operador, atribui Gestor de Contrato e notifica uma vez', async () => {
+  for (const unavailable of ['no-account', 'inactive-user', 'no-rdo']) {
+    const { database, state } = fakeDatabase();
+    await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannerUserId: 'leader-2' }, manager, { database });
+    makeStateReadyForMobilization(state);
+    state.workflow.stage = 'MOBILIZATION';
+    state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+    state.project.operatorId = 'previous-contract-manager';
+    const collaborator = state.operationalMission.allocations[0].collaborator;
+    if (unavailable === 'no-account') collaborator.user = null;
+    if (unavailable === 'inactive-user') collaborator.user.isActive = false;
+    if (unavailable === 'no-rdo') collaborator.user.moduleRoles = [];
+    const dependencies = { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null };
+    const result = await updateProjectWorkflow('project-1', {
+      action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12'
+    }, leader, dependencies);
+    assert.equal(result.workflow.stage, 'EXECUTION');
+    assert.equal(result.project.operatorId, null);
+    assert.equal(state.project.defaultReportResponsibleUserId, 'leader-2');
+    assert.equal(result.project.defaultReportResponsibleUser.name, 'Líder B');
+    assert.equal(result.project.startDate, '2026-09-12');
+    assert.deepEqual(state.authorizedUsers, [{ projectId: 'project-1', userId: 'leader-2' }]);
+    assert.deepEqual(state.notifications, [{
+      kind: 'EXECUTION_WITHOUT_REPORT_OPERATOR', projectId: 'project-1',
+      dedupeKey: 'execution-without-report-operator:project-1:2026-09-12', data: { startDate: '2026-09-12', defaultResponsibleUserId: 'leader-2' }
+    }]);
+    await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION' }, leader, dependencies);
+    await updateProjectWorkflow('project-1', {
+      action: 'stage', version: 3, stage: 'EXECUTION', startDate: '2026-09-12'
+    }, leader, dependencies);
+    assert.equal(state.notifications.length, 1, 'retornar à execução não duplica o aviso do mesmo início');
+  }
+});
+
+test('falha ao iniciar execução sem operador desfaz o aviso e a mudança do responsável', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  state.workflow.stage = 'MOBILIZATION';
+  state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+  state.project.operatorId = 'previous-operator';
+  state.operationalMission.allocations[0].collaborator.user = null;
+  const originalUpdate = database.projectWorkflow.update;
+  database.projectWorkflow.update = async input => {
+    if (input.data.stage === 'EXECUTION') throw new Error('Falha ao gravar etapa');
+    return originalUpdate(input);
+  };
+  await assert.rejects(updateProjectWorkflow('project-1', {
+    action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12'
+  }, leader, { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null }), /Falha ao gravar etapa/);
+  assert.equal(state.project.operatorId, 'previous-operator');
+  assert.equal(state.project.startDate, null);
+  assert.equal(state.workflow.stage, 'MOBILIZATION');
+  assert.equal(state.workflow.version, 1);
+  assert.deepEqual(state.notifications, []);
 });
 
 test('execução recusa início sem confirmação, anterior à mobilização ou futuro na data de São Paulo', async () => {

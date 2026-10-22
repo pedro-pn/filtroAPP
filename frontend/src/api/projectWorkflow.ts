@@ -69,6 +69,7 @@ export interface ProjectWorkflowProject {
   location: string;
   startDate?: string | null;
   operatorId?: string | null;
+  defaultReportResponsibleUser?: { id: string; name: string } | null;
   mobilizationDate?: string | null;
   demobilizationDate?: string | null;
   operationalMission?: ProjectOperationalMissionSummary | null;
