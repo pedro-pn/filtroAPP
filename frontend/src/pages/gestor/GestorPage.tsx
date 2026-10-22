@@ -1,4 +1,5 @@
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
+import { useProjectEditor } from './useProjectEditor';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -214,9 +215,6 @@ export function GestorPage() {
   const initialUiPrefs = useMemo(() => readGestorUiPrefs(gestorUiPrefsStorageKey), [gestorUiPrefsStorageKey]);
   const [expandedProjectDetailIds, setExpandedProjectDetailIds] = useState<string[]>([]);
 
-  const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
-  const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
-  const [showProjectForm, setShowProjectForm] = useState(false);
   const [showSegmentForm, setShowSegmentForm] = useState(false);
   const [segmentLabel, setSegmentLabel] = useState('');
   const segmentLabelInputRef = useRef<HTMLInputElement>(null);
@@ -338,6 +336,7 @@ export function GestorPage() {
     refetch: gestorBootstrapQuery.refetch
   };
   const activeProjectReportCountQueries = useMemo(() => (activeProjectsQuery.data || []).map((project) => ({ projectId: project.id })), [activeProjectsQuery.data]);
+  const { projectForm, setProjectForm, projectEditingId, setProjectEditingId, showProjectForm, setShowProjectForm, projectReviewId, resetProjectForm, toggleProjectEdit } = useProjectEditor(activeProjectsQuery.data, projectsTab, setGestorSearch);
   const activeProjectReportCountsQuery = useBatchedReportCounts(activeProjectReportCountQueries, projectsTab && activeProjectReportCountQueries.length > 0);
   const activeProjectReportCountById = useMemo(
     () => new Map(activeProjectReportCountQueries.map((query, index) => [query.projectId, activeProjectReportCountsQuery.data?.[index]])),
@@ -595,22 +594,6 @@ export function GestorPage() {
     });
 
     navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
-  }
-
-  function resetProjectForm() {
-    setProjectForm(emptyProjectForm);
-    setProjectEditingId(null);
-    setShowProjectForm(false);
-  }
-
-  function toggleProjectEdit(project: Project) {
-    if (projectEditingId === project.id) {
-      resetProjectForm();
-      return;
-    }
-    setProjectEditingId(project.id);
-    setShowProjectForm(true);
-    setProjectForm(projectToForm(project));
   }
 
   function openProjectTeamDialog(project: Project) {
@@ -4265,7 +4248,7 @@ export function GestorPage() {
         {renderTabContent()}
       </main>
 
-      <ProjectIntakeWebhookNovelty user={user} enabled={tab === 'projetos' && pendingProjectRegistrationCount > 0} />
+      <ProjectIntakeWebhookNovelty user={user} enabled={tab === 'projetos' && !projectReviewId && pendingProjectRegistrationCount > 0} />
 
       {renderReportSequenceDialog()}
       {renderManualReportModal()}

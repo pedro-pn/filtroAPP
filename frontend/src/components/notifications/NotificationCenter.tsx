@@ -1,11 +1,11 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, BriefcaseBusiness, CheckCheck, FileCheck2, FileText, RefreshCw } from 'lucide-react';
+import { Bell, BriefcaseBusiness, CheckCheck, DatabaseBackup, FileCheck2, FileText, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type AppNotification } from '../../api/notifications';
 import { useAuth } from '../../auth/AuthContext';
 import { AppIcon } from '../icons/AppIcon';
-import { Button, IconButton } from '../ui/ds';
+import { Alert, Button, IconButton } from '../ui/ds';
 import { Modal } from '../ui/Modal';
 import './NotificationCenter.css';
 
@@ -23,7 +23,9 @@ function UserNotificationCenter() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(() => new Set());
   const activeFilterRef = useRef<HTMLButtonElement>(null);
+  const acknowledgeRef = useRef<HTMLButtonElement>(null);
   const query = useInfiniteQuery({
     queryKey: ['notifications', user, filter],
     queryFn: ({ pageParam, signal }) => listNotifications(filter, pageParam, signal),
@@ -36,7 +38,24 @@ function UserNotificationCenter() {
   const firstPage = query.data?.pages[0];
   const unreadCount = query.isError && !query.isFetchNextPageError ? 0 : firstPage?.unreadCount || 0;
   const items = query.data?.pages.flatMap(page => page.items) || [];
+  const critical = user?.accountType === 'ADMIN' && user.isActive && !query.isError
+    ? firstPage?.criticalItems?.find(item => !acknowledgedIds.has(item.id)) : undefined;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  const acknowledge = useMutation({
+    mutationFn: async ({ item, showDetails }: { item: AppNotification; showDetails: boolean }) => {
+      await markNotificationRead(item.id);
+      return { item, showDetails };
+    },
+    onSuccess: ({ item, showDetails }) => {
+      setAcknowledgedIds(ids => new Set([...ids, item.id]));
+      void refresh();
+      if (showDetails) { setOpen(false); navigate(item.href); }
+    },
+    onError: () => acknowledgeRef.current?.focus()
+  });
+  const acknowledgeBackup = (showDetails = false) => {
+    if (critical && !acknowledge.isPending) acknowledge.mutate({ item: critical, showDetails });
+  };
   const read = useMutation({
     mutationFn: async (item: AppNotification) => { await markNotificationRead(item.id); return item; },
     onSuccess: item => { void refresh(); setOpen(false); navigate(item.href); },
@@ -68,7 +87,7 @@ function UserNotificationCenter() {
         {unreadCount > 0 ? <span className="notification-center-count" aria-hidden="true">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
       </span>
       <Modal
-        open={open}
+        open={open && !critical}
         onClose={close}
         appearance="design-system"
         title="Central de notificações"
@@ -94,7 +113,7 @@ function UserNotificationCenter() {
               {items.map(item => (
                 <li key={item.id} className={`notification-center-item${item.readAt ? '' : ' is-unread'}`}>
                   <button type="button" className="notification-center-link" disabled={busy} onClick={() => read.mutate(item)}>
-                    <span className="notification-center-item-icon" aria-hidden="true"><AppIcon icon={item.kind === 'PROPOSAL_RECEIVED' ? FileCheck2 : item.kind.startsWith('REPORT_') ? FileText : BriefcaseBusiness} /></span>
+                    <span className={`notification-center-item-icon${item.kind === 'BACKUP_FAILED' || item.kind === 'SYNC_FAILED' ? ' notification-center-item-icon--danger' : ''}`} aria-hidden="true"><AppIcon icon={item.kind === 'BACKUP_FAILED' ? DatabaseBackup : item.kind === 'SYNC_FAILED' ? TriangleAlert : item.kind === 'PROPOSAL_RECEIVED' ? FileCheck2 : item.kind.startsWith('REPORT_') ? FileText : BriefcaseBusiness} /></span>
                     <span className="notification-center-copy">
                       <strong>{item.title}{!item.readAt ? <span className="notification-center-dot" aria-label="Não lida" /> : null}</strong>
                       <span>{item.description}</span>
@@ -107,6 +126,30 @@ function UserNotificationCenter() {
             {query.isFetchNextPageError ? <p role="alert" className="notification-center-error">Não foi possível carregar os avisos anteriores.</p> : null}
             {query.hasNextPage ? <Button className="notification-center-more" fullWidth size="sm" loading={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchNextPageError ? 'Tentar carregar novamente' : 'Carregar anteriores'}</Button> : null}
           </>}
+      </Modal>
+      <Modal
+        open={Boolean(critical)}
+        onClose={() => acknowledgeBackup()}
+        appearance="design-system"
+        title={critical?.title}
+        size="sm"
+        fullscreenOnMobile={false}
+        backdropClassName="notification-backup-backdrop"
+        panelClassName="notification-backup-dialog"
+        ariaDescribedBy="notification-backup-description"
+        initialFocusRef={acknowledgeRef}
+        closeOnEscape={!acknowledge.isPending}
+        showCloseButton={!acknowledge.isPending}
+        footer={<>
+          <Button ref={acknowledgeRef} variant="secondary" disabled={acknowledge.isPending} onClick={() => acknowledgeBackup()}>Entendi</Button>
+          <Button loading={acknowledge.isPending} onClick={() => acknowledgeBackup(true)}>Ver diagnóstico</Button>
+        </>}
+      >
+        <Alert tone="danger" icon={DatabaseBackup} title="A proteção dos dados precisa de atenção">
+          <p id="notification-backup-description">{critical?.description}</p>
+          <p>Confira o diagnóstico operacional para verificar o backup e corrigir o problema.</p>
+        </Alert>
+        {acknowledge.isError ? <p role="alert" className="notification-center-error">Não foi possível confirmar a leitura do alerta. Tente novamente.</p> : null}
       </Modal>
     </>
   );

@@ -40,6 +40,7 @@ const activeProjects = [
   project('active-villaris', '5807', 'VILLARIS', true),
   project('active-other', '9999', 'Outro projeto', true)
 ];
+if (new URLSearchParams(window.location.search).has('pending')) activeProjects[0].registrationPending = true;
 const report = {
   id: 'report-other', projectId: archivedProjects[2].id, project: archivedProjects[2],
   reportType: 'RDO', sequenceNumber: 1, status: 'APPROVED', reportDate: '2026-10-01',
@@ -49,7 +50,9 @@ const report = {
 apiClient.defaults.adapter = async config => {
   const url = config.url || '';
   let data: unknown = [];
-  if (url.endsWith('/bootstrap/gestor')) {
+  if (url.endsWith('/notifications')) {
+    data = { items: [], criticalItems: [], unreadCount: 0, snapshotAt: new Date().toISOString(), nextCursor: null };
+  } else if (url.endsWith('/bootstrap/gestor')) {
     data = { activeProjects, archivedProjects, collaborators: [], surveys: [], projectSegments: [], surveyQuestions: [] };
   } else if (url.endsWith('/reports/counts')) {
     const queries = JSON.parse(config.data).queries;

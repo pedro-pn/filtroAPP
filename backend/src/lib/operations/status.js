@@ -201,7 +201,7 @@ async function omieSyncStatus(prismaClient, config) {
   const rows = await prismaClient.integrationSyncRun.findMany({
     where: { integration: 'OMIE' },
     orderBy: { startedAt: 'desc' },
-    take: 20
+    distinct: ['scope']
   });
   const latestRun = rows[0] || null;
   const latestByScope = new Map();
@@ -368,12 +368,13 @@ function collectProblems({
   if (restore.status === 'INVALID') {
     problems.push(problem('Status de restore está inválido.', { restore }));
   }
-  if (omie.latestRun?.status === 'ERROR') {
+  for (const { latestRun } of omie.scopes) {
+    if (latestRun?.status !== 'ERROR') continue;
     problems.push(problem('Sincronização Omie falhou na última execução.', {
       job: 'omie-sync',
       integration: 'OMIE',
-      scope: omie.latestRun.scope,
-      error: omie.latestRun.error
+      scope: latestRun.scope,
+      error: latestRun.error
     }));
   }
   if (commercialImport.latestImport?.status === 'ERROR') {

@@ -120,6 +120,11 @@ test('getOperationalStatus summarizes job failures, locks and queues', async () 
             triggeredBy: 'SCHEDULE',
             startedAt: new Date('2026-07-02T08:00:00.000Z'),
             finishedAt: new Date('2026-07-02T08:00:10.000Z')
+          },
+          {
+            id: 'omie-projects-error', integration: 'OMIE', scope: 'projects', status: 'ERROR',
+            error: 'projects unavailable', startedAt: new Date('2026-07-02T07:00:00.000Z'),
+            finishedAt: new Date('2026-07-02T07:00:10.000Z')
           }
         ];
       }
@@ -178,7 +183,8 @@ test('getOperationalStatus summarizes job failures, locks and queues', async () 
   assert.equal(status.restore.status, 'FAILURE');
   assert.equal(status.omie.status, 'SUCCESS');
   assert.equal(status.commercialImport.status, 'SUCCESS');
-  assert.equal(status.problems.length, 5);
+  assert.equal(status.problems.length, 6);
+  assert.ok(status.problems.some(issue => issue.job === 'omie-sync' && issue.scope === 'projects'), 'sucesso de compras não esconde falha de projetos');
   assert.equal(status.errorTracking.enabled, false);
 });
 
