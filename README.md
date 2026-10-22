@@ -129,7 +129,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 ├── Modelos/                  # Templates DOCX para geração de relatórios
 ├── docker-compose.yml        # Apenas PostgreSQL (dev Node direto)
 ├── docker-compose.local.yml  # PostgreSQL + backend em container (dev)
-├── docker-compose.staging.yml # Homologação: PostgreSQL + backend + Nginx em :8080
+├── docker-compose.staging.yml # Homologação: PostgreSQL + backend + Nginx via Caddy/HTTPS
 └── docker-compose.prod.yml   # Produção: PostgreSQL + backend + Nginx
 ```
 
@@ -545,6 +545,8 @@ O CI repete os testes e auditorias de dependências de backend e frontend, valid
 ## Deploy em Produção
 
 A aplicação usa `docker-compose.prod.yml` para PostgreSQL, backend e Nginx interno. Um stack separado em `deploy/infra-proxy/` executa o Caddy, que ocupa as portas públicas 80/443, termina o TLS e encaminha o domínio da aplicação para o Nginx pela rede externa `proxy-net`.
+
+A homologação usa `https://filtrostaging.filtrovali.com.br` no mesmo Caddy, com acesso restrito pelos IPs de `STAGING_ALLOWED_IPS` e sem publicar a porta `8080`. Veja a configuração e a migração em [deploy/STAGING.md](deploy/STAGING.md).
 
 > Consulte [deploy/PRODUCTION.md](deploy/PRODUCTION.md), [deploy/infra-proxy/RUNBOOK.md](deploy/infra-proxy/RUNBOOK.md), [deploy/BACKUP.md](deploy/BACKUP.md) e `Checklist-Producao.txt` antes de operar a produção. Os comandos abaixo são apenas um resumo e pressupõem que volumes, rede e arquivos de ambiente já foram preparados conforme esses guias.
 

@@ -45,12 +45,14 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    ports:
-      - "8080:80"
+    environment:
+      STAGING_ALLOWED_IPS: ${STAGING_ALLOWED_IPS:-}
     volumes:
       - ./deploy/nginx/staging.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/15-staging-allowlist.sh:/docker-entrypoint.d/15-staging-allowlist.sh:ro
     networks:
       - filtrovali-staging-net
+      - proxy-net
 
 volumes:
   filtrovali_staging_pgdata:
@@ -62,3 +64,6 @@ networks:
   filtrovali-staging-net:
     name: filtrovali-staging-net
     driver: bridge
+  proxy-net:
+    name: proxy-net
+    external: true
