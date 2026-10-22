@@ -22,13 +22,13 @@ test('statistics render quantities independently from execution counts in both d
       pressao: service({ hoseUnits: 8, tubesByDiameter: { '2 pol': 12 } }),
       limpeza: service({ systemUnits: 3 }),
       flushing: service({ volumeOleoLiters: 1500, tubesByDiameter: { '4 pol': 25 } }),
-      filtragem: service({ volumeOleoLiters: 500 })
+      filtragem: { ...service({ volumeOleoLiters: 500 }), correctedServiceCount: 1 }
     };
     const summary = { reportCount: 1, totalDays: 1, daytimeWorkedMinutes: 480, nighttimeWorkedMinutes: 0,
       daytimeOvertimeMinutes: 0, nighttimeOvertimeMinutes: 0, standbyCount: 0, standbyMinutes: 0,
       avgDaytimeCollaborators: 1, avgNighttimeCollaborators: 0 };
     const data = { summary, services, timeline: [], projects: [],
-      meta: { from: '2026-01-01', to: '2026-10-15', ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 } },
+      meta: { from: '2026-01-01', to: '2026-10-15', correctedServiceCount: 1, ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 } },
       byProject: [{ projectId: 'p', code: '01', name: 'Projeto', summary, services,
         dailyReports: [{ reportId: 'rdo', reportDate: '2026-10-15', services }] }] };
     client.setQueryDefaults(['projectStats'], { initialData: data });
@@ -46,9 +46,31 @@ test('statistics render quantities independently from execution counts in both d
       assert.match(html, /25,0 m/);
       assert.match(html, /1 serviço/);
       assert.doesNotMatch(html, /8 serviços|3 serviços/);
+      assert.match(html, /Métricas corrigidas após a assinatura/);
+      assert.match(html, /1 com correção após assinatura/);
     }
   } finally {
     client.clear();
     await server.close();
   }
+});
+
+test('saving a corrected service report invalidates cached statistics for every filter', async t => {
+  const server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
+  t.after(() => server.close());
+  const { useReportMutations } = await server.ssrLoadModule('/src/hooks/useReports.ts');
+  const { AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.ts');
+  const { apiClient } = await server.ssrLoadModule('/src/api/client.ts');
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity }, mutations: { retry: false } } });
+  t.after(() => client.clear());
+  const keys = [['projectStats', { projectId: 'project' }], ['projectStats', { projectId: 'all' }]];
+  keys.forEach(key => client.setQueryData(key, { services: { filtragem: { volumeOleoLiters: 100 } } }));
+  let mutations;
+  function Fixture() { mutations = useReportMutations(); return null; }
+  renderToStaticMarkup(createElement(QueryClientProvider, { client },
+    createElement(AuthContext.Provider, { value: { user: { id: 'manager' } } }, createElement(Fixture))));
+  t.mock.method(apiClient, 'put', async () => ({ data: { id: 'corrected', reportType: 'RCPU', status: 'APPROVED' } }));
+  await mutations.updateReport.mutateAsync({ id: 'corrected', payload: {} });
+  keys.forEach(key => assert.equal(client.getQueryState(key).isInvalidated, true));
 });
