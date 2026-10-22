@@ -9,6 +9,10 @@ app.filtrovali.com.br {
 	reverse_proxy filtrovali-nginx:80
 }
 
+filtrostaging.filtrovali.com.br {
+	reverse_proxy filtrovali-staging-nginx:80
+}
+
 relatorios.filtrovali.com.br {
 	@root path /
 	redir @root https://app.filtrovali.com.br/rdo 301
