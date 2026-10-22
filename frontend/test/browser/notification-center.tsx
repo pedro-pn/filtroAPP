@@ -13,7 +13,8 @@ import '../../src/styles/foundation.css';
 import '../../src/layout/AppShell.css';
 import '../../src/styles/legacy.css';
 
-const state = { userId: 'manager', failRead: false, failList: false, failPage: false, failAll: false, read: JSON.parse(sessionStorage.getItem('notification-fixture-reads') || '{}') as Record<string, string[]> };
+const operational = new URLSearchParams(window.location.search).has('backup');
+const state = { userId: 'manager', backupId: 'backup-1', backupActive: true, forceCriticalForNonAdmin: false, failRead: false, failList: false, failPage: false, failAll: false, read: JSON.parse(sessionStorage.getItem('notification-fixture-reads') || '{}') as Record<string, string[]> };
 Object.assign(window, { notificationFixture: state });
 const persist = () => sessionStorage.setItem('notification-fixture-reads', JSON.stringify(state.read));
 const kinds = ['PROJECT_CREATED', 'REPORT_PENDING', 'PROPOSAL_RECEIVED'] as const;
@@ -26,21 +27,26 @@ const events: AppNotification[] = Array.from({ length: 23 }, (_, index) => ({
 apiClient.defaults.adapter = async config => {
   const url = config.url || '';
   const read = new Set(state.read[state.userId] || []);
+  const backup: AppNotification = { id: state.backupId, kind: 'BACKUP_FAILED', title: 'Falha no backup',
+    description: 'Backup falhou na última execução.', href: '/operacoes', createdAt: '2026-10-20T02:00:00Z', readAt: null };
+  const allEvents: AppNotification[] = operational ? [{ id: 'sync-1', kind: 'SYNC_FAILED', title: 'Falha de sincronização · Omie · compras',
+    description: 'Sincronização Omie falhou na última execução.', href: '/operacoes', createdAt: new Date().toISOString(), readAt: null }, ...events, backup] : events;
   let data: unknown;
   if (config.method === 'get') {
     if (state.failList) throw new Error('Falha de consulta simulada');
     if (config.params.cursor && state.failPage) throw new Error('Falha de página simulada');
-    const visible = state.userId === 'manager' ? events : [];
+    const visible = state.userId === 'manager' ? allEvents : [];
     const filtered = visible.filter(item => config.params.filter !== 'unread' || !read.has(item.id));
     const offset = Number(config.params.cursor || 0);
     data = { items: filtered.slice(offset, offset + 20).map(item => ({ ...item, readAt: read.has(item.id) ? new Date().toISOString() : null })),
+      criticalItems: operational && state.backupActive && (state.userId === 'manager' || state.forceCriticalForNonAdmin) && !read.has(backup.id) ? [backup] : [],
       unreadCount: visible.filter(item => !read.has(item.id)).length, snapshotAt: new Date().toISOString(),
       nextCursor: filtered.length > offset + 20 ? String(offset + 20) : null };
   } else {
     if (state.failRead) throw new Error('Falha de leitura simulada');
     if (url.endsWith('/read-all')) {
       if (state.failAll) throw new Error('Falha de leitura em lote simulada');
-      events.forEach(item => read.add(item.id));
+      allEvents.forEach(item => read.add(item.id));
     } else read.add(url.split('/')[2]);
     state.read[state.userId] = [...read]; persist(); data = { ok: true };
   }

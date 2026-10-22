@@ -14,6 +14,12 @@ failed reads, account isolation, keyboard focus and mobile layout at 390/320 px.
 The API is simulated; no real records or emails are changed. Deployment requires
 migration `20261021120000_notification_center` before starting the updated API.
 
+Operational failures also require migration `20261022120000_operational_notifications`.
+Run `playwright-cli run-code --filename frontend/test/browser/operational-notifications.js`
+for automatic backup popups, read persistence, new incidents, recovery, diagnostics and mobile layout.
+Run `playwright-cli run-code --filename frontend/test/browser/project-notification-review.js`
+for a notification opening the exact pending project review in Relatórios/Projetos.
+
 For management notes in merged projects, open `/test/browser/project-scopes.html?grupo=1&notas=1`
 and run `playwright-cli run-code --filename frontend/test/browser/project-management-notes.js`.
 The production dashboard uses a simulated API. It checks notes from visible group members,

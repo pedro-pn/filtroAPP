@@ -4362,11 +4362,11 @@ model NotificationEvent {
   id        String   @id @default(cuid())
   kind      String
   dedupeKey String   @unique
-  projectId String
+  projectId String?
   reportId  String?
   data      Json     @default("{}")
   createdAt DateTime @default(now())
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   report    Report?  @relation(fields: [reportId], references: [id], onDelete: Cascade)
   reads     NotificationRead[]
 

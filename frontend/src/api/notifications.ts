@@ -1,7 +1,8 @@
 import { apiClient } from './client';
 
 export type NotificationKind = 'PROJECT_CREATED' | 'PROJECT_RECEIVED' | 'PROJECT_READY'
-  | 'REPORT_PENDING' | 'REPORT_RETURNED' | 'PROPOSAL_RECEIVED' | 'EXECUTION_WITHOUT_REPORT_OPERATOR';
+  | 'REPORT_PENDING' | 'REPORT_RETURNED' | 'PROPOSAL_RECEIVED' | 'EXECUTION_WITHOUT_REPORT_OPERATOR'
+  | 'SYNC_FAILED' | 'BACKUP_FAILED';
 
 export interface AppNotification {
   id: string;
@@ -15,6 +16,7 @@ export interface AppNotification {
 
 export interface NotificationPage {
   items: AppNotification[];
+  criticalItems: AppNotification[];
   unreadCount: number;
   snapshotAt: string;
   nextCursor: string | null;

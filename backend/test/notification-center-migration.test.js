@@ -64,3 +64,29 @@ test('central registra transições atômicas e não duplica integrações ou re
     assert.equal((await events('REPORT_PENDING')).length, 0);
   } finally { await db.close(); }
 });
+
+test('eventos operacionais independem de projeto e mantêm leitura por usuário após a migração', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`
+      CREATE TABLE "User" (id TEXT PRIMARY KEY);
+      CREATE TABLE "Project" (id TEXT PRIMARY KEY, "registrationPending" BOOLEAN DEFAULT false, "deletedAt" TIMESTAMP);
+      CREATE TABLE "Report" (id TEXT PRIMARY KEY, "projectId" TEXT, "status" TEXT DEFAULT 'PENDING', "reportType" TEXT DEFAULT 'RDO', "deletedAt" TIMESTAMP);
+      CREATE TABLE "CommercialAppProposal" (id TEXT PRIMARY KEY, "projectId" TEXT, "proposalKind" TEXT, "proposalCode" TEXT, "revisionNumber" INT);
+      CREATE TABLE "ProjectAdditionalProposal" (id TEXT PRIMARY KEY, "projectId" TEXT, source TEXT, active BOOLEAN, "proposalCode" TEXT, "sourceProposalCodBd" INT);
+    `);
+    await db.exec(await readFile(new URL('../prisma/migrations/20261021120000_notification_center/migration.sql', import.meta.url), 'utf8'));
+    await db.exec(`INSERT INTO "Project" (id) VALUES ('existing'); INSERT INTO "User" VALUES ('admin-1'), ('admin-2');`);
+    await db.exec(await readFile(new URL('../prisma/migrations/20261022120000_operational_notifications/migration.sql', import.meta.url), 'utf8'));
+    await db.exec(`
+      INSERT INTO "NotificationEvent" (id, kind, "dedupeKey") VALUES ('backup-1', 'BACKUP_FAILED', 'backup:run-1');
+      INSERT INTO "NotificationRead" ("userId", "notificationId") VALUES ('admin-1', 'backup-1');
+      INSERT INTO "NotificationEvent" (id, kind, "dedupeKey") VALUES ('backup-duplicate', 'BACKUP_FAILED', 'backup:run-1') ON CONFLICT ("dedupeKey") DO NOTHING;
+      DELETE FROM "Project" WHERE id = 'existing';
+    `);
+    assert.equal((await db.query('SELECT * FROM "NotificationEvent"')).rows.length, 1);
+    assert.deepEqual((await db.query('SELECT "userId", "notificationId" FROM "NotificationRead"')).rows, [{ userId: 'admin-1', notificationId: 'backup-1' }]);
+    await db.exec(`INSERT INTO "NotificationEvent" (id, kind, "dedupeKey") VALUES ('backup-2', 'BACKUP_FAILED', 'backup:run-2');`);
+    assert.equal((await db.query('SELECT * FROM "NotificationEvent" e WHERE NOT EXISTS (SELECT 1 FROM "NotificationRead" r WHERE r."notificationId" = e.id AND r."userId" = $1)', ['admin-1'])).rows.length, 1);
+  } finally { await db.close(); }
+});

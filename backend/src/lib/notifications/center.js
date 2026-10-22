@@ -5,6 +5,7 @@ import { efetivoProjectWhere } from '../efetivo/project-visibility.js';
 import { projectListWhereForAuth } from '../projects/access.js';
 import { hasReportEmissionPermission } from '../operational-reports/permissions.js';
 import prisma from '../prisma.js';
+import { OPERATIONAL_NOTIFICATION_KINDS, refreshOperationalNotifications } from './operational.js';
 
 const PROJECT_KINDS = ['PROJECT_CREATED', 'PROJECT_RECEIVED', 'PROJECT_READY'];
 const RDO_ROLES = publicModuleRolesForModule('rdo');
@@ -22,12 +23,16 @@ function hasTrackingAccess(user) {
 export async function notificationAccessWhere(auth, client = prisma) {
   const user = auth.user;
   const scopes = [];
+  if (user.isActive && user.accountType === 'ADMIN') {
+    scopes.push({ kind: { in: OPERATIONAL_NOTIFICATION_KINDS } });
+  }
   if (user.isActive && user.accountType !== 'CLIENT' && (isHubAdmin(user) || hasModuleRole(user, MANAGER_ROLES))) {
     scopes.push({ kind: 'EXECUTION_WITHOUT_REPORT_OPERATOR', project: { deletedAt: null, operatorId: null } });
   }
   if (hasModuleRole(user, RDO_ROLES)) {
     const project = await projectListWhereForAuth(auth, undefined, client);
-    scopes.push({ kind: { in: PROJECT_KINDS }, project });
+    const canReviewProjects = user.accountType === 'ADMIN' && hasModuleRole(user, 'rdo:manager');
+    scopes.push({ kind: { in: PROJECT_KINDS }, project: { ...project, ...(canReviewProjects ? {} : { registrationPending: false }) } });
     if (user.accountType !== 'CLIENT' && ['MANAGER', 'COORDINATOR'].includes(user.role)) {
       scopes.push({
         kind: 'REPORT_PENDING',
@@ -72,13 +77,17 @@ export async function notificationAccessWhere(auth, client = prisma) {
     });
   }
   if (canViewEfetivo(user)) {
-    scopes.push({ kind: { in: PROJECT_KINDS }, project: efetivoProjectWhere() });
+    scopes.push({ kind: { in: PROJECT_KINDS }, project: { ...efetivoProjectWhere(), registrationPending: false } });
   }
   return scopes.length ? { OR: scopes } : { id: { in: [] } };
 }
 
 function destination(event, user) {
+  if (OPERATIONAL_NOTIFICATION_KINDS.includes(event.kind)) return '/operacoes';
   const projectId = encodeURIComponent(event.projectId);
+  if (PROJECT_KINDS.includes(event.kind) && event.project.registrationPending) {
+    return `/rdo/gestor?tab=projetos&revisar=${projectId}`;
+  }
   if (event.kind === 'EXECUTION_WITHOUT_REPORT_OPERATOR' && !hasTrackingAccess(user) && !canViewEfetivo(user)
     && !hasModuleRole(user, ['rdo:manager', 'rdo:coordinator'])) return '/modulos';
   if (event.reportId) {
@@ -91,10 +100,15 @@ function destination(event, user) {
       : user.role === 'COORDINATOR' ? '/rdo/coordenador/relatorio' : '/rdo/relatorios';
     return `${base}/${id}`;
   }
+  const effectiveDestination = canViewEfetivo(user) && !event.project.registrationPending
+    && !event.project.managerOnly && !efetivoProjectWhere().code.notIn.includes(event.project.code);
+  if (PROJECT_KINDS.includes(event.kind) && effectiveDestination) {
+    return `/efetivo?section=evolucao&projeto=${projectId}`;
+  }
   if (hasTrackingAccess(user) && !event.project.registrationPending) {
     return `/acompanhamento?section=projetos&project=${projectId}`;
   }
-  if (canViewEfetivo(user) && !event.project.managerOnly && !efetivoProjectWhere().code.notIn.includes(event.project.code)) {
+  if (effectiveDestination) {
     return `/efetivo?section=evolucao&projeto=${projectId}`;
   }
   if (user.role === 'MANAGER') return '/rdo/gestor?tab=projetos';
@@ -104,6 +118,13 @@ function destination(event, user) {
 }
 
 export function publicNotification(event, user) {
+  if (OPERATIONAL_NOTIFICATION_KINDS.includes(event.kind)) {
+    return {
+      id: event.id, kind: event.kind, title: event.data.title, description: event.data.description,
+      createdAt: event.createdAt.toISOString(), readAt: event.reads[0]?.readAt.toISOString() || null,
+      href: destination(event, user)
+    };
+  }
   const project = `${event.project.code} — ${event.project.name}`;
   const titles = {
     PROJECT_CREATED: 'Novo projeto cadastrado',
@@ -135,6 +156,9 @@ export function publicNotification(event, user) {
 }
 
 export async function listNotifications(auth, { filter = 'all', cursor, limit = 20 } = {}, client = prisma) {
+  // A central funciona mesmo quando o webhook/job de alertas não está habilitado.
+  const criticalIds = auth.user.isActive && auth.user.accountType === 'ADMIN'
+    ? await refreshOperationalNotifications({ client }) : [];
   const snapshotAt = new Date();
   const access = await notificationAccessWhere(auth, client);
   const unread = { reads: { none: { userId: auth.user.id } } };
@@ -144,7 +168,7 @@ export async function listNotifications(auth, { filter = 'all', cursor, limit = 
     const createdAt = new Date(cursor.createdAt);
     where.AND.push({ OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: cursor.id } }] });
   }
-  const [events, unreadCount] = await Promise.all([
+  const [events, unreadCount, criticalEvents] = await Promise.all([
     client.notificationEvent.findMany({
       where, orderBy, take: limit + 1,
       include: {
@@ -153,12 +177,17 @@ export async function listNotifications(auth, { filter = 'all', cursor, limit = 
         reads: { where: { userId: auth.user.id }, select: { readAt: true } }
       }
     }),
-    client.notificationEvent.count({ where: { AND: [scope, unread] } })
+    client.notificationEvent.count({ where: { AND: [scope, unread] } }),
+    criticalIds.length ? client.notificationEvent.findMany({
+      where: { AND: [scope, unread, { id: { in: criticalIds } }] }, orderBy,
+      include: { reads: { where: { userId: auth.user.id }, select: { readAt: true } } }
+    }) : []
   ]);
   const page = events.slice(0, limit);
   const last = page.at(-1);
   return {
     items: page.map(event => publicNotification(event, auth.user)),
+    criticalItems: criticalEvents.map(event => publicNotification(event, auth.user)),
     unreadCount,
     snapshotAt: snapshotAt.toISOString(),
     nextCursor: events.length > limit && last

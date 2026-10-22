@@ -19,3 +19,11 @@
 .notification-center-empty p { margin: 0; }
 .notification-center-error { color: var(--danger, #b42318); font-size: var(--text-sm); }
 .notification-center-more { margin-top: var(--space-4); }
+.notification-center-item-icon--danger { color: var(--danger, #b42318); }
+.fv-modal-backdrop.notification-backup-backdrop { z-index: 1300; }
+.notification-backup-dialog .fv-alert__description p { margin: 0; overflow-wrap: anywhere; }
+.notification-backup-dialog .fv-alert__description p + p { margin-top: var(--space-3); }
+@media (max-width: 767.98px) {
+  .fv-modal-backdrop.notification-backup-backdrop { align-items: center; padding: var(--space-4); }
+  .notification-backup-dialog .fv-modal__footer { flex-wrap: wrap; }
+}
