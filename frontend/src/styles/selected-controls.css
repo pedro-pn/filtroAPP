@@ -1,0 +1,155 @@
+/* Shared dark-theme selection treatment. Keep the brand's soft colors for
+   cards, alerts and other surfaces; only selected controls get a solid fill.
+   RDO pills (including RLI/RLF) already have the approved fill and stay intact.
+   Attribute selectors cover shared buttons; named selectors cover older
+   controls that still expose their selection through a class. */
+:root.dark
+  :is(
+    button[aria-pressed='true'],
+    button[aria-selected='true'],
+    button[aria-current='page'],
+    .filter-tab.active,
+    .nav-tab.active,
+    .rdo-admin-tab.is-active,
+    .rdo-section-navigation__item.is-active,
+    .efetivo-section-nav__item.is-active,
+    .survey-dash-period-btn.active,
+    .stats-preset-btn.active,
+    .stats-project-chip.active,
+    .stats-project-status-filter-btn.active,
+    .stats-tab-btn.active,
+    .equip-nav-item.active,
+    .equip-category-jump__menu button.is-active,
+    .equip-entity-tabs button.active,
+    .icon-toggle.active,
+    .signature-mode-tabs button.active,
+    .signature-tabs button.active,
+    .quality-evidence-mode button.active,
+    .efetivo-segmented button.active,
+    .efetivo-view-switch button.active,
+    .efetivo-admin-tabs button.active,
+    .efetivo-demand-summary button.active,
+    .efetivo-calendar-grid > button.selected,
+    .api-admin-tabs button.active,
+    .api-workflow-tabs button.active,
+    .romaneio-extra-category-btn.active,
+    .romaneio-qr-label-size-options button.is-selected,
+    .romaneio-checklist-status.active,
+    .ponto-candidate.active,
+    .rdo-tag-option.yes,
+    .rdo-tag-option.no,
+    .rdo-check-row:has(input:checked),
+    .public-flow-scale label:has(input:checked),
+    .survey-scale-option.selected .survey-scale-dot,
+    .admin-role-option:has(input:checked),
+    .admin-report-permissions__option:has(input:checked),
+    .project-workflow-check-states label.is-selected,
+    .project-workflow-stage-rail-item.is-active,
+    .project-workflow-modal .project-workflow-choice-button.is-selected,
+    .project-workflow-choice-button.is-selected,
+    .project-workflow-equipment-option.is-selected,
+    .fv-switch__control input:checked:not(:disabled) + .fv-switch__track,
+    .tog input:checked:not(:disabled) + .tog-sl,
+    .efetivo-team-toggle input:checked:not(:disabled) + .efetivo-team-toggle-track,
+    .fv-navigation-item.is-active,
+    .fv-navigation-subitem.is-active,
+    .fv-bottom-bar a.is-active,
+    .fv-bottom-bar button.is-active,
+    .fv-bottom-bar__sheet-list a.is-active
+  ):not(
+    :disabled,
+    [aria-disabled='true'],
+    [data-loading='true'],
+    :has(input:disabled),
+    .fv-card,
+    .fv-card__surface-action,
+    .public-flow-password-toggle,
+    .romaneio-checklist-status.status-nao-aplicavel
+  ) {
+  background: var(--selected-control-bg);
+  border-color: var(--selected-control-line);
+  color: var(--selected-control-ink);
+}
+
+/* A negative answer keeps its meaning, including in workflow dialogs and
+   the Romaneio checklist. Alpha applies to the fill, never to the text. */
+:root.dark
+  :is(
+    .rdo-tag-option.no,
+    .project-workflow-choice-button.is-selected.is-no,
+    .romaneio-checklist-status.status-nao-conforme.active,
+    .fv-button--danger[aria-pressed='true'],
+    .danger-button[aria-pressed='true']
+  ) {
+  --selected-control-bg: var(--selected-negative-bg);
+  --selected-control-ink: var(--selected-negative-ink);
+  --selected-control-line: var(--selected-negative-line);
+}
+
+/* Shared buttons may hold counters with explicit foregrounds of their own. */
+:root.dark
+  :is(
+    button[aria-pressed='true'],
+    button[aria-selected='true'],
+    .equip-nav-item.active,
+    .stats-project-chip.active
+  ):not(:disabled, [aria-disabled='true'], [data-loading='true'])
+  :is(.fv-button__counter, .acp-cost-ds__tab-count, .equip-nav-count):not(
+    .efetivo-nav-pending
+  ) {
+  background: color-mix(in srgb, var(--selected-control-ink) 14%, transparent);
+  color: var(--selected-control-ink);
+}
+
+/* Switch thumbs already signal selection; the track also needs a visible
+   edge on the dark surface, including legacy tracks without a border. */
+:root.dark
+  :is(
+    .fv-switch__control input:checked:not(:disabled) + .fv-switch__track,
+    .tog input:checked:not(:disabled) + .tog-sl,
+    .efetivo-team-toggle input:checked:not(:disabled) + .efetivo-team-toggle-track
+  ) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--selected-control-line);
+}
+
+:root.dark .rdo-tag-option:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Secondary copy inside a selected option follows the selected foreground;
+   status badges and calendar events keep their semantic colors. */
+:root.dark
+  :is(
+    .romaneio-qr-label-size-options button.is-selected > span,
+    .project-workflow-equipment-option.is-selected small:not(.has-warning),
+    .efetivo-calendar-grid > button.selected > time,
+    .efetivo-calendar-grid > button.selected > strong,
+    .efetivo-demand-summary button.active > span,
+    .project-workflow-stage-tab[aria-selected='true'] .project-workflow-stage-tab-label
+  ) {
+  color: var(--selected-control-ink);
+}
+
+/* Checkmarks reinforce binary selection without changing accessible names or
+   adding markers to ordinary tabs and report-type pills. */
+:root.dark .rdo-tag-option:is(.yes, .no) > span,
+:root.dark .project-workflow-choice-button.is-selected {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+:root.dark .rdo-tag-option:is(.yes, .no) > span::before,
+:root.dark .project-workflow-choice-button.is-selected::before {
+  display: inline-block;
+  width: 0.35em;
+  height: 0.65em;
+  flex: 0 0 auto;
+  margin-block-end: 0.2em;
+  border: solid currentColor;
+  border-width: 0 var(--focus-ring-width) var(--focus-ring-width) 0;
+  content: '';
+  transform: rotate(45deg);
+}
