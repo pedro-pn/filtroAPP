@@ -1,5 +1,5 @@
 # Proxy reverso único da VPS. Termina TLS para todos os apps e roteia por domínio.
-# Não pertence a nenhum app: filtroAPP e filtroboard são upstreams.
+# Não pertence a nenhum app: cada domínio tem seu próprio upstream.
 {
 	email relatorios.filtrovali@gmail.com
 }
@@ -29,4 +29,9 @@ filtroboard.filtrovali.com.br {
 # --- Prisma (app publica em 172.17.0.1:8082) -------------------------------
 whatsapp.prismacrm.filtrovali.com.br {
 	reverse_proxy host.docker.internal:8082
+}
+
+# --- ComercialAPP (Docker rootless, publica em 172.17.0.1:8083) ------------
+comercial.filtrovali.com.br {
+	reverse_proxy host.docker.internal:8083
 }
