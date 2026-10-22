@@ -179,8 +179,8 @@ function cleanParams(params?: QualityRecordListParams) {
   return Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value !== undefined && value !== null));
 }
 
-export async function listQualityRecords(params?: QualityRecordListParams) {
-  const response = await apiClient.get<QualityRecordListResponse>(qualidadeApiPath('/registros'), { params: cleanParams(params) });
+export async function listQualityRecords(params?: QualityRecordListParams, signal?: AbortSignal) {
+  const response = await apiClient.get<QualityRecordListResponse>(qualidadeApiPath('/registros'), { params: cleanParams(params), signal });
   return response.data;
 }
 

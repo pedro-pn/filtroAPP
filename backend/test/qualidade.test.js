@@ -143,7 +143,9 @@ function createMockQualidadeClient(seed = {}) {
         const dir = direction === 'desc' ? -1 : 1;
         const left = a[field];
         const right = b[field];
-        const result = typeof left === 'number' || typeof right === 'number'
+        const result = left instanceof Date && right instanceof Date
+          ? left.getTime() - right.getTime()
+          : typeof left === 'number' || typeof right === 'number'
           ? Number(left || 0) - Number(right || 0)
           : String(left || '').localeCompare(String(right || ''), 'pt-BR');
         if (result) return result * dir;
@@ -190,8 +192,9 @@ function createMockQualidadeClient(seed = {}) {
         state.records.push(record);
         return includeRecord(state, record);
       },
-      findMany: async ({ where = {}, select } = {}) => {
-        const rows = state.records.filter(record => matchesWhere(record, where));
+      findMany: async ({ where = {}, select, orderBy, skip = 0, take } = {}) => {
+        const rows = sortRows(state.records.filter(record => matchesWhere(record, where)), orderBy)
+          .slice(skip, take === undefined ? undefined : skip + take);
         if (select) {
           return rows.map(record => Object.fromEntries(Object.keys(select).map(key => [key, record[key]])));
         }
@@ -753,6 +756,28 @@ test('quality list enriches records with recurrence without N+1 visible contract
   assert.equal(result.items.length, 3);
   assert.ok(result.items.every(record => record.occurrences12m === 3));
   assert.ok(result.items.every(record => record.recurrent));
+});
+
+test('quality records paginate beyond 50 with stable ordering, filtered totals and a complete export', async () => {
+  const client = createMockQualidadeClient();
+  const expected = [];
+  for (let index = 0; index < 125; index += 1) {
+    const record = await createRecord(client, { data: recordPayload({ description: `Registro ${index}` }) });
+    expected.push(record.id);
+  }
+  await createRecord(client, { data: recordPayload({ type: 'MELHORIA' }) });
+  const deleted = await createRecord(client, { data: recordPayload() });
+  await deleteRecord(client, deleted.id);
+  expected.sort((a, b) => b.localeCompare(a, 'pt-BR'));
+
+  const pages = await Promise.all([1, 2, 3].map(page => listRecords(client, { type: 'DESVIO', page, pageSize: 50 })));
+  assert.deepEqual(pages.map(page => page.items.length), [50, 50, 25]);
+  assert.ok(pages.every(page => page.total === 125 && page.pageSize === 50));
+  assert.deepEqual(pages.map(page => page.page), [1, 2, 3]);
+  assert.deepEqual(pages.flatMap(page => page.items.map(record => record.id)), expected);
+  assert.ok(pages.every(page => page.items.every(record => record.occurrences12m === 126)), 'a recorrência inclui os registros das outras páginas e tipos');
+  assert.equal((await listRecords(client, { type: 'DESVIO', page: 4, pageSize: 50 })).items.length, 0);
+  assert.equal((await listRecordsForExport(client, { type: 'DESVIO', page: 1, pageSize: 50 })).length, 125);
 });
 
 test('quality xlsx export uses FR-3-4-11-01 template formatting with filtered rows and escaped XML', async () => {

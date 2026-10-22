@@ -42,6 +42,22 @@
   width: min(100%, 32rem);
 }
 
+.quality-page-v2 .quality-records-load-more {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.quality-page-v2 .quality-records-load-more > p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.quality-page-v2 .quality-records-load-more__sentinel {
+  width: 100%;
+  min-height: 1px;
+}
+
 .quality-page-v2 .app-search-input,
 .quality-page-v2 .quality-filters .app-combobox-control input {
   border-color: var(--line);
