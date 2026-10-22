@@ -234,8 +234,8 @@ test('service export rows include finalized legacy services and skip unfinished 
   }, { code: 'PRJ-1' });
 
   assert.deepEqual(rows, [
-    ['2026-05-13', 'PRJ-1', 12, 'filtragem', 'Sistema A', 'EQ-1 - Unidade', '2.00', '', '', '', ''],
-    ['2026-05-13', 'PRJ-1', 12, 'flushing', 'Sistema C', 'EQ-3 - Unidade', '', '4 pol', '12.00', '', '']
+    ['2026-05-13', 'PRJ-1', 12, 'filtragem', 'Sistema A', 'EQ-1 - Unidade', '2.00', '', '', '', '', '', '', ''],
+    ['2026-05-13', 'PRJ-1', 12, 'flushing', 'Sistema C', 'EQ-3 - Unidade', '', '4 pol', '12.00', '', '', '', '', '']
   ]);
 });
 
@@ -326,10 +326,10 @@ test('all service measurements survive daily detail, aggregation and CSV without
 
   const rows = buildServiceExportRows(report, { code: 'PRJ-1' });
   assert.equal(rows.length, 6);
-  assert.deepEqual(rows[0].slice(6), ['', '', '', 8, '']);
-  assert.deepEqual(rows[1].slice(6), ['', '', '', '', 3]);
-  assert.deepEqual(rows[2].slice(6), ['1.50', '2', '2.50', '', '']);
-  assert.deepEqual(rows[3].slice(6), ['', '', '', 2, '']);
+  assert.deepEqual(rows[0].slice(6), ['', '', '', 8, '', '', '', '']);
+  assert.deepEqual(rows[1].slice(6), ['', '', '', '', 3, '', '', '']);
+  assert.deepEqual(rows[2].slice(6), ['1.50', '2', '2.50', '', '', '', '', '']);
+  assert.deepEqual(rows[3].slice(6), ['', '', '', 2, '', '', '', '']);
 });
 
 test('manual uploaded reports keep service exports simple but expose standby in daily detail', () => {

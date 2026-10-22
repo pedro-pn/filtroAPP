@@ -68,6 +68,7 @@ jobs:
       DATABOOK_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       PROPOSAL_SCOPE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       DRAFTS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
+      STATISTICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       TRUST_PROXY: "false"
       SIGNATURE_TOKEN_SECRET: ci-signature-token-secret
       SURVEY_TOKEN_SECRET: ci-survey-token-secret
@@ -165,7 +166,7 @@ jobs:
       - run: npm run prisma:deploy
       - name: Verify contributions, migration, mixed sources and v1 regression
         run: >-
-          node --test test/commercial-additional-contributions.integration.test.js
+          node --test --test-concurrency=1 test/commercial-additional-contributions.integration.test.js
           test/commercial-additional-migration.integration.test.js
           test/proposal-scope-databook.integration.test.js
           test/comercialapp-bridge.integration.test.js test/commercial-proposal-sync.test.js

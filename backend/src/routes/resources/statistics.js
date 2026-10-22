@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { cleaningSystemQuantity, isSystemCleaning } from '../../lib/reports/cleaning-measurement.js';
@@ -14,6 +15,8 @@ const MAX_YEARS = 2;
 const MAX_STATS_REPORTS = 5000;
 const MAX_DAILY_REPORTS = 500;
 const MANUAL_REPORT_UPLOAD_KEY = '__manualUpload';
+const MANUAL_SERVICE_EDIT_KEY = '__manualDerivedServiceReportEdit';
+const SERVICE_REPORT_TYPES = ['RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -223,6 +226,92 @@ function serviceEquipmentName(service) {
   return raw ? String(raw) : null;
 }
 
+function measurementKey(service) {
+  const { tubesByDiameter, ...measurements } = serviceMeasurements(service, { volumeOleo: 0, tubulacao: 0 });
+  return JSON.stringify([measurements, Object.entries(tubesByDiameter).sort(([a], [b]) => a.localeCompare(b))]);
+}
+
+// A projeção estatística usa a correção sem reescrever o conteúdo do RDO assinado.
+export function applyServiceReportCorrections(reports, serviceReports) {
+  const parents = new Map(reports
+    .filter(report => report.status === 'SIGNED' && !report.deletedAt && !isManualUploadedReport(report))
+    .map(report => [report.id, report]));
+  const corrections = new Map();
+  const ordered = [...serviceReports].sort((a, b) =>
+    String(a.specialConditions?.[MANUAL_SERVICE_EDIT_KEY]?.editedAt || '').localeCompare(
+      String(b.specialConditions?.[MANUAL_SERVICE_EDIT_KEY]?.editedAt || '')
+    ) || String(a.id).localeCompare(String(b.id)));
+
+  for (const report of ordered) {
+    const special = report.specialConditions || {};
+    const edit = special[MANUAL_SERVICE_EDIT_KEY];
+    const parent = parents.get(special.parentRdoId);
+    if (!parent || parent.projectId !== report.projectId || report.deletedAt
+      || !SERVICE_REPORT_TYPES.includes(report.reportType) || special.serviceOnly === true
+      || !['APPROVED', 'SIGNED'].includes(report.status) || !edit?.editedAt) continue;
+
+    const corrected = report.services?.[0];
+    if (!corrected) continue;
+    const candidates = (parent.services || []).filter(service =>
+      isServiceFinalized(service) && service.serviceType === corrected.serviceType);
+    let source = candidates.find(service => service.id === special.serviceId);
+    if (!source) {
+      const refs = new Set([special.serviceId, special.serviceLinkKey].filter(Boolean));
+      const matches = candidates.filter(service => [service.id,
+        service.extraData?.__ongoingKey, service.extraData?.__serviceLinkKey,
+        service.extraData?.__sourceServiceId, service.extraData?.serviceId
+      ].some(key => key && refs.has(key)));
+      if (matches.length === 1) source = matches[0];
+    }
+    if (!source) continue;
+
+    const replacement = { ...source, finalized: true, extraData: corrected.extraData || {} };
+    const key = `${parent.id}:${source.id}`;
+    if (measurementKey(source) === measurementKey(replacement)) {
+      corrections.delete(key);
+      continue;
+    }
+    corrections.set(key, {
+      ...replacement,
+      correction: {
+        reportId: report.id,
+        reportType: report.reportType,
+        sequenceNumber: report.sequenceNumber,
+        editedAt: edit.editedAt,
+        editedByUserId: edit.editedByUserId || null
+      }
+    });
+  }
+
+  return reports.map(report => ({
+    ...report,
+    services: (report.services || []).map(service => corrections.get(`${report.id}:${service.id}`) || service)
+  }));
+}
+
+async function loadServiceReportCorrections(reports) {
+  const signedReports = reports.filter(report => report.status === 'SIGNED' && !isManualUploadedReport(report));
+  if (!signedReports.length) return reports;
+  // A data de referência é a do RDO, mesmo se o relatório corrigido mudar de data.
+  const serviceReports = await prisma.report.findMany({
+    where: statsReportWhere({
+      projectId: { in: [...new Set(signedReports.map(report => report.projectId))] },
+      reportType: { in: SERVICE_REPORT_TYPES },
+      status: { in: ['APPROVED', 'SIGNED'] },
+      specialConditions: { path: [MANUAL_SERVICE_EDIT_KEY, 'editedAt'], not: Prisma.AnyNull }
+    }),
+    select: {
+      id: true, projectId: true, reportType: true, sequenceNumber: true, status: true,
+      specialConditions: true, services: { select: { serviceType: true, extraData: true } }
+    }
+  });
+  return applyServiceReportCorrections(reports, serviceReports);
+}
+
+function correctedServiceCount(reports) {
+  return reports.reduce((total, report) => total + (report.services || []).filter(service => service.correction).length, 0);
+}
+
 function serviceSystemName(service) {
   const extra = service.extraData || {};
   return service.system || extra.Sistema || extra.system || null;
@@ -276,6 +365,7 @@ export function isServiceFinalized(service) {
 }
 
 function mergeServiceStats(acc, s) {
+  if (s.correctedServiceCount) acc.correctedServiceCount = (acc.correctedServiceCount || 0) + s.correctedServiceCount;
   acc.serviceCount += s.serviceCount;
   acc.volumeOleoLiters += s.volumeOleoLiters;
   acc.hasTubulacao += s.hasTubulacao;
@@ -306,7 +396,7 @@ export function buildServiceStats(services, ignoredRows) {
     if (!isServiceFinalized(svc)) continue;
 
     if (!result[type]) result[type] = emptyServiceStats();
-    mergeServiceStats(result[type], { serviceCount: 1, ...serviceMeasurements(svc, ignoredRows) });
+    mergeServiceStats(result[type], { serviceCount: 1, correctedServiceCount: svc.correction ? 1 : 0, ...serviceMeasurements(svc, ignoredRows) });
   }
 
   return result;
@@ -377,11 +467,12 @@ export function buildDailyReport(r) {
       servicesByType[type] = { ...emptyServiceStats(), items: [] };
     }
     const { hasTubulacao, ...measurements } = serviceMeasurements(svc, ignoredRows);
-    mergeServiceStats(servicesByType[type], { serviceCount: 1, hasTubulacao, ...measurements });
+    mergeServiceStats(servicesByType[type], { serviceCount: 1, correctedServiceCount: svc.correction ? 1 : 0, hasTubulacao, ...measurements });
     const item = {
       serviceId: svc.id,
       system: serviceSystemName(svc),
       equipmentName: serviceEquipmentName(svc),
+      ...(svc.correction ? { correction: svc.correction } : {}),
       ...measurements
     };
 
@@ -483,13 +574,16 @@ export function buildServiceExportRows(report, project) {
     const measurements = serviceMeasurements(svc, { volumeOleo: 0, tubulacao: 0 });
     const volume = measurements.volumeOleoLiters?.toFixed(2) ?? '';
     const units = [measurements.hoseUnits || '', measurements.systemUnits || ''];
+    const correction = svc.correction
+      ? ['Sim', `${svc.correction.reportType} #${svc.correction.sequenceNumber ?? ''}`, svc.correction.editedAt]
+      : ['', '', ''];
     const entries = Object.entries(measurements.tubesByDiameter);
     if (entries.length === 0) {
-      rows.push([...base, volume, '', '', ...units]);
+      rows.push([...base, volume, '', '', ...units, ...correction]);
       continue;
     }
     for (const [index, [d, m]] of entries.entries()) {
-      rows.push([...base, index === 0 ? volume : '', d, m.toFixed(2), ...units]);
+      rows.push([...base, index === 0 ? volume : '', d, m.toFixed(2), ...units, ...correction]);
     }
   }
 
@@ -578,6 +672,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
             includedStatuses: ['APPROVED', 'SIGNED'],
             generatedAt: new Date(),
             ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 },
+            correctedServiceCount: 0,
             reportCountLimit: MAX_STATS_REPORTS,
             dailyReportLimit: MAX_DAILY_REPORTS,
             dailyReportsIncluded: false
@@ -604,11 +699,12 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
 
     const includeDailyReports = wantsDailyReports && reportCount <= MAX_DAILY_REPORTS;
 
-    const reports = await prisma.report.findMany({
+    const sourceReports = await prisma.report.findMany({
       where: reportWhere,
       select: reportSelect(includeDailyReports),
       orderBy: { reportDate: 'asc' }
     });
+    const reports = await loadServiceReportCorrections(sourceReports);
 
     const ignoredRows = { volumeOleo: 0, tubulacao: 0 };
 
@@ -693,6 +789,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
           includedStatuses: ['APPROVED', 'SIGNED'],
           generatedAt: new Date(),
           ignoredLegacyRows: ignoredRows,
+          correctedServiceCount: correctedServiceCount(reports),
           reportCountLimit: MAX_STATS_REPORTS,
           dailyReportLimit: MAX_DAILY_REPORTS,
           dailyReportsIncluded: includeDailyReports
@@ -780,11 +877,12 @@ router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async 
     ...(section === 'services' ? { services: { select: serviceSelect(true) } } : {})
   };
 
-  const reports = projects.length === 0 ? [] : await prisma.report.findMany({
+  const sourceReports = projects.length === 0 ? [] : await prisma.report.findMany({
     where: reportWhere,
     select: exportReportSelect,
     orderBy: { reportDate: 'asc' }
   });
+  const reports = section === 'services' ? await loadServiceReportCorrections(sourceReports) : sourceReports;
 
   const ignoredRows = { volumeOleo: 0, tubulacao: 0 };
 
@@ -829,7 +927,8 @@ router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async 
     }
   } else if (section === 'services') {
     res.write(csvRow(['Data', 'Projeto', 'RDO #', 'Tipo serviço', 'Sistema', 'Equipamento',
-      'Volume óleo (L)', 'Diâmetro', 'Comprimento (m)', 'Mangueiras (un)', 'Sistemas (un)']) + '\n');
+      'Volume óleo (L)', 'Diâmetro', 'Comprimento (m)', 'Mangueiras (un)', 'Sistemas (un)',
+      'Correção após assinatura', 'Relatório da correção', 'Corrigido em']) + '\n');
     for (const r of reports) {
       const proj = projects.find(p => p.id === r.projectId);
       for (const row of buildServiceExportRows(r, proj)) {

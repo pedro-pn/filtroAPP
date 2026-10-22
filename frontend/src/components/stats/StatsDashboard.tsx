@@ -28,6 +28,7 @@ import {
   type StatsParams,
   type StatsProjectData,
   type StatsServiceStats,
+  type StatsServiceCorrection,
   type StatsSummary,
   type StatsTimelineSlot
 } from '../../api/statistics';
@@ -923,6 +924,12 @@ function ServicesSection({
                 {stats.serviceCount} serviço
                 {stats.serviceCount !== 1 ? 's' : ''}
               </span>
+              {!!stats.correctedServiceCount && (
+                <span data-fv-ds>
+                  <StatusPill status="corrected" tone="warning"
+                    label={`${stats.correctedServiceCount} com correção após assinatura`} />
+                </span>
+              )}
             </div>
             {appearance === 'design-system' ? (
               <div className="stats-service-metrics">
@@ -1045,6 +1052,20 @@ function ServicesSection({
 
 const DAILY_COLS = 10;
 
+function ServiceCorrectionNotice({ correction }: { correction?: StatsServiceCorrection }) {
+  if (!correction) return null;
+  return (
+    <span data-fv-ds>
+      <StatusPill
+        status="corrected"
+        tone="warning"
+        label={`Corrigido após assinatura · ${formatDateOnlyPtBr(correction.editedAt)}`}
+        title={`${correction.reportType} #${correction.sequenceNumber ?? '—'} · Correção posterior à assinatura do RDO`}
+      />
+    </span>
+  );
+}
+
 function RdoServiceRows({
   services
 }: {
@@ -1090,6 +1111,7 @@ function RdoServiceRows({
                   <span className="stats-svc-subrow-type stats-svc-subrow-type--cont" />
                 )}
                 <span className="stats-svc-subrow-label">{label}</span>
+                <ServiceCorrectionNotice correction={item.correction} />
                 <ServiceUnitMeasurement item={item} />
                 {hasVolume && (
                   <span className="stats-svc-subrow-qty">
@@ -1158,6 +1180,7 @@ function RdoServiceSummary({
                     <span className="rdo-stats-dashboard__daily-service-description">
                       {label}
                     </span>
+                    <ServiceCorrectionNotice correction={item.correction} />
                     {hasVolume || tubes.length > 0 || item.hoseUnits > 0 || item.systemUnits > 0 ? (
                       <span className="rdo-stats-dashboard__daily-service-quantity">
                         <ServiceUnitMeasurement item={item} />
@@ -2274,6 +2297,18 @@ export function StatsDashboard({
 
       {data && (
         <>
+          {!!data.meta.correctedServiceCount && (isDesignSystem ? (
+            <Alert tone="warning" title="Métricas corrigidas após a assinatura">
+              Os totais incluem {data.meta.correctedServiceCount} serviço(s) com métricas corrigidas
+              posteriormente à assinatura do RDO. Consulte a indicação nos detalhes diários e no CSV de serviços.
+            </Alert>
+          ) : (
+            <div className="survey-dash-card stats-warning" role="alert">
+              <div className="survey-dash-card-title">Métricas corrigidas após a assinatura</div>
+              <p>Os totais incluem {data.meta.correctedServiceCount} serviço(s) com métricas corrigidas
+                posteriormente à assinatura do RDO. Consulte a indicação nos detalhes diários e no CSV de serviços.</p>
+            </div>
+          ))}
           {/* ── KPIs ── */}
           <DashboardCard
             appearance={appearance}

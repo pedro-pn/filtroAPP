@@ -33,8 +33,17 @@ export interface StatsSummary {
   avgNighttimeCollaborators: number;
 }
 
+export interface StatsServiceCorrection {
+  reportId: string;
+  reportType: string;
+  sequenceNumber: number | null;
+  editedAt: string;
+  editedByUserId: string | null;
+}
+
 export interface StatsServiceStats {
   serviceCount: number;
+  correctedServiceCount?: number;
   volumeOleoLiters: number;
   tubesByDiameter: Record<string, number>;
   hasTubulacao: number;
@@ -48,6 +57,7 @@ export interface StatsServiceStats {
     tubesByDiameter: Record<string, number>;
     hoseUnits: number;
     systemUnits: number;
+    correction?: StatsServiceCorrection;
   }>;
 }
 
@@ -98,6 +108,7 @@ export interface ProjectStatsResponse {
     includedStatuses: string[];
     generatedAt: string;
     ignoredLegacyRows: { volumeOleo: number; tubulacao: number };
+    correctedServiceCount?: number;
     reportCountLimit?: number;
     dailyReportLimit?: number;
     dailyReportsIncluded?: boolean;
