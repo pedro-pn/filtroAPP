@@ -8,7 +8,6 @@ import {
   exportQualityRecords,
   listQualityNatures,
   listQualityProjects,
-  listQualityRecords,
   removeQualityRecord,
   type QualityImpact,
   type QualityNature,
@@ -21,11 +20,13 @@ import {
   updateQualityRecord
 } from '../../api/qualidade';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
-import { Badge, Button, Card, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
+import { Alert, Badge, Button, Card, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
+import { useQualityRecords } from '../../hooks/useQualityRecords';
 import { makeQualidadeSchemas } from '../../../../shared/schemas/qualidade.js';
 import { QualityEvidenceThumbnail } from './QualityEvidenceThumbnail';
 import { QualityRecordFormModal } from './QualityRecordFormModal';
@@ -138,8 +139,6 @@ export function QualityRecordsTab({ isManager }: Props) {
   });
 
   const params = useMemo<QualityRecordListParams>(() => ({
-    page: 1,
-    pageSize: 50,
     q,
     type,
     status,
@@ -148,10 +147,7 @@ export function QualityRecordsTab({ isManager }: Props) {
     natureId
   }), [impact, natureId, projectId, q, status, type]);
 
-  const recordsQuery = useQuery({
-    queryKey: ['qualidade', 'registros', params],
-    queryFn: () => listQualityRecords(params)
-  });
+  const recordsQuery = useQualityRecords(params);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['qualidade', 'registros'] });
@@ -199,9 +195,18 @@ export function QualityRecordsTab({ isManager }: Props) {
 
   const projects = projectsQuery.data || [];
   const natures: QualityNature[] = naturesQuery.data || [];
-  const records = recordsQuery.data?.items || [];
+  const records = useMemo(() => Array.from(new Map(
+    recordsQuery.data?.pages.flatMap(page => page.items).map(record => [record.id, record])
+  ).values()), [recordsQuery.data]);
+  const total = recordsQuery.data?.pages.at(-1)?.total ?? 0;
   const saving = createMutation.isPending || updateMutation.isPending;
   const activeFilterCount = [type, status, impact, projectId, natureId].filter(Boolean).length;
+
+  function loadMore() {
+    if (recordsQuery.hasNextPage && !recordsQuery.isFetching) {
+      void recordsQuery.fetchNextPage({ cancelRefetch: false });
+    }
+  }
 
   function handleSubmit(payload: QualityRecordPayload | QualityRecordUpdatePayload) {
     if (formRecord) updateMutation.mutate({ id: formRecord.id, payload: payload as QualityRecordUpdatePayload });
@@ -272,7 +277,7 @@ export function QualityRecordsTab({ isManager }: Props) {
       <div className="admin-toolbar quality-toolbar">
         <div>
           <div className="sec">Registros</div>
-          <p className="rel-meta">{recordsQuery.data?.total ?? 0} registro(s) encontrado(s)</p>
+          <p className="rel-meta">{total} registro(s) encontrado(s)</p>
         </div>
         <div className="admin-form-actions quality-action-bar">
           <Button variant="secondary" size="sm" onClick={() => exportMutation.mutate()} loading={exportMutation.isPending}>
@@ -287,7 +292,7 @@ export function QualityRecordsTab({ isManager }: Props) {
         onChange={setQ}
         placeholder="Buscar por Nº, descrição, RNC ou RIAI"
         ariaLabel="Buscar registros de qualidade"
-        count={{ shown: records.length, total: recordsQuery.data?.total || records.length }}
+        count={{ shown: records.length, total }}
       />
       <details className="quality-filter-details" open={filtersOpen} onToggle={event => setFiltersOpen(event.currentTarget.open)}>
         <summary>Filtros {activeFilterCount ? <Badge tone="brand">{activeFilterCount}</Badge> : null}</summary>
@@ -336,8 +341,12 @@ export function QualityRecordsTab({ isManager }: Props) {
       </details>
 
       {recordsQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando registros" inline size="sm" /></p> : null}
-      {recordsQuery.isError ? <p className="equip-form-error">Não foi possível carregar os registros.</p> : null}
-      {!recordsQuery.isLoading && !recordsQuery.isError ? <DataTable
+      {recordsQuery.isError && !recordsQuery.isFetchNextPageError ? <Alert tone="danger" action={
+        <Button size="sm" variant="secondary" loading={recordsQuery.isFetching} onClick={() => void recordsQuery.refetch()}>Tentar novamente</Button>
+      }>
+        {recordsQuery.data ? 'Não foi possível atualizar os registros. Os registros carregados continuam visíveis.' : 'Não foi possível carregar os registros.'}
+      </Alert> : null}
+      {recordsQuery.data ? <DataTable
         className="quality-records-table-v2"
         rows={records}
         columns={columns}
@@ -361,6 +370,27 @@ export function QualityRecordsTab({ isManager }: Props) {
           actions: recordActions(record)
         }) }}
       /> : null}
+
+      {recordsQuery.hasNextPage ? <div className="quality-records-load-more">
+        <InfiniteScrollSentinel
+          className="quality-records-load-more__sentinel"
+          hasMore={!recordsQuery.isError}
+          isLoading={recordsQuery.isFetching}
+          onLoadMore={loadMore}
+        />
+        {recordsQuery.isFetchNextPageError ? <Alert tone="danger" action={
+          <Button size="sm" variant="secondary" loading={recordsQuery.isFetching} onClick={loadMore}>Tentar novamente</Button>
+        }>
+          Não foi possível carregar mais registros. Os registros carregados continuam visíveis.
+        </Alert> : <>
+          <p role="status" aria-live="polite">
+            {recordsQuery.isFetchingNextPage ? 'Carregando mais registros…' : 'Role para carregar mais registros ou use o botão abaixo.'}
+          </p>
+          <Button size="sm" variant="secondary" loading={recordsQuery.isFetchingNextPage} disabled={recordsQuery.isFetching} onClick={loadMore}>
+            Carregar mais registros
+          </Button>
+        </>}
+      </div> : null}
 
       {formRecord !== undefined ? (
         <QualityRecordFormModal

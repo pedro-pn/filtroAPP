@@ -260,7 +260,7 @@ export async function listRecords(client = prisma, query = {}) {
     client.qualityRecord.findMany({
       where,
       include: RECORD_INCLUDE,
-      orderBy: [{ registeredAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ registeredAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize
     }),

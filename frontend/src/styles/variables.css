@@ -200,6 +200,14 @@
   --link-hover: var(--ink);
   --control-border: var(--gray-400);
 
+  /* Selected controls keep their own contrast without darkening soft surfaces. */
+  --selected-control-bg: var(--brand);
+  --selected-control-ink: var(--on-brand);
+  --selected-control-line: var(--green-200);
+  --selected-negative-bg: rgba(239, 107, 110, 0.4);
+  --selected-negative-ink: var(--white);
+  --selected-negative-line: #ef6b6e;
+
   --success: #57b979;
   --success-bg: rgba(31, 122, 61, 0.16);
   --success-line: rgba(87, 185, 121, 0.3);
@@ -247,6 +255,13 @@
     --link: var(--brand-hover);
     --link-hover: var(--ink);
     --control-border: var(--gray-400);
+
+    --selected-control-bg: var(--brand);
+    --selected-control-ink: var(--on-brand);
+    --selected-control-line: var(--green-200);
+    --selected-negative-bg: rgba(239, 107, 110, 0.4);
+    --selected-negative-ink: var(--white);
+    --selected-negative-line: #ef6b6e;
 
     --success: #57b979;
     --success-bg: rgba(31, 122, 61, 0.16);

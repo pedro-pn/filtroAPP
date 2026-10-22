@@ -18,6 +18,7 @@ import './styles/foundation.css';
 import './styles/utilities.css';
 import './styles/legacy.css';
 import './styles/operational-reports.css';
+import './styles/selected-controls.css';
 
 const queryClient = createAppQueryClient();
 const disposeDataUpdates = installQueryDataUpdates(queryClient);

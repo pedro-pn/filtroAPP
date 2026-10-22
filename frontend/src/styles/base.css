@@ -3121,10 +3121,11 @@ a {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: .15s;
+  transition: background-color .15s, color .15s;
   background: var(--surface-2);
   color: var(--mu);
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .rdo-tag-option.yes {
@@ -3173,7 +3174,8 @@ a {
   padding: 4px 11px;
   font-size: 12px;
   cursor: pointer;
-  transition: .15s;
+  transition: background-color .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .rdo-pill-option.sel {
@@ -3182,9 +3184,10 @@ a {
   border-color: var(--brand);
 }
 
-.rdo-tag-option:focus-within,
-.rdo-pill-option:focus-within {
-  outline: var(--focus-ring-width) solid rgba(9, 90, 44, 0.35);
+/* Pointer selection uses the button border; keyboard navigation gets a ring. */
+.rdo-tag-option:has(input:focus-visible),
+.rdo-pill-option:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
 
@@ -4200,11 +4203,6 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .service-finalized-field.field-invalid .rdo-tag-option {
   border-color: var(--rd);
   background-color: var(--error-bg);
-}
-
-.service-finalized-field .rdo-tag-option:focus-within {
-  outline: 2px solid var(--rd);
-  outline-offset: var(--focus-ring-offset);
 }
 
 .field-error {
