@@ -83,9 +83,13 @@ def main():
                 "nginx", "--network-alias", "filtrovali-staging-nginx", *nginx_args,
                 "-e", f"STAGING_ALLOWED_IPS={allowed_ip}/32, 2001:db8::/32", NGINX_IMAGE,
             )
-            eventually(lambda: docker(
-                "cp", f"{caddy}:/data/caddy/pki/authorities/local/root.crt", str(scratch / "root.crt"),
+            root_cert = eventually(lambda: docker(
+                "exec", caddy, "cat", "/data/caddy/pki/authorities/local/root.crt",
             ))
+            (scratch / "root.crt").write_text(root_cert)
+            for command in ["validate", "reload"]:
+                docker("exec", "-i", caddy, "caddy", command, "--config", "-", "--adapter", "caddyfile",
+                       input=(scratch / "Caddyfile").read_text())
 
             def request(client, path="/", *, tls=True, host=DOMAIN, direct=False, headers=None):
                 options = {
