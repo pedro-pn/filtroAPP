@@ -82,6 +82,16 @@ docker logs -f infra-proxy-caddy
 
 ## Verificação
 
+O domínio `comercial.filtrovali.com.br` também precisa constar no Caddyfile usado
+na inicialização, com `reverse_proxy host.docker.internal:8083`. O ComercialAPP
+publica essa porta somente em `172.17.0.1`, pelo seu Docker rootless. Uma rota
+adicionada apenas à configuração em memória desaparece ao reiniciar o proxy,
+mesmo quando seu certificado continua válido no volume `infra_proxy_data`.
+
+Antes de recarregar ou recriar o Caddy, confirme o arquivo persistente montado e
+preserve todas as rotas da VPS. O arquivo versionado inclui o ComercialAPP; ao
+atualizar um Caddyfile operacional fora do repositório, mantenha também essa rota.
+
 ```bash
 # HTTPS respondendo e certificado valido
 curl -sSI https://app.filtrovali.com.br/ | head -3
@@ -94,6 +104,9 @@ curl -sSI https://relatorios.filtrovali.com.br/ | grep -i location   # -> /rdo
 
 # API viva
 curl -sS https://app.filtrovali.com.br/health
+
+# ComercialAPP com certificado válido e backend saudável
+curl --fail --show-error https://comercial.filtrovali.com.br/api/health
 
 # nginx NAO deve mais aparecer com portas publicadas
 docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E 'nginx|caddy'
@@ -110,6 +123,7 @@ No navegador, valide o que os testes de curl não pegam: **login**, um upload
 | Caddy não obtém certificado | Porta 80 ocupada (nginx antigo ou certbot) ou DNS errado |
 | Cookies de sessão caem no login | `X-Forwarded-Proto` chegando como `http` — conferir o `map $fwd_proto` |
 | Logs do backend com IP do proxy | `set_real_ip_from` não pegou a faixa da rede |
+| Só o ComercialAPP falha no TLS após reiniciar | Conferir a rota `comercial.filtrovali.com.br` no Caddyfile carregado no boot; certificado válido no volume não substitui a rota |
 
 ---
 

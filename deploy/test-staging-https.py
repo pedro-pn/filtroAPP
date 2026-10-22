@@ -52,18 +52,22 @@ def main():
 
             caddy = start(
                 "caddy", "--network-alias", "infra-proxy-caddy",
-                "--add-host", "host.docker.internal:127.0.0.1",
-                "--tmpfs", "/data", "--tmpfs", "/config",
+                "-v", "/data", "-v", "/config",
                 "-v", f"{scratch / 'Caddyfile'}:/etc/caddy/Caddyfile:ro", CADDY_IMAGE,
             )
             start(
                 "backend", "--network-alias", "backend", "--network-alias", "filtrovali-nginx",
+                "--network-alias", "host.docker.internal",
                 NODE_IMAGE, "node", "-e",
                 "require('http').createServer((req,res)=>{"
                 "res.setHeader('Content-Type','application/json');"
                 "res.end(JSON.stringify({path:req.url,headers:req.headers}));"
                 "}).listen(4000,'0.0.0.0');"
-                "require('http').createServer((req,res)=>res.end('production upstream')).listen(80);",
+                "require('http').createServer((req,res)=>res.end('production upstream')).listen(80);"
+                "require('http').createServer((req,res)=>{"
+                "res.setHeader('Content-Type','application/json');"
+                "res.end(JSON.stringify({service:'comercialapp',path:req.url}));"
+                "}).listen(8083);",
             )
             allowed = start(
                 "allowed", "-v", f"{scratch}:/test:ro", NODE_IMAGE, "sleep", "infinity",
@@ -153,6 +157,19 @@ req.end();
             legacy = expect_status(allowed, 301, host="relatorios.filtrovali.com.br")
             assert legacy["headers"]["location"] == "https://app.filtrovali.com.br/rdo", legacy
             print("PASS: HTTP redirect and existing production/legacy vhost routing", flush=True)
+
+            def check_comercialapp():
+                response = expect_status(blocked, 200, "/api/health", host="comercial.filtrovali.com.br")
+                assert json.loads(response["body"]) == {
+                    "service": "comercialapp", "path": "/api/health",
+                }, response
+
+            check_comercialapp()
+            docker("restart", caddy)
+            eventually(check_comercialapp)
+            eventually(lambda: expect_status(allowed, 200, "/health"))
+            assert docker("exec", caddy, "cat", "/data/caddy/pki/authorities/local/root.crt") == root_cert
+            print("PASS: ComercialAPP and staging retain trusted TLS and routing after Caddy restart", flush=True)
 
             for invalid in ["127.0.0.1;", "999.999.999.999"]:
                 try:
