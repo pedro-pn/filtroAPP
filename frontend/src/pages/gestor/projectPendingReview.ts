@@ -130,6 +130,7 @@ export function projectSearchParts(project: Project) {
     project.contractCode,
     project.location,
     project.operator?.name,
+    project.defaultReportResponsibleUser?.name,
     projectVisibilityLabel(project),
     formatProjectSequences(project)
   ];

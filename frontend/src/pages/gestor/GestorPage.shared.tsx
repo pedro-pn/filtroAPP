@@ -924,7 +924,7 @@ export function renderProjectCard(
     const overviewRows: Array<[string, ReactNode]> = [
       ['Cliente', project.clientName || 'Não informado'],
       ['Segmento', segmentLabel],
-      ['Responsável', project.operator?.name || 'Não informado'],
+      ['Responsável', project.operator?.name || project.defaultReportResponsibleUser?.name || 'Não informado'],
       ['Atualização', formatDate(project.updatedAt || project.createdAt)]
     ];
     const detailRows: Array<[string, ReactNode]> = [
@@ -936,7 +936,7 @@ export function renderProjectCard(
       ['Assinantes adicionais', formatProjectSigners(project.clientSigners)],
       ['Proposta', project.contractCode || '-'],
       ['Local', project.location || '-'],
-      ['Operador', project.operator?.name || '-'],
+      ['Operador', project.operator?.name || project.defaultReportResponsibleUser?.name || '-'],
       ['Visibilidade', projectVisibilityLabel(project)],
       ['Sequenciais', formatProjectSequences(project)]
     ];
@@ -1043,7 +1043,7 @@ export function renderProjectCard(
             <div className="rdo-active-project-card__summary-item">
               <AppIcon icon={DS_ICONS.user} size="sm" />
               <dt>Responsável</dt>
-              <dd>{project.operator?.name || 'Não informado'}</dd>
+              <dd>{project.operator?.name || project.defaultReportResponsibleUser?.name || 'Não informado'}</dd>
             </div>
             <div className="rdo-active-project-card__summary-item">
               <AppIcon icon={DS_ICONS.users} size="sm" />
@@ -1201,7 +1201,7 @@ export function renderProjectCard(
                   <dl>
                     <div className="rdo-archived-project-card__detail">
                       <dt>Responsável</dt>
-                      <dd>{project.operator?.name || '-'}</dd>
+                      <dd>{project.operator?.name || project.defaultReportResponsibleUser?.name || '-'}</dd>
                     </div>
                     <div className="rdo-archived-project-card__detail">
                       <dt>Jornada padrão</dt>
@@ -1537,7 +1537,7 @@ export function renderProjectCard(
           <ProjectRevisionPicker projectId={project.id} />
           <div className="det-row">
             <span className="det-label">Operador</span>
-            <span className="det-val">{project.operator?.name || '-'}</span>
+            <span className="det-val">{project.operator?.name || project.defaultReportResponsibleUser?.name || '-'}</span>
           </div>
           {project.clientSegment && (
             <div className="det-row">

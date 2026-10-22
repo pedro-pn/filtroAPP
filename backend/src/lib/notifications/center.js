@@ -1,5 +1,5 @@
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
-import { hasModuleRole, publicModuleRolesForModule } from '../module-roles.js';
+import { hasModuleRole, isHubAdmin, publicModuleRoleDefinitions, publicModuleRolesForModule } from '../module-roles.js';
 import { canViewEfetivo } from '../efetivo/access.js';
 import { efetivoProjectWhere } from '../efetivo/project-visibility.js';
 import { projectListWhereForAuth } from '../projects/access.js';
@@ -9,6 +9,7 @@ import prisma from '../prisma.js';
 const PROJECT_KINDS = ['PROJECT_CREATED', 'PROJECT_RECEIVED', 'PROJECT_READY'];
 const RDO_ROLES = publicModuleRolesForModule('rdo');
 const TRACKING_ROLES = publicModuleRolesForModule('acompanhamento');
+const MANAGER_ROLES = publicModuleRoleDefinitions().map(role => role.public).filter(role => role.endsWith(':manager'));
 const orderBy = [{ createdAt: 'desc' }, { id: 'desc' }];
 const OPERATIONAL_TYPES = ['RDO_MAINTENANCE', 'RDO_PRODUCTION'];
 
@@ -21,6 +22,9 @@ function hasTrackingAccess(user) {
 export async function notificationAccessWhere(auth, client = prisma) {
   const user = auth.user;
   const scopes = [];
+  if (user.isActive && user.accountType !== 'CLIENT' && (isHubAdmin(user) || hasModuleRole(user, MANAGER_ROLES))) {
+    scopes.push({ kind: 'EXECUTION_WITHOUT_REPORT_OPERATOR', project: { deletedAt: null, operatorId: null } });
+  }
   if (hasModuleRole(user, RDO_ROLES)) {
     const project = await projectListWhereForAuth(auth, undefined, client);
     scopes.push({ kind: { in: PROJECT_KINDS }, project });
@@ -75,6 +79,8 @@ export async function notificationAccessWhere(auth, client = prisma) {
 
 function destination(event, user) {
   const projectId = encodeURIComponent(event.projectId);
+  if (event.kind === 'EXECUTION_WITHOUT_REPORT_OPERATOR' && !hasTrackingAccess(user) && !canViewEfetivo(user)
+    && !hasModuleRole(user, ['rdo:manager', 'rdo:coordinator'])) return '/modulos';
   if (event.reportId) {
     const id = encodeURIComponent(event.reportId);
     if (OPERATIONAL_TYPES.includes(event.report.reportType)) {
@@ -105,7 +111,8 @@ export function publicNotification(event, user) {
     PROJECT_READY: 'Cadastro de projeto liberado',
     REPORT_PENDING: 'Relatório pendente de revisão',
     REPORT_RETURNED: 'Relatório devolvido para correção',
-    PROPOSAL_RECEIVED: 'Nova proposta extra escopo'
+    PROPOSAL_RECEIVED: 'Nova proposta extra escopo',
+    EXECUTION_WITHOUT_REPORT_OPERATOR: 'Execução sem operador para os relatórios'
   };
   const report = event.report;
   const reportLabel = report && ({ RDO_MAINTENANCE: 'RDO de manutenção', RDO_PRODUCTION: 'RDO de produção' }[report.reportType] || report.reportType);
@@ -113,7 +120,9 @@ export function publicNotification(event, user) {
     ? `${reportLabel}${report.sequenceNumber != null ? ` nº ${report.sequenceNumber}` : ''} · ${project}`
     : event.kind === 'PROPOSAL_RECEIVED'
       ? `Proposta ${event.data.proposalCode}${event.data.revision != null ? ` · revisão ${event.data.revision}` : ''} · ${project}`
-      : project;
+      : event.kind === 'EXECUTION_WITHOUT_REPORT_OPERATOR'
+        ? `O projeto ${project} iniciou a execução e não possui operador responsável pela criação dos relatórios.${event.data.defaultResponsibleUserId ? ' Gestor de Contrato definido como responsável padrão.' : ''}`
+        : project;
   return {
     id: event.id,
     kind: event.kind,

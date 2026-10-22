@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { matchesSearch, createSearchMatcher } from '../src/utils/search.ts';
+import { matchesSearch, createSearchMatcher, projectSearchParts } from '../src/utils/search.ts';
 
 test('search preserves field boundaries for project and report numbers', () => {
   assert.equal(matchesSearch(['RTP', 58, '00 - Outro projeto'], '5800'), false);
@@ -21,4 +21,9 @@ test('punctuation-only search does not match every entry', () => {
   assert.equal(matchesSearch(['Reframax'], '/'), false);
   assert.equal(matchesSearch(['12/09/2026'], '/'), true);
   assert.equal(matchesSearch(['Reframax'], '   '), true);
+});
+
+test('projeto sem operador é encontrado pelo Gestor de Contrato responsável padrão', () => {
+  const project = { code: '5782', name: 'Araucária', operator: null, defaultReportResponsibleUser: { id: 'manager', name: 'João do Contrato' } };
+  assert.equal(matchesSearch(projectSearchParts(project), 'joao contrato'), true);
 });

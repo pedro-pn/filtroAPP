@@ -39,7 +39,8 @@ test('entrada em execução exige confirmação do início real e outras etapas 
   }
   assert.equal(patch.safeParse({ action: 'stage', version: 1, stage: 'MOBILIZATION' }).success, true);
   assert.equal(patch.safeParse({ ...payload, stage: 'MOBILIZATION' }).success, false);
-  for (const operatorId of [undefined, null, '', '   ']) {
+  assert.equal(patch.safeParse({ ...payload, operatorId: undefined }).success, true, 'a equipe elegível é validada pelo serviço');
+  for (const operatorId of [null, '', '   ']) {
     const result = patch.safeParse({ ...payload, operatorId });
     assert.equal(result.success, false);
     assert.deepEqual(result.error.issues[0].path, ['operatorId']);

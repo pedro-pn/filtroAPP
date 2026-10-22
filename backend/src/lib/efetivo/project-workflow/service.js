@@ -81,6 +81,7 @@ const PROJECT_FIELDS = {
   location: true,
   startDate: true,
   operatorId: true,
+  defaultReportResponsibleUser: { select: { id: true, name: true } },
   mobilizationDate: true,
   demobilizationDate: true
 };
@@ -1024,6 +1025,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         location: project.location,
         startDate: dateKey(project.startDate),
         operatorId: project.operatorId || null,
+        defaultReportResponsibleUser: project.defaultReportResponsibleUser || null,
         mobilizationDate: dateKey(project.mobilizationDate),
         operationalMission: mission,
         workflow: workflow ? {
@@ -1143,6 +1145,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       location: project.location,
       startDate: dateKey(project.startDate),
       operatorId: project.operatorId || null,
+      defaultReportResponsibleUser: project.defaultReportResponsibleUser || null,
       mobilizationDate: dateKey(project.mobilizationDate),
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
@@ -2217,7 +2220,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
     );
   }
   if (payload.stage === 'EXECUTION') {
-    await assignMissionReportTeam(tx, workflow.projectId, payload.operatorId, reportTeam, payload.startDate);
+    await assignMissionReportTeam(tx, workflow.projectId, payload.operatorId, reportTeam, payload.startDate, workflow.plannerUserId);
   }
   const data = { stage: payload.stage };
   if (payload.stage === 'FINISHED') {

@@ -108,7 +108,7 @@ function legacyExecutionDatabase(kind = 'OFFICIAL') {
   const state = {
     plan: { id: 'plan-1', kind, status: kind === 'OFFICIAL' ? 'ACTIVE' : 'DRAFT' },
     project: { id: 'project-1', name: 'Missão antiga', mobilizationDate: new Date('2026-09-10T00:00:00Z') },
-    users: [], audits: [],
+    users: [], audits: [], notifications: [],
     mission: {
       id: 'mission-1', projectId: 'project-1', planId: 'plan-1', version: 1, stage: 'MOBILIZATION', kanbanOrder: 0,
       scheduleStatus: 'CONFIRMED', headquartersResponsibleUserId: 'leader', headquartersResponsibleName: 'Líder', headquartersResponsibleRole: 'Supervisor',
@@ -130,6 +130,7 @@ function legacyExecutionDatabase(kind = 'OFFICIAL') {
     projectWorkflow: { findUnique: async () => null },
     project: { update: async ({ data }) => { Object.assign(state.project, data); } },
     projectAuthorizedUser: { createMany: async ({ data }) => state.users.push(...data) },
+    notificationEvent: { upsert: async ({ create }) => { state.notifications.push(create); } },
     efetivoMissionPlan: {
       findUnique: async () => ({ ...state.mission, project: state.project }),
       findMany: async () => [],
@@ -153,6 +154,7 @@ test('missão antiga também confirma operador e início real e libera a equipe 
   assert.deepEqual(state.users.map(link => link.userId), ['user-ana', 'user-carlos']);
   assert.equal(state.mission.stage, 'EXECUTION');
   assert.equal(state.audits[0].afterData.operatorId, 'ana');
+  assert.equal(state.notifications.length, 0);
   // Reordenar na mesma etapa não redefine o responsável nem repete a liberação.
   await moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0 }, { version: 2 }, { database });
   assert.equal(state.users.length, 2);
@@ -181,4 +183,20 @@ test('mover cenário para execução não altera operador ou acessos do projeto 
   assert.equal(state.project.operatorId, undefined);
   assert.equal(state.users.length, 0);
   assert.equal(state.project.startDate, undefined);
+  assert.equal(state.notifications.length, 0);
+});
+
+test('missão antiga sem contas habilitadas inicia sem operador e registra aviso transacional', async () => {
+  const { database, state } = legacyExecutionDatabase();
+  for (const allocation of state.mission.allocations) allocation.collaborator.user = null;
+  state.project.operatorId = 'old-operator';
+  await moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0, startDate: '2026-09-12' },
+    { version: 1 }, { database, now: new Date('2026-09-14T12:00:00Z') });
+  assert.equal(state.mission.stage, 'EXECUTION');
+  assert.equal(state.project.operatorId, null);
+  assert.equal(state.notifications[0].kind, 'EXECUTION_WITHOUT_REPORT_OPERATOR');
+  assert.equal(state.notifications[0].projectId, 'project-1');
+  assert.equal(state.users.length, 0);
+  await moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0 }, { version: 2 }, { database });
+  assert.equal(state.notifications.length, 1);
 });
