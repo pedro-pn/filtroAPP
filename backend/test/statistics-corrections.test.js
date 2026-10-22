@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import prisma from '../src/lib/prisma.js';
@@ -163,4 +164,55 @@ test('statistics and export routes load existing corrections outside the RDO dat
   assert.match(csv.csv, /Correção após assinatura,Relatório da correção,Corrigido em/);
   assert.match(csv.csv, /2026-10-15,P1,12,filtragem,,,250\.00,,,,,Sim,RCPU #3,2026-10-22T12:30:00\.000Z/);
   assert.equal(correctedQueries, 2);
+});
+
+test('PostgreSQL: historical saved corrections are loaded automatically without changing the signed RDO', {
+  skip: !process.env.STATISTICS_TEST_DATABASE_URL
+}, async t => {
+  const databaseUrl = new URL(process.env.STATISTICS_TEST_DATABASE_URL);
+  assert.ok(databaseUrl.pathname.endsWith('_test') || (process.env.CI === 'true' && databaseUrl.pathname === '/filtrovali'));
+  assert.equal(process.env.DATABASE_URL, process.env.STATISTICS_TEST_DATABASE_URL);
+  const project = await prisma.project.create({ data: {
+    code: `statistics-${randomUUID()}`, name: 'Correções históricas', clientName: 'Cliente teste', clientCnpj: '',
+    contractCode: '', location: ''
+  } });
+  t.after(async () => {
+    clearProjectDerivedCaches();
+    await prisma.report.deleteMany({ where: { projectId: project.id } });
+    await prisma.project.delete({ where: { id: project.id } });
+    await prisma.$disconnect();
+  });
+  const common = { projectId: project.id, arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 1 };
+  const source = await prisma.report.create({ data: {
+    ...common, reportType: 'RDO', sequenceNumber: 1, status: 'SIGNED', reportDate: new Date('2026-10-15'),
+    daytimeWorkedMinutes: 480, services: { create: [oil, tubes].map(({ id, ...data }) => data) }
+  }, include: { services: true } });
+  const corrections = [
+    { volumeOleo: '250', volumeOleoUnit: 'L' },
+    { tubes: [{ d: '4', unit: 'pol', c: '25', lengthUnit: 'm' }] }
+  ];
+  // As correções já existem no banco antes da primeira consulta às estatísticas.
+  for (const [index, original] of source.services.entries()) {
+    await prisma.report.create({ data: {
+      ...common, reportType: 'RCPU', sequenceNumber: index + 1, status: index === 0 ? 'APPROVED' : 'SIGNED',
+      reportDate: new Date('2026-10-20'), specialConditions: {
+        parentRdoId: source.id, serviceId: original.id,
+        [editKey]: { editedAt: '2026-10-20T12:00:00.000Z', editedByUserId: null }
+      }, services: { create: { serviceType: original.serviceType, finalized: true,
+        extraData: corrections[original.serviceType === 'filtragem' ? 0 : 1] } }
+    } });
+  }
+  clearProjectDerivedCaches();
+  const query = { from: '2026-10-15', to: '2026-10-15', projectId: project.id };
+  const response = await request('/projects', query);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.meta.correctedServiceCount, 2);
+  assert.equal(response.body.services.filtragem.volumeOleoLiters, 250);
+  assert.deepEqual(response.body.services.flushing.tubesByDiameter, { '4 pol': 25 });
+  assert.equal(response.body.summary.reportCount, 1);
+  assert.equal(response.body.summary.daytimeWorkedMinutes, 480);
+  assert.equal(response.body.byProject[0].dailyReports[0].services.filtragem.items[0].correction.editedAt, '2026-10-20T12:00:00.000Z');
+  const csv = await request('/projects/export', { ...query, section: 'services' });
+  assert.match(csv.csv, /250\.00,,,,,Sim,RCPU #\d,2026-10-20T12:00:00\.000Z/);
+  assert.deepEqual(await prisma.report.findUnique({ where: { id: source.id }, include: { services: true } }), source);
 });
