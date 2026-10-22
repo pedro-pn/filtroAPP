@@ -67,6 +67,13 @@ before the general cycle, and saving with no demobilization date. The general
 cycle and the other collaborators must keep their dates. Add `?stage=mobilization`
 to check editing without exposing new mobilization cycles.
 
+For initial team dates, open `/test/browser/initial-team-dates.html` and run
+`playwright-cli run-code --filename frontend/test/browser/initial-team-dates.js`.
+It reproduces project 5782 with an old project demobilization before the new
+mobilization, checks availability and submitted periods after confirming dates,
+complete planning dates, reopening, existing mission return dates and mobile layout.
+The production dialog uses simulated API responses; no real records are changed.
+
 For signature navigation, open the same fixture with
 `?mode=signatures&q=contrato&status=CONCLUIDO&tab=archived`. Open the document,
 reload it and click Voltar: the search, status and archived list must be preserved.

@@ -56,7 +56,9 @@ function initialValues(mission: PlanningMission | null, project: PendingMissionP
   const suggested = project ? prefillDatesFromProject(project) : null;
   const schedule = resolveMissionTeamScheduleDates(mission, context, {
     ...suggested,
-    returnDate: project?.demobilizationDate?.slice(0, 10) || ''
+    // A saída histórica do projeto não encerra o novo ciclo da equipe inicial.
+    // Missões existentes preservam sua própria returnDate no resolvedor.
+    returnDate: initialTeamMode ? '' : project?.demobilizationDate?.slice(0, 10) || ''
   });
   return {
     planId,
