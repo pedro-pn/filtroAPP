@@ -29,18 +29,19 @@ async function fillGoal(page: Page, index: number, kind: string, value: string, 
   if (basis) await dialog.getByLabel(`Meta ${index}: forma de contar`).selectOption(basis);
 }
 
-test('meta por colaborador/dia usa a equipe do RDO e a jornada do projeto; E/OU decide a semana', async ({ page }) => {
+test('meta por colaborador/dia usa a equipe do RDO; E/OU decide a semana', async ({ page }) => {
   const dialog = await openDialog(page);
   await expect(dialog.getByLabel('Vale a partir da semana')).toHaveValue('2026-09-21');
   await expect(dialog.getByLabel('Vale a partir da semana').locator('option:checked')).toHaveText('25/09 a 01/10 (atual)');
   await expect(dialog).toContainText('Contagem de sexta a quinta');
-  await expect(dialog).toContainText('Seg a qui 08:00 · Sex, sáb, dom e feriados 08:00');
+  await expect(dialog.getByLabel('Meta 1: o que medir')).toHaveValue('ANY_SERVICE');
   await fillGoal(page, 1, 'LIMPEZA_QUIMICA', '30');
   await expect(dialog).toContainText('Cada colaborador deve fazer 30 m de limpeza química por dia trabalhado.');
+  await expect(dialog).toContainText('cada pessoa da equipe do RDO conta 1');
   await dialog.page().getByRole('button', { name: 'Salvar meta', exact: true }).click();
   await expect(dialog).toBeHidden();
 
-  // 9 colaboradores-dia de limpeza (9 × 8 h ÷ jornada de 8 h) → 270 m; foram feitos 150 m.
+  // Equipe de 9 no RDO com limpeza → 9 × 30 = 270 m; foram feitos 150 m.
   const spotlight = spotlightFor(page);
   await showCurrent(page);
   await expect(spotlight).toContainText('de 270 m');
@@ -97,6 +98,19 @@ test('conflito mantém o diálogo aberto e a meta pode valer a partir de uma sem
   await expect(dialog).toBeHidden();
   await expect(current.locator('dd').nth(0)).toHaveText('10 p.p.');
   await expect(panelFor(page).getByText('Período futuro', { exact: true }).first()).toBeVisible();
+});
+
+test('qualquer serviço soma todos os serviços com a equipe do dia contada uma vez', async ({ page }) => {
+  const dialog = await openDialog(page);
+  await fillGoal(page, 1, 'ANY_SERVICE', '10');
+  await expect(dialog).toContainText('Cada colaborador deve fazer 10 m somando todos os serviços por dia trabalhado.');
+  await page.getByRole('button', { name: 'Salvar meta', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  // Limpeza (9) e teste (6) no mesmo dia: a equipe do dia é 9 → 90 m; realizado 150 + 50 = 200 m.
+  await showCurrent(page);
+  await expect(spotlightFor(page)).toContainText('de 90 m');
+  await expect(spotlightFor(page)).toContainText('Qualquer serviço');
+  await expect(spotlightFor(page)).toContainText('9 colaboradores');
 });
 
 test('alterar os dias da contagem escolhe o período que contém hoje e valida cada linha', async ({ page }) => {

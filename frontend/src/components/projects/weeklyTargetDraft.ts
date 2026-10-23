@@ -1,7 +1,8 @@
 import type { WeeklyProgressTarget, WeeklyTargetGoalItem, WeeklyTargetInput, WeeklyTargetLogic, WeeklyTargetService } from '../../../../shared/modules/mission-weekly-progress.js';
 import { isWeeklyTargetGoalList, weekStartKey, weeklyTargetCountingDays, weeklyTargetCountingPeriod, weeklyTargetDefinition, weeklyTargetGoalMetric, weeklyTargetScenarioSettings } from '../../../../shared/modules/mission-weekly-progress.js';
 
-export type GoalKind = WeeklyTargetService | 'PROGRESS' | 'ATTENDANCE';
+/** ANY_SERVICE: a linha vale para qualquer serviço e soma a medida de todos eles. */
+export type GoalKind = WeeklyTargetService | 'ANY_SERVICE' | 'PROGRESS' | 'ATTENDANCE';
 export type GoalBasis = 'PER_PRODUCTIVE_DAY' | 'WEEK_TOTAL';
 export type GoalDraft = { kind: GoalKind; value: string; unit: 'M' | 'UN' | 'L'; basis: GoalBasis };
 export type TargetDraft = {
@@ -11,13 +12,13 @@ export type TargetDraft = {
   replacesLegacyRules: boolean;
 };
 
-export const SERVICE_KINDS: WeeklyTargetService[] = ['LIMPEZA_QUIMICA', 'FLUSHING', 'TESTE_PRESSAO', 'FILTRAGEM'];
-export const isServiceKind = (kind: GoalKind): kind is WeeklyTargetService => (SERVICE_KINDS as string[]).includes(kind);
-export const newGoalDraft = (kind: GoalKind = 'LIMPEZA_QUIMICA', basis: GoalBasis = 'PER_PRODUCTIVE_DAY'): GoalDraft =>
+export const SERVICE_KINDS: Array<WeeklyTargetService | 'ANY_SERVICE'> = ['ANY_SERVICE', 'LIMPEZA_QUIMICA', 'FLUSHING', 'TESTE_PRESSAO', 'FILTRAGEM'];
+export const isServiceKind = (kind: GoalKind): kind is WeeklyTargetService | 'ANY_SERVICE' => (SERVICE_KINDS as string[]).includes(kind);
+export const newGoalDraft = (kind: GoalKind = 'ANY_SERVICE', basis: GoalBasis = 'PER_PRODUCTIVE_DAY'): GoalDraft =>
   ({ kind, value: '', unit: kind === 'FILTRAGEM' ? 'L' : 'M', basis: isServiceKind(kind) ? basis : 'WEEK_TOTAL' });
 /** Troca o tipo da linha preservando o que ainda faz sentido. */
 export const changeGoalKind = (goal: GoalDraft, kind: GoalKind): GoalDraft => ({ ...goal, kind,
-  unit: kind === 'FILTRAGEM' ? 'L' : goal.unit === 'L' ? 'M' : goal.unit, basis: isServiceKind(kind) ? goal.basis : 'WEEK_TOTAL' });
+  unit: kind === 'FILTRAGEM' ? 'L' : goal.unit === 'L' && kind !== 'ANY_SERVICE' ? 'M' : goal.unit, basis: isServiceKind(kind) ? goal.basis : 'WEEK_TOTAL' });
 
 // As reuniões semanais acontecem às sextas: a contagem padrão vai de sexta a quinta.
 export const DEFAULT_COUNTING = { countingStartDay: 5, countingEndDay: 4 };
@@ -36,19 +37,19 @@ export function periodWeekFor(date: string, counting: { countingStartDay: number
 function goalsFromTarget(target: WeeklyProgressTarget): { goals: GoalDraft[]; legacy: boolean } {
   const definition = weeklyTargetDefinition(target);
   if (isWeeklyTargetGoalList(definition)) return { legacy: false, goals: definition.goals.map(goal => goal.kind === 'SERVICE'
-    ? { kind: goal.serviceType, value: text(goal.value), unit: goal.metric, basis: goal.basis }
+    ? { kind: goal.serviceType ?? 'ANY_SERVICE', value: text(goal.value), unit: goal.metric, basis: goal.basis }
     : { ...newGoalDraft(goal.kind), value: text(goal.value) }) };
   // Metas antigas: aproveita a regra geral (ou a primeira) e avisa se havia outras condições.
   const scenario = definition.scenarios.find(item => item.condition.kind === 'ALWAYS') ?? definition.scenarios[0];
   const settings = weeklyTargetScenarioSettings(definition, scenario);
-  let legacy = definition.scenarios.length > 1 || scenario.condition.kind !== 'ALWAYS';
+  const legacy = definition.scenarios.length > 1 || scenario.condition.kind !== 'ALWAYS';
   const goals = scenario.goals.map((goal): GoalDraft => {
     if (settings.metric === 'PCT_POINTS') return { ...newGoalDraft('PROGRESS'), value: text(goal.value) };
     if (settings.metric === 'COLLABORATORS') return { ...newGoalDraft('ATTENDANCE'), value: text(goal.value) };
     const metric = weeklyTargetGoalMetric(settings.metric, goal, scenario.condition);
-    const kind = goal.serviceType ?? (scenario.condition.kind === 'SERVICE_SET' && scenario.condition.serviceTypes.length === 1 ? scenario.condition.serviceTypes[0] : null);
-    if (!kind) legacy = true;
-    return { kind: kind ?? (metric === 'L' ? 'FILTRAGEM' : 'LIMPEZA_QUIMICA'), value: text(goal.value), unit: metric === 'L' ? 'L' : metric === 'UN' ? 'UN' : 'M',
+    // "Total geral" das metas antigas vira "Qualquer serviço".
+    const kind = goal.serviceType ?? (scenario.condition.kind === 'SERVICE_SET' && scenario.condition.serviceTypes.length === 1 ? scenario.condition.serviceTypes[0] : 'ANY_SERVICE');
+    return { kind, value: text(goal.value), unit: metric === 'L' ? 'L' : metric === 'UN' ? 'UN' : 'M',
       basis: settings.basis === 'PER_PRODUCTIVE_DAY' ? 'PER_PRODUCTIVE_DAY' : 'WEEK_TOTAL' };
   });
   return { goals, legacy };
@@ -73,7 +74,7 @@ export function weeklyTargetDraftToInput(draft: TargetDraft, workdays: number[] 
   if (![draft.countingStartDay, draft.countingEndDay].every(day => Number.isInteger(day) && day >= 0 && day <= 6)) throw new Error('Escolha os dias de início e fim da contagem.');
   if (!draft.goals.length) throw new Error('Adicione ao menos uma meta.');
   const services = draft.goals.filter(goal => isServiceKind(goal.kind)).map(goal => goal.kind);
-  if (new Set(services).size !== services.length) throw new Error('Use uma linha por serviço.');
+  if (new Set(services).size !== services.length) throw new Error('Use uma linha por serviço (e uma só para qualquer serviço).');
   for (const kind of ['PROGRESS', 'ATTENDANCE'] as const) if (draft.goals.filter(goal => goal.kind === kind).length > 1) throw new Error('Use só uma meta de avanço e uma de equipe mínima.');
   const goals = draft.goals.map((goal): WeeklyTargetGoalItem => {
     const value = parse(goal.value);
@@ -88,9 +89,9 @@ export function weeklyTargetDraftToInput(draft: TargetDraft, workdays: number[] 
       if (!workdays.some(day => weeklyTargetCountingDays(draft).includes(day))) throw new Error('Os dias de trabalho do projeto precisam estar dentro do período de contagem.');
       return { kind: 'ATTENDANCE', value, workdays };
     }
-    const metric = goal.kind === 'FILTRAGEM' ? 'L' : goal.unit === 'UN' ? 'UN' : 'M';
+    const metric = goal.kind === 'FILTRAGEM' ? 'L' : goal.unit === 'UN' ? 'UN' : goal.unit === 'L' && goal.kind === 'ANY_SERVICE' ? 'L' : 'M';
     if (metric === 'UN' && goal.basis === 'WEEK_TOTAL' && !Number.isInteger(value)) throw new Error('Metas totais de unidades de sistema devem ser inteiras.');
-    return { kind: 'SERVICE', serviceType: goal.kind, metric, basis: goal.basis, value };
+    return { kind: 'SERVICE', serviceType: goal.kind === 'ANY_SERVICE' ? null : goal.kind, metric, basis: goal.basis, value };
   });
   return { weekStartDate: draft.weekStartDate, expectedRevision: draft.expectedRevision, definition: {
     version: 2, logic: goals.length > 1 ? draft.logic : 'ALL', countingStartDay: draft.countingStartDay, countingEndDay: draft.countingEndDay,

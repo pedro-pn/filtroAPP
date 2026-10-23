@@ -9,7 +9,8 @@ export interface WeeklyTargetScenario extends Partial<WeeklyTargetSettings> { na
 export interface WeeklyTargetLegacyDefinition extends WeeklyTargetSettings { version?: undefined; countingStartDay?: number; countingEndDay?: number; repeatWeekly?: boolean; scenarios: WeeklyTargetScenario[] }
 export type WeeklyTargetLogic = 'ALL' | 'ANY';
 export type WeeklyTargetGoalItem =
-  | { kind: 'SERVICE'; serviceType: WeeklyTargetService; metric: 'M' | 'L' | 'UN'; basis: 'WEEK_TOTAL' | 'PER_PRODUCTIVE_DAY'; value: number }
+  /** serviceType null: qualquer serviço (soma a medida de todos os serviços). */
+  | { kind: 'SERVICE'; serviceType: WeeklyTargetService | null; metric: 'M' | 'L' | 'UN'; basis: 'WEEK_TOTAL' | 'PER_PRODUCTIVE_DAY'; value: number }
   | { kind: 'PROGRESS'; value: number }
   | { kind: 'ATTENDANCE'; value: number; workdays: number[] };
 /** Metas em lista (versão 2): uma linha por meta e regra E/OU entre elas. */
@@ -29,9 +30,10 @@ export interface WeeklyServiceHistoryPoint {
   date: string;
   serviceType: WeeklyTargetService;
   quantities: { M: number; L: number; UN: number };
+  /** Histórico antigo: minutos produtivos; o cálculo atual usa productivePersonDays. */
   productivePersonMinutes?: number;
   productivityIssues?: string[];
-  /** Colaboradores-dia do bucket, já divididos pela jornada do projeto naquele dia. */
+  /** Equipe do RDO no dia (colaboradores distintos), para metas por colaborador por dia. */
   productivePersonDays?: number | null;
 }
 export type WeeklyTargetInput = { weekStartDate: string; expectedRevision: number }

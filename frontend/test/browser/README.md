@@ -138,11 +138,11 @@ without any RDO of that service in the period counts 0; a period with no RDO at 
 stays unevaluated. New targets count Friday to Thursday ("Alterar dias" changes it)
 and start in the period that contains today (or the clicked history week).
 
-Per-collaborator goals divide each collaborator's productive hours in the RDO by the
-project's workday for that date, as in the reports' overtime rule: weekday workday
-Monday to Thursday; weekend workday on Friday, weekends and holidays. Groups with
-different workdays use the largest one and the dialog shows a warning. Example:
-20 m per collaborator with 3, 2 and 4 collaborators working the full day = 180 m.
+Per-collaborator goals count each person on the RDO team (day and night shifts,
+once per day even across several RDOs) as 1 on each day with an RDO of that service;
+service times and workdays do not matter. Example: 20 m per collaborator with 3, 2 and
+4 people on the RDOs = 180 m. "Qualquer serviço" (any service) sums the amount of every
+service and counts the day's team once, so one line replaces a service-by-service OR.
 Targets saved with scenarios or a reference day keep being read; the dialog replaces
 their rules on save. Deletion stays in the history panel, with confirmation and an
 immutable deletion revision.

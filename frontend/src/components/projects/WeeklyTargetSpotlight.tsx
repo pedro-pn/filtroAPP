@@ -33,7 +33,8 @@ function spotlightStatus(row: WeeklyProgressComparison): { label: string; tone: 
   return comparable ? { label: 'Abaixo da meta até agora', tone: 'warning' } : { label: 'Em andamento', tone: 'info' };
 }
 
-// Colaboradores-dia de cada data do período, para mostrar a meta dia a dia.
+// Equipe do RDO em cada data do período, para mostrar a meta dia a dia. Com vários
+// serviços no mesmo dia a equipe é a mesma: conta uma vez.
 function dailyBreakdown(history: WeeklyServiceHistoryPoint[], row: WeeklyProgressComparison, today: string) {
   const goal = row.goals[0];
   const byDate = new Map<string, number>();
@@ -41,7 +42,7 @@ function dailyBreakdown(history: WeeklyServiceHistoryPoint[], row: WeeklyProgres
     if (point.date < row.periodStartDate || point.date > row.periodEndDate || point.date > today) continue;
     if (goal.serviceType && point.serviceType !== goal.serviceType) continue;
     if (typeof point.productivePersonDays !== 'number' || point.productivePersonDays <= 0) continue;
-    byDate.set(point.date, (byDate.get(point.date) ?? 0) + point.productivePersonDays);
+    byDate.set(point.date, Math.max(byDate.get(point.date) ?? 0, point.productivePersonDays));
   }
   return [...byDate].sort(([a], [b]) => a.localeCompare(b));
 }
@@ -55,7 +56,7 @@ function SingleResult({ row, history, today }: { row: WeeklyProgressComparison; 
   let caption: React.ReactNode = row.inProgress ? 'Semana em andamento.' : `Semana encerrada${diff}.`;
   if (row.status === 'NO_DATA' && perDay(row) && goal) caption = `A meta é ${weeklyValueLabel(goal.value, goal.metric)} por colaborador em cada dia com RDO e começa a contar no primeiro RDO do período.`;
   else if (row.status === 'NO_DATA') caption = row.inProgress ? 'Nenhum RDO com serviço neste período ainda.' : 'Sem RDOs suficientes para avaliar o período.';
-  else if (perDay(row) && goal?.personDays != null) caption = <>{row.inProgress ? 'Até agora: ' : 'Meta: '}{weeklyValueLabel(goal.value, goal.metric)} × <strong>{fmt.format(goal.personDays)} colaboradores-dia</strong> nos RDOs{diff}</>;
+  else if (perDay(row) && goal?.personDays != null) caption = <>{row.inProgress ? 'Até agora: ' : 'Meta: '}{weeklyValueLabel(goal.value, goal.metric)} × <strong>{fmt.format(goal.personDays)} colaboradores-dia</strong> (equipe dos RDOs){diff}</>;
   else if (row.inProgress && row.plannedValue != null && row.actualValue != null && row.actualValue < row.plannedValue) {
     caption = <>Faltam <strong>{weeklyValueLabel(row.plannedValue - row.actualValue, row.metric)}</strong> até {formatDateOnly(row.periodEndDate)}.</>;
   }
@@ -70,7 +71,7 @@ function SingleResult({ row, history, today }: { row: WeeklyProgressComparison; 
     </div>
     <p className="wts-caption">{caption}</p>
     {days.length ? <ul className="wts-days" aria-label="Meta por dia com RDO">{days.map(([date, collaborators]) => <li key={date}>
-      <span>{short(date)}</span><strong>{fmt.format(collaborators)} colab.</strong><small>{weeklyValueLabel(Math.round(collaborators * goal.value * 100) / 100, goal.metric)}</small>
+      <span>{short(date)}</span><strong>{collaborators} {collaborators === 1 ? 'colaborador' : 'colaboradores'}</strong><small>{weeklyValueLabel(Math.round(collaborators * goal.value * 100) / 100, goal.metric)}</small>
     </li>)}</ul> : null}
   </div>;
 }
@@ -139,12 +140,12 @@ export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = fals
 }) {
   const [view, setView] = useState<'closed' | 'current'>('closed');
   const [request, setRequest] = useState<WeeklyTargetRequest | null>(null);
-  const { query, targets, rows, serviceHistory, journey } = useWeeklyTargets(owner, progressHistory);
+  const { query, targets, rows, serviceHistory, workdays } = useWeeklyTargets(owner, progressHistory);
   const today = corporateToday();
   const current = currentWeeklyProgressComparison(rows, today);
   const closed = rows.filter(row => row.periodEndDate < today);
   const previous = closed[0];
-  const dialog = canManage ? <WeeklyTargetDialog owner={owner} request={request} targets={targets} journey={journey} onClose={() => setRequest(null)} /> : null;
+  const dialog = canManage ? <WeeklyTargetDialog owner={owner} request={request} targets={targets} workdays={workdays} onClose={() => setRequest(null)} /> : null;
   const head = (subtitle: React.ReactNode, actions?: React.ReactNode) => <header className="wts-head">
     <span className="wts-icon" aria-hidden="true"><AppIcon icon={Target} size="sm" /></span>
     <div><h2>Meta da semana</h2><p>{subtitle}</p></div>

@@ -17,5 +17,5 @@ export function useWeeklyTargets(owner: WeeklyTargetOwner, progressHistory?: Pro
   const serviceHistory = query.data?.serviceHistory ?? [];
   const rows = buildWeeklyProgressComparison({ targets, progressHistory: progressHistory ?? query.data?.progressHistory ?? [],
     serviceHistory, attendanceHistory: query.data?.attendanceHistory ?? [] });
-  return { query, targets, rows, serviceHistory, journey: query.data?.journey ?? null };
+  return { query, targets, rows, serviceHistory, workdays: query.data?.workdays ?? [1, 2, 3, 4, 5] };
 }
