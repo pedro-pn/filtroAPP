@@ -89,6 +89,19 @@ test('pacote de avanço consolida dados atuais, histórico e recortes em uma rod
   }
 });
 
+test('histórico diário das metas conserva medições de dias diferentes na mesma semana', async t => {
+  const state = fixture(t);
+  state.historical = [];
+  state.native = ['2026-09-28', '2026-09-30'].map((date, index) => ({ finalized: true, serviceType: 'limpeza',
+    extraData: { tubes: [{ c: (index + 1) * 10, lengthUnit: 'm' }] },
+    report: { projectId: state.project.id, reportType: 'RDO', reportDate: new Date(date) } }));
+  const daily = (await computeProgressHistoryForProjects([state.project.id], { daily: true })).get(state.project.id);
+  const weekly = (await computeProgressHistoryForProjects([state.project.id])).get(state.project.id);
+  assert.deepEqual(daily.map(point => point.date), ['2026-09-28', '2026-09-30']);
+  assert.equal(weekly.length, 1);
+  assert.equal(daily.at(-1).progressPct, weekly.at(-1).progressPct);
+});
+
 test('CSV alimenta o avanço real dos quatro serviços com cm/mL, pesos e datas de emissão', async t => {
   const state = fixture(t);
   const progress = (await computeProgressForProjects([state.project.id])).get(state.project.id);

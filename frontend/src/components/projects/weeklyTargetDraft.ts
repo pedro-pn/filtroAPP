@@ -1,9 +1,9 @@
 import type { WeeklyTargetMetric, WeeklyTargetBasis, WeeklyTargetService, WeeklyTargetCondition, WeeklyTargetScenario, WeeklyTargetDefinition, WeeklyTargetInput } from '../../../../shared/modules/mission-weekly-progress.js';
-import { weeklyTargetGoalMetric, weeklyTargetScenarioSettings } from '../../../../shared/modules/mission-weekly-progress.js';
+import { weeklyTargetGoalMetric, weeklyTargetScenarioSettings, weeklyTargetCountingDays } from '../../../../shared/modules/mission-weekly-progress.js';
 
 export type GoalDraft = { serviceType: WeeklyTargetService | null; value: string };
 export type ScenarioDraft = { name: string; metric: WeeklyTargetMetric; basis: WeeklyTargetBasis; referenceDayHours: string; workdays: number[]; condition: WeeklyTargetCondition; distribution: 'GLOBAL' | 'SERVICE'; goals: GoalDraft[] };
-export type TargetDraft = { weekStartDate: string; repeatWeekly: boolean; scenarios: ScenarioDraft[]; expectedRevision: number };
+export type TargetDraft = { weekStartDate: string; countingStartDay: number; countingEndDay: number; repeatWeekly: boolean; scenarios: ScenarioDraft[]; expectedRevision: number };
 export const newScenario = (referenceDayHours = ''): ScenarioDraft => ({ name: 'Meta geral', metric: 'PCT_POINTS', basis: 'WEEK_TOTAL', referenceDayHours, workdays: [1, 2, 3, 4, 5], condition: { kind: 'ALWAYS' }, distribution: 'GLOBAL', goals: [{ serviceType: null, value: '' }] });
 export const scenarioToDraft = (scenario: WeeklyTargetScenario, definition: WeeklyTargetDefinition, defaultReferenceDayHours?: number | null): ScenarioDraft => {
   const settings = weeklyTargetScenarioSettings(definition, scenario);
@@ -14,6 +14,10 @@ export const onlyFilteringGoals = (scenario: ScenarioDraft) => scenario.metric !
   && scenario.goals.every(goal => weeklyTargetGoalMetric('M', goal, scenario.condition) === 'L');
 
 export function weeklyTargetDraftToInput(draft: TargetDraft): WeeklyTargetInput {
+  const countingStartDay = draft.countingStartDay ?? 1, countingEndDay = draft.countingEndDay ?? 0;
+  if (![countingStartDay, countingEndDay].every(day => Number.isInteger(day) && day >= 0 && day <= 6)) {
+    throw new Error('Escolha os dias de início e fim da contagem.');
+  }
   const conditions = new Set<string>();
   const scenarios = draft.scenarios.map(scenario => {
     const metric = onlyFilteringGoals(scenario) ? 'L' : scenario.metric;
@@ -25,6 +29,9 @@ export function weeklyTargetDraftToInput(draft: TargetDraft): WeeklyTargetInput 
     conditions.add(conditionKey);
     if (metric === 'COLLABORATORS' && (!scenario.workdays.length || goals.some(goal => !Number.isInteger(goal.value) || goal.value < 1))) {
       throw new Error('Informe uma quantidade inteira positiva de colaboradores e selecione ao menos um dia de trabalho.');
+    }
+    if (metric === 'COLLABORATORS' && !scenario.workdays.some(day => weeklyTargetCountingDays({ countingStartDay, countingEndDay }).includes(day))) {
+      throw new Error('Selecione ao menos um dia de presença dentro do período de contagem.');
     }
     if (!scenario.name.trim() || !scenario.goals.length || scenario.goals.some(goal => !goal.value.trim())
       || (scenario.condition.kind === 'SERVICE_SET' && !scenario.condition.serviceTypes.length)
@@ -41,5 +48,5 @@ export function weeklyTargetDraftToInput(draft: TargetDraft): WeeklyTargetInput 
   });
   if (!draft.weekStartDate || !scenarios.length) throw new Error('Informe a semana e ao menos um cenário.');
   return { weekStartDate: draft.weekStartDate, expectedRevision: draft.expectedRevision,
-    definition: { metric: scenarios[0].metric, basis: 'WEEK_TOTAL', repeatWeekly: draft.repeatWeekly, scenarios } };
+    definition: { metric: scenarios[0].metric, basis: 'WEEK_TOTAL', countingStartDay, countingEndDay, repeatWeekly: draft.repeatWeekly, scenarios } };
 }

@@ -11,6 +11,7 @@ test('edição conserva medidas e jornadas por cenário, carrega metas antigas e
   try {
     const { scenarioToDraft, weeklyTargetDraftToInput } = await server.ssrLoadModule('/src/components/projects/weeklyTargetDraft.ts');
     const { WeeklyTargetEditor } = await server.ssrLoadModule('/src/components/projects/WeeklyTargetEditor.tsx');
+    const { WeeklyTargetPeriodFields } = await server.ssrLoadModule('/src/components/projects/WeeklyTargetPeriodFields.tsx');
     const definition = { metric: 'M', basis: 'PER_PRODUCTIVE_DAY', referenceDayHours: 8,
       scenarios: [{ name: 'Legado', condition: { kind: 'ALWAYS' }, goals: [{ serviceType: null, value: 42 }] }] };
     const legacy = scenarioToDraft(definition.scenarios[0], definition, 9.5);
@@ -26,6 +27,17 @@ test('edição conserva medidas e jornadas por cenário, carrega metas antigas e
     assert.match(html, /value="L" selected=""/);
     const payload = weeklyTargetDraftToInput(draft);
     assert.equal(payload.definition.repeatWeekly, true);
+    assert.equal(payload.definition.countingStartDay, 1);
+    assert.equal(payload.definition.countingEndDay, 0);
+    const customDraft = { ...draft, countingStartDay: 3, countingEndDay: 2 };
+    const periodHtml = renderToStaticMarkup(createElement(WeeklyTargetPeriodFields, { id: 'period', draft: customDraft, disabled: false, onChange() {} }));
+    assert.match(periodHtml, /Início da contagem/);
+    assert.match(periodHtml, /Fim da contagem/);
+    assert.match(periodHtml, /30\/09\/2026 a 06\/10\/2026/);
+    const customPayload = weeklyTargetDraftToInput(customDraft);
+    assert.equal(customPayload.definition.countingStartDay, 3);
+    assert.equal(customPayload.definition.countingEndDay, 2);
+    assert.throws(() => weeklyTargetDraftToInput({ ...customDraft, countingEndDay: 7 }), /dias de início e fim/);
     assert.deepEqual(payload.definition.scenarios.map(scenario => scenario.metric), ['M', 'UN', 'L']);
     assert.equal(payload.definition.scenarios[0].referenceDayHours, undefined);
     assert.equal(payload.definition.scenarios[2].referenceDayHours, 4);

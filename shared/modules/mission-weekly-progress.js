@@ -28,6 +28,28 @@ function addDays(key, days) {
   return new Date(new Date(`${key}T00:00:00.000Z`).getTime() + days * DAY_MS).toISOString().slice(0, 10);
 }
 
+export function weeklyTargetCountingDays(definition) {
+  const start = definition?.countingStartDay ?? 1;
+  const end = definition?.countingEndDay ?? 0;
+  return Array.from({ length: (end - start + 7) % 7 + 1 }, (_, index) => (start + index) % 7);
+}
+
+// A segunda-feira continua identificando a revisão da meta. O intervalo de
+// contagem pode terminar na semana seguinte (por exemplo, quarta a terça).
+export function weeklyTargetCountingPeriod(week, definition) {
+  const startDay = definition?.countingStartDay ?? 1;
+  const periodStartDate = addDays(week, (startDay + 6) % 7);
+  return { periodStartDate, periodEndDate: addDays(periodStartDate, weeklyTargetCountingDays(definition).length - 1) };
+}
+
+export function currentWeeklyProgressComparison(rows, today = corporateToday()) {
+  const ordered = [...rows].sort((a, b) => b.periodStartDate.localeCompare(a.periodStartDate));
+  const containing = ordered.filter(row => row.periodStartDate <= today && row.periodEndDate >= today);
+  return containing.find(row => row.target) ?? containing[0]
+    ?? ordered.find(row => row.weekStartDate === weekStartKey(today))
+    ?? ordered.find(row => row.periodStartDate <= today) ?? ordered.at(-1);
+}
+
 const round = value => Math.round((value + Number.EPSILON) * 100) / 100;
 
 export const WEEKLY_TARGET_METRICS = { PCT_POINTS: 'Avanço percentual (p.p.)', M: 'Metragem (m)', L: 'Volume filtrado / óleo (L)', UN: 'Unidades de sistema (un)', COLLABORATORS: 'Colaboradores presentes por dia' };
@@ -88,11 +110,12 @@ function comparisonStatus(differences) {
 
 // Presença é verificada em cada dia contratado. O menor efetivo diário resume
 // a semana sem permitir que excedentes de outros dias compensem uma falta.
-function compareAttendanceTarget({ definition, scenario, week, today, attendancePoints, previousAttendance, activeServiceTypes }) {
+function compareAttendanceTarget({ definition, scenario, periodStartDate, periodEndDate, today, attendancePoints, previousAttendance, activeServiceTypes }) {
   const settings = weeklyTargetScenarioSettings(definition, scenario), goal = scenario.goals[0];
   let cumulativeDifferenceValue = previousAttendance.differenceValue ?? 0;
   let cumulativeComplete = previousAttendance.differenceValue != null;
-  const dailyAttendance = Array.from({ length: 7 }, (_, index) => addDays(week, index))
+  const dailyAttendance = Array.from({ length: 7 }, (_, index) => addDays(periodStartDate, index))
+    .filter(date => date <= periodEndDate)
     .filter(date => (settings.workdays ?? [1, 2, 3, 4, 5]).includes(new Date(`${date}T00:00:00Z`).getUTCDay()))
     .map(date => {
       const points = attendancePoints.filter(point => point.date === date);
@@ -125,11 +148,11 @@ function compareAttendanceTarget({ definition, scenario, week, today, attendance
     dailyAttendance, activeServiceTypes, scenarioName: scenario.name, status };
 }
 
-function compareTarget({ definition, scenario, activeServiceTypes, week, currentWeek, actualPctPoints, servicePoints }) {
+function compareTarget({ definition, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, actualPctPoints, servicePoints }) {
   const { metric, basis, referenceDayHours } = weeklyTargetScenarioSettings(definition, scenario);
-  const weekPoints = servicePoints.filter(point => point.date >= week && point.date <= addDays(week, 6));
+  const weekPoints = servicePoints.filter(point => point.date >= periodStartDate && point.date <= periodEndDate);
   const hasData = metric === 'PCT_POINTS' ? actualPctPoints != null : servicePoints.length > 0;
-  const canCompare = week <= currentWeek && hasData;
+  const canCompare = periodStartDate <= today && hasData;
   const goals = (scenario?.goals ?? []).map(goal => {
     const goalMetric = weeklyTargetGoalMetric(metric, goal, scenario.condition);
     const selected = weekPoints.filter(point => !goal.serviceType || point.serviceType === goal.serviceType);
@@ -158,7 +181,7 @@ function compareTarget({ definition, scenario, activeServiceTypes, week, current
   // Cada serviço precisa cumprir sua própria meta. Excedente de um não compensa outro.
   const achievementPct = goals.length && canCompare && baseComplete ? Math.max(0, Math.min(...goals.map(goal => goal.plannedValue > 0
     ? goal.actualValue / goal.plannedValue * 100 : goal.actualValue >= 0 ? 100 : 0))) : null;
-  const status = week > currentWeek ? 'PLANNED' : !hasData ? 'NO_DATA' : !scenario ? 'NO_RULE' : !baseComplete ? 'NO_DATA'
+  const status = periodStartDate > today ? 'PLANNED' : !hasData ? 'NO_DATA' : !scenario ? 'NO_RULE' : !baseComplete ? 'NO_DATA'
     : comparisonStatus(goals.map(goal => goal.differenceValue));
   return { metric: goalMetrics.length === 1 ? goalMetrics[0] : metric, mixedUnits, basis, plannedValue, actualValue, differenceValue, achievementPct, goals, activeServiceTypes,
     scenarioName: scenario?.name ?? null, status };
@@ -196,28 +219,36 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
   if (points.length) {
     for (let week = weekStartKey(points[0].date); week <= currentWeek; week = addDays(week, 7)) weeks.add(week);
   }
-  let pointIndex = 0;
-  let accumulated = 0;
-  let accumulatedAttendance = { plannedValue: 0, actualValue: 0, differenceValue: 0 };
-  return [...weeks].sort().map(week => {
-    while (pointIndex < points.length && points[pointIndex].date < week) accumulated = Number(points[pointIndex++].progressPct);
-    const before = accumulated;
-    const weekEndDate = addDays(week, 6);
-    while (pointIndex < points.length && points[pointIndex].date <= weekEndDate) accumulated = Number(points[pointIndex++].progressPct);
+  const periods = [...weeks].sort().map(week => {
     const target = resolveTargetForWeek(targetEntries, week);
     const definition = target ? weeklyTargetDefinition(target) : null;
-    const activeServiceTypes = [...new Set(servicePoints.filter(point => point.date >= week && point.date <= weekEndDate).map(point => point.serviceType))].sort();
+    return { week, target, definition, ...weeklyTargetCountingPeriod(week, definition) };
+  });
+  // Uma mudança de intervalo passa a valer no início do novo período, sem
+  // contabilizar os mesmos dias em duas metas consecutivas.
+  for (let index = 0; index < periods.length - 1; index++) {
+    const period = periods[index], next = periods[index + 1];
+    if (period.target && next.target && period.periodEndDate >= next.periodStartDate) {
+      period.periodEndDate = addDays(next.periodStartDate, -1);
+    }
+  }
+  const progressAt = date => Number(points.findLast(point => point.date <= date)?.progressPct ?? 0);
+  let accumulatedAttendance = { plannedValue: 0, actualValue: 0, differenceValue: 0 };
+  return periods.map(({ week, target, definition, periodStartDate, periodEndDate }) => {
+    const weekEndDate = addDays(week, 6);
+    const actualPctPoints = periodStartDate > today || !points.length ? null
+      : round(progressAt(periodEndDate) - progressAt(addDays(periodStartDate, -1)));
+    const activeServiceTypes = [...new Set(servicePoints.filter(point => point.date >= periodStartDate && point.date <= periodEndDate).map(point => point.serviceType))].sort();
     const scenario = definition ? selectScenario(definition, activeServiceTypes) : null;
     const comparison = !target ? null : scenario && weeklyTargetScenarioSettings(definition, scenario).metric === 'COLLABORATORS'
-      ? compareAttendanceTarget({ definition, scenario, activeServiceTypes, week, today, attendancePoints, previousAttendance: accumulatedAttendance })
-      : compareTarget({ definition, scenario, activeServiceTypes, week, currentWeek, actualPctPoints: week > currentWeek || !points.length ? null : round(accumulated - before), servicePoints });
+      ? compareAttendanceTarget({ definition, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, attendancePoints, previousAttendance: accumulatedAttendance })
+      : compareTarget({ definition, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, actualPctPoints, servicePoints });
     if (comparison?.cumulativeAttendance) accumulatedAttendance = comparison.cumulativeAttendance;
     const plannedPctPoints = comparison?.metric === 'PCT_POINTS' ? comparison.plannedValue : null;
-    const actualPctPoints = week > currentWeek || !points.length ? null : round(accumulated - before);
     const differencePctPoints = plannedPctPoints != null && actualPctPoints != null ? round(actualPctPoints - plannedPctPoints) : null;
-    return { weekStartDate: week, weekEndDate, plannedPctPoints, actualPctPoints, differencePctPoints,
+    return { weekStartDate: week, weekEndDate, periodStartDate, periodEndDate, plannedPctPoints, actualPctPoints, differencePctPoints,
       metric: 'PCT_POINTS', mixedUnits: false, basis: 'WEEK_TOTAL', plannedValue: null, actualValue: actualPctPoints, differenceValue: null, achievementPct: null,
       goals: [], dailyAttendance: [], cumulativeAttendance: null, activeServiceTypes: [], scenarioName: null, ...comparison,
-      status: comparison?.status ?? 'NO_TARGET', inProgress: week === currentWeek, target };
+      status: comparison?.status ?? 'NO_TARGET', inProgress: periodStartDate <= today && today <= periodEndDate, target };
   }).reverse();
 }

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp } from 'lucide-react';
 
-import { buildWeeklyProgressComparison, corporateToday, weekStartKey } from '../../../../shared/modules/mission-weekly-progress.js';
+import { buildWeeklyProgressComparison, corporateToday, weekStartKey, currentWeeklyProgressComparison } from '../../../../shared/modules/mission-weekly-progress.js';
 import { listWeeklyProgressTargets, weeklyTargetPath, type WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import type { ProgressHistoryPoint } from '../../api/acompanhamentoComercial';
 import { formatDateOnly } from '../../utils/dateOnly';
@@ -21,15 +21,15 @@ export function MissionWeeklyProgressSummaryCard({ owner, progressHistory }: {
     staleTime: 30_000
   });
   const currentWeek = weekStartKey(corporateToday())!;
-  const current = targetsQuery.data ? buildWeeklyProgressComparison({
+  const current = targetsQuery.data ? currentWeeklyProgressComparison(buildWeeklyProgressComparison({
     targets: targetsQuery.data.targets,
     progressHistory: progressHistory ?? targetsQuery.data.progressHistory ?? [], serviceHistory: targetsQuery.data.serviceHistory ?? [], attendanceHistory: targetsQuery.data.attendanceHistory ?? []
-  }).find(row => row.weekStartDate === currentWeek) : null;
+  })) : null;
   const planned = current?.plannedValue ?? null;
   const actual = current?.actualValue ?? null;
   const metric = current?.metric ?? 'PCT_POINTS';
   const achievedPct = Math.min(100, current?.achievementPct ?? 0);
-  const weekLabel = formatDateOnly(currentWeek);
+  const weekLabel = current ? `${formatDateOnly(current.periodStartDate)} a ${formatDateOnly(current.periodEndDate)}` : formatDateOnly(currentWeek);
   let valueLabel = 'Sem meta';
   let detailLabel = `${actual == null ? 'Sem avanço registrado' : `${weeklyValueLabel(actual, metric)} executados`} · ${weekLabel}`;
   if (targetsQuery.isPending) {
@@ -38,9 +38,12 @@ export function MissionWeeklyProgressSummaryCard({ owner, progressHistory }: {
   } else if (targetsQuery.isError) {
     valueLabel = 'Indisponível';
     detailLabel = 'Não foi possível carregar a meta semanal';
+  } else if (current?.status === 'PLANNED') {
+    valueLabel = 'Aguardando início';
+    detailLabel = `Período de ${weekLabel}`;
   } else if (current?.metric === 'COLLABORATORS') {
     valueLabel = current.status === 'BELOW' ? 'Fora da meta' : current.status === 'ON_TARGET' ? 'Dentro da meta'
-      : current.status === 'PLANNED' ? 'Aguardando dias de trabalho' : 'Presença pendente';
+      : 'Presença pendente';
     detailLabel = `${weeklyValueLabel(planned, metric)} · ${attendanceBalanceLabel(current.cumulativeAttendance?.differenceValue ?? null)} · ${weekLabel}`;
   } else if (current?.mixedUnits && current.achievementPct != null) {
     valueLabel = `${numberFormat.format(current.achievementPct)}% da meta`;

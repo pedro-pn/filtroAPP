@@ -38,7 +38,7 @@ test('muda automaticamente de 300 m com um serviço para 100 m de limpeza e 100 
   await page.getByRole('button', { name: 'Trocar área', exact: true }).click();
   await expect(current).toContainText('Cenário: Um tipo de serviço');
   await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
-  await expect(panel.getByLabel('Medida da meta')).toHaveValue('M');
+  await expect(panel.getByLabel('Medida da meta').first()).toHaveValue('M');
   await expect(panel.locator('.mission-weekly-scenario')).toHaveCount(2);
 });
 
@@ -177,6 +177,7 @@ test('alterar o dia ou a semana preserva cenários, taxas e jornada, inclusive a
   await panel.getByRole('button', { name: 'Adicionar cenário', exact: true }).click();
   const pair = panel.locator('.mission-weekly-scenario').nth(1);
   await pair.getByLabel('Nome do cenário').fill('Limpeza + teste');
+  await pair.getByLabel('Base de cálculo').selectOption('PER_PRODUCTIVE_DAY');
   await pair.getByLabel('Limpeza química', { exact: true }).check();
   await pair.getByLabel('Teste de pressão', { exact: true }).check();
   await pair.getByLabel('Distribuição da meta').selectOption('SERVICE');
@@ -184,14 +185,17 @@ test('alterar o dia ou a semana preserva cenários, taxas e jornada, inclusive a
   await pair.getByLabel('Teste de pressão (m/colaborador produtivo/dia)').fill('80');
   await panel.getByRole('button', { name: 'Salvar meta', exact: true }).click();
   await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
-  await panel.getByLabel('Horas de um dia produtivo').fill('6');
+  await first.getByLabel('Horas de um dia produtivo').fill('6');
   await first.getByLabel('Total geral (m/colaborador produtivo/dia)').fill('45');
   await pair.getByLabel('Limpeza química (m/colaborador produtivo/dia)').fill('110');
   const week = panel.getByLabel(/^Semana\s*\*?$/);
   const preserved = async () => {
-    await expect(panel.getByLabel('Medida da meta')).toHaveValue('M');
-    await expect(panel.getByLabel('Base de cálculo')).toHaveValue('PER_PRODUCTIVE_DAY');
-    await expect(panel.getByLabel('Horas de um dia produtivo')).toHaveValue('6');
+    await expect(first.getByLabel('Medida da meta')).toHaveValue('M');
+    await expect(pair.getByLabel('Medida da meta')).toHaveValue('M');
+    await expect(first.getByLabel('Base de cálculo')).toHaveValue('PER_PRODUCTIVE_DAY');
+    await expect(pair.getByLabel('Base de cálculo')).toHaveValue('PER_PRODUCTIVE_DAY');
+    await expect(first.getByLabel('Horas de um dia produtivo')).toHaveValue('6');
+    await expect(pair.getByLabel('Horas de um dia produtivo')).toHaveValue('7.5');
     await expect(panel.locator('.mission-weekly-scenario')).toHaveCount(2);
     await expect(first.getByLabel('Nome do cenário')).toHaveValue('Um serviço');
     await expect(first.getByLabel('Quando aplicar')).toHaveValue('SERVICE_COUNT');
@@ -259,7 +263,7 @@ test('preserva metas percentuais, semanas futuras e a recuperação de edição 
   await panel.getByLabel(/^Semana\s*\*?$/).fill('2026-10-05');
   await panel.getByLabel('Avanço previsto para a semana (p.p.)').fill('15');
   await panel.getByRole('button', { name: 'Salvar meta', exact: true }).click();
-  await expect(panel.getByText('Semana futura', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Período futuro', { exact: true })).toBeVisible();
   await expect(current.locator('dd').nth(0)).toHaveText('10 p.p.');
 });
 

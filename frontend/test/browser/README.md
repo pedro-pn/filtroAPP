@@ -126,6 +126,10 @@ hook's stale-response guard. No backend or credentials are needed.
 
 For weekly progress targets, open `/test/browser/weekly-progress.html`. This fixture
 uses the production panel with a simulated API shared by Acompanhamento and Efetivo.
+The first two fields configure the counting interval, with inclusive start/end days.
+Existing targets default to Monday–Sunday; Wednesday–Tuesday crosses the calendar week.
+Run `npx playwright test --config=playwright.operational-visual.config.ts weekly-target-period.spec.ts`
+to verify persistence, excluded dates, the active period across weeks and mobile layout.
 Check creating and editing targets, revision history, switching areas, read-only
 access, and the simulated concurrent-edit error. Run `playwright-cli run-code
 --filename frontend/test/browser/weekly-progress.js` in that session for the full

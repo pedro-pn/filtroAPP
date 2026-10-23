@@ -174,8 +174,9 @@ test('Efetivo compartilha a meta por projeto e carrega o mesmo histórico; cená
   const client = database();
   await saveWeeklyProgressTarget({ projectId: 'p1' }, payload, { client, ...actor });
   const history = [point('2026-09-25', 30)];
-  const comparison = await getMissionWeeklyProgressTargets('m1', { database: client, loadHistory: async ids => {
+  const comparison = await getMissionWeeklyProgressTargets('m1', { database: client, loadHistory: async (ids, options) => {
     assert.deepEqual(ids, ['p1']);
+    assert.deepEqual(options, { daily: true });
     return new Map([['p1', history]]);
   } });
   assert.equal(comparison.targets[0].plannedPctPoints, 10);

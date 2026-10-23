@@ -19,7 +19,7 @@ export async function getMissionWeeklyProgressTargets(missionId, dependencies = 
   const owner = await missionOwner(client, missionId);
   const [targets, histories, defaultReferenceDayHours] = await Promise.all([
     listWeeklyProgressTargets(owner, { client }),
-    (dependencies.loadHistory ?? computeProgressHistoryForProjects)([owner.projectId]),
+    (dependencies.loadHistory ?? computeProgressHistoryForProjects)([owner.projectId], { daily: true }),
     weeklyTargetReferenceDayHours(owner, { client })
   ]);
   const serviceHistory = dependencies.includeServices
