@@ -5,6 +5,5 @@ export function inhibitionSystemForVessel(value: string, vesselCode: string, pre
   // The system catalog uses 51632 throughout its diagram references.
   let diagram = parts.slice(2).join(';').replaceAll('51632', vesselCode);
   if (previousVesselCode) diagram = diagram.replaceAll(previousVesselCode, vesselCode);
-  diagram = diagram.replace(/^\d+(?=-)/, prefix => vesselCode.padStart(prefix.length, '0'));
   return `${parts[0]};${parts[1]};${diagram}`;
 }
