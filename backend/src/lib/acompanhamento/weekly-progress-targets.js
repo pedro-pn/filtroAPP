@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
 import prisma from '../prisma.js';
-import { dateOnlyKey, weekStartKey, weeklyTargetGoalMetric, weeklyTargetScenarioSettings, effectiveWeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
+import { dateOnlyKey, weekStartKey, weeklyTargetGoalMetric, weeklyTargetScenarioSettings, effectiveWeeklyProgressTarget, weeklyTargetCountingDays } from '../../../../shared/modules/mission-weekly-progress.js';
 
 const preciseValue = z.number().min(0, 'A meta não pode ser negativa.').max(999999999.99)
   .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-5, 'Use no máximo duas casas decimais.');
@@ -20,6 +20,8 @@ export const weeklyTargetDefinitionSchema = z.object({
   referenceDayHours: referenceHoursSchema.optional(),
   workdays: workdaysSchema.optional(),
   repeatWeekly: z.boolean().optional(),
+  countingStartDay: z.number().int().min(0).max(6).optional(),
+  countingEndDay: z.number().int().min(0).max(6).optional(),
   scenarios: z.array(z.object({
     name: z.string().trim().min(1).max(100),
     metric: metricSchema.optional(),
@@ -34,11 +36,13 @@ export const weeklyTargetDefinitionSchema = z.object({
   }).strict()).min(1).max(20)
 }).strict().superRefine((definition, ctx) => {
   const fail = message => ctx.addIssue({ code: 'custom', message });
+  if ((definition.countingStartDay == null) !== (definition.countingEndDay == null)) fail('Informe o dia inicial e o dia final da contagem.');
   const conditions = new Set();
   for (const scenario of definition.scenarios) {
     const { condition, goals } = scenario;
     const { metric, basis, referenceDayHours, workdays } = weeklyTargetScenarioSettings(definition, scenario);
     if (metric === 'COLLABORATORS') {
+      if (workdays && !workdays.some(day => weeklyTargetCountingDays(definition).includes(day))) fail('Selecione ao menos um dia de presença dentro do período de contagem.');
       if (basis !== 'PER_WORKDAY' || referenceDayHours != null || !workdays
         || new Set(workdays).size !== workdays.length || goals.length !== 1 || goals[0].serviceType != null
         || !Number.isInteger(goals[0].value) || goals[0].value < 1

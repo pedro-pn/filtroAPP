@@ -6,7 +6,7 @@ export type WeeklyTargetBasis = 'WEEK_TOTAL' | 'PER_PRODUCTIVE_DAY' | 'PER_WORKD
 export interface WeeklyTargetGoal { serviceType: WeeklyTargetService | null; value: number }
 export interface WeeklyTargetSettings { metric: WeeklyTargetMetric; basis?: WeeklyTargetBasis; referenceDayHours?: number; workdays?: number[] }
 export interface WeeklyTargetScenario extends Partial<WeeklyTargetSettings> { name: string; condition: WeeklyTargetCondition; goals: WeeklyTargetGoal[] }
-export interface WeeklyTargetDefinition extends WeeklyTargetSettings { repeatWeekly?: boolean; scenarios: WeeklyTargetScenario[] }
+export interface WeeklyTargetDefinition extends WeeklyTargetSettings { countingStartDay?: number; countingEndDay?: number; repeatWeekly?: boolean; scenarios: WeeklyTargetScenario[] }
 export interface WeeklyAttendanceHistoryPoint { date: string; collaboratorIds: string[]; attendanceIssues?: string[] }
 export interface DailyAttendanceComparison {
   date: string;
@@ -41,6 +41,8 @@ export interface WeeklyProgressTarget {
 export interface WeeklyProgressComparison {
   weekStartDate: string;
   weekEndDate: string;
+  periodStartDate: string;
+  periodEndDate: string;
   plannedPctPoints: number | null;
   actualPctPoints: number | null;
   differencePctPoints: number | null;
@@ -68,6 +70,9 @@ export function weeklyTargetGoalMetric(metric: WeeklyTargetMetric, goal: Pick<We
 export function weeklyTargetDefinition(target?: WeeklyProgressTarget | null): WeeklyTargetDefinition;
 export function weeklyTargetScenarioSettings(definition: WeeklyTargetDefinition, scenario?: WeeklyTargetScenario | null): WeeklyTargetSettings & { basis: WeeklyTargetBasis };
 export function effectiveWeeklyProgressTarget(targets: WeeklyProgressTarget[], week: string): WeeklyProgressTarget | null;
+export function weeklyTargetCountingDays(definition?: Pick<WeeklyTargetDefinition, 'countingStartDay' | 'countingEndDay'> | null): number[];
+export function weeklyTargetCountingPeriod(week: string, definition?: Pick<WeeklyTargetDefinition, 'countingStartDay' | 'countingEndDay'> | null): { periodStartDate: string; periodEndDate: string };
+export function currentWeeklyProgressComparison(rows: WeeklyProgressComparison[], today?: string): WeeklyProgressComparison | undefined;
 export function dateOnlyKey(value: unknown): string | null;
 export function weekStartKey(value: unknown): string | null;
 export function corporateToday(value?: Date): string;

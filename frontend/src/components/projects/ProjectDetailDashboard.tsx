@@ -342,7 +342,7 @@ export function ProjectDetailDashboard({
   const weeklyTargetOwner: WeeklyTargetOwner | null = groupId
     ? { area: 'acompanhamento', groupId }
     : projectId ? { area: 'acompanhamento', projectId } : null;
-  const weeklyProgressHistory = activeDivisionKey ? undefined : data.progressHistory ?? [];
+  const weeklyProgressHistory = activeDivisionKey ? undefined : data.dailyProgressHistory ?? data.progressHistory ?? [];
 
   return (
     <>

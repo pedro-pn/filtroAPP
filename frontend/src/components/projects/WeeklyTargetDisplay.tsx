@@ -39,7 +39,7 @@ export function WeeklyGoalResults({ row, showBalance = true }: { row: WeeklyProg
 
 export function WeeklyTargetConfiguration({ target }: { target: WeeklyProgressTarget }) {
   const definition = weeklyTargetDefinition(target);
-  return <div>{definition.repeatWeekly ? <p className="mission-weekly-progress-hint">Reutilizar meta toda semana</p> : null}<ul>{definition.scenarios.map((scenario, index) => {
+  return <div><p className="mission-weekly-progress-hint">Contagem: {WEEKLY_TARGET_WORKDAYS[definition.countingStartDay ?? 1]} a {WEEKLY_TARGET_WORKDAYS[definition.countingEndDay ?? 0]}, incluindo os dois dias.</p>{definition.repeatWeekly ? <p className="mission-weekly-progress-hint">Reutilizar meta toda semana</p> : null}<ul>{definition.scenarios.map((scenario, index) => {
     const settings = weeklyTargetScenarioSettings(definition, scenario);
     return <li key={index}>
     <strong>{scenario.name}</strong><small>{scenario.condition.kind === 'ALWAYS' ? 'Regra geral' : scenario.condition.kind === 'SERVICE_COUNT'

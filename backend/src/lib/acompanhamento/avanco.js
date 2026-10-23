@@ -26,6 +26,7 @@ import { applyDailyTubeCorrections } from './realized-corrections.js';
 import { withNativeMeasurementLinks } from './native-measurement-links.js';
 export { realizedFromExtraData } from './realized-measurements.js';
 import { withScopeGroups } from './scope-groups.js';
+import { correctAccompanimentReportServices } from './service-report-corrections.js';
 import { normalizeRdoServiceType } from './service-types.js';
 import { dateInDivision } from './tracking-divisions.js';
 import { isValidReportDate } from '../../../../shared/modules/report-date.js';
@@ -600,7 +601,7 @@ export async function loadReportServicesByProject(projectIds, { applyCorrections
         serviceType: true,
         system: true,
         extraData: true,
-        report: { select: { id: true, projectId: true, reportType: true, reportDate: true, specialConditions: true, measurementLinks: true } }
+        report: { select: { id: true, projectId: true, reportType: true, status: true, reportDate: true, specialConditions: true, measurementLinks: true } }
       }
     }),
     loadHistoricalRealizedServices(prisma, projectIds),
@@ -610,7 +611,8 @@ export async function loadReportServicesByProject(projectIds, { applyCorrections
   ]);
 
   const servicesByProject = new Map();
-  for (const service of [...withNativeMeasurementLinks(reportServices), ...historicalServices]) {
+  const correctedServices = await correctAccompanimentReportServices(reportServices, prisma, isServiceFinalized);
+  for (const service of [...withNativeMeasurementLinks(correctedServices), ...historicalServices]) {
     const projectId = service.report?.projectId;
     if (!projectId) continue;
     if (!servicesByProject.has(projectId)) servicesByProject.set(projectId, []);
@@ -620,6 +622,7 @@ export async function loadReportServicesByProject(projectIds, { applyCorrections
       system: service.system,
       extraData: service.extraData,
       reconciledMeasurements: service.reconciledMeasurements,
+      ...(service.correction ? { correction: service.correction } : {}),
       reportDate: service.report?.reportDate,
       reportType: service.report?.reportType,
       specialConditions: service.report?.specialConditions
@@ -640,7 +643,7 @@ export async function loadReportServicesByProject(projectIds, { applyCorrections
   return servicesByProject;
 }
 
-export async function computeProgressHistoryForProjects(projectIds) {
+export async function computeProgressHistoryForProjects(projectIds, { daily = false } = {}) {
   const result = new Map();
   if (!projectIds || projectIds.length === 0) return result;
 
@@ -678,7 +681,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
 
   for (const projectId of projectIds) {
     const project = projectById.get(projectId);
-    result.set(projectId, buildProgressHistory(
+    result.set(projectId, (daily ? buildDailyProgressHistory : buildProgressHistory)(
       consideredPlannedServices(plannedByProject.get(projectId) ?? [], project?.proposalPercentage),
       servicesByProject.get(projectId) ?? [],
       {

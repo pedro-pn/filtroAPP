@@ -83,7 +83,7 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     const compact = render(MissionWeeklyProgressPanel, { owner: { area: 'acompanhamento', projectId: 'p' }, progressHistory, compact: true });
     assert.match(compact, /2 de 3 semanas com meta atingida/);
     assert.match(compact, /Meta não atingida/);
-    assert.match(compact, /Semana futura/);
+    assert.match(compact, /Período futuro/);
     assert.match(compact, /Semana: ordenar em ordem crescente/);
     assert.match(compact, /Avanço previsto: ordenar em ordem crescente/);
     assert.match(compact, /Avanço realizado: ordenar em ordem crescente/);

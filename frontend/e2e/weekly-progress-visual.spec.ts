@@ -16,8 +16,8 @@ for (const viewport of [
     await panel.getByRole('button', { name: 'Definir meta', exact: true }).click();
     if (viewport.width >= 1024) {
       const weekTop = await panel.locator('.mission-weekly-progress-form input[type="date"]').evaluate(element => element.getBoundingClientRect().top);
-      const metricTop = await panel.getByLabel('Medida da meta').evaluate(element => element.getBoundingClientRect().top);
-      expect(Math.abs(weekTop - metricTop)).toBeLessThanOrEqual(1);
+      const periodTop = await panel.getByLabel('Início da contagem').evaluate(element => element.getBoundingClientRect().top);
+      expect(periodTop).toBeLessThan(weekTop);
     }
     await panel.getByLabel('Avanço previsto para a semana (p.p.)').fill('10');
     await panel.getByRole('button', { name: 'Salvar meta' }).click();

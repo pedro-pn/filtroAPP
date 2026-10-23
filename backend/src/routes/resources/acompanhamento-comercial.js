@@ -88,7 +88,7 @@ for (const [path, ownerKey, param] of [
       listWeeklyProgressTargets(owner), weeklyTargetReferenceDayHours(owner)
     ]);
     const progressHistory = ownerKey === 'projectId' && req.query.history === 'true'
-      ? (await computeProgressHistoryForProjects([req.params[param]])).get(req.params[param]) ?? [] : undefined;
+      ? (await computeProgressHistoryForProjects([req.params[param]], { daily: true })).get(req.params[param]) ?? [] : undefined;
     const serviceHistory = req.query.services === 'true' ? await loadWeeklyServiceHistory({ [ownerKey]: req.params[param] }) : undefined;
     const attendanceHistory = req.query.services === 'true' && targets.some(target => target.definition?.metric === 'COLLABORATORS')
       ? await loadWeeklyAttendanceHistory(owner) : undefined;

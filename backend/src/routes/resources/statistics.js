@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
+import { parseVolumeOleo, parseTubulacoes } from '../../lib/reports/service-measurement-values.js';
+export { parseDecimal, parseVolumeOleo, parseTubulacoes } from '../../lib/reports/service-measurement-values.js';
+import { projectServiceReportCorrections, MANUAL_SERVICE_EDIT_KEY, SERVICE_REPORT_TYPES } from '../../lib/reports/service-report-corrections.js';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { cleaningSystemQuantity, isSystemCleaning } from '../../lib/reports/cleaning-measurement.js';
@@ -15,8 +18,6 @@ const MAX_YEARS = 2;
 const MAX_STATS_REPORTS = 5000;
 const MAX_DAILY_REPORTS = 500;
 const MANUAL_REPORT_UPLOAD_KEY = '__manualUpload';
-const MANUAL_SERVICE_EDIT_KEY = '__manualDerivedServiceReportEdit';
-const SERVICE_REPORT_TYPES = ['RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,93 +101,6 @@ function parseMinutes(val) {
   return 0;
 }
 
-export function parseDecimal(val) {
-  const str = String(val).trim();
-  if (!str) return null;
-  const hasComma = str.includes(',');
-  const hasDot = str.includes('.');
-  let normalized;
-  if (hasComma && hasDot) {
-    // pt-BR: ponto = separador de milhar, vírgula = separador decimal (ex.: "1.500,5").
-    normalized = str.replace(/\./g, '').replace(',', '.');
-  } else if (hasComma) {
-    // Apenas vírgula: separador decimal (ex.: "2,5").
-    normalized = str.replace(',', '.');
-  } else if (hasDot) {
-    // Apenas ponto é ambíguo: pode ser milhar pt-BR ("1.000" = 1000) ou decimal ("1.5").
-    // Tratamos como separador de milhar quando há mais de um ponto ("1.000.000") ou
-    // quando o ponto separa exatamente 3 dígitos finais ("1.000", "10.000"); caso
-    // contrário é decimal ("1.5", "1.50", "12.34").
-    const dotCount = (str.match(/\./g) || []).length;
-    const afterLastDot = str.slice(str.lastIndexOf('.') + 1);
-    normalized = dotCount > 1 || afterLastDot.length === 3
-      ? str.replace(/\./g, '')
-      : str;
-  } else {
-    normalized = str;
-  }
-  const num = parseFloat(normalized);
-  return Number.isNaN(num) ? null : num;
-}
-
-export function parseVolumeOleo(service) {
-  // extraData may have volumeOleo + volumeOleoUnit or a combined 'Volume de óleo'
-  const extra = service.extraData || {};
-
-  // New format: separate fields
-  const vol = extra.volumeOleo ?? extra['Volume de óleo'];
-  let unit = extra.volumeOleoUnit ?? extra['Unidade de volume de óleo'];
-
-  if (vol === undefined || vol === null || vol === '') return { liters: null, ignored: true };
-
-  let numericValue = vol;
-  const combined = String(vol).trim().match(/^([+-]?\d+(?:[.,]\d+)?)\s*([a-zA-Z³]+)?$/u);
-  if (combined) {
-    numericValue = combined[1];
-    unit = unit ?? combined[2];
-  }
-
-  const num = parseDecimal(numericValue);
-  if (num == null) return { liters: null, ignored: true };
-
-  const unitStr = String(unit || 'L').trim().toLowerCase();
-  if (unitStr === 'ml') return { liters: num / 1000, ignored: false };
-  if (unitStr === 'm³' || unitStr === 'm3') return { liters: num * 1000, ignored: false };
-  // L, litro, litros, l
-  return { liters: num, ignored: false };
-}
-
-export function parseTubulacoes(service) {
-  const extra = service.extraData || {};
-  const raw = extra['Diâmetros e comprimentos'] || extra['Diametros e comprimentos'] || extra.diametros || extra.tubes || [];
-  if (!Array.isArray(raw)) return { byDiameter: {}, ignoredCount: 0 };
-
-  const byDiameter = {};
-  let ignoredCount = 0;
-
-  for (const item of raw) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      ignoredCount++;
-      continue;
-    }
-    const d = item.d || item.diametro;
-    const dUnit = String(item.unit || item.dUnit || '').trim(); // "pol" | "mm" | ""
-    const c = item.c ?? item.comprimento;
-    const cUnit = String(item.lengthUnit || item.comprimentoUnit || 'm').toLowerCase();
-
-    if (!d || c === undefined || c === null) { ignoredCount++; continue; }
-
-    const meters = parseDecimal(c);
-    if (meters == null) { ignoredCount++; continue; }
-
-    const normalizedMeters = cUnit === 'cm' ? meters / 100 : cUnit === 'mm' ? meters / 1000 : meters;
-    const key = dUnit ? `${String(d).trim()} ${dUnit}` : String(d).trim();
-    byDiameter[key] = (byDiameter[key] || 0) + normalizedMeters;
-  }
-
-  return { byDiameter, ignoredCount };
-}
-
 function emptyServiceStats() {
   return { serviceCount: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hasTubulacao: 0, hoseUnits: 0, systemUnits: 0 };
 }
@@ -233,60 +147,7 @@ function measurementKey(service) {
 
 // A projeção estatística usa a correção sem reescrever o conteúdo do RDO assinado.
 export function applyServiceReportCorrections(reports, serviceReports) {
-  const parents = new Map(reports
-    .filter(report => report.status === 'SIGNED' && !report.deletedAt && !isManualUploadedReport(report))
-    .map(report => [report.id, report]));
-  const corrections = new Map();
-  const ordered = [...serviceReports].sort((a, b) =>
-    String(a.specialConditions?.[MANUAL_SERVICE_EDIT_KEY]?.editedAt || '').localeCompare(
-      String(b.specialConditions?.[MANUAL_SERVICE_EDIT_KEY]?.editedAt || '')
-    ) || String(a.id).localeCompare(String(b.id)));
-
-  for (const report of ordered) {
-    const special = report.specialConditions || {};
-    const edit = special[MANUAL_SERVICE_EDIT_KEY];
-    const parent = parents.get(special.parentRdoId);
-    if (!parent || parent.projectId !== report.projectId || report.deletedAt
-      || !SERVICE_REPORT_TYPES.includes(report.reportType) || special.serviceOnly === true
-      || !['APPROVED', 'SIGNED'].includes(report.status) || !edit?.editedAt) continue;
-
-    const corrected = report.services?.[0];
-    if (!corrected) continue;
-    const candidates = (parent.services || []).filter(service =>
-      isServiceFinalized(service) && service.serviceType === corrected.serviceType);
-    let source = candidates.find(service => service.id === special.serviceId);
-    if (!source) {
-      const refs = new Set([special.serviceId, special.serviceLinkKey].filter(Boolean));
-      const matches = candidates.filter(service => [service.id,
-        service.extraData?.__ongoingKey, service.extraData?.__serviceLinkKey,
-        service.extraData?.__sourceServiceId, service.extraData?.serviceId
-      ].some(key => key && refs.has(key)));
-      if (matches.length === 1) source = matches[0];
-    }
-    if (!source) continue;
-
-    const replacement = { ...source, finalized: true, extraData: corrected.extraData || {} };
-    const key = `${parent.id}:${source.id}`;
-    if (measurementKey(source) === measurementKey(replacement)) {
-      corrections.delete(key);
-      continue;
-    }
-    corrections.set(key, {
-      ...replacement,
-      correction: {
-        reportId: report.id,
-        reportType: report.reportType,
-        sequenceNumber: report.sequenceNumber,
-        editedAt: edit.editedAt,
-        editedByUserId: edit.editedByUserId || null
-      }
-    });
-  }
-
-  return reports.map(report => ({
-    ...report,
-    services: (report.services || []).map(service => corrections.get(`${report.id}:${service.id}`) || service)
-  }));
+  return projectServiceReportCorrections(reports, serviceReports, { measurementKey, isServiceFinalized, isManualUploadedReport });
 }
 
 async function loadServiceReportCorrections(reports) {
