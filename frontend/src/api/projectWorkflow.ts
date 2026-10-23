@@ -782,7 +782,7 @@ export interface ProjectExecutionReportSummary {
   createdAt: string | null;
 }
 
-export type ProjectExecutionWeeklyCheckKey = 'PROGRESS' | 'SERVICE_FRONTS' | 'DIFFICULTIES' | 'DEVIATIONS_INCIDENTS' | 'REPORT_DELIVERY' | 'REPORT_SIGNATURES';
+export type ProjectExecutionWeeklyCheckKey = 'PROGRESS' | 'SERVICE_FRONTS' | 'DIFFICULTIES' | 'DEVIATIONS_INCIDENTS' | 'REPORT_DELIVERY' | 'REPORT_SIGNATURES' | 'WEEKLY_TARGET';
 export type ProjectExecutionWeeklyChecks = Record<ProjectExecutionWeeklyCheckKey, boolean>;
 
 export interface ProjectExecutionWeeklyReviewWeek {

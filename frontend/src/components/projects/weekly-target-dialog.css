@@ -1,0 +1,39 @@
+/* Acima do planejamento do Efetivo (1000) e do histórico de metas (1100). */
+.fv-modal-backdrop.weekly-target-dialog-backdrop { z-index: 1150; }
+.wtd-body { display: grid; gap: var(--space-5); }
+.wtd-section { display: grid; gap: var(--space-2); min-width: 0; }
+.wtd-label { padding: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text); }
+.wtd-hint { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+.wtd-link { padding: 0; border: 0; background: none; color: var(--brand-text); font: inherit; font-weight: var(--font-semibold); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.wtd-period { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.wtd-goals { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.wtd-goal { display: grid; gap: var(--space-2); padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); min-width: 0; }
+.wtd-goal-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.wtd-goal-rule { display: grid; grid-template-columns: 120px auto minmax(0, 1fr); gap: var(--space-2); align-items: center; }
+.wtd-goal-rule input { text-align: right; font-variant-numeric: tabular-nums; font-weight: var(--font-semibold); }
+.wtd-unit { min-width: 24px; padding-inline: var(--space-1); color: var(--muted); font-size: var(--text-sm); }
+.wtd-unit-select { width: 104px; }
+.wtd-basis-fixed { color: var(--muted); font-size: var(--text-sm); }
+.wtd-remove { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.wtd-remove:hover { background: var(--line); color: var(--text); }
+.wtd-remove:focus-visible, .wtd-link:focus-visible { outline: 2px solid var(--brand-text); outline-offset: 2px; }
+.wtd-sentence { margin: 0; padding-left: var(--space-1); color: var(--text); font-size: var(--text-sm); line-height: 1.45; }
+.wtd-join { display: flex; justify-content: center; margin-block: calc(var(--space-1) * -1); position: relative; z-index: 1; }
+.wtd-join span { padding: 2px 12px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; color: var(--surface); background: var(--brand-text); }
+.wtd-join.is-any span { background: var(--info); }
+.wtd-logic { display: grid; gap: var(--space-2); min-width: 0; margin: var(--space-2) 0 0; padding: 0; border: 0; }
+.wtd-logic-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.wtd-logic-options label { position: relative; display: grid; gap: 2px; padding: var(--space-3) var(--space-3) var(--space-3) 40px; border: var(--border-width) solid var(--line); border-radius: var(--radius-md); cursor: pointer; font-size: var(--text-sm); }
+.wtd-logic-options label small { color: var(--muted); font-size: var(--text-xs); }
+.wtd-logic-options input { position: absolute; left: 14px; top: 14px; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; accent-color: var(--brand-text); }
+.wtd-logic-options label.is-selected { border-color: var(--brand-text); background: var(--brand-soft); }
+.wtd-logic-options label:focus-within { outline: 2px solid var(--brand-text); outline-offset: 2px; }
+.wtd-journey { display: grid; gap: 2px; padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); font-size: var(--text-sm); }
+.wtd-journey span { font-variant-numeric: tabular-nums; }
+.wtd-journey small { color: var(--muted); font-size: var(--text-xs); }
+.wtd-footer { display: flex; justify-content: flex-end; gap: var(--space-2); }
+@media (max-width: 479.98px) {
+  .wtd-goal-rule { grid-template-columns: minmax(0, 1fr) auto; }
+  .wtd-goal-rule > .wtd-basis, .wtd-goal-rule > .wtd-basis-fixed { grid-column: 1 / -1; }
+  .wtd-logic-options { grid-template-columns: 1fr; }
+}

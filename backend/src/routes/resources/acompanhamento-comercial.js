@@ -34,7 +34,7 @@ import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
-import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetReferenceDayHours } from '../../lib/acompanhamento/weekly-progress-targets.js';
+import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetJourney, weeklyTargetsNeedAttendance } from '../../lib/acompanhamento/weekly-progress-targets.js';
 import { loadWeeklyServiceHistory } from '../../lib/acompanhamento/weekly-service-history.js';
 import { loadWeeklyAttendanceHistory } from '../../lib/acompanhamento/weekly-attendance-history.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
@@ -84,15 +84,15 @@ for (const [path, ownerKey, param] of [
 ]) {
   router.get(path, requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
     const owner = { [ownerKey]: req.params[param] };
-    const [targets, defaultReferenceDayHours] = await Promise.all([
-      listWeeklyProgressTargets(owner), weeklyTargetReferenceDayHours(owner)
+    const [targets, journey] = await Promise.all([
+      listWeeklyProgressTargets(owner), weeklyTargetJourney(owner)
     ]);
     const progressHistory = ownerKey === 'projectId' && req.query.history === 'true'
       ? (await computeProgressHistoryForProjects([req.params[param]], { daily: true })).get(req.params[param]) ?? [] : undefined;
     const serviceHistory = req.query.services === 'true' ? await loadWeeklyServiceHistory({ [ownerKey]: req.params[param] }) : undefined;
-    const attendanceHistory = req.query.services === 'true' && targets.some(target => target.definition?.metric === 'COLLABORATORS')
+    const attendanceHistory = req.query.services === 'true' && weeklyTargetsNeedAttendance(targets)
       ? await loadWeeklyAttendanceHistory(owner) : undefined;
-    res.json({ targets, defaultReferenceDayHours, ...(progressHistory ? { progressHistory } : {}), ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) });
+    res.json({ targets, journey, ...(progressHistory ? { progressHistory } : {}), ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) });
   }));
   router.put(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
     res.json(await saveWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {

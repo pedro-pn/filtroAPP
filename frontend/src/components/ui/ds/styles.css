@@ -353,9 +353,20 @@
    the nested control overflow compact fields anywhere in the application. */
 :where(.fv-ds, [data-fv-ds]) .fv-control-shell :is(.fv-input, .fv-select) {
   min-height: 0;
+  padding-block: 0;
+  padding-inline-start: 0;
+  border: 0;
   border-radius: 0;
+  background-color: transparent;
   box-shadow: none;
   color: inherit;
+}
+
+/* O estilo global de <select> (fundo, borda, padding e seta) vazava para dentro
+   do shell e desenhava um segundo campo no meio do controle. */
+:where(.fv-ds, [data-fv-ds]) .fv-control-shell .fv-select {
+  padding-inline-end: var(--space-6);
+  background-image: none;
 }
 
 /* Browsers tint the nested autofilled input, leaving the shell's padding

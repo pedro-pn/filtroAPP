@@ -41,6 +41,7 @@ import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
+import { WeeklyTargetSpotlight } from './WeeklyTargetSpotlight';
 import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
@@ -95,6 +96,7 @@ export function ProjectDetailDashboard({
   const [progressEquipmentKey, setProgressEquipmentKey] = useState('');
   const [progressHistoryNoveltyActive, setProgressHistoryNoveltyActive] = useState(true);
   const [weeklyTargetNoveltyActive, setWeeklyTargetNoveltyActive] = useState(true);
+  const [weeklyHistoryOpen, setWeeklyHistoryOpen] = useState(false);
   const [manualCostNoveltyActive, setManualCostNoveltyActive] = useState(true);
   const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
   const [qualityDeviationsNoveltyActive, setQualityDeviationsNoveltyActive] = useState(true);
@@ -427,6 +429,9 @@ export function ProjectDetailDashboard({
         ) : null}
       </Card>
 
+      {weeklyTargetOwner ? <WeeklyTargetSpotlight key={groupId || projectId} owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory}
+        canManage={canManageProjectNotes} onOpenHistory={() => setWeeklyHistoryOpen(true)} /> : null}
+
       {isGroup && group && canManageDivisions ? (
         <Card padding="sm" className="acp-detail-group-policy">
           <details data-acp-labor-policy>
@@ -634,16 +639,6 @@ export function ProjectDetailDashboard({
 
       <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators}
         onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} onSelectRates={setRatesCollaborator} />
-
-      {weeklyTargetOwner ? <Card padding="sm" className="acp-detail-weekly-targets">
-        <MissionWeeklyProgressPanel
-          key={groupId || projectId}
-          owner={weeklyTargetOwner}
-          progressHistory={weeklyProgressHistory}
-          compact
-          canManage={canManageProjectNotes}
-        />
-      </Card> : null}
 
       {data.canViewProjectFinancials ? <Card padding="sm" className="acp-detail-financial" id="acp-financial">
         <ProjectDetailSection label="Gastos e retorno" header={<>
@@ -941,6 +936,10 @@ export function ProjectDetailDashboard({
         projects={isGroup ? group?.members.filter(member => member.visible !== false) || [] : projectId ? [{ projectId, code: h.code }] : []}
         canManage={canManageDivisions}
         summary={isGroup ? { plannedScope: data.plannedScope, requiredWeeklyProgress: shownRequiredWeeklyProgress } : undefined} />
+      {weeklyTargetOwner ? <Modal open={weeklyHistoryOpen} onClose={() => setWeeklyHistoryOpen(false)} appearance="design-system" size="full"
+        backdropClassName="weekly-target-history-backdrop" title="Metas semanais · histórico">
+        <MissionWeeklyProgressPanel key={groupId || projectId} owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory} canManage={canManageProjectNotes} />
+      </Modal> : null}
       <Modal open={scheduleProject !== null} onClose={closeSchedule} appearance="design-system" size="lg"
         panelClassName="acp-schedule-modal" title={`Cronograma — Missão ${scheduleProject?.code ?? h.code}`}
         footer={<div className="acp-schedule-modal__actions">

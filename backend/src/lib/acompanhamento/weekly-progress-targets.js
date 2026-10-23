@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
 import prisma from '../prisma.js';
+import { loadWeeklyTargetJourney } from './weekly-target-journey.js';
 import { dateOnlyKey, weekStartKey, weeklyTargetGoalMetric, weeklyTargetScenarioSettings, effectiveWeeklyProgressTarget, weeklyTargetCountingDays } from '../../../../shared/modules/mission-weekly-progress.js';
 
 const preciseValue = z.number().min(0, 'A meta não pode ser negativa.').max(999999999.99)
@@ -14,7 +15,7 @@ const conditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('SERVICE_COUNT'), count: z.number().int().min(1).max(4) }).strict(),
   z.object({ kind: z.literal('SERVICE_SET'), serviceTypes: z.array(z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'])).min(1).max(4) }).strict()
 ]);
-export const weeklyTargetDefinitionSchema = z.object({
+const legacyDefinitionSchema = z.object({
   metric: metricSchema,
   basis: basisSchema.default('WEEK_TOTAL'),
   referenceDayHours: referenceHoursSchema.optional(),
@@ -75,6 +76,43 @@ export const weeklyTargetDefinitionSchema = z.object({
   }
 });
 
+const serviceTypeSchema = z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM']);
+const positiveValue = preciseValue.refine(value => value > 0, 'Informe um valor maior que zero.');
+const goalListSchema = z.object({
+  version: z.literal(2),
+  logic: z.enum(['ALL', 'ANY']).default('ALL'),
+  repeatWeekly: z.boolean().optional(),
+  countingStartDay: z.number().int().min(0).max(6).optional(),
+  countingEndDay: z.number().int().min(0).max(6).optional(),
+  goals: z.array(z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('SERVICE'), serviceType: serviceTypeSchema, metric: z.enum(['M', 'L', 'UN']),
+      basis: z.enum(['WEEK_TOTAL', 'PER_PRODUCTIVE_DAY']), value: positiveValue }).strict(),
+    z.object({ kind: z.literal('PROGRESS'), value: positiveValue.pipe(z.number().max(100, 'O avanço semanal deve ser de até 100 p.p.')) }).strict(),
+    z.object({ kind: z.literal('ATTENDANCE'), value: z.number().int('Informe um número inteiro de colaboradores.').min(1), workdays: workdaysSchema }).strict()
+  ])).min(1, 'Adicione ao menos uma meta.').max(6, 'Use no máximo 6 metas.')
+}).strict().superRefine((definition, ctx) => {
+  const fail = message => ctx.addIssue({ code: 'custom', message });
+  if ((definition.countingStartDay == null) !== (definition.countingEndDay == null)) fail('Informe o dia inicial e o dia final da contagem.');
+  const services = definition.goals.filter(goal => goal.kind === 'SERVICE');
+  if (new Set(services.map(goal => goal.serviceType)).size !== services.length) fail('Use uma linha por tipo de serviço.');
+  for (const kind of ['PROGRESS', 'ATTENDANCE']) if (definition.goals.filter(goal => goal.kind === kind).length > 1) fail('Use apenas uma meta de avanço e uma de equipe mínima.');
+  for (const goal of services) {
+    if ((goal.serviceType === 'FILTRAGEM') !== (goal.metric === 'L')) fail('Filtragem usa litros; os demais serviços usam metros ou unidades.');
+    if (goal.metric === 'UN' && goal.basis === 'WEEK_TOTAL' && !Number.isInteger(goal.value)) fail('Metas totais de unidades de sistema devem ser inteiras.');
+  }
+  const attendance = definition.goals.find(goal => goal.kind === 'ATTENDANCE');
+  if (attendance && (new Set(attendance.workdays).size !== attendance.workdays.length
+    || !attendance.workdays.some(day => weeklyTargetCountingDays(definition).includes(day)))) fail('Os dias de trabalho do projeto precisam estar dentro do período de contagem.');
+});
+
+// Metas antigas (cenários) continuam válidas; as novas usam a lista de metas.
+export const weeklyTargetDefinitionSchema = z.unknown().transform((value, ctx) => {
+  const parsed = (value?.version === 2 ? goalListSchema : legacyDefinitionSchema).safeParse(value);
+  if (parsed.success) return parsed.data;
+  for (const issue of parsed.error.issues) ctx.addIssue({ ...issue, code: 'custom', message: issue.message });
+  return z.NEVER;
+});
+
 export const weeklyProgressTargetSchema = z.object({
   weekStartDate: z.string().refine(value => dateOnlyKey(value) === value && weekStartKey(value) === value, 'Informe a segunda-feira de uma semana válida.'),
   plannedPctPoints: z.number().min(0, 'A meta não pode ser negativa.').max(100, 'A meta deve ser de até 100 pontos percentuais.')
@@ -124,21 +162,13 @@ export async function weeklyTargetProjectIds(owner, client = prisma) {
   return members.map(member => member.projectId);
 }
 
-// O padrão vem sempre da jornada semanal cadastrada, independente da data da
-// meta. Jornadas diferentes dentro de um agrupamento exigem escolha explícita.
-export async function weeklyTargetReferenceDayHours(owner, { client = prisma } = {}) {
-  const projectIds = await weeklyTargetProjectIds(owner, client);
-  if (!projectIds.length) return null;
-  const projects = await client.project.findMany({
-    where: { id: { in: projectIds }, deletedAt: null }, select: { workdayHours: true }
-  });
-  const hours = projects.map(project => {
-    const match = String(project.workdayHours ?? '').trim().match(/^(\d{1,2}):(\d{2})$/);
-    if (!match || +match[2] >= 60) return null;
-    const value = Math.round((+match[1] + +match[2] / 60) * 100) / 100;
-    return value > 0 && value <= 24 ? value : null;
-  });
-  return projects.length === projectIds.length && hours.every(value => value != null && value === hours[0]) ? hours[0] : null;
+export const weeklyTargetsNeedAttendance = targets => targets.some(target => target.definition?.metric === 'COLLABORATORS'
+  || target.definition?.scenarios?.some(scenario => scenario.metric === 'COLLABORATORS')
+  || target.definition?.goals?.some(goal => goal.kind === 'ATTENDANCE'));
+
+// Jornada do projeto usada para converter horas em colaboradores-dia.
+export async function weeklyTargetJourney(owner, { client = prisma } = {}) {
+  return loadWeeklyTargetJourney(await weeklyTargetProjectIds(owner, client), client);
 }
 
 export async function listWeeklyProgressTargets(owner, { client = prisma } = {}) {

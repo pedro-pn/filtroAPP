@@ -1,6 +1,7 @@
 import { dateOnlyKey } from '../../../../shared/modules/mission-weekly-progress.js';
 import { isPointWorkbookDerivedRdoRoster } from './avanco.js';
 import { normalizeRdoServiceType } from './service-types.js';
+import { journeyMinutesForDate, loadJourneyHolidays, loadWeeklyTargetJourney } from './weekly-target-journey.js';
 
 const DAY = 1440;
 const ids = value => [...new Set((Array.isArray(value) ? value : []).filter(id => typeof id === 'string' && id.trim()))];
@@ -33,7 +34,7 @@ function unionLength(entries) {
 
 // Usa somente equipe explicitamente vinculada ao serviço e à jornada do RDO.
 // Não transforma o efetivo do cronograma, uma contagem ou um roster de ponto em produção.
-export function buildWeeklyProductiveHistory(reports = [], nightCollaborators = []) {
+export function buildWeeklyProductiveHistory(reports = [], nightCollaborators = [], { journey = null, holidays = null } = {}) {
   const people = new Map(nightCollaborators.map(person => [person.id, person]));
   const buckets = new Map(), byPerson = new Map();
   const bucketFor = (date, serviceType) => {
@@ -136,7 +137,13 @@ export function buildWeeklyProductiveHistory(reports = [], nightCollaborators = 
       }
     }
   }
-  return [...buckets.values()].map(bucket => ({ ...bucket, productivityIssues: [...bucket.productivityIssues].sort() }))
+  // Colaboradores-dia: horas de cada dia ÷ jornada do projeto naquele dia.
+  const personDays = bucket => {
+    const minutes = journeyMinutesForDate(bucket.date, journey, holidays);
+    return minutes ? Math.round(bucket.productivePersonMinutes / minutes * 10000) / 10000 : null;
+  };
+  return [...buckets.values()].map(bucket => ({ ...bucket, productivityIssues: [...bucket.productivityIssues].sort(),
+    ...(journey ? { productivePersonDays: personDays(bucket) } : {}) }))
     .sort((a, b) => a.date.localeCompare(b.date) || a.serviceType.localeCompare(b.serviceType));
 }
 
@@ -152,5 +159,9 @@ export async function loadWeeklyProductiveHistory(projectIds, client) {
   const nightPeople = nightIds.length ? await client.collaborator.findMany({
     where: { id: { in: nightIds } }, select: { id: true, jobRole: { select: { isOperational: true } } }
   }) : [];
-  return buildWeeklyProductiveHistory(reports, nightPeople);
+  const [journey, holidays] = await Promise.all([
+    loadWeeklyTargetJourney(projectIds, client),
+    loadJourneyHolidays(client, reports.map(report => dateOnlyKey(report.reportDate)))
+  ]);
+  return buildWeeklyProductiveHistory(reports, nightPeople, { journey, holidays });
 }

@@ -19,6 +19,7 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     const { ProjectDetailDashboard } = await server.ssrLoadModule('/src/components/projects/ProjectDetailDashboard.tsx');
     const { ProjectOverviewMetrics } = await server.ssrLoadModule('/src/components/projects/ProjectOverviewMetrics.tsx');
     const { MissionWeeklyProgressPanel } = await server.ssrLoadModule('/src/components/projects/MissionWeeklyProgressPanel.tsx');
+    const { WeeklyTargetSpotlight } = await server.ssrLoadModule('/src/components/projects/WeeklyTargetSpotlight.tsx');
     const { ProjectInvoicesSection } = await server.ssrLoadModule('/src/components/projects/ProjectInvoicesSection.tsx');
     const auth = { user: { id: 'u', moduleRoles: ['rdo:manager'] }, isAuthenticated: true };
     const render = (Component, props) => renderToStaticMarkup(createElement(QueryClientProvider, { client },
@@ -35,7 +36,9 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     }
     assert.ok(manager.indexOf('Histórico do avanço') < manager.indexOf('Composição do avanço'));
     assert.ok(manager.indexOf('Composição do avanço') < manager.indexOf('Colaboradores na obra'));
-    assert.ok(manager.indexOf('Colaboradores na obra') < manager.indexOf('Meta semanal de avanço'));
+    // A meta da semana fica logo abaixo do cabeçalho; a tabela vai para o histórico.
+    assert.ok(manager.indexOf('Meta da semana') > -1 && manager.indexOf('Meta da semana') < manager.indexOf('Consumo de gastos'));
+    assert.doesNotMatch(manager, /Meta semanal de avanço/);
     assert.doesNotMatch(manager, /Leitura rápida|Prazos com contexto|O projeto em um olhar/);
     setDetail(false);
     const viewer = render(ProjectDetailDashboard, { projectId: 'p' });
@@ -96,6 +99,20 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     assert.match(legacy, /Meta registrada: ordenar em ordem crescente/);
     assert.doesNotMatch(legacy, /Ação: ordenar/);
     assert.doesNotMatch(legacy, /semanas com meta atingida|Detalhes e edição das metas/);
+
+    // Card do topo: abre na semana fechada, alterna para a atual e mostra o placar.
+    const spotlightOwner = { area: 'acompanhamento', projectId: 'p' };
+    const spotlight = render(WeeklyTargetSpotlight, { owner: spotlightOwner, progressHistory, canManage: true, onOpenHistory() {} });
+    for (const value of ['Meta da semana', 'Fechada', 'Atual', 'Editar meta', 'Histórico', 'Últimas semanas', 'Meta não atingida', '2 de 3 atingidas']) {
+      assert.ok(spotlight.includes(value), value);
+    }
+    assert.match(spotlight, /aria-pressed="true"[^>]*>Fechada/);
+    const viewerSpotlight = render(WeeklyTargetSpotlight, { owner: spotlightOwner, progressHistory, onOpenHistory() {} });
+    assert.doesNotMatch(viewerSpotlight, /Editar meta|Definir meta/);
+    client.setQueryData(['mission-weekly-targets', '/acompanhamento/comercial/projetos/p/metas-semanais', false], { targets: [] });
+    assert.equal(render(WeeklyTargetSpotlight, { owner: spotlightOwner, progressHistory, onOpenHistory() {} }), '');
+    assert.match(render(WeeklyTargetSpotlight, { owner: spotlightOwner, progressHistory, canManage: true, onOpenHistory() {} }), /Nenhuma meta cadastrada[\s\S]*Definir meta/);
+    client.setQueryData(['mission-weekly-targets', '/acompanhamento/comercial/projetos/p/metas-semanais', false], { targets });
 
     const attendanceTargets = [-7, 0].map((days, index) => ({
       id: `attendance-${index}`, weekStartDate: shift(days), revision: 1,
