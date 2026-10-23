@@ -1,12 +1,13 @@
 import { BrandLoading } from '../brand/BrandLoading';
 import { GripVertical, RotateCcw } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
 import { prepareImageForUpload } from '../../utils/imageUpload';
 import { moveUpload } from '../../utils/uploadOrder';
+import type { ReportUploadTarget } from '../../utils/reportUploadTransfer';
 import { AppIcon } from '../icons/AppIcon';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PhotoCaptureButton } from './PhotoCaptureButton';
@@ -14,6 +15,7 @@ import { RemoveIconButton } from './RemoveIconButton';
 import { IconButton } from './ds/Button';
 import { DS_ICONS } from './ds/icons';
 import { stageUploadDeletion } from './photoDeletionStaging';
+import { UploadTransferContext } from './UploadTransferContext';
 import './UploadField.css';
 
 interface UploadFieldProps {
@@ -23,6 +25,21 @@ interface UploadFieldProps {
   disabled?: boolean;
   appearance?: 'legacy' | 'design-system';
   onChange: (files: UploadedFile[]) => void;
+  transferTarget?: ReportUploadTarget;
+}
+
+interface UploadDrag {
+  from: number;
+  to: number;
+  x: number;
+  y: number;
+  active: boolean;
+  preview: string;
+  width: number;
+  target: ReportUploadTarget | null;
+  targetKey: string | null;
+  scopeId: string | null;
+  fileUrl: string;
 }
 
 export type UploadPreviewFile = UploadedFile & {
@@ -168,18 +185,77 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
   );
 }
 
-export function UploadField({ label, value, projectId, disabled = false, appearance = 'legacy', onChange }: UploadFieldProps) {
+export function UploadField({ label, value, projectId, disabled = false, appearance = 'legacy', onChange, transferTarget }: UploadFieldProps) {
+  const transfer = useContext(UploadTransferContext);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const fieldRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const pointerDrag = useRef<{ from: number; to: number; x: number; y: number; active: boolean; preview: string; width: number } | null>(null);
-  const [reordering, setReordering] = useState<{ from: number; to: number; x: number; y: number; preview: string; width: number } | null>(null);
+  const pointerDrag = useRef<UploadDrag | null>(null);
+  const [reordering, setReordering] = useState<UploadDrag | null>(null);
   const [orderAnnouncement, setOrderAnnouncement] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ index: number; ref: string; fileName: string } | null>(null);
+  const latestFiles = useRef({ value, onChange });
+  latestFiles.current = { value, onChange };
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
+  const transferKey = transfer && transferTarget ? JSON.stringify(transferTarget) : null;
+  const canTransfer = Boolean(transferKey && !disabled && !isUploading && !removeTarget);
+
+  function updateDragTarget(x: number, y: number) {
+    const drag = pointerDrag.current;
+    if (!drag) return;
+    const element = document.elementFromPoint(x, y);
+    const row = element?.closest<HTMLElement>('[data-upload-index]');
+    drag.target = null;
+    drag.targetKey = null;
+    drag.to = -1;
+    if (drag.scopeId && transfer) {
+      const field = element?.closest<HTMLElement>('[data-upload-transfer-scope]');
+      if (field?.dataset.uploadTransferScope === drag.scopeId) {
+        drag.targetKey = field.dataset.uploadTransferTarget || null;
+        drag.target = drag.targetKey ? JSON.parse(drag.targetKey) as ReportUploadTarget : null;
+        drag.to = row && field.contains(row) ? Number(row.dataset.uploadIndex) : Number(field.dataset.uploadCount);
+        if (field === fieldRef.current && drag.to === value.length) drag.to = value.length - 1;
+      }
+      transfer.setActiveTarget(drag.targetKey);
+    } else if (!drag.scopeId && row && listRef.current?.contains(row)) {
+      drag.to = Number(row.dataset.uploadIndex);
+    }
+    drag.x = x;
+    drag.y = y;
+    setReordering({ ...drag });
+  }
+
+  function cancelDrag() {
+    pointerDrag.current = null;
+    setReordering(null);
+    transfer?.setActiveTarget(null);
+  }
+
+  // A revisão pode ser longa; rola o contêiner sob o dedo/mouse nas bordas.
+  const dragActive = Boolean(reordering);
+  const dragFrame = useRef<() => void>(() => {});
+  dragFrame.current = () => {
+    const drag = pointerDrag.current;
+    if (!drag?.active) return;
+    const edge = 64;
+    const distance = drag.y < edge ? drag.y - edge : drag.y > window.innerHeight - edge ? drag.y - window.innerHeight + edge : 0;
+    if (!distance) return;
+    let scroller: HTMLElement | null = fieldRef.current?.parentElement || null;
+    while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
+    (scroller || document.scrollingElement)?.scrollBy(0, Math.sign(distance) * Math.min(18, Math.abs(distance) / 3));
+    updateDragTarget(drag.x, drag.y);
+  };
+  useEffect(() => {
+    if (!dragActive) return;
+    let frame: number;
+    const tick = () => { dragFrame.current(); frame = requestAnimationFrame(tick); };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [dragActive]);
 
   function reorder(from: number, to: number) {
     if (disabled || isUploading || removeTarget || from === to || to < 0 || to >= value.length) return;
@@ -208,7 +284,8 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
         })
       );
       const uploaded = await uploadFiles(items);
-      onChange([...value, ...uploaded]);
+      // Outros campos do serviço podem ter mudado durante o envio.
+      latestFiles.current.onChange([...latestFiles.current.value, ...uploaded]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível enviar as fotos.');
     } finally {
@@ -249,7 +326,14 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
   }
 
   return (
-    <div className={`upload-field ${appearance === 'design-system' ? 'upload-field--ds' : ''}`}>
+    <div
+      ref={fieldRef}
+      className={`upload-field ${appearance === 'design-system' ? 'upload-field--ds' : ''}`}
+      data-upload-transfer-scope={canTransfer ? transfer?.scopeId : undefined}
+      data-upload-transfer-target={canTransfer ? transferKey : undefined}
+      data-upload-count={value.length}
+      data-transfer-over={canTransfer && transfer?.activeTarget === transferKey || undefined}
+    >
       {displayLabel ? <label className="upload-field-label">{displayLabel}</label> : null}
       <div
         className={`upload-dropzone ${dragOver ? 'drag-over' : ''} ${isUploading ? 'busy' : ''} ${value.length ? 'has-file' : ''}`}
@@ -289,7 +373,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
       ) : null}
       {value.length ? (
         <div className="upload-list" ref={listRef}>
-          {!disabled && value.length > 1 ? <p className="upload-order-help">Arraste pelo ícone para ordenar as fotos no relatório. Use as setas do teclado com o ícone selecionado.</p> : null}
+          {!disabled && (value.length > 1 || canTransfer) ? <p className="upload-order-help">{canTransfer ? 'Arraste pelo ícone para ordenar ou mover fotos para outro campo deste relatório.' : 'Arraste pelo ícone para ordenar as fotos no relatório.'} Use as setas do teclado com o ícone selecionado.</p> : null}
           <span className="visually-hidden" role="status" aria-live="polite">{orderAnnouncement}</span>
           {value.map((file, index) => (
             <UploadPreviewListItem
@@ -300,17 +384,16 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
               appearance={appearance}
               onRemove={removeFile}
               dragging={reordering?.from === index}
-              dropTarget={reordering?.to === index && reordering.from !== index}
-              reorderHandle={!disabled && value.length > 1 ? <button
+              dropTarget={reordering?.to === index && reordering.from !== index && (!reordering.scopeId || reordering.targetKey === transferKey)}
+              reorderHandle={!disabled && (value.length > 1 || canTransfer) ? <button
                 type="button"
                 className="upload-reorder-handle"
                 aria-label={`Reordenar ${file.fileName}, posição ${index + 1} de ${value.length}`}
-                title="Arraste para reordenar ou use as setas do teclado"
+                title={canTransfer ? 'Arraste para ordenar ou mover para outro campo' : 'Arraste para reordenar ou use as setas do teclado'}
                 disabled={isUploading || Boolean(removeTarget)}
                 onKeyDown={event => {
                   if (event.key === 'Escape') {
-                    pointerDrag.current = null;
-                    setReordering(null);
+                    cancelDrag();
                     return;
                   }
                   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -324,7 +407,9 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
                   pointerDrag.current = {
                     from: index, to: index, x: event.clientX, y: event.clientY, active: false,
                     preview: row?.querySelector('img')?.currentSrc || '',
-                    width: Math.min(row?.getBoundingClientRect().width || 280, 320, window.innerWidth - 16)
+                    width: Math.min(row?.getBoundingClientRect().width || 280, 320, window.innerWidth - 16),
+                    target: transferTarget || null, targetKey: transferKey, scopeId: canTransfer ? transfer?.scopeId || null : null,
+                    fileUrl: file.url
                   };
                   event.currentTarget.setPointerCapture(event.pointerId);
                 }}
@@ -333,18 +418,22 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
                   if (!drag) return;
                   if (!drag.active && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 5) return;
                   drag.active = true;
-                  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-upload-index]');
-                  if (target && listRef.current?.contains(target)) drag.to = Number(target.dataset.uploadIndex);
-                  setReordering({ from: drag.from, to: drag.to, x: event.clientX, y: event.clientY, preview: drag.preview, width: drag.width });
+                  updateDragTarget(event.clientX, event.clientY);
                 }}
-                onPointerUp={() => {
+                onPointerUp={event => {
+                  if (pointerDrag.current?.active) updateDragTarget(event.clientX, event.clientY);
                   const drag = pointerDrag.current;
-                  pointerDrag.current = null;
-                  setReordering(null);
-                  if (drag?.active) reorder(drag.from, drag.to);
+                  cancelDrag();
+                  if (!drag?.active) return;
+                  if (drag.scopeId) {
+                    if (transfer?.scopeId === drag.scopeId && transferTarget && drag.target && drag.to >= 0) {
+                      transfer.onMove({ source: transferTarget, destination: drag.target, from: drag.from, to: drag.to, fileUrl: drag.fileUrl });
+                      setOrderAnnouncement(`${file.fileName}: movida para ${drag.target.label}.`);
+                    }
+                  } else reorder(drag.from, drag.to);
                 }}
-                onPointerCancel={() => { pointerDrag.current = null; setReordering(null); }}
-                onLostPointerCapture={() => { pointerDrag.current = null; setReordering(null); }}
+                onPointerCancel={cancelDrag}
+                onLostPointerCapture={cancelDrag}
               ><GripVertical aria-hidden="true" /><span aria-hidden="true">{index + 1}</span></button> : undefined}
             />
           ))}

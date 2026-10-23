@@ -27,6 +27,7 @@
 .upload-reorder-handle:disabled { cursor: default; opacity: .5; }
 .upload-list-item[data-dragging] { opacity: .5; }
 .upload-list-item[data-drop-target] { outline: 2px solid var(--brand, var(--g)); outline-offset: 1px; }
+.upload-field[data-transfer-over] { outline: 2px solid var(--brand, var(--g)); outline-offset: 4px; border-radius: var(--radius-md); }
 
 .upload-drag-ghost {
   position: fixed;

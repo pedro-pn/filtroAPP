@@ -1,5 +1,17 @@
 # Search regression in a browser
 
+For moving photos during RDO review, run:
+
+```sh
+cd frontend
+npx playwright test --config=playwright.rdo.config.ts rdo-photo-transfer.behavior.spec.ts
+```
+
+The production editor uses a simulated API at `/test/browser/rdo-photo-transfer.html`.
+Coverage includes transfers between service fields, services and activity photos,
+saving/reopening, pending uploads, cancelling, report isolation, signed reports,
+keyboard ordering, automatic scrolling and touch at 390 px. No real records change.
+
 For execution start, open `/test/browser/execution-start.html` and run
 `playwright-cli run-code --filename frontend/test/browser/execution-start.js`.
 It checks hiding the operator selector when no team account is eligible,

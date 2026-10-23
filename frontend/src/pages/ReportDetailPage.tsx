@@ -43,6 +43,8 @@ import { Modal } from '../components/ui/Modal';
 import { RemoveIconButton } from '../components/ui/RemoveIconButton';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
+import { UploadTransferProvider } from '../components/ui/UploadTransferProvider';
+import { moveReportUpload } from '../utils/reportUploadTransfer';
 import {
   Alert,
   Badge,
@@ -966,6 +968,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   return (
+    <UploadTransferProvider key={report.id} enabled={!readOnly && !manualReport && !isSaving} onMove={move => setForm(current => moveReportUpload(current, move))}>
     <form className="rdo-form-stage rdo-edit-form" noValidate onSubmit={handleSubmit} aria-busy={isSaving}>
       {readOnly ? <Alert tone="warning">{TEXT.signedLocked}</Alert> : null}
 
@@ -1236,6 +1239,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     inhibitionOptions={inhibitionOptions}
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
+                    transferServiceId={service.id}
                     projectId={form.projectId}
                     invalidKey={invalidSystemTypeServiceId === service.id ? 'tipoSistema' : invalidFinalizationServiceId === service.id ? 'finalized' : null}
                     hideFinalization={serviceReportMode}
@@ -1331,6 +1335,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           </div>
           <UploadField
             label="Fotos de registro"
+            transferTarget={{ label: 'Fotos de registro' }}
             value={form.generalUploads}
             projectId={form.projectId}
             disabled={readOnly}
@@ -1460,6 +1465,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       <ReportReissueDialog count={reissueOpen ? 1 : 0} submitting={reportMutations.regenerateReports.isPending} onConfirm={() => void handleReissue()} onCancel={() => setReissueOpen(false)} />
       {confirmDialog}
     </form>
+    </UploadTransferProvider>
   );
 }
 
