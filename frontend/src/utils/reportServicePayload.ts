@@ -1,6 +1,7 @@
 import type { Collaborator, Equipment, ReportServiceInput, Unit } from '../types/domain';
 import { cleaningChemicalOptions, orderedCleaningStages, selectedChemicalProducts } from '../../../shared/modules/rdo-material.js';
 import { cleaningSystemQuantity } from './cleaningMeasurement';
+import { inhibitionSystemForVessel } from './inhibitionSystem';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } from './pressureHoseMeasurement';
 import { serviceUploadLabels } from './serviceUploadGroups';
 
@@ -195,7 +196,10 @@ export function buildReportServicePayload(
   options: BuildServicePayloadOptions = {}
 ): ReportServiceInput {
   const type = normalizeServiceType(service.type);
-  const data = service.data || {};
+  let data = service.data || {};
+  if (type === 'inibicao') {
+    data = { ...data, system: inhibitionSystemForVessel(getString(data.system), getString(data.equipmentId)) };
+  }
   const extraData = commonExtraData(type, data, options);
   const existingHistoryKey = getString(extraData.__ongoingKey)
     || getString(extraData.__serviceLinkKey)

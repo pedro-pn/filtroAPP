@@ -8,6 +8,7 @@ import { UploadField } from '../ui/UploadField';
 import { getServiceUploadGroup, updateServiceUploadGroup } from '../../utils/serviceUploadGroups';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import { cleaningModePatch } from '../../utils/cleaningMeasurement';
+import { inhibitionSystemForVessel } from '../../utils/inhibitionSystem';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseModePatch } from '../../utils/pressureHoseMeasurement';
 import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 
@@ -1376,13 +1377,18 @@ export function ServiceFields({
 
   if (normalizedType === 'inibicao') {
     const tipoRelatorio = getStrings(data.tipoRelatorio);
+    const vesselCode = getString(data.equipmentId);
+    const systemValue = inhibitionSystemForVessel(getString(data.system), vesselCode);
 
     return (
       <>
         <ServiceFormSection title="Equipamento e sistema" appearance={appearance}>
           <div className={fieldClass(invalidKey, 'equipmentId')}>
           <label htmlFor={fieldId(groupKey, 'equipmentId')}>Embarcação {requiredMark()}</label>
-          <select id={fieldId(groupKey, 'equipmentId')} value={getString(data.equipmentId)} disabled={disabled} onChange={event => onChange({ equipmentId: event.target.value })}>
+          <select id={fieldId(groupKey, 'equipmentId')} value={vesselCode} disabled={disabled} onChange={event => onChange({
+            equipmentId: event.target.value,
+            system: inhibitionSystemForVessel(systemValue, event.target.value)
+          })}>
             <option value="">Selecionar...</option>
             {(inhibitionOptions?.vessels || []).map(vessel => (
               <option value={vessel.code} key={vessel.id || vessel.code}>{vessel.code}</option>
@@ -1391,10 +1397,10 @@ export function ServiceFields({
           </div>
           <div className={fieldClass(invalidKey, 'system')}>
           <label htmlFor={fieldId(groupKey, 'system')}>Sistema {requiredMark()}</label>
-          <select id={fieldId(groupKey, 'system')} value={getString(data.system)} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
+          <select id={fieldId(groupKey, 'system')} value={systemValue} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
             <option value="">Selecionar...</option>
             {(inhibitionOptions?.systems || []).map(system => {
-              const value = inhibitionSystemValue(system);
+              const value = inhibitionSystemValue(system, vesselCode);
               return <option value={value} key={system.id || system.code}>{value}</option>;
             })}
           </select>
