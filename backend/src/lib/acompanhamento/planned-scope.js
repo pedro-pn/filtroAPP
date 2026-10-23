@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 /*
  * Escopo previsto do projeto (módulo Acompanhamento) — quantitativo de serviços vendidos,
  * previsão de horas normais e extras. As horas vêm das propostas selecionadas,
@@ -18,7 +19,7 @@ import { assertDistinctScopeMeasurements } from './scope-groups.js';
 import { loadPlannedHours, plannedHoursConflict } from './planned-hours.js';
 
 // Tipos de serviço conhecidos (rótulos no front). Texto livre também é aceito.
-export const PLANNED_SERVICE_TYPES = ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'];
+export const PLANNED_SERVICE_TYPES = ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM', 'LIMPEZA_MECANICA', 'LOCACAO'];
 
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -109,6 +110,11 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
   }
   const modes = new Map();
   for (const service of services ?? []) for (const row of service.systems ?? []) {
+    if (MECHANICAL_MEASURES[row.systemType] && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_MECANICA'
+      || !row.equipment?.trim() || !row.systemName?.trim() || !Number.isFinite(row.quantity) || row.quantity <= 0
+      || row.quantity > 999999999999.99 || (row.systemType === 'MECANICA_UN' && !Number.isSafeInteger(row.quantity)))) {
+      throw new Error('Limpeza mecânica exige equipamento, sistema, unidade e quantidade positiva compatível com a medição.');
+    }
     const unitService = { SISTEMA: 'LIMPEZA_QUIMICA', MANGOTE: 'TESTE_PRESSAO' }[row.systemType];
     if (unitService && (normalizeRdoServiceType(service.serviceType) !== unitService
       || !row.equipment?.trim() || !row.systemName?.trim() || !Number.isSafeInteger(row.quantity)
@@ -190,7 +196,7 @@ export async function setPlannedScope(projectId, { services, normalHours, overti
           description: text(sys.description),
           diameter: sys.systemType === 'TUBULACAO' ? text(sys.diameter) : null,
           diameterUnit: sys.systemType === 'TUBULACAO' && text(sys.diameter) ? (sys.diameterUnit || 'pol') : null,
-          quantity: num(sys.quantity), unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[sys.systemType], order: sysIndex
+          quantity: num(sys.quantity), unit: MECHANICAL_MEASURES[sys.systemType]?.unit ?? { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN', LOCACAO: 'DIA' }[sys.systemType], order: sysIndex
         });
       }
       await tx.projectPlannedService.create({

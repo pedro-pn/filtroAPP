@@ -167,6 +167,10 @@ function commonExtraData(
     'Diâmetros e comprimentos': tubes,
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
+  if (type === 'mecanica') {
+    extraData['Unidade da limpeza mecânica'] = data.unidadeMecanica ?? '';
+    extraData['Quantidade da limpeza mecânica'] = data.quantidadeMecanica ?? '';
+  }
   if (!includeMaterial) {
     delete extraData['Material da tubulação'];
     delete extraData['Material da tubulacao'];

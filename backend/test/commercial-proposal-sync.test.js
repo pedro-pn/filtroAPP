@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { commercialProposalReference, commercialProposalSyncData } from '../src/lib/projects/commercial-proposal-sync-state.js';
-import { commercialAppConnection, fetchCommercialProposal, readLimitedCommercialResponse } from '../src/lib/projects/commercial-proposal-sync.js';
+import { commercialAppConnection, fetchCommercialProposal, readLimitedCommercialResponse, syncCommercialProposal } from '../src/lib/projects/commercial-proposal-sync.js';
 
 function fixture() {
   const project = { id: 'project-1', clientCnpj: '12.345.678/0001-90' };
@@ -51,6 +51,35 @@ test('busca somente a revisão solicitada e confere os dois arquivos', async () 
   assert.equal(f.calls.length, 3);
   assert.ok(f.calls.every(call => call.url.includes('/propostas/4621/revisoes/2')));
   assert.ok(f.calls.every(call => call.request.redirect === 'error'));
+});
+
+test('locação exige somente o PDF comercial; serviço operacional continua exigindo os dois', async () => {
+  const f = fixture();
+  f.bundle.documents = f.bundle.documents.filter(document => document.kind === 'COMERCIAL');
+  await assert.rejects(fetchCommercialProposal(f.project, f.state, f.options), { code: 'COMERCIALAPP_CONTRACT_INVALID' });
+  f.bundle.proposalSnapshot = { estimateNature: 'equipment_rental', modelo: 'locacao_equipamentos' };
+  assert.equal((await fetchCommercialProposal(f.project, f.state, f.options)).files.length, 1);
+});
+
+test('venda é excluída antes de baixar documentos ou gravar dados comerciais', async () => {
+  const f = fixture();
+  f.bundle.documents = f.bundle.documents.filter(document => document.kind === 'COMERCIAL');
+  f.bundle.proposalSnapshot = { estimateNature: 'equipment_sale', modelo: 'venda_equipamentos' };
+  await assert.rejects(fetchCommercialProposal(f.project, f.state, f.options), { code: 'COMERCIALAPP_SALE_EXCLUDED' });
+  assert.equal(f.calls.length, 1);
+});
+
+test('venda excluída encerra a fila sem agendar tentativas recorrentes', async () => {
+  const f = fixture();
+  f.bundle.documents = f.bundle.documents.filter(document => document.kind === 'COMERCIAL');
+  f.bundle.proposalSnapshot = { estimateNature: 'equipment_sale' };
+  let update;
+  const project = { ...f.project, isActive: true, commercialProposalSync: { ...f.state, requestId: 'request-1' } };
+  const database = { project: { findUnique: async () => project, updateMany: async value => { update = value; } } };
+  const result = await syncCommercialProposal(project.id, { ...f.options, database });
+  assert.equal(result.status, 'EXCLUDED');
+  assert.equal(update.data.commercialProposalSync.status, 'EXCLUDED');
+  assert.equal(update.data.commercialProposalSyncNextAttemptAt, null);
 });
 
 test('resposta antiga ou valores comerciais inválidos não concluem uma busca incompleta', async () => {

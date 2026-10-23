@@ -22,6 +22,9 @@ const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 const emailSchema = z.string().trim().email();
 
 const schema = z.object({
+  serviceCategory: z.enum(['SERVICE', 'RENTAL']).default('SERVICE'),
+  startDate: z.iso.date().nullable().optional().transform(value => value ? new Date(value) : value),
+  endDate: z.iso.date().nullable().optional().transform(value => value ? new Date(value) : value),
   code: z.string().min(1),
   name: z.string().min(1),
   isActive: z.boolean().default(true),
@@ -87,6 +90,10 @@ function normalizeClientSigner(rawSigner) {
 }
 
 function normalizeProjectInput(data) {
+  if (data.serviceCategory === 'RENTAL') {
+    if (data.startDate && data.endDate && data.endDate < data.startDate) throw Object.assign(new Error('O fim da locação não pode ser anterior ao início.'), { status: 400 });
+    data = { ...data, operatorId: null, defaultReportResponsibleUserId: null, visibleToCollaborators: false, requireServiceReportSignatures: false };
+  }
   const normalizedCnpj = normalizeCnpj(data.clientCnpj);
   if (!normalizedCnpj || normalizedCnpj.length !== 14) {
     throw new z.ZodError([{
@@ -400,6 +407,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     const previousProject = await tx.project.findUniqueOrThrow({
       where: { id: req.params.id },
       select: {
+        serviceCategory: true, startDate: true, endDate: true,
         name: true,
         clientCnpj: true,
         clientName: true,
@@ -427,8 +435,15 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     const syncReference = !contractChanged && previousProject.commercialProposalSync
       ? { proposalCode: previousProject.commercialProposalSync.proposalCode, revisionNumber: previousProject.commercialProposalSync.revisionNumber }
       : commercialProposalReference(projectData.contractCode ?? previousProject.contractCode);
+    if ((projectData.serviceCategory ?? previousProject.serviceCategory) === 'RENTAL'
+      && (projectData.endDate !== undefined ? projectData.endDate : previousProject.endDate) && (projectData.startDate !== undefined ? projectData.startDate : previousProject.startDate)
+      && (projectData.endDate !== undefined ? projectData.endDate : previousProject.endDate) < (projectData.startDate !== undefined ? projectData.startDate : previousProject.startDate)) {
+      throw Object.assign(new Error('O fim da locação não pode ser anterior ao início.'), { status: 400 });
+    }
     const projectUpdateData = {
       ...projectData,
+      ...((projectData.serviceCategory ?? previousProject.serviceCategory) === 'RENTAL'
+        ? { operatorId: null, defaultReportResponsibleUserId: null, visibleToCollaborators: false, requireServiceReportSignatures: false } : {}),
       ...(contractChanged || cnpjChanged || projectData.contractCode !== undefined && !previousProject.commercialProposalSync
         ? commercialProposalSyncData(syncReference, previousProject.commercialProposalSync, { force: cnpjChanged })
         : {}),

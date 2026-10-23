@@ -51,9 +51,9 @@
 .fv-ds .acp-schedule-ds .field-group > label { display: block; margin-bottom: var(--space-2); color: var(--ink); font-size: var(--text-sm); font-weight: var(--font-medium); }
 .fv-ds .acp-schedule-ds .field-group .fv-control-shell { width: 100%; }
 .fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-input,
-.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-select { width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; font-size: var(--text-md); }
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-select { width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: var(--text-md); }
 .fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-input:focus,
-.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-select:focus { outline: 0; box-shadow: none; }
+.fv-ds .acp-schedule-ds .field-group .fv-control-shell .fv-select:focus { outline: 0; }
 .fv-ds .acp-schedule-ds .field-group .fv-select-shell .fv-select { padding-inline-end: var(--space-6); }
 .fv-ds .acp-schedule-ds .field-group .acp-pct-field .fv-input { text-align: end; }
 .fv-ds .acp-schedule-ds .acp-scope-group.fv-card { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: 0; }
@@ -81,9 +81,9 @@
 .fv-ds .acp-schedule-ds .acp-sleep-add .fv-button { align-self: end; }
 .fv-ds .acp-schedule-ds .acp-sleep-controls .fv-select-shell { flex: 1 1 auto; min-width: 0; }
 .fv-ds .acp-schedule-ds .acp-sleep-row .fv-select,
-.fv-ds .acp-schedule-ds .acp-sleep-add .fv-select { width: 100%; min-height: 0; height: 100%; padding: 0 var(--space-6) 0 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; font-size: var(--text-md); }
+.fv-ds .acp-schedule-ds .acp-sleep-add .fv-select { width: 100%; min-height: 0; height: 100%; padding: 0 var(--space-6) 0 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: var(--text-md); }
 .fv-ds .acp-schedule-ds .acp-sleep-row .fv-select:focus,
-.fv-ds .acp-schedule-ds .acp-sleep-add .fv-select:focus { outline: 0; box-shadow: none; }
+.fv-ds .acp-schedule-ds .acp-sleep-add .fv-select:focus { outline: 0; }
 .fv-ds .acp-schedule-ds .acp-weight-sum { margin: 0; font-size: var(--text-sm); }
 .fv-ds .acp-schedule-ds .acp-weight-sum.ok { color: var(--muted); }
 .fv-ds .acp-schedule-ds .acp-weight-sum.warn { color: var(--warning); }

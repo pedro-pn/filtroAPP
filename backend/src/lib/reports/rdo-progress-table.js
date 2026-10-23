@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 import prisma from '../prisma.js';
 import { addRealizedService, buildProgress, isServiceFinalized, normalizeRdoServiceType } from '../acompanhamento/avanco.js';
 import { withNativeMeasurementLinks } from '../acompanhamento/native-measurement-links.js';
@@ -17,7 +18,8 @@ const UNITS = [
   ['tubulacaoM', 'm', 'TUBULACAO'],
   ['oleoL', 'L', 'OLEO'],
   ['sistemasUn', 'un', 'SISTEMA'],
-  ['mangotesUn', 'mangueiras', 'MANGOTE']
+  ['mangotesUn', 'mangueiras', 'MANGOTE'],
+  ...Object.entries(MECHANICAL_MEASURES).map(([type, config]) => [config.metric, `${config.unit.toLowerCase()} de limpeza mecânica`, type])
 ];
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 const percentFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });

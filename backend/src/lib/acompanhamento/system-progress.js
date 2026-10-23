@@ -1,7 +1,8 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 import { resolveProjectSystem, systemNameKey } from './project-systems.js';
 
 const round = (value, places = 2) => Math.round(value * 10 ** places) / 10 ** places;
-const METRICS = { TUBULACAO: ['tubulacaoM', 'M'], OLEO: ['oleoL', 'L'], SISTEMA: ['sistemasUn', 'UN'], MANGOTE: ['mangotesUn', 'UN'] };
+const METRICS = { ...Object.fromEntries(Object.entries(MECHANICAL_MEASURES).map(([type, config]) => [type, [config.metric, config.unit]])), TUBULACAO: ['tubulacaoM', 'M'], OLEO: ['oleoL', 'L'], SISTEMA: ['sistemasUn', 'UN'], MANGOTE: ['mangotesUn', 'UN'] };
 
 // O total do serviço independe do vínculo de cada medição. Escopo e equipamento
 // também recebem os quantitativos identificados sem presumir um sistema específico.
@@ -95,7 +96,7 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
       projectSystemId: measurement.projectSystemId || null,
       ...(attributedScope ? { attributedScope } : {}),
       matchedSystem: match ? { id: match.id, equipment: match.equipment, name: match.name } : null,
-      systemType: measurement.systemType, unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[measurement.systemType],
+      systemType: measurement.systemType, unit: METRICS[measurement.systemType]?.[1],
       diameter: measurement.diameter || null, diameterUnit: measurement.diameterUnit || null, quantity: 0
     });
     pending.get(key).quantity += measurement.quantity;
@@ -107,7 +108,7 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
     const realized = realizedByType.get(service.serviceType) ?? {};
     const legacyMetrics = new Set(rows.filter(row => !row.projectSystemId).map(row => row.systemType));
     for (const row of rows.filter(row => !row.projectSystemId)) {
-      row.realizedQty = realized[{ TUBULACAO: 'tubulacaoM', OLEO: 'oleoL', SISTEMA: 'sistemasUn', MANGOTE: 'mangotesUn' }[row.systemType]] ?? 0;
+      row.realizedQty = realized[METRICS[row.systemType]?.[0]] ?? 0;
     }
     for (const measurement of realized.measurements ?? []) {
       if (legacyMetrics.has(measurement.systemType)) continue;

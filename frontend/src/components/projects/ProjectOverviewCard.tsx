@@ -120,7 +120,7 @@ export function ProjectOverviewCard({
           {!grouped && card.crmOpportunity ? <Badge tone="info">Projeto confirmado</Badge> : null}
           {card.awaitingCommercialBudget ? <Badge tone="warning">Aguardando orçamento</Badge> : null}
           {grouped ? <Badge tone="info">Grupo · {card.members.length} missões</Badge> : null}
-          <StatusPill status={card.lastDay.status} label={statusLabel} />
+          {card.rentalTracking ? <Badge tone="info">Locação de equipamentos</Badge> : <StatusPill status={card.lastDay.status} label={statusLabel} />}
           {card.lastDay.date ? <span className="acp-project__secondary">{formatDate(card.lastDay.date)}</span> : null}
           {card.reviewed ? <StatusPill status="conferido" label="Conferido" title={card.reviewedAt ? `Conferido em ${formatDate(card.reviewedAt)}` : 'Conferido'} /> : null}
         </div>

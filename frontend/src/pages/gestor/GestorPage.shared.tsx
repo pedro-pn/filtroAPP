@@ -100,6 +100,9 @@ export function writeGestorUiPrefs(storageKey: string, prefs: GestorUiPrefs) {
 }
 
 export interface ProjectFormState {
+  serviceCategory: 'SERVICE' | 'RENTAL';
+  startDate: string;
+  endDate: string;
   code: string;
   name: string;
   clientName: string;
@@ -182,6 +185,7 @@ export function normalizeProjectReportSequences(sequences: ProjectReportSequence
 }
 
 export const emptyProjectForm: ProjectFormState = {
+  serviceCategory: 'SERVICE', startDate: '', endDate: '',
   code: '',
   name: '',
   clientName: '',
@@ -474,6 +478,8 @@ export function segmentSlugFromLabel(label: string) {
 
 export function projectToForm(project: Project): ProjectFormState {
   return {
+    serviceCategory: project.serviceCategory ?? 'SERVICE',
+    startDate: project.startDate?.slice(0, 10) ?? '', endDate: project.endDate?.slice(0, 10) ?? '',
     code: project.code,
     name: project.name,
     clientName: project.clientName,

@@ -1,3 +1,4 @@
+import { rentalTracking } from '../projects/rental-tracking.js';
 /*
  * Aba "Projetos" do módulo Acompanhamento — um card por projeto com indicadores cruzando o previsto
  * (comercial + escopo manual) e o realizado (RDOs e relatórios de serviço independentes).
@@ -148,7 +149,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
   const [projects, queriedReports, queriedCollaborators, labor, hoursByProject] = await Promise.all([
     prisma.project.findMany({
       where: { id: { in: projectIds } },
-      select: { id: true, workdayHours: true, weekendWorkdayHours: true, acompanhamentoCardName: true }
+      select: { id: true, serviceCategory: true, startDate: true, endDate: true, workdayHours: true, weekendWorkdayHours: true, acompanhamentoCardName: true }
     }),
     prisma.report.findMany({
       where: { projectId: { in: projectIds }, deletedAt: null },
@@ -233,6 +234,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       normalWorkedMinutes: 0,
       overtimeWorkedMinutes: 0
     };
+    const rental = rentalTracking(projById.get(row.projectId), now);
     const workedDays = a.dates.size;
     const totalDays = toNum(row.workedDays) ?? toNum(row.plannedDays);
     const daysConsumedPct = totalDays && totalDays > 0 ? Math.round((workedDays / totalDays) * 100) : null;
@@ -260,7 +262,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
     const gastoTotal = (toNum(row.realizedCost) ?? 0) + (laborCost ?? 0);
     const costConsumedPct = plannedCost && plannedCost > 0 ? Math.round((gastoTotal / plannedCost) * 100) : null;
     const hours = hoursByProject.get(row.projectId);
-    const alerts = [...plannedHoursAlerts(hours?.hoursPlan), ...computeAlerts({
+    const alerts = [...(rental ? [] : plannedHoursAlerts(hours?.hoursPlan)), ...computeAlerts({
       startDate: row.startDate ?? null,
       plannedDays,
       gasto: gastoTotal,
@@ -285,6 +287,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
     const { archived } = trackingState;
 
     return {
+      rentalTracking: rental,
       projectId: row.projectId,
       code: row.code,
       name: row.name,
@@ -299,7 +302,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       reportArchivedAt: trackingState.archivedInReports ? row.acompanhamentoReportArchivedAt ?? null : null,
       category: deriveProjectCardCategory({
         archived,
-        workedDays,
+        workedDays: rental?.elapsedDays ?? workedDays,
         workedHours,
         progressPct: row.progressPct ?? null
       }),
@@ -338,7 +341,7 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       stockCost,
       manualCost: toNum(row.manualCost) ?? 0,
       equipment, // equipamentos (módulo Equipamentos) em obra: { code, name, days, since }
-      alerts
+      alerts: rental ? alerts.filter(alert => alert.code === 'CUSTO') : alerts
     };
   });
 }

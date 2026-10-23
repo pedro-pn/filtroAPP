@@ -1,3 +1,4 @@
+import { rentalTracking } from '../projects/rental-tracking.js';
 /*
  * Dashboard de um projeto (módulo Acompanhamento). Cruza previsto (comercial + escopo manual) com o
  * realizado dos relatórios-fonte e das compras do Omie, para a tela de detalhe aberta ao clicar num card.
@@ -749,6 +750,7 @@ export async function getProjectDetail(projectId, {
     .filter(invoice => dateInDivision(invoice.issuedAt, division)) ?? [] : null;
 
   return {
+    rentalTracking: rentalTracking(project),
     header: {
       code: row.code,
       clientName: row.clientName,
@@ -757,7 +759,7 @@ export async function getProjectDetail(projectId, {
       lastRdoDate,
       segment: project?.clientSegment ?? null
     },
-    alerts,
+    alerts: project?.serviceCategory === 'RENTAL' ? alerts.filter(alert => alert.code === 'CUSTO') : alerts,
     diasCorridos,
     businessDays,
     stoppedDays,

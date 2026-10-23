@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 import { diameterKey } from './system-progress.js';
 import { resolveProjectSystem, systemNameKey } from './project-systems.js';
 import { normalizeRdoServiceType } from './service-types.js';
@@ -61,11 +62,11 @@ async function context(client, projectId) {
   return { planned, systems };
 }
 
-const historicalServiceTypes = { LIMPEZA_QUIMICA: 'limpeza', TESTE_PRESSAO: 'pressao', FILTRAGEM: 'filtragem', FLUSHING: 'flushing' };
+const historicalServiceTypes = { LIMPEZA_QUIMICA: 'limpeza', TESTE_PRESSAO: 'pressao', FILTRAGEM: 'filtragem', FLUSHING: 'flushing', LIMPEZA_MECANICA: 'mecanica' };
 
 function nativeItems(report, planned, systems) {
   return nativeReportMeasurements(report).filter(row => isServiceFinalized(row.service)).map((row, itemIndex) => {
-    const measurement = { ...row.measurement, serviceType: historicalServiceTypes[row.serviceType], unit: { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[row.measurement.systemType] };
+    const measurement = { ...row.measurement, serviceType: historicalServiceTypes[row.serviceType], unit: MECHANICAL_MEASURES[row.measurement.systemType]?.unit ?? { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[row.measurement.systemType] };
     return { ...measurement, itemIndex, measurementKey: row.measurementKey, projectSystemId: row.link?.projectSystemId ?? null,
       reconciliation: measurementReconciliation(measurement, planned, systems) };
   });

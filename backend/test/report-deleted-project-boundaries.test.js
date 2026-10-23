@@ -1010,6 +1010,7 @@ test('POST report creation rejects duplicate project report date before reservin
   };
   const calls = [];
   prisma.$transaction = async callback => callback({
+    projectPlannedService: { findMany: async () => [] },
     project: {
       findFirstOrThrow: async args => {
         calls.push(['project.findFirstOrThrow', args]);
@@ -1284,6 +1285,7 @@ test('PUT report persists rejected overtime so downloads omit it', async t => {
   prisma.reportAttachment.createMany = async args => ({ count: args.data.length });
   prisma.reportAttachment.deleteMany = async () => ({ count: 0 });
   prisma.$transaction = async callback => callback({
+    projectPlannedService: { findMany: async () => [] },
     project: {
       findFirstOrThrow: async () => ({
         ...currentReport.project,

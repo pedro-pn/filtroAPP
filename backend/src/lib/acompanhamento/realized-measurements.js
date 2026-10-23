@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES, mechanicalMeasurement } from '../../../../shared/modules/mechanical-measurement.js';
 import { cleaningSystemQuantity, isSystemCleaning } from '../reports/cleaning-measurement.js';
 import { isPressureHoseUnits, pressureHoseQuantity } from '../reports/pressure-hose-measurement.js';
 import { normalizeRdoServiceType } from './service-types.js';
@@ -15,6 +16,12 @@ function num(value) {
 
 export function realizedFromExtraData(extraData, serviceType) {
   const data = extraData && typeof extraData === 'object' ? extraData : {};
+  if (normalizeRdoServiceType(serviceType) === 'LIMPEZA_MECANICA') {
+    const measurement = mechanicalMeasurement(data);
+    return { tubulacaoM: 0, oleoL: 0, sistemasUn: 0, mangotesUn: 0,
+      ...Object.fromEntries(Object.entries(MECHANICAL_MEASURES).map(([type, config]) =>
+        [config.metric, measurement?.systemType === type ? measurement.quantity : 0])) };
+  }
   const completeSystem = normalizeRdoServiceType(serviceType) === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);
   const hose = normalizeRdoServiceType(serviceType) === 'TESTE_PRESSAO' && isPressureHoseUnits(data);
   let tubulacaoM = 0;
@@ -46,6 +53,10 @@ export function extractServiceMeasurements(service, canonical = normalizeRdoServ
       const name = JSON.parse(data.__scopeKey);
       if (typeof name === 'string' || name === null) context.scopeName = name;
     } catch { /* Relatórios antigos sem uma seleção válida continuam sem escopo. */ }
+  }
+  if (canonical === 'LIMPEZA_MECANICA') {
+    const measurement = mechanicalMeasurement(data);
+    return measurement ? [{ ...context, ...measurement, bitola: '' }] : [];
   }
   const rows = [];
   const completeSystem = canonical === 'LIMPEZA_QUIMICA' && isSystemCleaning(data);

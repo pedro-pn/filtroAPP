@@ -1,3 +1,4 @@
+import { ProjectServiceCategoryFields } from '../../components/projects/ProjectServiceCategoryFields';
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
 import { useProjectEditor } from './useProjectEditor';
 import { BrandLoading } from '../../components/brand/BrandLoading';
@@ -714,6 +715,8 @@ export function GestorPage() {
     event.preventDefault();
 
     const payload = {
+      serviceCategory: projectForm.serviceCategory,
+      ...(projectForm.serviceCategory === 'RENTAL' ? { startDate: projectForm.startDate || null, endDate: projectForm.endDate || null } : {}),
       code: projectForm.code.trim(),
       name: projectForm.name.trim(),
       clientName: projectForm.clientName.trim(),
@@ -2356,7 +2359,9 @@ export function GestorPage() {
                 </div>
                 <ProjectWorkLocationsFields id={`project-location-${project.id}`} location={projectForm.location} additionalLocations={projectForm.additionalWorkLocations}
                   onChange={(location, additionalWorkLocations) => setProjectForm(current => ({ ...current, location, additionalWorkLocations }))} />
-                <div className="field-group">
+                <ProjectServiceCategoryFields id={project.id} category={projectForm.serviceCategory} startDate={projectForm.startDate} endDate={projectForm.endDate}
+                  onChange={patch => setProjectForm(current => ({ ...current, ...patch }))} />
+              {projectForm.serviceCategory !== 'RENTAL' ? <div className="field-group">
                   <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
                   <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={(event) => setProjectForm((current) => ({ ...current, operatorId: event.target.value }))}>
                     <option value="">Selecionar...</option>
@@ -2368,7 +2373,7 @@ export function GestorPage() {
                         </option>
                       ))}
                   </select>
-                </div>
+                </div> : null}
                 <ProjectAuthorizedUsersFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} users={internalUsersQuery.data || []} />
                 <div className="field-group">
                   <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
@@ -2550,7 +2555,9 @@ export function GestorPage() {
               </div>
               <ProjectWorkLocationsFields id="project-location" location={projectForm.location} additionalLocations={projectForm.additionalWorkLocations}
                 onChange={(location, additionalWorkLocations) => setProjectForm(current => ({ ...current, location, additionalWorkLocations }))} />
-              <div className="field-group">
+              <ProjectServiceCategoryFields id={'new-project'} category={projectForm.serviceCategory} startDate={projectForm.startDate} endDate={projectForm.endDate}
+                  onChange={patch => setProjectForm(current => ({ ...current, ...patch }))} />
+              {projectForm.serviceCategory !== 'RENTAL' ? <div className="field-group">
                 <label htmlFor="project-operator">Operador responsável</label>
                 <select id="project-operator" value={projectForm.operatorId} onChange={(event) => setProjectForm((current) => ({ ...current, operatorId: event.target.value }))}>
                   <option value="">Selecionar...</option>
@@ -2562,7 +2569,7 @@ export function GestorPage() {
                       </option>
                     ))}
                 </select>
-              </div>
+              </div> : null}
               <ProjectAuthorizedUsersFields form={projectForm} idPrefix="project" setForm={setProjectForm} users={internalUsersQuery.data || []} />
               <div className="field-group">
                 <label htmlFor="project-segment">Segmento do cliente</label>

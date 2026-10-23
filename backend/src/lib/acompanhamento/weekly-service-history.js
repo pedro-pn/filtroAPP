@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 import prisma from '../prisma.js';
 import { dateOnlyKey } from '../../../../shared/modules/mission-weekly-progress.js';
 import { isRealizedSourceReport, isServiceFinalized, loadReportServicesByProject } from './avanco.js';
@@ -13,9 +14,10 @@ export function buildWeeklyServiceHistory(services = []) {
     const date = dateOnlyKey(service.reportDate);
     const serviceType = normalizeRdoServiceType(service.serviceType);
     if (!date || !serviceType) return [];
-    const quantities = { M: 0, L: 0, UN: 0 };
+    const quantities = { M: 0, L: 0, UN: 0,
+      ...(serviceType === 'LIMPEZA_MECANICA' ? { KG: 0, T: 0 } : {}) };
     for (const measurement of service.reconciledMeasurements ?? extractServiceMeasurements(service, serviceType)) {
-      const metric = { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[measurement.systemType];
+      const metric = MECHANICAL_MEASURES[measurement.systemType]?.unit ?? { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN', MANGOTE: 'UN' }[measurement.systemType];
       if (metric && Number.isFinite(Number(measurement.quantity))) quantities[metric] += Number(measurement.quantity);
     }
     return [{ date, serviceType, quantities }];

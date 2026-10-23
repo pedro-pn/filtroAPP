@@ -23,6 +23,7 @@ function pct(value: number | null) {
 }
 
 export function ProjectTimelineCard({ data }: { data: ProjectDetail }) {
+  if (data.rentalTracking) return <Card padding="sm" className="acp-story-timeline"><h3>Período da locação</h3><p>{fmtDate(data.rentalTracking.startDate)} a {fmtDate(data.rentalTracking.endDate)}</p></Card>;
   const gap = dateGapDays(data.footer.projectedEndByPace, data.footer.expectedEndDate);
   const milestones = [
     { label: data.division ? 'Mobilização do escopo' : 'Mobilização', date: data.division ? data.division.mobilizationDate : data.footer.mobilizationDate, icon: HardHat },
@@ -50,6 +51,9 @@ export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction,
   reportsAction?: ReactNode;
   progressPanel?: ReactNode;
 }) {
+  if (data.rentalTracking) return <Card padding="sm" className="acp-story-time"><h3>Dias de locação</h3>
+    <p>{data.rentalTracking.elapsedDays ?? '—'} de {data.rentalTracking.plannedDays ?? '—'} dias corridos</p>
+    <p>{data.rentalTracking.remainingDays ?? '—'} dia(s) restante(s)</p></Card>;
   const hours = data.workedHours;
   const workedHoursPct = hours?.plannedTotalHours != null && hours.plannedTotalHours > 0
     ? hours.totalPct ?? Math.round((hours.totalWorkedHours / hours.plannedTotalHours) * 100)

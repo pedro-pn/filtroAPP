@@ -882,12 +882,12 @@ const plannedSystemSchema = z.object({
   projectSystemId: z.string().max(100).nullable().optional(),
   equipment: z.string().trim().max(180).nullable().optional(),
   systemName: z.string().trim().max(180).nullable().optional(),
-  systemType: z.enum(['TUBULACAO', 'OLEO', 'SISTEMA', 'MANGOTE']),
+  systemType: z.enum(['TUBULACAO', 'OLEO', 'SISTEMA', 'MANGOTE', 'MECANICA_M', 'MECANICA_UN', 'MECANICA_KG', 'MECANICA_T', 'MECANICA_L', 'LOCACAO']),
   description: z.string().trim().max(180).nullable().optional(),
   diameter: z.string().trim().max(40).nullable().optional(),
   diameterUnit: z.enum(['pol', 'mm']).nullable().optional(),
   quantity: z.number().nonnegative().nullable().optional(),
-  unit: z.enum(['M', 'L', 'UN']).nullable().optional()
+  unit: z.enum(['M', 'L', 'UN', 'KG', 'T', 'DIA']).nullable().optional()
 });
 
 const plannedServiceSchema = z.object({
@@ -967,7 +967,7 @@ router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAc
 router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const data = z.object({
     equipment: z.string().trim().min(1).max(180), system: z.string().trim().min(1).max(180),
-    serviceType: z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM']),
+    serviceType: z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM', 'LIMPEZA_MECANICA']),
     revision: z.number().int().positive(), remove: z.boolean().optional()
   }).parse(req.body);
   await assertHistoricalProject(prisma, req.params.projectId);

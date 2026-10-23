@@ -26,14 +26,25 @@ const SERVICE_TYPES: Array<{ value: string; label: string }> = [
   { value: 'LIMPEZA_QUIMICA', label: 'Limpeza química' },
   { value: 'TESTE_PRESSAO', label: 'Teste de pressão' },
   { value: 'FLUSHING', label: 'Flushing' },
-  { value: 'FILTRAGEM', label: 'Filtragem' }
+  { value: 'FILTRAGEM', label: 'Filtragem' },
+  { value: 'LIMPEZA_MECANICA', label: 'Limpeza mecânica' },
+  { value: 'LOCACAO', label: 'Locação de equipamentos' }
 ];
 
 const SYSTEM_LABELS: Record<PlannedSystemType, string> = {
   TUBULACAO: 'Tubulações',
   OLEO: 'Óleo',
   SISTEMA: 'Sistemas completos (unidades)',
-  MANGOTE: 'Mangueiras (unidades)'
+  MANGOTE: 'Mangueiras (unidades)',
+  MECANICA_M: 'Comprimento (m)', MECANICA_UN: 'Quantidade (un)', MECANICA_KG: 'Massa (kg)',
+  MECANICA_T: 'Massa (t)', MECANICA_L: 'Volume (L)', LOCACAO: 'Dias de locação'
+};
+const QUANTITY_LABELS: Record<PlannedSystemType, string> = {
+  ...SYSTEM_LABELS,
+  TUBULACAO: 'Comprimento (m)',
+  OLEO: 'Litros de óleo (L)',
+  SISTEMA: 'Quantidade prevista (unidades)',
+  MANGOTE: 'Quantidade de mangueiras (unidades)'
 };
 
 // Unidade única de cada sistema — escolhida para casar com o que o RDO registra como realizado:
@@ -42,9 +53,10 @@ const SYSTEM_UNIT: Record<PlannedSystemType, PlannedMeasureUnit> = {
   TUBULACAO: 'M',
   OLEO: 'L',
   SISTEMA: 'UN',
-  MANGOTE: 'UN'
+  MANGOTE: 'UN', MECANICA_M: 'M', MECANICA_UN: 'UN', MECANICA_KG: 'KG',
+  MECANICA_T: 'T', MECANICA_L: 'L', LOCACAO: 'DIA'
 };
-const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L', DIA: 'dias' };
 const DIAMETER_UNIT_LABELS: Record<PlannedDiameterUnit, string> = { pol: 'pol', mm: 'mm' };
 const COMMON_INCH_DIAMETERS = [
   '1/8',
@@ -76,7 +88,9 @@ const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
   LIMPEZA_QUIMICA: ['TUBULACAO', 'SISTEMA'],
   TESTE_PRESSAO: ['TUBULACAO', 'MANGOTE'],
   FLUSHING: ['TUBULACAO', 'OLEO'],
-  FILTRAGEM: ['OLEO']
+  FILTRAGEM: ['OLEO'],
+  LIMPEZA_MECANICA: ['MECANICA_M', 'MECANICA_UN', 'MECANICA_KG', 'MECANICA_T', 'MECANICA_L'],
+  LOCACAO: ['LOCACAO']
 };
 const ALL_SYSTEMS: PlannedSystemType[] = ['TUBULACAO', 'OLEO'];
 
@@ -355,7 +369,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       }
       names.add(name);
     }
-    if (services.some(service => service.systems.some(row => ['SISTEMA', 'MANGOTE'].includes(row.systemType) && (
+    if (services.some(service => service.systems.some(row => ['SISTEMA', 'MANGOTE', 'MECANICA_UN'].includes(row.systemType) && (
       !row.equipment.trim() || !row.systemName.trim() || !Number.isSafeInteger(toNum(row.quantity)) || (toNum(row.quantity) ?? 0) <= 0
     )))) {
       showToast('Sistemas e mangueiras por unidade exigem equipamento do cliente, nome do sistema e quantidade inteira positiva.');
@@ -679,7 +693,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       </div>
                       <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`}>
                         <div className="field-group">
-                          <label htmlFor={`scope-system-type-${sys.key}`}>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros, limpeza de sistemas completos em unidades ou teste de mangueiras em unidades." /></label>
+                          <label htmlFor={`scope-system-type-${sys.key}`}>Tipo de medição <HelpTip icon help="Selecione a medição do serviço. Na limpeza mecânica, esta escolha define a unidade disponível no relatório para o equipamento/sistema." /></label>
                           <Select id={`scope-system-type-${sys.key}`}
                             value={sys.systemType}
                             onChange={e => changeSystemType(svc.key, sys.key, e.target.value as PlannedSystemType)}
@@ -736,7 +750,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                         ) : null}
                         <div className="field-group">
                           <label htmlFor={`scope-quantity-${sys.key}`}>
-                            {isTube ? 'Comprimento (m)' : sys.systemType === 'MANGOTE' ? 'Quantidade de mangueiras (unidades)' : isUnit ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
+                            {QUANTITY_LABELS[sys.systemType]} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
                           </label>
                           <div className="num-unit">
                             <Input

@@ -2,6 +2,9 @@ import { apiClient, rdoApiPath } from './client';
 import type { ClientSigner, Project, ProjectReportSequence } from '../types/domain';
 
 export interface ProjectPayload {
+  serviceCategory?: 'SERVICE' | 'RENTAL';
+  startDate?: string | null;
+  endDate?: string | null;
   code: string;
   name: string;
   isActive?: boolean;

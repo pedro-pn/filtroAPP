@@ -2,7 +2,7 @@ import { historicalError } from '../reports/historical-services.js';
 import { normalizeRdoServiceType } from './service-types.js';
 
 export const projectSystemScopeInclude = {
-  plannedRows: { select: { systemType: true, service: { select: { serviceType: true } } } }
+  plannedRows: { select: { systemType: true, unit: true, service: { select: { serviceType: true } } } }
 };
 
 // Mantém o cadastro completo para revisar/remover aliases antigos, mas só as metas
@@ -10,7 +10,7 @@ export const projectSystemScopeInclude = {
 export function projectSystemWithMeasurements({ plannedRows = [], ...system }) {
   return { ...system, measurements: plannedRows.map(row => ({
     serviceType: normalizeRdoServiceType(row.service.serviceType) ?? row.service.serviceType,
-    systemType: row.systemType
+    systemType: row.systemType, ...(row.unit ? { unit: row.unit } : {})
   })) };
 }
 

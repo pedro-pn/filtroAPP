@@ -13,9 +13,9 @@ const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
   TESTE_PRESSAO: 'Teste de pressão',
   FLUSHING: 'Flushing',
-  FILTRAGEM: 'Filtragem'
+  LIMPEZA_MECANICA: 'Limpeza mecânica', LOCACAO: 'Locação', FILTRAGEM: 'Filtragem'
 };
-const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
+const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras', MECANICA_M: 'Comprimento', MECANICA_UN: 'Quantidade', MECANICA_KG: 'Massa', MECANICA_T: 'Massa', MECANICA_L: 'Volume', LOCACAO: 'Dias de locação' };
 const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 
 const fmtPct = (v: number | null) => (v == null ? '—' : `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`);

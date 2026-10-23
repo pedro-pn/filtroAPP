@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
-import { syncCommercialAppScope } from './commercialapp-scope.js';
+import { commercialProposalNature, syncCommercialAppScope } from './commercialapp-scope.js';
 import { commercialProposalSyncData } from '../projects/commercial-proposal-sync-state.js';
 import { CommercialAppBridgeError, commercialTransaction, lockCommercialProject, selectContribution, validateContributionParent, contributionWhere, assertPrincipalContributionCompatibility } from './commercial-contributions.js';
 export { CommercialAppBridgeError } from './commercial-contributions.js';
@@ -50,7 +50,7 @@ const payloadSchema = z.object({
     id: z.string().min(1), kind: z.enum(['COMERCIAL', 'TECNICA']),
     fileName: z.string().min(1), byteSize: z.number().int().positive().max(10_000_000),
     generationId: z.string().min(1).optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/).optional()
-  }).passthrough()).length(2).optional(),
+  }).passthrough()).min(1).max(2).optional(),
   documentsReference: z.object({ proposalCode: z.string(), revisionNumber: z.number().int().min(0) }).optional(),
   eventId: z.string().uuid(),
   source: z.literal('COMERCIAL_APP'),
@@ -82,9 +82,11 @@ const payloadSchema = z.object({
   } else if (data.proposalKind || data.parentProposalCode || data.additionalProposalId || data.contributionKey || data.budgetOperation) {
     context.addIssue({ code: 'custom', message: 'Adicionais exigem contrato 3.' });
   }
-  if (data.documents && (new Set(data.documents.map(row => row.kind)).size !== 2 ||
-      new Set(data.documents.map(row => row.id)).size !== 2)) {
-    context.addIssue({ code: 'custom', message: 'Documentos precisam pertencer aos dois tipos da revisão.' });
+  const expectedDocumentKinds = ['equipment_rental', 'equipment_sale'].includes(commercialProposalNature(data)) ? ['COMERCIAL'] : ['COMERCIAL', 'TECNICA'];
+  if (data.documents && (data.documents.length !== expectedDocumentKinds.length
+      || !expectedDocumentKinds.every(kind => data.documents.some(row => row.kind === kind))
+      || new Set(data.documents.map(row => row.id)).size !== expectedDocumentKinds.length)) {
+    context.addIssue({ code: 'custom', message: 'Documentos precisam corresponder aos tipos exigidos pela natureza da proposta.' });
   }
   if (data.documentsReference && (data.documentsReference.proposalCode !== data.proposalCode ||
       data.documentsReference.revisionNumber !== data.revisionNumber)) {
@@ -274,6 +276,7 @@ export async function storeQueriedCommercialAppProposal(tx, project, bundle) {
 
 export async function receiveCommercialAppProposal(raw) {
   const data = commercialAppPayloadSchema.parse(raw);
+  if (commercialProposalNature(data) === 'equipment_sale') throw new CommercialAppBridgeError(422, 'Venda de equipamentos não integra o acompanhamento operacional.');
   if (data.proposalKind === 'ADDITIONAL') return receiveAdditionalProposal(data, raw);
   const deliveryHash = hash(data);
   const snapshotHash = proposalSnapshotHash(data);
