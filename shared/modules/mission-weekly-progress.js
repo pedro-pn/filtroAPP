@@ -148,6 +148,81 @@ function compareAttendanceTarget({ definition, scenario, periodStartDate, period
     dailyAttendance, activeServiceTypes, scenarioName: scenario.name, status };
 }
 
+// O backend divide as horas de cada dia pela jornada do projeto naquele dia
+// (dias úteis, fim de semana e feriados). Sem esse dado, vale a jornada da meta.
+function productivePersonDays(points) {
+  if (!points.length || !points.every(point => typeof point.productivePersonDays === 'number' && Number.isFinite(point.productivePersonDays))) return null;
+  return Math.round(points.reduce((sum, point) => sum + point.productivePersonDays, 0) * 10000) / 10000;
+}
+
+export const isWeeklyTargetGoalList = definition => definition?.version === 2 && Array.isArray(definition.goals);
+export const weeklyTargetGoalKind = goal => goal.kind ?? (goal.metric === 'COLLABORATORS' ? 'ATTENDANCE' : goal.metric === 'PCT_POINTS' ? 'PROGRESS' : 'SERVICE');
+
+const emptyGoalBase = { personDays: null, productiveHours: null, productivityIssues: [], actualRate: null };
+
+// Metas em lista: cada linha é avaliada sozinha e a regra E/OU decide a semana.
+// Um serviço que não apareceu nos RDOs conta 0 (não cumprido); sem nenhum RDO
+// no período, a semana fica sem avaliação.
+function compareGoalList({ definition, activeServiceTypes, periodStartDate, periodEndDate, today, actualPctPoints, servicePoints, attendancePoints, previousAttendance }) {
+  const started = periodStartDate <= today;
+  const weekPoints = servicePoints.filter(point => point.date >= periodStartDate && point.date <= periodEndDate);
+  const hasRdo = weekPoints.length > 0 || attendancePoints.some(point => point.date >= periodStartDate && point.date <= periodEndDate);
+  let attendance = null;
+  const goals = definition.goals.map(goal => {
+    const kind = weeklyTargetGoalKind(goal);
+    if (kind === 'PROGRESS') {
+      const actualValue = started ? actualPctPoints : null;
+      return { ...emptyGoalBase, kind, serviceType: null, value: goal.value, metric: 'PCT_POINTS', basis: 'WEEK_TOTAL', plannedValue: goal.value,
+        actualValue, differenceValue: actualValue == null ? null : round(actualValue - goal.value),
+        outcome: !started ? 'PLANNED' : actualValue == null ? 'NO_DATA' : actualValue >= goal.value ? 'MET' : 'BELOW' };
+    }
+    if (kind === 'ATTENDANCE') {
+      const scenario = { name: 'Equipe mínima', metric: 'COLLABORATORS', basis: 'PER_WORKDAY', workdays: goal.workdays, condition: { kind: 'ALWAYS' }, goals: [{ serviceType: null, value: goal.value }] };
+      attendance = compareAttendanceTarget({ definition: { scenarios: [scenario] }, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, attendancePoints, previousAttendance });
+      return { ...attendance.goals[0], kind, workdays: goal.workdays, basis: 'PER_WORKDAY',
+        outcome: { ON_TARGET: 'MET', BELOW: 'BELOW', NO_DATA: 'NO_DATA', PLANNED: 'PLANNED' }[attendance.status] };
+    }
+    const metric = goal.serviceType === 'FILTRAGEM' ? 'L' : goal.metric;
+    const selected = weekPoints.filter(point => point.serviceType === goal.serviceType);
+    const actualValue = started ? round(selected.reduce((sum, point) => sum + Number(point.quantities?.[metric] ?? 0), 0)) : null;
+    const base = { ...emptyGoalBase, kind, serviceType: goal.serviceType, value: goal.value, metric, basis: goal.basis, actualValue, executed: selected.length > 0 };
+    const result = (plannedValue, outcome, extra = {}) => ({ ...base, ...extra, plannedValue, outcome,
+      differenceValue: plannedValue == null || actualValue == null ? null : round(actualValue - plannedValue) });
+    if (!started) return result(goal.basis === 'WEEK_TOTAL' ? goal.value : null, 'PLANNED');
+    if (!hasRdo) return result(goal.basis === 'WEEK_TOTAL' ? goal.value : null, 'NO_DATA');
+    if (goal.basis !== 'PER_PRODUCTIVE_DAY') return result(goal.value, actualValue >= goal.value ? 'MET' : 'BELOW');
+    if (!selected.length) return result(null, 'BELOW', { personDays: 0 });
+    const productivePoints = selected.filter(point => typeof point.productivePersonMinutes === 'number' && Number.isFinite(point.productivePersonMinutes));
+    const productiveHours = productivePoints.reduce((sum, point) => sum + point.productivePersonMinutes / 60, 0);
+    const personDays = productivePersonDays(productivePoints) ?? productiveHours / 8;
+    const productivityIssues = [...new Set(productivePoints.flatMap(point => point.productivityIssues ?? []))];
+    if (!productivePoints.length || selected.some(point => point.productivePersonMinutes == null
+      && !productivePoints.some(other => other.date === point.date))) productivityIssues.push('MISSING_RDO_BASE');
+    if (!(personDays > 0)) productivityIssues.push('NO_PRODUCTIVE_TIME');
+    const extra = { personDays, productiveHours, productivityIssues,
+      actualRate: personDays > 0 && !productivityIssues.length ? round(actualValue / personDays) : null };
+    if (productivityIssues.length) return result(null, 'NO_DATA', extra);
+    const plannedValue = round(goal.value * personDays);
+    return result(plannedValue, actualValue >= plannedValue ? 'MET' : 'BELOW', extra);
+  });
+  const logic = definition.logic === 'ANY' ? 'ANY' : 'ALL';
+  const count = outcome => goals.filter(goal => goal.outcome === outcome).length;
+  const met = count('MET'), below = count('BELOW'), noData = count('NO_DATA');
+  const reached = () => goals.some(goal => goal.outcome === 'MET' && goal.differenceValue > 0) ? 'ABOVE' : 'ON_TARGET';
+  const status = !started ? 'PLANNED'
+    : logic === 'ANY' ? met ? reached() : noData ? 'NO_DATA' : 'BELOW'
+      : met === goals.length ? reached() : noData && !below ? 'NO_DATA' : met ? 'PARTIAL' : 'BELOW';
+  const goalPct = goal => goal.plannedValue > 0 ? goal.actualValue / goal.plannedValue * 100
+    : goal.plannedValue === 0 ? 100 : goal.outcome === 'BELOW' ? 0 : null;
+  const percents = goals.map(goal => goal.actualValue == null ? null : goalPct(goal)).filter(value => value != null);
+  const achievementPct = !started || !percents.length ? null : Math.max(0, logic === 'ANY' ? Math.max(...percents) : Math.min(...percents));
+  const single = goals.length === 1 ? goals[0] : null;
+  return { metric: single?.metric ?? goals[0].metric, mixedUnits: !single, basis: single?.basis ?? 'WEEK_TOTAL', logic,
+    plannedValue: single?.plannedValue ?? null, actualValue: single?.actualValue ?? null, differenceValue: single?.differenceValue ?? null,
+    achievementPct, goals, activeServiceTypes, scenarioName: null, status,
+    dailyAttendance: attendance?.dailyAttendance ?? [], cumulativeAttendance: attendance?.cumulativeAttendance ?? null };
+}
+
 function compareTarget({ definition, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, actualPctPoints, servicePoints }) {
   const { metric, basis, referenceDayHours } = weeklyTargetScenarioSettings(definition, scenario);
   const weekPoints = servicePoints.filter(point => point.date >= periodStartDate && point.date <= periodEndDate);
@@ -158,7 +233,7 @@ function compareTarget({ definition, scenario, activeServiceTypes, periodStartDa
     const selected = weekPoints.filter(point => !goal.serviceType || point.serviceType === goal.serviceType);
     const productivePoints = selected.filter(point => typeof point.productivePersonMinutes === 'number' && Number.isFinite(point.productivePersonMinutes));
     const productiveHours = basis === 'PER_PRODUCTIVE_DAY' ? productivePoints.reduce((sum, point) => sum + point.productivePersonMinutes / 60, 0) : null;
-    const personDays = productiveHours == null ? null : productiveHours / (referenceDayHours ?? 8);
+    const personDays = productiveHours == null ? null : productivePersonDays(productivePoints) ?? productiveHours / (referenceDayHours ?? 8);
     const productivityIssues = basis === 'PER_PRODUCTIVE_DAY' ? [...new Set(productivePoints.flatMap(point => point.productivityIssues ?? []))] : [];
     if (basis === 'PER_PRODUCTIVE_DAY' && (!productivePoints.length || selected.some(point => point.productivePersonMinutes == null
       && !productivePoints.some(base => base.date === point.date && base.serviceType === point.serviceType)))) productivityIssues.push('MISSING_RDO_BASE');
@@ -239,8 +314,11 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
     const actualPctPoints = periodStartDate > today || !points.length ? null
       : round(progressAt(periodEndDate) - progressAt(addDays(periodStartDate, -1)));
     const activeServiceTypes = [...new Set(servicePoints.filter(point => point.date >= periodStartDate && point.date <= periodEndDate).map(point => point.serviceType))].sort();
-    const scenario = definition ? selectScenario(definition, activeServiceTypes) : null;
-    const comparison = !target ? null : scenario && weeklyTargetScenarioSettings(definition, scenario).metric === 'COLLABORATORS'
+    const goalList = isWeeklyTargetGoalList(definition);
+    const scenario = definition && !goalList ? selectScenario(definition, activeServiceTypes) : null;
+    const comparison = !target ? null : goalList
+      ? compareGoalList({ definition, activeServiceTypes, periodStartDate, periodEndDate, today, actualPctPoints, servicePoints, attendancePoints, previousAttendance: accumulatedAttendance })
+      : scenario && weeklyTargetScenarioSettings(definition, scenario).metric === 'COLLABORATORS'
       ? compareAttendanceTarget({ definition, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, attendancePoints, previousAttendance: accumulatedAttendance })
       : compareTarget({ definition, scenario, activeServiceTypes, periodStartDate, periodEndDate, today, actualPctPoints, servicePoints });
     if (comparison?.cumulativeAttendance) accumulatedAttendance = comparison.cumulativeAttendance;
@@ -248,7 +326,7 @@ export function buildWeeklyProgressComparison({ targets = [], progressHistory = 
     const differencePctPoints = plannedPctPoints != null && actualPctPoints != null ? round(actualPctPoints - plannedPctPoints) : null;
     return { weekStartDate: week, weekEndDate, periodStartDate, periodEndDate, plannedPctPoints, actualPctPoints, differencePctPoints,
       metric: 'PCT_POINTS', mixedUnits: false, basis: 'WEEK_TOTAL', plannedValue: null, actualValue: actualPctPoints, differenceValue: null, achievementPct: null,
-      goals: [], dailyAttendance: [], cumulativeAttendance: null, activeServiceTypes: [], scenarioName: null, ...comparison,
+      goals: [], dailyAttendance: [], cumulativeAttendance: null, activeServiceTypes: [], scenarioName: null, logic: 'ALL', ...comparison,
       status: comparison?.status ?? 'NO_TARGET', inProgress: periodStartDate <= today && today <= periodEndDate, target };
   }).reverse();
 }

@@ -1,5 +1,5 @@
 import { computeProgressHistoryForProjects } from '../../acompanhamento/avanco.js';
-import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetError, weeklyTargetReferenceDayHours } from '../../acompanhamento/weekly-progress-targets.js';
+import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetError, weeklyTargetJourney, weeklyTargetsNeedAttendance } from '../../acompanhamento/weekly-progress-targets.js';
 import { loadWeeklyServiceHistory } from '../../acompanhamento/weekly-service-history.js';
 import { loadWeeklyAttendanceHistory } from '../../acompanhamento/weekly-attendance-history.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
@@ -17,16 +17,16 @@ async function missionOwner(client, missionId) {
 export async function getMissionWeeklyProgressTargets(missionId, dependencies = {}) {
   const client = await resolvePlanningDatabase(dependencies.database);
   const owner = await missionOwner(client, missionId);
-  const [targets, histories, defaultReferenceDayHours] = await Promise.all([
+  const [targets, histories, journey] = await Promise.all([
     listWeeklyProgressTargets(owner, { client }),
     (dependencies.loadHistory ?? computeProgressHistoryForProjects)([owner.projectId], { daily: true }),
-    weeklyTargetReferenceDayHours(owner, { client })
+    weeklyTargetJourney(owner, { client })
   ]);
   const serviceHistory = dependencies.includeServices
     ? await (dependencies.loadServices ?? loadWeeklyServiceHistory)(owner, { client }) : undefined;
-  const attendanceHistory = dependencies.includeServices && targets.some(target => target.definition?.metric === 'COLLABORATORS')
+  const attendanceHistory = dependencies.includeServices && weeklyTargetsNeedAttendance(targets)
     ? await (dependencies.loadAttendance ?? loadWeeklyAttendanceHistory)(owner, { client }) : undefined;
-  return { targets, defaultReferenceDayHours, progressHistory: histories.get(owner.projectId) ?? [], ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) };
+  return { targets, journey, progressHistory: histories.get(owner.projectId) ?? [], ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) };
 }
 
 export async function saveMissionWeeklyProgressTarget(missionId, payload, context = {}, dependencies = {}) {

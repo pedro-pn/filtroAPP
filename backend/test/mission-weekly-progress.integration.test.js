@@ -53,4 +53,12 @@ test('PostgreSQL: metas físicas, exclusão, recriação e gravações concorren
     { definition: input.definition, plannedPctPoints: 10 }
   ]) await assert.rejects(prisma.missionWeeklyProgressTarget.create({ data: { ...raw, revision: 5, ...invalid } }));
   assert.equal((await listWeeklyProgressTargets(owner)).length, 4);
+  // Metas em lista (E/OU) usam a mesma coluna JSON e a mesma revisão.
+  const goalList = { version: 2, logic: 'ANY', countingStartDay: 5, countingEndDay: 4, repeatWeekly: true, goals: [
+    { kind: 'SERVICE', serviceType: 'LIMPEZA_QUIMICA', metric: 'M', basis: 'PER_PRODUCTIVE_DAY', value: 30 },
+    { kind: 'SERVICE', serviceType: 'FILTRAGEM', metric: 'L', basis: 'WEEK_TOTAL', value: 1000 }] };
+  const listSaved = await saveWeeklyProgressTarget(owner, { weekStartDate: input.weekStartDate, expectedRevision: 4, definition: goalList }, actor);
+  assert.equal(listSaved.revision, 5);
+  assert.deepEqual(listSaved.definition, goalList);
+  assert.equal((await saveWeeklyProgressTarget(owner, { weekStartDate: input.weekStartDate, expectedRevision: 5, definition: goalList }, actor)).revision, 5);
 });

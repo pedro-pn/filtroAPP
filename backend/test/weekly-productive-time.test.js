@@ -76,8 +76,27 @@ test('loader restringe projetos e fontes e consulta somente a equipe noturna nec
       assert.deepEqual(where, { projectId: { in: ['p1', 'p2'] }, reportType: 'RDO', deletedAt: null });
       return [report({ specialConditions: { noturnoDetails: { collaboratorIds: ['n1', 'n1'] } } })];
     } },
-    collaborator: { findMany: async ({ where }) => { assert.deepEqual(where, { id: { in: ['n1'] } }); return []; } }
+    collaborator: { findMany: async ({ where }) => { assert.deepEqual(where, { id: { in: ['n1'] } }); return []; } },
+    project: { findMany: async ({ where }) => {
+      assert.deepEqual(where, { id: { in: ['p1', 'p2'] }, deletedAt: null });
+      return [{ id: 'p1', workdayHours: '08:00', weekendWorkdayHours: '08:00' }, { id: 'p2', workdayHours: '06:00', weekendWorkdayHours: '06:00' }];
+    } }
   };
   const history = await loadWeeklyProductiveHistory(['p1', 'p2'], client);
   assert.equal(history[0].productivePersonMinutes, 480);
+  assert.equal(history[0].productivePersonDays, 1);
+});
+
+test('colaboradores-dia usam a jornada padrão de segunda a quinta e a de fim de semana na sexta, no fim de semana e em feriados', () => {
+  const journey = { weekdayMinutes: 540, weekendMinutes: 480 };
+  const nineHours = date => report({ reportDate: date, departureTime: '17:00', services: [service('Limpeza química', ['c1', 'c2'], '08:00', '17:00')] });
+  const eightHours = date => report({ reportDate: date, services: [service('Limpeza química', ['c1', 'c2', 'c3'].slice(0, 2), '08:00', '16:00')] });
+  const history = buildWeeklyProductiveHistory([nineHours('2026-10-01'), eightHours('2026-10-02'), eightHours('2026-10-03'), eightHours('2026-10-12')], [], { journey });
+  assert.deepEqual(history.map(point => [point.date, point.productivePersonDays]),
+    [['2026-10-01', 2], ['2026-10-02', 2], ['2026-10-03', 2], ['2026-10-12', 1.7778]]);
+  // 12/10 é feriado nacional: com o calendário, a segunda usa a jornada de fim de semana.
+  const holidays = { holidayDates: new Set(['2026-10-12']) };
+  assert.equal(buildWeeklyProductiveHistory([eightHours('2026-10-12')], [], { journey, holidays })[0].productivePersonDays, 2);
+  assert.equal(buildWeeklyProductiveHistory([eightHours('2026-10-13')], [], { journey })[0].productivePersonDays, 1.7778);
+  assert.equal(buildWeeklyProductiveHistory([eightHours('2026-10-13')])[0].productivePersonDays, undefined);
 });

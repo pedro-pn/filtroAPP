@@ -1,4 +1,4 @@
-import { PROJECT_EXECUTION_WEEKLY_CHECKS } from '../../../../../shared/schemas/project-execution.js';
+import { PROJECT_EXECUTION_WEEKLY_CHECKS, PROJECT_EXECUTION_WEEKLY_CHECKS_ADDED_LATER } from '../../../../../shared/schemas/project-execution.js';
 
 const CHECK_KEYS = PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => item.key);
 const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -37,6 +37,12 @@ export function reviewStartDate(mission, tracking, workflowCreatedAt, legacyStar
   return [missionStart, workflowStart].filter(Boolean).sort().at(-1) || null;
 }
 
+// Uma verificação concluída antes de um item novo (ausente nos itens gravados) segue concluída.
+export function isWeeklyReviewComplete(row) {
+  return Boolean(row?.completedAt) && CHECK_KEYS.every(key => row.checks?.[key] === true
+    || (PROJECT_EXECUTION_WEEKLY_CHECKS_ADDED_LATER.includes(key) && !Object.hasOwn(row.checks ?? {}, key)));
+}
+
 export function normalizeWeeklyChecks(checks) {
   return Object.fromEntries(CHECK_KEYS.map(key => [key, checks?.[key] === true]));
 }
@@ -66,12 +72,12 @@ export function buildProjectExecutionWeeklyReview({ stage = null, startDate = nu
       const weekStartDate = addDays(due, -3);
       const row = rowByWeek.get(weekStartDate);
       const summary = weeklyReviewSummary(row, weekStartDate);
-      if (row?.completedAt && summary.checkedCount === CHECK_KEYS.length) continue;
+      if (isWeeklyReviewComplete(row)) continue;
       pending.push(summary);
     }
   }
   const recentCompleted = rows
-    .filter(row => row.completedAt && CHECK_KEYS.every(key => row.checks?.[key] === true))
+    .filter(isWeeklyReviewComplete)
     .sort((left, right) => String(dateKey(right.weekStartDate)).localeCompare(String(dateKey(left.weekStartDate))))
     .slice(0, 5)
     .map(row => weeklyReviewSummary(row, dateKey(row.weekStartDate)));

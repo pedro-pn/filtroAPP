@@ -29,8 +29,13 @@ export const PROJECT_EXECUTION_WEEKLY_CHECKS = [
   { key: 'DIFFICULTIES', label: 'Registrar as dificuldades e restrições identificadas durante a semana.' },
   { key: 'DEVIATIONS_INCIDENTS', label: 'Confirmar a ocorrência ou ausência de desvios e incidentes e as providências adotadas.' },
   { key: 'REPORT_DELIVERY', label: 'Verificar se os RDOs e demais relatórios estão atualizados e dentro do prazo.' },
-  { key: 'REPORT_SIGNATURES', label: 'Conferir a situação das assinaturas dos relatórios emitidos.' }
+  { key: 'REPORT_SIGNATURES', label: 'Conferir a situação das assinaturas dos relatórios emitidos.' },
+  { key: 'WEEKLY_TARGET', label: 'Conferir a meta semanal: confirmar se ela continua adequada ou se precisa ser atualizada.' }
 ];
+
+// Itens incluídos depois que algumas semanas já tinham sido concluídas: uma
+// verificação concluída antes deles continua concluída.
+export const PROJECT_EXECUTION_WEEKLY_CHECKS_ADDED_LATER = ['WEEKLY_TARGET'];
 
 function dateOnlySchema(z) {
   return z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.').refine(value => {

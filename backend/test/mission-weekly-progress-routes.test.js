@@ -34,6 +34,8 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   stub(prisma.projectPlannedService, 'findMany', async () => []);
   stub(prisma.project, 'findMany', async () => [{ id: 'p1', workdayHours: '09:30', weekendWorkdayHours: '04:00' }]);
   stub(prisma.projectManualProgressHistory, 'findMany', async () => []);
+  stub(prisma.workforceHoliday, 'findMany', async () => []);
+  stub(prisma.workforceCalendarState, 'findUnique', async () => null);
   stub(prisma.historicalServiceReport, 'findMany', async () => []);
   stub(prisma.projectRealizedCorrection, 'findMany', async () => []);
   stub(prisma.reportService, 'findMany', async () => [{
@@ -75,7 +77,8 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   assert.equal(edited.status, 200);
   assert.equal(edited.data.revision, 2);
   const listed = await request('GET', projectPath);
-  assert.equal(listed.data.defaultReferenceDayHours, 9.5);
+  assert.equal(listed.data.journey.weekdayHours, '09:30');
+  assert.equal(listed.data.journey.weekendHours, '04:00');
   assert.deepEqual(listed.data.targets.map(row => row.plannedPctPoints), [10, 15]);
   assert.equal((await request('PUT', projectPath, payload)).status, 409);
   assert.equal((await request('PUT', missionPath, { ...payload, plannedPctPoints: -1 })).status, 400);
@@ -91,20 +94,21 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   assert.equal(flexible.data.plannedPctPoints, null);
   assert.deepEqual(flexible.data.definition, rate);
   const physical = await request('GET', `${projectPath}?services=true`);
-  assert.deepEqual(physical.data.serviceHistory, [{ date: '2026-09-28', serviceType: 'FILTRAGEM', quantities: { M: 0, L: 12000, UN: 0 } }, { date: '2026-09-28', serviceType: 'FILTRAGEM', quantities: { M: 0, L: 0, UN: 0 }, productivePersonMinutes: 480, productivityIssues: [] }]);
+  assert.deepEqual(physical.data.serviceHistory, [{ date: '2026-09-28', serviceType: 'FILTRAGEM', quantities: { M: 0, L: 12000, UN: 0 } }, { date: '2026-09-28', serviceType: 'FILTRAGEM', quantities: { M: 0, L: 0, UN: 0 }, productivePersonMinutes: 480, productivityIssues: [], productivePersonDays: 0.8421 }]);
   const mission = await request('GET', `${missionPath}?services=true`);
-  assert.equal(mission.data.defaultReferenceDayHours, 9.5);
+  assert.equal(mission.data.journey.weekdayHours, '09:30');
   assert.equal(mission.status, 200);
   assert.deepEqual(mission.data.serviceHistory, physical.data.serviceHistory);
   assert.deepEqual(mission.data.targets, physical.data.targets);
   const grouped = await request('GET', `${groupPath}?services=true`);
-  assert.equal(grouped.data.defaultReferenceDayHours, 9.5);
+  assert.equal(grouped.data.journey.weekdayHours, '09:30');
   assert.deepEqual(grouped.data.serviceHistory, physical.data.serviceHistory);
   const compare = data => buildWeeklyProgressComparison({ ...data, today: '2026-10-02' }).find(row => row.weekStartDate === payload.weekStartDate);
-  assert.equal(compare(physical.data).plannedValue, 1000);
+  // A jornada do projeto (09:30 de segunda a quinta) substitui a jornada salva na meta: 8 h = 0,8421 dia.
+  assert.equal(compare(physical.data).plannedValue, 842.1);
   productiveEndTime = '12:00';
   const updatedRdo = await request('GET', `${projectPath}?services=true`);
-  assert.equal(compare(updatedRdo.data).plannedValue, 500);
+  assert.equal(compare(updatedRdo.data).plannedValue, 421.1);
   assert.deepEqual(updatedRdo.data.targets, physical.data.targets);
   assert.equal((await request('PUT', projectPath, { weekStartDate: payload.weekStartDate, definition: { ...rate, scenarios: [] }, expectedRevision: 3 })).status, 400);
 

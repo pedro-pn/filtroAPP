@@ -12,6 +12,7 @@ import {
   updateProjectExecutionDeviation,
   updateProjectExecutionReportTargets
 } from '../src/lib/efetivo/project-workflow/execution-dashboard.js';
+import { isWeeklyReviewComplete } from '../src/lib/efetivo/project-workflow/weekly-review.js';
 
 function fakeDatabase() {
   const state = {
@@ -76,7 +77,7 @@ const planner = { actorUserId: 'planner-1', user: { id: 'planner-1', accountType
 const viewer = { actorUserId: 'viewer-1', user: { id: 'viewer-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
 const tracking = async () => ({ diasCorridos: { elapsed: 1, planned: 10, pct: 10 }, avancoPct: 5, footer: {} });
 const noDeviations = async () => [];
-const emptyWeeklyChecks = () => Object.fromEntries(['PROGRESS', 'SERVICE_FRONTS', 'DIFFICULTIES', 'DEVIATIONS_INCIDENTS', 'REPORT_DELIVERY', 'REPORT_SIGNATURES'].map(key => [key, false]));
+const emptyWeeklyChecks = () => Object.fromEntries(['PROGRESS', 'SERVICE_FRONTS', 'DIFFICULTIES', 'DEVIATIONS_INCIDENTS', 'REPORT_DELIVERY', 'REPORT_SIGNATURES', 'WEEKLY_TARGET'].map(key => [key, false]));
 
 test('contratos rejeitam metas e desvios incompletos', () => {
   const schemas = makeProjectExecutionSchemas(z);
@@ -264,4 +265,20 @@ test('alteração de status fica restrita à etapa de execução e ao responsáv
   });
   assert.equal(result.status, 'EM_ACAO');
   assert.equal(state.events.at(-1).action, 'WORKFLOW_EXECUTION_DEVIATION_STATUS');
+});
+
+test('conferência da meta semanal entra no checklist sem reabrir semanas concluídas antes dela', () => {
+  const legacyChecks = Object.fromEntries(['PROGRESS', 'SERVICE_FRONTS', 'DIFFICULTIES', 'DEVIATIONS_INCIDENTS', 'REPORT_DELIVERY', 'REPORT_SIGNATURES'].map(key => [key, true]));
+  const rows = [
+    { weekStartDate: new Date('2026-09-07T00:00:00Z'), checks: legacyChecks, completedAt: new Date('2026-09-10T12:00:00Z') },
+    { weekStartDate: new Date('2026-09-14T00:00:00Z'), checks: { ...legacyChecks, WEEKLY_TARGET: false }, completedAt: null },
+    { weekStartDate: new Date('2026-09-21T00:00:00Z'), checks: { ...legacyChecks, WEEKLY_TARGET: true }, completedAt: new Date('2026-09-24T12:00:00Z') }
+  ];
+  const review = buildProjectExecutionWeeklyReview({ stage: 'EXECUTION', startDate: '2026-09-07', rows, now: new Date('2026-09-25T12:00:00Z'), canVerify: true });
+  assert.deepEqual(review.pending.map(week => week.weekStartDate), ['2026-09-14']);
+  assert.equal(review.pending[0].checks.WEEKLY_TARGET, false);
+  assert.equal(review.pending[0].checkedCount, 6);
+  assert.deepEqual(review.recentCompleted.map(week => week.weekStartDate), ['2026-09-21', '2026-09-07']);
+  assert.equal(isWeeklyReviewComplete({ completedAt: new Date(), checks: { ...legacyChecks, WEEKLY_TARGET: false } }), false);
+  assert.equal(isWeeklyReviewComplete({ completedAt: null, checks: legacyChecks }), false);
 });

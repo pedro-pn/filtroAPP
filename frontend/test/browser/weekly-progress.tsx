@@ -5,11 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { apiClient } from '../../src/api/client';
 import { MissionWeeklyProgressPanel } from '../../src/components/projects/MissionWeeklyProgressPanel';
-import { MissionWeeklyProgressSummaryCard } from '../../src/components/projects/MissionWeeklyProgressSummaryCard';
-import { Card } from '../../src/components/ui/ds';
-import { AppIcon } from '../../src/components/icons/AppIcon';
-import { CalendarClock, ClipboardList, Gauge, UsersRound } from 'lucide-react';
-import '../../src/components/projects/ProjectDetailOverview.css';
+import { WeeklyTargetSpotlight } from '../../src/components/projects/WeeklyTargetSpotlight';
 import { corporateToday, weekStartKey, type WeeklyProgressTarget } from '../../../shared/modules/mission-weekly-progress.js';
 import '../../src/styles/variables.css';
 import '../../src/styles/base.css';
@@ -18,8 +14,10 @@ const week = weekStartKey(corporateToday())!;
 const attendanceFixture = new URLSearchParams(window.location.search).get('attendance') === 'true';
 const shift = (days: number) => new Date(new Date(`${week}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const history = [{ date: shift(-7), progressPct: 30 }, { date: week, progressPct: 40 }];
-const weekdayParts = (new URLSearchParams(window.location.search).get('workdayHours') ?? '08:00').split(':').map(Number);
-const defaultReferenceDayHours = weekdayParts[0] + weekdayParts[1] / 60;
+const workdayHours = new URLSearchParams(window.location.search).get('workdayHours') ?? '08:00';
+const [hours, minutes] = workdayHours.split(':').map(Number);
+const journeyMinutes = hours * 60 + minutes;
+const journey = { weekdayHours: workdayHours, weekendHours: '08:00', workdays: [1, 2, 3, 4, 5], divergentMembers: null };
 const serviceHistory = [
   { date: week, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: 150, L: 0, UN: 3 } },
   { date: week, serviceType: 'TESTE_PRESSAO', quantities: { M: 50, L: 0, UN: 0 } },
@@ -50,11 +48,12 @@ apiClient.defaults.adapter = async config => {
   }
   const production = serviceMode === 'oil' ? serviceHistory.slice(2) : serviceMode === 'single' ? serviceHistory.slice(0, 1) : serviceHistory.slice(0, 2);
   const productivity = missingBase ? [] : production.map(point => ({ date: point.date, serviceType: point.serviceType, quantities: { M: 0, L: 0, UN: 0 },
-    productivePersonMinutes: (point.serviceType === 'FILTRAGEM' ? 10 : serviceMode === 'single' ? 15 : point.serviceType === 'LIMPEZA_QUIMICA' ? 9 : 6) * 480 * productiveMultiplier, productivityIssues: [] }));
+    productivePersonMinutes: (point.serviceType === 'FILTRAGEM' ? 10 : serviceMode === 'single' ? 15 : point.serviceType === 'LIMPEZA_QUIMICA' ? 9 : 6) * 480 * productiveMultiplier, productivityIssues: [] }))
+    .map(point => ({ ...point, productivePersonDays: Math.round(point.productivePersonMinutes / journeyMinutes * 10000) / 10000 }));
   const crew = (count: number) => Array.from({ length: count }, (_, index) => `c${index}`);
   const attendanceHistory = presenceMode === 'surplus' ? [{ date: week, collaboratorIds: crew(8) }]
     : presenceMode === 'missing' ? [] : [{ date: week, collaboratorIds: crew(8) }, { date: shift(1), collaboratorIds: crew(presenceMode === 'balanced' ? 4 : 2) }];
-  return response({ targets: stored.slice(), defaultReferenceDayHours, progressHistory: history, serviceHistory: [...production, ...productivity], attendanceHistory });
+  return response({ targets: stored.slice(), journey, progressHistory: history, serviceHistory: [...production, ...productivity], attendanceHistory });
 };
 
 function Fixture() {
@@ -75,13 +74,8 @@ function Fixture() {
     <button onClick={() => { presenceMode = 'deficit'; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Registrar dois colaboradores no segundo dia</button>
     <button onClick={() => { presenceMode = 'missing'; void queryClient.invalidateQueries({ queryKey: ['mission-weekly-targets'] }); }}>Remover RDOs de presença</button></> : null}
     <p>Área atual: {area}</p>
-    <div className="fv-ds acp-overview"><div className="acp-overview-kpis">
-      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={Gauge} /></div><span>Ritmo necessário</span><strong>12 m/semana</strong><small>Escopo total</small></Card>
-      <MissionWeeklyProgressSummaryCard key={area} owner={area === 'efetivo' ? { area, missionId: 'm1' } : { area, projectId: 'p1' }} progressHistory={area === 'efetivo' ? undefined : history} />
-      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={ClipboardList} /></div><span>Último RDO</span><strong>28/09/2026</strong><small>Último lançamento</small></Card>
-      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={UsersRound} /></div><span>Equipe</span><strong>5</strong><small>colaboradores</small></Card>
-      <Card padding="sm" className="acp-overview-kpi"><div className="acp-overview-kpi-icon"><AppIcon icon={CalendarClock} /></div><span>Previsão pelo ritmo</span><strong>14/10/2026</strong><small>Avanço acumulado</small></Card>
-    </div></div>
+    <div className="fv-ds"><WeeklyTargetSpotlight key={area} owner={area === 'efetivo' ? { area, missionId: 'm1' } : { area, projectId: 'p1' }}
+      progressHistory={area === 'efetivo' ? undefined : history} canManage={canManage} onOpenHistory={() => {}} /></div>
     <MissionWeeklyProgressPanel key={area} owner={area === 'efetivo' ? { area, missionId: 'm1' } : { area, projectId: 'p1' }} progressHistory={area === 'efetivo' ? undefined : history} canManage={canManage} />
   </main>;
 }

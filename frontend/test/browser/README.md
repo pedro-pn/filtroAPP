@@ -125,68 +125,43 @@ HTTP responses. It deliberately ignores transport cancellation to also test the
 hook's stale-response guard. No backend or credentials are needed.
 
 For weekly progress targets, open `/test/browser/weekly-progress.html`. This fixture
-uses the production panel with a simulated API shared by Acompanhamento and Efetivo.
-The first two fields configure the counting interval, with inclusive start/end days.
-Existing targets default to Monday–Sunday; Wednesday–Tuesday crosses the calendar week.
-Run `npx playwright test --config=playwright.operational-visual.config.ts weekly-target-period.spec.ts`
-to verify persistence, excluded dates, the active period across weeks and mobile layout.
-Check creating and editing targets, revision history, switching areas, read-only
-access, and the simulated concurrent-edit error. Run `playwright-cli run-code
---filename frontend/test/browser/weekly-progress.js` in that session for the full
-regression, including the mobile layout. No database records are changed.
+uses the production card ("Meta da semana"), history panel and target dialog with a
+simulated API shared by Acompanhamento and Efetivo. No database records are changed.
 
-The flexible targets support weekly totals in metres, litres and system units,
-or a rate per productive collaborator/day. The target stores the rate and a
-reference day in hours, initially filled from the project's weekday workday
-(never the weekend workday) and still editable. Saved overrides are preserved
-when reopening a target. Crew and productive time come from each RDO
-service: 120 person-hours / 8 × 42 m = 630 m; 80 person-hours / 8 × 1,000 L =
-10,000 L. Partial days and varying crews are supported. Intervals and stand-by
-cap available shift time; any necessary deduction is proportional across service
-intervals. Repeated intervals are deduplicated across reports and group members.
-Conflicting service assignments or incomplete RDO data leave the comparison
-unevaluated. Updating or deleting an RDO invalidates both areas' weekly comparisons
-without creating a target revision. Scenarios include ongoing RDO service types,
-while actual quantities continue to use finalized services, in this order:
-exact combination, service count, general rule. A per-service shortfall is never
-offset by another service's surplus. Previous versions retain their original
-rates and reference days.
+The card opens on the last closed counting period (the one reviewed in the Friday
+meeting) and switches to the current one. The dialog has one line per goal: what to
+measure (a service, project progress in p.p. or a minimum crew per day), the amount
+and how it counts ("por colaborador por dia" or "no total da semana"), plus a sentence
+describing the goal. With two or more goals, "Todas" (AND) or "Pelo menos uma" (OR)
+decides the week; AND with only some goals met is "Meta parcial". A service goal
+without any RDO of that service in the period counts 0; a period with no RDO at all
+stays unevaluated. New targets count Friday to Thursday ("Alterar dias" changes it)
+and start in the period that contains today (or the clicked history week).
 
-Filtering goals use litres even when the general metric is metres. Scenarios
-with cleaning and filtering show each service's own unit and do not sum metres
-and litres. Their completion percentage remains the lowest service achievement.
-
-Changing the date inside an open target editor preserves the complete draft,
-including unsaved scenarios, values and reference hours. Opening a different
-week with its edit/define button loads that week's saved configuration. Saving
-uses the latest loaded revision of the destination week, retaining its history.
+Per-collaborator goals divide each collaborator's productive hours in the RDO by the
+project's workday for that date, as in the reports' overtime rule: weekday workday
+Monday to Thursday; weekend workday on Friday, weekends and holidays. Groups with
+different workdays use the largest one and the dialog shows a warning. Example:
+20 m per collaborator with 3, 2 and 4 collaborators working the full day = 180 m.
+Targets saved with scenarios or a reference day keep being read; the dialog replaces
+their rules on save. Deletion stays in the history panel, with confirmation and an
+immutable deletion revision.
 
 Run the browser regressions with:
 
 ```sh
-npx playwright test --config=playwright.operational-visual.config.ts weekly-targets-flexible.spec.ts weekly-progress-visual.spec.ts
+npx playwright test --config=playwright.operational-visual.config.ts weekly-targets-dialog.spec.ts
 ```
 
-Deletion is available to managers for each week, with confirmation. It records
-an immutable deletion revision and leaves the week without a target, retaining
-previous values and the deletion's author/time in history. It never falls back
-to an earlier target revision. Recreating a target continues that revision history.
-Deletes and saves use the same optimistic revision check in both areas.
+In Efetivo, the project planning's Execution stage shows the same card above the
+execution dashboard; open `/test/browser/efetivo-weekly-target.html` (add `?leitor`
+for read-only, `?dark` for the dark theme). It edits the same project target as
+Acompanhamento, and the target dialog and history open above the planning dialog.
 
-Daily attendance targets use the distinct collaborators recorded in each RDO,
-including enabled night shifts, independently of service progress, hours or job
-role. Select the contracted workdays for each week (Monday to Friday initially).
-Each elapsed workday must meet the minimum; surplus on another day does not
-change its daily status. Missing RDOs leave attendance pending, while a recorded
-RDO with an empty team counts zero. Imported teams inferred from a point workbook
-require confirmation. The cumulative balance adds attendance minus the daily
-minimum across all weeks with attendance targets, using each week's latest active
-revision and selected days. For a minimum of six, eight people produce +2 and
-four on the next day bring the balance to zero. Daily statuses remain independent
-of the balance. Missing RDOs leave the cumulative balance pending. Run
-`playwright-cli run-code --filename frontend/test/browser/weekly-attendance.js`
-in the same fixture to check registration, daily results, surplus/deficit,
-recalculation, access permissions and mobile layout.
+Daily attendance goals ("Equipe mínima no dia") use the distinct collaborators
+recorded in each RDO on the project's workdays (Monday to Friday, plus Saturday or
+Sunday when the project includes them). The cumulative balance and daily statuses
+work as before.
 
 Backend deployment requires the `20261002103000_flexible_weekly_targets` and
 `20261002150000_weekly_target_deletion` Prisma migrations before starting the

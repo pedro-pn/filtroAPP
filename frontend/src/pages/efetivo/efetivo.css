@@ -2790,6 +2790,7 @@
 .project-execution-weekly-checks label.is-checked { border-color: var(--g); }
 .project-execution-weekly-checks input { accent-color: var(--g); flex: 0 0 auto; height: 16px; margin: 1px 0 0; width: 16px; }
 .project-execution-weekly-checks span { font-size: 12px; line-height: 1.4; }
+.project-execution-weekly-hint { color: var(--mu); display: block; font-size: 11px; margin-top: 2px; }
 .project-execution-weekly-form .field-group { margin: 0; }
 .project-execution-weekly-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
 .project-execution-weekly-actions span { color: var(--mu); font-size: 12px; }

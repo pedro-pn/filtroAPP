@@ -6,7 +6,15 @@ export type WeeklyTargetBasis = 'WEEK_TOTAL' | 'PER_PRODUCTIVE_DAY' | 'PER_WORKD
 export interface WeeklyTargetGoal { serviceType: WeeklyTargetService | null; value: number }
 export interface WeeklyTargetSettings { metric: WeeklyTargetMetric; basis?: WeeklyTargetBasis; referenceDayHours?: number; workdays?: number[] }
 export interface WeeklyTargetScenario extends Partial<WeeklyTargetSettings> { name: string; condition: WeeklyTargetCondition; goals: WeeklyTargetGoal[] }
-export interface WeeklyTargetDefinition extends WeeklyTargetSettings { countingStartDay?: number; countingEndDay?: number; repeatWeekly?: boolean; scenarios: WeeklyTargetScenario[] }
+export interface WeeklyTargetLegacyDefinition extends WeeklyTargetSettings { version?: undefined; countingStartDay?: number; countingEndDay?: number; repeatWeekly?: boolean; scenarios: WeeklyTargetScenario[] }
+export type WeeklyTargetLogic = 'ALL' | 'ANY';
+export type WeeklyTargetGoalItem =
+  | { kind: 'SERVICE'; serviceType: WeeklyTargetService; metric: 'M' | 'L' | 'UN'; basis: 'WEEK_TOTAL' | 'PER_PRODUCTIVE_DAY'; value: number }
+  | { kind: 'PROGRESS'; value: number }
+  | { kind: 'ATTENDANCE'; value: number; workdays: number[] };
+/** Metas em lista (versão 2): uma linha por meta e regra E/OU entre elas. */
+export interface WeeklyTargetGoalListDefinition { version: 2; logic: WeeklyTargetLogic; countingStartDay?: number; countingEndDay?: number; repeatWeekly?: boolean; goals: WeeklyTargetGoalItem[] }
+export type WeeklyTargetDefinition = WeeklyTargetLegacyDefinition | WeeklyTargetGoalListDefinition;
 export interface WeeklyAttendanceHistoryPoint { date: string; collaboratorIds: string[]; attendanceIssues?: string[] }
 export interface DailyAttendanceComparison {
   date: string;
@@ -23,6 +31,8 @@ export interface WeeklyServiceHistoryPoint {
   quantities: { M: number; L: number; UN: number };
   productivePersonMinutes?: number;
   productivityIssues?: string[];
+  /** Colaboradores-dia do bucket, já divididos pela jornada do projeto naquele dia. */
+  productivePersonDays?: number | null;
 }
 export type WeeklyTargetInput = { weekStartDate: string; expectedRevision: number }
   & ({ plannedPctPoints: number; definition?: never } | { definition: WeeklyTargetDefinition; plannedPctPoints?: never });
@@ -53,12 +63,14 @@ export interface WeeklyProgressComparison {
   differenceValue: number | null;
   achievementPct: number | null;
   basis: WeeklyTargetBasis;
-  goals: Array<WeeklyTargetGoal & { metric: WeeklyTargetMetric; plannedValue: number | null; personDays: number | null; productiveHours: number | null; productivityIssues: string[]; actualRate: number | null; actualValue: number | null; differenceValue: number | null }>;
+  goals: Array<WeeklyTargetGoal & { metric: WeeklyTargetMetric; plannedValue: number | null; personDays: number | null; productiveHours: number | null; productivityIssues: string[]; actualRate: number | null; actualValue: number | null; differenceValue: number | null;
+    kind?: WeeklyTargetGoalItem['kind']; basis?: WeeklyTargetBasis; workdays?: number[]; executed?: boolean; outcome?: 'MET' | 'BELOW' | 'NO_DATA' | 'PLANNED' }>;
+  logic: WeeklyTargetLogic;
   dailyAttendance: DailyAttendanceComparison[];
   cumulativeAttendance: { plannedValue: number; actualValue: number | null; differenceValue: number | null } | null;
   activeServiceTypes: WeeklyTargetService[];
   scenarioName: string | null;
-  status: 'NO_TARGET' | 'PLANNED' | 'NO_DATA' | 'NO_RULE' | 'ABOVE' | 'BELOW' | 'ON_TARGET';
+  status: 'NO_TARGET' | 'PLANNED' | 'NO_DATA' | 'NO_RULE' | 'ABOVE' | 'BELOW' | 'ON_TARGET' | 'PARTIAL';
   inProgress: boolean;
   target: WeeklyProgressTarget | null;
 }
@@ -68,6 +80,8 @@ export const WEEKLY_TARGET_SERVICES: Record<WeeklyTargetService, string>;
 export function weeklyTargetUnit(metric: WeeklyTargetMetric): string;
 export function weeklyTargetGoalMetric(metric: WeeklyTargetMetric, goal: Pick<WeeklyTargetGoal, 'serviceType'>, condition?: WeeklyTargetCondition): WeeklyTargetMetric;
 export function weeklyTargetDefinition(target?: WeeklyProgressTarget | null): WeeklyTargetDefinition;
+export function isWeeklyTargetGoalList(definition?: WeeklyTargetDefinition | null): definition is WeeklyTargetGoalListDefinition;
+export function weeklyTargetGoalKind(goal: { kind?: WeeklyTargetGoalItem['kind']; metric?: WeeklyTargetMetric }): WeeklyTargetGoalItem['kind'];
 export function weeklyTargetScenarioSettings(definition: WeeklyTargetDefinition, scenario?: WeeklyTargetScenario | null): WeeklyTargetSettings & { basis: WeeklyTargetBasis };
 export function effectiveWeeklyProgressTarget(targets: WeeklyProgressTarget[], week: string): WeeklyProgressTarget | null;
 export function weeklyTargetCountingDays(definition?: Pick<WeeklyTargetDefinition, 'countingStartDay' | 'countingEndDay'> | null): number[];

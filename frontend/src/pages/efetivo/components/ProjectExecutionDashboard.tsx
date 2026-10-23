@@ -25,6 +25,7 @@ import {
 import { downloadReportPdf } from '../../../api/reports';
 import { Button } from '../../../components/ui/Button';
 import { MissionWeeklyProgressPanel } from '../../../components/projects/MissionWeeklyProgressPanel';
+import { WeeklyTargetSpotlight } from '../../../components/projects/WeeklyTargetSpotlight';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
@@ -201,7 +202,7 @@ function WeeklyReviewForm({ projectId, week, canVerify }: { projectId: string; w
     <div className="project-execution-weekly-checks">
       {PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => <label key={item.key} className={checks[item.key] ? 'is-checked' : ''}>
         <input type="checkbox" checked={checks[item.key]} disabled={!canVerify || save.isPending} onChange={event => setChecks(current => ({ ...current, [item.key]: event.target.checked }))} />
-        <span>{item.label}</span>
+        <span>{item.label}{item.key === 'WEEKLY_TARGET' ? <small className="project-execution-weekly-hint">A meta da semana fica no topo deste painel. Se precisar mudar, use “Editar meta”; se continuar a mesma, basta marcar.</small> : null}</span>
       </label>)}
     </div>
     <div className="field-group"><label htmlFor={`execution-weekly-note-${projectId}`}>Observações da semana</label><textarea id={`execution-weekly-note-${projectId}`} rows={3} maxLength={2000} value={note} disabled={!canVerify || save.isPending} onChange={event => setNote(event.target.value)} placeholder="Registre dificuldades, paralisações, desvios, incidentes ou encaminhamentos relevantes." /></div>
@@ -282,6 +283,18 @@ function Deviations({ projectId, data }: { projectId: string; data: Awaited<Retu
   );
 }
 
+// Mesma meta do Acompanhamento (uma só por projeto): card da semana, cadastro e histórico.
+function ExecutionWeeklyTarget({ missionId, canManage }: { missionId: string; canManage: boolean }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const owner = { area: 'efetivo', missionId } as const;
+  return <div className="fv-ds project-execution-weekly-target">
+    <WeeklyTargetSpotlight owner={owner} canManage={canManage} onOpenHistory={() => setHistoryOpen(true)} />
+    <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} appearance="design-system" size="full" backdropClassName="weekly-target-history-backdrop" title="Metas semanais · histórico">
+      <MissionWeeklyProgressPanel workflowAppearance owner={owner} canManage={canManage} />
+    </Modal>
+  </div>;
+}
+
 export function ProjectExecutionDashboard({ projectId, missionId, canManageTargets = false, readOnly = false }: { projectId: string; missionId?: string; canManageTargets?: boolean; readOnly?: boolean }) {
   const query = useQuery({ queryKey: ['project-execution', projectId], queryFn: () => getProjectExecutionDashboard(projectId) });
   const queryClient = useQueryClient();
@@ -302,9 +315,9 @@ export function ProjectExecutionDashboard({ projectId, missionId, canManageTarge
   return (
     <section className="project-execution-dashboard" data-project-execution-dashboard>
       <header><div><h4>Dashboard de execução</h4><p>Escopo, avanço físico, RDOs, assinaturas e desvios da obra.</p></div><ExecutionReportsDialog key={projectId} reports={dashboard.reports} /></header>
+      {missionId ? <ExecutionWeeklyTarget key={missionId} missionId={missionId} canManage={canManageTargets && !readOnly} /> : null}
       <ExecutionOverview data={dashboard} />
       <ExecutionScopeProgress data={dashboard} />
-      {missionId ? <MissionWeeklyProgressPanel workflowAppearance key={missionId} owner={{ area: 'efetivo', missionId }} canManage={canManageTargets && !readOnly} /> : null}
       <WeeklyExecutionReview projectId={projectId} data={dashboard} readOnly={readOnly} />
       <Deviations projectId={projectId} data={dashboard} />
     </section>
