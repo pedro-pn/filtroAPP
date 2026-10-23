@@ -385,7 +385,8 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
     }
     const project = await tx.project.findUnique({ where: { id: projectId }, select: { commercialProposalSync: true } });
     const syncData = commercialProposalSyncData(
-      { proposalCode: proposal.proposalCode, revisionNumber: proposal.revisionNumber }, project.commercialProposalSync
+      { proposalCode: proposal.proposalCode, revisionNumber: proposal.revisionNumber }, project.commercialProposalSync,
+      { force: budget?.commercialAppProposalId !== externalId && project.commercialProposalSync?.status === 'SYNCED' }
     );
     if (budget?.source === 'COMERCIAL_APP' && budget.commercialAppProposalId === externalId) {
       if (Object.keys(syncData).length) await tx.project.update({ where: { id: projectId }, data: syncData });

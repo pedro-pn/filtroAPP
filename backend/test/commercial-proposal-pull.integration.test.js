@@ -31,8 +31,14 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   const { createApp } = await load('backend/src/app.js');
   const { payloadHash } = await load('backend/src/comercial/documents.js');
   const { storeFile } = await load('backend/src/comercial/storage.js');
-  const { createDefaultCostEstimatePayload, calculateEstimate } = await load('shared/comercial/dist/cost-model.js');
+  const { createCostModel } = await load('shared/comercial/dist/cost-model.js');
+  const { exampleCostConfiguration } = await load('shared/comercial/dist/cost-configuration.example.js');
+  const { validateCostConfiguration } = await load('backend/src/comercial/cost-configuration.js');
   const commercial = createDatabase(commercialUrl);
+  const configuration = await commercial.costConfiguration.create({ data: {
+    configuration: validateCostConfiguration(exampleCostConfiguration), createdByLabel: 'Parâmetros fictícios da integração'
+  } });
+  const { createDefaultCostEstimatePayload, calculateEstimate } = createCostModel(configuration.configuration, configuration.id);
   const commercialDir = await mkdtemp(path.join(tmpdir(), 'commercial-pull-source-'));
   const filtroDir = await mkdtemp(path.join(tmpdir(), 'commercial-pull-target-'));
   const previous = { token: process.env.FILTROAPP_API_TOKEN, directory: process.env.COMERCIAL_DIR };
@@ -58,6 +64,7 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
       await commercial.costEstimate.deleteMany({ where: { createdByUserId: user.id } });
       await commercial.user.delete({ where: { id: user.id } });
     }
+    await commercial.costConfiguration.delete({ where: { id: configuration.id } });
     await commercial.$disconnect();
     await prisma.$disconnect();
     await rm(commercialDir, { recursive: true, force: true });
@@ -116,6 +123,10 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   const [first] = await processCommercialProposalSyncs(options);
   assert.equal(first.status, 'SYNCED', JSON.stringify({ first, error: transactionError?.message }));
   assert.equal(first.scope.status, 'IMPORTED');
+  assert.equal((await commercial.proposal.findUnique({ where: { id: firstProposal.id } })).filtroStatus, 'SUCESSO');
+  assert.equal((await commercial.proposal.findUnique({ where: { id: firstProposal.id } })).crmApprovalStatus, 'PENDENTE');
+  assert.equal(await commercial.filtroAppPullReceipt.count({ where: { proposalId: firstProposal.id } }), 1);
+  assert.equal((await prisma.commercialAppReceipt.findFirst({ where: { projectId: project.id } })).status, 'DELIVERED');
   const budget = () => prisma.projectBudget.findUnique({ where: { projectId_version: { projectId: project.id, version: 1 } } });
   const firstBudget = await budget();
   assert.equal(firstBudget.source, 'COMERCIAL_APP');

@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { commercialAppConnection, readLimitedCommercialResponse } from './commercialapp-client.js';
+export { commercialAppConnection, readLimitedCommercialResponse } from './commercialapp-client.js';
+import { queueCommercialReceipt, processCommercialReceipts } from './commercialapp-receipts.js';
 import { z } from 'zod';
 
 import env from '../../config/env.js';
@@ -29,46 +32,6 @@ const bundleSchema = commercialAppQueryPayloadSchema.safeExtend({
 
 function syncError(code) { return Object.assign(new Error(code), { code }); }
 const cnpj = value => String(value || '').replace(/\D/g, '');
-
-export function commercialAppConnection({ apiUrl = env.comercialAppApiUrl, token = env.comercialAppServiceToken,
-  production = env.nodeEnv === 'production', appEnv = env.appEnv, allowStagingHttp = env.comercialAppAllowStagingHttp } = {}) {
-  if (!apiUrl || !token) throw syncError('COMERCIALAPP_NOT_CONFIGURED');
-  let base;
-  try { base = new URL(apiUrl); } catch { throw syncError('COMERCIALAPP_URL_INVALID'); }
-  const local = !production && base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname);
-  const staging = appEnv === 'staging' && allowStagingHttp === true && base.protocol === 'http:';
-  if (base.username || base.password || base.search || base.hash ||
-      base.pathname !== '/' || !(base.protocol === 'https:' || local || staging)) throw syncError('COMERCIALAPP_URL_INVALID');
-  return { origin: base.origin, token };
-}
-
-export async function readLimitedCommercialResponse(response, maximumBytes) {
-  if (!response.ok) {
-    await response.body?.cancel();
-    throw syncError(`COMERCIALAPP_HTTP_${response.status}`);
-  }
-  if (Number(response.headers.get('content-length')) > maximumBytes) {
-    await response.body?.cancel();
-    throw syncError('COMERCIALAPP_RESPONSE_TOO_LARGE');
-  }
-  if (!response.body) throw syncError('COMERCIALAPP_EMPTY_RESPONSE');
-  const reader = response.body.getReader();
-  const chunks = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > maximumBytes) {
-        await reader.cancel();
-        throw syncError('COMERCIALAPP_RESPONSE_TOO_LARGE');
-      }
-      chunks.push(Buffer.from(value));
-    }
-  } finally { reader.releaseLock(); }
-  return Buffer.concat(chunks, size);
-}
 
 export async function fetchCommercialProposal(project, state, options = {}) {
   const connection = commercialAppConnection(options);
@@ -201,6 +164,8 @@ export async function syncCommercialProposal(projectId, options = {}) {
         : { status: current.commercialScopeImport?.status === 'MANUAL_OVERRIDE'
           ? 'MANUAL_PRESERVED' : 'SELECTION_PRESERVED', issues: [] };
       const now = new Date();
+      const receipt = await queueCommercialReceipt(tx, { projectId: project.id, bundle,
+        budgetStatus: commercial.budgetStatus, scopeStatus: scope.status, importedAt: now });
       const finishedState = { ...state, status: 'SYNCED', errorCode: null, syncedAt: now.toISOString(),
         documentIds: saved.map(item => item.documentId), scopeStatus: scope.status, scopeIssues: scope.issues,
         commercialDataVersion: 1, budgetStatus: commercial.budgetStatus };
@@ -214,7 +179,7 @@ export async function syncCommercialProposal(projectId, options = {}) {
         data: { proposalCode: bundle.proposalCode, revisionNumber: bundle.revisionNumber,
           documentIds: saved.map(item => item.documentId), scopeStatus: scope.status, budgetStatus: commercial.budgetStatus }
       } });
-      return { status: 'SYNCED', scope, saved };
+      return { status: 'SYNCED', scope, saved, receiptEventId: receipt.eventId };
     }, database);
     if (result.status === 'SYNCED') {
       result.saved.forEach((saved, index) => { if (saved.usedFile) usedFiles.add(staged[index].storagePath); });
@@ -260,6 +225,7 @@ export async function processCommercialProposalSyncs(options = {}) {
     orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: 5
   });
   for (const job of additionalJobs) results.push(await syncCommercialProposal(job.projectId, { ...options, jobId: job.id }));
+  await processCommercialReceipts(options);
   return results;
 }
 

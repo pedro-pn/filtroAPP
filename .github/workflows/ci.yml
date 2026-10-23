@@ -153,6 +153,7 @@ jobs:
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
       PLANNED_HOURS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
       MECHANICAL_SCOPE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
+      COMMERCIAL_RECEIPT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
       ADDITIONAL_METRICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_bridge_test
       TRUST_PROXY: "false"
     steps:
@@ -175,6 +176,7 @@ jobs:
           test/acompanhamento-planned-hours.integration.test.js
           test/acompanhamento-additional-metrics.integration.test.js
           test/mechanical-scope-rental.integration.test.js
+          test/commercialapp-receipts.integration.test.js
 
   prisma-planning:
     name: PrismaCRM planning (PostgreSQL)
