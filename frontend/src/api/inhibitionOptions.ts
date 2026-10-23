@@ -1,4 +1,5 @@
 import { apiClient, rdoApiPath } from './client';
+import { inhibitionSystemForVessel } from '../utils/inhibitionSystem';
 
 export interface InhibitionVessel {
   id: string;
@@ -17,8 +18,8 @@ export interface InhibitionOptions {
   systems: InhibitionSystem[];
 }
 
-export function inhibitionSystemValue(system: Pick<InhibitionSystem, 'code' | 'description' | 'diagram'>) {
-  return `${system.code};${system.description};${system.diagram}`;
+export function inhibitionSystemValue(system: Pick<InhibitionSystem, 'code' | 'description' | 'diagram'>, vesselCode = '') {
+  return inhibitionSystemForVessel(`${system.code};${system.description};${system.diagram}`, vesselCode);
 }
 
 export async function listInhibitionOptions() {
