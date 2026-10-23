@@ -1,7 +1,10 @@
-export function inhibitionSystemForVessel(value: string, vesselCode: string) {
+export function inhibitionSystemForVessel(value: string, vesselCode: string, previousVesselCode = '') {
   const parts = value.split(';');
-  if (!vesselCode || parts.length !== 3) return value;
+  if (!vesselCode || parts.length < 3) return value;
 
-  parts[2] = parts[2].replace(/^\d+(?=-)/, prefix => vesselCode.padStart(prefix.length, '0'));
-  return parts.join(';');
+  // The system catalog uses 51632 throughout its diagram references.
+  let diagram = parts.slice(2).join(';').replaceAll('51632', vesselCode);
+  if (previousVesselCode) diagram = diagram.replaceAll(previousVesselCode, vesselCode);
+  diagram = diagram.replace(/^\d+(?=-)/, prefix => vesselCode.padStart(prefix.length, '0'));
+  return `${parts[0]};${parts[1]};${diagram}`;
 }

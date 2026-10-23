@@ -1387,7 +1387,7 @@ export function ServiceFields({
           <label htmlFor={fieldId(groupKey, 'equipmentId')}>Embarcação {requiredMark()}</label>
           <select id={fieldId(groupKey, 'equipmentId')} value={vesselCode} disabled={disabled} onChange={event => onChange({
             equipmentId: event.target.value,
-            system: inhibitionSystemForVessel(systemValue, event.target.value)
+            system: inhibitionSystemForVessel(systemValue, event.target.value, vesselCode)
           })}>
             <option value="">Selecionar...</option>
             {(inhibitionOptions?.vessels || []).map(vessel => (
