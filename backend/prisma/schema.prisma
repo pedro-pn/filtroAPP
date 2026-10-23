@@ -1006,6 +1006,7 @@ model Project {
   weeklyProgressTargets      MissionWeeklyProgressTarget[]
   additionalProposals        ProjectAdditionalProposal[]
   commercialSyncJobs        CommercialProposalSyncJob[]
+  commercialReceipts        CommercialAppReceipt[]
   contributionEvents        ProjectContributionEvent[]
   acompanhamentoGroupMembers AcompanhamentoMissionGroupMember[]
   primaryLaborMissionGroups  AcompanhamentoMissionGroup[]       @relation("AcompanhamentoMissionGroupPrimaryLaborProject")
@@ -3891,6 +3892,30 @@ model CommercialProposalSyncJob {
 
   @@unique([projectId, proposalCode])
   @@index([nextAttemptAt])
+}
+
+// Confirmação persistida no commit da importação. Repetir o envio não reimporta dados.
+model CommercialAppReceipt {
+  eventId        String   @id
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  externalId     String
+  proposalCode   String
+  revisionNumber Int
+  payload        Json
+  importedAt     DateTime
+  status         String   @default("PENDING")
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime? @default(now())
+  attemptId      String?
+  attemptAt      DateTime?
+  errorCode      String?
+  acknowledgement Json?
+  deliveredAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([externalId, importedAt])
 }
 
 // Serviço vendido previsto no cronograma. Pode ser importado do levantamento do ComercialAPP

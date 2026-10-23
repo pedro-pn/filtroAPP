@@ -19,6 +19,9 @@ sequenceDiagram
     Comercial-->>Filtro: Escopo e identificação dos dois PDFs
     Filtro->>Comercial: Baixar PDF comercial e técnico
     Filtro->>Filtro: Anexar no handover do Efetivo e importar escopo
+    Filtro->>Filtro: Gravar confirmação pendente na mesma transação
+    Filtro->>Comercial: Confirmar recebimento após commit
+    Comercial-->>Filtro: Recibo idempotente
 ```
 
 Configure a origem HTTPS do ComercialAPP em `COMERCIALAPP_API_URL` no
@@ -93,6 +96,53 @@ banco `filtroapp_bridge_test`, `COMMERCIALAPP_TEST_DATABASE_URL` com banco
 `comercialapp_test` e `COMMERCIALAPP_SOURCE_DIR` apontando para o checkout do
 ComercialAPP. Valida revisão nova e manual, histórico, idempotência, retentativa,
 resposta superada e rollback de banco/arquivos.
+
+### Confirmação da importação no ComercialAPP
+
+O worker envia `POST /api/integrations/filtroapp/propostas/:code/revisoes/:revision/recebimento`
+com o mesmo Bearer da consulta. A migração `20261023210000_commercialapp_pull_receipts`
+cria `CommercialAppReceipt`. O evento, com UUID, geração e hashes dos documentos,
+é gravado na mesma transação dos PDFs, orçamento e escopo; só é enviado após o
+commit. Consultas sem gravação, importações desfeitas e respostas superadas não
+geram confirmação. A locação confirma seu PDF comercial; venda permanece excluída.
+
+O ComercialAPP registra `SUCESSO` para `SELECTED` ou `AGUARDANDO_SELECAO` para
+`STAGED`, preservando separadamente o estado do escopo e a aprovação no CRM.
+Selecionar uma revisão antes recebida em staging agenda uma nova consulta e
+confirmação, reutilizando as versões de documentos existentes. Edições manuais
+do escopo continuam protegidas.
+
+A fila de confirmações funciona independentemente das tentativas de importação.
+Uma falha de rede ou perda do recibo repete exatamente o evento persistido,
+sem reimportar dados. Claims vencem em um minuto; o processamento serializa os
+eventos de cada proposta. A resposta precisa confirmar projeto, proposta,
+revisão, geração e estados corretos. Falhas transitórias usam espera de um
+minuto até uma hora; conflitos de contrato/autenticação ou dez falhas deixam
+o evento em `REVIEW`, com código de erro e sem guardar o corpo externo.
+
+Implante primeiro o receptor no ComercialAPP (migração
+`20261023200000_filtro_pull_receipts`). Depois aplique a migração do FiltroAPP
+e atualize API e worker. A migração não reimporta nem confirma propostas antigas.
+O envio direto pelo ComercialAPP não precisa ser habilitado.
+
+Para reconciliar uma importação anterior, informe os projetos explicitamente:
+
+```bash
+node scripts/backfill-commercialapp-receipts.js --project-id=ID
+node scripts/backfill-commercialapp-receipts.js --project-id=ID --apply
+```
+
+Sem `--apply`, apenas verifica. A conferência consulta a revisão exata e valida
+os hashes e bytes dos PDFs já armazenados no FiltroAPP. Com `--apply`, apenas
+grava o evento para envio pelo worker; mantém orçamento, escopo e documentos.
+Recibos existentes não são duplicados. Projetos inativos/encerrados e buscas
+incompletas são ignorados; revisões indisponíveis e arquivos divergentes geram
+erro para análise, sem reimportação. Use essa reconciliação dirigida depois do
+deploy; o reprocessamento de envios ao PrismaCRM é uma operação separada.
+
+`commercialapp-receipts.integration.test.js` usa PostgreSQL e HTTP e é executado
+no CI de contribuições. Para executá-lo localmente, configure
+`COMMERCIAL_RECEIPT_TEST_DATABASE_URL=DATABASE_URL` com banco local de teste.
 
 ## Receptor de propostas aprovadas no Acompanhamento
 
