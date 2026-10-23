@@ -74,7 +74,7 @@ export function ProjectWorkflowHandoverSignals({ detail, documents }: {
       <div className="project-workflow-signal-list">
         {rows.map(row => <article className="project-workflow-signal" key={row.label}><div><strong>{row.label}</strong>{row.detail ? <span>{row.detail}</span> : null}</div>{signalStatus(row.confirmed, row.waitingLabel)}</article>)}
       </div>
-      {detail.project.commercialProposalSync && detail.project.commercialProposalSync.status !== 'SYNCED' ?
+      {detail.project.commercialProposalSync && ['PENDING', 'APPLYING', 'ERROR'].includes(detail.project.commercialProposalSync.status) ?
         <small className="project-workflow-source-detail">Aguardando os documentos da proposta {detail.project.commercialProposalSync.proposalCode}, revisão {detail.project.commercialProposalSync.revisionNumber}, no ComercialAPP. A busca será repetida automaticamente.</small> : null}
       {workflow.commercialSourceUpdatedAt ? <small className="project-workflow-source-detail">Última atualização comercial: {new Date(workflow.commercialSourceUpdatedAt).toLocaleString('pt-BR')}</small> : null}
     </ProjectWorkflowCategory>
