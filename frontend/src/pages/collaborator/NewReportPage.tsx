@@ -251,7 +251,7 @@ function SiteRdoFormPage() {
         .join('')
     : 'U';
 
-  const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
+  const projects = useMemo(() => sortProjects((bootstrapQuery.data?.projects || []).filter(project => project.serviceCategory !== 'RENTAL'), 'asc'), [bootstrapQuery.data?.projects]);
   const collaborators = (bootstrapQuery.data?.collaborators || []).filter((item) => item.isActive);
   const ddsThemesQuery = useQuery({
     queryKey: ['dds-themes'],

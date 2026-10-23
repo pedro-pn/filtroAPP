@@ -2,19 +2,24 @@ import { createHash } from 'node:crypto';
 import { assertDistinctScopeMeasurements } from './scope-groups.js';
 import { normalizeRdoServiceType } from './service-types.js';
 import { resolvePlannedSystem } from './project-systems.js';
+import { mechanicalMeasureType } from '../../../../shared/modules/mechanical-measurement.js';
 
 const SERVICE_TYPES = {
   limpeza_quimica: 'LIMPEZA_QUIMICA',
   teste_hidrostatico: 'TESTE_PRESSAO',
   flushing_primario: 'FLUSHING',
   flushing_secundario: 'FLUSHING',
-  flushing_agua: 'FLUSHING'
+  flushing_agua: 'FLUSHING',
+  passagem_pig: 'LIMPEZA_MECANICA',
+  hidrojateamento: 'LIMPEZA_MECANICA',
+  limpeza_reservatorio: 'LIMPEZA_MECANICA'
 };
 const SERVICE_LABELS = {
   LIMPEZA_QUIMICA: 'Limpeza química',
   TESTE_PRESSAO: 'Teste de pressão',
   FLUSHING: 'Flushing',
-  FILTRAGEM: 'Filtragem'
+  FILTRAGEM: 'Filtragem',
+  LIMPEZA_MECANICA: 'Limpeza mecânica'
 };
 const ITEM_TYPES = {
   pipes: 'pipeSegments',
@@ -26,10 +31,15 @@ const round = value => Math.round((value + Number.EPSILON) * 100) / 100;
 const rows = value => Array.isArray(value) ? value : [];
 const positive = value => Number.isFinite(Number(value)) && Number(value) > 0;
 const text = value => String(value ?? '').trim();
-const serviceType = id => SERVICE_TYPES[id] || (id.startsWith('filtragem_') ? 'FILTRAGEM' : null);
+const serviceType = id => SERVICE_TYPES[id] || (/^(filtragem|desidratacao)_/.test(id) ? 'FILTRAGEM' : null);
 const issue = (items, value) => { if (!items.includes(value)) items.push(value); };
 
 function measurement(itemType, item, type) {
+  if (type === 'LIMPEZA_MECANICA') {
+    const unit = itemType === 'pipes' ? 'M' : itemType === 'oil' ? 'L' : 'UN';
+    const quantity = Number(item.quantity) * (unit === 'M' ? Number(item.lengthM) : unit === 'L' ? Number(item.volumeLiters) : 1);
+    return { systemType: mechanicalMeasureType(unit), quantity: round(quantity), unit, diameter: null, diameterUnit: null };
+  }
   if (itemType === 'pipes' && ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING'].includes(type)) {
     const quantity = round(Number(item.quantity) * Number(item.lengthM));
     const diameterMm = Number(item.internalDiameterMm);
@@ -71,6 +81,19 @@ function assignWeight(services) {
 export function projectScopeFromCommercialApp(snapshot) {
   const cost = snapshot?.costBreakdown;
   const issues = [];
+  const nature = commercialProposalNature(snapshot);
+  if (nature === 'equipment_sale') return { services: [], issues: [] };
+  const rentals = ['equipment_rental', 'mixed'].includes(nature) ? rows(cost?.equipmentRentals).filter(row => row.included !== false) : [];
+  const rentalServices = rentals.length ? [{ serviceType: 'LOCACAO', scopeName: 'Locação de equipamentos',
+    systems: rentals.filter(row => positive(row.days) && text(row.description)).map(row => ({
+      equipment: text(row.description), systemName: text(row.code || row.id) || 'Locação',
+      description: positive(row.quantity) ? `Quantidade de equipamentos: ${row.quantity}` : null,
+      systemType: 'LOCACAO', quantity: round(Number(row.days)), unit: 'DIA', diameter: null, diameterUnit: null
+    })) }] : [];
+  if (nature === 'equipment_rental') {
+    if (!rentalServices[0]?.systems.length) issues.push('Locação sem equipamentos e dias dimensionados; confira o cadastro do projeto.');
+    return { services: assignWeight(rentalServices.filter(row => row.systems.length)), issues };
+  }
   if (!cost || !Array.isArray(cost.volumeSystems)) {
     return { services: [], issues: ['Proposta sem levantamento estruturado de sistemas.'] };
   }
@@ -83,6 +106,14 @@ export function projectScopeFromCommercialApp(snapshot) {
   const scopeTitles = new Map(rows(snapshot?.scope)
     .filter(item => item && typeof item === 'object')
     .map(item => [text(item.id), text(item.title)]));
+  const titleFor = id => {
+    const selection = rows(finalServices).find(row => text(row.serviceId || row.id) === id);
+    const version = selection?.serviceVersion?.versionId;
+    const scoped = rows(snapshot?.scope).find(row => text(row?.serviceId) === id
+      && (!version || !row.serviceVersion?.versionId || row.serviceVersion.versionId === version));
+    return text(scoped?.title) || scopeTitles.get(`escopo-levantamento-${version || id}`)
+      || scopeTitles.get(`escopo-levantamento-${id}`) || text(selection?.title);
+  };
   const grouped = new Map();
   const seenItems = new Set();
   if (!rows(cost.circuitServices).length) {
@@ -90,6 +121,7 @@ export function projectScopeFromCommercialApp(snapshot) {
   }
   for (const assignment of rows(cost.circuitServices)) {
     const id = text(assignment?.serviceId);
+    if (id === 'boroscopia') continue; // Inspeção sem meta de avanço, por definição do acompanhamento.
     if (allowed && !allowed.has(id)) {
       issue(issues, `Serviço orçado "${id || 'sem código'}" não consta da proposta final; não foi importado.`);
       continue;
@@ -123,7 +155,7 @@ export function projectScopeFromCommercialApp(snapshot) {
         continue;
       }
       if (!positive(mapped.quantity) || mapped.quantity > 999999999999.99 ||
-        (mapped.systemType === 'SISTEMA' && !Number.isSafeInteger(mapped.quantity)) ||
+        (['SISTEMA', 'MECANICA_UN'].includes(mapped.systemType) && !Number.isSafeInteger(mapped.quantity)) ||
         (mapped.systemType === 'TUBULACAO' && !mapped.diameter)) {
         issue(issues, `"${text(item.description)}" de "${text(system.name)}" não tem quantidade ou bitola válida.`);
         continue;
@@ -153,13 +185,21 @@ export function projectScopeFromCommercialApp(snapshot) {
   }
   const services = assignWeight([...grouped.values()].map(group => {
     const ids = [...group.serviceIds];
-    const title = ids.length === 1 ? scopeTitles.get(`escopo-levantamento-${ids[0]}`) : null;
+    const title = [...new Set(ids.map(titleFor).filter(Boolean))].join(' + ');
     if (title?.length > 180) issue(issues, `Título do escopo "${ids[0]}" excede 180 caracteres; foi usado o nome do serviço.`);
     return { serviceType: group.serviceType, scopeName: title && title.length <= 180 ? title : group.scopeName,
       systems: [...group.systems.values()] };
-  }));
+  }).concat(rentalServices));
   assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
   return { services, issues };
+}
+
+export function commercialProposalNature(snapshot) {
+  const proposal = snapshot?.proposalSnapshot ?? snapshot ?? {};
+  const model = proposal.modelo;
+  if (model === 'venda_equipamentos' || proposal.estimateNature === 'equipment_sale') return 'equipment_sale';
+  if (['locacao_equipamentos', 'locacao_hidrojato'].includes(model) || proposal.estimateNature === 'equipment_rental') return 'equipment_rental';
+  return proposal.estimateNature ?? snapshot?.costBreakdown?.estimateNature ?? 'services';
 }
 
 function scopeFingerprint(services) {
@@ -172,7 +212,7 @@ export async function syncCommercialAppScope(tx, projectId, proposal, { replaceE
   const additional = proposal.proposalKind === 'ADDITIONAL' || proposal.snapshot?.proposalKind === 'ADDITIONAL';
   const contributionKey = `COMERCIAL_APP:${proposal.proposalCode ?? proposal.snapshot?.proposalCode ?? 'legacy'}`;
   const project = await tx.project.findUnique({
-    where: { id: projectId }, select: { commercialScopeImport: true }
+    where: { id: projectId }, select: { commercialScopeImport: true, serviceCategory: true }
   });
   const selectionWhere = { projectId_source_proposalCode: {
     projectId, source: 'COMERCIAL_APP', proposalCode: proposal.proposalCode
@@ -198,6 +238,12 @@ export async function syncCommercialAppScope(tx, projectId, proposal, { replaceE
     const issues = [...mapped.issues, 'O escopo da revisão anterior foi preservado até a conferência da nova revisão.'];
     await saveMetadata({ ...metadata, pendingExternalId: proposal.externalId, issues });
     return { status: 'NEEDS_REVIEW', issues };
+  }
+  if (!additional && commercialProposalNature(proposal.snapshot) === 'equipment_rental') {
+    await tx.project.update({ where: { id: projectId }, data: { serviceCategory: 'RENTAL', operatorId: null,
+      defaultReportResponsibleUserId: null, visibleToCollaborators: false, requireServiceReportSignatures: false } });
+  } else if (!additional && project?.serviceCategory === 'RENTAL') {
+    await tx.project.update({ where: { id: projectId }, data: { serviceCategory: 'SERVICE' } });
   }
   // A retirada explícita remove as linhas automáticas, preservando o histórico da importação.
   // Reativar a mesma revisão precisa reconstruí-las antes de considerar a consulta concluída.

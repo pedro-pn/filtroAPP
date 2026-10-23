@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 import { addRealizedService, buildProgress, isServiceFinalized } from '../acompanhamento/avanco.js';
 import { withNativeMeasurementLinks } from '../acompanhamento/native-measurement-links.js';
 import { realizedFromExtraData } from '../acompanhamento/realized-measurements.js';
@@ -7,7 +8,8 @@ const METRICAS = [
   ['tubulacaoM', 'm', 'TUBULACAO'],
   ['oleoL', 'L', 'OLEO'],
   ['sistemasUn', 'un', 'SISTEMA'],
-  ['mangotesUn', 'un', 'MANGOTE']
+  ['mangotesUn', 'un', 'MANGOTE'],
+  ...Object.entries(MECHANICAL_MEASURES).map(([type, config]) => [config.metric, config.unit === 'UN' ? 'un' : config.unit === 'M' ? 'm' : config.unit.toLowerCase(), type])
 ];
 
 const UNIDADE_POR_SISTEMA = { TUBULACAO: 'm', OLEO: 'L', SISTEMA: 'un', MANGOTE: 'un' };
@@ -15,7 +17,7 @@ const NOME_SERVICO = {
   LIMPEZA_QUIMICA: 'Limpeza química',
   TESTE_PRESSAO: 'Teste de pressão',
   FLUSHING: 'Flushing',
-  FILTRAGEM: 'Filtragem'
+  FILTRAGEM: 'Filtragem', LIMPEZA_MECANICA: 'Limpeza mecânica'
 };
 const NOME_SISTEMA = { TUBULACAO: 'tubulação', OLEO: 'óleo', SISTEMA: 'sistemas', MANGOTE: 'mangueiras' };
 
@@ -123,7 +125,7 @@ export function avancoPorEscopo(progresso) {
         const sistema = NOME_SISTEMA[sys.systemType] || '';
         linhas.push({
           escopo: [grupo.nome, `${servico}${sistema ? ` (${sistema})` : ''}`].filter(Boolean).join(' – '),
-          unidade: UNIDADE_POR_SISTEMA[sys.systemType] || '',
+          unidade: UNIDADE_POR_SISTEMA[sys.systemType] || sys.unit?.toLowerCase() || '',
           previsto: arredondar(sys.plannedQty),
           realizado: arredondar(sys.realizedQty),
           percentual: sys.pct == null ? null : arredondar(sys.pct)
@@ -141,5 +143,8 @@ export function quantidadeDoServico(service) {
   if (q.oleoL > 0) return { quantidade: arredondar(q.oleoL), unidade: 'L' };
   if (q.sistemasUn > 0) return { quantidade: arredondar(q.sistemasUn), unidade: 'un.' };
   if (q.mangotesUn > 0) return { quantidade: arredondar(q.mangotesUn), unidade: 'un.' };
+  for (const { metric, unit } of Object.values(MECHANICAL_MEASURES)) {
+    if (q[metric] > 0) return { quantidade: arredondar(q[metric]), unidade: unit === 'UN' ? 'un.' : unit === 'L' ? 'L' : unit.toLowerCase() };
+  }
   return { quantidade: 0, unidade: 'un.' };
 }

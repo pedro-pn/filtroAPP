@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import env from '../../config/env.js';
 import prisma from '../prisma.js';
-import { syncCommercialAppScope } from '../acompanhamento/commercialapp-scope.js';
+import { commercialProposalNature, syncCommercialAppScope } from '../acompanhamento/commercialapp-scope.js';
 import { commercialAppQueryPayloadSchema, storeQueriedCommercialAppProposal } from '../acompanhamento/comercialapp-bridge.js';
 import { parseProjectDocumentUpload, storeProjectDocumentFile, removeProjectDocumentFile } from '../efetivo/project-workflow/documents.js';
 import { runTrackedJob } from '../jobs/runner.js';
@@ -24,7 +24,7 @@ const bundleSchema = commercialAppQueryPayloadSchema.safeExtend({
     generationId: z.string().min(1).max(100), fileName: z.string().min(1).max(255),
     mimeType: z.literal('application/pdf'), byteSize: z.number().int().positive().max(MAX_PDF_BYTES),
     sha256: z.string().regex(/^[a-f0-9]{64}$/)
-  })).length(2)
+  })).min(1).max(2)
 });
 
 function syncError(code) { return Object.assign(new Error(code), { code }); }
@@ -82,12 +82,15 @@ export async function fetchCommercialProposal(project, state, options = {}) {
   let bundle;
   try { bundle = bundleSchema.parse(JSON.parse(body.toString('utf8'))); }
   catch { throw syncError('COMERCIALAPP_CONTRACT_INVALID'); }
+  const nature = commercialProposalNature(bundle);
+  const expectedKinds = ['equipment_rental', 'equipment_sale'].includes(nature) ? ['COMERCIAL'] : ['COMERCIAL', 'TECNICA'];
   if (bundle.proposalCode !== state.proposalCode || bundle.revisionNumber !== state.revisionNumber ||
       bundle.projectId && bundle.projectId !== project.id ||
       !cnpj(project.clientCnpj) || cnpj(bundle.clientCnpj) !== cnpj(project.clientCnpj) ||
       cnpj(bundle.client.cnpj) !== cnpj(bundle.clientCnpj) ||
-      new Set(bundle.documents.map(document => document.kind)).size !== 2 ||
-      new Set(bundle.documents.map(document => document.id)).size !== 2 ||
+      bundle.documents.length !== expectedKinds.length ||
+      !expectedKinds.every(kind => bundle.documents.some(document => document.kind === kind)) ||
+      new Set(bundle.documents.map(document => document.id)).size !== expectedKinds.length ||
       new Set(bundle.documents.map(document => document.generationId)).size !== 1) {
     throw syncError('COMERCIALAPP_IDENTITY_MISMATCH');
   }
@@ -98,6 +101,7 @@ export async function fetchCommercialProposal(project, state, options = {}) {
     ['byteSize', 'generationId', 'sha256'].every(key => expected[key] == null || expected[key] === document[key])))) {
     throw syncError('COMERCIALAPP_DOCUMENT_CONFLICT');
   }
+  if (nature === 'equipment_sale') throw syncError('COMERCIALAPP_SALE_EXCLUDED');
   const files = [];
   for (const document of bundle.documents) {
     const response = await get(`${base}/documentos/${encodeURIComponent(document.id)}`);
@@ -219,17 +223,18 @@ export async function syncCommercialProposal(projectId, options = {}) {
     return result;
   } catch (error) {
     const attempts = (state.attempts || 0) + 1;
-    const nextAttemptAt = new Date(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts - 1, 6)));
+    const excluded = error.code === 'COMERCIALAPP_SALE_EXCLUDED';
+    const nextAttemptAt = excluded ? null : new Date(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts - 1, 6)));
     const errorCode = /^COMERCIALAPP_[A-Z_0-9]+$/.test(error.code || '') ? error.code : 'COMERCIALAPP_SYNC_FAILED';
     if (job) await database.commercialProposalSyncJob.updateMany({
       where: { id: job.id, state: { equals: state } },
-      data: { state: { ...state, status: 'ERROR', attempts, errorCode }, nextAttemptAt }
+      data: { state: { ...state, status: excluded ? 'EXCLUDED' : 'ERROR', attempts, errorCode }, nextAttemptAt }
     });
     else await database.project.updateMany({
       where: { id: project.id, commercialProposalSync: { equals: state } },
-      data: { commercialProposalSync: { ...state, status: 'ERROR', attempts, errorCode }, commercialProposalSyncNextAttemptAt: nextAttemptAt }
+      data: { commercialProposalSync: { ...state, status: excluded ? 'EXCLUDED' : 'ERROR', attempts, errorCode }, commercialProposalSyncNextAttemptAt: nextAttemptAt }
     });
-    return { status: 'ERROR', errorCode };
+    return { status: excluded ? 'EXCLUDED' : 'ERROR', errorCode };
   } finally {
     for (const file of staged) if (!usedFiles.has(file.storagePath)) {
       await removeProjectDocumentFile(file.storagePath, options).catch(error => {

@@ -1,6 +1,7 @@
 /* Shared dark-theme selection treatment. Keep the brand's soft colors for
    cards, alerts and other surfaces; only selected controls get a solid fill.
    RDO pills (including RLI/RLF) already have the approved fill and stay intact.
+   Progress steps highlight their numbered marker, keeping the button transparent.
    Attribute selectors cover shared buttons; named selectors cover older
    controls that still expose their selection through a class. */
 :root.dark
@@ -63,6 +64,7 @@
     :has(input:disabled),
     .fv-card,
     .fv-card__surface-action,
+    .fv-progress-steps__item,
     .public-flow-password-toggle,
     .romaneio-checklist-status.status-nao-aplicavel
   ) {

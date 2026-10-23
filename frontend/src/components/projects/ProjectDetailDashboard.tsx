@@ -381,7 +381,7 @@ export function ProjectDetailDashboard({
           <h1>{h.clientName || `${isGroup ? 'Grupo' : 'Missão'} ${h.code}`}</h1>
           <div className="acp-detail-header-meta">
             {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
-            <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span>
+            {!data.rentalTracking ? <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span> : <Badge tone="neutral">Locação de equipamentos</Badge>}
             <span>{data.division ? 'Início do escopo' : 'Início'} <strong>{fmtDate(data.footer.startDate)}</strong></span>
             {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
           </div>
@@ -391,12 +391,19 @@ export function ProjectDetailDashboard({
             </div>
           ) : null}
         </div>
+        {data.rentalTracking ? <div className="acp-detail-hero-progress">
+          <span>Dias de locação</span>
+          <strong>{data.rentalTracking.elapsedDays ?? '—'} / {data.rentalTracking.plannedDays ?? '—'}</strong>
+          <small>{fmtDate(data.rentalTracking.startDate)} a {fmtDate(data.rentalTracking.endDate)}</small>
+          <small>{data.rentalTracking.remainingDays == null ? 'Informe início e fim no cadastro do projeto.' : `${data.rentalTracking.remainingDays} dia(s) restante(s)`}</small>
+        </div> : (
         <div className="acp-detail-hero-progress">
           <span>Avanço · {progressFilterLabel || 'Escopo total'}</span>
           <strong>{fmtPct(shownAvancoPct)}</strong>
           <div className="acp-detail-hero-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, shownAvancoPct ?? 0))}%` }} /></div>
           <small>{shownAvancoPct == null ? 'Aguardando medição do escopo' : 'Meta do escopo: 100%'}</small>
         </div>
+        )}
         {data.group ? (
           <div className="acp-detail-group-members" aria-label="Missões unificadas">
             {data.group.members.map(member => (

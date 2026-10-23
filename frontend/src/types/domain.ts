@@ -83,6 +83,9 @@ export interface ClientSegment {
 }
 
 export interface Project {
+  serviceCategory?: 'SERVICE' | 'RENTAL';
+  startDate?: string | null;
+  endDate?: string | null;
   id: string;
   code: string;
   name: string;

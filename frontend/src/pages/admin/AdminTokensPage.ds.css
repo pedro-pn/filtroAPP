@@ -333,7 +333,7 @@
 
 :is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-control-shell[data-invalid='true'] {
   border-color: var(--danger);
-  background: var(--danger-bg);
+  background: var(--fv-autofill-bg);
 }
 
 :is(.api-token-page-v2, .fv-modal.api-policy-modal, .fv-modal.confirm-dialog) .field-invalid .fv-control-shell[data-invalid='true']:focus-within {

@@ -518,7 +518,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }, [report]);
 
-  const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
+  const projects = useMemo(() => sortProjects((bootstrapQuery.data?.projects || []).filter(project => project.serviceCategory !== 'RENTAL' || project.id === report?.projectId), 'asc'), [bootstrapQuery.data?.projects]);
   const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
     || (form.projectId === report.projectId ? report.project : null);
   const isCollaboratorRdo = user?.role === 'COLLABORATOR' && report.reportType === 'RDO';

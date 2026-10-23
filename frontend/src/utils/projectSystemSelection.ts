@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../shared/modules/mechanical-measurement.js';
 import type { ProjectSystem } from '../api/projectSystems';
 import { cleaningModePatch, isSystemCleaning } from './cleaningMeasurement';
 import { isPressureHoseUnits, pressureHoseModePatch } from './pressureHoseMeasurement';
@@ -24,8 +25,16 @@ export function projectSystemSelectionPatch(systems: ProjectSystem[], data: Reco
   const next = { ...data, [field]: value };
   const match = systems.find(item => systemNameKey(item.equipment) === systemNameKey(next.equipmentId) && systemNameKey(item.name) === systemNameKey(next.system));
   const patch: Record<string, unknown> = { [field]: value, __projectSystemId: match?.id || null };
-  if (!match || match.id === data.__projectSystemId) return patch;
   const type = String(serviceType).toLowerCase();
+  if (['mecanica', 'limpeza_mecanica'].includes(type)) {
+    const units = [...new Set(match?.measurements?.filter(item => ['mecanica', 'limpeza_mecanica'].includes(item.serviceType.toLowerCase()))
+      .map(item => MECHANICAL_MEASURES[item.systemType]?.unit).filter(Boolean))];
+    if (match?.id !== data.__projectSystemId || units.length === 1 && units[0] !== data.unidadeMecanica) {
+      Object.assign(patch, { unidadeMecanica: units.length === 1 ? units[0] : '', quantidadeMecanica: '' });
+    }
+    return patch;
+  }
+  if (!match || match.id === data.__projectSystemId) return patch;
   if (['pressao', 'teste_pressao'].includes(type)) {
     const modes = new Set(match.measurements?.filter(item => ['pressao', 'teste_pressao'].includes(item.serviceType.toLowerCase())).map(item => item.systemType));
     if (modes.size === 1 && modes.has('MANGOTE')) Object.assign(patch, pressureHoseModePatch(true));

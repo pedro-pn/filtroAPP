@@ -455,14 +455,14 @@ enum BudgetSelectionStatus {
 }
 
 // Unidade de medida do quantitativo previsto de serviços (escopo vendido).
-// Em uso hoje: M (tubulação) e L (óleo) — as que casam com o realizado do RDO. KG/T/UN ficam
-// reservadas para quando o RDO passar a capturar peso/tanques (sem fonte de realizado por ora).
+// Metros, litros, massa e unidades são medidos nos relatórios; DIA acompanha locação pelo período do projeto.
 enum PlannedMeasureUnit {
   M // metros (tubulação)
-  KG // quilos (reservado)
-  T // toneladas (reservado)
-  UN // unidades (reservado)
+  KG // quilos (limpeza mecânica)
+  T // toneladas
+  UN // unidades
   L // litros (óleo)
+  DIA // dias de locação
 }
 
 enum AccessImportSource {
@@ -925,6 +925,8 @@ model DdsTheme {
 }
 
 model Project {
+  serviceCategory String @default("SERVICE") // SERVICE | RENTAL
+  endDate DateTime? @db.Date
   id                             String    @id @default(cuid())
   code                           String    @unique
   name                           String
@@ -3897,7 +3899,7 @@ model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
   contributionKey String?
-  serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | LIMPEZA_MECANICA | LOCACAO
   scopeName   String?                       @db.VarChar(180) // agrupamento do cronograma; seleção por serviço no RDO
   weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)
   note        String?

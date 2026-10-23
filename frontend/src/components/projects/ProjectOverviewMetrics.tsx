@@ -5,6 +5,10 @@ import { ProjectDetailDisclosure } from './ProjectDetailDisclosure';
 import { brl, fmtHours, pct } from './projectCardFormatting';
 
 export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
+  if (card.rentalTracking) return <div className="acp-project__metrics"><dl className="acp-project__pair">
+    <div><dt>Dias de locação</dt><dd>{card.rentalTracking.elapsedDays ?? '—'} / {card.rentalTracking.plannedDays ?? '—'}</dd></div>
+    <div><dt>Dias restantes</dt><dd>{card.rentalTracking.remainingDays ?? '—'}</dd></div>
+  </dl></div>;
   const hours = card.workedHours;
   const hasOffshore = card.laborCostBase != null && card.laborCost != null && Math.round(card.laborCost) !== Math.round(card.laborCostBase);
   const taxes = card.presumedProfitTaxes;

@@ -4187,9 +4187,9 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   color: var(--rd);
 }
 
-.field-invalid input,
-.field-invalid select,
-.field-invalid textarea,
+.field-invalid input:not(.fv-input),
+.field-invalid select:not(.fv-select),
+.field-invalid textarea:not(.fv-textarea),
 .field-invalid-panel {
   border-color: var(--rd) !important;
   background-color: var(--error-bg) !important;
@@ -6759,12 +6759,14 @@ a.upload-list-name {
 }
 
 /* ── Pre-fill badge (paridade com .pre/.pre-badge do HTML) ── */
-.pre,
-input.pre,
-select.pre,
-textarea.pre {
+.pre:not(.fv-input, .fv-select, .fv-textarea, .fv-control-shell) {
   background-color: var(--warning-bg) !important;
   border-color: var(--warning-line) !important;
+}
+
+.field-invalid .pre:not(.fv-input, .fv-select, .fv-textarea, .fv-control-shell) {
+  background-color: var(--error-bg) !important;
+  border-color: var(--rd) !important;
 }
 
 .pre-badge {

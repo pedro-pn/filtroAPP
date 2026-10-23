@@ -77,6 +77,7 @@ function mockReportDatabase(t, options = {}) {
     const pending = structuredClone(state);
     const result = await callback({
       ...draftClient(pending, options),
+      projectPlannedService: { findMany: async () => [] },
       project: { findFirstOrThrow: async () => project },
       projectReportSeq: { upsert: async () => ({ nextNumber: 1 }) },
       workforceHoliday: { findMany: async () => [] },

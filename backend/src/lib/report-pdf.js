@@ -264,8 +264,8 @@ function getServiceSummary(service, lookups) {
         ...common,
         statementOne: 'Material do equipamento',
         statementDataOne: stringifyValue('Material do equipamento', getField(fields, ['Material do equipamento']), lookups),
-        statementTwo: '',
-        statementDataTwo: '',
+        statementTwo: 'Quantidade executada',
+        statementDataTwo: [fields.quantidadeMecanica ?? fields['Quantidade da limpeza mecânica'], fields.unidadeMecanica ?? fields['Unidade da limpeza mecânica']].filter(value => value != null && value !== '').join(' '),
         infoStatement: '',
         info: ''
       };

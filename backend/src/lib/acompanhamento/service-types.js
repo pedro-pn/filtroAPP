@@ -4,6 +4,8 @@ export function normalizeRdoServiceType(raw) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z]/g, '');
   if (!key) return null;
+  if (key === 'mecanica' || key.startsWith('limpezamecanica')) return 'LIMPEZA_MECANICA';
+  if (key === 'locacao' || key === 'rental') return 'LOCACAO';
   if (key.startsWith('limpezaquimica') || key === 'limpeza') return 'LIMPEZA_QUIMICA';
   if (key.startsWith('testedepressao') || key === 'testepressao' || key === 'pressao') return 'TESTE_PRESSAO';
   if (key.startsWith('flushing')) return 'FLUSHING';

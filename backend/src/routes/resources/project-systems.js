@@ -14,10 +14,10 @@ export function createProjectSystemsRouter(client, collaboratorCanAccessProject)
     const systems = await client.projectServiceSystem.findMany({
       where: { projectId: project.id }, orderBy: [{ equipment: 'asc' }, { name: 'asc' }],
       select: { id: true, projectId: true, equipment: true, name: true,
-        plannedRows: { select: { systemType: true, service: { select: { serviceType: true } } } } }
+        plannedRows: { select: { systemType: true, unit: true, service: { select: { serviceType: true } } } } }
     });
     res.json(systems.map(({ plannedRows, ...system }) => ({ ...system,
-      measurements: plannedRows.map(row => ({ serviceType: row.service.serviceType, systemType: row.systemType }))
+      measurements: plannedRows.map(row => ({ serviceType: row.service.serviceType, systemType: row.systemType, unit: row.unit }))
     })));
   }));
   return router;

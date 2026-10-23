@@ -929,6 +929,7 @@ async function listCommercialDashboardUncached({
         clientCnpj: true,
         contractCode: true,
         commercialProposalCode: true,
+        serviceCategory: true, endDate: true,
         startDate: true,
         crmOpportunities: { select: { id: true, externalId: true, externalUrl: true, scopeKind: true, proposalSystem: true }, orderBy: { createdAt: 'asc' } },
         proposalPercentage: true,
@@ -1004,7 +1005,7 @@ async function listCommercialDashboardUncached({
       ? commercialAppByExternalId.get(budget.commercialAppProposalId) : null;
     const codProp = appProposal ? appProposal.proposalCode : projectProposalCode(project);
     const crmOpportunity = project.crmOpportunities?.find(item => item.scopeKind === 'PRIMARY') ?? project.crmOpportunities?.[0] ?? null;
-    if (!appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !crmOpportunity) continue;
+    if (project.serviceCategory !== 'RENTAL' && !appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !crmOpportunity) continue;
     const resolved = appProposal ? true : Boolean(project.commercialProposalCode) && Boolean(budget);
     const crmUsesCommercialApp = project.crmOpportunities?.some(item => item.scopeKind === 'PRIMARY' && item.proposalSystem === 'COMERCIALAPP');
     const source = appProposal ? commercialAppBudgetSource(appProposal)

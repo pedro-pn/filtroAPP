@@ -4,7 +4,7 @@ export interface ProjectSystemAlias { equipment: string; system: string; service
 export interface ProjectSystem {
   id: string; projectId: string; equipment: string; name: string;
   revision: number; aliases?: ProjectSystemAlias[];
-  measurements?: Array<{ serviceType: string; systemType: 'TUBULACAO' | 'OLEO' | 'SISTEMA' | 'MANGOTE' }>;
+  measurements?: Array<{ serviceType: string; systemType: 'TUBULACAO' | 'OLEO' | 'SISTEMA' | 'MANGOTE' | 'MECANICA_M' | 'MECANICA_UN' | 'MECANICA_KG' | 'MECANICA_T' | 'MECANICA_L' | 'LOCACAO'; unit?: string | null }>;
 }
 export async function listProjectSystems(projectId: string, source: 'reports' | 'scope' = 'reports') {
   const path = source === 'scope'

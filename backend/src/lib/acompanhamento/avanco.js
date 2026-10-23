@@ -1,3 +1,4 @@
+import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 /*
  * Avanço físico do projeto (módulo Acompanhamento) — método D-3 "RDO ponderado por serviço".
  *
@@ -97,6 +98,7 @@ export function addRealizedService(byType, service, canonical = normalizeRdoServ
   acc.oleoL += realized.oleoL;
   acc.sistemasUn = (acc.sistemasUn ?? 0) + realized.sistemasUn;
   acc.mangotesUn = (acc.mangotesUn ?? 0) + realized.mangotesUn;
+  for (const { metric } of Object.values(MECHANICAL_MEASURES)) acc[metric] = (acc[metric] ?? 0) + (realized[metric] ?? 0);
   acc.measurements.push(...(service.reconciledMeasurements ?? extractServiceMeasurements(service, canonical)));
   byType.set(canonical, acc);
 }
@@ -107,7 +109,7 @@ function realizedForSystem(systemType, realized) {
   if (systemType === 'OLEO') return realized.oleoL;
   if (systemType === 'SISTEMA') return realized.sistemasUn ?? 0;
   if (systemType === 'MANGOTE') return realized.mangotesUn ?? 0;
-  return 0;
+  return realized[MECHANICAL_MEASURES[systemType]?.metric] ?? 0;
 }
 
 function round(value, decimals = 1) {
@@ -172,6 +174,7 @@ export function compactWeeklyProgressHistory(points = [], { startDate = null } =
 // Monta o resultado de avanço de um projeto a partir do previsto e do realizado já agregado.
 // realizedByType: Map<serviceTypeCanônico, {tubulacaoM, oleoL}>.
 export function buildProgress(plannedServices, realizedByType, options = {}) {
+  plannedServices = plannedServices.filter(service => normalizeRdoServiceType(service.serviceType) !== 'LOCACAO');
   if (plannedServices.some(service => service.systems?.some(row => row.projectSystemId))) {
     return withScopeGroups(buildSystemProgress(plannedServices, realizedByType, normalizeRdoServiceType, options), plannedServices, normalizeRdoServiceType);
   }
@@ -715,6 +718,7 @@ export async function computeProgressDetailsForProjects(projectIds) {
       where: { id: { in: ids } },
       select: {
         id: true,
+        serviceCategory: true, endDate: true,
         startDate: true,
         manualProgressPct: true,
         proposalPercentage: true,

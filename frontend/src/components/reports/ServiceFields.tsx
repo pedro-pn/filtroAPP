@@ -1,3 +1,4 @@
+import { MechanicalMeasurementFields } from './MechanicalMeasurementFields';
 import type { ReactNode } from 'react';
 import { CLEANING_CHEMICAL_LABELS, CLEANING_STAGES, STANDARD_MATERIALS, cleaningChemicalOptions, cleaningChemicalSelectionLabel, materialSelection, orderedCleaningStages, selectedChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibitionOptions';
@@ -1351,6 +1352,9 @@ export function ServiceFields({
   if (normalizedType === 'mecanica') {
     return (
       <>
+        <ServiceFormSection title="Quantitativo executado" appearance={appearance}>
+          <MechanicalMeasurementFields projectId={projectId} data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        </ServiceFormSection>
         <ServiceFormSection title="Equipamento" appearance={appearance}>
           <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label="Material do equipamento" />
         </ServiceFormSection>

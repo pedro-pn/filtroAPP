@@ -3,7 +3,7 @@ import { systemNameKey } from './project-systems.js';
 
 const scopeName = service => service.scopeName?.trim() || null;
 const scopeLabel = name => name || 'Sem escopo definido';
-const serviceLabels = { LIMPEZA_QUIMICA: 'Limpeza química', TESTE_PRESSAO: 'Teste de pressão', FLUSHING: 'Flushing', FILTRAGEM: 'Filtragem' };
+const serviceLabels = { LIMPEZA_QUIMICA: 'Limpeza química', TESTE_PRESSAO: 'Teste de pressão', FLUSHING: 'Flushing', FILTRAGEM: 'Filtragem', LIMPEZA_MECANICA: 'Limpeza mecânica', LOCACAO: 'Locação' };
 const round1 = value => Math.round(value * 10) / 10;
 const measurementKey = row => JSON.stringify([
   row.projectSystemId || '', row.systemType, row.unit || '',

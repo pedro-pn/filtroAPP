@@ -518,8 +518,8 @@ export async function setProjectSchedule(projectId: string, payload: ProjectSche
 
 // --- Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra ---
 
-export type PlannedMeasureUnit = 'M' | 'KG' | 'T' | 'UN' | 'L';
-export type PlannedSystemType = 'TUBULACAO' | 'OLEO' | 'SISTEMA' | 'MANGOTE';
+export type PlannedMeasureUnit = 'M' | 'KG' | 'T' | 'UN' | 'L' | 'DIA';
+export type PlannedSystemType = 'TUBULACAO' | 'OLEO' | 'SISTEMA' | 'MANGOTE' | 'MECANICA_M' | 'MECANICA_UN' | 'MECANICA_KG' | 'MECANICA_T' | 'MECANICA_L' | 'LOCACAO';
 export type PlannedDiameterUnit = 'pol' | 'mm';
 
 export interface PlannedServiceSystem {
@@ -773,7 +773,10 @@ export interface DailyProgressPoint extends ProgressHistoryPoint {
   }>;
 }
 
+export interface RentalTracking { startDate: string | null; endDate: string | null; plannedDays: number | null; elapsedDays: number | null; remainingDays: number | null; status: string }
+
 export interface ProjectCard {
+  rentalTracking?: RentalTracking | null;
   presentation?: ProjectPresentation;
   canViewProjectFinancials?: boolean;
   kind?: 'PROJECT';
@@ -1027,6 +1030,7 @@ export async function getMissionGroupInvoices(groupId: string) {
 }
 
 export interface ProjectDetail {
+  rentalTracking?: RentalTracking | null;
   presentation?: ProjectPresentation;
   proposalPercentage?: number | null;
   fullPlannedDays?: number | null;

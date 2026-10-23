@@ -240,8 +240,8 @@ function serviceTemplateData(service, index) {
         ...common,
         statementone: 'Material do equipamento',
         statementdataone: stringify(getField(fields, ['Material do equipamento'])),
-        statementtwo: '',
-        statementdatatwo: '',
+        statementtwo: 'Quantidade executada',
+        statementdatatwo: [fields.quantidadeMecanica ?? fields['Quantidade da limpeza mecânica'], fields.unidadeMecanica ?? fields['Unidade da limpeza mecânica']].filter(value => value != null && value !== '').join(' '),
         infostatement: '',
         info: ''
       };

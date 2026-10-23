@@ -45,9 +45,9 @@ test('não inventa quantitativos para serviços e unidades incompatíveis', () =
   const source = snapshot();
   source.costBreakdown.circuitServices.push(
     { systemId: 'circuit-1', itemId: 'oil-1', itemType: 'oil', serviceId: 'teste_hidrostatico' },
-    { systemId: 'circuit-1', itemId: 'pipe-1', itemType: 'pipes', serviceId: 'hidrojateamento' }
+    { systemId: 'circuit-1', itemId: 'pipe-1', itemType: 'pipes', serviceId: 'servico_sem_mapeamento' }
   );
-  source.proposalSnapshot.technicalServices.push({ serviceId: 'hidrojateamento' });
+  source.proposalSnapshot.technicalServices.push({ serviceId: 'servico_sem_mapeamento' });
   const mapped = projectScopeFromCommercialApp(source);
   assert.equal(mapped.services.length, 3);
   assert.equal(mapped.issues.length, 2);
@@ -138,4 +138,63 @@ test('primeira seleção e nova revisão importam serviços; repetição é idem
   assert.equal((await syncCommercialAppScope(tx, 'project-1',
     { externalId: 'revision-2', snapshot: next })).status, 'IMPORTED');
   assert.equal(state.services[0].systems.create[0].quantity, 80);
+});
+
+test('recupera o título versionado real da 4666 R1 e inclui desidratação sem duplicar litros', () => {
+  const source = snapshot();
+  source.scope = [{ id: 'escopo-levantamento-legacy-services-v1-filtragem_oleo_diesel', title: 'Filtragem de óleo diesel' }];
+  source.proposalSnapshot.technicalServices[3].serviceVersion = { versionId: 'legacy-services-v1-filtragem_oleo_diesel' };
+  assert.equal(projectScopeFromCommercialApp(source).services[2].scopeName, 'Filtragem de óleo diesel');
+  source.proposalSnapshot.technicalServices.push({ serviceId: 'desidratacao_oleo_diesel', title: 'Desidratação de óleo diesel' });
+  source.costBreakdown.circuitServices.push({ systemId: 'circuit-1', itemId: 'oil-1', itemType: 'oil', serviceId: 'desidratacao_oleo_diesel' });
+  const mapped = projectScopeFromCommercialApp(source);
+  assert.deepEqual(mapped.issues, []);
+  const filtration = mapped.services.find(service => service.serviceType === 'FILTRAGEM');
+  assert.equal(filtration.scopeName, 'Filtragem de óleo diesel + Desidratação de óleo diesel');
+  assert.equal(filtration.systems[0].quantity, 500);
+});
+
+test('PIG e hidrojateamento usam metros; reservatório usa unidades e boroscopia fica fora das metas sem gerar pendência', () => {
+  const source = snapshot();
+  source.proposalSnapshot.technicalServices = ['passagem_pig', 'hidrojateamento', 'limpeza_reservatorio', 'boroscopia'].map(serviceId => ({ serviceId }));
+  source.costBreakdown.volumeSystems[0].reservoirVolumes = [{ id: 'tank', description: 'Reservatório A', quantity: 2, volumeLiters: 1000 }];
+  source.costBreakdown.circuitServices = [
+    ...['passagem_pig', 'hidrojateamento', 'boroscopia'].map(serviceId => ({ systemId: 'circuit-1', itemType: 'pipes', itemId: 'pipe-1', serviceId })),
+    { systemId: 'circuit-1', itemType: 'reservoirs', itemId: 'tank', serviceId: 'limpeza_reservatorio' }
+  ];
+  const mapped = projectScopeFromCommercialApp(source);
+  assert.equal(mapped.services[0].serviceType, 'LIMPEZA_MECANICA');
+  assert.deepEqual(mapped.services[0].systems.map(row => [row.systemType, row.quantity, row.unit]), [
+    ['MECANICA_M', 60, 'M'], ['MECANICA_UN', 2, 'UN']
+  ]);
+  assert.deepEqual(mapped.issues, []);
+});
+
+test('locação preserva os dias de cada equipamento; venda não cria escopo operacional', () => {
+  const source = { proposalSnapshot: { estimateNature: 'equipment_rental', modelo: 'locacao_equipamentos' },
+    costBreakdown: { equipmentRentals: [{ id: 'unit-1', description: 'Unidade de filtragem', days: 30, quantity: 2, included: true }] } };
+  const mapped = projectScopeFromCommercialApp(source);
+  assert.equal(mapped.services[0].serviceType, 'LOCACAO');
+  assert.equal(mapped.services[0].systems[0].quantity, 30);
+  assert.equal(mapped.services[0].systems[0].unit, 'DIA');
+  source.proposalSnapshot.estimateNature = 'equipment_sale';
+  assert.deepEqual(projectScopeFromCommercialApp(source), { services: [], issues: [] });
+});
+
+test('adicional de locação não transforma um projeto operacional inteiro em locação', async () => {
+  let created;
+  const tx = {
+    project: { findUnique: async () => ({ commercialScopeImport: null, serviceCategory: 'SERVICE' }),
+      update: async () => { throw new Error('Categoria do projeto principal alterada pelo adicional'); } },
+    projectAdditionalProposal: { findUnique: async () => ({ active: true, commercialAppProposalId: 'rental-add', scopeImport: null }), update: async () => {} },
+    projectPlannedService: { count: async () => 0, deleteMany: async () => {}, create: async ({ data }) => { created = data; } },
+    projectServiceSystem: { upsert: async () => ({ id: 'system-1' }) }
+  };
+  const result = await syncCommercialAppScope(tx, 'project-1', { proposalKind: 'ADDITIONAL', externalId: 'rental-add', proposalCode: '4901',
+    snapshot: { proposalSnapshot: { estimateNature: 'equipment_rental' }, costBreakdown: { equipmentRentals: [
+      { id: 'rental-1', description: 'Unidade de filtragem', days: 30, quantity: 1 }
+    ] } } });
+  assert.equal(result.status, 'IMPORTED');
+  assert.equal(created.serviceType, 'LOCACAO');
+  assert.equal(created.contributionKey, 'COMERCIAL_APP:4901');
 });
