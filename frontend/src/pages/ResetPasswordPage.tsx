@@ -50,10 +50,10 @@ export function ResetPasswordPage() {
   useEffect(() => {
     if (!message) return undefined;
     const timeoutId = window.setTimeout(() => {
-      navigate('/login', { replace: true });
+      navigate('/login', { replace: true, state: { username } });
     }, 1800);
     return () => window.clearTimeout(timeoutId);
-  }, [message, navigate]);
+  }, [message, navigate, username]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,7 +112,7 @@ export function ResetPasswordPage() {
 
       {status === 'valid' && message ? <div className="auth-access-content">
         <Alert tone="success" title={message}>Redirecionando para o login...</Alert>
-        <Link className="fv-button fv-button--secondary fv-button--md auth-access-back" to="/login">Ir para o login agora</Link>
+        <Link className="fv-button fv-button--secondary fv-button--md auth-access-back" to="/login" state={{ username }}>Ir para o login agora</Link>
       </div> : null}
 
       {status === 'valid' && !message ? <form className="auth-access-form" onSubmit={handleSubmit}>

@@ -1,5 +1,13 @@
 # Search regression in a browser
 
+For public RDO project signatures, open `/assinar/exemplo?visualizar=1` with the frontend
+development server running. It shows four example PDFs and simulates individual or joint
+signatures without recording real signatures. Run `npx playwright test
+--config=playwright.rdo.config.ts rdo-public-signature-batch.behavior.spec.ts` from `frontend`
+to check document switching, individual and joint confirmation, partial failures and retry,
+the single-report flow, mobile signing, and layout in both themes. Production links only
+include available pending RDOs assigned to the same client email within the same project.
+
 For moving photos during RDO review, run:
 
 ```sh

@@ -97,6 +97,229 @@
   width: min(100%, 56rem);
 }
 
+.public-signature-page--batch .public-signature-card {
+  width: min(100%, 76rem);
+}
+
+.public-signature-workspace,
+.public-signature-document-pane {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-4);
+}
+
+.public-signature-page--batch .public-signature-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 21rem);
+  grid-template-areas: 'document reports';
+  gap: var(--space-6);
+}
+
+.public-signature-page--batch .public-signature-document-pane {
+  grid-area: document;
+}
+
+.public-signature-pending {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  grid-area: reports;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.public-signature-pending-heading,
+.public-signature-document-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.public-signature-pending-heading h2,
+.public-signature-document-heading h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.public-signature-pending-heading p,
+.public-signature-document-heading p,
+.public-signature-pending-hint,
+.public-signature-batch-invite p,
+.public-signature-confirm-bar p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.public-signature-pending-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: var(--space-10);
+  height: var(--space-10);
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+.public-signature-pending .public-signature-report-list {
+  max-height: 33rem;
+  overflow-y: auto;
+}
+
+.public-signature-report-option {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.public-signature-report-option > svg {
+  flex: 0 0 auto;
+}
+
+.public-signature-report-option > span {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-1);
+}
+
+.public-signature-report-option strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.public-signature-report-option small,
+.public-signature-report-state {
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.public-signature-report-state {
+  color: var(--brand-text);
+}
+
+.public-signature-report-state.is-signed {
+  color: var(--success);
+}
+
+.public-signature-report-option:hover,
+.public-signature-report-option.is-selected {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+.public-signature-report-option:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.public-signature-batch-invite {
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.public-signature-batch-invite a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block-start: var(--space-3);
+  color: var(--brand-text);
+  font-weight: var(--font-semibold);
+}
+
+.public-signature-document-heading {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.public-signature-document-heading > div > span {
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.public-signature-consent {
+  display: grid;
+  gap: var(--space-5);
+  padding-block-start: var(--space-5);
+  border-block-start: var(--border-width) solid var(--line);
+  scroll-margin-top: var(--space-5);
+}
+
+.public-signature-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.public-signature-confirm-bar > div:first-child {
+  max-width: 30rem;
+}
+
+.public-signature-confirm-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.public-signature-batch-confirmation {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.public-signature-batch-confirmation ul {
+  max-height: 10rem;
+  overflow-y: auto;
+  padding-inline-start: var(--space-5);
+}
+
+@media (max-width: 58rem) {
+  .public-signature-page--batch .public-signature-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'reports' 'document';
+  }
+
+  .public-signature-pending .public-signature-report-list {
+    max-height: 20rem;
+  }
+
+  .public-signature-confirm-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .public-signature-confirm-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .public-report-document {
   display: grid;
   min-width: 0;
@@ -385,6 +608,15 @@
 
   .public-signature-actions.public-report-actions {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-signature-confirm-buttons {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-signature-document-pane .public-signature-actions,
+  .public-signature-reject .public-signature-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .signature-validation-file {

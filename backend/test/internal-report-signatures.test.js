@@ -21,6 +21,7 @@ import {
   signatureRequestEmailRequired,
   publicSignaturePayload,
   publicSignatureConfirmSchema,
+  publicSignatureBatchConfirmSchema,
   requestSignatureSchema,
   publicValidationPayload,
   publicSignatureStatus,
@@ -2164,11 +2165,13 @@ function publicSignatureFixture(overrides = {}) {
     versionId: 'version-public-1',
     signerName: 'Cliente Teste',
     signerEmail: 'cliente@example.com',
+    signerRole: 'CLIENT',
     status: 'PENDING',
     isRequired: true,
     tokenExpiresAt: new Date(Date.now() + 60_000),
     report: {
       id: 'report-public-1',
+      projectId: 'project-public-1',
       reportType: 'RDO',
       sequenceNumber: 12,
       reportDate: new Date('2026-06-01T00:00:00.000Z'),
@@ -2300,11 +2303,17 @@ test('view-only token does not authorize public signature confirmation or reject
     privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
   });
   assert.equal(confirmation.statusCode, 404);
+  const batchConfirmation = await dispatchApp('POST', `${base}/confirm-batch`, {
+    signatureIds: ['signature-public-1'],
+    signerName: 'Cliente Teste', signatureImageDataUrl: validSignatureImageDataUrl,
+    privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+  });
+  assert.equal(batchConfirmation.statusCode, 404);
   const rejection = await dispatchApp('POST', `${base}/reject`, { comment: 'Tentativa de reprovação' });
   assert.equal(rejection.statusCode, 404);
 });
 
-test('public signature link returns only the token report without batching sibling reports', async t => {
+test('public signature link lists pending RDOs for the same project and client email', async t => {
   const originalFindUnique = prisma.reportSignature.findUnique;
   const originalFindMany = prisma.reportSignature.findMany;
   const originalAuditCreate = prisma.reportAuditLog.create;
@@ -2314,8 +2323,19 @@ test('public signature link returns only the token report without batching sibli
     assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-single-token'));
     return publicSignatureFixture();
   };
-  prisma.reportSignature.findMany = async () => {
-    throw new Error('O link publico nao deve buscar assinaturas de outros relatorios.');
+  prisma.reportSignature.findMany = async args => {
+    assert.equal(args.where.report.projectId, 'project-public-1');
+    assert.equal(args.where.report.reportType, 'RDO');
+    assert.equal(args.where.report.status, 'APPROVED');
+    assert.equal(args.where.report.deletedAt, null);
+    assert.deepEqual(args.where.report.project, { deletedAt: null, managerOnly: false });
+    assert.deepEqual(args.where.signerEmail, { equals: 'cliente@example.com', mode: 'insensitive' });
+    assert.equal(args.where.signerRole, 'CLIENT');
+    assert.equal(args.where.version.status, 'ACTIVE');
+    const sibling = publicSignatureFixture();
+    sibling.id = 'signature-sibling';
+    sibling.report = { ...sibling.report, id: 'report-sibling', sequenceNumber: 13 };
+    return [sibling];
   };
   prisma.reportAuditLog.create = async args => {
     auditCreated = true;
@@ -2334,18 +2354,29 @@ test('public signature link returns only the token report without batching sibli
   assert.equal(response.json.status, 'ACTIVE');
   assert.equal(response.json.report.sequenceNumber, 12);
   assert.equal(response.json.signer.signatureId, 'signature-public-1');
-  assert.equal(response.json.batch, undefined);
+  assert.equal(response.json.batch.pendingCount, 2);
+  assert.deepEqual(response.json.batch.reports.map(item => item.signatureId), ['signature-public-1', 'signature-sibling']);
+  assert.equal(response.json.batch.reports[1].report.sequenceNumber, 13);
+  assert.equal(response.json.batch.reports[1].signer.email, 'cliente@example.com');
   assert.equal(auditCreated, true);
 });
 
 test('public signature token cannot be scoped to a different signature id', async t => {
   const originalFindUnique = prisma.reportSignature.findUnique;
+  const originalFindFirst = prisma.reportSignature.findFirst;
   prisma.reportSignature.findUnique = async args => {
     assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-single-token'));
     return publicSignatureFixture();
   };
+  prisma.reportSignature.findFirst = async args => {
+    assert.equal(args.where.id, 'signature-public-2');
+    assert.equal(args.where.report.projectId, 'project-public-1');
+    assert.equal(args.where.signerEmail.equals, 'cliente@example.com');
+    return null;
+  };
   t.after(() => {
     prisma.reportSignature.findUnique = originalFindUnique;
+    prisma.reportSignature.findFirst = originalFindFirst;
   });
 
   const response = await dispatchAppGet('/api/reports/public-sign/public-single-token/pdf?signatureId=signature-public-2');
@@ -2513,4 +2544,149 @@ test('createValidationQrCodeMatrix creates a square QR matrix for validation URL
   assert.equal(matrix[0][0], true);
   assert.equal(matrix[6][0], true);
   assert.equal(matrix[6][6], true);
+});
+
+test('public RDO batch confirmation validates the exact selection, full name and privacy acknowledgement', () => {
+  const input = {
+    signatureIds: ['signature-1', 'signature-2'], signerName: 'Cliente Teste',
+    signatureImageDataUrl: tinyPngDataUrl,
+    privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+  };
+  assert.deepEqual(publicSignatureBatchConfirmSchema.parse(input).signatureIds, input.signatureIds);
+  assert.throws(() => publicSignatureBatchConfirmSchema.parse({ ...input, signatureIds: [] }));
+  assert.throws(() => publicSignatureBatchConfirmSchema.parse({ ...input, signatureIds: ['same', 'same'] }));
+  assert.throws(() => publicSignatureBatchConfirmSchema.parse({ ...input, signatureIds: Array.from({ length: 101 }, (_, i) => `s-${i}`) }));
+  assert.throws(() => publicSignatureBatchConfirmSchema.parse({ ...input, signerName: 'Cliente' }), /nome e sobrenome/i);
+  assert.throws(() => publicSignatureBatchConfirmSchema.parse({ ...input, privacyNoticeAccepted: false }), /privacidade/i);
+});
+
+async function mockPublicProjectBatch(t, { failSecond = false } = {}) {
+  const originalDir = env.reportsDir;
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-project-batch-'));
+  env.reportsDir = directory;
+  const pdf = Buffer.from('immutable-RDO-source');
+  await fs.writeFile(path.join(directory, 'source.pdf'), pdf);
+  const anchor = publicSignatureFixture({ sourcePdfUrl: '/relatorios/source.pdf', sourceDocumentHash: sha256Hex(pdf) });
+  const sibling = publicSignatureFixture({ sourcePdfUrl: '/relatorios/source.pdf', sourceDocumentHash: sha256Hex(pdf) });
+  sibling.id = 'project-sibling-signature';
+  sibling.reportId = sibling.report.id = 'project-sibling-report';
+  sibling.versionId = sibling.version.id = 'project-sibling-version';
+  sibling.report.sequenceNumber = 13;
+  const signatures = [anchor, sibling];
+  const writes = [];
+  const audits = [];
+  const originals = {
+    transaction: prisma.$transaction,
+    findUnique: prisma.reportSignature.findUnique,
+    findFirst: prisma.reportSignature.findFirst,
+    updateMany: prisma.reportSignature.updateMany,
+    versionFindFirst: prisma.reportVersion.findFirst,
+    reportFind: prisma.report.findUniqueOrThrow,
+    auditCreate: prisma.reportAuditLog.create
+  };
+  prisma.reportSignature.findUnique = async () => anchor;
+  prisma.reportSignature.findFirst = async ({ where }) => {
+    assert.equal(where.report.projectId, anchor.report.projectId);
+    assert.equal(where.report.reportType, 'RDO');
+    assert.equal(where.signerEmail.equals, anchor.signerEmail);
+    assert.equal(where.signerRole, 'CLIENT');
+    assert.equal(where.version.status, 'ACTIVE');
+    return signatures.find(item => item.id === where.id) || null;
+  };
+  prisma.$transaction = async callback => callback(prisma);
+  prisma.reportSignature.updateMany = async ({ where, data }) => {
+    const signature = signatures.find(item => item.id === where.id && item.status === where.status);
+    if (!signature) return { count: 0 };
+    if (failSecond && signature === sibling) {
+      const error = new Error('Este RDO foi atualizado. Recarregue o documento.');
+      error.statusCode = 409;
+      throw error;
+    }
+    writes.push({ id: signature.id, data });
+    Object.assign(signature, data);
+    return { count: 1 };
+  };
+  prisma.reportVersion.findFirst = async ({ where }) => signatures.find(item => item.reportId === where.reportId)?.version;
+  prisma.report.findUniqueOrThrow = async ({ where }) => signatures.find(item => item.reportId === where.id)?.report;
+  prisma.reportAuditLog.create = async ({ data }) => { audits.push(data); return data; };
+  t.after(async () => {
+    prisma.$transaction = originals.transaction;
+    prisma.reportSignature.findUnique = originals.findUnique;
+    prisma.reportSignature.findFirst = originals.findFirst;
+    prisma.reportSignature.updateMany = originals.updateMany;
+    prisma.reportVersion.findFirst = originals.versionFindFirst;
+    prisma.report.findUniqueOrThrow = originals.reportFind;
+    prisma.reportAuditLog.create = originals.auditCreate;
+    env.reportsDir = originalDir;
+    await fs.rm(directory, { recursive: true, force: true });
+  });
+  const input = {
+    signatureIds: signatures.map(item => item.id), signerName: 'Pessoa Responsável',
+    signatureImageDataUrl: tinyPngDataUrl,
+    privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+  };
+  return { signatures, anchor, sibling, writes, audits, input };
+}
+
+test('public RDO batch registers the same declared signature and evidence separately on each selected report', async t => {
+  const { signatures, writes, audits, input } = await mockPublicProjectBatch(t);
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm-batch', input, { 'user-agent': 'Public RDO test browser' });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.results.map(item => [item.signatureId, item.success, item.completed]), signatures.map(item => [item.id, true, false]));
+  assert.equal(writes.length, 2);
+  for (const { data } of writes) {
+    assert.equal(data.signatureImageDataUrl, tinyPngDataUrl);
+    assert.equal(data.declaredSignerName, 'Pessoa Responsável');
+    assert.equal(data.privacyNoticeVersion, SIGNATURE_RDO_NOTICE_VERSION);
+    assert.ok(data.privacyNoticeAcceptedAt instanceof Date);
+    assert.ok(data.signedAt instanceof Date);
+    assert.equal(data.userAgent, 'Public RDO test browser');
+  }
+  assert.deepEqual(audits.map(item => item.reportId), signatures.map(item => item.reportId));
+});
+
+test('public RDO batch rejects an out-of-scope selection before persisting any signature', async t => {
+  const { input, writes } = await mockPublicProjectBatch(t);
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm-batch', {
+    ...input, signatureIds: [input.signatureIds[0], 'another-project-or-signer']
+  });
+  assert.equal(response.statusCode, 404);
+  assert.equal(writes.length, 0);
+});
+
+test('public RDO batch reports partial failures and preserves signatures already recorded', async t => {
+  const { input, writes, anchor, sibling } = await mockPublicProjectBatch(t, { failSecond: true });
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm-batch', input);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.results[0].success, true);
+  assert.equal(response.json.results[1].success, false);
+  assert.match(response.json.results[1].error, /RDO foi atualizado/);
+  assert.equal(writes.length, 1);
+  assert.equal(anchor.status, 'SIGNED');
+  assert.equal(sibling.status, 'PENDING');
+});
+
+test('expired and invalidated public RDO links cannot list project pending reports', async t => {
+  const originalFind = prisma.reportSignature.findUnique;
+  const originalMany = prisma.reportSignature.findMany;
+  let anchor;
+  prisma.reportSignature.findUnique = async () => anchor;
+  prisma.reportSignature.findMany = async () => { throw new Error('Invalid links must not enumerate project reports.'); };
+  t.after(() => { prisma.reportSignature.findUnique = originalFind; prisma.reportSignature.findMany = originalMany; });
+  for (const status of ['EXPIRED', 'INVALIDATED', 'REJECTED']) {
+    anchor = publicSignatureFixture();
+    anchor.status = status;
+    const response = await dispatchAppGet('/api/reports/public-sign/unavailable-project-token');
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.status, status);
+    assert.equal(response.json.batch, undefined);
+  }
+});
+
+test('public project link can preview another pending RDO after its original RDO was signed', async t => {
+  const { anchor, sibling } = await mockPublicProjectBatch(t);
+  anchor.status = 'SIGNED';
+  const response = await dispatchAppGet(`/api/reports/public-sign/project-token/pdf?signatureId=${sibling.id}`);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.buffer.toString(), 'immutable-RDO-source');
 });

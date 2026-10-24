@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { Link, Navigate } from 'react-router';
+import { Link, Navigate, useLocation } from 'react-router';
 
 import { useAuth } from '../auth/AuthContext';
 import { preferredEntryPath } from '../auth/moduleNavigation';
@@ -13,7 +13,14 @@ const REMEMBERED_USER_KEY = 'filtrovali-react-remembered-user';
 
 export function LoginPage({ preview = false }: { preview?: boolean }) {
   const { isAuthenticated, isBootstrapping, token, user, login } = useAuth();
-  const [username, setUsername] = useState(() => preview ? '' : localStorage.getItem(REMEMBERED_USER_KEY) || '');
+  const location = useLocation();
+  const [username, setUsername] = useState(() => {
+    if (preview) return '';
+    const prefilledUsername = location.state?.username;
+    return typeof prefilledUsername === 'string' && prefilledUsername
+      ? prefilledUsername
+      : localStorage.getItem(REMEMBERED_USER_KEY) || '';
+  });
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => !preview && Boolean(localStorage.getItem(REMEMBERED_USER_KEY)));
