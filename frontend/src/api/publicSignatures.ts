@@ -101,6 +101,38 @@ export async function confirmPublicSignature(token: string, payload: PublicSigna
   return response.data;
 }
 
+export interface PublicSignatureBatchConfirmPayload extends Omit<PublicSignatureConfirmPayload, 'signatureId'> {
+  signatureIds: string[];
+}
+
+export interface PublicSignatureBatchResult {
+  signatureId: string;
+  success: boolean;
+  completed?: boolean;
+  error?: string;
+}
+
+export async function confirmPublicSignatureBatch(token: string, payload: PublicSignatureBatchConfirmPayload) {
+  const results: PublicSignatureBatchResult[] = [];
+  for (let offset = 0; offset < payload.signatureIds.length; offset += 100) {
+    try {
+      const response = await apiClient.post<{ results: PublicSignatureBatchResult[] }>(
+        `/reports/public-sign/${encodeURIComponent(token)}/confirm-batch`,
+        { ...payload, signatureIds: payload.signatureIds.slice(offset, offset + 100) }
+      );
+      results.push(...response.data.results);
+    } catch (error) {
+      if (!results.length) throw error;
+      results.push(...payload.signatureIds.slice(offset).map(signatureId => ({
+        signatureId, success: false,
+        error: error instanceof Error ? error.message : 'Não foi possível confirmar a assinatura.'
+      })));
+      break;
+    }
+  }
+  return { results };
+}
+
 export async function rejectPublicSignature(token: string, comment: string, signatureId?: string) {
   const response = await apiClient.post<{ success: boolean; report: ReportSummary }>(
     `/reports/public-sign/${encodeURIComponent(token)}/reject`,
