@@ -70,6 +70,7 @@ async page => {
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await assertValues(unit(), ['equipment-chemical', 'equipment-filtration']);
   await trigger.click();
+  await page.waitForFunction(() => document.querySelector('.rdo-equipment-category-dialog')?.contains(document.activeElement));
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
   if (!await trigger.evaluate(node => node === document.activeElement)) throw new Error('Escape did not restore focus');
