@@ -147,7 +147,7 @@ export function useEquipamentoMutations() {
   });
 
   const updateSlot = useMutation({
-    mutationFn: ({ slotKey, categoryIds }: { slotKey: string; categoryIds: string[] }) => updateRdoSlot(slotKey, categoryIds),
+    mutationFn: ({ slotKey, categoryIds, secondaryCategoryIds }: { slotKey: string; categoryIds: string[]; secondaryCategoryIds?: string[] }) => updateRdoSlot(slotKey, categoryIds, secondaryCategoryIds),
     onSuccess: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ['equipamentos', 'rdo-slots'] }),
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] })

@@ -1,7 +1,7 @@
 async (page) => {
   const base = page.url().split('/test/')[0] + '/test/browser/notification-center.html';
   await page.goto(base);
-  await page.evaluate(() => sessionStorage.removeItem('notification-fixture-reads'));
+  await page.evaluate(() => { sessionStorage.removeItem('notification-fixture-reads'); sessionStorage.removeItem('notification-fixture-deleted'); });
   await page.reload();
   const bell = () => page.getByRole('button', { name: /^Notificações/ });
   const waitLabel = label => page.waitForFunction(label => document.querySelector('[aria-haspopup="dialog"]')?.getAttribute('aria-label') === label, label);
@@ -21,6 +21,8 @@ async (page) => {
   await assertBellOnRight();
   await bell().click();
   await waitRows(20);
+  const filters = page.getByRole('group', { name: 'Filtrar notificações' }).getByRole('button');
+  if (!/^Não lidas/.test(await filters.first().innerText()) || await filters.first().getAttribute('aria-pressed') !== 'true') throw new Error('Unread must be the first and default filter');
   await page.evaluate(() => { window.notificationFixture.failPage = true; });
   await page.getByRole('button', { name: 'Carregar anteriores' }).click();
   await page.getByRole('alert').filter({ hasText: 'avisos anteriores' }).waitFor();
@@ -30,21 +32,37 @@ async (page) => {
   await page.getByRole('button', { name: 'Tentar carregar novamente' }).click();
   await waitRows(23);
   await page.evaluate(() => { window.notificationFixture.failRead = true; });
-  await rows.first().getByRole('button').click();
+  await rows.first().locator('.notification-center-link').click();
   await page.getByRole('alert').filter({ hasText: 'Falha na comunicação' }).waitFor();
   if (new URL(page.url()).searchParams.has('opened')) throw new Error('Failed read navigated');
   await page.evaluate(() => { window.notificationFixture.failRead = false; });
-  await rows.first().getByRole('button').click();
+  await rows.first().locator('.notification-center-link').click();
   await page.waitForURL(url => url.searchParams.get('opened') === '0');
   await waitLabel('Notificações, 22 não lidas');
   await bell().click();
-  await page.getByRole('button', { name: /^Não lidas/ }).click();
-  await waitRows(20);
+  await waitRows(22);
   if (await rows.filter({ hasText: '5800 —' }).count()) throw new Error('Read item remains in unread filter');
+  await page.getByRole('button', { name: 'Todas', exact: true }).click();
+  await rows.filter({ hasText: '5800 —' }).waitFor();
+  if (await rows.filter({ hasText: '5800 —' }).locator('.notification-center-dot').count()) throw new Error('Read item was not preserved in history');
+  await page.evaluate(() => { window.notificationFixture.failDelete = true; });
+  await rows.filter({ hasText: '5800 —' }).getByRole('button', { name: /^Excluir notificação/ }).click();
+  await page.getByRole('alert').filter({ hasText: 'Não foi possível excluir' }).waitFor();
+  if (await rows.filter({ hasText: '5800 —' }).count() !== 1) throw new Error('Failed deletion removed the item');
+  await page.evaluate(() => { window.notificationFixture.failDelete = false; });
+  await rows.filter({ hasText: '5800 —' }).getByRole('button', { name: /^Excluir notificação/ }).click();
+  await rows.filter({ hasText: '5800 —' }).waitFor({ state: 'hidden' });
+  await waitLabel('Notificações, 22 não lidas');
+  const destination = page.url();
+  await rows.filter({ hasText: '5801 —' }).getByRole('button', { name: /^Excluir notificação/ }).click();
+  await rows.filter({ hasText: '5801 —' }).waitFor({ state: 'hidden' });
+  await waitLabel('Notificações, 21 não lidas');
+  if (page.url() !== destination) throw new Error('Delete navigated');
+  await page.getByRole('button', { name: /^Não lidas/ }).click();
   await page.evaluate(() => { window.notificationFixture.failAll = true; });
   await page.getByRole('button', { name: 'Marcar todas como lidas' }).click();
   await page.getByRole('alert').filter({ hasText: 'Falha na comunicação' }).waitFor();
-  await waitLabel('Notificações, 22 não lidas');
+  await waitLabel('Notificações, 21 não lidas');
   await page.evaluate(() => { window.notificationFixture.failAll = false; });
   await page.getByRole('button', { name: 'Marcar todas como lidas' }).click();
   await page.getByText('Tudo em dia', { exact: true }).waitFor();
@@ -55,8 +73,10 @@ async (page) => {
   await page.reload();
   await waitLabel('Notificações');
   await bell().click();
+  await page.getByText('Tudo em dia', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Todas', exact: true }).click();
   await waitRows(20);
+  if (await rows.filter({ hasText: /580[01] —/ }).count()) throw new Error('Deleted item returned after reload');
   if (await page.locator('.notification-center-item.is-unread').count()) throw new Error('Read status was lost on reload');
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
@@ -67,7 +87,7 @@ async (page) => {
   await closeDialog();
   await page.getByRole('button', { name: 'Trocar conta' }).click();
   await bell().click();
-  await page.getByText('Nenhuma notificação por enquanto', { exact: true }).waitFor();
+  await page.getByText('Tudo em dia', { exact: true }).waitFor();
   if (await rows.count()) throw new Error('Previous account notifications leaked');
   await closeDialog();
   await page.getByRole('button', { name: 'Trocar conta' }).click();
@@ -77,6 +97,8 @@ async (page) => {
   if (await rows.count()) throw new Error('Query error exposed stale items');
   await page.evaluate(() => { window.notificationFixture.failList = false; });
   await page.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
+  await page.getByText('Tudo em dia', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Todas', exact: true }).click();
   await waitRows(20);
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.screenshot({ path: 'output/playwright/notification-center-desktop.png' });
@@ -94,5 +116,5 @@ async (page) => {
   await bell().click();
   await page.getByRole('dialog', { name: 'Central de notificações' }).waitFor();
   await closeDialog();
-  return 'Passed: right-side bell in both headers at 1365/390/320px, pagination and retry, individual/all reads, failed writes, persistence, Escape/focus, account isolation and fetch retry.';
+  return 'Passed: unread first/default, read history preserved, manual deletion and retry, persistence, pagination, individual/all reads, Escape/focus, account isolation, fetch retry and both headers at 1365/390/320px.';
 }

@@ -255,6 +255,44 @@ jobs:
       - name: Verify notification events, permissions, read state and API
         run: node --test test/notification-center-migration.test.js test/notification-center.integration.test.js
 
+  rdo-equipment:
+    name: RDO equipment (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtroapp_equipment_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtroapp_equipment_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_equipment_test
+      TEST_RDO_EQUIPMENT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_equipment_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify mixed primary categories, secondary alternatives, permissions and bootstrap
+        run: node --test test/rdo-equipment-slots.test.js test/rdo-equipment-slots.integration.test.js
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -296,6 +334,20 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Install Chromium for notification and equipment regressions
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify notifications and report equipment selection in the browser
+        run: npx playwright test --config=playwright.rdo.config.ts rdo-notifications-equipment.behavior.spec.ts
+
+      - name: Upload browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notifications-equipment-browser-report
+          path: output/playwright/rdo-a1
+          if-no-files-found: warn
 
   docker:
     name: Docker

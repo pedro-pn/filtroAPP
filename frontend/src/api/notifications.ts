@@ -30,6 +30,10 @@ export async function markNotificationRead(id: string) {
   await apiClient.post(`/notifications/${encodeURIComponent(id)}/read`);
 }
 
+export async function deleteNotification(id: string) {
+  await apiClient.delete(`/notifications/${encodeURIComponent(id)}`);
+}
+
 export async function markAllNotificationsRead(before: string) {
   await apiClient.post('/notifications/read-all', { before });
 }

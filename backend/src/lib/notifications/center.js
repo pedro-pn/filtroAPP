@@ -162,7 +162,8 @@ export async function listNotifications(auth, { filter = 'all', cursor, limit = 
   const snapshotAt = new Date();
   const access = await notificationAccessWhere(auth, client);
   const unread = { reads: { none: { userId: auth.user.id } } };
-  const scope = { AND: [access, { createdAt: { lte: snapshotAt } }] };
+  const scope = { AND: [access, { createdAt: { lte: snapshotAt } },
+    { reads: { none: { userId: auth.user.id, dismissedAt: { not: null } } } }] };
   const where = { AND: [scope, ...(filter === 'unread' ? [unread] : [])] };
   if (cursor) {
     const createdAt = new Date(cursor.createdAt);
@@ -202,6 +203,18 @@ export async function markNotificationRead(auth, id, client = prisma) {
   await client.notificationRead.upsert({
     where: { userId_notificationId: { userId: auth.user.id, notificationId: id } },
     create: { userId: auth.user.id, notificationId: id }, update: {}
+  });
+  return true;
+}
+
+export async function deleteNotification(auth, id, client = prisma) {
+  const access = await notificationAccessWhere(auth, client);
+  const event = await client.notificationEvent.findFirst({ where: { AND: [access, { id }] }, select: { id: true } });
+  if (!event) return false;
+  const dismissedAt = new Date();
+  await client.notificationRead.upsert({
+    where: { userId_notificationId: { userId: auth.user.id, notificationId: id } },
+    create: { userId: auth.user.id, notificationId: id, dismissedAt }, update: { dismissedAt }
   });
   return true;
 }

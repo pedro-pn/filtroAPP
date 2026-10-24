@@ -1396,6 +1396,8 @@ function SiteRdoFormPage() {
                       counters={bootstrapQuery.data?.counters || []}
                       equipments={bootstrapQuery.data?.equipments || []}
                       rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
+                      rdoSecondarySlotMap={bootstrapQuery.data?.rdoSecondarySlotMap}
+                      rdoEquipmentCategories={bootstrapQuery.data?.rdoEquipmentCategories}
                       inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
                       collaboratorOptions={serviceCollaboratorOptions}
                       groupKey={service.id}

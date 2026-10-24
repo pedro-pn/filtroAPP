@@ -166,6 +166,9 @@
 }
 
 .equip-page-v2 .equip-rdo-slots-config .equip-slot-name { color: var(--muted); }
+.equip-slot-category-group { display: grid; min-width: 0; gap: var(--space-2); }
+.equip-slot-category-group + .equip-slot-category-group { border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.equip-slot-category-label { color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
 .equip-page-v2 .equip-rdo-slots-config .equip-slot-row select {
   min-width: 0;
   min-height: var(--space-10);

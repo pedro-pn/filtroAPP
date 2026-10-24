@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import prisma from '../src/lib/prisma.js';
 import { createSession } from '../src/lib/auth.js';
-import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../src/lib/notifications/center.js';
+import { deleteNotification, listNotifications, markAllNotificationsRead, markNotificationRead } from '../src/lib/notifications/center.js';
 import { assignMissionReportTeam } from '../src/lib/efetivo/report-team.js';
 import app from '../src/app.js';
 
@@ -173,6 +173,13 @@ test('central aplica escopo real no PostgreSQL, inclusive leitura, paginação e
       const hidden = (await list(manager)).items.find(e => e.description.includes(secret.code)).id;
       assert.equal((await fetch(`${url}/${hidden}/read`, { method: 'POST', headers })).status, 404);
       assert.equal((await fetch(`${url}/missing/read`, { method: 'POST', headers })).status, 404);
+      assert.equal((await fetch(`${url}/${hidden}`, { method: 'DELETE', headers })).status, 404);
+      assert.equal((await fetch(`${url}/missing`, { method: 'DELETE', headers })).status, 404);
+      const project = await newProject('http-delete');
+      const item = (await list(coordinator)).items.find(e => e.description.includes(project.code));
+      assert.equal((await fetch(`${url}/${item.id}`, { method: 'DELETE', headers })).status, 200);
+      assert.ok(!(await list(coordinator)).items.some(e => e.id === item.id));
+      assert.ok((await list(manager)).items.some(e => e.id === item.id));
       assert.equal((await fetch(`${url}/read-all`, { method: 'POST', headers, body: JSON.stringify({ before: '2100-01-01T00:00:00.000Z' }) })).status, 400);
     } finally { await new Promise(resolve => server.close(resolve)); }
   });
@@ -252,5 +259,27 @@ test('central aplica escopo real no PostgreSQL, inclusive leitura, paginação e
       await prisma.collaborator.delete({ where: { id: operator.id } });
       await prisma.jobRole.delete({ where: { id: jobRole.id } });
     }
+  });
+  await t.test('excluir remove das duas abas somente para a conta atual, com ou sem leitura anterior', async () => {
+    for (const readFirst of [false, true]) {
+      const project = await newProject(`dismiss-${readFirst}`);
+      const item = (await list(coordinator)).items.find(e => e.description.includes(project.code));
+      if (readFirst) await markNotificationRead(coordinator, item.id);
+      const before = (await list(coordinator)).unreadCount;
+      assert.equal(await deleteNotification(coordinator, item.id), true);
+      assert.equal(await deleteNotification(coordinator, item.id), true, 'exclusão idempotente');
+      assert.equal((await list(coordinator)).unreadCount, before - (readFirst ? 0 : 1));
+      for (const filter of ['all', 'unread']) {
+        assert.ok(!(await list(coordinator, { filter })).items.some(e => e.id === item.id));
+      }
+      assert.ok((await list(manager)).items.some(e => e.id === item.id));
+      assert.equal(await prisma.notificationEvent.count({ where: { id: item.id } }), 1);
+      await markNotificationRead(coordinator, item.id);
+      await markAllNotificationsRead(coordinator, new Date());
+      assert.ok(!(await list(coordinator)).items.some(e => e.id === item.id), 'outras leituras não restauram aviso excluído');
+    }
+    const hidden = (await list(manager)).items.find(e => e.description.includes(secret.code));
+    assert.equal(await deleteNotification(coordinator, hidden.id), false);
+    assert.equal(await deleteNotification(equipment, hidden.id), false);
   });
 });

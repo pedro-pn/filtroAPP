@@ -38,9 +38,10 @@ export function RdoSlotsConfig({ categories }: Props) {
     return Array.from(map.entries());
   }, [slots]);
 
-  function save(slotKey: string, categoryIds: string[]) {
+  function save(slot: RdoEquipmentSlot, categoryIds: string[], secondary: boolean) {
     updateSlot.mutate(
-      { slotKey, categoryIds: dedupe(categoryIds) },
+      { slotKey: slot.key, categoryIds: secondary ? slot.categoryIds : dedupe(categoryIds),
+        secondaryCategoryIds: secondary ? dedupe(categoryIds) : (slot.secondaryCategoryIds || []) },
       {
         onSuccess: () => showToast('Vínculo atualizado.', 'success'),
         onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
@@ -49,22 +50,48 @@ export function RdoSlotsConfig({ categories }: Props) {
   }
 
   // Troca/remove a categoria de uma posição (valor vazio remove).
-  function setAt(slot: RdoEquipmentSlot, index: number, value: string) {
-    const next = [...slot.categoryIds];
+  function setAt(slot: RdoEquipmentSlot, index: number, value: string, secondary: boolean) {
+    const next = [...(secondary ? slot.secondaryCategoryIds || [] : slot.categoryIds)];
     if (!value) next.splice(index, 1);
     else next[index] = value;
-    save(slot.key, next);
+    save(slot, next, secondary);
   }
 
   // Acrescenta uma categoria nova (a partir do seletor extra).
-  function addAt(slot: RdoEquipmentSlot, value: string) {
-    setAdding(prev => ({ ...prev, [slot.key]: false }));
-    if (value) save(slot.key, [...slot.categoryIds, value]);
+  function addAt(slot: RdoEquipmentSlot, value: string, secondary: boolean) {
+    if (!value) return;
+    setAdding(prev => ({ ...prev, [`${slot.key}:${secondary}`]: false }));
+    save(slot, [...(secondary ? slot.secondaryCategoryIds || [] : slot.categoryIds), value], secondary);
   }
 
   // Opções de um seletor: exclui categorias já usadas em outras posições do mesmo slot.
   function optionsFor(slot: RdoEquipmentSlot, currentId?: string) {
-    return categories.filter(c => c.id === currentId || !slot.categoryIds.includes(c.id));
+    const used = [...slot.categoryIds, ...(slot.secondaryCategoryIds || [])];
+    return categories.filter(c => c.isActive !== false && (c.id === currentId || !used.includes(c.id)));
+  }
+
+  function categoryGroup(slot: RdoEquipmentSlot, secondary: boolean) {
+    const ids = secondary ? slot.secondaryCategoryIds || [] : slot.categoryIds;
+    const key = `${slot.key}:${secondary}`;
+    const label = secondary ? 'secundária' : 'principal';
+    const options = optionsFor(slot);
+    return <div className="equip-slot-category-group" key={key}>
+      <span className="equip-slot-category-label">{secondary ? 'Categorias secundárias' : 'Categorias principais'}</span>
+      {ids.map((id, index) => <div className="equip-slot-cat" key={`${key}-${index}`}>
+        <select aria-label={`${slot.label}: categoria ${label} ${index + 1}`} value={id} disabled={updateSlot.isPending}
+          onChange={event => setAt(slot, index, event.target.value, secondary)}>
+          {optionsFor(slot, id).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <RemoveIconButton type="button" label={`Remover categoria ${label} ${index + 1} de ${slot.label}`} disabled={updateSlot.isPending}
+          onClick={() => setAt(slot, index, '', secondary)} />
+      </div>)}
+      {adding[key] ? <select aria-label={`Adicionar categoria ${label} em ${slot.label}`} value="" autoFocus disabled={updateSlot.isPending}
+        onChange={event => addAt(slot, event.target.value, secondary)}>
+        <option value="">— Selecione —</option>
+        {options.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+      </select> : options.length ? <Button variant="secondary" size="sm" type="button" className="equip-slot-add" disabled={updateSlot.isPending}
+        onClick={() => setAdding(previous => ({ ...previous, [key]: true }))}>Adicionar categoria {label}</Button> : null}
+    </div>;
   }
 
   return (
@@ -73,10 +100,9 @@ export function RdoSlotsConfig({ categories }: Props) {
         <div className="sec">Vínculo com relatórios</div>
       </div>
       <p className="rel-meta equip-slots-hint">
-        Defina qual categoria de equipamento alimenta cada ponto do formulário de relatório.
-        Use “+ Adicionar categoria” para associar mais de uma — os equipamentos de todas elas
-        aparecem numa lista só no preenchimento. Assim é possível editar/renomear as categorias
-        sem perder o vínculo. As etiquetas acima indicam RLQ, RTP ou RCPU conforme o serviço.
+        Os equipamentos das categorias principais aparecem misturados na lista inicial de cada serviço.
+        Adicione categorias secundárias para liberar outras opções no relatório.
+        Durante o preenchimento, é possível escolher uma ou mais categorias e misturar seus equipamentos.
       </p>
 
       {slotsQuery.isLoading && <p className="rel-meta"><BrandLoading label="Carregando" inline size="sm" /></p>}
@@ -87,75 +113,11 @@ export function RdoSlotsConfig({ categories }: Props) {
         <div className="equip-slots-group" key={serviceType}>
           <h4 className="equip-slots-service">{serviceLabels[serviceType] || serviceType}</h4>
           <div className="equip-slots-list">
-            {(slots || []).map(slot => {
-              const canAddMore = !adding[slot.key] && slot.categoryIds.length < categories.length;
-              return (
-                <div className="equip-slot-row" key={slot.key}>
-                  <span className="equip-slot-name">{slot.label.split('·').slice(1).join('·').trim() || slot.label}</span>
-
-                  {slot.categoryIds.map((categoryId, index) => (
-                    <div className="equip-slot-cat" key={`${slot.key}-${index}`}>
-                      <select
-                        aria-label={`${slot.label}: categoria ${index + 1}`}
-                        value={categoryId}
-                        disabled={updateSlot.isPending}
-                        onChange={e => setAt(slot, index, e.target.value)}
-                      >
-                        {optionsFor(slot, categoryId).map(category => (
-                          <option key={category.id} value={category.id}>{category.name}</option>
-                        ))}
-                      </select>
-                      <RemoveIconButton
-                        type="button"
-                        label={`Remover categoria ${index + 1} de ${slot.label}`}
-                        disabled={updateSlot.isPending}
-                        onClick={() => setAt(slot, index, '')}
-                      />
-                    </div>
-                  ))}
-
-                  {slot.categoryIds.length === 0 && !adding[slot.key] && (
-                    <select
-                      aria-label={`${slot.label}: categoria`}
-                      value=""
-                      disabled={updateSlot.isPending}
-                      onChange={e => setAt(slot, 0, e.target.value)}
-                    >
-                      <option value="">— Não usar —</option>
-                      {optionsFor(slot).map(category => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {adding[slot.key] && (
-                    <select
-                      aria-label={`Adicionar categoria em ${slot.label}`}
-                      value=""
-                      autoFocus
-                      disabled={updateSlot.isPending}
-                      onChange={e => addAt(slot, e.target.value)}
-                    >
-                      <option value="">— Selecione —</option>
-                      {optionsFor(slot).map(category => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {canAddMore && slot.categoryIds.length > 0 && (
-                    <Button
-                      variant="secondary" size="sm"
-                      type="button"
-                      className="equip-slot-add"
-                      onClick={() => setAdding(prev => ({ ...prev, [slot.key]: true }))}
-                    >
-                      Adicionar categoria
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
+            {(slots || []).map(slot => <div className="equip-slot-row" key={slot.key}>
+              <span className="equip-slot-name">{slot.label.split('·').slice(1).join('·').trim() || slot.label}</span>
+              {categoryGroup(slot, false)}
+              {categoryGroup(slot, true)}
+            </div>)}
           </div>
         </div>
       ))}

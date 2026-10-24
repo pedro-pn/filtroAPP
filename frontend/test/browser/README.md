@@ -1,5 +1,14 @@
 # Search regression in a browser
 
+For equipment categories in report services, open `/test/browser/rdo-equipment-categories.html`
+and run `playwright-cli run-code --filename frontend/test/browser/rdo-equipment-categories.js`.
+It uses the production configuration and service fields with a simulated API. Coverage
+includes mixed primary categories, secondary alternatives, multi-category selection,
+settings retry, equipment retention, saving/reopening, isolated services, read-only mode,
+keyboard focus, mobile layout, pressure/manometers, both flushing modes, filtration,
+particle counters and dehydration. Deployment requires migration
+`20261024180000_rdo_secondary_equipment_categories`, then Prisma client generation.
+
 For public RDO project signatures, open `/assinar/exemplo?visualizar=1` with the frontend
 development server running. It shows four example PDFs and simulates individual or joint
 signatures without recording real signatures. Run `npx playwright test
@@ -29,10 +38,15 @@ The production dialog submits to local fixture state; no real project is changed
 
 For the notification center, open `/test/browser/notification-center.html` and run
 `playwright-cli run-code --filename frontend/test/browser/notification-center.js`.
-It covers pagination/retry, individual and bulk reads, persistence after reload,
-failed reads, account isolation, keyboard focus and mobile layout at 390/320 px.
+It covers unread as the first/default tab, history preservation, manual deletion,
+pagination/retry, individual and bulk reads, persistence after reload,
+failed writes, account isolation, keyboard focus and mobile layout at 390/320 px.
 The API is simulated; no real records or emails are changed. Deployment requires
 migration `20261021120000_notification_center` before starting the updated API.
+Manual deletion also requires `20261024170000_notification_dismissal`.
+Run `playwright-cli run-code --filename frontend/test/browser/notification-popups.js`
+for new-arrival popups, descending animation, automatic dismissal, hover pause,
+per-account preferences and opening notifications without losing their history.
 
 Operational failures also require migration `20261022120000_operational_notifications`.
 Run `playwright-cli run-code --filename frontend/test/browser/operational-notifications.js`

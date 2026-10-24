@@ -1,10 +1,25 @@
 # Central de notificações
 
 O sininho fica à direita do header, nas duas versões do layout. A central tem
-contador de não lidas, filtros Todas/Não lidas, paginação, atualização manual e
+contador de não lidas, filtros Não lidas/Todas, paginação, atualização manual e
 atualização automática a cada 30 segundos enquanto a aba está ativa. Abrir um
 aviso salva a leitura para aquela conta e leva à área correspondente. Abrir o
 painel não marca automaticamente todos os avisos como lidos.
+
+O painel sempre abre em **Não lidas**, a primeira aba. Abrir um aviso o retira
+dessa aba e atualiza o contador; ele continua no histórico de **Todas**. O X de
+cada aviso o exclui das duas abas somente para a conta atual, com persistência
+no servidor. Excluir um aviso não lido também atualiza o contador. Outras contas
+continuam vendo o mesmo evento conforme suas permissões.
+
+Novos avisos recebidos com o painel fechado aparecem em um pequeno pop-up no
+canto superior direito, com entrada de cima para baixo e fechamento após seis
+segundos. Passar o mouse ou manter foco no pop-up pausa o fechamento. Clicar
+abre o destino e marca a leitura; dispensar o pop-up ou deixá-lo expirar mantém
+o aviso não lido na central. São exibidos até três novos avisos em sequência;
+o histórico existente na primeira consulta não dispara pop-ups. A opção
+**Notificações pop-up** na central ativa ou desativa esses avisos, salva por
+conta neste navegador. A preferência não altera o alerta crítico de backup.
 
 ## Avisos implementados
 
@@ -45,9 +60,11 @@ novos eventos que cheguem durante a operação.
 ## Implantação e validação
 
 Aplicar `20261021120000_notification_center` e
-`20261022190000_execution_report_responsible` antes de iniciar a API atualizada.
+`20261022190000_execution_report_responsible` e
+`20261024170000_notification_dismissal` antes de iniciar a API atualizada.
 A segunda adiciona uma referência opcional de `Project` para `User`, sem alterar
-projetos históricos:
+projetos históricos. A terceira adiciona a data de exclusão individual aos
+registros de leitura existentes:
 
 ```sh
 cd backend
@@ -78,6 +95,10 @@ com respostas simuladas, sem alterar dados reais. Executar
 `playwright-cli run-code --filename frontend/test/browser/notification-center.js`
 para validar leitura individual/em lote, persistência, erros e novas tentativas,
 paginação, troca de conta, foco do teclado e telas de 390 e 320 pixels.
+O roteiro `frontend/test/browser/notification-popups.js` valida novas chegadas,
+animação, expiração sem leitura, pausa, preferência persistida por conta,
+clique e novas tentativas após falha. A fixture inclui um botão para simular
+novos avisos, sem alterar dados reais.
 
 ## Outros avisos pertinentes para futuras etapas
 

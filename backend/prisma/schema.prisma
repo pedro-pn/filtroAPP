@@ -2656,12 +2656,13 @@ model EquipmentNotificationConfig {
 }
 
 // Mapeamento configurável: cada "slot" de equipamento do formulário de RDO
-// (definido no catálogo de código) aponta para uma categoria de equipamento.
+// (definido no catálogo de código) tem categorias principais e alternativas secundárias.
 model RdoEquipmentSlot {
   id          String   @id @default(cuid())
   slotKey     String   @unique
   categoryId  String? // legado (1 categoria) — mantido como fallback
   categoryIds Json     @default("[]") // múltiplas categorias por slot
+  secondaryCategoryIds Json @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -4406,6 +4407,7 @@ model NotificationRead {
   userId         String
   notificationId String
   readAt         DateTime          @default(now())
+  dismissedAt    DateTime?
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   notification   NotificationEvent @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 

@@ -44,18 +44,19 @@ function overrideCategoryIds(override) {
 
 // Resolve { slotKey: categoryId[] } combinando os overrides salvos com os padrões
 // (por systemKey). Cada slot pode apontar para VÁRIAS categorias — no preenchimento
-// do relatório os equipamentos de todas elas aparecem numa lista só. Retorna também
-// a lista de slots do catálogo com as categorias efetivas, útil para a config.
+// do relatório os equipamentos principais aparecem numa lista só. As categorias
+// secundárias ficam disponíveis no seletor de categorias de cada campo.
 export async function resolveRdoSlotMap(client = prisma) {
   const [overrides, categories] = await Promise.all([
     client.rdoEquipmentSlot.findMany(),
-    client.equipmentCategory.findMany({ where: { isActive: true }, select: { id: true, systemKey: true } })
+    client.equipmentCategory.findMany({ where: { isActive: true }, select: { id: true, systemKey: true, name: true } })
   ]);
   const categoryIdBySystemKey = new Map(categories.map(c => [c.systemKey, c.id]));
   const validCategoryIds = new Set(categories.map(c => c.id));
   const overrideByKey = new Map(overrides.map(o => [o.slotKey, o]));
 
   const map = {};
+  const secondaryMap = {};
   const slots = RDO_EQUIPMENT_SLOTS.map(slot => {
     let categoryIds;
     if (overrideByKey.has(slot.key)) {
@@ -64,15 +65,21 @@ export async function resolveRdoSlotMap(client = prisma) {
       const def = categoryIdBySystemKey.get(slot.defaultSystemKey);
       categoryIds = def ? [def] : [];
     }
+    categoryIds = [...new Set(categoryIds)];
+    const override = overrideByKey.get(slot.key);
+    const secondaryCategoryIds = [...new Set(Array.isArray(override?.secondaryCategoryIds) ? override.secondaryCategoryIds : [])]
+      .filter(id => validCategoryIds.has(id) && !categoryIds.includes(id));
     map[slot.key] = categoryIds;
-    return { ...slot, categoryIds };
+    secondaryMap[slot.key] = secondaryCategoryIds;
+    return { ...slot, categoryIds, secondaryCategoryIds };
   });
 
-  return { map, slots };
+  const linkedIds = new Set([...Object.values(map).flat(), ...Object.values(secondaryMap).flat()]);
+  return { map, secondaryMap, slots, categories: categories.filter(category => linkedIds.has(category.id)) };
 }
 
 // Conjunto de categoryIds atualmente vinculados a algum slot (overrides + padrões).
 export async function categoryIdsLinkedToRdo(client = prisma) {
-  const { map } = await resolveRdoSlotMap(client);
-  return new Set(Object.values(map).flat().filter(Boolean));
+  const { map, secondaryMap } = await resolveRdoSlotMap(client);
+  return new Set([...Object.values(map).flat(), ...Object.values(secondaryMap).flat()].filter(Boolean));
 }
