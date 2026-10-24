@@ -16,7 +16,8 @@ export const WEEKLY_STATUS_LABEL: Record<WeeklyProgressComparison['status'], str
 type GoalLike = { kind?: WeeklyTargetGoalItem['kind']; serviceType?: string | null; metric?: WeeklyTargetMetric };
 export const weeklyGoalLabel = (goal: GoalLike) => goal.kind === 'PROGRESS' || (!goal.kind && goal.metric === 'PCT_POINTS') ? 'Avanço do projeto'
   : goal.kind === 'ATTENDANCE' || (!goal.kind && goal.metric === 'COLLABORATORS') ? 'Equipe mínima no dia'
-    : goal.serviceType ? WEEKLY_TARGET_SERVICES[goal.serviceType as keyof typeof WEEKLY_TARGET_SERVICES] ?? goal.serviceType : 'Total geral';
+    : goal.serviceType ? WEEKLY_TARGET_SERVICES[goal.serviceType as keyof typeof WEEKLY_TARGET_SERVICES] ?? goal.serviceType
+      : goal.kind === 'SERVICE' ? 'Qualquer serviço' : 'Total geral';
 
 const SERVICE_PHRASE: Record<string, string> = { LIMPEZA_QUIMICA: 'de limpeza química', FLUSHING: 'de flushing', TESTE_PRESSAO: 'de teste de pressão', FILTRAGEM: 'de óleo filtrado' };
 const amount = (value: number | null | undefined) => value != null && Number.isFinite(value) && value > 0 ? numberFormat.format(value) : '…';
@@ -29,7 +30,7 @@ export function workdaysLabel(workdays: number[]) {
   return positions.length > 2 && contiguous ? `${short(positions[0])} a ${short(positions.at(-1)!)}` : positions.map(short).join(', ');
 }
 
-type SentenceGoal = { kind: WeeklyTargetGoalItem['kind']; value: number | null; serviceType?: string; metric?: string; basis?: string; workdays?: number[] };
+type SentenceGoal = { kind: WeeklyTargetGoalItem['kind']; value: number | null; serviceType?: string | null; metric?: string; basis?: string; workdays?: number[] };
 /** Frase que descreve a meta, usada no cadastro para conferência e na consulta das regras. */
 export function weeklyGoalSentence(goal: SentenceGoal) {
   if (goal.kind === 'PROGRESS') return `O avanço do projeto deve subir ${amount(goal.value)} pontos percentuais na semana (ex.: de 30% para 40% = 10).`;
@@ -39,9 +40,9 @@ export function weeklyGoalSentence(goal: SentenceGoal) {
   }
   const service = goal.serviceType;
   const metric = goal.metric ?? 'M';
-  const unit = service === 'FILTRAGEM' ? 'L' : metric === 'UN' ? (goal.value === 1 ? 'unidade' : 'unidades') : 'm';
-  const what = `${amount(goal.value)} ${unit} ${service ? SERVICE_PHRASE[service] : ''}`.trim();
+  const unit = service === 'FILTRAGEM' || metric === 'L' ? 'L' : metric === 'UN' ? (goal.value === 1 ? 'unidade' : 'unidades') : 'm';
+  const what = `${amount(goal.value)} ${unit} ${service ? SERVICE_PHRASE[service] : 'somando todos os serviços'}`.trim();
   return goal.basis === 'PER_PRODUCTIVE_DAY'
-    ? `Cada colaborador deve fazer ${what} por dia trabalhado. A meta da semana cresce conforme a equipe e os dias com RDO.`
+    ? `Cada colaborador deve fazer ${what} por dia trabalhado. Cada pessoa da equipe do RDO conta 1 por dia com RDO${service ? ' deste serviço' : ''}.`
     : `A equipe deve fazer ${what} na semana.`;
 }

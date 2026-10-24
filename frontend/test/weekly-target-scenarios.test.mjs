@@ -13,7 +13,7 @@ test('cadastro em lista converte metas antigas, monta E/OU e valida cada linha',
 
     const fresh = targetToDraft(null, '2026-10-19', 0);
     assert.deepEqual([fresh.countingStartDay, fresh.countingEndDay, fresh.repeatWeekly, fresh.logic], [5, 4, true, 'ALL']);
-    assert.deepEqual(fresh.goals, [{ kind: 'LIMPEZA_QUIMICA', value: '', unit: 'M', basis: 'PER_PRODUCTIVE_DAY' }]);
+    assert.deepEqual(fresh.goals, [{ kind: 'ANY_SERVICE', value: '', unit: 'M', basis: 'PER_PRODUCTIVE_DAY' }]);
 
     const percent = targetToDraft({ ...base, plannedPctPoints: 12.5 }, '2026-09-28', 1);
     assert.deepEqual(percent.goals, [{ kind: 'PROGRESS', value: '12,5', unit: 'M', basis: 'WEEK_TOTAL' }]);
@@ -57,7 +57,20 @@ test('cadastro em lista converte metas antigas, monta E/OU e valida cada linha',
     assert.throws(() => weeklyTargetDraftToInput({ ...draft, countingStartDay: 6, countingEndDay: 0, goals: [{ ...newGoalDraft('ATTENDANCE'), value: '5' }] }, [1, 2, 3, 4, 5]), /dias de trabalho/);
 
     assert.equal(weeklyGoalSentence({ kind: 'SERVICE', serviceType: 'LIMPEZA_QUIMICA', metric: 'M', basis: 'PER_PRODUCTIVE_DAY', value: 30 }),
-      'Cada colaborador deve fazer 30 m de limpeza química por dia trabalhado. A meta da semana cresce conforme a equipe e os dias com RDO.');
+      'Cada colaborador deve fazer 30 m de limpeza química por dia trabalhado. Cada pessoa da equipe do RDO conta 1 por dia com RDO deste serviço.');
+    assert.equal(weeklyGoalSentence({ kind: 'SERVICE', serviceType: null, metric: 'M', basis: 'PER_PRODUCTIVE_DAY', value: 27 }),
+      'Cada colaborador deve fazer 27 m somando todos os serviços por dia trabalhado. Cada pessoa da equipe do RDO conta 1 por dia com RDO.');
+
+    // "Qualquer serviço" grava serviceType null, aceita litros e substitui o "Total geral" das metas antigas.
+    const any = weeklyTargetDraftToInput({ ...draft, goals: [{ ...newGoalDraft('ANY_SERVICE'), value: '27' }] });
+    assert.deepEqual(any.definition.goals, [{ kind: 'SERVICE', serviceType: null, metric: 'M', basis: 'PER_PRODUCTIVE_DAY', value: 27 }]);
+    assert.equal(weeklyTargetDraftToInput({ ...draft, goals: [{ ...newGoalDraft('ANY_SERVICE', 'WEEK_TOTAL'), unit: 'L', value: '500' }] }).definition.goals[0].metric, 'L');
+    assert.equal(weeklyTargetDraftToInput({ ...draft, goals: [{ ...newGoalDraft('FLUSHING', 'WEEK_TOTAL'), unit: 'L', value: '500' }] }).definition.goals[0].metric, 'M');
+    assert.throws(() => weeklyTargetDraftToInput({ ...draft, goals: [newGoalDraft('ANY_SERVICE'), newGoalDraft('ANY_SERVICE')].map(goal => ({ ...goal, value: '1' })) }), /qualquer serviço/);
+    const total = targetToDraft({ ...base, plannedPctPoints: null, definition: { metric: 'M', basis: 'PER_PRODUCTIVE_DAY',
+      scenarios: [{ name: 'Meta geral', condition: { kind: 'ALWAYS' }, goals: [{ serviceType: null, value: 27 }] }] } }, '2026-09-28', 1);
+    assert.deepEqual(total.goals, [{ kind: 'ANY_SERVICE', value: '27', unit: 'M', basis: 'PER_PRODUCTIVE_DAY' }]);
+    assert.equal(total.replacesLegacyRules, false);
     assert.equal(weeklyGoalSentence({ kind: 'SERVICE', serviceType: 'FILTRAGEM', metric: 'L', basis: 'WEEK_TOTAL', value: 1000 }), 'A equipe deve fazer 1.000 L de óleo filtrado na semana.');
     assert.match(weeklyGoalSentence({ kind: 'ATTENDANCE', value: 6, workdays: [1, 2, 3, 4, 5, 6] }), /6 colaboradores .*\(seg a sáb\)/);
     assert.equal(workdaysLabel([1, 3, 5]), 'seg, qua, sex');

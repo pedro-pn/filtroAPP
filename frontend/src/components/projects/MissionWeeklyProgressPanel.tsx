@@ -20,7 +20,7 @@ import { useWeeklyTargets } from './useWeeklyTargets';
 import './mission-weekly-progress.css';
 
 const REACHED = ['ON_TARGET', 'ABOVE'];
-const JOURNEY_HINT = 'Metas por colaborador/dia dividem as horas produtivas de cada colaborador no RDO pela jornada do projeto daquele dia: a jornada padrão de segunda a quinta e a de fim de semana na sexta, no sábado, no domingo e em feriados.';
+const JOURNEY_HINT = 'Metas por colaborador/dia contam cada pessoa da equipe do RDO como 1 em cada dia com RDO do serviço, sem considerar horários. "Qualquer serviço" soma a medida de todos os serviços.';
 const EVALUATED = ['ON_TARGET', 'ABOVE', 'BELOW', 'PARTIAL'];
 function comparisonValue(row: WeeklyProgressComparison, key: 'plannedValue' | 'actualValue' | 'differenceValue', showScenario = false) {
   return <div>{row.mixedUnits ? row.goals.some(goal => goal.kind && goal.kind !== 'SERVICE') ? 'Por meta' : 'Por serviço' : weeklyValueLabel(row[key], row.metric, key === 'differenceValue')}{row.goals.length > 1 ? row.goals.map(goal =>
@@ -41,7 +41,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   const [showDetails, setShowDetails] = useState(!compact);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyTargetDeleteInput | null>(null);
   const [deleteError, setDeleteError] = useState('');
-  const { query: targetsQuery, targets, rows, journey } = useWeeklyTargets(owner, progressHistory);
+  const { query: targetsQuery, targets, rows, workdays } = useWeeklyTargets(owner, progressHistory);
   const today = corporateToday();
   const closedWithTarget = rows.filter(row => row.periodEndDate < today && EVALUATED.includes(row.status));
   const achieved = closedWithTarget.filter(row => REACHED.includes(row.status)).length;
@@ -140,7 +140,7 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
         </ProjectDetailDisclosure>
       </>}
     </ProjectDetailSection>
-    {canManage ? <WeeklyTargetDialog owner={owner} request={request} targets={targets} journey={journey} onClose={() => setRequest(null)} /> : null}
+    {canManage ? <WeeklyTargetDialog owner={owner} request={request} targets={targets} workdays={workdays} onClose={() => setRequest(null)} /> : null}
     <ConfirmDialog open={Boolean(deleteTarget) && canManage} appearance="design-system" title="Excluir meta semanal"
       description="A semana ficará sem meta definida e a repetição será interrompida a partir dela. As versões anteriores e o registro da exclusão permanecerão no histórico."
       highlight={deleteTarget ? `Semana de ${formatDateOnly(deleteTarget.weekStartDate)}` : undefined}
