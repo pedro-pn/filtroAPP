@@ -1,0 +1,95 @@
+async page => {
+  const base = page.url().split('/test/')[0] + '/test/browser/notification-center.html';
+  await page.goto(base);
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+  const bell = page.getByRole('button', { name: /^Notificações/ });
+  const popup = page.getByRole('complementary', { name: 'Nova notificação', exact: true });
+  const simulate = page.getByRole('button', { name: 'Simular nova notificação' });
+  const preference = page.getByRole('checkbox', { name: 'Notificações pop-up', exact: true });
+  const closePanel = () => page.getByRole('dialog').getByRole('button', { name: 'Fechar', exact: true }).click();
+  const waitLabel = label => page.waitForFunction(label => document.querySelector('[aria-haspopup="dialog"]')?.getAttribute('aria-label') === label, label);
+  await waitLabel('Notificações, 23 não lidas');
+  if (await popup.count()) throw new Error('Historical notifications triggered popups');
+
+  await simulate.click();
+  await popup.waitFor();
+  await waitLabel('Notificações, 24 não lidas');
+  const movement = await popup.evaluate(async node => {
+    const animation = node.getAnimations()[0];
+    animation.pause();
+    animation.currentTime = 0;
+    const start = node.getBoundingClientRect().top;
+    animation.currentTime = 550;
+    const middle = node.getBoundingClientRect().top;
+    animation.currentTime = 1100;
+    const end = node.getBoundingClientRect().top;
+    animation.play();
+    return { start, middle, end };
+  });
+  if (!(movement.start < movement.middle && movement.middle < movement.end && movement.end >= 12)) throw new Error(`Popup did not slide down: ${JSON.stringify(movement)}`);
+  for (const width of [1365, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const bounds = await popup.boundingBox();
+    if (!bounds || bounds.x < 0 || bounds.x + bounds.width > width || bounds.x + bounds.width < width - 24) throw new Error(`Popup is not contained at top right at ${width}px`);
+  }
+  await popup.hover();
+  await page.waitForTimeout(6500);
+  if (!await popup.isVisible()) throw new Error('Hover did not pause dismissal');
+  await popup.getByRole('button', { name: /Novo relatório disponível/ }).focus();
+  await page.mouse.move(10, 700);
+  await page.waitForTimeout(6500);
+  if (!await popup.isVisible()) throw new Error('Keyboard focus did not pause dismissal after the mouse left');
+  await popup.getByRole('button', { name: 'Dispensar notificação' }).click();
+  await popup.waitFor({ state: 'hidden' });
+  await waitLabel('Notificações, 24 não lidas');
+
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await simulate.click();
+  await popup.waitFor();
+  await page.mouse.move(10, 700);
+  await popup.waitFor({ state: 'hidden', timeout: 8000 });
+  await waitLabel('Notificações, 25 não lidas');
+  await bell.click();
+  if (await page.locator('.notification-center-popup-settings .fv-switch__description').count()) throw new Error('Removed helper text returned');
+  await preference.uncheck();
+  await closePanel();
+  await simulate.click();
+  await waitLabel('Notificações, 26 não lidas');
+  if (await popup.count()) throw new Error('Disabled popup was shown');
+  await page.reload();
+  await waitLabel('Notificações, 23 não lidas');
+  await bell.click();
+  if (await preference.isChecked()) throw new Error('Preference did not persist');
+  if (await page.getByRole('button', { name: /demonstração/i }).count()) throw new Error('Removed demo button returned');
+  await preference.check();
+  await closePanel();
+
+  await simulate.click();
+  await popup.waitFor();
+  await page.evaluate(() => { window.notificationFixture.failRead = true; });
+  await popup.getByRole('button', { name: /Novo relatório disponível/ }).click();
+  await popup.getByRole('alert').waitFor();
+  await waitLabel('Notificações, 24 não lidas');
+  await page.evaluate(() => { window.notificationFixture.failRead = false; });
+  await popup.getByRole('button', { name: /Novo relatório disponível/ }).click();
+  await page.waitForURL(url => url.searchParams.get('opened') === 'incoming-0');
+  await popup.waitFor({ state: 'hidden' });
+  await waitLabel('Notificações, 23 não lidas');
+  await bell.click();
+  if (await page.locator('.notification-center-item').filter({ hasText: 'Projeto Horizonte' }).count()) throw new Error('Popup read remains unread');
+  await page.getByRole('button', { name: 'Todas', exact: true }).click();
+  await page.locator('.notification-center-item').filter({ hasText: 'Projeto Horizonte' }).waitFor();
+  await preference.uncheck();
+  await closePanel();
+  await page.getByRole('button', { name: 'Trocar conta', exact: true }).click();
+  await bell.click();
+  if (!await preference.isChecked()) throw new Error('Other account inherited popup preference');
+  await closePanel();
+  if (await popup.count()) throw new Error('Popup leaked to other account');
+  await page.getByRole('button', { name: 'Trocar conta', exact: true }).click();
+  await bell.click();
+  if (await preference.isChecked()) throw new Error('Account preference was lost on switch');
+  await closePanel();
+  return 'Passed: new arrivals, descending animation, 1365/390/320px, pause on hover, auto dismissal without reading, per-account persisted preference, failed read/retry, history preservation and no demo button.';
+}

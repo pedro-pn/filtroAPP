@@ -411,6 +411,7 @@ export interface RdoEquipmentSlot {
   kind: RdoSlotKind;
   defaultSystemKey: string;
   categoryIds: string[];
+  secondaryCategoryIds: string[];
 }
 
 export async function listRdoSlots() {
@@ -420,10 +421,10 @@ export async function listRdoSlots() {
   return response.data;
 }
 
-export async function updateRdoSlot(slotKey: string, categoryIds: string[]) {
+export async function updateRdoSlot(slotKey: string, categoryIds: string[], secondaryCategoryIds?: string[]) {
   const response = await apiClient.put<RdoEquipmentSlot>(
     equipamentosApiPath(`/rdo-slots/${slotKey}`),
-    { categoryIds }
+    { categoryIds, secondaryCategoryIds }
   );
   return response.data;
 }

@@ -1,7 +1,7 @@
 async page => {
   const base = page.url().split('/test/')[0] + '/test/browser/notification-center.html?backup=1';
   await page.goto(base);
-  await page.evaluate(() => sessionStorage.removeItem('notification-fixture-reads'));
+  await page.evaluate(() => { sessionStorage.removeItem('notification-fixture-reads'); sessionStorage.removeItem('notification-fixture-deleted'); });
   await page.reload();
   const popup = page.getByRole('dialog', { name: 'Falha no backup', exact: true });
   await popup.waitFor();
@@ -29,7 +29,7 @@ async page => {
   await bell.click();
   const sync = page.locator('.notification-center-item').filter({ hasText: 'Falha de sincronização · Omie · compras' });
   await sync.waitFor();
-  await sync.getByRole('button').click();
+  await sync.locator('.notification-center-link').click();
   await page.waitForURL(url => url.pathname === '/operacoes');
   await page.evaluate(() => { window.notificationFixture.backupId = 'backup-2'; });
   await bell.click();
@@ -50,7 +50,7 @@ async page => {
     window.notificationFixture.forceCriticalForNonAdmin = true;
   });
   await bell.click();
-  await page.getByText('Nenhuma notificação por enquanto', { exact: true }).waitFor();
+  await page.getByText('Tudo em dia', { exact: true }).waitFor();
   if (await popup.count()) throw new Error('Conta sem acesso de administrador exibiu o popup.');
   return 'PASS: popup automático fora da primeira página, design system, foco, 1365/390/320px, falha/retry de leitura, persistência, novo incidente, diagnóstico, recuperação e restrição a administradores inclusive com resposta indevida da API.';
 }

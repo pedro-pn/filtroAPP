@@ -89,6 +89,8 @@ async function newReportBootstrapData(auth) {
     counters,
     equipments,
     rdoSlotMap: rdoSlots.map,
+    rdoSecondarySlotMap: rdoSlots.secondaryMap,
+    rdoEquipmentCategories: rdoSlots.categories,
     inhibitionOptions,
     drafts: rdoDraftItems(drafts)
   };

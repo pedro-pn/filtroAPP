@@ -426,8 +426,8 @@ router.delete(
     // A proteção segue o VÍNCULO com o RDO (slot), não a origem (isSystemManaged):
     // uma categoria só não pode ser excluída se algum slot de relatório a usa.
     // Relatórios já criados não são afetados (guardam snapshot dos equipamentos).
-    const { map } = await resolveRdoSlotMap();
-    if (Object.values(map).flat().includes(category.id)) {
+    const { map, secondaryMap } = await resolveRdoSlotMap();
+    if ([...Object.values(map).flat(), ...Object.values(secondaryMap).flat()].includes(category.id)) {
       return res.status(409).json({
         error: 'Categoria vinculada a um slot de relatório (RDO). Remova o vínculo na configuração antes de excluir.'
       });
@@ -1031,6 +1031,7 @@ router.delete(
 // Aceita o formato novo (categoryIds[]) e o legado (categoryId) — normaliza para array.
 const slotMappingSchema = z.object({
   categoryIds: z.array(z.string().trim().min(1)).optional(),
+  secondaryCategoryIds: z.array(z.string().trim().min(1)).optional(),
   categoryId: z.string().trim().min(1).nullable().optional()
 });
 
@@ -1051,12 +1052,17 @@ router.put(
     const parsed = slotMappingSchema.parse(req.body);
     // Normaliza para lista (sem duplicados); aceita o legado categoryId.
     const categoryIds = [...new Set([...(parsed.categoryIds || []), ...(parsed.categoryId ? [parsed.categoryId] : [])])];
-    if (categoryIds.length) {
+    const existing = await prisma.rdoEquipmentSlot.findUnique({ where: { slotKey: slot.key } });
+    const secondaryCategoryIds = [...new Set(parsed.secondaryCategoryIds
+      ?? (Array.isArray(existing?.secondaryCategoryIds) ? existing.secondaryCategoryIds : []))]
+      .filter(id => !categoryIds.includes(id));
+    const allCategoryIds = [...categoryIds, ...secondaryCategoryIds];
+    if (allCategoryIds.length) {
       const valid = await prisma.equipmentCategory.findMany({
-        where: { id: { in: categoryIds }, isActive: true },
+        where: { id: { in: allCategoryIds }, isActive: true },
         select: { id: true }
       });
-      if (valid.length !== categoryIds.length) {
+      if (valid.length !== allCategoryIds.length) {
         return res.status(400).json({ error: 'Categoria inválida.' });
       }
     }
@@ -1065,9 +1071,10 @@ router.put(
       create: {
         slotKey: slot.key,
         categoryIds,
+        secondaryCategoryIds,
         categoryId: categoryIds[0] || null
       },
-      update: { categoryIds, categoryId: categoryIds[0] || null }
+      update: { categoryIds, secondaryCategoryIds, categoryId: categoryIds[0] || null }
     });
     invalidateCaches();
     const { slots } = await resolveRdoSlotMap();

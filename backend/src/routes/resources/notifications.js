@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
-import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../../lib/notifications/center.js';
+import { deleteNotification, listNotifications, markAllNotificationsRead, markNotificationRead } from '../../lib/notifications/center.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
@@ -33,6 +33,12 @@ router.post('/read-all', asyncHandler(async (req, res) => {
 router.post('/:id/read', asyncHandler(async (req, res) => {
   const id = idSchema.parse(req.params.id);
   if (!await markNotificationRead(req.auth, id)) return res.status(404).json({ error: 'Notificação não encontrada.' });
+  res.json({ ok: true });
+}));
+
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const id = idSchema.parse(req.params.id);
+  if (!await deleteNotification(req.auth, id)) return res.status(404).json({ error: 'Notificação não encontrada.' });
   res.json({ ok: true });
 }));
 

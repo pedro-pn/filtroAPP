@@ -1,0 +1,15 @@
+.rdo-equipment-category-control { margin-top: var(--space-2); }
+.rdo-equipment-category-control > button { max-width: 100%; white-space: normal; text-align: left; }
+.rdo-equipment-category-context { margin: 0 0 var(--space-2); font-weight: 600; }
+.rdo-equipment-category-hint { margin: 0 0 var(--space-4); color: var(--muted); font-size: var(--text-sm); }
+.rdo-equipment-category-options { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: var(--space-3) 0; border: 0; }
+.rdo-equipment-category-options + .rdo-equipment-category-options { border-top: 1px solid var(--line); }
+.rdo-equipment-category-options legend { color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
+.rdo-equipment-category-option { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--ink); cursor: pointer; overflow-wrap: anywhere; }
+.rdo-equipment-category-option:has(input:checked) { border-color: var(--brand); background: var(--brand-softer); }
+.rdo-equipment-category-option input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--brand); }
+.rdo-equipment-category-dialog .fv-modal__footer { flex-wrap: wrap; }
+@media (max-width: 767.98px) {
+  .fv-modal-backdrop.rdo-equipment-category-backdrop { align-items: center; padding: var(--space-4); }
+  .rdo-equipment-category-dialog .fv-modal__footer > button { flex: 1 1 auto; }
+}

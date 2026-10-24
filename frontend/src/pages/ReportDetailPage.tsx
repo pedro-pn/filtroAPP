@@ -1236,6 +1236,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     counters={counters}
                     equipments={equipments}
                     rdoSlotMap={rdoSlotMap}
+                    rdoSecondarySlotMap={bootstrapQuery.data?.rdoSecondarySlotMap}
+                    rdoEquipmentCategories={bootstrapQuery.data?.rdoEquipmentCategories}
                     inhibitionOptions={inhibitionOptions}
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}

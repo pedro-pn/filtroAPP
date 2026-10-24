@@ -86,6 +86,13 @@ test('eventos operacionais independem de projeto e mantêm leitura por usuário 
     `);
     assert.equal((await db.query('SELECT * FROM "NotificationEvent"')).rows.length, 1);
     assert.deepEqual((await db.query('SELECT "userId", "notificationId" FROM "NotificationRead"')).rows, [{ userId: 'admin-1', notificationId: 'backup-1' }]);
+    await db.exec(await readFile(new URL('../prisma/migrations/20261024170000_notification_dismissal/migration.sql', import.meta.url), 'utf8'));
+    assert.equal((await db.query('SELECT "dismissedAt" FROM "NotificationRead"')).rows[0].dismissedAt, null, 'migração preserva leituras antigas');
+    await db.exec(`UPDATE "NotificationRead" SET "dismissedAt" = now() WHERE "userId" = 'admin-1';`);
+    for (const [userId, expected] of [['admin-1', 0], ['admin-2', 1]]) {
+      const visible = await db.query('SELECT e.id FROM "NotificationEvent" e WHERE NOT EXISTS (SELECT 1 FROM "NotificationRead" r WHERE r."notificationId" = e.id AND r."userId" = $1 AND r."dismissedAt" IS NOT NULL)', [userId]);
+      assert.equal(visible.rows.length, expected);
+    }
     await db.exec(`INSERT INTO "NotificationEvent" (id, kind, "dedupeKey") VALUES ('backup-2', 'BACKUP_FAILED', 'backup:run-2');`);
     assert.equal((await db.query('SELECT * FROM "NotificationEvent" e WHERE NOT EXISTS (SELECT 1 FROM "NotificationRead" r WHERE r."notificationId" = e.id AND r."userId" = $1)', ['admin-1'])).rows.length, 1);
   } finally { await db.close(); }

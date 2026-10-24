@@ -1,5 +1,5 @@
 import { apiClient, rdoApiPath } from './client';
-import type { EquipmentOption } from '../components/reports/ServiceFields';
+import type { EquipmentOption, RdoEquipmentCategory } from '../utils/rdoEquipmentCategories';
 import type { InhibitionOptions } from './inhibitionOptions';
 import type { SurveyListItem, SurveyQuestion } from './surveys';
 import type { ClientSegment, Collaborator, Equipment, Manometer, ParticleCounter, Project, ReportDraft, ReportType, Unit } from '../types/domain';
@@ -12,6 +12,8 @@ export interface NewReportBootstrap {
   counters: ParticleCounter[];
   equipments: EquipmentOption[];
   rdoSlotMap: Record<string, string[]>;
+  rdoSecondarySlotMap?: Record<string, string[]>;
+  rdoEquipmentCategories?: RdoEquipmentCategory[];
   inhibitionOptions: InhibitionOptions;
   drafts: ReportDraft[];
 }
