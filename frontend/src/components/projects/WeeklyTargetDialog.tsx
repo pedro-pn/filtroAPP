@@ -4,7 +4,7 @@ import { Plus, X } from 'lucide-react';
 
 import { corporateToday, effectiveWeeklyProgressTarget, weekStartKey, weeklyTargetCountingPeriod, WEEKLY_TARGET_SERVICES, WEEKLY_TARGET_WORKDAYS, type WeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
 import { ApiClientError } from '../../api/client';
-import { saveWeeklyProgressTarget, type WeeklyTargetJourney, type WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
+import { saveWeeklyProgressTarget, type WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { formatDateOnly } from '../../utils/dateOnly';
 import { AppIcon } from '../icons/AppIcon';
 import { Modal } from '../ui/Modal';
@@ -13,7 +13,7 @@ import { changeGoalKind, isServiceKind, newGoalDraft, periodWeekFor, SERVICE_KIN
 import { weeklyGoalSentence, workdaysLabel } from './weeklyTargetPresentation';
 import './weekly-target-dialog.css';
 
-const KIND_LABEL: Record<GoalKind, string> = { ...WEEKLY_TARGET_SERVICES, FILTRAGEM: 'Filtragem de óleo', PROGRESS: 'Avanço do projeto', ATTENDANCE: 'Equipe mínima no dia' };
+const KIND_LABEL: Record<GoalKind, string> = { ANY_SERVICE: 'Qualquer serviço', ...WEEKLY_TARGET_SERVICES, FILTRAGEM: 'Filtragem de óleo', PROGRESS: 'Avanço do projeto', ATTENDANCE: 'Equipe mínima no dia' };
 const MAX_GOALS = 6;
 const SAVE_KEY = ['save-weekly-target'];
 const addDays = (date: string, days: number) => new Date(new Date(`${date}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
@@ -23,7 +23,8 @@ function sentenceFor(goal: GoalDraft, workdays: number[]) {
   const value = Number(goal.value.replace(',', '.'));
   const numeric = Number.isFinite(value) ? value : null;
   if (goal.kind === 'PROGRESS' || goal.kind === 'ATTENDANCE') return weeklyGoalSentence({ kind: goal.kind, value: numeric, workdays });
-  return weeklyGoalSentence({ kind: 'SERVICE', serviceType: goal.kind, metric: goal.kind === 'FILTRAGEM' ? 'L' : goal.unit, basis: goal.basis, value: numeric });
+  return weeklyGoalSentence({ kind: 'SERVICE', serviceType: goal.kind === 'ANY_SERVICE' ? undefined : goal.kind,
+    metric: goal.kind === 'FILTRAGEM' ? 'L' : goal.unit, basis: goal.basis, value: numeric });
 }
 
 function GoalRow({ goal, index, workdays, disabled, onChange, onRemove }: {
@@ -46,7 +47,7 @@ function GoalRow({ goal, index, workdays, disabled, onChange, onRemove }: {
           : goal.kind === 'FILTRAGEM' ? <span className="wtd-unit">L</span>
             : <Select aria-label={`Meta ${n}: unidade`} value={goal.unit} disabled={disabled} containerClassName="wtd-unit-select"
               onChange={event => onChange({ ...goal, unit: event.target.value as GoalDraft['unit'] })}>
-              <option value="M">m</option><option value="UN">un</option>
+              <option value="M">m</option><option value="UN">un</option>{goal.kind === 'ANY_SERVICE' ? <option value="L">L</option> : null}
             </Select>}
       {isServiceKind(goal.kind) ? <Select aria-label={`Meta ${n}: forma de contar`} value={goal.basis} disabled={disabled} containerClassName="wtd-basis"
         onChange={event => onChange({ ...goal, basis: event.target.value as GoalDraft['basis'] })}>
@@ -69,8 +70,8 @@ function weekOptions(selected: string, draft: TargetDraft) {
   });
 }
 
-function DialogBody({ owner, request, targets, journey, onClose }: {
-  owner: WeeklyTargetOwner; request: WeeklyTargetRequest; targets: WeeklyProgressTarget[]; journey: WeeklyTargetJourney | null; onClose: () => void;
+function DialogBody({ owner, request, targets, workdays, onClose }: {
+  owner: WeeklyTargetOwner; request: WeeklyTargetRequest; targets: WeeklyProgressTarget[]; workdays: number[]; onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const latestRevision = (week: string) => Math.max(0, ...targets.filter(target => target.weekStartDate === week).map(target => target.revision));
@@ -87,7 +88,6 @@ function DialogBody({ owner, request, targets, journey, onClose }: {
   const editing = Boolean(effectiveWeeklyProgressTarget(targets, request.weekStartDate));
   const [error, setError] = useState('');
   const [periodOpen, setPeriodOpen] = useState(false);
-  const workdays = journey?.workdays ?? [1, 2, 3, 4, 5];
   const save = useMutation({
     mutationKey: SAVE_KEY,
     mutationFn: () => saveWeeklyProgressTarget(owner, weeklyTargetDraftToInput(draft, workdays)),
@@ -102,7 +102,7 @@ function DialogBody({ owner, request, targets, journey, onClose }: {
   });
   const busy = save.isPending;
   const update = (next: TargetDraft) => { setDraft(next); setError(''); };
-  const usesJourney = draft.goals.some(goal => isServiceKind(goal.kind) && goal.basis === 'PER_PRODUCTIVE_DAY');
+  const perCollaborator = draft.goals.some(goal => isServiceKind(goal.kind) && goal.basis === 'PER_PRODUCTIVE_DAY');
   const period = weeklyTargetCountingPeriod(draft.weekStartDate, draft);
   const countingLabel = `${WEEKLY_TARGET_WORKDAYS[draft.countingStartDay].toLowerCase()} a ${WEEKLY_TARGET_WORKDAYS[draft.countingEndDay].toLowerCase()}`;
 
@@ -166,18 +166,7 @@ function DialogBody({ owner, request, targets, journey, onClose }: {
       </fieldset> : null}
     </section>
 
-    {usesJourney ? !journey
-      ? <Alert tone="warning" title="Jornada do projeto não cadastrada.">Cadastre a jornada padrão e a de fim de semana do projeto em Relatórios. Sem elas, a meta por colaborador considera 8 horas por dia.</Alert>
-      : journey.divergentMembers
-        ? <Alert tone="warning" title="As missões do grupo têm jornadas diferentes.">
-          {journey.divergentMembers.map(member => `${member.code ?? 'Missão'}: seg a qui ${member.weekdayHours} · sex a dom ${member.weekendHours}`).join('. ')}.
-          {' '}A meta usa a maior: <strong>seg a qui {journey.weekdayHours} · sex, sáb, dom e feriados {journey.weekendHours}</strong>.
-        </Alert>
-        : <div className="wtd-journey">
-          <strong>Jornada do projeto</strong>
-          <span>Seg a qui {journey.weekdayHours} · Sex, sáb, dom e feriados {journey.weekendHours}</span>
-          <small>Vem do cadastro do projeto em Relatórios. Quem cumpre a jornada do dia conta como 1 colaborador.</small>
-        </div> : null}
+    {perCollaborator ? <p className="wtd-hint">Por colaborador por dia: cada pessoa da equipe do RDO conta 1 em cada dia com RDO do serviço, sem considerar horários.</p> : null}
     {draft.goals.some(goal => goal.kind === 'ATTENDANCE') ? <p className="wtd-hint">A equipe mínima vale nos dias de trabalho do projeto: {workdaysLabel(workdays)}.</p> : null}
 
     <Switch checked={draft.repeatWeekly} disabled={busy} onChange={event => update({ ...draft, repeatWeekly: event.target.checked })} label="Repetir nas próximas semanas"
@@ -189,8 +178,8 @@ function DialogBody({ owner, request, targets, journey, onClose }: {
 /** Semana clicada e a data usada para escolher o período de uma meta nova. */
 export type WeeklyTargetRequest = { weekStartDate: string; referenceDate: string };
 
-export function WeeklyTargetDialog({ owner, request, targets, journey, onClose }: {
-  owner: WeeklyTargetOwner; request: WeeklyTargetRequest | null; targets: WeeklyProgressTarget[]; journey: WeeklyTargetJourney | null; onClose: () => void;
+export function WeeklyTargetDialog({ owner, request, targets, workdays, onClose }: {
+  owner: WeeklyTargetOwner; request: WeeklyTargetRequest | null; targets: WeeklyProgressTarget[]; workdays: number[]; onClose: () => void;
 }) {
   const saving = useIsMutating({ mutationKey: SAVE_KEY }) > 0;
   return <Modal open={Boolean(request)} onClose={() => { if (!saving) onClose(); }} appearance="design-system" size="md" title="Meta semanal" panelClassName="wtd" backdropClassName="weekly-target-dialog-backdrop"
@@ -198,6 +187,6 @@ export function WeeklyTargetDialog({ owner, request, targets, journey, onClose }
       <Button type="button" variant="secondary" disabled={saving} onClick={onClose}>Cancelar</Button>
       <Button type="submit" form="weekly-target-form" variant="primary" disabled={saving}>{saving ? 'Salvando…' : 'Salvar meta'}</Button>
     </div>}>
-    {request ? <DialogBody key={`${request.weekStartDate}:${request.referenceDate}`} owner={owner} request={request} targets={targets} journey={journey} onClose={onClose} /> : null}
+    {request ? <DialogBody key={`${request.weekStartDate}:${request.referenceDate}`} owner={owner} request={request} targets={targets} workdays={workdays} onClose={onClose} /> : null}
   </Modal>;
 }

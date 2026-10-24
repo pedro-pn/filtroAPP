@@ -23,7 +23,7 @@ export function WeeklyGoalResults({ row, showBalance = true }: { row: WeeklyProg
         : `${weeklyValueLabel(goal.actualValue, goal.metric)} de ${goal.plannedValue == null ? '—' : weeklyValueLabel(goal.plannedValue, goal.metric)}`}</span>
       {goal.outcome ? <small className={`mission-weekly-status status-${goal.outcome === 'MET' ? 'on_target' : goal.outcome === 'BELOW' ? (row.inProgress ? 'planned' : 'below') : 'no_data'}`}>
         {row.inProgress && goal.outcome === 'BELOW' ? goal.executed === false ? 'Pendente' : 'Abaixo até agora' : OUTCOME_LABEL[goal.outcome]}</small> : null}
-      {goal.basis === 'PER_PRODUCTIVE_DAY' && goal.personDays != null && goal.executed !== false ? <small>{weeklyValueLabel(goal.value, goal.metric)}/colaborador/dia × {format.format(goal.personDays)} colaboradores-dia{goal.actualRate != null ? ` · Realizado: ${weeklyValueLabel(goal.actualRate, goal.metric)}/colaborador/dia` : ''}</small> : null}
+      {goal.basis === 'PER_PRODUCTIVE_DAY' && goal.personDays != null && goal.executed !== false ? <small>{weeklyValueLabel(goal.value, goal.metric)}/colaborador/dia × {format.format(goal.personDays)} colaboradores-dia (equipe dos RDOs){goal.actualRate != null ? ` · Realizado: ${weeklyValueLabel(goal.actualRate, goal.metric)}/colaborador/dia` : ''}</small> : null}
       {goal.productivityIssues.length && row.status !== 'PLANNED' ? <small>Base incompleta no RDO: {goal.productivityIssues.map(issue => issueLabels[issue] ?? issue).join('; ')}.</small> : null}
     </div>)}
   </div>;
@@ -65,7 +65,7 @@ export function WeeklyTargetConfiguration({ target }: { target: WeeklyProgressTa
     <strong>{scenario.name}</strong><small>{scenario.condition.kind === 'ALWAYS' ? 'Regra geral' : scenario.condition.kind === 'SERVICE_COUNT'
       ? `${scenario.condition.count} tipo(s) de serviço` : `Somente ${scenario.condition.serviceTypes.map(type => WEEKLY_TARGET_SERVICES[type]).join(' + ')}`}</small>
     {scenario.goals.map(goal => <small key={goal.serviceType ?? 'GLOBAL'}>{goal.serviceType ? WEEKLY_TARGET_SERVICES[goal.serviceType] : 'Total geral'}: {weeklyValueLabel(goal.value, weeklyTargetGoalMetric(settings.metric, goal, scenario.condition))}
-      {settings.basis === 'PER_PRODUCTIVE_DAY' ? '/colaborador produtivo/dia · Equipe e horas dos RDOs, divididas pela jornada do projeto' : ''}</small>)}
+      {settings.basis === 'PER_PRODUCTIVE_DAY' ? '/colaborador por dia · Equipe registrada em cada RDO' : ''}</small>)}
     {settings.metric === 'COLLABORATORS' ? <small>Dias de trabalho: {[1, 2, 3, 4, 5, 6, 0].filter(day => (settings.workdays ?? [1, 2, 3, 4, 5]).includes(day)).map(day => WEEKLY_TARGET_WORKDAYS[day]).join(', ')}</small> : null}
   </li>;
   })}</ul></div>;

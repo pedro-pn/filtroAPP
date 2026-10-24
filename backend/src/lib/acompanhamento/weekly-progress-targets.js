@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
 import prisma from '../prisma.js';
-import { loadWeeklyTargetJourney } from './weekly-target-journey.js';
 import { dateOnlyKey, weekStartKey, weeklyTargetGoalMetric, weeklyTargetScenarioSettings, effectiveWeeklyProgressTarget, weeklyTargetCountingDays } from '../../../../shared/modules/mission-weekly-progress.js';
 
 const preciseValue = z.number().min(0, 'A meta não pode ser negativa.').max(999999999.99)
@@ -85,7 +84,8 @@ const goalListSchema = z.object({
   countingStartDay: z.number().int().min(0).max(6).optional(),
   countingEndDay: z.number().int().min(0).max(6).optional(),
   goals: z.array(z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('SERVICE'), serviceType: serviceTypeSchema, metric: z.enum(['M', 'L', 'UN']),
+    // serviceType null = qualquer serviço: soma a medida de todos os serviços da semana.
+    z.object({ kind: z.literal('SERVICE'), serviceType: serviceTypeSchema.nullable(), metric: z.enum(['M', 'L', 'UN']),
       basis: z.enum(['WEEK_TOTAL', 'PER_PRODUCTIVE_DAY']), value: positiveValue }).strict(),
     z.object({ kind: z.literal('PROGRESS'), value: positiveValue.pipe(z.number().max(100, 'O avanço semanal deve ser de até 100 p.p.')) }).strict(),
     z.object({ kind: z.literal('ATTENDANCE'), value: z.number().int('Informe um número inteiro de colaboradores.').min(1), workdays: workdaysSchema }).strict()
@@ -94,10 +94,10 @@ const goalListSchema = z.object({
   const fail = message => ctx.addIssue({ code: 'custom', message });
   if ((definition.countingStartDay == null) !== (definition.countingEndDay == null)) fail('Informe o dia inicial e o dia final da contagem.');
   const services = definition.goals.filter(goal => goal.kind === 'SERVICE');
-  if (new Set(services.map(goal => goal.serviceType)).size !== services.length) fail('Use uma linha por tipo de serviço.');
+  if (new Set(services.map(goal => goal.serviceType)).size !== services.length) fail('Use uma linha por tipo de serviço (e uma só para qualquer serviço).');
   for (const kind of ['PROGRESS', 'ATTENDANCE']) if (definition.goals.filter(goal => goal.kind === kind).length > 1) fail('Use apenas uma meta de avanço e uma de equipe mínima.');
   for (const goal of services) {
-    if ((goal.serviceType === 'FILTRAGEM') !== (goal.metric === 'L')) fail('Filtragem usa litros; os demais serviços usam metros ou unidades.');
+    if (goal.serviceType && (goal.serviceType === 'FILTRAGEM') !== (goal.metric === 'L')) fail('Filtragem usa litros; os demais serviços usam metros ou unidades.');
     if (goal.metric === 'UN' && goal.basis === 'WEEK_TOTAL' && !Number.isInteger(goal.value)) fail('Metas totais de unidades de sistema devem ser inteiras.');
   }
   const attendance = definition.goals.find(goal => goal.kind === 'ATTENDANCE');
@@ -166,9 +166,14 @@ export const weeklyTargetsNeedAttendance = targets => targets.some(target => tar
   || target.definition?.scenarios?.some(scenario => scenario.metric === 'COLLABORATORS')
   || target.definition?.goals?.some(goal => goal.kind === 'ATTENDANCE'));
 
-// Jornada do projeto usada para converter horas em colaboradores-dia.
-export async function weeklyTargetJourney(owner, { client = prisma } = {}) {
-  return loadWeeklyTargetJourney(await weeklyTargetProjectIds(owner, client), client);
+// Dias de trabalho da meta de equipe mínima: segunda a sexta, mais sábado e domingo
+// quando alguma missão (ou membro do agrupamento) os inclui no cadastro do projeto.
+export async function weeklyTargetWorkdays(owner, { client = prisma } = {}) {
+  const projectIds = await weeklyTargetProjectIds(owner, client);
+  const projects = projectIds.length ? await client.project.findMany({
+    where: { id: { in: projectIds }, deletedAt: null }, select: { includesSaturday: true, includesSunday: true }
+  }) : [];
+  return [1, 2, 3, 4, 5, ...(projects.some(project => project.includesSaturday) ? [6] : []), ...(projects.some(project => project.includesSunday) ? [0] : [])];
 }
 
 export async function listWeeklyProgressTargets(owner, { client = prisma } = {}) {

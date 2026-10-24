@@ -148,12 +148,17 @@ function compareAttendanceTarget({ definition, scenario, periodStartDate, period
     dailyAttendance, activeServiceTypes, scenarioName: scenario.name, status };
 }
 
-// O backend divide as horas de cada dia pela jornada do projeto naquele dia
-// (dias úteis, fim de semana e feriados). Sem esse dado, vale a jornada da meta.
+// Colaboradores-dia enviados pelo backend: a equipe do RDO em cada dia. Num mesmo dia
+// com vários serviços a equipe é a mesma, então conta uma vez (maior valor do dia).
+// Sem esse dado (histórico antigo), vale a conversão por horas ÷ jornada da meta.
 function productivePersonDays(points) {
   if (!points.length || !points.every(point => typeof point.productivePersonDays === 'number' && Number.isFinite(point.productivePersonDays))) return null;
-  return Math.round(points.reduce((sum, point) => sum + point.productivePersonDays, 0) * 10000) / 10000;
+  const byDate = new Map();
+  for (const point of points) byDate.set(point.date, Math.max(byDate.get(point.date) ?? 0, point.productivePersonDays));
+  return Math.round([...byDate.values()].reduce((sum, value) => sum + value, 0) * 10000) / 10000;
 }
+const isProductiveBase = point => (typeof point.productivePersonDays === 'number' && Number.isFinite(point.productivePersonDays))
+  || (typeof point.productivePersonMinutes === 'number' && Number.isFinite(point.productivePersonMinutes));
 
 export const isWeeklyTargetGoalList = definition => definition?.version === 2 && Array.isArray(definition.goals);
 export const weeklyTargetGoalKind = goal => goal.kind ?? (goal.metric === 'COLLABORATORS' ? 'ATTENDANCE' : goal.metric === 'PCT_POINTS' ? 'PROGRESS' : 'SERVICE');
@@ -183,7 +188,8 @@ function compareGoalList({ definition, activeServiceTypes, periodStartDate, peri
         outcome: { ON_TARGET: 'MET', BELOW: 'BELOW', NO_DATA: 'NO_DATA', PLANNED: 'PLANNED' }[attendance.status] };
     }
     const metric = goal.serviceType === 'FILTRAGEM' ? 'L' : goal.metric;
-    const selected = weekPoints.filter(point => point.serviceType === goal.serviceType);
+    // Sem tipo de serviço, a linha vale para qualquer serviço e soma todos eles.
+    const selected = weekPoints.filter(point => !goal.serviceType || point.serviceType === goal.serviceType);
     const actualValue = started ? round(selected.reduce((sum, point) => sum + Number(point.quantities?.[metric] ?? 0), 0)) : null;
     const base = { ...emptyGoalBase, kind, serviceType: goal.serviceType, value: goal.value, metric, basis: goal.basis, actualValue, executed: selected.length > 0 };
     const result = (plannedValue, outcome, extra = {}) => ({ ...base, ...extra, plannedValue, outcome,
@@ -192,11 +198,11 @@ function compareGoalList({ definition, activeServiceTypes, periodStartDate, peri
     if (!hasRdo) return result(goal.basis === 'WEEK_TOTAL' ? goal.value : null, 'NO_DATA');
     if (goal.basis !== 'PER_PRODUCTIVE_DAY') return result(goal.value, actualValue >= goal.value ? 'MET' : 'BELOW');
     if (!selected.length) return result(null, 'BELOW', { personDays: 0 });
-    const productivePoints = selected.filter(point => typeof point.productivePersonMinutes === 'number' && Number.isFinite(point.productivePersonMinutes));
-    const productiveHours = productivePoints.reduce((sum, point) => sum + point.productivePersonMinutes / 60, 0);
+    const productivePoints = selected.filter(isProductiveBase);
+    const productiveHours = productivePoints.reduce((sum, point) => sum + (point.productivePersonMinutes ?? 0) / 60, 0);
     const personDays = productivePersonDays(productivePoints) ?? productiveHours / 8;
     const productivityIssues = [...new Set(productivePoints.flatMap(point => point.productivityIssues ?? []))];
-    if (!productivePoints.length || selected.some(point => point.productivePersonMinutes == null
+    if (!productivePoints.length || selected.some(point => !isProductiveBase(point)
       && !productivePoints.some(other => other.date === point.date))) productivityIssues.push('MISSING_RDO_BASE');
     if (!(personDays > 0)) productivityIssues.push('NO_PRODUCTIVE_TIME');
     const extra = { personDays, productiveHours, productivityIssues,
@@ -231,11 +237,11 @@ function compareTarget({ definition, scenario, activeServiceTypes, periodStartDa
   const goals = (scenario?.goals ?? []).map(goal => {
     const goalMetric = weeklyTargetGoalMetric(metric, goal, scenario.condition);
     const selected = weekPoints.filter(point => !goal.serviceType || point.serviceType === goal.serviceType);
-    const productivePoints = selected.filter(point => typeof point.productivePersonMinutes === 'number' && Number.isFinite(point.productivePersonMinutes));
-    const productiveHours = basis === 'PER_PRODUCTIVE_DAY' ? productivePoints.reduce((sum, point) => sum + point.productivePersonMinutes / 60, 0) : null;
+    const productivePoints = selected.filter(isProductiveBase);
+    const productiveHours = basis === 'PER_PRODUCTIVE_DAY' ? productivePoints.reduce((sum, point) => sum + (point.productivePersonMinutes ?? 0) / 60, 0) : null;
     const personDays = productiveHours == null ? null : productivePersonDays(productivePoints) ?? productiveHours / (referenceDayHours ?? 8);
     const productivityIssues = basis === 'PER_PRODUCTIVE_DAY' ? [...new Set(productivePoints.flatMap(point => point.productivityIssues ?? []))] : [];
-    if (basis === 'PER_PRODUCTIVE_DAY' && (!productivePoints.length || selected.some(point => point.productivePersonMinutes == null
+    if (basis === 'PER_PRODUCTIVE_DAY' && (!productivePoints.length || selected.some(point => !isProductiveBase(point)
       && !productivePoints.some(base => base.date === point.date && base.serviceType === point.serviceType)))) productivityIssues.push('MISSING_RDO_BASE');
     if (basis === 'PER_PRODUCTIVE_DAY' && !(personDays > 0)) productivityIssues.push('NO_PRODUCTIVE_TIME');
     const validBase = basis !== 'PER_PRODUCTIVE_DAY' || (canCompare && !productivityIssues.length);

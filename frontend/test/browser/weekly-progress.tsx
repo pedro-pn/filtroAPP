@@ -14,10 +14,6 @@ const week = weekStartKey(corporateToday())!;
 const attendanceFixture = new URLSearchParams(window.location.search).get('attendance') === 'true';
 const shift = (days: number) => new Date(new Date(`${week}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const history = [{ date: shift(-7), progressPct: 30 }, { date: week, progressPct: 40 }];
-const workdayHours = new URLSearchParams(window.location.search).get('workdayHours') ?? '08:00';
-const [hours, minutes] = workdayHours.split(':').map(Number);
-const journeyMinutes = hours * 60 + minutes;
-const journey = { weekdayHours: workdayHours, weekendHours: '08:00', workdays: [1, 2, 3, 4, 5], divergentMembers: null };
 const serviceHistory = [
   { date: week, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: 150, L: 0, UN: 3 } },
   { date: week, serviceType: 'TESTE_PRESSAO', quantities: { M: 50, L: 0, UN: 0 } },
@@ -48,12 +44,12 @@ apiClient.defaults.adapter = async config => {
   }
   const production = serviceMode === 'oil' ? serviceHistory.slice(2) : serviceMode === 'single' ? serviceHistory.slice(0, 1) : serviceHistory.slice(0, 2);
   const productivity = missingBase ? [] : production.map(point => ({ date: point.date, serviceType: point.serviceType, quantities: { M: 0, L: 0, UN: 0 },
-    productivePersonMinutes: (point.serviceType === 'FILTRAGEM' ? 10 : serviceMode === 'single' ? 15 : point.serviceType === 'LIMPEZA_QUIMICA' ? 9 : 6) * 480 * productiveMultiplier, productivityIssues: [] }))
-    .map(point => ({ ...point, productivePersonDays: Math.round(point.productivePersonMinutes / journeyMinutes * 10000) / 10000 }));
+    // Equipe do RDO no dia (colaboradores distintos), como o backend envia.
+    productivePersonDays: Math.round((point.serviceType === 'FILTRAGEM' ? 10 : serviceMode === 'single' ? 15 : point.serviceType === 'LIMPEZA_QUIMICA' ? 9 : 6) * productiveMultiplier), productivityIssues: [] }));
   const crew = (count: number) => Array.from({ length: count }, (_, index) => `c${index}`);
   const attendanceHistory = presenceMode === 'surplus' ? [{ date: week, collaboratorIds: crew(8) }]
     : presenceMode === 'missing' ? [] : [{ date: week, collaboratorIds: crew(8) }, { date: shift(1), collaboratorIds: crew(presenceMode === 'balanced' ? 4 : 2) }];
-  return response({ targets: stored.slice(), journey, progressHistory: history, serviceHistory: [...production, ...productivity], attendanceHistory });
+  return response({ targets: stored.slice(), workdays: [1, 2, 3, 4, 5], progressHistory: history, serviceHistory: [...production, ...productivity], attendanceHistory });
 };
 
 function Fixture() {

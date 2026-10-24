@@ -12,15 +12,8 @@ export function weeklyTargetPath(owner: WeeklyTargetOwner) {
   return `/acompanhamento/comercial/${resource}/metas-semanais`;
 }
 
-/** Jornada do projeto usada nas metas por colaborador/dia (horas "HH:MM"). */
-export interface WeeklyTargetJourney {
-  weekdayHours: string; weekendHours: string; workdays: number[];
-  /** Missões do agrupamento quando as jornadas são diferentes; a meta usa a maior. */
-  divergentMembers: Array<{ projectId: string; code: string | null; weekdayHours: string; weekendHours: string }> | null;
-}
-
 export async function listWeeklyProgressTargets(owner: WeeklyTargetOwner, includeHistory = false) {
-  return (await apiClient.get<{ targets: WeeklyProgressTarget[]; journey?: WeeklyTargetJourney | null; progressHistory?: ProgressHistoryPoint[]; serviceHistory?: WeeklyServiceHistoryPoint[]; attendanceHistory?: WeeklyAttendanceHistoryPoint[] }>(weeklyTargetPath(owner), {
+  return (await apiClient.get<{ targets: WeeklyProgressTarget[]; /** Dias de trabalho do projeto (meta de equipe mínima). */ workdays?: number[]; progressHistory?: ProgressHistoryPoint[]; serviceHistory?: WeeklyServiceHistoryPoint[]; attendanceHistory?: WeeklyAttendanceHistoryPoint[] }>(weeklyTargetPath(owner), {
     params: { ...(includeHistory ? { history: 'true' } : {}), services: 'true' }
   })).data;
 }

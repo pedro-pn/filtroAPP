@@ -28,9 +28,6 @@
 .wtd-logic-options input { position: absolute; left: 14px; top: 14px; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; accent-color: var(--brand-text); }
 .wtd-logic-options label.is-selected { border-color: var(--brand-text); background: var(--brand-soft); }
 .wtd-logic-options label:focus-within { outline: 2px solid var(--brand-text); outline-offset: 2px; }
-.wtd-journey { display: grid; gap: 2px; padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-md); font-size: var(--text-sm); }
-.wtd-journey span { font-variant-numeric: tabular-nums; }
-.wtd-journey small { color: var(--muted); font-size: var(--text-xs); }
 .wtd-footer { display: flex; justify-content: flex-end; gap: var(--space-2); }
 @media (max-width: 479.98px) {
   .wtd-goal-rule { grid-template-columns: minmax(0, 1fr) auto; }

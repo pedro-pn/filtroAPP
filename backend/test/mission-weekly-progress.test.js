@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildWeeklyProgressComparison, corporateToday, dateOnlyKey, weekStartKey } from '../../shared/modules/mission-weekly-progress.js';
 import { buildProgressHistory } from '../src/lib/acompanhamento/avanco.js';
-import { deleteWeeklyProgressTarget, deleteWeeklyProgressTargetSchema, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyProgressTargetSchema, weeklyTargetJourney } from '../src/lib/acompanhamento/weekly-progress-targets.js';
+import { deleteWeeklyProgressTarget, deleteWeeklyProgressTargetSchema, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyProgressTargetSchema, weeklyTargetWorkdays } from '../src/lib/acompanhamento/weekly-progress-targets.js';
 import { deleteMissionWeeklyProgressTarget, getMissionWeeklyProgressTargets, saveMissionWeeklyProgressTarget } from '../src/lib/efetivo/planning/weekly-progress-targets.js';
 
 const target = (weekStartDate, plannedPctPoints, revision = 1) => ({ id: `${weekStartDate}-${revision}`, weekStartDate, plannedPctPoints, revision });
@@ -180,8 +180,7 @@ test('Efetivo compartilha a meta por projeto e carrega o mesmo histórico; cená
     return new Map([['p1', history]]);
   } });
   assert.equal(comparison.targets[0].plannedPctPoints, 10);
-  assert.equal(comparison.journey.weekdayHours, '09:00');
-  assert.equal(comparison.journey.weekendHours, '08:00');
+  assert.deepEqual(comparison.workdays, [1, 2, 3, 4, 5]);
   assert.deepEqual(comparison.progressHistory, history);
   await saveMissionWeeklyProgressTarget('m1', { ...payload, plannedPctPoints: 20, expectedRevision: 1 }, actor, { database: client });
   assert.equal((await listWeeklyProgressTargets({ projectId: 'p1' }, { client }))[1].plannedPctPoints, 20);
@@ -192,40 +191,17 @@ test('Efetivo compartilha a meta por projeto e carrega o mesmo histórico; cená
   await assert.rejects(getMissionWeeklyProgressTargets('scenario-mission', { database: client }), { status: 404 });
 });
 
-test('jornada da meta vem do projeto: padrão e fim de semana, com dias de trabalho; jornada inválida fica sem conversão', async () => {
+test('dias de trabalho da equipe mínima vêm do projeto e do agrupamento', async () => {
   const client = database();
   client.project.findMany = async ({ where, select }) => {
     assert.deepEqual(where, { id: { in: ['p1'] }, deletedAt: null });
-    assert.equal(select.workdayHours, true);
-    assert.equal(select.weekendWorkdayHours, true);
-    return [{ id: 'p1', code: '5812', workdayHours: '09:30', weekendWorkdayHours: '04:00', includesSaturday: true, includesSunday: false }];
+    assert.deepEqual(select, { includesSaturday: true, includesSunday: true });
+    return [{ includesSaturday: true, includesSunday: false }];
   };
-  const journey = await weeklyTargetJourney({ projectId: 'p1' }, { client });
-  assert.equal(journey.weekdayMinutes, 570);
-  assert.equal(journey.weekendMinutes, 240);
-  assert.deepEqual(journey.workdays, [1, 2, 3, 4, 5, 6]);
-  assert.equal(journey.divergentMembers, null);
-  for (const workdayHours of ['', 'inválida', '00:00', '08:99', '25:00']) {
-    client.project.findMany = async () => [{ id: 'p1', workdayHours, weekendWorkdayHours: '08:00' }];
-    assert.equal(await weeklyTargetJourney({ projectId: 'p1' }, { client }), null);
-  }
-});
-
-test('agrupamento com jornadas diferentes usa a maior de cada tipo de dia e informa a divergência', async () => {
-  const client = database();
+  assert.deepEqual(await weeklyTargetWorkdays({ projectId: 'p1' }, { client }), [1, 2, 3, 4, 5, 6]);
   client.acompanhamentoMissionGroupMember = { findMany: async () => [{ projectId: 'p1' }, { projectId: 'p2' }] };
-  client.project.findMany = async ({ where }) => {
-    assert.deepEqual(where, { id: { in: ['p1', 'p2'] }, deletedAt: null });
-    return [{ id: 'p1', code: 'A', workdayHours: '09:00', weekendWorkdayHours: '08:00' }, { id: 'p2', code: 'B', workdayHours: '9:00', weekendWorkdayHours: '08:00' }];
-  };
-  assert.equal((await weeklyTargetJourney({ groupId: 'g1' }, { client })).divergentMembers, null);
-  client.project.findMany = async () => [{ id: 'p1', code: 'A', workdayHours: '08:00', weekendWorkdayHours: '08:00', includesSunday: true },
-    { id: 'p2', code: 'B', workdayHours: '09:00', weekendWorkdayHours: '06:00' }];
-  const journey = await weeklyTargetJourney({ groupId: 'g1' }, { client });
-  assert.equal(journey.weekdayHours, '09:00');
-  assert.equal(journey.weekendHours, '08:00');
-  assert.deepEqual(journey.workdays, [1, 2, 3, 4, 5, 0]);
-  assert.deepEqual(journey.divergentMembers.map(member => [member.code, member.weekdayHours, member.weekendHours]), [['A', '08:00', '08:00'], ['B', '09:00', '06:00']]);
+  client.project.findMany = async () => [{ includesSaturday: false, includesSunday: false }, { includesSaturday: false, includesSunday: true }];
+  assert.deepEqual(await weeklyTargetWorkdays({ groupId: 'g1' }, { client }), [1, 2, 3, 4, 5, 0]);
 });
 
 test('missões excluídas e agrupamentos dissolvidos não recebem novas metas', async () => {
@@ -528,10 +504,11 @@ test('cenário de presença e produção podem coexistir e a repetição continu
 // Metas em lista (versão 2): uma linha por meta, regra E/OU e jornada do projeto.
 const listTarget = (goals, logic = 'ALL', extra = {}) => flexibleTarget({ version: 2, logic, countingStartDay: 1, countingEndDay: 0, goals, ...extra });
 const service = (serviceType, value, basis = 'PER_PRODUCTIVE_DAY', metric = serviceType === 'FILTRAGEM' ? 'L' : 'M') => ({ kind: 'SERVICE', serviceType, metric, basis, value });
+const crewPoint = (date, serviceType, crew) => ({ ...servicePoint(date, serviceType), productivePersonDays: crew, productivityIssues: [] });
 const dayPoint = (date, serviceType, collaboratorDays) => ({ ...servicePoint(date, serviceType), productivePersonMinutes: collaboratorDays * 9 * 60, productivePersonDays: collaboratorDays });
 const compareList = (target, serviceHistory, today = '2026-10-05') => rowFor(buildWeeklyProgressComparison({ today, targets: [target], serviceHistory }), '2026-09-28');
 
-test('20 m por colaborador/dia com 3, 2 e 4 colaboradores-dia somam 180 m, usando a jornada do projeto de cada dia', () => {
+test('20 m por colaborador/dia com 3, 2 e 4 colaboradores nos RDOs somam 180 m', () => {
   const history = [dayPoint('2026-09-28', 'LIMPEZA_QUIMICA', 3), dayPoint('2026-09-29', 'LIMPEZA_QUIMICA', 2), dayPoint('2026-10-02', 'LIMPEZA_QUIMICA', 4),
     servicePoint('2026-09-29', 'LIMPEZA_QUIMICA', 185)];
   const row = compareList(listTarget([service('LIMPEZA_QUIMICA', 20)]), history);
@@ -540,10 +517,16 @@ test('20 m por colaborador/dia com 3, 2 e 4 colaboradores-dia somam 180 m, usand
   assert.equal(row.actualValue, 185);
   assert.equal(row.status, 'ABOVE');
   assert.equal(row.logic, 'ALL');
-  // Sexta com 8 h e jornada de fim de semana de 8 h vale 1 dia, não 8/9.
-  const friday = { ...servicePoint('2026-10-02', 'LIMPEZA_QUIMICA'), productivePersonMinutes: 480, productivePersonDays: 1 };
-  assert.equal(compareList(listTarget([service('LIMPEZA_QUIMICA', 20)]), [friday]).plannedValue, 20);
-  // Sem a conversão do backend, mantém o cálculo antigo (8 h por dia).
+  // Dois serviços no mesmo dia: a equipe conta uma vez para "qualquer serviço" e uma vez em cada serviço.
+  const sameDay = [crewPoint('2026-09-28', 'LIMPEZA_QUIMICA', 3), crewPoint('2026-09-28', 'TESTE_PRESSAO', 3),
+    servicePoint('2026-09-28', 'LIMPEZA_QUIMICA', 40), servicePoint('2026-09-28', 'TESTE_PRESSAO', 50)];
+  const any = compareList(listTarget([service(null, 27, 'PER_PRODUCTIVE_DAY', 'M')]), sameDay);
+  assert.equal(any.goals[0].personDays, 3);
+  assert.equal(any.plannedValue, 81);
+  assert.equal(any.actualValue, 90);
+  assert.equal(any.status, 'ABOVE');
+  assert.equal(compareList(listTarget([service('TESTE_PRESSAO', 27)]), sameDay).plannedValue, 81);
+  // Sem a equipe do backend (histórico antigo), mantém o cálculo por horas (8 h por dia).
   const legacy = { ...servicePoint('2026-10-02', 'LIMPEZA_QUIMICA'), productivePersonMinutes: 480 };
   assert.equal(compareList(listTarget([service('LIMPEZA_QUIMICA', 20)]), [legacy]).plannedValue, 20);
 });
@@ -609,6 +592,9 @@ test('API valida a lista de metas e mantém as metas antigas', async () => {
   assert.ok(invalid([{ kind: 'ATTENDANCE', value: 2.5, workdays: [1] }]));
   assert.ok(invalid([{ kind: 'PROGRESS', value: 10 }, { kind: 'PROGRESS', value: 5 }]));
   assert.ok(invalid([{ ...service('LIMPEZA_QUIMICA', 30), referenceDayHours: 8 }]));
+  assert.ok(invalid([service(null, 27, 'PER_PRODUCTIVE_DAY', 'M'), service(null, 10, 'WEEK_TOTAL', 'M')]));
+  assert.ok(!invalid([service(null, 27, 'PER_PRODUCTIVE_DAY', 'M'), service('FILTRAGEM', 1000, 'WEEK_TOTAL')]));
+  assert.ok(!invalid([service(null, 500, 'WEEK_TOTAL', 'L')]));
   const message = weeklyProgressTargetSchema.safeParse({ ...valid, definition: { ...valid.definition, goals: [service('FILTRAGEM', 10, 'WEEK_TOTAL', 'M')] } }).error.issues[0].message;
   assert.match(message, /Filtragem usa litros/);
   const client = database();

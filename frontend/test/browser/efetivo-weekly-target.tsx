@@ -18,7 +18,7 @@ const params = new URLSearchParams(location.search);
 if (params.has('dark')) document.documentElement.classList.add('dark');
 const readOnly = params.has('leitor');
 
-// 20 m por colaborador/dia, contagem de sexta a quinta: [dias com RDO, colaboradores-dia, metros].
+// 20 m por colaborador/dia, contagem de sexta a quinta: [dias com RDO, equipe do RDO, metros].
 const periods: [string[], number[], number][] = [
   [['09-11', '09-12', '09-14', '09-15', '09-16'], [3, 3, 2, 3, 3], 290],
   [['09-18', '09-19', '09-21', '09-22', '09-23', '09-24'], [3, 3, 3, 2, 3, 3], 310],
@@ -30,14 +30,13 @@ const periods: [string[], number[], number][] = [
 const serviceHistory = periods.flatMap(([days, crews, total]) => days.flatMap((day, i) => {
   const date = `2026-${day}`, sum = crews.reduce((a, b) => a + b, 0);
   return [{ date, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: Math.round(total * crews[i] / sum * 100) / 100, L: 0, UN: 0 } },
-    { date, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: 0, L: 0, UN: 0 }, productivePersonMinutes: crews[i] * 540, productivityIssues: [], productivePersonDays: crews[i] }];
+    { date, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: 0, L: 0, UN: 0 }, productivityIssues: [], productivePersonDays: crews[i] }];
 }));
 const stored = [{
   id: 't1', weekStartDate: '2026-09-07', plannedPctPoints: null, revision: 1, author: { id: 'u1', name: 'Coordenação de projetos' }, createdAt: '2026-09-10T14:30:00Z',
   definition: { version: 2, logic: 'ALL', countingStartDay: 5, countingEndDay: 4, repeatWeekly: true,
     goals: [{ kind: 'SERVICE', serviceType: 'LIMPEZA_QUIMICA', metric: 'M', basis: 'PER_PRODUCTIVE_DAY', value: 20 }] }
 }];
-const journey = { weekdayHours: '09:00', weekendHours: '08:00', workdays: [1, 2, 3, 4, 5], divergentMembers: null };
 const dashboard = {
   schedule: { plannedProgressPct: 70, actualProgressPct: 67.5, progressMethod: 'SCOPE', elapsedDays: 40, plannedDays: 61, startDate: '2026-09-14', expectedEndDate: '2026-11-13', projectedEndDate: '2026-11-18' },
   rdo: { receivedCount: 33, overdueCount: 0, overdueDates: [], recent: [], pendingOrReturnedCount: 1, releasedToClientCount: 30, signedCount: 30, withQuantitiesCount: 31, withEvidenceCount: 33, evidenceCount: 120, lastReportDate: '2026-10-22' },
@@ -58,7 +57,7 @@ apiClient.defaults.adapter = async config => {
       stored.push(record);
       return response(record);
     }
-    return response({ targets: stored.slice(), journey, progressHistory: [], serviceHistory, attendanceHistory: [] });
+    return response({ targets: stored.slice(), workdays: [1, 2, 3, 4, 5], progressHistory: [], serviceHistory, attendanceHistory: [] });
   }
   if (config.url?.endsWith('/execution')) return response(dashboard);
   return response([]);
