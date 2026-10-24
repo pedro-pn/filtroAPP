@@ -60,6 +60,38 @@ test('inibição acompanha a embarcação nas opções, na troca de seleção e 
       '53100;FRESHWATER GENERATION SYSTEM;SEM-DIAGRAMA');
     assert.equal(system.diagram, '00051632-53100-K-0010');
     assert.equal(buildReportServicePayload({ type: 'limpeza', data: { equipmentId: '51633', system: original } }).system, original);
+
+    for (const diagram of [
+      '00051632-53100-K-0010 / 00051632-53100-K-0020',
+      '53100-K-0010 / REF-51632',
+      'P&ID: 0051632_53100 / TAG-51632-53100 (51632)',
+      'REF-51632;00051632-53100-K-0010;00051632-53100-K-0020',
+      '00051632-53100-K-0010\n51632-53100-K-0020\n51632'
+    ]) {
+      const compoundSystem = { ...system, diagram };
+      const compoundOriginal = `53100;FRESHWATER GENERATION SYSTEM;${diagram}`;
+      props.inhibitionOptions.systems = [compoundSystem];
+      data = { equipmentId: '51632', system: compoundOriginal };
+
+      for (const vesselCode of ['51633', '51634', '51632', '51633']) {
+        const expected = `53100;FRESHWATER GENERATION SYSTEM;${diagram.replaceAll('51632', vesselCode)}`;
+        findSelect(form(), 'equipmentId').props.onChange({ target: { value: vesselCode } });
+        assert.equal(data.system, expected, `Troca de embarcação: ${diagram}`);
+        assert.equal(inhibitionSystemValue(compoundSystem, vesselCode), expected);
+        const options = Children.toArray(findSelect(form(), 'system').props.children);
+        assert.ok(options.some(option => option.props.value === expected && option.props.children === expected));
+        for (const draft of [
+          data,
+          { equipmentId: vesselCode, system: compoundOriginal },
+          { equipmentId: vesselCode, system: compoundOriginal.replace('51632', vesselCode) }
+        ]) {
+          const payload = buildReportServicePayload({ type: 'inibicao', data: draft });
+          assert.equal(payload.system, expected);
+          assert.equal(payload.extraData.system, expected);
+          assert.equal(payload.extraData.Sistema, expected);
+        }
+      }
+    }
   } finally {
     await server.close();
   }
