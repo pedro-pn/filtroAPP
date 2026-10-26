@@ -25,16 +25,6 @@ export function useProjectEditor(projects: Project[] | undefined, projectsTab: b
     setProjectForm(projectToForm(project));
   }, [projectReviewId, projects, location.key, clearSearch]);
 
-  useEffect(() => {
-    if (!projectReviewId || projectEditingId !== projectReviewId) return;
-    const frame = window.requestAnimationFrame(() => {
-      const detail = document.getElementById(`project-table-detail-${projectReviewId}`);
-      detail?.scrollIntoView({ block: 'center' });
-      detail?.querySelector<HTMLInputElement>('input:not([readonly])')?.focus({ preventScroll: true });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [projectReviewId, projectEditingId]);
-
   function resetProjectForm() {
     setProjectForm(emptyProjectForm);
     setProjectEditingId(null);

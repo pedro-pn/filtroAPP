@@ -10,6 +10,7 @@ import { cleaningChemicalOptions, materialSelection, selectedChemicalProducts } 
 
 import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
+import { reportSummaryProjectSelect } from '../../lib/reports/summary-project-select.js';
 import { removeSubmittedRdoDrafts } from '../../lib/reports/drafts.js';
 import { createPublicReportSignatureScope } from '../../lib/reports/public-signature-scope.js';
 import { createPublicSignatureFiles, createPublicSignaturePdfDownload, signedReportArchive } from '../../lib/reports/public-signature-files.js';
@@ -1312,26 +1313,7 @@ const listSummarySelect = withReportPdfAttachmentCount({
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
-  project: {
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      isActive: true,
-      visibleToCollaborators: true,
-      managerOnly: true,
-      requireServiceReportSignatures: true,
-      deletedAt: true,
-      clientName: true,
-      clientCnpj: true,
-      clientEmailPrimary: true,
-      clientSignerFirstName: true,
-      clientSignerLastName: true,
-      clientEmailCc: true,
-      clientSigners: true,
-      operatorId: true
-    }
-  },
+  project: { select: reportSummaryProjectSelect },
   createdBy: {
     select: {
       id: true,

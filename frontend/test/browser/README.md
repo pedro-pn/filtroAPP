@@ -1,5 +1,18 @@
 # Search regression in a browser
 
+For the compact project editor, open `/test/browser/gestor-project-search.html?tab=projetos`
+and run `playwright-cli run-code --filename frontend/test/browser/project-edit-dialog.js`.
+It checks the 560 px dialog, focus, required fields, saving/reopening, cancellation,
+Escape, the nested segment dialog and layouts at 390/320 px. All writes are simulated.
+
+For independent service report signers, open
+`/test/browser/gestor-project-search.html?tab=projetos&service-signers=1` and run
+`playwright-cli run-code --filename frontend/test/browser/service-report-signers.js`.
+It checks selecting the primary or additional signer, saving/reopening, preserving
+the RDO signer and mobile layout. Backend tests cover completing an existing
+partially signed service report and generating its final PDF. Deployment requires
+migration `20261026160000_service_report_signers` and Prisma client generation.
+
 For equipment categories in report services, open `/test/browser/rdo-equipment-categories.html`
 and run `playwright-cli run-code --filename frontend/test/browser/rdo-equipment-categories.js`.
 It uses the production configuration and service fields with a simulated API. Coverage

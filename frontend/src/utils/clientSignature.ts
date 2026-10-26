@@ -82,10 +82,15 @@ export function clientCanSignReport(report: ReportSummary, user: ClientUser | nu
   const signerEmail = clientSignerEmailForReport(report, user);
   if (!signerEmail) return false;
 
+  const isServiceReport = report.reportType !== 'RDO';
   const allowedSigners = new Set([
-    normalizeEmail(report.project.clientEmailPrimary),
-    ...(report.project.clientSigners || []).map(signer => normalizeEmail(signer.email))
+    ...(!isServiceReport || report.project.clientSignerSignsServiceReports !== false
+      ? [normalizeEmail(report.project.clientEmailPrimary)] : []),
+    ...(report.project.clientSigners || [])
+      .filter(signer => !isServiceReport || signer.signsServiceReports !== false)
+      .map(signer => normalizeEmail(signer.email))
   ].filter(Boolean));
+  if (isServiceReport && !allowedSigners.size) return false;
   if (allowedSigners.size && !allowedSigners.has(signerEmail)) return false;
 
   return !clientHasSignedReport(report, user);

@@ -126,6 +126,63 @@ test('cadastro e edição preservam vários locais da obra e permitem removê-lo
   assert.equal(invalidLocation.statusCode, 400);
 });
 
+test('edição salva assinantes dos serviços e recalcula pendências sem alterar os assinantes do RDO', async t => {
+  stubAuthenticatedManager(t);
+  let project = {
+    id: 'project-signers', isActive: true, clientCnpj: '11222333000144', clientName: 'Cliente',
+    clientEmailPrimary: 'primary@example.com', clientEmailCc: ['fiscal@example.com'],
+    clientSigners: [{ name: 'Fiscal Silva', email: 'fiscal@example.com' }],
+    clientSignerSignsServiceReports: true, requireServiceReportSignatures: true,
+    authorizedUsers: [], reportSequences: []
+  };
+  const originals = {
+    transaction: prisma.$transaction,
+    findProject: prisma.project.findUniqueOrThrow,
+    findReports: prisma.report.findMany
+  };
+  const recalculations = [];
+  prisma.project.findUniqueOrThrow = async () => project;
+  prisma.report.findMany = async args => { recalculations.push(args.where); return []; };
+  prisma.$transaction = async callback => callback({
+    project: {
+      findUniqueOrThrow: async () => ({ ...project }),
+      update: async ({ data }) => (project = { ...project, ...data })
+    },
+    user: {
+      findFirst: async () => ({ id: 'client-1', role: 'CLIENT' }),
+      update: async () => ({ id: 'client-1', role: 'CLIENT' }),
+      updateMany: async () => ({ count: 0 })
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originals.transaction;
+    prisma.project.findUniqueOrThrow = originals.findProject;
+    prisma.report.findMany = originals.findReports;
+  });
+
+  const primary = await dispatchApp('PUT', '/api/projects/project-signers', { clientSignerSignsServiceReports: false });
+  assert.equal(primary.statusCode, 200);
+  assert.equal(primary.json.clientSignerSignsServiceReports, false);
+  assert.equal(primary.json.clientSigners.length, 1);
+  assert.equal(recalculations.length, 1);
+  assert.equal(recalculations[0].projectId, project.id);
+
+  const additional = await dispatchApp('PUT', '/api/projects/project-signers', {
+    clientSigners: [{ firstName: 'Fiscal', lastName: 'Silva', email: 'FISCAL@example.com', signsServiceReports: false }]
+  });
+  assert.equal(additional.statusCode, 200);
+  assert.equal(additional.json.clientSignerSignsServiceReports, false);
+  assert.equal(additional.json.clientSigners[0].email, 'fiscal@example.com');
+  assert.equal(additional.json.clientSigners[0].signsServiceReports, false);
+  assert.equal(recalculations.length, 2);
+
+  const unrelated = await dispatchApp('PUT', '/api/projects/project-signers', { name: 'Projeto atualizado' });
+  assert.equal(unrelated.statusCode, 200);
+  assert.equal(unrelated.json.clientSignerSignsServiceReports, false);
+  assert.equal(unrelated.json.clientSigners[0].signsServiceReports, false);
+  assert.equal(recalculations.length, 2);
+});
+
 test('cadastro e revisão manual agendam os anexos sem desfazer uma revisão já selecionada', async t => {
   stubAuthenticatedManager(t);
   const originalTransaction = prisma.$transaction;

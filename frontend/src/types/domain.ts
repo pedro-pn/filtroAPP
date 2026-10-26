@@ -52,6 +52,7 @@ export interface ClientSigner {
   firstName?: string;
   lastName?: string;
   email: string;
+  signsServiceReports?: boolean;
 }
 
 export type SurveyStatus = 'ACTIVE' | 'RESPONDED' | 'EXPIRED' | 'UNKNOWN';
@@ -101,6 +102,7 @@ export interface Project {
   clientEmailPrimary: string;
   clientSignerFirstName?: string;
   clientSignerLastName?: string;
+  clientSignerSignsServiceReports?: boolean;
   clientEmailCc: string[];
   clientSigners: ClientSigner[];
   contractCode: string;

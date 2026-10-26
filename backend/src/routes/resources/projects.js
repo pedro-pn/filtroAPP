@@ -37,12 +37,14 @@ const schema = z.object({
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
   clientSignerFirstName: z.string().optional().default(''),
   clientSignerLastName: z.string().optional().default(''),
+  clientSignerSignsServiceReports: z.boolean().default(true),
   clientEmailCc: z.array(emailSchema).default([]),
   clientSigners: z.array(z.object({
     name: z.string().optional().default(''),
     firstName: z.string().optional().default(''),
     lastName: z.string().optional().default(''),
-    email: emailSchema
+    email: emailSchema,
+    signsServiceReports: z.boolean().default(true)
   })).default([]),
   contractCode: z.string().min(1),
   location: z.string().trim().min(1),
@@ -85,7 +87,8 @@ function normalizeClientSigner(rawSigner) {
     name,
     firstName,
     lastName,
-    email: String(rawSigner?.email || '').trim().toLowerCase()
+    email: String(rawSigner?.email || '').trim().toLowerCase(),
+    signsServiceReports: rawSigner?.signsServiceReports !== false
   };
 }
 
@@ -359,6 +362,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
 router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = parseProjectUpdateInput(req.body);
   const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined
+    || parsed.clientSignerSignsServiceReports !== undefined
     || parsed.clientSignerFirstName !== undefined
     || parsed.clientSignerLastName !== undefined
     || parsed.clientSigners !== undefined;

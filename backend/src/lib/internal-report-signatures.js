@@ -100,14 +100,19 @@ function addSigner(signers, seen, signer) {
 export function clientSignersForReport(report) {
   const signers = [];
   const seen = new Set();
-  addSigner(signers, seen, {
-    name: report?.project?.clientName || 'Cliente',
-    firstName: report?.project?.clientSignerFirstName,
-    lastName: report?.project?.clientSignerLastName,
-    email: report?.project?.clientEmailPrimary
-  });
+  const isServiceReport = report?.reportType && report.reportType !== 'RDO';
+  if (!isServiceReport || report?.project?.clientSignerSignsServiceReports !== false) {
+    addSigner(signers, seen, {
+      name: report?.project?.clientName || 'Cliente',
+      firstName: report?.project?.clientSignerFirstName,
+      lastName: report?.project?.clientSignerLastName,
+      email: report?.project?.clientEmailPrimary
+    });
+  }
   const configuredSigners = Array.isArray(report?.project?.clientSigners) ? report.project.clientSigners : [];
-  for (const signer of configuredSigners) addSigner(signers, seen, signer);
+  for (const signer of configuredSigners) {
+    if (!isServiceReport || signer?.signsServiceReports !== false) addSigner(signers, seen, signer);
+  }
   return signers;
 }
 

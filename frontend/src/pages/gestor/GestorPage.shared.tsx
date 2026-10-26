@@ -112,6 +112,7 @@ export interface ProjectFormState {
   clientSignerLastName: string;
   clientEmailCc: string;
   clientSigners: ClientSigner[];
+  clientSignerSignsServiceReports: boolean;
   contractCode: string;
   location: string;
   additionalWorkLocations: string[];
@@ -195,6 +196,7 @@ export const emptyProjectForm: ProjectFormState = {
   clientSignerLastName: '',
   clientEmailCc: '',
   clientSigners: [],
+  clientSignerSignsServiceReports: true,
   contractCode: '',
   location: '',
   additionalWorkLocations: [],
@@ -319,7 +321,8 @@ export function cleanSigners(signers: ClientSigner[]) {
     .map(signer => ({
       firstName: signerFirstName(signer).trim(),
       lastName: signerLastName(signer).trim(),
-      email: signer.email.trim().toLowerCase()
+      email: signer.email.trim().toLowerCase(),
+      signsServiceReports: signer.signsServiceReports !== false
     }))
     .map(signer => ({
       ...signer,
@@ -487,12 +490,14 @@ export function projectToForm(project: Project): ProjectFormState {
     clientEmailPrimary: project.clientEmailPrimary || '',
     clientSignerFirstName: project.clientSignerFirstName || '',
     clientSignerLastName: project.clientSignerLastName || '',
+    clientSignerSignsServiceReports: project.clientSignerSignsServiceReports !== false,
     clientEmailCc: parseEmailList([...(project.clientEmailCc || []), ...(project.clientSigners || []).map(signer => signer.email)].join('\n')).join('\n'),
     clientSigners: (project.clientSigners || []).map(signer => ({
       firstName: signerFirstName(signer),
       lastName: signerLastName(signer),
       name: signer.name || [signer.firstName, signer.lastName].filter(Boolean).join(' '),
-      email: signer.email || ''
+      email: signer.email || '',
+      signsServiceReports: signer.signsServiceReports !== false
     })),
     contractCode: project.contractCode,
     location: project.location,
@@ -785,6 +790,91 @@ export function ProjectClientFields({
         </div>
       </div>
     </>
+  );
+}
+
+export function ProjectServiceReportSignatureFields({
+  form,
+  setForm
+}: {
+  form: ProjectFormState;
+  setForm: Dispatch<SetStateAction<ProjectFormState>>;
+}) {
+  const signers = [
+    ...(form.clientEmailPrimary.trim() ? [{
+      name: [form.clientSignerFirstName, form.clientSignerLastName].map(part => part.trim()).filter(Boolean).join(' ') || 'Signatário principal',
+      email: form.clientEmailPrimary.trim(),
+      primary: true,
+      required: form.clientSignerSignsServiceReports
+    }] : []),
+    ...form.clientSigners.map(signer => ({
+      name: [signerFirstName(signer), signerLastName(signer)].filter(Boolean).join(' ') || 'Assinante',
+      email: signer.email,
+      primary: false,
+      required: signer.signsServiceReports !== false
+    }))
+  ];
+
+  return (
+    <div className="field-group field-group-wide">
+      <label>Assinatura de relatórios de serviço</label>
+      <div className="tog-row project-toggle-row">
+        <span className="tog-lbl">Exigir assinatura</span>
+        <label className="tog">
+          <input
+            type="checkbox"
+            aria-label="Exigir assinatura de relatórios de serviço"
+            checked={form.requireServiceReportSignatures}
+            onChange={event => setForm(current => ({ ...current, requireServiceReportSignatures: event.target.checked }))}
+          />
+          <span className="tog-sl" />
+        </label>
+      </div>
+      {form.requireServiceReportSignatures ? (
+        <div className="project-service-report-signers">
+          <table>
+            <caption>Assinantes dos relatórios de serviço</caption>
+            <thead>
+              <tr>
+                <th scope="col">Assinante</th>
+                <th scope="col">Assina?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {signers.map(signer => (
+                <tr key={signer.email}>
+                  <th scope="row">
+                    <strong className="project-service-report-signers__name">{signer.name}</strong>
+                    <span className="project-service-report-signers__email">{signer.email}</span>
+                  </th>
+                  <td>
+                    <label className="tog">
+                      <input
+                        type="checkbox"
+                        aria-label={`Exigir assinatura de ${signer.email} nos relatórios de serviço`}
+                        checked={signer.required}
+                        onChange={event => {
+                          const checked = event.target.checked;
+                          setForm(current => signer.primary
+                            ? { ...current, clientSignerSignsServiceReports: checked }
+                            : {
+                                ...current,
+                                clientSigners: current.clientSigners.map(item => item.email === signer.email
+                                  ? { ...item, signsServiceReports: checked } : item)
+                              });
+                        }}
+                      />
+                      <span className="tog-sl" />
+                    </label>
+                  </td>
+                </tr>
+              ))}
+              {!signers.length ? <tr><td colSpan={2}>Nenhum assinante cadastrado.</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
