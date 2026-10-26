@@ -3,6 +3,11 @@
 .wts-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
 .wts-head h2 { margin: 0; font-size: var(--text-lg); line-height: 1.2; }
 .wts-head p { margin: 2px 0 0; color: var(--muted); font-size: var(--text-xs); }
+/* Recolhível como as demais seções; o status só aparece no título quando fechado. */
+.wts .acp-detail-section-summary { align-items: center; }
+.wts .acp-detail-section-content { margin-top: var(--space-3); }
+.wts-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.wts .acp-detail-collapsible[open] .wts-head-status { display: none; }
 .wts-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--radius-sm); color: var(--brand-text); background: var(--brand-soft); }
 .wts-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 .wts-switch { display: inline-flex; gap: 2px; padding: 3px; border: var(--border-width) solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
