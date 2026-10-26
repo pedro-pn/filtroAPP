@@ -93,8 +93,13 @@ export interface PublicSignatureConfirmPayload {
   privacyNoticeVersion: string;
 }
 
+export interface PublicSignatureEmailDelivery {
+  status: 'sent' | 'failed' | 'skipped';
+  reportCount?: number;
+}
+
 export async function confirmPublicSignature(token: string, payload: PublicSignatureConfirmPayload) {
-  const response = await apiClient.post<{ success: boolean; completed: boolean; report: ReportSummary }>(
+  const response = await apiClient.post<{ success: boolean; completed: boolean; report: ReportSummary; emailDelivery: PublicSignatureEmailDelivery }>(
     `/reports/public-sign/${encodeURIComponent(token)}/confirm`,
     payload
   );
@@ -114,13 +119,15 @@ export interface PublicSignatureBatchResult {
 
 export async function confirmPublicSignatureBatch(token: string, payload: PublicSignatureBatchConfirmPayload) {
   const results: PublicSignatureBatchResult[] = [];
+  const emailDeliveries: PublicSignatureEmailDelivery[] = [];
   for (let offset = 0; offset < payload.signatureIds.length; offset += 100) {
     try {
-      const response = await apiClient.post<{ results: PublicSignatureBatchResult[] }>(
+      const response = await apiClient.post<{ results: PublicSignatureBatchResult[]; emailDelivery: PublicSignatureEmailDelivery }>(
         `/reports/public-sign/${encodeURIComponent(token)}/confirm-batch`,
         { ...payload, signatureIds: payload.signatureIds.slice(offset, offset + 100) }
       );
       results.push(...response.data.results);
+      emailDeliveries.push(response.data.emailDelivery);
     } catch (error) {
       if (!results.length) throw error;
       results.push(...payload.signatureIds.slice(offset).map(signatureId => ({
@@ -130,7 +137,7 @@ export async function confirmPublicSignatureBatch(token: string, payload: Public
       break;
     }
   }
-  return { results };
+  return { results, emailDeliveries };
 }
 
 export async function rejectPublicSignature(token: string, comment: string, signatureId?: string) {
@@ -145,4 +152,9 @@ export function publicSignaturePdfUrl(token: string, signatureId?: string) {
   const baseUrl = String(apiClient.defaults.baseURL || '/api').replace(/\/+$/, '');
   const url = `${baseUrl}/reports/public-sign/${encodeURIComponent(token)}/pdf`;
   return signatureId ? `${url}?signatureId=${encodeURIComponent(signatureId)}` : url;
+}
+
+export function publicSignatureZipUrl(token: string) {
+  const baseUrl = String(apiClient.defaults.baseURL || '/api').replace(/\/+$/, '');
+  return `${baseUrl}/reports/public-sign/${encodeURIComponent(token)}/zip`;
 }

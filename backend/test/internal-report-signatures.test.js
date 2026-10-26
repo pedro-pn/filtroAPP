@@ -6,6 +6,8 @@ import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
+import AdmZip from 'adm-zip';
+import nodemailer from 'nodemailer';
 import { ClientReviewAction, Prisma } from '@prisma/client';
 
 import {
@@ -338,7 +340,7 @@ function dispatchApp(method, pathName, body = undefined, headers = {}) {
       const buffer = Buffer.concat(chunks);
       const bodyText = buffer.toString('utf8');
       const json = /^[\s]*[\[{]/.test(bodyText) ? JSON.parse(bodyText) : null;
-      resolve({ statusCode: res.statusCode, body: bodyText, buffer, json });
+      resolve({ statusCode: res.statusCode, body: bodyText, buffer, json, headers: Object.fromEntries(responseHeaders) });
       return res;
     };
 
@@ -2326,7 +2328,7 @@ test('public signature link lists pending RDOs for the same project and client e
   prisma.reportSignature.findMany = async args => {
     assert.equal(args.where.report.projectId, 'project-public-1');
     assert.equal(args.where.report.reportType, 'RDO');
-    assert.equal(args.where.report.status, 'APPROVED');
+    assert.deepEqual(args.where.report.status, { in: ['APPROVED', 'SIGNED'] });
     assert.equal(args.where.report.deletedAt, null);
     assert.deepEqual(args.where.report.project, { deletedAt: null, managerOnly: false });
     assert.deepEqual(args.where.signerEmail, { equals: 'cliente@example.com', mode: 'insensitive' });
@@ -2562,6 +2564,8 @@ test('public RDO batch confirmation validates the exact selection, full name and
 
 async function mockPublicProjectBatch(t, { failSecond = false } = {}) {
   const originalDir = env.reportsDir;
+  const originalEmailsEnabled = env.sendClientEmails;
+  env.sendClientEmails = false;
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-project-batch-'));
   env.reportsDir = directory;
   const pdf = Buffer.from('immutable-RDO-source');
@@ -2618,6 +2622,7 @@ async function mockPublicProjectBatch(t, { failSecond = false } = {}) {
     prisma.report.findUniqueOrThrow = originals.reportFind;
     prisma.reportAuditLog.create = originals.auditCreate;
     env.reportsDir = originalDir;
+    env.sendClientEmails = originalEmailsEnabled;
     await fs.rm(directory, { recursive: true, force: true });
   });
   const input = {
@@ -2689,4 +2694,188 @@ test('public project link can preview another pending RDO after its original RDO
   const response = await dispatchAppGet(`/api/reports/public-sign/project-token/pdf?signatureId=${sibling.id}`);
   assert.equal(response.statusCode, 200);
   assert.equal(response.buffer.toString(), 'immutable-RDO-source');
+});
+
+async function mockSignedPublicDownloads(t) {
+  const fixture = await mockPublicProjectBatch(t);
+  const originalMany = prisma.reportSignature.findMany;
+  prisma.reportSignature.findMany = async ({ where }) => {
+    assert.deepEqual(where.report.status, { in: ['APPROVED', 'SIGNED'] });
+    return [fixture.sibling];
+  };
+  t.after(() => { prisma.reportSignature.findMany = originalMany; });
+  for (const [index, signature] of fixture.signatures.entries()) {
+    const bytes = Buffer.from(`signed-final-pdf-${index}`);
+    const fileName = `signed-final-${index}.pdf`;
+    await fs.writeFile(path.join(env.reportsDir, fileName), bytes);
+    signature.status = 'SIGNED';
+    signature.report.status = 'SIGNED';
+    signature.version.finalPdfUrl = `/relatorios/${fileName}`;
+    signature.version.finalDocumentHash = sha256Hex(bytes);
+    signature.signedAt = new Date();
+  }
+  return fixture;
+}
+
+test('public project link still lists all signed RDOs after reopening the page', async t => {
+  await mockSignedPublicDownloads(t);
+  const response = await dispatchAppGet('/api/reports/public-sign/project-token');
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.status, 'SIGNED');
+  assert.equal(response.json.batch.pendingCount, 0);
+  assert.deepEqual(response.json.batch.reports.map(item => item.status), ['SIGNED', 'SIGNED']);
+  assert.doesNotMatch(response.body, /signatureImageDataUrl|finalPdfUrl|tokenHash/);
+});
+
+test('public signed PDF downloads return final bytes for the original and sibling RDO', async t => {
+  const { sibling } = await mockSignedPublicDownloads(t);
+  for (const [index, suffix] of ['', `?signatureId=${sibling.id}`].entries()) {
+    const response = await dispatchAppGet(`/api/reports/public-sign/project-token/pdf${suffix}`);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.buffer.toString(), `signed-final-pdf-${index}`);
+    assert.equal(response.headers['content-type'], 'application/pdf');
+    assert.match(response.headers['content-disposition'], /^attachment;/);
+    assert.match(response.headers['cache-control'], /no-store/);
+  }
+});
+
+test('public signed PDF and ZIP reject tampered final PDFs instead of serving the unsigned source', async t => {
+  await mockSignedPublicDownloads(t);
+  await fs.writeFile(path.join(env.reportsDir, 'signed-final-0.pdf'), 'tampered-pdf');
+  for (const route of ['pdf', 'zip']) {
+    const response = await dispatchAppGet(`/api/reports/public-sign/project-token/${route}`);
+    assert.equal(response.statusCode, 409);
+    assert.match(response.json.error, /PDF assinado diverge/);
+  }
+});
+
+test('public ZIP contains all signed RDOs with the same final PDFs as individual downloads', async t => {
+  await mockSignedPublicDownloads(t);
+  const response = await dispatchAppGet('/api/reports/public-sign/project-token/zip');
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers['content-type'], 'application/zip');
+  const entries = new AdmZip(response.buffer).getEntries();
+  assert.equal(entries.length, 2);
+  assert.deepEqual(entries.map(entry => entry.getData().toString()).sort(), ['signed-final-pdf-0', 'signed-final-pdf-1']);
+  assert.ok(entries.every(entry => /RDO (12|13).*\.pdf$/.test(entry.entryName)));
+});
+
+test('public ZIP excludes pending RDOs and blocks links with no signed reports', async t => {
+  const { anchor, sibling } = await mockSignedPublicDownloads(t);
+  sibling.status = 'PENDING';
+  sibling.report.status = 'APPROVED';
+  sibling.version.finalDocumentHash = null;
+  let response = await dispatchAppGet('/api/reports/public-sign/project-token/zip');
+  assert.equal(response.statusCode, 200);
+  assert.equal(new AdmZip(response.buffer).getEntries().length, 1);
+  anchor.status = 'PENDING';
+  anchor.report.status = 'APPROVED';
+  anchor.version.finalDocumentHash = null;
+  response = await dispatchAppGet('/api/reports/public-sign/project-token/zip');
+  assert.equal(response.statusCode, 409);
+});
+
+test('signed public downloads preserve expiration, deletion, project and version restrictions', async t => {
+  const { anchor } = await mockSignedPublicDownloads(t);
+  const restrictions = [
+    () => { anchor.tokenExpiresAt = new Date(0); },
+    () => { anchor.report.deletedAt = new Date(); },
+    () => { anchor.report.project.managerOnly = true; },
+    () => { anchor.report.project.deletedAt = new Date(); },
+    () => { anchor.version.status = 'SUPERSEDED'; }
+  ];
+  for (const restrict of restrictions) {
+    anchor.tokenExpiresAt = new Date(Date.now() + 60_000);
+    anchor.report.deletedAt = null;
+    anchor.report.project.managerOnly = false;
+    anchor.report.project.deletedAt = null;
+    anchor.version.status = 'ACTIVE';
+    restrict();
+    for (const route of ['pdf', 'zip']) {
+      const response = await dispatchAppGet(`/api/reports/public-sign/project-token/${route}`);
+      assert.equal(response.statusCode, 409);
+    }
+  }
+});
+
+test('signed download access does not allow signing or rejecting an already completed RDO', async t => {
+  const { anchor, input, writes } = await mockSignedPublicDownloads(t);
+  for (const [route, payload] of [
+    ['confirm', { ...input, signatureId: anchor.id }],
+    ['reject', { signatureId: anchor.id, comment: 'Não deve alterar relatório assinado.' }]
+  ]) {
+    const response = await dispatchApp('POST', `/api/reports/public-sign/project-token/${route}`, payload);
+    assert.equal(response.statusCode, 409);
+  }
+  assert.equal(writes.length, 0);
+});
+
+test('partially signed public RDO downloads include signature evidence while others are pending', async t => {
+  const { anchor } = await mockSignedPublicDownloads(t);
+  const document = await PDFDocument.create();
+  document.addPage();
+  const source = Buffer.from(await document.save());
+  await fs.writeFile(path.join(env.reportsDir, 'source.pdf'), source);
+  anchor.report.status = 'APPROVED';
+  anchor.version.finalPdfUrl = null;
+  anchor.version.finalDocumentHash = null;
+  anchor.version.sourceDocumentHash = sha256Hex(source);
+  anchor.signatureImageDataUrl = tinyPngDataUrl;
+  const response = await dispatchAppGet('/api/reports/public-sign/project-token/pdf');
+  assert.equal(response.statusCode, 200);
+  const signedPdf = await PDFDocument.load(response.buffer);
+  assert.equal(signedPdf.getPageCount(), 2);
+  assert.notDeepEqual(response.buffer, source);
+  assert.equal(anchor.report.status, 'APPROVED');
+  assert.equal(anchor.version.finalDocumentHash, null);
+});
+
+test('public batch sends copies only of successful RDO signatures to the stored signer email', async t => {
+  const { anchor, sibling, input } = await mockPublicProjectBatch(t, { failSecond: true });
+  const document = await PDFDocument.create();
+  document.addPage();
+  const source = Buffer.from(await document.save());
+  await fs.writeFile(path.join(env.reportsDir, 'source.pdf'), source);
+  anchor.version.sourceDocumentHash = sha256Hex(source);
+  sibling.version.sourceDocumentHash = sha256Hex(source);
+  const originalTransport = nodemailer.createTransport;
+  const originalFindUsers = prisma.user.findMany;
+  prisma.user.findMany = async () => [];
+  const keys = ['sendClientEmails', 'smtpAuthMode', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom'];
+  const originalEnv = Object.fromEntries(keys.map(key => [key, env[key]]));
+  const messages = [];
+  nodemailer.createTransport = () => ({ async sendMail(message) { messages.push(message); return { accepted: [message.to] }; } });
+  Object.assign(env, { sendClientEmails: true, smtpAuthMode: 'password', smtpHost: 'test.invalid', smtpPort: 587, smtpUser: 'test', smtpPass: 'test', smtpFrom: 'test@example.com' });
+  t.after(() => { nodemailer.createTransport = originalTransport; prisma.user.findMany = originalFindUsers; Object.assign(env, originalEnv); });
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm-batch', { ...input, signerEmail: 'untrusted@example.com' });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.results[0].success, true);
+  assert.equal(response.json.results[1].success, false);
+  assert.deepEqual(response.json.emailDelivery, { status: 'sent', reportCount: 1 });
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].to, anchor.signerEmail);
+  const attachment = messages[0].attachments.find(item => item.contentType === 'application/pdf');
+  const signedPdf = await PDFDocument.load(attachment.content);
+  assert.equal(signedPdf.getPageCount(), 2);
+});
+
+test('single public confirmation keeps a successful signature when sending its copy fails', async t => {
+  const { anchor, input } = await mockPublicProjectBatch(t);
+  const document = await PDFDocument.create();
+  document.addPage();
+  const source = Buffer.from(await document.save());
+  await fs.writeFile(path.join(env.reportsDir, 'source.pdf'), source);
+  anchor.version.sourceDocumentHash = sha256Hex(source);
+  const originalEmailSetting = env.sendClientEmails;
+  const originalSmtpHost = env.smtpHost;
+  env.sendClientEmails = true;
+  env.smtpHost = '';
+  t.after(() => { env.sendClientEmails = originalEmailSetting; env.smtpHost = originalSmtpHost; });
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm', {
+    ...input, signatureId: anchor.id
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.success, true);
+  assert.equal(anchor.status, 'SIGNED');
+  assert.deepEqual(response.json.emailDelivery, { status: 'failed' });
 });

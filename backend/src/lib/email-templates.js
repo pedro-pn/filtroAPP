@@ -1175,6 +1175,27 @@ export function buildBatchReportSignatureReminderEmailTemplate({
   };
 }
 
+export function buildSignedReportCopiesEmailTemplate({ signerName, project, reports, pendingSignatures }) {
+  const labels = reports.map(report => `${report.reportType} ${report.sequenceNumber || ''} · ${formatEmailDate(report.reportDate)}`);
+  const title = reports.length === 1 ? 'Seu relatório assinado' : 'Seus relatórios assinados';
+  const intro = `Olá, ${escapeHtml(signerName)}. Sua assinatura foi registrada nos relatórios abaixo.`;
+  const attachmentText = reports.length === 1 ? 'O PDF assinado está anexo a este e-mail.' : 'Os PDFs assinados estão no arquivo ZIP anexo a este e-mail.';
+  const pendingText = pendingSignatures ? 'Alguns relatórios ainda aguardam outros signatários. Os PDFs anexos incluem as assinaturas registradas até este momento.' : '';
+  return {
+    subject: `[Filtrovali] ${reports.length === 1 ? 'Relatório assinado' : `${reports.length} relatórios assinados`} - ${project?.code || 'Projeto'}`,
+    text: [
+      `Olá, ${signerName}. Sua assinatura foi registrada.`,
+      `Projeto: ${project?.code || ''} - ${project?.name || ''}`,
+      ...labels, attachmentText, pendingText, privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({
+      title, intro,
+      body: `<p>Projeto: ${escapeHtml(project?.code)} - ${escapeHtml(project?.name)}</p><ul>${labels.map(label => `<li>${escapeHtml(label)}</li>`).join('')}</ul><p>${attachmentText}</p>${pendingText ? `<p>${pendingText}</p>` : ''}`,
+      footer: 'Guarde estes documentos para sua consulta.'
+    })
+  };
+}
+
 export function buildReportSignatureCompletedEmailTemplate({
   projectCode,
   projectName,
