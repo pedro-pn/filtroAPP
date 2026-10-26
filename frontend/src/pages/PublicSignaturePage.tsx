@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLocation, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ChevronRight, FileText, Files, PenLine } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Download, FileText, Files, PenLine } from 'lucide-react';
 
 import {
   confirmPublicSignature,
@@ -10,9 +10,11 @@ import {
   getPublicSignature,
   type PublicSignatureBatchConfirmPayload,
   type PublicSignatureBatchResult,
+  type PublicSignatureEmailDelivery,
   type PublicSignaturePayload,
   type PublicSignatureReportPayload,
   publicSignaturePdfUrl,
+  publicSignatureZipUrl,
   publicReportPdfUrl,
   rejectPublicSignature
 } from '../api/publicSignatures';
@@ -28,6 +30,11 @@ import previewRdoPdf from '../assets/previews/rdo-assinatura-exemplo.pdf?url';
 import previewRdo43Pdf from '../assets/previews/rdo-assinatura-exemplo-43.pdf?url';
 import previewRdo44Pdf from '../assets/previews/rdo-assinatura-exemplo-44.pdf?url';
 import previewRdo45Pdf from '../assets/previews/rdo-assinatura-exemplo-45.pdf?url';
+import previewSigned42Pdf from '../assets/previews/rdo-assinado-exemplo-42.pdf?url';
+import previewSigned43Pdf from '../assets/previews/rdo-assinado-exemplo-43.pdf?url';
+import previewSigned44Pdf from '../assets/previews/rdo-assinado-exemplo-44.pdf?url';
+import previewSigned45Pdf from '../assets/previews/rdo-assinado-exemplo-45.pdf?url';
+import previewSignedZip from '../assets/previews/rdos-assinados-exemplo.zip?url';
 
 import './RdoPublicPage.css';
 
@@ -44,6 +51,10 @@ const previewProject = { code: '5800', name: 'Projeto de demonstração', client
 const previewPdfUrls: Record<string, string> = {
   'visual-preview-42': previewRdoPdf, 'visual-preview-43': previewRdo43Pdf,
   'visual-preview-44': previewRdo44Pdf, 'visual-preview-45': previewRdo45Pdf
+};
+const previewSignedPdfUrls: Record<string, string> = {
+  'visual-preview-42': previewSigned42Pdf, 'visual-preview-43': previewSigned43Pdf,
+  'visual-preview-44': previewSigned44Pdf, 'visual-preview-45': previewSigned45Pdf
 };
 const previewReports: PublicSignatureReportPayload[] = [42, 43, 44, 45].map((sequenceNumber, index) => ({
   signatureId: `visual-preview-${sequenceNumber}`,
@@ -67,6 +78,8 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
   const { token = '' } = useParams();
   const location = useLocation();
   const preview = !readOnly && import.meta.env.DEV && new URLSearchParams(location.search).get('visualizar') === '1';
+  const previewSigned = preview && new URLSearchParams(location.search).get('estado') === 'assinado';
+  const previewSingle = preview && new URLSearchParams(location.search).get('quantidade') === '1';
   const queryClient = useQueryClient();
   const showToast = useToast();
   const [signatureOpen, setSignatureOpen] = useState(false);
@@ -77,7 +90,9 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
   const [rejectionReason, setRejectionReason] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [batchResults, setBatchResults] = useState<PublicSignatureBatchResult[]>([]);
-  const [previewStatuses, setPreviewStatuses] = useState<Record<string, 'SIGNED' | 'REJECTED'>>({});
+  const [emailDeliveries, setEmailDeliveries] = useState<PublicSignatureEmailDelivery[]>([]);
+  const [previewStatuses, setPreviewStatuses] = useState<Record<string, 'SIGNED' | 'REJECTED'>>(() =>
+    previewSigned ? Object.fromEntries(previewReports.map(item => [item.signatureId!, 'SIGNED'])) : {});
 
   const signatureQuery = useQuery({
     queryKey: [readOnly ? 'public-report' : 'public-signature', token],
@@ -94,11 +109,12 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
       if (payload.signatureIds.length > 1) return confirmPublicSignatureBatch(token, payload);
       const { signatureIds, ...confirmation } = payload;
       const data = await confirmPublicSignature(token, { ...confirmation, signatureId: signatureIds[0] });
-      return { results: [{ signatureId: signatureIds[0], success: true, completed: data.completed }] };
+      return { results: [{ signatureId: signatureIds[0], success: true, completed: data.completed }], emailDeliveries: [data.emailDelivery] };
     },
     onSuccess: data => {
       setSignatureOpen(false);
       setBatchResults(data.results);
+      setEmailDeliveries(data.emailDeliveries);
       const failures = data.results.filter(item => !item.success).length;
       showToast(failures ? 'Confira os RDOs que ainda precisam de assinatura.' : 'Assinaturas registradas com sucesso.', failures ? 'error' : 'success');
       void queryClient.invalidateQueries({ queryKey: ['public-signature', token] });
@@ -121,7 +137,10 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível reprovar.', 'error')
   });
 
-  const payload = preview ? previewSignature : signatureQuery.data;
+  const payload = preview ? {
+    ...previewSignature,
+    batch: { ...previewSignature.batch!, reports: previewSingle ? previewReports.slice(0, 1) : previewReports }
+  } : signatureQuery.data;
   const report = payload?.report;
   const signer = payload?.signer;
   const status = (preview && signer?.signatureId ? previewStatuses[signer.signatureId] : undefined) || payload?.status || 'INVALID';
@@ -132,6 +151,7 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
     ? { ...item, status: previewStatuses[item.signatureId] } : item);
   const batchMode = reportItems.length > 1;
   const activeItems = reportItems.filter(item => item.status === 'ACTIVE' && item.signatureId);
+  const signedItems = reportItems.filter(item => item.status === 'SIGNED');
   const selectedItem = reportItems.find(item => item.signatureId === viewedSignatureId)
     || activeItems[0] || reportItems[0];
   const signingItems = reportItems.filter(item => item.signatureId && signingSignatureIds.includes(item.signatureId));
@@ -142,6 +162,9 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
   const initialSignerName = signingItems[0]?.signer.prefillName ? signingItems[0].signer.name : '';
   const selectedPdfUrl = preview ? previewPdfUrls[selectedItem?.signatureId || ''] || previewRdoPdf
     : publicSignaturePdfUrl(token, selectedItem?.signatureId);
+  const signedPdfUrl = (item: PublicSignatureReportPayload) => preview
+    ? previewSignedPdfUrls[item.signatureId || ''] || previewSigned42Pdf
+    : publicSignaturePdfUrl(token, item.signatureId);
 
   function openSignatureDialog(ids: string[]) {
     if (!privacyAccepted || !ids.length) return;
@@ -187,8 +210,10 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
           {batchResults.length ? <Alert tone={failures.length ? 'warning' : 'success'} title={signedCount ? `${signedCount} RDO${signedCount === 1 ? '' : 's'} com assinatura registrada` : 'Não foi possível concluir as assinaturas'}>
             {failures.length ? <ul>{failures.map(result => <li key={result.signatureId}>
               {reportLabel(reportItems.find(item => item.signatureId === result.signatureId))}: {result.error}
-            </li>)}</ul> : 'Obrigado! Você pode fechar esta página.'}
+            </li>)}</ul> : 'Obrigado! Seus relatórios assinados estão disponíveis para download abaixo.'}
           </Alert> : null}
+          {emailDeliveries.some(delivery => delivery.status === 'sent') ? <Alert tone="success">Uma cópia dos relatórios assinados foi enviada para {signer?.email}.</Alert> : null}
+          {emailDeliveries.some(delivery => delivery.status === 'failed') ? <Alert tone="warning">Sua assinatura foi registrada, mas não foi possível enviar todas as cópias por e-mail. Baixe os relatórios abaixo.</Alert> : null}
           {confirmMutation.isError ? <Alert tone="danger" title="Não foi possível confirmar todas as assinaturas">
             {confirmMutation.error instanceof Error ? confirmMutation.error.message : 'Tente novamente.'}
           </Alert> : null}
@@ -198,7 +223,23 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
             <div className="public-signature-actions public-report-actions"><a className="fv-button fv-button--primary" href={publicReportPdfUrl(token)} target="_blank" rel="noopener noreferrer">Baixar PDF do RDO</a></div>
           </> : null}
 
-          {!readOnly && reportItems.length ? <div className="public-signature-workspace">
+          {!readOnly && signedItems.length ? <section className="public-signature-downloads" aria-labelledby="signed-rdos-title">
+            <div className="public-signature-downloads-heading">
+              <div><h2 id="signed-rdos-title">{signedItems.length === 1 ? 'Relatório assinado' : 'Relatórios assinados'}</h2>
+                <p>{signedItems.length === 1 ? 'Baixe o PDF com sua assinatura.' : 'Baixe cada PDF individualmente ou todos juntos em um arquivo ZIP.'}</p></div>
+              {signedItems.length > 1 ? <a className="fv-button fv-button--primary fv-button--md" href={preview ? previewSignedZip : publicSignatureZipUrl(token)} download><Download size={16} aria-hidden="true" /> Baixar todos (ZIP)</a> : null}
+            </div>
+            {signedItems.length === 1 ? <a className="fv-button fv-button--primary fv-button--md" href={signedPdfUrl(signedItems[0])} download><Download size={16} aria-hidden="true" /> Baixar PDF assinado</a> : <ul className="public-signature-download-list">
+              {signedItems.map(item => <li key={item.signatureId}>
+                <FileText size={22} aria-hidden="true" />
+                <div><strong>{reportLabel(item)}</strong><span>{formatDateOnlyPtBr(item.report.reportDate || '')}</span></div>
+                <a className="fv-button fv-button--secondary fv-button--sm" href={signedPdfUrl(item)} download aria-label={`Baixar PDF assinado do ${reportLabel(item)}`}><Download size={16} aria-hidden="true" /> Baixar PDF</a>
+              </li>)}
+            </ul>}
+            {signedItems.some(item => item.report.status !== 'SIGNED') && !preview ? <p className="rdo-public-footnote">Os PDFs incluem as assinaturas registradas até este momento. Há relatórios que ainda aguardam outros signatários.</p> : null}
+          </section> : null}
+
+          {!readOnly && reportItems.length && (activeItems.length > 0 || !signedItems.length) ? <div className="public-signature-workspace">
             {batchMode ? <aside className="public-signature-pending" aria-labelledby="pending-rdos-title">
               <div className="public-signature-pending-heading">
                 <span className="public-signature-pending-icon"><Files size={22} aria-hidden="true" /></span>

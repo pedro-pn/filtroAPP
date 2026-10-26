@@ -12,6 +12,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
 import { removeSubmittedRdoDrafts } from '../../lib/reports/drafts.js';
 import { createPublicReportSignatureScope } from '../../lib/reports/public-signature-scope.js';
+import { createPublicSignatureFiles, createPublicSignaturePdfDownload, signedReportArchive } from '../../lib/reports/public-signature-files.js';
 import { reportApprovalAccessLink } from '../../lib/reports/client-access.js';
 import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
 import { isPressureHoseUnits } from '../../lib/reports/pressure-hose-measurement.js';
@@ -1273,7 +1274,7 @@ const include = {
 };
 
 const {
-  publicSignatureFromToken, pendingPublicProjectSignatures, publicSignatureForTokenScopeOrThrow
+  publicSignatureFromToken, publicProjectSignatures, publicSignatureForTokenScopeOrThrow
 } = createPublicReportSignatureScope({
   database: prisma, reportInclude: include, publicSignatureStatus, isFinalizationRetryableSignature
 });
@@ -6131,9 +6132,9 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
   }
 
   const payload = publicSignaturePayload(signature, status);
-  const pending = await pendingPublicProjectSignatures(signature);
-  if (pending.length) {
-    const reports = [publicSignatureReportPayload(signature, status), ...pending.map(item => publicSignatureReportPayload(item))];
+  const related = await publicProjectSignatures(signature);
+  if (related.length) {
+    const reports = [publicSignatureReportPayload(signature, status), ...related.map(item => publicSignatureReportPayload(item))];
     payload.batch = {
       pendingCount: reports.filter(item => item.status === 'ACTIVE').length,
       project: payload.report.project,
@@ -6143,18 +6144,27 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
   res.json(payload);
 }));
 
+const publicSignatureFiles = createPublicSignatureFiles({
+  loadSignature: (token, signatureId) => publicSignatureForTokenScopeOrThrow(token, signatureId, prisma, { allowSigned: true }),
+  getPdfDownload: createPublicSignaturePdfDownload({
+    currentSourceVersion: version => signatureSourceHashCurrent(version, prisma, { repairUnsigned: true }),
+    verifiedFinalPdfBuffer, verifiedSourcePdfBuffer, currentSignatureEvidencePdfDownload
+  })
+});
+
 router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const signatureId = String(req.query.signatureId || '').trim() || null;
-  const signature = await publicSignatureForTokenScopeOrThrow(req.params.token, signatureId);
-  const version = await signatureSourceHashCurrent(signature.version, prisma, { repairUnsigned: true });
-  const sourcePath = reportSourcePdfPath(version.sourcePdfUrl);
-  if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
+  sendDownloadBuffer(res, await publicSignatureFiles.download(req.params.token, signatureId));
+}));
 
-  sendDownloadBuffer(res, {
-    contentType: 'application/pdf',
-    fileName: reportPdfFileName(signature.report),
-    buffer: await verifiedSourcePdfBuffer(sourcePath, version)
-  });
+router.get('/public-sign/:token/zip', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const anchor = await publicSignatureForTokenScopeOrThrow(req.params.token, null, prisma, { allowSigned: true });
+  const related = await publicProjectSignatures(anchor);
+  const signed = [anchor, ...related].filter(signature => publicSignatureStatus(signature) === 'SIGNED');
+  if (!signed.length) return res.status(409).json({ error: 'Nenhum relatório assinado disponível para baixar.' });
+  const files = [];
+  for (const signature of signed) files.push(await publicSignatureFiles.download(req.params.token, signature.id));
+  sendDownloadBuffer(res, signedReportArchive(files, anchor.report.project));
 }));
 
 async function confirmPublicReportSignature(token, data, evidence) {
@@ -6225,13 +6235,15 @@ async function confirmPublicReportSignature(token, data, evidence) {
     }
   }
 
-  return { success: true, completed, report: withInternalSignatureProgress(item) };
+  return { success: true, completed, signatureId: signatureResult.signedSignature.id, report: withInternalSignatureProgress(item) };
 }
 
 router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const data = publicSignatureConfirmSchema.parse(req.body || {});
   await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
-  res.json(await confirmPublicReportSignature(req.params.token, data, signatureEvidenceFromRequest(req)));
+  const result = await confirmPublicReportSignature(req.params.token, data, signatureEvidenceFromRequest(req));
+  const emailDelivery = await publicSignatureFiles.sendSignedCopies(req.params.token, [result.signatureId]);
+  res.json({ ...result, emailDelivery });
 }));
 
 router.post('/public-sign/:token/confirm-batch', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -6252,7 +6264,8 @@ router.post('/public-sign/:token/confirm-batch', publicSignatureLimiter, asyncHa
       results.push({ signatureId, success: false, error: error?.statusCode < 500 ? error.message : 'Não foi possível assinar este RDO. Tente novamente.' });
     }
   }
-  res.json({ results });
+  const emailDelivery = await publicSignatureFiles.sendSignedCopies(req.params.token, results.filter(result => result.success).map(result => result.signatureId));
+  res.json({ results, emailDelivery });
 }));
 
 router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(async (req, res) => {

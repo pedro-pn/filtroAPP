@@ -33,14 +33,14 @@ export function createPublicReportSignatureScope({
       report: {
         projectId: anchor.report.projectId,
         reportType: ReportType.RDO,
-        status: ReportStatus.APPROVED,
+        status: { in: [ReportStatus.APPROVED, ReportStatus.SIGNED] },
         deletedAt: null,
         project: { deletedAt: null, managerOnly: false }
       }
     };
   }
 
-  async function pendingPublicProjectSignatures(anchor, client = database) {
+  async function publicProjectSignatures(anchor, client = database) {
     const scope = publicSignatureProjectScope(anchor);
     if (!scope || publicSignatureBatchScopeUnavailable(publicSignatureStatus(anchor)) || anchor.version?.status !== ReportVersionStatus.ACTIVE) return [];
     const signatures = await client.reportSignature.findMany({
@@ -56,11 +56,11 @@ export function createPublicReportSignatureScope({
       },
       orderBy: [{ report: { reportDate: 'asc' } }, { createdAt: 'asc' }]
     });
-    return signatures.filter(signature => publicSignatureStatus(signature) === 'ACTIVE');
+    return signatures.filter(signature => ['ACTIVE', 'SIGNED'].includes(publicSignatureStatus(signature)));
   }
 
-  async function publicSignatureForTokenScopeOrThrow(token, signatureId, client = database, { retryable = false } = {}) {
-    if (!signatureId) {
+  async function publicSignatureForTokenScopeOrThrow(token, signatureId, client = database, { retryable = false, allowSigned = false } = {}) {
+    if (!signatureId && !allowSigned) {
       return retryable
         ? retryablePublicSignatureForConfirmOrThrow(token, client)
         : activePublicSignatureOrThrow(token, client);
@@ -76,7 +76,7 @@ export function createPublicReportSignatureScope({
     }
 
     const scope = publicSignatureProjectScope(anchor);
-    const signature = anchor?.id === signatureId ? anchor
+    const signature = !signatureId || anchor?.id === signatureId ? anchor
       : scope && anchor.version?.status === ReportVersionStatus.ACTIVE
         ? await client.reportSignature.findFirst({
             where: { ...scope, id: signatureId },
@@ -87,7 +87,10 @@ export function createPublicReportSignatureScope({
           })
         : null;
     const status = publicSignatureStatus(signature);
-    if (!signature || (status !== 'ACTIVE' && !(retryable && isFinalizationRetryableSignature(signature)))) {
+    const readableSigned = allowSigned && status === 'SIGNED'
+      && signature.version?.status === ReportVersionStatus.ACTIVE
+      && [ReportStatus.APPROVED, ReportStatus.SIGNED].includes(signature.report?.status);
+    if (!signature || (status !== 'ACTIVE' && !readableSigned && !(retryable && isFinalizationRetryableSignature(signature)))) {
       const error = new Error('Link de assinatura indisponível.');
       error.statusCode = !signature ? 404 : 409;
       error.publicStatus = !signature ? 'INVALID' : status;
@@ -120,5 +123,5 @@ export function createPublicReportSignatureScope({
     return signature;
   }
 
-  return { publicSignatureFromToken, pendingPublicProjectSignatures, publicSignatureForTokenScopeOrThrow };
+  return { publicSignatureFromToken, publicProjectSignatures, publicSignatureForTokenScopeOrThrow };
 }
