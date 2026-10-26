@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import { parseManualReportPdfFields, manualPdfTextFromItems } from '../src/lib/reports/manual-pdf-fields.js';
 import { decodeManualReportPdfDataUrl, extractManualReportPdfFields } from '../src/lib/reports/manual-pdf-extraction.js';
 import { buildManualReportOperationalFields, manualReportOperationalDataSchema } from '../src/lib/reports/manual-operational-data.js';
@@ -116,10 +117,13 @@ test('PDF digital é extraído e persiste intervalos, stand-by e jornada atraves
 });
 
 test('PDF digitalizado usa OCR local para preencher os horários', { timeout: 60_000 }, async () => {
+  // Use the bundled font so system bitmap-font fallbacks cannot change the OCR fixture.
+  const fontPath = fileURLToPath(new URL('standard_fonts/LiberationSans-Regular.ttf', import.meta.resolve('pdfjs-dist/package.json')));
+  assert.ok(GlobalFonts.registerFromPath(fontPath, 'ManualPdfOcrFixture'));
   const canvas = createCanvas(1200, 700);
   const context = canvas.getContext('2d');
   context.fillStyle = 'white'; context.fillRect(0, 0, 1200, 700);
-  context.fillStyle = 'black'; context.font = '32px sans-serif';
+  context.fillStyle = 'black'; context.font = '32px ManualPdfOcrFixture';
   ['Entrada: 07:10', 'Saída: 17:30', 'Intervalo de almoço: 00:45:00', 'Stand-by: 01:30:00', 'Motivo: Aguardando equipamento', 'Líder: Operador']
     .forEach((line, index) => context.fillText(line, 40, 80 + index * 80));
   const pdf = await PDFDocument.create();
