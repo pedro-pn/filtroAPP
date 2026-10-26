@@ -36,6 +36,11 @@ O [JSON Schema](prisma-planning.schema.json) e o [OpenAPI 1.8.0](../specs/015-ap
 
 Todos os campos são obrigatórios na estrutura; valores desconhecidos aceitam `null` somente onde previsto. Não é PATCH: omitir uma propriedade obrigatória retorna `422`. Propriedades extras também são rejeitadas. Não inventar ator, motivo, CNPJ ou identificadores para preencher lacunas históricas.
 
+Exceção aditiva para compatibilidade: `opportunity.client.segment` é opcional,
+nullable e limitado a 100 caracteres. Quando informado pela principal, preenche
+o segmento do projeto vinculado, respeitando ajustes manuais. Os eventos antigos
+continuam válidos e mantêm seu hash original.
+
 | Grupo | Conteúdo |
 | --- | --- |
 | Envelope | `contractVersion=planning-1.0`, `eventId` UUID, namespace, `externalId`, `sourceVersion`, `sourceUpdatedAt` |

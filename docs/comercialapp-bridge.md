@@ -1,5 +1,36 @@
 # Integração entre FiltroAPP e ComercialAPP
 
+## Segmento e jornada do cadastro do projeto
+
+O Prisma envia o segmento da empresa como `clientSegment` no cadastro de projetos
+e como `opportunity.client.segment` no planejamento. Ambos são opcionais para
+compatibilidade. O receptor reutiliza o catálogo por nome/slug, sem diferenciar
+acentos, caixa ou a ordem das palavras; segmentos novos são cadastrados. Um item
+inativo não é reativado pela integração. Campo ausente ou vazio preserva o projeto.
+
+No ComercialAPP, **Mão de obra → Jornada padrão do projeto** seleciona a fase de
+referência. A escolha é salva em `projectWorkScheduleContextId` no levantamento e
+exportada em `costBreakdown` da revisão finalizada. O FiltroAPP usa exclusivamente
+os campos padrão dessa fase: `hoursPerDay` (sem somar HE), `saturdayCount`,
+`sundayCount` e as horas de fim de semana. Domingo/feriado compartilham a escala.
+Horas decimais são convertidas para duração: 8,8 h = 08:48. Cenários de cargos e
+colaboradores não alteram o padrão do projeto. Propostas antigas com uma única
+fase ativa permitem inferi-la; com várias fases é necessária seleção explícita.
+Sem mão de obra, fase inválida ou ausente não sobrescrevem o cadastro.
+
+Somente a principal selecionada aplica a jornada; adicionais e revisões apenas
+armazenadas não alteram esses campos. `Project.integrationDefaults` registra os
+valores integrados e os ajustes manuais por campo. Novas revisões acompanham a
+origem enquanto o gestor não alterar aquele campo. Projetos antigos revisados,
+sem esses metadados, conservam suas jornadas. Não há reprocessamento histórico em
+massa; os novos dados entram na próxima criação, entrega ou seleção aplicável.
+
+Publicar primeiro o receptor FiltroAPP com a migração
+`20261026150000_project_integration_defaults`; depois publicar o ComercialAPP e o
+emissor Prisma com as migrações `20261026150000_filtroapp_client_segment` e
+`20261026150100_filtroapp_planning_segment`. Não emitir segmento antes de atualizar
+o receptor, pois o contrato anterior rejeita propriedades desconhecidas.
+
 ## Busca de documentos e escopo iniciada pelo FiltroAPP
 
 Quando o PrismaCRM cria um projeto ou informa uma revisão superior da mesma

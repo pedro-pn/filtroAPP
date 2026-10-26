@@ -61,6 +61,7 @@ test('planning-1.0: HTTP, histórico, concorrência, reconciliação e rollback 
   function won(suffix = 'main', sourceVersion = 6) {
     const input = event(4, suffix); input.sourceVersion = sourceVersion;
     input.opportunity.client.taxId = '12345678000190';
+    input.opportunity.client.segment = 'Naval';
     input.opportunity.project = { prismaMissionId: `${prefix}-${suffix}`, number: `${prefix}-${suffix}`, numberScope: 'filtrovali', filtroappProjectId: null };
     return input;
   }
@@ -130,6 +131,7 @@ test('planning-1.0: HTTP, histórico, concorrência, reconciliação e rollback 
     projectId = results[0].data.projectId; assert.ok(projectId);
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     assert.equal(project.registrationPending, true);
+    assert.equal(project.clientSegment, 'naval');
     assert.equal(await prisma.projectWorkflow.count({ where: { projectId } }), 0);
     assert.equal(await prisma.report.count({ where: { projectId } }), 0);
     const listed = await cards();

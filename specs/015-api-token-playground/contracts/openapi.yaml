@@ -2421,6 +2421,11 @@ components:
                     - type: string
                       pattern: ^\d{14}$
                     - type: "null"
+                segment:
+                  anyOf:
+                    - type: string
+                      maxLength: 100
+                    - type: "null"
               required:
                 - externalId
                 - name
@@ -2715,6 +2720,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 240 }
         clientName: { type: string, minLength: 1, maxLength: 240 }
         clientCnpj: { type: string, description: CNPJ com 14 dígitos; pontuação opcional. }
+        clientSegment: { type: [string, 'null'], maxLength: 100, description: Segmento do cliente no Prisma; relacionado ao catálogo do FiltroAPP. }
         proposalCode: { type: string, description: Código numérico da proposta. }
         revision: { type: integer, minimum: -1, maximum: 2147483647 }
         location: { type: string, minLength: 1, maxLength: 240 }

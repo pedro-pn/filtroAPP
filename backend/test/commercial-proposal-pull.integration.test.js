@@ -16,6 +16,7 @@ import { setProjectBudgetRevisionWithClient } from '../src/lib/acompanhamento/ac
 import { listCommercialDashboard } from '../src/lib/acompanhamento/access-import.js';
 import { loadPlannedHours } from '../src/lib/acompanhamento/planned-hours.js';
 import { receiveCommercialAppProposal, selectCommercialAppRevision } from '../src/lib/acompanhamento/comercialapp-bridge.js';
+import { manualIntegrationDefaults } from '../src/lib/projects/integration-defaults.js';
 
 const commercialUrl = process.env.COMMERCIALAPP_TEST_DATABASE_URL;
 const source = process.env.COMMERCIALAPP_SOURCE_DIR;
@@ -79,6 +80,14 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
         internalDiameterMm: 50.8, diameterUnit: 'in' }] }],
     circuitServices: [{ systemId: 'circuit-1', itemId: 'pipe-1', itemType: 'pipes', serviceId: 'teste_hidrostatico' }] };
     cost.laborContexts[0].durationDays = 2 + revisionNumber;
+    cost.laborContexts[0].hoursPerDay = 6;
+    const execution = { ...structuredClone(cost.laborContexts[0]), id: 'execution', name: 'Execução',
+      hoursPerDay: 8.8 + revisionNumber, saturdayCount: 1, sundayCount: 1,
+      saturdayHoursPerDay: 8.8, sundayHoursPerDay: 8.8 };
+    execution.assignments[0].workSchedule = { name: 'Exceção da equipe', targetType: 'role',
+      days: [{ dayType: 'weekday', days: 2, normalHoursPerDay: 4, extraHoursPerDay: 0, overtimePercent: 70 }] };
+    cost.laborContexts.push(execution);
+    cost.projectWorkScheduleContextId = execution.id;
     const calculated = calculateEstimate(cost);
     const estimate = await commercial.costEstimate.create({ data: {
       proposalCode: number, revisionNumber, title: 'Synthetic estimate', mode: 'NOVA', payload: cost,
@@ -116,13 +125,19 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   const options = { database, rootDir: filtroDir, production: false,
     apiUrl: `http://127.0.0.1:${server.address().port}`, token: process.env.FILTROAPP_API_TOKEN };
   const intake = { code: projectCode, name: 'Projeto QA', clientName: 'Cliente QA', clientCnpj: '12345678000190',
-    proposalCode: number, revision: 0, location: 'Sede' };
+    proposalCode: number, revision: 0, location: 'Sede', clientSegment: 'Papel e celulose' };
   const received = await receiveProjectIntake(intake);
   project = received.project;
   assert.equal(received.status, 'created');
   const [first] = await processCommercialProposalSyncs(options);
   assert.equal(first.status, 'SYNCED', JSON.stringify({ first, error: transactionError?.message }));
   assert.equal(first.scope.status, 'IMPORTED');
+  const integratedProject = await prisma.project.findUnique({ where: { id: project.id } });
+  assert.equal(integratedProject.clientSegment, 'papel_e_celulose');
+  assert.equal(integratedProject.workdayHours, '08:48', 'a fase escolhida prevalece sobre a primeira e sobre jornadas individuais');
+  assert.equal(integratedProject.weekendWorkdayHours, '08:48');
+  assert.equal(integratedProject.includesSaturday, true);
+  assert.equal(integratedProject.includesSunday, true);
   assert.equal((await commercial.proposal.findUnique({ where: { id: firstProposal.id } })).filtroStatus, 'SUCESSO');
   assert.equal((await commercial.proposal.findUnique({ where: { id: firstProposal.id } })).crmApprovalStatus, 'PENDENTE');
   assert.equal(await commercial.filtroAppPullReceipt.count({ where: { proposalId: firstProposal.id } }), 1);
@@ -185,12 +200,20 @@ test('FiltroAPP busca revisão e PDFs no ComercialAPP, anexa no handover e impor
   assert.equal(updated.project.id, project.id);
   assert.equal((await syncCommercialProposal(project.id, options)).status, 'SYNCED');
   assert.equal((await budget()).commercialAppRevision, 1, 'a revisão automática acompanha o novo vínculo do Prisma');
+  assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).workdayHours, '09:48');
   assert.equal((await loadPlannedHours([project.id])).get(project.id).hoursPlan.commercial.total > hours.commercial.total, true);
   assert.equal(Number((await scope())[0].systems[0].quantity), 90);
   assert.equal(await prisma.projectDocumentVersion.count({ where: { document: { projectId: project.id } } }), 4);
 
   // Uma revisão escolhida manualmente não é substituída por uma consulta nova.
+  const beforeManual = await prisma.project.findUnique({ where: { id: project.id } });
+  await prisma.project.update({ where: { id: project.id }, data: {
+    ...manualIntegrationDefaults(beforeManual, { workdayHours: '07:00', includesSunday: false }),
+    workdayHours: '07:00', includesSunday: false
+  } });
   await selectCommercialAppRevision(project.id, firstProposal.id, null);
+  assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).workdayHours, '07:00');
+  assert.equal((await prisma.project.findUnique({ where: { id: project.id } })).includesSunday, false);
   await receiveProjectIntake({ ...intake, revision: 1 });
   await prisma.project.update({ where: { id: project.id }, data: commercialProposalSyncData({ proposalCode: number, revisionNumber: 1 }, null) });
   const preservedBudget = await syncCommercialProposal(project.id, options);

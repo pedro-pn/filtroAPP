@@ -391,6 +391,17 @@
                   "type": "null"
                 }
               ]
+            },
+            "segment": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [

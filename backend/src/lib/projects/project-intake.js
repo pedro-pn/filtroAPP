@@ -7,6 +7,8 @@ import {
 import prisma from '../prisma.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
 import { commercialProposalReference, commercialProposalSyncData } from './commercial-proposal-sync-state.js';
+import { initialIntegrationDefaults, applyProjectIntegrationDefaults } from './integration-defaults.js';
+import { resolveClientSegment } from './client-segment.js';
 
 const MISSING_REVISION_SENTINEL = -1;
 const INITIAL_COMMERCIAL_REVISION = 0;
@@ -33,7 +35,8 @@ export const projectIntakeInputSchema = z.object({
     .int('Revisão deve ser um número inteiro.')
     .min(MISSING_REVISION_SENTINEL, 'Revisão deve ser -1 ou maior.')
     .max(2_147_483_647, 'Revisão excede o limite permitido.'),
-  location: requiredText('Local', 240)
+  location: requiredText('Local', 240),
+  clientSegment: z.string().trim().max(100).nullable().optional()
 }).strict('O payload contém campos não reconhecidos.');
 
 export const projectIntakeSchema = projectIntakeInputSchema
@@ -95,8 +98,10 @@ export class ProjectIntakeConflictError extends Error {
 export function projectIntakeCreateData(data) {
   const projectData = { ...data };
   delete projectData.revision;
+  delete projectData.clientSegment;
   return {
     ...projectData,
+    integrationDefaults: initialIntegrationDefaults(),
     ...commercialProposalSyncData({ proposalCode: String(contractToProposalCode(data.contractCode)), revisionNumber: data.revision }),
     isActive: true,
     visibleToCollaborators: true,
@@ -162,6 +167,10 @@ async function resolveExistingProject(project, intake, client, attempts = 0, sel
     }
   }
   clearProjectDerivedCaches();
+  if (intake.clientSegment) {
+    const clientSegment = await resolveClientSegment(client, intake.clientSegment);
+    if (clientSegment) await applyProjectIntegrationDefaults(client, project.id, { clientSegment });
+  }
   const commercialRevision = selectAccessRevision ? await selectProjectIntakeCommercialRevision(project, intake, client) : null;
   return projectIntakeResult(status, project, commercialRevision);
 }
@@ -187,8 +196,14 @@ export async function receiveProjectIntake(rawInput, client = prisma, { inTransa
   if (existing) return resolveExistingProject(existing, intake, client, 0, selectAccessRevision);
 
   try {
+    const clientSegment = intake.clientSegment ? await resolveClientSegment(client, intake.clientSegment) : null;
+    const data = projectIntakeCreateData(intake);
+    if (clientSegment) {
+      data.clientSegment = clientSegment;
+      data.integrationDefaults.values.clientSegment = clientSegment;
+    }
     const project = await client.project.create({
-      data: projectIntakeCreateData(intake),
+      data,
       select: projectIntakePublicSelect
     });
     clearProjectDerivedCaches();

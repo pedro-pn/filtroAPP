@@ -969,6 +969,7 @@ model Project {
   defaultReportResponsibleUserId String?
   defaultReportResponsibleUser User? @relation("ProjectDefaultReportResponsible", fields: [defaultReportResponsibleUserId], references: [id], onDelete: SetNull)
   clientSegment              String?
+  integrationDefaults        Json? // últimos valores integrados e campos alterados manualmente
   commercialProposalCode     String? // = cod_prop do Access; reconciliação proposta↔projeto
   mobilizationDate           DateTime? // data de mobilização (manual, gestor/coordenador)
   demobilizationDate         DateTime? // data de desmobilização (manual); fecha a janela de alocação
