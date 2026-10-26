@@ -25,7 +25,8 @@ test('upload, substituição, extração e assinatura física aceitam PDFs de 50
   for (const prefix of ['/api/reports', '/api/rdo/reports']) {
     for (const [method, suffix] of [
       ['POST', '/manual-upload'], ['POST', '/manual-extract'],
-      ['PUT', '/abc123/manual-pdf'], ['POST', '/abc123/physical-signature']
+      ['PUT', '/abc123/manual-pdf'], ['POST', '/abc123/physical-signature'],
+      ['POST', '/abc123/pdf-attachments']
     ]) {
       const path = `${prefix}${suffix}`;
       assert.equal(jsonBodyLimitForRequest(method, path), '70mb', `${method} ${path}`);

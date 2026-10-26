@@ -241,3 +241,16 @@ screen for individual and grouped projects, keyboard navigation, isolated reads/
 inline editing, pending/search filters, cancellation and focus, read-only access,
 retry after errors and refreshing a concurrent-edit version at 360/768/1440 px.
 Screenshots are saved under `output/playwright/project-scopes-*.png`; no real records change.
+
+For PDF report attachments, open `/test/browser/report-pdf-attachments.html`.
+The real report cards and attachment dialog use an isolated, simulated API.
+Select or drop multiple PDFs and check that they upload automatically, without
+a submit button. Check the first-page thumbnail, open a file by its name or
+thumbnail in a new tab, drag its grip to reorder
+with a mouse or touch, reopen the dialog to check the saved order, and delete
+an attachment; the service report must keep its own list. The report delete
+action must follow the attachment button. Check desktop and 390 px layouts.
+Use `?role=reviewer` for an authorized reviewer, `?role=coordinator` or
+`?role=collaborator` to confirm that the attachment button is hidden.
+Backend PDF merging, permissions, deletion and migration coverage lives in
+`backend/test/report-pdf-attachments.test.js` and `backend/test/internal-report-signatures.test.js`.
