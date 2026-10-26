@@ -8,6 +8,7 @@ import { formatDateOnly } from '../../utils/dateOnly';
 import { AppIcon } from '../icons/AppIcon';
 import { Alert, Badge, Button, Card, Skeleton } from '../ui/ds';
 import type { SemanticTone } from '../ui/ds';
+import { ProjectDetailSection } from './ProjectDetailSection';
 import { WeeklyTargetDialog, type WeeklyTargetRequest } from './WeeklyTargetDialog';
 import { useWeeklyTargets } from './useWeeklyTargets';
 import { weeklyGoalLabel, weeklyValueLabel } from './weeklyTargetPresentation';
@@ -159,9 +160,9 @@ export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = fals
   const closed = rows.filter(row => row.periodEndDate < today);
   const previous = closed[0];
   const dialog = canManage ? <WeeklyTargetDialog owner={owner} request={request} targets={targets} workdays={workdays} onClose={() => setRequest(null)} /> : null;
-  const head = (subtitle: React.ReactNode, actions?: React.ReactNode) => <header className="wts-head">
+  const head = (subtitle: React.ReactNode, actions?: React.ReactNode, status?: React.ReactNode) => <header className="wts-head">
     <span className="wts-icon" aria-hidden="true"><AppIcon icon={Target} size="sm" /></span>
-    <div><h2>Meta da semana</h2><p>{subtitle}</p></div>
+    <div><h2>Meta da semana{status}</h2><p>{subtitle}</p></div>
     {actions ? <div className="wts-actions">{actions}</div> : null}
   </header>;
 
@@ -185,8 +186,10 @@ export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = fals
   const history = [...evaluated.slice(0, 5).reverse(), current];
   const definition = shown.target?.definition;
 
+  // Recolhível como as demais seções; fechado, o status continua no título.
+  const status = spotlightStatus(shown);
   return <Card padding="sm" className="wts" data-acp-weekly-spotlight>
-    {head(<>{formatDateOnly(shown.periodStartDate)} a {formatDateOnly(shown.periodEndDate)}
+    <ProjectDetailSection label="Meta da semana" header={head(<>{formatDateOnly(shown.periodStartDate)} a {formatDateOnly(shown.periodEndDate)}
       {shown.goals.length === 1 ? ` · ${weeklyGoalLabel(shown.goals[0])}` : shown.goals.length > 1 ? ` · ${shown.goals.length} metas` : ''}
       {definition?.repeatWeekly || shown.target?.repeatedFromWeekStartDate ? ' · repete toda semana' : ''}</>, <>
       {previous ? <div className="wts-switch" role="group" aria-label="Semana exibida">
@@ -195,16 +198,17 @@ export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = fals
       </div> : null}
       {canManage ? <Button size="sm" variant="secondary" onClick={() => setRequest({ weekStartDate: current.weekStartDate, referenceDate: today })}>{current.target ? 'Editar meta' : 'Definir meta'}</Button> : null}
       <Button size="sm" variant="ghost" onClick={onOpenHistory}>Histórico</Button>
-    </>)}
-    <div className="wts-body">
-      {shown.target ? shown.goals.length > 1 ? <MultiResult row={shown} /> : <SingleResult row={shown} history={serviceHistory} today={today} />
-        : <div className="wts-now wts-now--empty"><p>Nenhuma meta valia para {period(shown)}.</p></div>}
-      <div className="wts-history">
-        <div className="wts-history-head"><span>Últimas semanas <em className="wts-legend"><i />meta</em></span>
-          <strong>{evaluated.filter(reached).length} de {evaluated.length} atingidas</strong></div>
-        <HistoryBars rows={history} selected={shown.weekStartDate} />
+    </>, <Badge tone={status.tone} className="wts-head-status">{status.label}</Badge>)}>
+      <div className="wts-body">
+        {shown.target ? shown.goals.length > 1 ? <MultiResult row={shown} /> : <SingleResult row={shown} history={serviceHistory} today={today} />
+          : <div className="wts-now wts-now--empty"><p>Nenhuma meta valia para {period(shown)}.</p></div>}
+        <div className="wts-history">
+          <div className="wts-history-head"><span>Últimas semanas <em className="wts-legend"><i />meta</em></span>
+            <strong>{evaluated.filter(reached).length} de {evaluated.length} atingidas</strong></div>
+          <HistoryBars rows={history} selected={shown.weekStartDate} />
+        </div>
       </div>
-    </div>
+    </ProjectDetailSection>
     {dialog}
   </Card>;
 }

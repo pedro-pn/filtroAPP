@@ -113,6 +113,25 @@ test('qualquer serviço soma todos os serviços com a equipe do dia contada uma 
   await expect(spotlightFor(page)).toContainText('9 colaboradores');
 });
 
+test('card recolhe como as demais seções e mantém o status no título', async ({ page }) => {
+  const dialog = await openDialog(page);
+  await fillGoal(page, 1, 'LIMPEZA_QUIMICA', '30');
+  await page.getByRole('button', { name: 'Salvar meta', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const spotlight = spotlightFor(page);
+  await showCurrent(page);
+  const status = spotlight.locator('.wts-head-status');
+  await expect(spotlight.locator('.wts-body')).toBeVisible();
+  await expect(status).toBeHidden();
+  await spotlight.getByRole('heading', { name: /Meta da semana/ }).click();
+  await expect(spotlight.locator('.wts-body')).toBeHidden();
+  await expect(status).toHaveText('Abaixo da meta até agora');
+  // Ações do cabeçalho continuam disponíveis e reabrem o conteúdo.
+  await spotlight.getByRole('button', { name: 'Editar meta', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(spotlight.locator('.wts-body')).toBeVisible();
+});
+
 test('alterar os dias da contagem escolhe o período que contém hoje e valida cada linha', async ({ page }) => {
   const dialog = await openDialog(page);
   await dialog.getByRole('button', { name: 'Alterar dias', exact: true }).click();
