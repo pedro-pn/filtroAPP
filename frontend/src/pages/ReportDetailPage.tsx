@@ -518,7 +518,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }, [report]);
 
-  const projects = useMemo(() => sortProjects((bootstrapQuery.data?.projects || []).filter(project => project.serviceCategory !== 'RENTAL' || project.id === report?.projectId), 'asc'), [bootstrapQuery.data?.projects]);
+  const projects = useMemo(() => sortProjects((bootstrapQuery.data?.projects || []).filter(project => project.serviceCategory !== 'RENTAL' || project.id === report.projectId), 'asc'), [bootstrapQuery.data?.projects, report.projectId]);
   const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
     || (form.projectId === report.projectId ? report.project : null);
   const isCollaboratorRdo = user?.role === 'COLLABORATOR' && report.reportType === 'RDO';
@@ -1593,7 +1593,10 @@ const auditActionLabels: Record<string, string> = {
   VERSION_CREATED: 'Versão criada',
   TOKEN_ACCESSED: 'Link acessado',
   TOKEN_EXPIRED: 'Link expirado',
-  REPORT_LOCKED: 'Relatório bloqueado'
+  REPORT_LOCKED: 'Relatório bloqueado',
+  PDF_ATTACHMENT_ADDED: 'Anexo PDF adicionado',
+  PDF_ATTACHMENT_REMOVED: 'Anexo PDF excluído',
+  PDF_ATTACHMENT_REORDERED: 'Anexos PDF reordenados'
 };
 
 function summarizeUserAgent(value?: string | null) {

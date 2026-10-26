@@ -19,6 +19,7 @@ import {
 import { DS_ICONS } from '../../ui/ds/icons';
 import { serviceTypeLabels } from '../serviceTypes';
 import { SignatureProgress } from '../SignatureProgress';
+import { ReportPdfAttachmentsButton } from '../ReportPdfAttachmentsButton';
 import './ManagerReportListing.css';
 
 const REPORT_STATUS_TONES: StatusToneMap = {
@@ -45,6 +46,7 @@ export interface ManagerReportListingProps {
   onSelectionChange: (ids: string[]) => void;
   onOpenReport: (report: ReportSummary) => void;
   renderActions: (report: ReportSummary) => ReactNode;
+  renderDeleteAction?: (report: ReportSummary) => ReactNode;
   reportType: string;
   projectLabel: string;
   sortDirection: ProjectSortDirection;
@@ -474,6 +476,7 @@ export function ManagerReportListing({
   onSelectionChange,
   onOpenReport,
   renderActions,
+  renderDeleteAction,
   reportType,
   projectLabel,
   sortDirection,
@@ -586,6 +589,8 @@ export function ManagerReportListing({
             data-row-navigation-ignore="true"
           >
             {renderActions(report)}
+            <ReportPdfAttachmentsButton report={report} />
+            {renderDeleteAction?.(report)}
           </div>
         )}
         mobile={{
@@ -629,6 +634,8 @@ export function ManagerReportListing({
                   data-row-navigation-ignore="true"
                 >
                   {renderActions(report)}
+                  <ReportPdfAttachmentsButton report={report} />
+                  {renderDeleteAction?.(report)}
                 </div>
               ),
               details: hasFeedback ? (

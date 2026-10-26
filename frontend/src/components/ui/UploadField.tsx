@@ -1,6 +1,6 @@
 import { BrandLoading } from '../brand/BrandLoading';
 import { GripVertical, RotateCcw } from 'lucide-react';
-import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
@@ -17,6 +17,8 @@ import { DS_ICONS } from './ds/icons';
 import { stageUploadDeletion } from './photoDeletionStaging';
 import { UploadTransferContext } from './UploadTransferContext';
 import './UploadField.css';
+
+const PdfThumbnail = lazy(() => import('./PdfThumbnail').then(module => ({ default: module.PdfThumbnail })));
 
 interface UploadFieldProps {
   label: string;
@@ -94,6 +96,10 @@ function isImageFile(file: UploadPreviewFile) {
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
 }
 
+function isPdfFile(file: UploadPreviewFile) {
+  return file.mimeType?.toLowerCase() === 'application/pdf' || /\.pdf(?:[?#].*)?$/i.test(file.fileName || rawFileUrl(file));
+}
+
 function wasPreviouslyAdded(file: UploadPreviewFile) {
   return Boolean(file.previouslyAdded || file.__previouslyAdded);
 }
@@ -132,7 +138,7 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
   return (
     <div className={`upload-list-item ${removed ? 'removed' : ''} ${reorderHandle ? 'upload-list-item--reorderable' : ''}`} data-upload-index={index} data-dragging={dragging || undefined} data-drop-target={dropTarget || undefined}>
       {reorderHandle}
-      {href && isImageFile(file) ? (
+      {href && (isImageFile(file) || isPdfFile(file)) ? (
         <a
           className="upload-list-preview"
           href={href}
@@ -140,7 +146,11 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
           rel="noreferrer"
           aria-label={`Abrir ${file.fileName}`}
         >
-          <img className="upload-list-thumb" src={href} alt="" />
+          {isImageFile(file) ? <img className="upload-list-thumb" src={href} alt="" /> : (
+            <Suspense fallback={<span className="upload-list-thumb upload-list-thumb--pdf" aria-hidden="true"><AppIcon icon={DS_ICONS.fileText} size="md" /></span>}>
+              <PdfThumbnail href={href} />
+            </Suspense>
+          )}
         </a>
       ) : null}
       {href ? (

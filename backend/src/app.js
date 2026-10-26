@@ -108,7 +108,7 @@ export function jsonBodyLimitForRequest(method, requestPath) {
     || requestPath === '/api/rdo/reports/manual-upload'
     || requestPath === '/api/reports/manual-extract'
     || requestPath === '/api/rdo/reports/manual-extract'
-    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/(?:manual-pdf|physical-signature)$/.test(requestPath);
+    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/(?:manual-pdf|physical-signature|pdf-attachments)$/.test(requestPath);
   const isSignatureApi = requestPath.includes('/request-signature') || requestPath.includes('/public-sign');
   // Relatórios operacionais (manutenção etc.) levam as fotos em base64 no próprio corpo (até 10 por cartão).
   const isOperationalReportApi = /^\/api(?:\/rdo)?\/operational-reports(?:\/|$)/.test(requestPath);

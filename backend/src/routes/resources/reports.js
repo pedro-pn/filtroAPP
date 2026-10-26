@@ -123,6 +123,8 @@ import historicalServicesRouter from './historical-services.js';
 import { registerReportReleaseRoutes } from './report-release-routes.js';
 import { registerReportPublicViewRoutes } from './report-public-view-routes.js';
 import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
+import { registerReportPdfAttachmentRoutes } from './report-pdf-attachment-routes.js';
+import { createReportPdfAttachmentAppender, withReportPdfAttachmentCount } from '../../lib/reports/pdf-attachments.js';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
 import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
@@ -1220,7 +1222,7 @@ function sendDownloadBuffer(res, { contentType, fileName, buffer }) {
   return res.end(buffer);
 }
 
-const include = {
+const include = withReportPdfAttachmentCount({
   project: {
     include: {
       operator: { include: { jobRole: true } },
@@ -1271,7 +1273,7 @@ const include = {
       }
     }
   }
-};
+});
 
 const {
   publicSignatureFromToken, publicProjectSignatures, publicSignatureForTokenScopeOrThrow
@@ -1279,7 +1281,7 @@ const {
   database: prisma, reportInclude: include, publicSignatureStatus, isFinalizationRetryableSignature
 });
 
-const listSummarySelect = {
+const listSummarySelect = withReportPdfAttachmentCount({
   id: true,
   projectId: true,
   createdByUserId: true,
@@ -1398,7 +1400,7 @@ const listSummarySelect = {
       }
     }
   }
-};
+});
 
 export function collaboratorCanAccessProject(auth, project) {
   const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
@@ -2755,7 +2757,11 @@ export async function resolveSignedPdf(report) {
   return { fileName, buffer };
 }
 
-async function getReportPdfDownload(report) {
+const appendReportPdfAttachments = createReportPdfAttachmentAppender({ database: prisma, uploadDir: () => env.uploadDir });
+
+export const getReportPdfDownload = async report => appendReportPdfAttachments(report, await getReportBasePdfDownload(report));
+
+async function getReportBasePdfDownload(report) {
   if (
     report.status === ReportStatus.APPROVED &&
     report.reportType === ReportType.RDO &&
@@ -6144,12 +6150,13 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
   res.json(payload);
 }));
 
+const publicSignaturePdfDownload = createPublicSignaturePdfDownload({
+  currentSourceVersion: version => signatureSourceHashCurrent(version, prisma, { repairUnsigned: true }),
+  verifiedFinalPdfBuffer, verifiedSourcePdfBuffer, currentSignatureEvidencePdfDownload
+});
 const publicSignatureFiles = createPublicSignatureFiles({
   loadSignature: (token, signatureId) => publicSignatureForTokenScopeOrThrow(token, signatureId, prisma, { allowSigned: true }),
-  getPdfDownload: createPublicSignaturePdfDownload({
-    currentSourceVersion: version => signatureSourceHashCurrent(version, prisma, { repairUnsigned: true }),
-    verifiedFinalPdfBuffer, verifiedSourcePdfBuffer, currentSignatureEvidencePdfDownload
-  })
+  getPdfDownload: async signature => appendReportPdfAttachments(signature.report, await publicSignaturePdfDownload(signature))
 });
 
 router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -6320,6 +6327,9 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   grantReportUploadAccess(req.auth, item);
   res.json(await withDerivedServiceReportParentMeta(item));
 }));
+
+registerReportPdfAttachmentRoutes(router, {
+  database: prisma, uploadDir: () => env.uploadDir, isUnavailable: isReportUnavailable, sendDownloadBuffer });
 
 registerReportRegenerationRoutes(router, { database: prisma, include,
   isUnavailable: isReportUnavailable,

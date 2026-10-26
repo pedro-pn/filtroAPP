@@ -1,4 +1,25 @@
-/* Mantém a ação de restauração independente do botão legado de texto. */
+/* Primeira página do PDF na mesma moldura das fotos anexadas. */
+.upload-list-thumb--pdf {
+  display: inline-flex;
+  width: calc(var(--space-10) + var(--space-1));
+  height: var(--space-16);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--muted);
+}
+
+.upload-list-thumb--pdf canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.upload-list-thumb--pdf canvas[hidden] {
+  display: none;
+}
+
 .upload-order-help {
   margin: 0;
   color: var(--muted, var(--mu));

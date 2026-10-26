@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -10,6 +11,7 @@ import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { isReportManuallyReleased } from '../../utils/reportClientRelease';
 import { serviceTypeLabels } from './serviceTypes';
 import { SignatureProgress } from './SignatureProgress';
+import { ReportPdfAttachmentsButton } from './ReportPdfAttachmentsButton';
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -154,11 +156,13 @@ function clientReviewAuthor(review: NonNullable<ReportSummary['clientReviews']>[
 export function ReportSummaryCard({
   report,
   actions,
+  deleteAction,
   leadingControl,
   allowOpenDetail = true
 }: {
   report: ReportSummary;
   actions?: ReactNode;
+  deleteAction?: ReactNode;
   leadingControl?: ReactNode;
   allowOpenDetail?: boolean;
 }) {
@@ -224,9 +228,11 @@ export function ReportSummaryCard({
         <div className="report-card-side" onClick={event => event.stopPropagation()}>
           <span className={`status-pill ${status.className}`}>{status.label}</span>
           {isReportManuallyReleased(report) ? <span className="status-pill status-approved">Liberado ao cliente</span> : null}
-          {actions ? (
+          {actions || deleteAction || canReviewRdoReports(user) ? (
             <div className="report-card-actions">
               {actions}
+              <ReportPdfAttachmentsButton report={report} />
+              {deleteAction}
             </div>
           ) : null}
         </div>

@@ -1522,6 +1522,9 @@ export function GestorPage() {
     }
   }
 
+  function renderReportDeleteAction(report: ReportSummary) {
+    return report.status !== 'SIGNED' ? <RemoveIconButton label="Remover relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null;
+  }
   function renderManagerReportActions(report: ReportSummary, forceDesignSystem = false) {
     const canReview = tab === 'pendentes' && report.status !== 'SIGNED';
     const manualReport = isManualUploadedReport(report);
@@ -1578,7 +1581,6 @@ export function GestorPage() {
               Nº
             </Button>
           ) : null}
-          {report.status !== 'SIGNED' ? <RemoveIconButton label="Remover relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
         </>
       );
     }
@@ -1642,7 +1644,6 @@ export function GestorPage() {
             Nº
           </button>
         ) : null}
-        {report.status !== 'SIGNED' ? <RemoveIconButton label="Remover relatório" disabled={reportMutations.deleteReport.isPending} onClick={() => setArchiveReportTarget(report)} /> : null}
       </>
     );
   }
@@ -1770,6 +1771,7 @@ export function GestorPage() {
               onSelectionChange={(ids) => setSelectedReportIds(ids)}
               onOpenReport={handleOpenReport}
               renderActions={renderManagerReportActions}
+              renderDeleteAction={renderReportDeleteAction}
               reportType={reportType}
               projectLabel={projectLabel}
               sortDirection={sortDirection}
@@ -1786,6 +1788,7 @@ export function GestorPage() {
                 </label>
               }
               actions={renderManagerReportActions(report)}
+              deleteAction={renderReportDeleteAction(report)}
             />
           )}
         />
@@ -1883,6 +1886,7 @@ export function GestorPage() {
                       onSelectionChange={(ids) => setSelectedReportIds(ids)}
                       onOpenReport={handleOpenReport}
                       renderActions={(report) => renderManagerReportActions(report, true)}
+                      renderDeleteAction={renderReportDeleteAction}
                       reportType={reportType}
                       projectLabel={typeReports[0]?.project?.name || 'Projeto arquivado'}
                       sortDirection={typeSortDirection}
@@ -1900,6 +1904,7 @@ export function GestorPage() {
                             </label>
                           }
                           actions={renderManagerReportActions(report)}
+                          deleteAction={renderReportDeleteAction(report)}
                         />
                       ))}
                     </div>

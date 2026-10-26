@@ -413,7 +413,7 @@ test('GET /reports returns paginated payload when page parameters are provided',
   assert.deepEqual(response.json.meta, { projectTotal: 1 });
 });
 
-test('GET /reports can use summary select for paginated lists', async t => {
+test('GET /reports inclui o total de PDFs sem carregar os anexos, nas listas completas e resumidas', async t => {
   stubAuthenticatedManager(t);
   stubReportListTransaction(t);
   stubReportGroupBy(t);
@@ -422,12 +422,17 @@ test('GET /reports can use summary select for paginated lists', async t => {
     reportCount: prisma.report.count
   };
   prisma.report.findMany = async args => {
-    assert.equal(args.include, undefined);
-    assert.equal(args.select.id, true);
-    assert.equal(args.select.project.select.name, true);
-    assert.equal(args.select.services.select.attachments, undefined);
-    assert.equal(args.select.versions, undefined);
-    return [activeReport({ id: 'report-summary' })];
+    const shape = args.select || args.include;
+    assert.deepEqual(shape._count, { select: { pdfAttachments: true } });
+    assert.equal(shape.pdfAttachments, undefined);
+    if (args.select) {
+      assert.equal(args.include, undefined);
+      assert.equal(args.select.id, true);
+      assert.equal(args.select.project.select.name, true);
+      assert.equal(args.select.services.select.attachments, undefined);
+      assert.equal(args.select.versions, undefined);
+    }
+    return [activeReport({ id: 'report-summary', _count: { pdfAttachments: 2 } })];
   };
   prisma.report.count = async () => 1;
   t.after(() => {
@@ -435,16 +440,13 @@ test('GET /reports can use summary select for paginated lists', async t => {
     prisma.report.count = originals.reportCount;
   });
 
-  const response = await dispatchApp('GET', '/api/reports?page=1&pageSize=10&summary=true', undefined);
-
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json.items.map(item => item.id), ['report-summary']);
-  assert.deepEqual(response.json.pagination, {
-    page: 1,
-    pageSize: 10,
-    total: 1,
-    totalPages: 1
-  });
+  for (const summary of ['true', 'false']) {
+    const response = await dispatchApp('GET', `/api/reports?page=1&pageSize=10&summary=${summary}`, undefined);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json.items.map(item => item.id), ['report-summary']);
+    assert.equal(response.json.items[0]._count.pdfAttachments, 2);
+    assert.deepEqual(response.json.pagination, { page: 1, pageSize: 10, total: 1, totalPages: 1 });
+  }
 });
 
 test('GET /reports applies status and project activity filters before pagination', async t => {

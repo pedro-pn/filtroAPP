@@ -94,6 +94,9 @@ enum ReportAuditAction {
   CLIENT_RELEASED
   CLIENT_RELEASE_REVOKED
   PHYSICAL_SIGNATURE_UPLOADED
+  PDF_ATTACHMENT_ADDED
+  PDF_ATTACHMENT_REMOVED
+  PDF_ATTACHMENT_REORDERED
 }
 
 enum UserRole {
@@ -2072,6 +2075,7 @@ model Report {
   collaborators              ReportCollaborator[]
   services                   ReportService[]
   attachments                ReportAttachment[]
+  pdfAttachments             ReportPdfAttachment[]
   clientReviews              ClientReportReview[]
   versions                   ReportVersion[]
   reportSignatures           ReportSignature[]
@@ -3673,6 +3677,22 @@ model DataSubjectRequestResponseAttempt {
   @@index([requestId])
   @@index([createdByUserId])
   @@index([status])
+}
+
+// PDFs acrescentados ao documento entregue, independentes das fotos e versões assinadas.
+model ReportPdfAttachment {
+  id          String   @id @default(cuid())
+  reportId    String
+  fileName    String
+  storagePath String   @unique
+  sizeBytes   Int
+  pageCount   Int
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, createdAt])
+  @@index([reportId, position])
 }
 
 model ReportAttachment {

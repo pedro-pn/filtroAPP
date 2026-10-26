@@ -202,6 +202,7 @@ export interface InternalUserSummary {
 
 export interface ReportSummary {
   id: string;
+  _count?: { pdfAttachments: number };
   projectId: string;
   createdByUserId?: string | null;
   createdBy?: {

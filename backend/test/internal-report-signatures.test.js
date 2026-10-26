@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough, Readable, Writable } from 'node:stream';
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
 import AdmZip from 'adm-zip';
@@ -43,6 +43,13 @@ import prisma from '../src/lib/prisma.js';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../src/lib/privacy-consent.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+beforeEach(t => {
+  const original = prisma.reportPdfAttachment.findMany;
+  // As fixtures de assinatura não têm anexos adicionais por padrão.
+  prisma.reportPdfAttachment.findMany = async () => [];
+  t.after(() => { prisma.reportPdfAttachment.findMany = original; });
+});
 
 test('manager approval preflights signature delivery and enqueues post-processing', async () => {
   const source = await fs.readFile(new URL('../src/routes/resources/reports.js', import.meta.url), 'utf8');
@@ -2796,6 +2803,38 @@ test('signed public downloads preserve expiration, deletion, project and version
       assert.equal(response.statusCode, 409);
     }
   }
+});
+
+test('PDF e ZIP públicos incluem os anexos atuais sem alterar o original assinado ou incluir anexos de outro RDO', async t => {
+  const { anchor, sibling } = await mockSignedPublicDownloads(t);
+  const originalUploadDir = env.uploadDir;
+  env.uploadDir = env.reportsDir;
+  t.after(() => { env.uploadDir = originalUploadDir; });
+  const base = await PDFDocument.create();
+  base.addPage([300, 600]);
+  const original = Buffer.from(await base.save());
+  for (const signature of [anchor, sibling]) {
+    await fs.writeFile(path.join(env.reportsDir, path.basename(signature.version.finalPdfUrl)), original);
+    signature.version.finalDocumentHash = sha256Hex(original);
+  }
+  const appended = await PDFDocument.create();
+  appended.addPage([400, 600]);
+  const storagePath = `report-pdf-attachments/${anchor.report.id}/attachment.pdf`;
+  await fs.mkdir(path.dirname(path.join(env.uploadDir, storagePath)), { recursive: true });
+  await fs.writeFile(path.join(env.uploadDir, storagePath), await appended.save());
+  prisma.reportPdfAttachment.findMany = async ({ where }) => where.reportId === anchor.report.id
+    ? [{ fileName: 'anexo.pdf', storagePath }] : [];
+  const response = await dispatchAppGet('/api/reports/public-sign/project-token/pdf');
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual((await PDFDocument.load(response.buffer)).getPages().map(page => page.getWidth()), [300, 400]);
+  const siblingResponse = await dispatchAppGet(`/api/reports/public-sign/project-token/pdf?signatureId=${sibling.id}`);
+  assert.deepEqual(siblingResponse.buffer, original);
+  const zipResponse = await dispatchAppGet('/api/reports/public-sign/project-token/zip');
+  assert.equal(zipResponse.statusCode, 200);
+  const pageCounts = [];
+  for (const entry of new AdmZip(zipResponse.buffer).getEntries()) pageCounts.push((await PDFDocument.load(entry.getData())).getPageCount());
+  assert.deepEqual(pageCounts.sort(), [1, 2]);
+  assert.deepEqual(await fs.readFile(path.join(env.reportsDir, path.basename(anchor.version.finalPdfUrl))), original);
 });
 
 test('signed download access does not allow signing or rejecting an already completed RDO', async t => {
