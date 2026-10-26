@@ -35,13 +35,20 @@ const serviceType = id => SERVICE_TYPES[id] || (/^(filtragem|desidratacao)_/.tes
 const issue = (items, value) => { if (!items.includes(value)) items.push(value); };
 
 function measurement(itemType, item, type) {
+  // A unidade contratada prevalece sobre as medidas físicas preservadas no item.
+  // Sem o campo, mantém a projeção usada pelos levantamentos anteriores.
+  const quantified = itemType !== 'oil' && item.measurementUnit !== undefined;
+  const unit = itemType === 'oil' ? 'L' : quantified
+    ? { m: 'M', kg: 'KG', un: 'UN', L: 'L' }[item.measurementUnit]
+    : itemType === 'pipes' ? 'M' : ['LIMPEZA_MECANICA', 'LIMPEZA_QUIMICA'].includes(type) ? 'UN' : 'L';
+  if (!['M', 'KG', 'UN', 'L'].includes(unit)) return null;
+  const quantity = quantified && unit === 'UN' ? Number(item.quantity)
+    : round(Number(item.quantity) * (unit === 'M' ? Number(item.lengthM)
+    : unit === 'KG' ? Number(item.weightKg) : unit === 'L' ? Number(item.volumeLiters) : 1));
   if (type === 'LIMPEZA_MECANICA') {
-    const unit = itemType === 'pipes' ? 'M' : itemType === 'oil' ? 'L' : 'UN';
-    const quantity = Number(item.quantity) * (unit === 'M' ? Number(item.lengthM) : unit === 'L' ? Number(item.volumeLiters) : 1);
-    return { systemType: mechanicalMeasureType(unit), quantity: round(quantity), unit, diameter: null, diameterUnit: null };
+    return { systemType: mechanicalMeasureType(unit), quantity, unit, diameter: null, diameterUnit: null };
   }
-  if (itemType === 'pipes' && ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING'].includes(type)) {
-    const quantity = round(Number(item.quantity) * Number(item.lengthM));
+  if (itemType === 'pipes' && unit === 'M' && ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING'].includes(type)) {
     const diameterMm = Number(item.internalDiameterMm);
     // Orçamentos novos informam a unidade; os antigos sem unidade guardavam mm.
     const diameterUnit = item.diameterUnit === 'mm' ? 'mm'
@@ -53,16 +60,16 @@ function measurement(itemType, item, type) {
     return { systemType: 'TUBULACAO', quantity, unit: 'M', diameter, diameterUnit };
   }
   if (itemType === 'oil' && ['FILTRAGEM', 'FLUSHING'].includes(type)) {
-    return { systemType: 'OLEO', quantity: round(Number(item.quantity) * Number(item.volumeLiters)),
-      unit: 'L', diameter: null, diameterUnit: null };
+    return { systemType: 'OLEO', quantity, unit, diameter: null, diameterUnit: null };
   }
-  if (['reservoirs', 'equipment'].includes(itemType) && type === 'LIMPEZA_QUIMICA') {
-    return { systemType: 'SISTEMA', quantity: round(Number(item.quantity)), unit: 'UN',
-      diameter: null, diameterUnit: null };
+  if (unit === 'UN' && (quantified || ['reservoirs', 'equipment'].includes(itemType)) && type === 'LIMPEZA_QUIMICA') {
+    return { systemType: 'SISTEMA', quantity, unit, diameter: null, diameterUnit: null };
   }
-  if (['reservoirs', 'equipment'].includes(itemType) && ['FILTRAGEM', 'FLUSHING'].includes(type)) {
-    return { systemType: 'OLEO', quantity: round(Number(item.quantity) * Number(item.volumeLiters)),
-      unit: 'L', diameter: null, diameterUnit: null };
+  if (quantified && unit === 'UN' && type === 'TESTE_PRESSAO') {
+    return { systemType: 'MANGOTE', quantity, unit, diameter: null, diameterUnit: null };
+  }
+  if (['reservoirs', 'equipment'].includes(itemType) && unit === 'L' && ['FILTRAGEM', 'FLUSHING'].includes(type)) {
+    return { systemType: 'OLEO', quantity, unit, diameter: null, diameterUnit: null };
   }
   return null;
 }
@@ -155,7 +162,7 @@ export function projectScopeFromCommercialApp(snapshot) {
         continue;
       }
       if (!positive(mapped.quantity) || mapped.quantity > 999999999999.99 ||
-        (['SISTEMA', 'MECANICA_UN'].includes(mapped.systemType) && !Number.isSafeInteger(mapped.quantity)) ||
+        (['SISTEMA', 'MANGOTE', 'MECANICA_UN'].includes(mapped.systemType) && !Number.isSafeInteger(mapped.quantity)) ||
         (mapped.systemType === 'TUBULACAO' && !mapped.diameter)) {
         issue(issues, `"${text(item.description)}" de "${text(system.name)}" não tem quantidade ou bitola válida.`);
         continue;

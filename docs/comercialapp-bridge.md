@@ -218,6 +218,27 @@ para conferência no editor do cronograma. Flushing primário e secundário no
 mesmo item compõem uma única medição de flushing. Os pesos iniciais das
 categorias são distribuídos igualmente e podem ser editados pelo gestor.
 
+Itens com `measurementUnit` usam o quantitativo contratado nessa unidade antes
+de qualquer dedução pelo tipo do item. `quantity` é a contagem de itens e as
+medidas são por item:
+
+| Unidade comercial | Quantidade prevista | Medição de limpeza mecânica |
+| --- | --- | --- |
+| `m` | `quantity * lengthM` | `MECANICA_M/M` |
+| `kg` | `quantity * weightKg` | `MECANICA_KG/KG` |
+| `un` | `quantity` | `MECANICA_UN/UN` |
+| `L` | `quantity * volumeLiters` | `MECANICA_L/L` |
+
+Para os demais serviços, tubulações em metros com bitola usam `TUBULACAO/M`;
+limpeza química por unidades usa `SISTEMA/UN` e teste de pressão por unidades
+usa `MANGOTE/UN`, sem exigir bitola. Reservatórios e equipamentos em litros
+usam `OLEO/L` em filtragem ou flushing. Óleo mantém `OLEO/L` nesses serviços.
+Combinações sem medição nativa geram pendência para revisão, sem converter a
+unidade escolhida. Ciclos e `calculateVolume` não alteram o quantitativo
+contratado; medidas físicas preservadas para cálculo de volume não substituem
+esse quantitativo quando o cálculo está desativado. Itens antigos sem
+`measurementUnit` mantêm as regras anteriores.
+
 Publique este receptor antes do emissor do ComercialAPP. Entregas antigas sem
 `estimateSummary` continuam válidas; propostas já concluídas no ComercialAPP
 precisam de uma rotina específica de atualização para receber o novo campo.
