@@ -306,12 +306,12 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
   assert.match(page, /const \[expandedProjectDetailIds, setExpandedProjectDetailIds\] = useState<string\[\]>\(\[\]\)/);
 
   assert.match(
-    projectsTab,
-    /<Button variant="primary" size="md" type="submit" disabled=\{projectMutations\.updateProject\.isPending\}>\s*Salvar projeto\s*<\/Button>/
+    source('src/pages/gestor/ProjectEditDialog.tsx'),
+    /<Button variant="primary" size="md" type="submit" form="project-edit-form" loading=\{saving\} loadingLabel="Salvando projeto…">\s*Salvar projeto\s*<\/Button>/
   );
   assert.match(
-    projectsTab,
-    /<Button variant="secondary" size="md" type="button" onClick=\{resetProjectForm\}>\s*Cancelar edição\s*<\/Button>/
+    source('src/pages/gestor/ProjectEditDialog.tsx'),
+    /<Button variant="secondary" size="md" type="button" disabled=\{saving\} onClick=\{onClose\}>\s*Cancelar edição\s*<\/Button>/
   );
   assert.match(page, /async function handleProjectTeamSubmit/);
   assert.match(
@@ -431,7 +431,7 @@ test('Edição de projeto usa densidade compacta e ações em uma linha no mobil
   const css = source('src/pages/gestor/GestorPage.ds.css');
   const compactForm = sectionBetween(
     css,
-    'A edição acontece dentro de um card que já possui padding.',
+    'Os formulários de projeto compartilham os controles e as cores do DS.',
     ':where(.fv-ds, [data-fv-ds]) .rdo-archived-report-type'
   );
 

@@ -1,3 +1,4 @@
+import { ProjectEditDialog } from './ProjectEditDialog';
 import { ProjectServiceCategoryFields } from '../../components/projects/ProjectServiceCategoryFields';
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
 import { useProjectEditor } from './useProjectEditor';
@@ -120,6 +121,7 @@ import {
   ProjectAuthorizedUsersFields,
   ProjectClientFields,
   ProjectReportSequenceFields,
+  ProjectServiceReportSignatureFields,
   applyProjectVisibilityMode,
   asBoolean,
   asDdsThemes,
@@ -337,6 +339,7 @@ export function GestorPage() {
     refetch: gestorBootstrapQuery.refetch
   };
   const activeProjectReportCountQueries = useMemo(() => (activeProjectsQuery.data || []).map((project) => ({ projectId: project.id })), [activeProjectsQuery.data]);
+  const projectNameInputRef = useRef<HTMLInputElement>(null);
   const { projectForm, setProjectForm, projectEditingId, setProjectEditingId, showProjectForm, setShowProjectForm, projectReviewId, resetProjectForm, toggleProjectEdit } = useProjectEditor(activeProjectsQuery.data, projectsTab, setGestorSearch);
   const activeProjectReportCountsQuery = useBatchedReportCounts(activeProjectReportCountQueries, projectsTab && activeProjectReportCountQueries.length > 0);
   const activeProjectReportCountById = useMemo(
@@ -726,6 +729,7 @@ export function GestorPage() {
       clientSignerLastName: projectForm.clientSignerLastName.trim(),
       clientEmailCc: parseEmailList(projectForm.clientEmailCc),
       clientSigners: cleanSigners(projectForm.clientSigners),
+      clientSignerSignsServiceReports: projectForm.clientSignerSignsServiceReports,
       contractCode: projectForm.contractCode.trim(),
       location: projectForm.location.trim(),
       additionalWorkLocations: projectForm.additionalWorkLocations.map(value => value.trim()).filter(value => value !== projectForm.location.trim()),
@@ -2317,161 +2321,146 @@ export function GestorPage() {
       );
     }
 
+    const editingProject = allActiveProjects.find(project => project.id === projectEditingId);
+    const closeProjectEditor = () => {
+      if (!projectMutations.updateProject.isPending) resetProjectForm();
+    };
+    const renderProjectEditForm = (project: Project) => projectRegistrationPending(project) ? (
+      <PendingProjectReviewForm
+        project={project}
+        saving={projectMutations.updateProject.isPending}
+        onCancel={resetProjectForm}
+        onSubmit={async (payload) => {
+          try {
+            await projectMutations.updateProject.mutateAsync({ id: project.id, payload });
+            showToast('Projeto verificado e liberado.', 'success');
+            resetProjectForm();
+          } catch (error) {
+            showToast(error instanceof Error ? error.message : 'Não foi possível confirmar o projeto.', 'error');
+          }
+        }}
+      />
+    ) : (
+      <form className="admin-inline-form admin-inline-grid rdo-project-edit-form" id="project-edit-form" onSubmit={handleProjectSubmit}>
+        <div className="field-group">
+          <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
+          <input id={`project-code-${project.id}`} value={projectForm.code} readOnly />
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-name-${project.id}`}>Nome</label>
+          <input ref={projectNameInputRef} id={`project-name-${project.id}`} value={projectForm.name} onChange={(event) => setProjectForm((current) => ({ ...current, name: event.target.value }))} required />
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-client-${project.id}`}>Cliente</label>
+          <input id={`project-client-${project.id}`} value={projectForm.clientName} onChange={(event) => setProjectForm((current) => ({ ...current, clientName: event.target.value }))} required />
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
+          <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={(event) => setProjectForm((current) => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
+        </div>
+        <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
+        <div className="field-group">
+          <label htmlFor={`project-contract-${project.id}`}>Proposta</label>
+          <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={(event) => setProjectForm((current) => ({ ...current, contractCode: event.target.value }))} />
+        </div>
+        <ProjectWorkLocationsFields id={`project-location-${project.id}`} location={projectForm.location} additionalLocations={projectForm.additionalWorkLocations}
+          onChange={(location, additionalWorkLocations) => setProjectForm(current => ({ ...current, location, additionalWorkLocations }))} />
+        <ProjectServiceCategoryFields id={project.id} category={projectForm.serviceCategory} startDate={projectForm.startDate} endDate={projectForm.endDate}
+          onChange={patch => setProjectForm(current => ({ ...current, ...patch }))} />
+        {projectForm.serviceCategory !== 'RENTAL' ? <div className="field-group">
+          <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
+          <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={(event) => setProjectForm((current) => ({ ...current, operatorId: event.target.value }))}>
+            <option value="">Selecionar...</option>
+            {(collaboratorsQuery.data || [])
+              .filter((item) => item.isActive)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+          </select>
+        </div> : null}
+        <ProjectAuthorizedUsersFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} users={internalUsersQuery.data || []} />
+        <div className="field-group">
+          <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
+          <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={(event) => setProjectForm((current) => ({ ...current, clientSegment: event.target.value }))}>
+            <option value="">Selecionar segmento...</option>
+            {(projectSegmentsQuery.data || []).map((s) => (
+              <option key={s.slug} value={s.slug}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <Button variant="secondary" size="sm" type="button" onClick={openSegmentForm}>
+            + Adicionar segmento
+          </Button>
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
+          <select
+            id={`project-visible-${project.id}`}
+            value={projectVisibilityMode(projectForm)}
+            onChange={(event) =>
+              setProjectForm((current) => ({
+                ...current,
+                ...applyProjectVisibilityMode(event.target.value as ProjectVisibilityMode)
+              }))
+            }
+          >
+            <option value="manager-coordinator">Gestor e coordenador</option>
+            <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
+            <option value="manager-only">Somente gestor</option>
+          </select>
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-inhibition-service-${project.id}`}>Serviço de inibição</label>
+          <select
+            id={`project-inhibition-service-${project.id}`}
+            value={projectForm.inhibitionServiceEnabled ? 'true' : 'false'}
+            onChange={(event) => setProjectForm((current) => ({ ...current, inhibitionServiceEnabled: event.target.value === 'true' }))}
+          >
+            <option value="false">Não</option>
+            <option value="true">Sim</option>
+          </select>
+        </div>
+        <ProjectServiceReportSignatureFields form={projectForm} setForm={setProjectForm} />
+        <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
+        <div className="field-group">
+          <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
+          <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={(event) => setProjectForm((current) => ({ ...current, workdayHours: event.target.value }))} />
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
+          <input
+            id={`project-weekend-${project.id}`}
+            type="text"
+            placeholder="08:00"
+            value={projectForm.weekendWorkdayHours}
+            onChange={(event) => setProjectForm((current) => ({ ...current, weekendWorkdayHours: event.target.value }))}
+          />
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-sat-${project.id}`}>Inclui sábado</label>
+          <select id={`project-sat-${project.id}`} value={projectForm.includesSaturday ? 'true' : 'false'} onChange={(event) => setProjectForm((current) => ({ ...current, includesSaturday: event.target.value === 'true' }))}>
+            <option value="true">Sim</option>
+            <option value="false">Não</option>
+          </select>
+        </div>
+        <div className="field-group">
+          <label htmlFor={`project-sun-${project.id}`}>Inclui domingo</label>
+          <select id={`project-sun-${project.id}`} value={projectForm.includesSunday ? 'true' : 'false'} onChange={(event) => setProjectForm((current) => ({ ...current, includesSunday: event.target.value === 'true' }))}>
+            <option value="true">Sim</option>
+            <option value="false">Não</option>
+          </select>
+        </div>
+      </form>
+    );
+
     const renderEditableProjectCard = (project: Project) =>
       renderProjectCard(project, {
         appearance: 'design-system',
         commercialPendencia: commercialPendenciaByProject.get(project.id) ?? null,
         onUploadOldReports: project => openManualReportUpload(project.id),
-        children:
-          projectEditingId === project.id ? (
-            projectRegistrationPending(project) ? (
-              <PendingProjectReviewForm
-                project={project}
-                saving={projectMutations.updateProject.isPending}
-                onCancel={resetProjectForm}
-                onSubmit={async (payload) => {
-                  try {
-                    await projectMutations.updateProject.mutateAsync({ id: project.id, payload });
-                    showToast('Projeto verificado e liberado.', 'success');
-                    resetProjectForm();
-                  } catch (error) {
-                    showToast(error instanceof Error ? error.message : 'Não foi possível confirmar o projeto.', 'error');
-                  }
-                }}
-              />
-            ) : (
-              <form className="admin-inline-form admin-inline-grid rdo-project-edit-form" onSubmit={handleProjectSubmit}>
-                <div className="field-group">
-                  <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
-                  <input id={`project-code-${project.id}`} value={projectForm.code} readOnly />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-name-${project.id}`}>Nome</label>
-                  <input id={`project-name-${project.id}`} value={projectForm.name} onChange={(event) => setProjectForm((current) => ({ ...current, name: event.target.value }))} required />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-client-${project.id}`}>Cliente</label>
-                  <input id={`project-client-${project.id}`} value={projectForm.clientName} onChange={(event) => setProjectForm((current) => ({ ...current, clientName: event.target.value }))} required />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
-                  <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={(event) => setProjectForm((current) => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
-                </div>
-                <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
-                <div className="field-group">
-                  <label htmlFor={`project-contract-${project.id}`}>Proposta</label>
-                  <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={(event) => setProjectForm((current) => ({ ...current, contractCode: event.target.value }))} />
-                </div>
-                <ProjectWorkLocationsFields id={`project-location-${project.id}`} location={projectForm.location} additionalLocations={projectForm.additionalWorkLocations}
-                  onChange={(location, additionalWorkLocations) => setProjectForm(current => ({ ...current, location, additionalWorkLocations }))} />
-                <ProjectServiceCategoryFields id={project.id} category={projectForm.serviceCategory} startDate={projectForm.startDate} endDate={projectForm.endDate}
-                  onChange={patch => setProjectForm(current => ({ ...current, ...patch }))} />
-              {projectForm.serviceCategory !== 'RENTAL' ? <div className="field-group">
-                  <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
-                  <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={(event) => setProjectForm((current) => ({ ...current, operatorId: event.target.value }))}>
-                    <option value="">Selecionar...</option>
-                    {(collaboratorsQuery.data || [])
-                      .filter((item) => item.isActive)
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                  </select>
-                </div> : null}
-                <ProjectAuthorizedUsersFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} users={internalUsersQuery.data || []} />
-                <div className="field-group">
-                  <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
-                  <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={(event) => setProjectForm((current) => ({ ...current, clientSegment: event.target.value }))}>
-                    <option value="">Selecionar segmento...</option>
-                    {(projectSegmentsQuery.data || []).map((s) => (
-                      <option key={s.slug} value={s.slug}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                  <Button variant="secondary" size="sm" type="button" onClick={openSegmentForm}>
-                    + Adicionar segmento
-                  </Button>
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
-                  <select
-                    id={`project-visible-${project.id}`}
-                    value={projectVisibilityMode(projectForm)}
-                    onChange={(event) =>
-                      setProjectForm((current) => ({
-                        ...current,
-                        ...applyProjectVisibilityMode(event.target.value as ProjectVisibilityMode)
-                      }))
-                    }
-                  >
-                    <option value="manager-coordinator">Gestor e coordenador</option>
-                    <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
-                    <option value="manager-only">Somente gestor</option>
-                  </select>
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-inhibition-service-${project.id}`}>Serviço de inibição</label>
-                  <select
-                    id={`project-inhibition-service-${project.id}`}
-                    value={projectForm.inhibitionServiceEnabled ? 'true' : 'false'}
-                    onChange={(event) => setProjectForm((current) => ({ ...current, inhibitionServiceEnabled: event.target.value === 'true' }))}
-                  >
-                    <option value="false">Não</option>
-                    <option value="true">Sim</option>
-                  </select>
-                </div>
-                <div className="field-group">
-                  <label>Assinatura de relatórios de serviço</label>
-                  <div className="tog-row project-toggle-row">
-                    <span className="tog-lbl">Exigir assinatura</span>
-                    <label className="tog">
-                      <input type="checkbox" checked={projectForm.requireServiceReportSignatures} onChange={(event) => setProjectForm((current) => ({ ...current, requireServiceReportSignatures: event.target.checked }))} />
-                      <span className="tog-sl" />
-                    </label>
-                  </div>
-                </div>
-                <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
-                <div className="field-group">
-                  <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
-                  <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={(event) => setProjectForm((current) => ({ ...current, workdayHours: event.target.value }))} />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
-                  <input
-                    id={`project-weekend-${project.id}`}
-                    type="text"
-                    placeholder="08:00"
-                    value={projectForm.weekendWorkdayHours}
-                    onChange={(event) => setProjectForm((current) => ({ ...current, weekendWorkdayHours: event.target.value }))}
-                  />
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-sat-${project.id}`}>Inclui sábado</label>
-                  <select id={`project-sat-${project.id}`} value={projectForm.includesSaturday ? 'true' : 'false'} onChange={(event) => setProjectForm((current) => ({ ...current, includesSaturday: event.target.value === 'true' }))}>
-                    <option value="true">Sim</option>
-                    <option value="false">Não</option>
-                  </select>
-                </div>
-                <div className="field-group">
-                  <label htmlFor={`project-sun-${project.id}`}>Inclui domingo</label>
-                  <select id={`project-sun-${project.id}`} value={projectForm.includesSunday ? 'true' : 'false'} onChange={(event) => setProjectForm((current) => ({ ...current, includesSunday: event.target.value === 'true' }))}>
-                    <option value="true">Sim</option>
-                    <option value="false">Não</option>
-                  </select>
-                </div>
-                <div className="admin-form-actions">
-                  <Button variant="primary" size="md" type="submit" disabled={projectMutations.updateProject.isPending}>
-                    Salvar projeto
-                  </Button>
-                  <Button variant="secondary" size="md" type="button" onClick={resetProjectForm}>
-                    Cancelar edição
-                  </Button>
-                </div>
-              </form>
-            )
-          ) : null,
         onEdit: toggleProjectEdit,
         editing: projectEditingId === project.id,
         onManageTeam: openProjectTeamDialog,
@@ -2496,7 +2485,7 @@ export function GestorPage() {
       { key: 'status', header: 'Situação', render: project => <Badge tone={projectRegistrationPending(project) ? 'warning' : commercialPendenciaByProject.has(project.id) ? 'warning' : 'success'}>{projectRegistrationPending(project) ? 'Revisar cadastro' : commercialPendenciaByProject.has(project.id) ? 'Revisão comercial' : 'Ativo'}</Badge> }
     ];
     const renderProjectActions = (project: Project) => <div className="rdo-project-table__actions">
-      <Button variant="secondary" size="sm" type="button" onClick={() => toggleProjectEdit(project)}>{projectEditingId === project.id ? 'Fechar edição' : projectRegistrationPending(project) ? 'Revisar' : 'Editar'}</Button>
+      <Button variant="secondary" size="sm" type="button" aria-haspopup="dialog" onClick={() => toggleProjectEdit(project)}>{projectRegistrationPending(project) ? 'Revisar' : 'Editar'}</Button>
       <Button variant="secondary" size="sm" type="button" onClick={() => openProjectTeamDialog(project)}>Equipe</Button>
       <Button variant="secondary" size="sm" type="button" onClick={() => handleViewProjectReports(project)}>Relatórios</Button>
       <ProjectDatabookButton project={project} reportCount={activeProjectReportCountById.get(project.id)} />
@@ -2514,7 +2503,7 @@ export function GestorPage() {
       density="compact"
       mobileBreakpoint="md"
       rowActions={renderProjectActions}
-      renderRowDetails={project => projectDetailsExpanded(project.id) || projectEditingId === project.id ? <div className="rdo-project-table__detail" id={`project-table-detail-${project.id}`}>{renderEditableProjectCard(project)}</div> : null}
+      renderRowDetails={project => projectDetailsExpanded(project.id) ? <div className="rdo-project-table__detail" id={`project-table-detail-${project.id}`}>{renderEditableProjectCard(project)}</div> : null}
       mobile={{ renderItem: project => ({
         title: projectTitle(project),
         subtitle: project.clientName || 'Cliente não informado',
@@ -2525,6 +2514,12 @@ export function GestorPage() {
 
     return (
       <section id="rdo-manager-project-results" className="rdo-manager-projects rdo-ds-actions" aria-label="Lista de projetos ativos">
+        {editingProject ? (
+          <ProjectEditDialog project={editingProject} saving={projectMutations.updateProject.isPending}
+            onClose={closeProjectEditor} initialFocusRef={projectNameInputRef}>
+            {renderProjectEditForm(editingProject)}
+          </ProjectEditDialog>
+        ) : null}
         {showProjectForm && !projectEditingId ? (
           <Card
             className="rdo-manager-projects__legacy-form"
@@ -2618,16 +2613,7 @@ export function GestorPage() {
                   <option value="true">Sim</option>
                 </select>
               </div>
-              <div className="field-group">
-                <label>Assinatura de relatórios de serviço</label>
-                <div className="tog-row project-toggle-row">
-                  <span className="tog-lbl">Exigir assinatura</span>
-                  <label className="tog">
-                    <input type="checkbox" checked={projectForm.requireServiceReportSignatures} onChange={(event) => setProjectForm((current) => ({ ...current, requireServiceReportSignatures: event.target.checked }))} />
-                    <span className="tog-sl" />
-                  </label>
-                </div>
-              </div>
+              <ProjectServiceReportSignatureFields form={projectForm} setForm={setProjectForm} />
               <ProjectReportSequenceFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
               <div className="field-group">
                 <label htmlFor="project-workday">Jornada padrão</label>

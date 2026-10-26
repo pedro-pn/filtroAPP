@@ -60,7 +60,7 @@ test('Arquivados faz opt-in explícito no DS sem alterar o default legacy compar
 test('Arquivados reutiliza a grade de projetos e a listagem em cards sem mudar seus handlers', () => {
   const css = source('src/pages/gestor/GestorPage.ds.css');
   const grid = sectionBetween(css, '/* Desktop: the existing project card', '/* Archived tiles retain');
-  const archived = sectionBetween(css, '/* Archived tiles retain', '/* A edição acontece dentro de um card');
+  const archived = sectionBetween(css, '/* Archived tiles retain', '/* Os formulários de projeto compartilham');
   const dialogCss = source('src/pages/gestor/GestorArchivedReportsDialog.css');
   assert.match(grid, /\.rdo-archived-projects__list,/);
   assert.match(grid, /\.rdo-archived-projects__loading/);

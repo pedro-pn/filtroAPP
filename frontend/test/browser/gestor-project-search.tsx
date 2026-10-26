@@ -41,6 +41,14 @@ const activeProjects = [
   project('active-other', '9999', 'Outro projeto', true)
 ];
 if (new URLSearchParams(window.location.search).has('pending')) activeProjects[0].registrationPending = true;
+if (new URLSearchParams(window.location.search).has('service-signers')) {
+  Object.assign(activeProjects[0], {
+    clientEmailPrimary: 'principal@example.com', clientSignerFirstName: 'Cliente', clientSignerLastName: 'Principal',
+    clientEmailCc: ['fiscal@example.com'],
+    clientSigners: [{ name: 'Fiscal Silva', firstName: 'Fiscal', lastName: 'Silva', email: 'fiscal@example.com' }],
+    requireServiceReportSignatures: true
+  });
+}
 const report = {
   id: 'report-other', projectId: archivedProjects[2].id, project: archivedProjects[2],
   reportType: 'RDO', sequenceNumber: 1, status: 'APPROVED', reportDate: '2026-10-01',
@@ -52,6 +60,11 @@ apiClient.defaults.adapter = async config => {
   let data: unknown = [];
   if (url.endsWith('/notifications')) {
     data = { items: [], criticalItems: [], unreadCount: 0, snapshotAt: new Date().toISOString(), nextCursor: null };
+  } else if (config.method === 'put' && url.endsWith('/projects/active-villaris')) {
+    Object.assign(activeProjects[0], JSON.parse(config.data));
+    data = activeProjects[0];
+  } else if (url.endsWith('/projects')) {
+    data = config.params?.active === false ? archivedProjects : activeProjects;
   } else if (url.endsWith('/bootstrap/gestor')) {
     data = { activeProjects, archivedProjects, collaborators: [], surveys: [], projectSegments: [], surveyQuestions: [] };
   } else if (url.endsWith('/reports/counts')) {

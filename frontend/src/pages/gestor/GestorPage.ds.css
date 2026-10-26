@@ -2149,9 +2149,7 @@
   }
 }
 
-/* A edição acontece dentro de um card que já possui padding. No mobile, uma
-   densidade própria evita somar a escala do formulário desktop à do card e
-   devolve largura útil aos campos que continuam organizados em duas colunas. */
+/* Os formulários de projeto compartilham os controles e as cores do DS. */
 :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
   .admin-inline-form {
   border-color: var(--line);
@@ -2290,6 +2288,69 @@
   background: var(--on-brand);
 }
 
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers {
+  width: 100%;
+  max-width: 40rem;
+  overflow: hidden;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers caption {
+  padding: var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  text-align: left;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers :where(th, td) {
+  padding: var(--space-2) var(--space-3);
+  border-top: var(--border-width) solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers thead th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers :where(thead th:last-child, tbody td) {
+  width: 5rem;
+  text-align: center;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers__name {
+  display: block;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers__email {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-regular);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page .project-service-report-signers .tog {
+  vertical-align: middle;
+}
+
 @media (max-width: 768px) {
   :where(.fv-ds, [data-fv-ds]).rdo-manager-projects-page
     .rdo-project-edit-form {
@@ -2395,6 +2456,58 @@
     .admin-form-actions
     .fv-button {
     flex: 1 1 0;
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]).rdo-project-edit-dialog-backdrop {
+  background: color-mix(in srgb, var(--gray-950) 72%, transparent);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog .fv-modal__title h2 {
+  margin: 0;
+  font: inherit;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog__context {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog .admin-inline-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+@media (max-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).rdo-project-edit-dialog-backdrop {
+    align-items: center;
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog {
+    height: auto;
+    max-height: calc(100dvh - var(--space-6));
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog .fv-modal__footer {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog .fv-modal__footer .fv-button {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-project-edit-dialog .admin-inline-form {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
