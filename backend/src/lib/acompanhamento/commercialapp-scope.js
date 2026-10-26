@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { applyProjectIntegrationDefaults } from '../projects/integration-defaults.js';
+import { commercialProjectWorkSchedule } from '../projects/commercial-work-schedule.js';
 import { assertDistinctScopeMeasurements } from './scope-groups.js';
 import { normalizeRdoServiceType } from './service-types.js';
 import { resolvePlannedSystem } from './project-systems.js';
@@ -217,6 +219,7 @@ function scopeFingerprint(services) {
 // integração anterior criou, e a edição manual retira esse vínculo.
 export async function syncCommercialAppScope(tx, projectId, proposal, { replaceEmpty = false } = {}) {
   const additional = proposal.proposalKind === 'ADDITIONAL' || proposal.snapshot?.proposalKind === 'ADDITIONAL';
+  if (!additional) await applyProjectIntegrationDefaults(tx, projectId, commercialProjectWorkSchedule(proposal.snapshot));
   const contributionKey = `COMERCIAL_APP:${proposal.proposalCode ?? proposal.snapshot?.proposalCode ?? 'legacy'}`;
   const project = await tx.project.findUnique({
     where: { id: projectId }, select: { commercialScopeImport: true, serviceCategory: true }

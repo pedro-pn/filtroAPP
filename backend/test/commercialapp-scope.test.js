@@ -2,6 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectScopeFromCommercialApp, syncCommercialAppScope } from '../src/lib/acompanhamento/commercialapp-scope.js';
 
+test('um adicional não troca a jornada padrão definida pela principal', async () => {
+  const tx = { project: { findUnique: async () => ({ commercialScopeImport: null }),
+    updateMany: async () => assert.fail('adicional alterou a jornada') },
+    projectAdditionalProposal: { findUnique: async () => null } };
+  const result = await syncCommercialAppScope(tx, 'p1', { proposalKind: 'ADDITIONAL', proposalCode: '123',
+    snapshot: { costBreakdown: { laborContexts: [{ id: 'extra', hoursPerDay: 12 }] } } });
+  assert.equal(result.status, 'SELECTION_PRESERVED');
+});
+
 const snapshot = () => ({
   proposalSnapshot: { technicalServices: [
     { serviceId: 'teste_hidrostatico' }, { serviceId: 'flushing_primario' },

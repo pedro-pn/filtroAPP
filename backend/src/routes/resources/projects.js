@@ -12,6 +12,7 @@ import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { commercialProposalReference, commercialProposalSyncData } from '../../lib/projects/commercial-proposal-sync-state.js';
+import { manualIntegrationDefaults, projectIntegrationSelect } from '../../lib/projects/integration-defaults.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
 
@@ -317,6 +318,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
     const created = await tx.project.create({
       data: {
         ...projectData,
+        ...manualIntegrationDefaults({}, projectData),
         ...commercialProposalSyncData(commercialProposalReference(projectData.contractCode)),
         authorizedUsers: {
           create: authorizedUserIds.map(userId => ({ userId }))
@@ -411,6 +413,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     const previousProject = await tx.project.findUniqueOrThrow({
       where: { id: req.params.id },
       select: {
+        ...projectIntegrationSelect,
         serviceCategory: true, startDate: true, endDate: true,
         name: true,
         clientCnpj: true,
@@ -446,6 +449,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     }
     const projectUpdateData = {
       ...projectData,
+      ...manualIntegrationDefaults(previousProject, projectData),
       ...((projectData.serviceCategory ?? previousProject.serviceCategory) === 'RENTAL'
         ? { operatorId: null, defaultReportResponsibleUserId: null, visibleToCollaborators: false, requireServiceReportSignatures: false } : {}),
       ...(contractChanged || cnpjChanged || projectData.contractCode !== undefined && !previousProject.commercialProposalSync

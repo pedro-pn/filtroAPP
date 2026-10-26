@@ -1,6 +1,8 @@
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { projectIntakeSchema, receiveProjectIntake } from './project-intake.js';
 import { commercialProposalReference } from './commercial-proposal-sync-state.js';
+import { resolveClientSegment } from './client-segment.js';
+import { applyProjectIntegrationDefaults } from './integration-defaults.js';
 
 const conflict = (code, message) => new IntegrationApiError(409, code, message);
 const namespace = input => ({ sourceSystem: input.sourceSystem, tenantId: input.tenantId, environment: input.environment });
@@ -88,7 +90,8 @@ export async function resolvePlanningProject(tx, input, existing, { allowCreate 
       return pending(existing, 'PENDING_DATA', 'PROJECT_DATA_MISSING');
     }
     const inputProject = { code: ref.number, name: op.title, clientName: op.client.name, clientCnpj: op.client.taxId,
-      proposalCode: op.proposal.code, revision: op.proposal.revision, location: op.location };
+      proposalCode: op.proposal.code, revision: op.proposal.revision, location: op.location,
+      ...(op.client.segment ? { clientSegment: op.client.segment } : {}) };
     if (!projectIntakeSchema.safeParse(inputProject).success) return pending(existing, 'NEEDS_REVIEW', 'PROJECT_DATA_UNSUPPORTED');
     // Código sozinho não comprova identidade: o conector antigo precisa fornecer seu ID confirmado.
     if (await tx.project.findUnique({ where: { code: ref.number }, select: { id: true } })) return pending(existing, 'NEEDS_REVIEW', 'EXISTING_PROJECT_MAPPING_REQUIRED');
@@ -99,6 +102,11 @@ export async function resolvePlanningProject(tx, input, existing, { allowCreate 
   }
   if (!project) return pending(existing, op.commercialStatus === 'WON' || op.scope.kind === 'ADDITIONAL' ? 'PENDING_LINK' : 'NOT_REQUESTED', 'PROJECT_MAPPING_REQUIRED');
   if (op.scope.kind === 'ADDITIONAL' && !op.scope.primaryProposal) return pending(existing, 'PENDING_LINK', 'PRIMARY_PROPOSAL_REQUIRED', project.id);
+
+  if (op.scope.kind === 'PRIMARY' && !op.sourceRecordDeleted && op.client.segment) {
+    const clientSegment = await resolveClientSegment(tx, op.client.segment);
+    if (clientSegment) await applyProjectIntegrationDefaults(tx, project.id, { clientSegment });
+  }
 
   if (ref.prismaMissionId && !mapping) {
     const other = await tx.crmProjectMapping.findUnique({ where: { sourceSystem_tenantId_environment_projectId: { ...scope, projectId: project.id } } });

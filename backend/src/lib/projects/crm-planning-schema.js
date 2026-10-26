@@ -29,7 +29,7 @@ export const crmPlanningSnapshotSchema = z.object({
     commercialStatusDecision: z.object({ occurredAt: optional(instant), ...decision }).strict(),
     commercialOwner: optional(z.object({ id: text(180), name: text(240) }).strict()),
     client: z.object({ externalId: optional(text(180)), name: optional(text(240)), legalName: optional(text(240)),
-      taxId: optional(z.string().regex(/^\d{14}$/)) }).strict(),
+      taxId: optional(z.string().regex(/^\d{14}$/)), segment: z.string().trim().max(100).nullable().optional() }).strict(),
     proposal: optional(z.object({ ...proposalIdentity, acceptedAt: optional(instant) }).strict()),
     scope: z.object({ kind: z.enum(['PRIMARY', 'ADDITIONAL', 'UNCLASSIFIED']), primaryOpportunityExternalId: optional(text(180)),
       primaryProposal: optional(z.object(proposalIdentity).strict()), additionalProposalId: optional(text(180)), contributionKey: optional(text(240)) }).strict(),
