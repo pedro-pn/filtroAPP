@@ -24,6 +24,7 @@ export type ProjectWorkflowChecklistSection = 'INITIAL_ANALYSIS' | 'D30_TEAM' | 
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
+  canConvertLegacySummary: boolean;
   canEdit: boolean;
   canReopen: boolean;
   canAccept: boolean;
@@ -605,7 +606,7 @@ export type ProjectWorkflowStageTimeline = Partial<Record<ProjectWorkflowStage, 
 export interface ProjectWorkflow {
   projectId: string;
   stage: ProjectWorkflowStage;
-  /** Setado quando a gestão nasceu pelo fluxo legado resumido: etapa de entrada, usada para tratar as etapas
+  /** Setado quando a gestão entrou no fluxo legado resumido: etapa de entrada, usada para tratar as etapas
    * anteriores como "não se aplica" em vez de pendência real. `null` em todo projeto do handover normal. */
   legacySummaryEntryStage: ProjectWorkflowStage | null;
   stageTimeline: ProjectWorkflowStageTimeline;
@@ -982,12 +983,22 @@ export interface ProjectWorkflowLegacySummaryInput {
   equipmentSelections: Array<{ categoryId: string; equipmentIds: string[] }>;
 }
 
+export interface ProjectWorkflowLegacySummaryConversionInput {
+  version: number;
+  stage: ProjectWorkflowLegacySummaryStage;
+  reason: string;
+}
+
 export async function listProjectWorkflowLegacySummaryEquipment(projectId: string) {
   return (await apiClient.get<ProjectWorkflowLegacySummaryEquipmentCatalog>(`${base}/${encodeURIComponent(projectId)}/legacy-summary/equipment`)).data;
 }
 
 export async function startLegacyProjectWorkflowSummary(projectId: string, input: ProjectWorkflowLegacySummaryInput) {
   return (await apiClient.post<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}/legacy-summary`, input)).data;
+}
+
+export async function convertProjectWorkflowToLegacySummary(projectId: string, input: ProjectWorkflowLegacySummaryConversionInput) {
+  return (await apiClient.post<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}/legacy-summary/convert`, input)).data;
 }
 
 export async function updateProjectWorkflow(projectId: string, input: ProjectWorkflowPatch) {

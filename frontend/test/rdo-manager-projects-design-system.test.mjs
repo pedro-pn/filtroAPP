@@ -293,7 +293,7 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
     projectsTab,
     /<form className="admin-inline-form admin-inline-grid rdo-project-edit-form"/
   );
-  assert.match(projectsTab, /className="rdo-manager-projects__legacy-form"/);
+  assert.match(projectsTab, /id="project-create-form" onSubmit=\{handleProjectSubmit\}/);
   assert.match(projectsTab, /onEdit: toggleProjectEdit/);
   assert.match(projectsTab, /onManageTeam: openProjectTeamDialog/);
   assert.match(projectsTab, /onViewReports: handleViewProjectReports/);
@@ -307,11 +307,11 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
 
   assert.match(
     source('src/pages/gestor/ProjectEditDialog.tsx'),
-    /<Button variant="primary" size="md" type="submit" form="project-edit-form" loading=\{saving\} loadingLabel="Salvando projeto…">\s*Salvar projeto\s*<\/Button>/
+    /<Button variant="primary" size="md" type="submit" form=\{project \? 'project-edit-form' : 'project-create-form'\} loading=\{saving\}/
   );
   assert.match(
     source('src/pages/gestor/ProjectEditDialog.tsx'),
-    /<Button variant="secondary" size="md" type="button" disabled=\{saving\} onClick=\{onClose\}>\s*Cancelar edição\s*<\/Button>/
+    /<Button variant="secondary" size="md" type="button" disabled=\{saving\} onClick=\{onClose\}>\s*\{project \? 'Cancelar edição' : 'Cancelar'\}/
   );
   assert.match(page, /async function handleProjectTeamSubmit/);
   assert.match(
@@ -336,8 +336,8 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
     2
   );
   assert.match(
-    projectsTab,
-    /<Button variant="primary" type="submit" disabled=\{projectMutations\.createProject\.isPending\}>\s*Criar projeto\s*<\/Button>/
+    source('src/pages/gestor/ProjectEditDialog.tsx'),
+    /\{project \? 'Salvar projeto' : 'Criar projeto'\}/
   );
 
   assert.doesNotMatch(revisionPicker, /mini-btn/);

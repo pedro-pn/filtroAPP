@@ -340,6 +340,7 @@ export function GestorPage() {
   };
   const activeProjectReportCountQueries = useMemo(() => (activeProjectsQuery.data || []).map((project) => ({ projectId: project.id })), [activeProjectsQuery.data]);
   const projectNameInputRef = useRef<HTMLInputElement>(null);
+  const projectCodeInputRef = useRef<HTMLInputElement>(null);
   const { projectForm, setProjectForm, projectEditingId, setProjectEditingId, showProjectForm, setShowProjectForm, projectReviewId, resetProjectForm, toggleProjectEdit } = useProjectEditor(activeProjectsQuery.data, projectsTab, setGestorSearch);
   const activeProjectReportCountsQuery = useBatchedReportCounts(activeProjectReportCountQueries, projectsTab && activeProjectReportCountQueries.length > 0);
   const activeProjectReportCountById = useMemo(
@@ -2322,8 +2323,9 @@ export function GestorPage() {
     }
 
     const editingProject = allActiveProjects.find(project => project.id === projectEditingId);
+    const projectSaving = projectMutations.createProject.isPending || projectMutations.updateProject.isPending;
     const closeProjectEditor = () => {
-      if (!projectMutations.updateProject.isPending) resetProjectForm();
+      if (!projectSaving) resetProjectForm();
     };
     const renderProjectEditForm = (project: Project) => projectRegistrationPending(project) ? (
       <PendingProjectReviewForm
@@ -2514,27 +2516,14 @@ export function GestorPage() {
 
     return (
       <section id="rdo-manager-project-results" className="rdo-manager-projects rdo-ds-actions" aria-label="Lista de projetos ativos">
-        {editingProject ? (
-          <ProjectEditDialog project={editingProject} saving={projectMutations.updateProject.isPending}
-            onClose={closeProjectEditor} initialFocusRef={projectNameInputRef}>
-            {renderProjectEditForm(editingProject)}
-          </ProjectEditDialog>
-        ) : null}
-        {showProjectForm && !projectEditingId ? (
-          <Card
-            className="rdo-manager-projects__legacy-form"
-            padding="md"
-            title="Novo projeto"
-            actions={
-              <Button variant="secondary" size="sm" type="button" onClick={resetProjectForm}>
-                Cancelar
-              </Button>
-            }
-          >
-            <form className="admin-inline-grid" onSubmit={handleProjectSubmit}>
+        {editingProject || (showProjectForm && !projectEditingId) ? (
+          <ProjectEditDialog project={editingProject ?? null} saving={projectSaving}
+            onClose={closeProjectEditor} initialFocusRef={editingProject ? projectNameInputRef : projectCodeInputRef}>
+            {editingProject ? renderProjectEditForm(editingProject) : (
+            <form className="admin-inline-form admin-inline-grid rdo-project-edit-form" id="project-create-form" onSubmit={handleProjectSubmit}>
               <div className="field-group">
                 <label htmlFor="project-code">Número da missão</label>
-                <input id="project-code" value={projectForm.code} onChange={(event) => setProjectForm((current) => ({ ...current, code: event.target.value }))} required />
+                <input ref={projectCodeInputRef} id="project-code" value={projectForm.code} onChange={(event) => setProjectForm((current) => ({ ...current, code: event.target.value }))} required />
               </div>
               <div className="field-group">
                 <label htmlFor="project-name">Nome</label>
@@ -2637,13 +2626,9 @@ export function GestorPage() {
                   <option value="false">Não</option>
                 </select>
               </div>
-              <div className="admin-form-actions">
-                <Button variant="primary" type="submit" disabled={projectMutations.createProject.isPending}>
-                  Criar projeto
-                </Button>
-              </div>
             </form>
-          </Card>
+            )}
+          </ProjectEditDialog>
         ) : null}
 
         <p className="rdo-manager-projects__result-count" role="status" aria-live="polite">
@@ -4220,9 +4205,9 @@ export function GestorPage() {
             description="Gerencie os projetos ativos, acompanhe cadastros pendentes e revise suas informações."
             actions={
               <>
-                {!showProjectForm && !projectEditingId ? (
                   <Button
                     variant="primary"
+                    aria-haspopup="dialog"
                     iconLeft={<AppIcon icon={DS_ICONS.plus} size="sm" />}
                     onClick={() => {
                       setShowProjectForm(true);
@@ -4232,7 +4217,6 @@ export function GestorPage() {
                   >
                     Novo projeto
                   </Button>
-                ) : null}
                 {renderGestorSearch()}
               </>
             }

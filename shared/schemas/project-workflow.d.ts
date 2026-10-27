@@ -40,6 +40,11 @@ export function makeProjectWorkflowCommercialFactSchema(z: typeof import('zod').
 }>;
 export function makeProjectWorkflowSchemas(z: typeof import('zod').z): {
   start: import('zod').ZodType<{ leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }>;
+  convertLegacySummary: import('zod').ZodType<{
+    version: number;
+    stage: (typeof PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES)[number];
+    reason: string;
+  }>;
   startLegacySummary: import('zod').ZodType<{
     stage: (typeof PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES)[number];
     leaderUserId: string;

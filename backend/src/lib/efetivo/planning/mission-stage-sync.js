@@ -25,7 +25,12 @@ export function missionStageForProjectWorkflow(stage) {
   return WORKFLOW_TO_MISSION_STAGE[stage] || null;
 }
 
-export async function synchronizeOfficialMissionStage(tx, projectId, workflowStage, context = {}) {
+export async function synchronizeOfficialMissionStage(tx, projectId, workflowStage, context = {}, { force = false } = {}) {
+  if (force && context.user?.accountType !== 'ADMIN') {
+    throw planningError('Somente administradores podem forçar a etapa operacional.', {
+      statusCode: 403, code: 'PROJECT_WORKFLOW_ADMIN_REQUIRED'
+    });
+  }
   const targetStage = missionStageForProjectWorkflow(workflowStage);
   if (!targetStage) return null;
   const mission = await tx.efetivoMissionPlan.findFirst({
@@ -39,12 +44,12 @@ export async function synchronizeOfficialMissionStage(tx, projectId, workflowSta
   });
   const missionRequired = ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(targetStage);
   if (!mission) {
-    if (!missionRequired) return null;
+    if (force || !missionRequired) return null;
     throw planningError('Crie ou reative a programação oficial da equipe antes de avançar o projeto.', {
       code: 'PROJECT_WORKFLOW_OFFICIAL_MISSION_REQUIRED'
     });
   }
-  if (missionRequired) {
+  if (missionRequired && !force) {
     const pendencies = missionMovePendencies(mission);
     if (pendencies.length) {
       throw planningError(`Complete a programação oficial antes de avançar: ${pendencies.join(', ')}.`, {

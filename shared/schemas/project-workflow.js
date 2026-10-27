@@ -382,6 +382,11 @@ export function makeProjectWorkflowSchemas(z) {
   const correctionStage = z.enum(PROJECT_WORKFLOW_STAGES).nullable().optional();
   const dateOnly = dateOnlySchema(z);
   const note = z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.').nullable().optional();
+  const convertLegacySummary = z.object({
+    version,
+    stage: z.enum(PROJECT_WORKFLOW_LEGACY_SUMMARY_STAGES),
+    reason: z.string().trim().min(1, 'Informe o motivo da conversão.').max(1000, 'O motivo deve ter no máximo 1000 caracteres.')
+  }).strict();
   const start = z.object({
     leaderUserId: id,
     plannerUserId: id,
@@ -904,6 +909,7 @@ export function makeProjectWorkflowSchemas(z) {
   return {
     start,
     startLegacySummary,
+    convertLegacySummary,
     postJob,
     measurement,
     patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, mobilization, demobilization, postJob, measurement]),

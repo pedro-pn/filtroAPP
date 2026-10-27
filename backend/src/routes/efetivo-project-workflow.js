@@ -5,10 +5,12 @@ import { makeProjectWorkflowSchemas } from '../../../shared/schemas/project-work
 import { makeProjectExecutionSchemas } from '../../../shared/schemas/project-execution.js';
 import { makeProjectDocumentSchemas } from '../../../shared/schemas/project-documents.js';
 import asyncHandler from '../lib/async-handler.js';
+import { requireHubAdmin } from '../middleware/auth.js';
 import { getProjectRomaneios } from '../lib/acompanhamento/project-romaneios.js';
 import { isEfetivoManager, requireEfetivoManager, requireEfetivoViewer } from '../lib/efetivo/access.js';
 import { efetivoProjectWhere } from '../lib/efetivo/project-visibility.js';
 import {
+  convertProjectWorkflowToLegacySummary,
   getProjectWorkflow,
   listProjectWorkflowLeaders,
   listProjectWorkflowLegacySummaryEquipment,
@@ -79,6 +81,11 @@ router.get('/:projectId/legacy-summary/equipment', requireEfetivoViewer, asyncHa
 router.post('/:projectId/legacy-summary', requireEfetivoManager, asyncHandler(async (req, res) => {
   const projectId = projectIdSchema.parse(req.params.projectId);
   res.status(201).json(await startLegacyProjectWorkflowSummary(projectId, schemas.startLegacySummary.parse(req.body), context(req)));
+}));
+
+router.post('/:projectId/legacy-summary/convert', requireHubAdmin, asyncHandler(async (req, res) => {
+  const projectId = projectIdSchema.parse(req.params.projectId);
+  res.json(await convertProjectWorkflowToLegacySummary(projectId, schemas.convertLegacySummary.parse(req.body), context(req)));
 }));
 
 router.get('/:projectId/documents', requireEfetivoViewer, asyncHandler(async (req, res) => {

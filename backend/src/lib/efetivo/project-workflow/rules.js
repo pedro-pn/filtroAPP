@@ -23,7 +23,7 @@ function dateKey(value) {
 
 // Eventos que colocam o projeto numa etapa: o início da gestão abre o Handover, o aceite abre a
 // Análise inicial e as demais mudanças registram a etapa de destino em `data.stage`.
-export const PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS = ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE'];
+export const PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS = ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE', 'WORKFLOW_ADMIN_LEGACY_SUMMARY'];
 const STAGE_ENTRY_BY_ACTION = { WORKFLOW_STARTED: 'HANDOVER', WORKFLOW_ACCEPT: 'INITIAL_ANALYSIS' };
 
 // Datas reais de cada etapa, reconstruídas do histórico em ordem cronológica. Quando o fluxo volta
@@ -33,7 +33,7 @@ export function projectWorkflowStageTimeline(events = []) {
   let active = null;
   const ordered = [...events].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
   for (const event of ordered) {
-    const stage = STAGE_ENTRY_BY_ACTION[event.action] || (event.action === 'WORKFLOW_STAGE' ? event.data?.stage : null);
+    const stage = STAGE_ENTRY_BY_ACTION[event.action] || (PROJECT_WORKFLOW_STAGE_EVENT_ACTIONS.includes(event.action) ? event.data?.stage : null);
     if (!PROJECT_WORKFLOW_STAGES.includes(stage) || stage === active) continue;
     const at = new Date(event.createdAt).toISOString();
     if (active) timeline[active] = { ...timeline[active], completedAt: at };
