@@ -10,6 +10,7 @@ import { effectiveEpiRole } from './epi/collaborators.js';
 import { appendEpiEvidencePages, sortedEpiRecords } from './epi/evidence-pdf.js';
 import { parseSignatureImageDataUrl } from './signatures/common.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
+import { formatDateOnly, formatTimestampDate } from '../../../shared/modules/date-only.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,16 +26,7 @@ function safePath(value) {
 }
 
 function formatDatePt(value) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const formatter = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-  return formatter.format(date);
+  return formatDateOnly(value, '');
 }
 
 function getTextNodes(node, out = []) {
@@ -259,7 +251,7 @@ function buildBaseData(collaborator, createdAt) {
     admissiondate: formatDatePt(collaborator.admissionDate),
     number: collaborator.registrationNumber || '',
     POSITION: effectiveEpiRole(collaborator),
-    date: formatDatePt(createdAt || new Date())
+    date: formatTimestampDate(createdAt || new Date(), '')
   };
 }
 

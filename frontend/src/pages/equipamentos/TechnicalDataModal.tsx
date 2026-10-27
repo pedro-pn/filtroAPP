@@ -1,3 +1,4 @@
+import { formatTimestampDate } from '../../utils/dateOnly';
 import { useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import type {
@@ -674,7 +675,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
                 <div className="equip-history-row" key={pdf.id}>
                   <div className="equip-history-meta">
                     <strong>{title}</strong>
-                    <span>{formatDate(pdf.createdAt)} · {pdf.fileName}</span>
+                    <span>{formatTimestampDate(pdf.createdAt)} · {pdf.fileName}</span>
                   </div>
                   <a className="fv-button fv-button--secondary fv-button--sm equip-history-download" href={pdf.publicUrl} target="_blank" rel="noreferrer">
                     Abrir PDF

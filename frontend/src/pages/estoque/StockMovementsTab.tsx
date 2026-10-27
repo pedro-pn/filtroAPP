@@ -16,6 +16,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
 import { Badge, Select } from '../../components/ui/ds';
+import { formatDateOnlyPtBr, todayDateOnly } from '../../utils/dateOnly';
 
 const PAGE_SIZE = 50;
 const EXPORT_PAGE_SIZE = 200;
@@ -38,10 +39,7 @@ function reasonLabel(reason: StockMovementReason) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  return formatDateOnlyPtBr(value);
 }
 
 function csvCell(value: unknown) {
@@ -159,7 +157,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
         showToast('Não há movimentações para exportar.', 'info');
         return;
       }
-      downloadCsv(`estoque-movimentacoes-${new Date().toISOString().slice(0, 10)}.csv`, exportRows(rows));
+      downloadCsv(`estoque-movimentacoes-${todayDateOnly()}.csv`, exportRows(rows));
       showToast('CSV exportado.', 'success');
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível exportar o CSV.', 'error')

@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../../utils/dateOnly';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
@@ -159,7 +160,7 @@ export function ProjectDocumentVersionForm({ document, saving, onClose, onSubmit
 
 export function ProjectDocumentAcceptanceForm({ document, saving, onClose, onSubmit }: { document: ProjectDocument; saving: boolean; onClose: () => void; onSubmit: (input: { expectedVersion: number; versionId: string; status: 'ACCEPTED' | 'REJECTED'; occurredOn: string; reference?: string | null; note?: string | null }) => void }) {
   const version = document.currentVersion!;
-  const { register, handleSubmit, formState: { errors } } = useForm<AcceptanceValues>({ resolver: zodResolver(acceptanceSchema), defaultValues: { status: version.acceptanceStatus === 'REJECTED' ? 'REJECTED' : 'ACCEPTED', occurredOn: new Date().toISOString().slice(0, 10), reference: version.acceptanceReference || '', note: version.acceptanceNote || '' } });
+  const { register, handleSubmit, formState: { errors } } = useForm<AcceptanceValues>({ resolver: zodResolver(acceptanceSchema), defaultValues: { status: version.acceptanceStatus === 'REJECTED' ? 'REJECTED' : 'ACCEPTED', occurredOn: todayDateOnly(), reference: version.acceptanceReference || '', note: version.acceptanceNote || '' } });
   return <Modal open onClose={onClose} closeOnEscape={!saving} appearance="design-system" title="Registrar decisão" size="md" fullscreenOnMobile={false} panelClassName="efetivo-dialog project-document-form-modal is-compact" footer={<><Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button><Button variant="primary" type="submit" form="project-document-acceptance-form" loading={saving}>Registrar decisão</Button></>}><form id="project-document-acceptance-form" className="project-document-form" noValidate onSubmit={handleSubmit(values => onSubmit({ expectedVersion: document.version, versionId: version.id, status: values.status, occurredOn: values.occurredOn, reference: values.reference || null, note: values.note || null }))}>
     <p className="efetivo-dialog-description">{document.title} · versão {version.versionLabel || version.sequence}</p>
     <div className="project-document-form-body">

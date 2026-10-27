@@ -8,6 +8,7 @@ import { equipmentSerialNumber } from './equipment-attributes.js';
 import { runTrackedJob } from './jobs/runner.js';
 import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from './mailer.js';
 import prisma from './prisma.js';
+import { todayDateOnly } from '../../../shared/modules/date-only.js';
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000;
 const REMINDER_WINDOW_START_HOUR = 9;
@@ -54,8 +55,12 @@ function addUtcDays(value, days) {
   return new Date(startOfUtcDay(value).getTime() + days * DAY_MS);
 }
 
-function daysBetweenUtc(start, end) {
-  return Math.round((startOfUtcDay(end).getTime() - startOfUtcDay(start).getTime()) / DAY_MS);
+function startOfBusinessDay(now) {
+  return new Date(`${todayDateOnly(now)}T00:00:00.000Z`);
+}
+
+function daysUntilExpiration(now, expiryDate) {
+  return Math.round((startOfUtcDay(expiryDate).getTime() - startOfBusinessDay(now).getTime()) / DAY_MS);
 }
 
 function logKey(item) {
@@ -147,8 +152,8 @@ async function createLogs(client, data) {
 }
 
 function upcomingCandidates(equipment, now, milestones) {
-  const daysUntilExpiration = daysBetweenUtc(now, equipment.expiresAt);
-  const match = milestones.find(item => item.days === daysUntilExpiration);
+  const remainingDays = daysUntilExpiration(now, equipment.expiresAt);
+  const match = milestones.find(item => item.days === remainingDays);
   if (!match) return null;
   return {
     ...equipment,
@@ -199,7 +204,7 @@ export function shouldNotifyCalibrationUpdated({ previousExpiresAt, nextExpiresA
   const previousDate = startOfUtcDay(previousExpiresAt);
   const nextDate = startOfUtcDay(nextExpiresAt);
   if (previousDate.getTime() === nextDate.getTime()) return false;
-  return nextDate.getTime() > startOfUtcDay(now).getTime();
+  return nextDate.getTime() > startOfBusinessDay(now).getTime();
 }
 
 // Notifica imediatamente quando a validade de um equipamento é estendida.
@@ -270,7 +275,7 @@ export async function processCalibrationReminders({
   const pendingUpcoming = upcoming.filter(candidate => !alreadySent.has(logKey(candidate)));
 
   const expired = config.repeatExpired
-    ? equipment.filter(item => daysBetweenUtc(now, item.expiresAt) < 0)
+    ? equipment.filter(item => daysUntilExpiration(now, item.expiresAt) < 0)
     : [];
   const expiredCategories = Array.from(new Set(expired.map(item => item.category)));
   const blockedRepeatCategories = await recentRepeatCategories(client, expiredCategories, now, config.repeatGapDays);
@@ -279,7 +284,7 @@ export async function processCalibrationReminders({
     .map(item => ({
       ...item,
       milestone: CalibrationReminderMilestone.EXPIRED_REPEAT,
-      targetDate: startOfUtcDay(now)
+      targetDate: startOfBusinessDay(now)
     })));
 
   const groups = [
@@ -302,7 +307,7 @@ export async function processCalibrationReminders({
         equipmentId: categoryLogEquipmentId(group.category),
         category: group.category,
         milestone: group.milestone,
-        targetDate: startOfUtcDay(now)
+        targetDate: startOfBusinessDay(now)
       }]);
       continue;
     }

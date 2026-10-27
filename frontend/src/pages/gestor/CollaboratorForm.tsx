@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import type { FormEvent, ReactNode } from 'react';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -62,7 +63,7 @@ export function CollaboratorForm({
         </div>
         <div className="field-group">
           <label htmlFor={id('role-effective-date')}>Cargo vigente desde</label>
-          <input id={id('role-effective-date')} type="date" max={new Date().toISOString().slice(0, 10)} value={value.jobRoleEffectiveDate} onChange={event => set('jobRoleEffectiveDate', event.target.value)} required />
+          <input id={id('role-effective-date')} type="date" max={todayDateOnly()} value={value.jobRoleEffectiveDate} onChange={event => set('jobRoleEffectiveDate', event.target.value)} required />
         </div>
         <div className="field-group">
           <label htmlFor={id('email')}>E-mail</label>

@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../../../shared/modules/date-only.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
@@ -55,7 +56,7 @@ function isExpired(expiryDate, now = new Date()) {
   if (!expiryDate) return false;
   const expiry = new Date(expiryDate);
   if (Number.isNaN(expiry.getTime())) return false;
-  const today = new Date(now.toISOString().slice(0, 10));
+  const today = new Date(`${todayDateOnly(now)}T00:00:00.000Z`);
   return expiry < today;
 }
 

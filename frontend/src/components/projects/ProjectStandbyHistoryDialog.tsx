@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { useQuery } from '@tanstack/react-query';
 
 import { getProjectStandbyHistory, type ProjectStandbyHistoryEntry, type TrackingDivision } from '../../api/acompanhamentoComercial';
@@ -66,7 +67,7 @@ export function ProjectStandbyHistoryDialog({
 
   const titleProject = historyQuery.data?.project ?? project;
   const entries = (historyQuery.data?.entries ?? []).filter(entry => !division || (
-    entry.date >= division.startDate && entry.date <= (division.endDate ?? new Date().toISOString().slice(0, 10))
+    entry.date >= division.startDate && entry.date <= (division.endDate ?? todayDateOnly())
   ));
   const projectLabel = titleProject
     ? [titleProject.code, titleProject.name].filter(Boolean).join(' — ')

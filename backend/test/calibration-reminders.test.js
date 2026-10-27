@@ -13,6 +13,12 @@ import {
 
 const NOW = new Date('2026-06-05T12:00:00.000Z');
 
+test('calibration extension compares future dates to the São Paulo calendar', () => {
+  const input = { previousExpiresAt: new Date('2026-10-01T00:00:00Z'), nextExpiresAt: new Date('2026-11-01T00:00:00Z') };
+  assert.equal(shouldNotifyCalibrationUpdated({ ...input, now: new Date('2026-11-01T02:59:59Z') }), true);
+  assert.equal(shouldNotifyCalibrationUpdated({ ...input, now: new Date('2026-11-01T03:00:00Z') }), false);
+});
+
 const DEFAULT_RECIPIENTS = [{ email: 'gestor@example.com', isActive: true }];
 
 // Linha de CompanyEquipment calibrável usada pelas notificações.

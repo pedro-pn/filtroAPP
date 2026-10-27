@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../../utils/dateOnly';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useEffect } from 'react';
@@ -24,7 +25,7 @@ function initialValues(collaborator: PlanningCollaborator | null): FormValues {
   return {
     name: collaborator?.name || '',
     jobRoleId: collaborator?.jobRoleId || '',
-    jobRoleEffectiveDate: new Date().toISOString().slice(0, 10),
+    jobRoleEffectiveDate: todayDateOnly(),
     admissionDate: collaborator?.admissionDate?.slice(0, 10) || '',
     terminationDate: collaborator?.terminationDate?.slice(0, 10) || '',
     note: ''
@@ -76,7 +77,7 @@ export function OperationalCollaboratorModal({ open, collaborator, jobRoles, sav
             </Select>
           </Field>
           <Field id="operational-collaborator-role-date" label="Cargo vigente desde" required errorText={errors.jobRoleEffectiveDate?.message}>
-            <Input size="sm" type="date" max={new Date().toISOString().slice(0, 10)} disabled={saving} {...register('jobRoleEffectiveDate')} />
+            <Input size="sm" type="date" max={todayDateOnly()} disabled={saving} {...register('jobRoleEffectiveDate')} />
           </Field>
           <Field id="operational-collaborator-admission" label="Admissão" required errorText={errors.admissionDate?.message}>
             <Input size="sm" type="date" disabled={saving} {...register('admissionDate')} />

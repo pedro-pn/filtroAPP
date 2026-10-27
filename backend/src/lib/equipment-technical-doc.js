@@ -6,17 +6,7 @@
 // consomem este modelo — mantidos separados para que esta camada seja testável
 // sem depender do arquivo de template.
 
-function formatDatePt(value) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  }).format(date);
-}
+import { formatDateOnly, formatTimestampDate } from '../../../shared/modules/date-only.js';
 
 function formatMeasure(value) {
   if (!value || typeof value !== 'object') return '';
@@ -36,7 +26,7 @@ export function formatScalar(field, value) {
     case 'boolean':
       return value === true ? 'Sim' : value === false ? 'Não' : '';
     case 'date':
-      return formatDatePt(value);
+      return formatDateOnly(value, '');
     case 'multiselect':
       return Array.isArray(value) ? value.filter(Boolean).join(', ') : '';
     default:
@@ -106,7 +96,7 @@ export function buildTechnicalDocModel(equipment, category) {
     equip_nome: equipment?.name || '',
     categoria: category?.name || '',
     revisao: equipment?.technicalRevision != null ? String(equipment.technicalRevision) : '',
-    data_geracao: formatDatePt(new Date()),
+    data_geracao: formatTimestampDate(new Date(), ''),
     // Campos-base físicos (Tabela 1 fixa), lidos de attributes.
     peso: formatAttr(attrs.peso),
     altura: formatAttr(attrs.altura),

@@ -7,6 +7,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { formatDateOnly } from '../../../shared/modules/date-only.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,14 +22,8 @@ function safePath(value) {
   return safeText(value).replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
 }
 
-function formatDatePt(value, withTime = false) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {})
-  });
+function formatDatePt(value) {
+  return formatDateOnly(value, '');
 }
 
 export function buildRomaneioFileName(romaneio, extension = 'docx') {
@@ -237,7 +232,7 @@ export function buildRomaneioEmailHtml(romaneio) {
   return `
     <p>Um novo romaneio foi criado.</p>
     <p><strong>Projeto:</strong> Missão ${project.code || ''} - ${project.name || ''}</p>
-    <p><strong>Data:</strong> ${formatDatePt(romaneio.romaneioDate, true)}</p>
+    <p><strong>Data:</strong> ${formatDatePt(romaneio.romaneioDate)}</p>
     <p><strong>Motorista:</strong> ${romaneio.driverName || ''}</p>
     <p><strong>Placa:</strong> ${romaneio.vehiclePlate || ''}</p>
   `;

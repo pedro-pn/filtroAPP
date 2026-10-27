@@ -1,3 +1,4 @@
+import { formatDateOnly } from '../../../../shared/modules/date-only.js';
 import crypto from 'node:crypto';
 import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from 'pdf-lib';
 
@@ -87,7 +88,7 @@ function utc(value) {
 }
 
 function dateOnly(value) {
-  return value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(value)) : '-';
+  return formatDateOnly(value, '-');
 }
 
 function drawValidationLink(pdf, page, url, x, y) {

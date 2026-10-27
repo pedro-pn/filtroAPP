@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 /* eslint-disable react-refresh/only-export-components */
 import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from 'react';
 import type { UserRole } from '../../types/auth';
@@ -219,7 +220,7 @@ export const emptyManualReportForm: ManualReportFormState = {
   projectId: '',
   reportType: 'RDO',
   sequenceNumber: '',
-  reportDate: new Date().toISOString().slice(0, 10),
+  reportDate: todayDateOnly(),
   signatureMode: 'APPROVED',
   serviceEquipment: '',
   serviceSystem: '',
@@ -232,7 +233,7 @@ export const emptyManualReportForm: ManualReportFormState = {
 export const emptyCollaboratorForm: CollaboratorFormState = {
   name: '',
   jobRoleId: '',
-  jobRoleEffectiveDate: new Date().toISOString().slice(0, 10),
+  jobRoleEffectiveDate: todayDateOnly(),
   email: '',
   terminationDate: '',
   signatureImage: '',
@@ -933,7 +934,7 @@ export function collaboratorToForm(collaborator: Collaborator): CollaboratorForm
   return {
     name: collaborator.name,
     jobRoleId: collaborator.jobRoleId,
-    jobRoleEffectiveDate: new Date().toISOString().slice(0, 10),
+    jobRoleEffectiveDate: todayDateOnly(),
     email: collaborator.email || '',
     terminationDate: collaborator.terminationDate?.slice(0, 10) || '',
     signatureImage: normalizeSignatureImage(collaborator.signatureImage),

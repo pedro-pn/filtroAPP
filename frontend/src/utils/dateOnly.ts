@@ -1,3 +1,5 @@
+export { todayDateOnly, formatTimestampDate } from '../../../shared/modules/date-only.js';
+
 function isoDatePart(value: string) {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
