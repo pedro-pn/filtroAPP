@@ -8,15 +8,26 @@ compatibilidade. O receptor reutiliza o catálogo por nome/slug, sem diferenciar
 acentos, caixa ou a ordem das palavras; segmentos novos são cadastrados. Um item
 inativo não é reativado pela integração. Campo ausente ou vazio preserva o projeto.
 
-No ComercialAPP, **Mão de obra → Jornada padrão do projeto** seleciona a fase de
-referência. A escolha é salva em `projectWorkScheduleContextId` no levantamento e
-exportada em `costBreakdown` da revisão finalizada. O FiltroAPP usa exclusivamente
-os campos padrão dessa fase: `hoursPerDay` (sem somar HE), `saturdayCount`,
-`sundayCount` e as horas de fim de semana. Domingo/feriado compartilham a escala.
-Horas decimais são convertidas para duração: 8,8 h = 08:48. Cenários de cargos e
+No ComercialAPP, **Mão de obra → Jornada para o cadastro do projeto** registra
+`projectWorkSchedule: { workdayHours, weekendWorkdayHours }` em horas decimais,
+independentes do cálculo financeiro. O primeiro campo vale de segunda a quinta
+e o segundo na sexta e nos fins de semana incluídos. Os padrões são 9 e 8 horas.
+Esses valores são exportados em `costBreakdown` da revisão finalizada e têm
+prioridade sobre as horas de cálculo da fase. Um objeto presente e inválido
+não é substituído silenciosamente pelas horas de cálculo.
+
+**Fase de referência do projeto** seleciona a fase, salva em
+`projectWorkScheduleContextId`. Seus toggles `includeSaturday` e `includeSunday`
+definem os dias incluídos; na ausência deles, são usados `saturdayCount` e
+`sundayCount`. Sem `projectWorkSchedule`, revisões anteriores continuam usando
+`hoursPerDay` e as horas de fim de semana da fase. Horas decimais são convertidas
+para duração: 8,8 h = 08:48. Cenários de cargos e
 colaboradores não alteram o padrão do projeto. Propostas antigas com uma única
 fase ativa permitem inferi-la; com várias fases é necessária seleção explícita.
 Sem mão de obra, fase inválida ou ausente não sobrescrevem o cadastro.
+
+Para esta ampliação de jornada, publique primeiro este receptor e depois o
+ComercialAPP. Não há migração adicional de banco nem reprocessamento histórico.
 
 Somente a principal selecionada aplica a jornada; adicionais e revisões apenas
 armazenadas não alteram esses campos. `Project.integrationDefaults` registra os
