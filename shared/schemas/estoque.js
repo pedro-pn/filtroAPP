@@ -356,6 +356,14 @@ function stockReturnMovementsSchema(z) {
   });
 }
 
+function stockMovementsSchema(z) {
+  return z.object({
+    movements: z.array(stockMovementSchema(z).refine(data => data.reason !== 'ESTORNO', {
+      message: 'Use a ação de estorno para estornar uma movimentação.'
+    })).min(1, 'Adicione ao menos um item.').max(100, 'Limite de 100 itens por operação.')
+  });
+}
+
 export function makeEstoqueSchemas(z) {
   if (!z?.object || !z?.discriminatedUnion) {
     throw new TypeError('A valid Zod instance is required to build estoque schemas.');
@@ -368,6 +376,7 @@ export function makeEstoqueSchemas(z) {
     itemCreate: stockItemCreateSchema(z),
     itemUpdateForType: type => stockItemUpdateSchema(z, type),
     movement: options => stockMovementSchema(z, options),
+    movements: stockMovementsSchema(z),
     returnMovements: stockReturnMovementsSchema(z),
     activePatch: z.object({ isActive: z.boolean() }),
     reverseMovement: z.object({ notes: optionalText(z, 1000) })

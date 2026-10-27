@@ -23,15 +23,16 @@ test('Resumo do estoque usa uma linha por produto e expande lotes e detalhes', a
 });
 
 test('Devolução de obra permite várias linhas e envia uma requisição em lote', async () => {
-  const [modal, api] = await Promise.all([
+  const [modal, row, api] = await Promise.all([
     source('src/pages/estoque/StockMovementFormModal.tsx'),
+    source('src/pages/estoque/StockMovementLineRow.tsx'),
     source('src/api/estoque.ts')
   ]);
 
-  assert.match(modal, /Adicionar produto/);
+  assert.match(modal, /Adicionar item/);
   assert.match(modal, /Produtos e lotes/);
-  assert.match(modal, /Validade/);
-  assert.match(modal, /returnLines\.map/);
+  assert.match(row, /Validade/);
+  assert.match(modal, /lines\.map/);
   assert.match(modal, /createStockReturnMovements/);
   assert.match(api, /interface StockReturnMovementsPayload/);
   assert.match(api, /items: Array<\{/);
