@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import {
   buildMonthlyAllocationSummary,
+  buildMonthlyAllocationPdf,
   previewMonthlyAllocationDelivery,
   previousYearMonth,
   processMonthlyAllocationReport,
@@ -103,6 +105,7 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
       id: 'project-1',
       code: 'P-100',
       name: 'Parada Programada',
+      location: 'Unidade Industrial',
       clientName: 'Cliente Acme',
       clientCnpj: '12345678000190'
     },
@@ -125,6 +128,7 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
       id: 'project-1',
       code: 'P-100',
       name: 'Parada Programada',
+      location: 'Unidade Industrial',
       clientName: 'Cliente Acme',
       clientCnpj: '12345678000190'
     },
@@ -149,6 +153,8 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
   assert.equal(data.summary.dayCount, 1);
   assert.equal(data.entries[0].clientName, 'Cliente Acme');
   assert.equal(data.entries[0].clientCnpj, '12.345.678/0001-90');
+  assert.ok(data.entries.every(entry => entry.workLocation === 'Unidade Industrial'));
+  assert.ok(data.collaborators.every(collaborator => collaborator.days.every(day => day.workLocation === 'Unidade Industrial')));
 
   const ana = data.collaborators.find(item => item.collaboratorName === 'Ana Lima');
   const bruno = data.collaborators.find(item => item.collaboratorName === 'Bruno Souza');
@@ -157,6 +163,73 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
   assert.equal(ana.days[0].shift, 'Diurno');
   assert.equal(bruno.days.length, 2);
   assert.deepEqual(bruno.days.map(day => day.shift).sort(), ['Diurno', 'Noturno']);
+});
+
+test('monthly allocations resolve the RDO location for day and night teams', async () => {
+  const cases = [
+    { location: 'Oficina', additionalWorkLocations: ['Canteiro'], saved: ' Canteiro ', expected: 'Canteiro' },
+    { location: 'Oficina', additionalWorkLocations: ['Canteiro'], saved: 'Local histórico', expected: 'Local histórico' },
+    { location: 'Oficina', additionalWorkLocations: ['Canteiro'], expected: 'Oficina' },
+    { location: 'Local atualizado', saved: 'Local antigo', expected: 'Local atualizado' },
+    { location: '', expected: '' }
+  ];
+  for (const { saved, expected, ...project } of cases) {
+    const client = { report: { findMany: async ({ select }) => {
+      assert.equal(select.project.select.location, true);
+      assert.equal(select.project.select.additionalWorkLocations, true);
+      return [{
+        id: 'report-1', projectId: 'project-1', reportDate: new Date('2026-05-12T00:00:00Z'),
+        project: { code: 'P-100', name: 'Parada Programada', ...project },
+        collaborators: [{ collaboratorId: 'collab-1', collaborator: { name: 'Ana Lima' } }],
+        specialConditions: { workLocation: saved, noturnoDetails: {
+          collaboratorIds: ['collab-1'],
+          colaboradores: [{ id: 'collab-1', name: 'Ana Lima' }, { name: 'Bruno Souza' }]
+        } }
+      }];
+    } } };
+    const data = await buildMonthlyAllocationSummary({ yearMonth: '2026-05', client });
+    assert.equal(data.summary.allocationCount, 3);
+    assert.deepEqual(data.entries.map(entry => entry.workLocation), [expected, expected, expected]);
+    assert.deepEqual(data.collaborators.flatMap(collaborator => collaborator.days.map(day => day.workLocation)), [expected, expected, expected]);
+  }
+});
+
+test('monthly PDF includes work locations within the project column on every page', async () => {
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const days = Array.from({ length: 40 }, (_, index) => ({
+    date: '2026-05-12', shift: 'Diurno', projectName: 'P-100 - Parada Programada',
+    workLocation: index === 0 ? 'Canteiro São Paulo' : index === 1 ? '' : 'W'.repeat(200),
+    clientName: 'Cliente Acme', clientCnpj: '12.345.678/0001-90'
+  }));
+  const bytes = await buildMonthlyAllocationPdf({
+    label: 'maio de 2026', generatedAt: new Date('2026-06-01T12:00:00Z'),
+    summary: { reportCount: 40, collaboratorCount: 1, allocationCount: 40, dayCount: 1, projectCount: 1 },
+    collaborators: [{ collaboratorName: 'Ana Lima', collaboratorRole: 'Operadora', days }]
+  });
+  const task = getDocument({
+    data: new Uint8Array(bytes), isEvalSupported: false,
+    standardFontDataUrl: fileURLToPath(new URL('./standard_fonts/', import.meta.resolve('pdfjs-dist/package.json')))
+  });
+  try {
+    const pdf = await task.promise;
+    assert.ok(pdf.numPages > 1);
+    const locations = [];
+    for (let number = 1; number <= pdf.numPages; number++) {
+      const content = await (await pdf.getPage(number)).getTextContent();
+      assert.ok(content.items.some(item => item.str === 'Projeto / Local da obra'));
+      for (const item of content.items.filter(item => item.str?.startsWith('Local da obra:'))) {
+        locations.push(item.str);
+        assert.ok(item.transform[4] + item.width <= 450.1, 'Location stays inside the project column');
+        assert.ok(item.transform[5] >= 34, 'Location stays above the page footer');
+      }
+    }
+    assert.equal(locations.length, days.length);
+    assert.equal(locations[0], 'Local da obra: Canteiro São Paulo');
+    assert.equal(locations[1], 'Local da obra: -');
+    assert.ok(locations.slice(2).every(location => location.endsWith('...')));
+  } finally {
+    await task.destroy();
+  }
 });
 
 test('processMonthlyAllocationReport sends the previous month on the first day', async () => {

@@ -9964,6 +9964,15 @@ select:disabled {
   color: var(--mu);
 }
 
+.stats-alloc-location {
+  display: block;
+  margin-top: 4px;
+  color: var(--mu);
+  font-size: 11px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .stats-alloc-recipient-form {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.5fr) auto;
