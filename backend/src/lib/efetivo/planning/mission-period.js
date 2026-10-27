@@ -1,5 +1,8 @@
 import { parseDateKey } from './date-only.js';
 
+// A etapa de desmobilização também mantém a equipe em campo até a saída efetiva.
+export const OPEN_MOBILIZATION_STAGES = ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT'];
+
 // A desmobilização é um fato e pode estar vazia enquanto a missão está em andamento.
 // Para cálculos prospectivos, o fim previsto da execução continua delimitando o período.
 export function missionEndDate(mission) {
@@ -30,10 +33,14 @@ export function missionEndsOnOrAfter(value, { includeOpenCycles = false } = {}) 
         { mobilizationDate: { gte: value } }
       ] } } } } },
       ...(includeOpenCycles ? [{
-        stage: { in: ['MOBILIZATION', 'EXECUTION'] },
+        stage: { in: OPEN_MOBILIZATION_STAGES },
         OR: [
           { cycles: { some: { demobilizationDate: null } } },
-          { allocations: { some: { deletedAt: null, cycles: { some: { demobilizationDate: null } } } } }
+          { cycles: { none: {} }, returnDate: null },
+          { allocations: { some: { deletedAt: null, OR: [
+            { cycles: { some: { demobilizationDate: null } } },
+            { cycles: { none: {} }, mobilizationDate: { not: null }, demobilizationDate: null }
+          ] } } }
         ]
       }] : [])
     ]
