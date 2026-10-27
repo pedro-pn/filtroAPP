@@ -1908,6 +1908,13 @@
   overflow-wrap: anywhere;
 }
 
+:where(.fv-ds, [data-fv-ds]) .rdo-stats-allocation__location {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--muted);
+  font-weight: var(--font-regular);
+}
+
 :where(.fv-ds, [data-fv-ds]) .rdo-stats-allocation__mobile-day-label {
   color: var(--ink);
   font-variant-numeric: tabular-nums;

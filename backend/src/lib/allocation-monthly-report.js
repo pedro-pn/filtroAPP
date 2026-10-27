@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
+import { reportWorkLocation } from '../../../shared/modules/rdo-project-context.js';
 import prisma from './prisma.js';
 import { formatCnpj } from './cnpj.js';
 import { buildMonthlyAllocationReportEmailTemplate } from './email-templates.js';
@@ -157,6 +158,7 @@ function reportAllocationEntries(report) {
   const date = toDateKey(report.reportDate);
   const project = report.project || {};
   const projectName = [project.code, project.name].filter(Boolean).join(' - ');
+  const workLocation = reportWorkLocation(project, asRecord(report.specialConditions).workLocation) || stringValue(project.location);
   const clientName = stringValue(project.clientName);
   const projectCnpj = formatCnpj(project.clientCnpj);
   const collaboratorById = new Map();
@@ -172,6 +174,7 @@ function reportAllocationEntries(report) {
       projectId: report.projectId,
       projectCode: project.code || '',
       projectName,
+      workLocation,
       clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
@@ -205,6 +208,7 @@ function reportAllocationEntries(report) {
       projectId: report.projectId,
       projectCode: project.code || '',
       projectName,
+      workLocation,
       clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
@@ -223,6 +227,7 @@ function reportAllocationEntries(report) {
       projectId: report.projectId,
       projectCode: project.code || '',
       projectName,
+      workLocation,
       clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
@@ -260,7 +265,7 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       reportDate: true,
       sequenceNumber: true,
       specialConditions: true,
-      project: { select: { id: true, code: true, name: true, clientName: true, clientCnpj: true } },
+      project: { select: { id: true, code: true, name: true, location: true, additionalWorkLocations: true, clientName: true, clientCnpj: true } },
       collaborators: {
         select: {
           collaboratorId: true,
@@ -304,6 +309,7 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       projectId: entry.projectId,
       projectCode: entry.projectCode,
       projectName: entry.projectName,
+      workLocation: entry.workLocation,
       clientName: entry.clientName,
       clientCnpj: entry.clientCnpj,
       reportId: entry.reportId,
@@ -339,6 +345,13 @@ function truncateText(text, maxLength) {
   return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 3))}...` : value;
 }
 
+function truncateTextToWidth(text, font, size, maxWidth) {
+  const value = String(text || '');
+  let length = value.length;
+  while (length > 3 && font.widthOfTextAtSize(truncateText(value, length), size) > maxWidth) length -= 1;
+  return truncateText(value, length);
+}
+
 function drawText(page, text, x, y, options) {
   page.drawText(String(text ?? ''), { x, y, ...options });
 }
@@ -348,7 +361,7 @@ function drawAllocationTableHeader(page, fonts, y) {
   const opts = { size: 8, font: fonts.bold, color: rgb(0.2, 0.31, 0.23) };
   drawText(page, 'Data', 42, y, opts);
   drawText(page, 'Turno', 92, y, opts);
-  drawText(page, 'Projeto', 150, y, opts);
+  drawText(page, 'Projeto / Local da obra', 150, y, opts);
   drawText(page, 'Cliente', 460, y, opts);
   drawText(page, 'CNPJ', 650, y, opts);
 }
@@ -409,7 +422,7 @@ export async function buildMonthlyAllocationPdf(data) {
   }
 
   function drawCollaboratorHeader(collaborator) {
-    ensureSpace(48);
+    ensureSpace(80);
     page.drawRectangle({ x: margin, y: y - 18, width: 770, height: 26, color: rgb(0.97, 0.98, 0.97), borderColor: rgb(0.84, 0.88, 0.85), borderWidth: 0.6 });
     drawText(page, truncateText(collaborator.collaboratorName, 72), 44, y - 2, {
       size: 10,
@@ -459,17 +472,18 @@ export async function buildMonthlyAllocationPdf(data) {
   for (const collaborator of data.collaborators) {
     drawCollaboratorHeader(collaborator);
     for (const day of collaborator.days) {
-      if (y < bottom + 18) {
+      if (y < bottom + 26) {
         addPage();
         drawCollaboratorHeader(collaborator);
       }
-      page.drawLine({ start: { x: margin, y: y - 5 }, end: { x: 806, y: y - 5 }, thickness: 0.3, color: rgb(0.88, 0.9, 0.89) });
+      page.drawLine({ start: { x: margin, y: y - 15 }, end: { x: 806, y: y - 15 }, thickness: 0.3, color: rgb(0.88, 0.9, 0.89) });
       drawText(page, formatDatePt(day.date), 42, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, day.shift, 92, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, truncateText(day.projectName, 52), 150, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
+      drawText(page, truncateTextToWidth(`Local da obra: ${day.workLocation || '-'}`, fonts.regular, 7, 300), 150, y - 10, { size: 7, font: fonts.regular, color: rgb(0.42, 0.45, 0.43) });
       drawText(page, truncateText(day.clientName || '-', 30), 460, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, day.clientCnpj || '-', 650, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
-      y -= 14;
+      y -= 26;
     }
     y -= 10;
   }

@@ -3031,7 +3031,10 @@ function AllocationDayList({ days }: { days: AllocationReportDay[] }) {
         <div key={`${day.date}-${day.projectId}-${day.shift}-${index}`} className="stats-alloc-day-item">
           <span className="stats-alloc-date">{formatAllocationDate(day.date)}</span>
           <span className="stats-alloc-shift">{day.shift}</span>
-          <span className="stats-alloc-project">{day.projectName}</span>
+          <span className="stats-alloc-project">
+            {day.projectName}
+            <span className="stats-alloc-location">Local da obra: {day.workLocation || '-'}</span>
+          </span>
           <span className="stats-alloc-client">{day.clientName || '-'}</span>
           <span className="stats-alloc-cnpj">{day.clientCnpj || '-'}</span>
         </div>
@@ -3089,9 +3092,12 @@ function DesignSystemAllocationDayList({
             {formatAllocationDate(day.date)}
           </span>
           <span className="rdo-stats-allocation__shift">{day.shift}</span>
-          <strong className="rdo-stats-allocation__project">
-            {day.projectName}
-          </strong>
+          <div className="rdo-stats-allocation__project">
+            <strong>{day.projectName}</strong>
+            <span className="rdo-stats-allocation__location">
+              Local da obra: {day.workLocation || '-'}
+            </span>
+          </div>
           <span className="rdo-stats-allocation__client">
             {day.clientName || '-'}
           </span>
@@ -3167,6 +3173,7 @@ function DesignSystemAllocationTable({
                 value: (
                   <span className="rdo-stats-allocation__mobile-day-value">
                     <strong>{day.projectName}</strong>
+                    <span>Local da obra: {day.workLocation || '-'}</span>
                     <span>{day.clientName || '-'}</span>
                     <span>{day.clientCnpj || '-'}</span>
                   </span>
@@ -3328,7 +3335,7 @@ function MonthlyAllocationDashboard({
           title={
             <span className="rdo-stats-allocation__heading">
               <h2>Alocação mensal de colaboradores</h2>
-              <span>Resumo dia a dia por projeto e CNPJ.</span>
+              <span>Resumo dia a dia por projeto, local da obra e CNPJ.</span>
             </span>
           }
           actions={
@@ -3563,7 +3570,7 @@ function MonthlyAllocationDashboard({
         <div className="stats-card-header">
           <div>
             <div className="survey-dash-card-title">Alocação mensal de colaboradores</div>
-            <div className="stats-alloc-subtitle">Resumo dia a dia por projeto e CNPJ.</div>
+            <div className="stats-alloc-subtitle">Resumo dia a dia por projeto, local da obra e CNPJ.</div>
           </div>
           <div className="stats-alloc-actions">
             <label className="stats-alloc-select-field">
