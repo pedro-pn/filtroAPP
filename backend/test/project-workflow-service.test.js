@@ -12,6 +12,7 @@ import {
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../shared/schemas/project-workflow.js';
 import {
+  convertProjectWorkflowToLegacySummary,
   getProjectWorkflow,
   listProjectWorkflowLegacySummaryEquipment,
   listProjectWorkflows,
@@ -510,7 +511,7 @@ test('somente o líder designado aceita o handover informativo', async () => {
   assert.equal(INITIAL_ANALYSIS.completedAt, null);
   const listing = await listProjectWorkflows({}, leader, { database });
   assert.equal(listing.items[0].workflow.stageTimeline.INITIAL_ANALYSIS.enteredAt, INITIAL_ANALYSIS.enteredAt);
-  assert.deepEqual(state.lastProjectFindManyInput.select.workflow.include.events.where.action.in, ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE']);
+  assert.deepEqual(state.lastProjectFindManyInput.select.workflow.include.events.where.action.in, ['WORKFLOW_STARTED', 'WORKFLOW_ACCEPT', 'WORKFLOW_STAGE', 'WORKFLOW_ADMIN_LEGACY_SUMMARY']);
 });
 
 test('pendência só aparece enquanto o item crítico correspondente está em Sim', async () => {
@@ -790,6 +791,104 @@ test('fluxo legado resumido fecha o projeto direto quando a etapa escolhida é E
   assert.equal(result.workflow.fieldCompletionDate, '2026-08-10');
   assert.ok(result.workflow.closedAt);
   assert.equal(state.project.demobilizationDate.toISOString().slice(0, 10), '2026-08-12');
+});
+
+test('admin encerra handover pelo fluxo resumido sem missão, preservando dados e histórico', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannerUserId: 'leader-2' }, manager, { database });
+  const previous = structuredClone(state);
+  const now = new Date('2026-10-27T12:00:00Z');
+  const detail = await convertProjectWorkflowToLegacySummary('project-1', {
+    version: 1, stage: 'FINISHED', reason: 'Projeto antigo já concluído.'
+  }, manager, { database, now });
+  assert.equal(detail.workflow.stage, 'FINISHED');
+  assert.equal(detail.workflow.legacySummaryEntryStage, 'FINISHED');
+  assert.equal(detail.workflow.version, 2);
+  assert.equal(detail.workflow.closedAt.toISOString(), now.toISOString());
+  assert.equal(detail.workflow.closedBy.id, 'manager-1');
+  assert.equal(detail.workflow.acceptedAt, null);
+  assert.equal(detail.workflow.leaderUserId, 'leader-1');
+  assert.equal(detail.workflow.plannerUserId, 'leader-2');
+  assert.equal(detail.workflow.permissions.canConvertLegacySummary, true);
+  assert.equal(detail.workflow.permissions.canEdit, false);
+  assert.equal(state.operationalMission, null);
+  assert.deepEqual(state.project, previous.project);
+  assert.deepEqual(state.checklists, previous.checklists);
+  assert.deepEqual(state.authorizedUsers, previous.authorizedUsers);
+  assert.deepEqual(state.events.slice(0, -1), previous.events);
+  const event = state.events.at(-1);
+  assert.equal(event.actorUserId, 'manager-1');
+  assert.equal(event.action, 'WORKFLOW_ADMIN_LEGACY_SUMMARY');
+  assert.equal(event.data.previousStage, 'HANDOVER');
+  assert.equal(event.data.reason, 'Projeto antigo já concluído.');
+  assert.equal(detail.workflow.stageTimeline.FINISHED.enteredAt, event.createdAt.toISOString());
+  const listing = await listProjectWorkflows({}, manager, { database });
+  assert.equal(listing.items[0].workflow.stageTimeline.FINISHED.enteredAt, event.createdAt.toISOString());
+});
+
+test('admin reposiciona o fluxo resumido em qualquer etapa e limpa o encerramento ao voltar', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  const stages = ['FINISHED', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT'];
+  for (const [index, stage] of stages.entries()) {
+    const detail = await convertProjectWorkflowToLegacySummary('project-1', {
+      version: index + 1, stage, reason: 'Correção administrativa da etapa.'
+    }, manager, { database });
+    assert.equal(detail.workflow.stage, stage);
+    assert.equal(detail.workflow.legacySummaryEntryStage, stage);
+    assert.equal(detail.workflow.mobilizationGate.ready, true);
+    if (stage !== 'FINISHED') {
+      assert.equal(state.workflow.closedAt, null);
+      assert.equal(state.workflow.closedByUserId, null);
+    }
+  }
+  assert.equal(state.events[2].data.previousStage, 'FINISHED');
+  assert.ok(state.events[2].data.previousClosedAt);
+});
+
+test('conversão administrativa não fica disponível para gestor, líder ou demais contas internas', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  const before = structuredClone(state);
+  const internalManager = { ...leader, isManager: true, user: { ...leader.user, moduleRoles: ['efetivo:manager'] } };
+  for (const context of [internalManager, leader, planner, viewer, commercial, { isManager: true }]) {
+    await assert.rejects(convertProjectWorkflowToLegacySummary('project-1', {
+      version: 1, stage: 'FINISHED', reason: 'Encerramento.'
+    }, context, { database }), error => error.statusCode === 403 && error.code === 'PROJECT_WORKFLOW_ADMIN_REQUIRED');
+    const detail = await getProjectWorkflow('project-1', context, { database });
+    assert.equal(detail.workflow.permissions.canConvertLegacySummary, false);
+  }
+  assert.deepEqual(state, before);
+});
+
+test('conversão administrativa rejeita versão desatualizada e desfaz tudo se a sincronização falhar', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  const before = structuredClone(state);
+  const payload = { version: 1, stage: 'FINISHED', reason: 'Encerramento.' };
+  await assert.rejects(convertProjectWorkflowToLegacySummary('project-1', { ...payload, version: 2 }, manager, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_VERSION_CONFLICT');
+  assert.deepEqual(state, before);
+  await assert.rejects(convertProjectWorkflowToLegacySummary('project-1', payload, manager, {
+    database, synchronizeOfficialMissionStage: async () => { throw new Error('Falha na missão'); }
+  }), /Falha na missão/);
+  assert.deepEqual(state, before);
+});
+
+test('conversão preserva a execução na Sede e rejeita etapas exclusivas de campo', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  state.workflow.executedAtHeadquarters = true;
+  for (const stage of ['MOBILIZATION', 'DEMOBILIZATION']) {
+    await assert.rejects(convertProjectWorkflowToLegacySummary('project-1', {
+      version: 1, stage, reason: 'Correção.'
+    }, manager, { database }), error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED');
+  }
+  const result = await convertProjectWorkflowToLegacySummary('project-1', {
+    version: 1, stage: 'EXECUTION', reason: 'Obra na Sede já em execução.'
+  }, manager, { database });
+  assert.equal(result.workflow.executedAtHeadquarters, true);
+  assert.equal(result.workflow.stage, 'EXECUTION');
 });
 
 test('fluxo legado resumido exige uma programação oficial já existente', async () => {

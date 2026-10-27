@@ -5,6 +5,11 @@ and run `playwright-cli run-code --filename frontend/test/browser/project-edit-d
 It checks the 560 px dialog, focus, required fields, saving/reopening, cancellation,
 Escape, the nested segment dialog and layouts at 390/320 px. All writes are simulated.
 
+For creating projects in the same dialog, open `/test/browser/gestor-project-search.html?tab=projetos`
+and run `playwright-cli run-code --filename frontend/test/browser/project-create-dialog.js`.
+It checks required fields, creation, cancellation, Escape and focus restoration, segment dialog,
+cleared drafts, preserving data after a failed save, retry, saving state and layouts at 390/320 px.
+
 For independent service report signers, open
 `/test/browser/gestor-project-search.html?tab=projetos&service-signers=1` and run
 `playwright-cli run-code --filename frontend/test/browser/service-report-signers.js`.
@@ -48,6 +53,12 @@ It checks hiding the operator selector when no team account is eligible,
 the notice about the Contract Manager default, requiring a selection when
 eligible operators exist, actual start dates, cancellation and mobile layout.
 The production dialog submits to local fixture state; no real project is changed.
+
+For admin conversion to the summary workflow, open `/test/browser/admin-summary.html`
+and run `playwright-cli run-code --filename frontend/test/browser/admin-summary.js`.
+It checks destination stages, required reason, version and endpoint, closing and reopening,
+headquarters stages, cancellation, saving state, admin permission and mobile layout.
+The API is simulated. Deployment requires the updated frontend and backend; no migration.
 
 For the notification center, open `/test/browser/notification-center.html` and run
 `playwright-cli run-code --filename frontend/test/browser/notification-center.js`.

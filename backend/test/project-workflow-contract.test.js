@@ -5,6 +5,19 @@ import { z } from 'zod';
 
 import { makeProjectWorkflowSchemas } from '../../shared/schemas/project-workflow.js';
 
+test('conversão administrativa exige versão, motivo e uma etapa do fluxo resumido', () => {
+  const { convertLegacySummary, patch } = makeProjectWorkflowSchemas(z);
+  const payload = { version: 2, stage: 'FINISHED', reason: '  Projeto já concluído.  ' };
+  assert.deepEqual(convertLegacySummary.parse(payload), { ...payload, reason: 'Projeto já concluído.' });
+  for (const invalid of [
+    { ...payload, version: undefined }, { ...payload, version: 0 },
+    { ...payload, reason: '   ' }, { ...payload, reason: 'x'.repeat(1001) },
+    { ...payload, stage: 'HANDOVER' }, { ...payload, stage: 'PREPARATION' },
+    { ...payload, force: true }
+  ]) assert.equal(convertLegacySummary.safeParse(invalid).success, false);
+  assert.equal(patch.safeParse({ action: 'stage', version: 2, stage: 'FINISHED', legacySummaryEntryStage: 'FINISHED' }).success, false);
+});
+
 test('pré-job aceita não aplicável sem exigir datas e mantém a validação dos campos', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
   for (const notApplicable of [true, false]) {

@@ -16,7 +16,8 @@ import {
   PROJECT_WORKFLOW_TRANSPORT_VEHICLE_TYPES,
   isHeadquartersWorkflow,
   projectWorkflowMilestones,
-  projectWorkflowReferenceDate
+  projectWorkflowReferenceDate,
+  projectWorkflowVisibleStages
 } from '../../../../../shared/schemas/project-workflow.js';
 import { canEditEfetivoChecklistArea } from '../access.js';
 import { assignMissionReportTeam, canOperateReports, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
@@ -633,6 +634,7 @@ function publicPermissions(workflow, context) {
   const planningCorrectable = canCorrectStage(workflow, 'MOBILIZATION_PLANNING', context);
   return {
     canInitialize: manager && !workflow,
+    canConvertLegacySummary: Boolean(workflow && context.user?.accountType === 'ADMIN'),
     canEdit: canManage && !finished,
     canReopen: canManage && finished,
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
@@ -1270,6 +1272,51 @@ export async function startLegacyProjectWorkflowSummary(projectId, payload, cont
     });
   });
   return getProjectWorkflow(projectId, context, { ...dependencies, database });
+}
+
+// Conversão administrativa preserva os registros existentes e dispensa os gates da etapa de entrada.
+export async function convertProjectWorkflowToLegacySummary(projectId, payload, context = {}, dependencies = {}) {
+  if (context.user?.accountType !== 'ADMIN') {
+    throw planningError('Somente administradores podem converter o projeto para o fluxo resumido.', {
+      statusCode: 403, code: 'PROJECT_WORKFLOW_ADMIN_REQUIRED'
+    });
+  }
+  const database = await resolvePlanningDatabase(dependencies.database);
+  const now = dependencies.now || new Date();
+  await runPlanningTransaction(database, async tx => {
+    const project = await findEligibleProject(tx, projectId, { workflow: true });
+    if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
+    const workflow = project.workflow;
+    if (!workflow) throw notFound('A gestão deste projeto ainda não foi iniciada.');
+    if (!projectWorkflowVisibleStages(isHeadquartersWorkflow(workflow)).includes(payload.stage)) {
+      throw planningError('Esta etapa não está disponível para projetos executados na Sede.', {
+        code: 'PROJECT_WORKFLOW_STAGE_BLOCKED'
+      });
+    }
+    await reserveVersion(tx, workflow, payload.version);
+    const closing = payload.stage === 'FINISHED';
+    await tx.projectWorkflow.update({
+      where: { projectId },
+      data: {
+        stage: payload.stage,
+        legacySummaryEntryStage: payload.stage,
+        closedAt: closing ? (workflow.closedAt || now) : null,
+        closedByUserId: closing ? (workflow.closedByUserId || context.actorUserId || null) : null
+      }
+    });
+    await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
+      tx, projectId, payload.stage, context, { force: true }
+    );
+    await recordEvent(tx, projectId, context.actorUserId, 'WORKFLOW_ADMIN_LEGACY_SUMMARY', {
+      stage: payload.stage,
+      reason: payload.reason,
+      previousStage: workflow.stage,
+      previousLegacySummaryEntryStage: workflow.legacySummaryEntryStage,
+      previousClosedAt: workflow.closedAt ? new Date(workflow.closedAt).toISOString() : null,
+      previousClosedByUserId: workflow.closedByUserId || null
+    });
+  }, { required: true });
+  return getProjectWorkflow(projectId, context, { ...dependencies, database, now });
 }
 
 // Fluxo legado resumido: catálogo completo de equipamentos ativos (por categoria) + quais deles, pelo

@@ -1,5 +1,6 @@
 // Real manager page with simulated API responses; no database or network writes.
 import React from 'react';
+import { AxiosError } from 'axios';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -55,11 +56,25 @@ const report = {
   dailyDescription: 'Teste de pressão', specialConditions: {}, collaborators: [], services: []
 } as ReportSummary;
 
+const projectCreateRequests: unknown[] = [];
+Object.assign(window, { projectCreateRequests });
+
 apiClient.defaults.adapter = async config => {
   const url = config.url || '';
   let data: unknown = [];
   if (url.endsWith('/notifications')) {
     data = { items: [], criticalItems: [], unreadCount: 0, snapshotAt: new Date().toISOString(), nextCursor: null };
+  } else if (config.method === 'post' && url.endsWith('/projects')) {
+    const payload = JSON.parse(config.data);
+    projectCreateRequests.push(payload);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('create-error') && projectCreateRequests.length === 1) throw new AxiosError('Falha simulada', undefined, config, undefined, {
+      config, status: 500, statusText: 'Internal Server Error', headers: {}, data: { error: 'Falha simulada ao criar projeto.' }
+    });
+    if (params.has('create-delay')) await new Promise<void>(resolve => Object.assign(window, { finishProjectCreate: resolve }));
+    const created = { ...project(`created-${projectCreateRequests.length}`, payload.code, payload.name, true), ...payload };
+    activeProjects.push(created);
+    data = created;
   } else if (config.method === 'put' && url.endsWith('/projects/active-villaris')) {
     Object.assign(activeProjects[0], JSON.parse(config.data));
     data = activeProjects[0];

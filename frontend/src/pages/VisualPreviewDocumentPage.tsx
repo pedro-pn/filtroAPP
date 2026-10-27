@@ -35,7 +35,7 @@ const demoMission: ProjectOperationalMissionSummary = {
 const demoProject: ProjectWorkflowSummary = {
   id: 'preview-project', code: '5917', name: 'Ilha Solteira', clientName: 'Cliente de demonstração',
   location: 'Ilha Solteira', operationalMission: demoMission, workflow: null,
-  permissions: { canInitialize: false, canEdit: false, canReopen: false, canAccept: false, canChangeLeader: false, canChangePlanner: false, canEditCommercial: false, canEditTeamPlanning: false, canEditEquipmentPlanning: false, canEditSupplyPlanning: false, canEditLogisticsPlanning: false }
+  permissions: { canInitialize: false, canConvertLegacySummary: false, canEdit: false, canReopen: false, canAccept: false, canChangeLeader: false, canChangePlanner: false, canEditCommercial: false, canEditTeamPlanning: false, canEditEquipmentPlanning: false, canEditSupplyPlanning: false, canEditLogisticsPlanning: false }
 };
 const demoChecklist = {
   version: 1,

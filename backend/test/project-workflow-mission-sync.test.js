@@ -153,3 +153,28 @@ test('retorno à Preparação não cria missão inexistente', async () => {
   const { database } = fakeDatabase(null);
   assert.equal(await synchronizeOfficialMissionStage(database, 'project-1', 'PREPARATION'), null);
 });
+
+test('conversão forçada por admin sincroniza missão incompleta e preserva equipe e cronograma', async () => {
+  const mission = completeMission({ scheduleStatus: 'DRAFT', allocations: [] });
+  const { database, state } = fakeDatabase(mission);
+  const admin = { actorUserId: 'admin-1', user: { accountType: 'ADMIN' } };
+  const result = await synchronizeOfficialMissionStage(database, 'project-1', 'FINISHED', admin, { force: true });
+  assert.equal(result.stage, 'FINISHED');
+  assert.equal(result.scheduleStatus, 'DRAFT');
+  assert.equal(result.executionStartDate, mission.executionStartDate);
+  assert.deepEqual(result.allocations, mission.allocations);
+  assert.equal(result.version, 3);
+  assert.equal(state.planBumps, 1);
+  assert.equal(state.audits[0].actorUserId, 'admin-1');
+  assert.equal(state.audits[0].afterData.stage, 'FINISHED');
+  const missing = fakeDatabase(null);
+  assert.equal(await synchronizeOfficialMissionStage(missing.database, 'project-1', 'FINISHED', admin, { force: true }), null);
+});
+
+test('sincronização forçada exige conta admin mesmo para um gestor do Efetivo', async () => {
+  const { database, state } = fakeDatabase();
+  await assert.rejects(synchronizeOfficialMissionStage(database, 'project-1', 'FINISHED', {
+    isManager: true, user: { accountType: 'INTERNAL', moduleRoles: ['efetivo:manager'] }
+  }, { force: true }), error => error.statusCode === 403 && error.code === 'PROJECT_WORKFLOW_ADMIN_REQUIRED');
+  assert.equal(state.updates.length, 0);
+});

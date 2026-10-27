@@ -1066,7 +1066,7 @@ function workflowStageDate(workflow: ProjectWorkflow, stage: ProjectWorkflowStag
     : null;
 }
 
-export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, legacySummaryMission, legacySummaryRoles, planningMission, planningMissionLoading, onTeamCyclesMutated, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
+export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onStartLegacySummary, onConvertLegacySummary, legacySummaryMission, legacySummaryRoles, planningMission, planningMissionLoading, onTeamCyclesMutated, onOpenTeamProgramming, canManageMission, missionStatusSaving, onSetMissionStatus }: {
   detail: ProjectWorkflowDetail | null;
   blockedMoveFocus?: { projectId: string; stage: ProjectWorkflowStage; count: number; token: number } | null;
   leaders: WorkflowUserOption[];
@@ -1079,6 +1079,7 @@ export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loadin
   onPatch: (payload: ProjectWorkflowPatch) => void;
   /** Fluxo legado resumido: só chamado quando o projeto já tem uma missão oficial e ainda não tem gestão. */
   onStartLegacySummary: (payload: ProjectWorkflowLegacySummaryInput) => void;
+  onConvertLegacySummary: () => void;
   /** Missão oficial completa (para editar a equipe) e cargos operacionais; só usados pelo fluxo resumido. */
   legacySummaryMission: PlanningMission | null;
   legacySummaryRoles: PlanningJobRole[];
@@ -1334,6 +1335,7 @@ export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loadin
             </div> : null}
           </div>
           <div className="project-workflow-footer-actions">
+            {workflow?.permissions.canConvertLegacySummary ? <Button variant="secondary" disabled={saving} onClick={onConvertLegacySummary}>Converter para fluxo resumido</Button> : null}
             {!workflow && legacyChoice === 'summary' && detail?.project.operationalMission && detail.permissions.canInitialize ? <Button variant="secondary" disabled={saving || legacySummaryBusy} onClick={() => setLegacyChoice(null)}>Voltar</Button> : null}
             {workflow && !isCurrentStageSelected && workflow.permissions.canEdit ? <Button variant="secondary" className={`project-workflow-correction-button${correctionMode ? ' is-active' : ''}`} disabled={saving} onClick={() => setCorrectionStage(correctionMode ? null : activeStage)}><ProjectWorkflowIcon name={correctionMode ? 'check' : 'edit'} />{correctionMode ? 'Encerrar correção' : 'Fazer correção'}</Button> : null}
             <Button variant="secondary" className="is-ghost" disabled={saving || legacySummaryBusy} onClick={onClose}>Fechar</Button>

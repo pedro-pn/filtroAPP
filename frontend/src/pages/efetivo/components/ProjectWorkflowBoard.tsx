@@ -24,6 +24,7 @@ import {
   type PlanningMission
 } from '../../../api/efetivoPlanning';
 import {
+  convertProjectWorkflowToLegacySummary,
   getProjectWorkflow,
   listProjectWorkflowLeaders,
   listProjectWorkflows,
@@ -33,6 +34,7 @@ import {
   updateProjectWorkflow,
   type ProjectOperationalMissionSummary,
   type ProjectWorkflowLegacySummaryInput,
+  type ProjectWorkflowLegacySummaryConversionInput,
   type ProjectWorkflowPatch,
   type ProjectWorkflowProject,
   type ProjectWorkflowStage,
@@ -74,6 +76,7 @@ import { InitialTeamAvailabilityModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
 import { ProjectExecutionStartModal } from './ProjectExecutionStartModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
+import { ProjectWorkflowAdminSummaryDialog } from './ProjectWorkflowAdminSummaryDialog';
 
 type DragState = { projectId: string; snapshot: ProjectKanbanColumns };
 type BlockedMoveFocus = { projectId: string; stage: ProjectWorkflowStage; count: number; token: number };
@@ -411,6 +414,7 @@ export function ProjectWorkflowBoard({
   const [teamContextLoadingProjectId, setTeamContextLoadingProjectId] = useState<string | null>(null);
   const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
+  const [adminSummaryProjectId, setAdminSummaryProjectId] = useState<string | null>(null);
   const [executionStartTarget, setExecutionStartTarget] = useState<ExecutionStartTarget | null>(null);
   const [blockedMoveFocus, setBlockedMoveFocus] = useState<BlockedMoveFocus | null>(null);
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
@@ -420,6 +424,10 @@ export function ProjectWorkflowBoard({
   const pendingTouchRef = useRef<PendingTouch | null>(null);
   const interactiveMouseRef = useRef(false);
   const suppressCardClickUntilRef = useRef(0);
+
+  useEffect(() => {
+    setAdminSummaryProjectId(null);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!list.data || list.isFetching || search !== debouncedSearch) return;
@@ -521,6 +529,21 @@ export function ProjectWorkflowBoard({
     },
     onError: (error: Error) => {
       toast(compactWorkflowError(error, 'Não foi possível iniciar a gestão'), 'error');
+    }
+  });
+
+  const convertLegacySummary = useMutation({
+    mutationFn: (payload: ProjectWorkflowLegacySummaryConversionInput) => convertProjectWorkflowToLegacySummary(adminSummaryProjectId!, payload),
+    onSuccess: async data => {
+      await refresh(data);
+      await refreshMissionPlanningQueries(queryClient);
+      setAdminSummaryProjectId(null);
+      setBlockedMoveFocus(null);
+      toast('Projeto convertido para o fluxo resumido.', 'success');
+    },
+    onError: (error: Error) => {
+      toast(compactWorkflowError(error, 'Não foi possível converter o projeto'), 'error');
+      if ((error as { code?: string }).code === 'PROJECT_WORKFLOW_VERSION_CONFLICT') void detail.refetch();
     }
   });
 
@@ -1160,7 +1183,7 @@ export function ProjectWorkflowBoard({
         leaders={leaders.data || []}
         loading={Boolean(selectedProjectId && detail.isLoading)}
         error={Boolean(selectedProjectId && detail.isError)}
-        saving={start.isPending || startLegacySummary.isPending || update.isPending || saveInitialTeam.isPending || managedMove.isPending || moveLegacyMission.isPending}
+        saving={start.isPending || startLegacySummary.isPending || convertLegacySummary.isPending || update.isPending || saveInitialTeam.isPending || managedMove.isPending || moveLegacyMission.isPending}
         onRetry={() => void detail.refetch()}
         onClose={() => { setBlockedMoveFocus(null); onProjectSelect(undefined); }}
         onStart={values => start.mutate(values)}
@@ -1175,6 +1198,7 @@ export function ProjectWorkflowBoard({
           } else update.mutate(payload);
         }}
         onStartLegacySummary={payload => startLegacySummary.mutate(payload)}
+        onConvertLegacySummary={() => setAdminSummaryProjectId(selectedProjectId!)}
         legacySummaryMission={
           detail.data?.project.operationalMission
             ? (planningMissions.data || []).find(mission => mission.id === detail.data!.project.operationalMission!.id) || null
@@ -1216,6 +1240,14 @@ export function ProjectWorkflowBoard({
           setMissionStatus.mutate({ mission, status });
         }}
       />
+      {adminSummaryProjectId === selectedProjectId && detail.data?.workflow ? <ProjectWorkflowAdminSummaryDialog
+        key={adminSummaryProjectId}
+        workflow={detail.data.workflow}
+        projectLabel={`${detail.data.project.code} · ${detail.data.project.name}`}
+        saving={convertLegacySummary.isPending}
+        onClose={() => { if (!convertLegacySummary.isPending) setAdminSummaryProjectId(null); }}
+        onConfirm={payload => convertLegacySummary.mutate(payload)}
+      /> : null}
       {executionStartTarget ? <ProjectExecutionStartModal
         project={executionStartTarget.project}
         plannedStartDate={executionStartTarget.plannedStartDate}
