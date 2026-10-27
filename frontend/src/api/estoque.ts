@@ -185,6 +185,10 @@ export interface StockReturnMovementsPayload {
   }>;
 }
 
+export interface StockMovementsPayload {
+  movements: StockMovementPayload[];
+}
+
 export interface StockMovementListParams {
   itemId?: string;
   type?: StockMovementType;
@@ -279,6 +283,13 @@ export async function createStockMovement(payload: StockMovementPayload) {
 }
 
 export async function createStockReturnMovements(payload: StockReturnMovementsPayload) {
+  const response = await apiClient.post<{
+    movements: Array<StockMovement & { balances: { item: string; batch: string } }>;
+  }>(estoqueApiPath('/movimentacoes'), payload);
+  return response.data.movements;
+}
+
+export async function createStockMovements(payload: StockMovementsPayload) {
   const response = await apiClient.post<{
     movements: Array<StockMovement & { balances: { item: string; batch: string } }>;
   }>(estoqueApiPath('/movimentacoes'), payload);

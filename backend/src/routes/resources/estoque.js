@@ -11,6 +11,7 @@ import {
 } from '../../lib/estoque/stock-attachments.js';
 import {
   createMovement,
+  createMovements,
   createReturnMovements,
   reverseMovement
 } from '../../lib/estoque/stock-movements.js';
@@ -654,6 +655,30 @@ router.get('/movimentacoes', asyncHandler(async (req, res) => {
 }));
 
 router.post('/movimentacoes', requireEstoqueManager, asyncHandler(async (req, res) => {
+  if (Object.hasOwn(req.body || {}, 'movements')) {
+    let results;
+    try {
+      results = await createMovements(prisma, { data: req.body, createdById: req.auth.user.id });
+    } catch (error) {
+      if (error?.requiresConfirmation) {
+        return res.status(error.statusCode || 422).json({
+          error: error.message,
+          code: 'STOCK_EXPIRED_CONFIRMATION_REQUIRED',
+          requiresConfirmation: true
+        });
+      }
+      throw error;
+    }
+    return res.status(201).json({
+      movements: results.map(result => ({
+        ...serializeStockMovement(result.movement),
+        balances: {
+          item: decimalBalanceString(result.balances.item),
+          batch: decimalBalanceString(result.balances.batch)
+        }
+      }))
+    });
+  }
   if (req.body?.reason === 'DEVOLUCAO_OBRA' && Array.isArray(req.body?.items)) {
     const results = await createReturnMovements(prisma, {
       data: req.body,

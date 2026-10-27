@@ -9,6 +9,8 @@ export type EstoqueSchemas = {
   itemCreate: EstoqueSchema;
   itemUpdateForType: (type: string) => EstoqueSchema;
   movement: (options?: { itemType?: string }) => EstoqueSchema;
+  movements: EstoqueSchema;
+  returnMovements: EstoqueSchema;
   activePatch: EstoqueSchema;
   reverseMovement: EstoqueSchema;
 };

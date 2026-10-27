@@ -277,6 +277,18 @@ export async function createMovement(client, { data, createdById, romaneioId = n
   return client.$transaction(tx => createMovementInTransaction(tx, { data, createdById, romaneioId }));
 }
 
+export async function createMovements(client, { data, createdById }) {
+  if (!createdById) throw appError('Usuário autenticado não identificado.', 401);
+  const parsed = estoqueSchemas.movements.parse(data);
+  return client.$transaction(async tx => {
+    const results = [];
+    for (const movement of parsed.movements) {
+      results.push(await createMovementInTransaction(tx, { data: movement, createdById }));
+    }
+    return results;
+  }, { timeout: 30000 });
+}
+
 export async function createReturnMovementsInTransaction(tx, { data, createdById }) {
   if (!createdById) throw appError('Usuário autenticado não identificado.', 401);
   const parsed = estoqueSchemas.returnMovements.parse(data);
