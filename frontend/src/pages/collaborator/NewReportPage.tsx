@@ -1395,6 +1395,7 @@ function SiteRdoFormPage() {
                       manometers={manometers}
                       counters={bootstrapQuery.data?.counters || []}
                       equipments={bootstrapQuery.data?.equipments || []}
+                      suggestedEquipmentIds={projectId ? bootstrapQuery.data?.romaneioEquipmentByProject?.[projectId] : undefined}
                       rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
                       rdoSecondarySlotMap={bootstrapQuery.data?.rdoSecondarySlotMap}
                       rdoEquipmentCategories={bootstrapQuery.data?.rdoEquipmentCategories}

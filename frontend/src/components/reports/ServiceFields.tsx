@@ -12,6 +12,7 @@ import { inhibitionSystemForVessel } from '../../utils/inhibitionSystem';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseModePatch } from '../../utils/pressureHoseMeasurement';
 import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 import { EquipmentCategoryPicker } from './EquipmentCategoryPicker';
+import { RomaneioEquipmentHint, RomaneioEquipmentOptions } from './RomaneioEquipmentSuggestions';
 import { equipmentCategoryPatch, resolveEquipmentSlot, retainSlotEquipment, type EquipmentOption, type EquipmentSlotSource, type RdoEquipmentCategory } from '../../utils/rdoEquipmentCategories';
 export type { EquipmentOption } from '../../utils/rdoEquipmentCategories';
 
@@ -205,6 +206,7 @@ interface ServiceFieldsProps {
   manometers: Manometer[];
   counters?: ParticleCounter[];
   equipments?: EquipmentOption[];
+  suggestedEquipmentIds?: string[];
   rdoSlotMap?: Record<string, string[]>;
   rdoSecondarySlotMap?: Record<string, string[]>;
   rdoEquipmentCategories?: RdoEquipmentCategory[];
@@ -471,7 +473,7 @@ function UnitMultiField({
               onChange={event => onChange({ [field]: updateArrayItem(selected, index, event.target.value) })}
             >
               <option value="">Selecionar...</option>
-              {options.map(unit => <option key={unit.id} value={unit.id}>{[unit.code, unit.name].filter(Boolean).join(' - ')}</option>)}
+              <RomaneioEquipmentOptions options={options} suggested={resolved?.suggestedOptions} />
             </select>
             <RemoveIconButton
               disabled={disabled || selected.length === 1}
@@ -481,6 +483,7 @@ function UnitMultiField({
           </div>
         ))}
       </div>
+      <RomaneioEquipmentHint suggested={resolved?.suggestedOptions} />
       <EquipmentCategoryPicker source={slot} categoryIds={resolved?.categoryIds || []} label={label} disabled={disabled}
         onSelect={ids => {
           if (!slot) return;
@@ -787,12 +790,9 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, count
               <label htmlFor={contadorId}>Contador utilizado {requiredMark()}</label>
               <select id={contadorId} value={getString(data.contadorUtilizado)} disabled={disabled} onChange={event => onChange({ contadorUtilizado: event.target.value })}>
                 <option value="">Selecionar...</option>
-                {activeCounters.map(counter => (
-                  <option key={counter.id} value={counter.id}>
-                    {counter.code} - {counter.serialNumber}
-                  </option>
-                ))}
+                <RomaneioEquipmentOptions options={activeCounters} suggested={resolved?.suggestedOptions} label={counter => [counter.code, counter.serialNumber].filter(Boolean).join(' - ')} />
               </select>
+              <RomaneioEquipmentHint suggested={resolved?.suggestedOptions} />
               <EquipmentCategoryPicker source={slot} categoryIds={resolved?.categoryIds || []} label="Contador utilizado" disabled={disabled}
                 onSelect={ids => slot && onChange({ ...equipmentCategoryPatch(slot, data, ids), contadorUtilizado: retainSlotEquipment(slot, ids, selected)[0] || '' })} />
             </div>
@@ -865,8 +865,9 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, slot, in
               <label htmlFor={fieldId(groupKey, 'desidratacaoUnit')}>Equipamento de desidratação {requiredMark()}</label>
               <select id={fieldId(groupKey, 'desidratacaoUnit')} value={getString(data.desidratacaoUnit)} disabled={disabled} onChange={event => onChange({ desidratacaoUnit: event.target.value })}>
                 <option value="">Selecionar...</option>
-                {desidratacaoUnits.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
+                <RomaneioEquipmentOptions options={desidratacaoUnits} suggested={resolved?.suggestedOptions} label={item => item.code} />
               </select>
+              <RomaneioEquipmentHint suggested={resolved?.suggestedOptions} />
               <EquipmentCategoryPicker source={slot} categoryIds={resolved?.categoryIds || []} label="Equipamento de desidratação" disabled={disabled}
                 onSelect={ids => slot && onChange({ ...equipmentCategoryPatch(slot, data, ids), desidratacaoUnit: retainSlotEquipment(slot, ids, selected)[0] || '' })} />
             </div>
@@ -969,6 +970,7 @@ export function ServiceFields({
   manometers,
   counters = [],
   equipments,
+  suggestedEquipmentIds,
   rdoSlotMap,
   rdoSecondarySlotMap,
   rdoEquipmentCategories = [],
@@ -984,7 +986,7 @@ export function ServiceFields({
 }: ServiceFieldsProps) {
   const normalizedType = normalizeServiceType(serviceType);
   const slotSource = (key: string): EquipmentSlotSource | undefined => equipments && rdoSlotMap && key in rdoSlotMap
-    ? { key, primaryIds: rdoSlotMap[key], secondaryIds: rdoSecondarySlotMap?.[key] || [], categories: rdoEquipmentCategories, equipments }
+    ? { key, primaryIds: rdoSlotMap[key], secondaryIds: rdoSecondarySlotMap?.[key] || [], categories: rdoEquipmentCategories, equipments, suggestedEquipmentIds }
     : undefined;
   function upload(label: string) {
     if (hideUploads) return null;
@@ -1225,10 +1227,11 @@ export function ServiceFields({
               {activeManometers.map(m => (
                 <label className="rdo-check-row" key={m.id}>
                   <input type="checkbox" checked={manometroIds.includes(m.id)} disabled={disabled} onChange={e => onChange({ manometroIds: toggleItem(manometroIds, m.id, e.target.checked) })} />
-                  <span>{m.code}</span>
+                  <span>{m.code}{resolvedManometers?.suggestedOptions.some(item => item.id === m.id) ? ' — Sugerido pelo romaneio de saída' : ''}</span>
                 </label>
               ))}
             </div>
+            <RomaneioEquipmentHint suggested={resolvedManometers?.suggestedOptions} />
             <EquipmentCategoryPicker source={manometerSlot} categoryIds={resolvedManometers?.categoryIds || []} label="Manômetros utilizados" disabled={disabled}
               onSelect={ids => manometerSlot && onChange({ ...equipmentCategoryPatch(manometerSlot, data, ids), manometroIds: retainSlotEquipment(manometerSlot, ids, manometroIds) })} />
           </div>

@@ -1235,6 +1235,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     manometers={manometers}
                     counters={counters}
                     equipments={equipments}
+                    suggestedEquipmentIds={bootstrapQuery.data?.romaneioEquipmentByProject?.[form.projectId || report.projectId]}
                     rdoSlotMap={rdoSlotMap}
                     rdoSecondarySlotMap={bootstrapQuery.data?.rdoSecondarySlotMap}
                     rdoEquipmentCategories={bootstrapQuery.data?.rdoEquipmentCategories}
