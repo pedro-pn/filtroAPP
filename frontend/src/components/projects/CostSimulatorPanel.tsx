@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +15,7 @@ import { Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
 import { PARAM_FIELDS, BENEFIT_FIELDS, INPUT_FIELDS, brl, modelNumber } from './costFields';
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return todayDateOnly();
 }
 function fmtDate(value?: string | null) {
   if (!value) return 'sem vigência registrada';

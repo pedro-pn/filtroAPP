@@ -9,6 +9,7 @@ import env from '../../config/env.js';
 import { checklistItemStatusFromSnapshot } from '../equipamentos/equipment-checklist.js';
 import { convertDocxToPdf } from '../report-pdf-from-docx.js';
 import { parseSignatureImageDataUrl } from '../signatures/common.js';
+import { formatDateOnly } from '../../../../shared/modules/date-only.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,15 +35,7 @@ function safePath(value) {
 }
 
 function formatDatePt(value) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
+  return formatDateOnly(value, '');
 }
 
 function getTextNodes(node, out = []) {

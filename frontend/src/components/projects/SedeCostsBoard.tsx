@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { formatDateOnly } from '../../utils/dateOnly';
 
 import { getSedeCosts, type SedeCostCard } from '../../api/acompanhamentoComercial';
 import { SEDE_MONTH_OPTIONS, currentSedeDate, currentSedeMonth, formatSedeCustomRangeLabel, formatSedeMonthLabel, formatSedeQuarterLabel, formatSedeSemesterLabel, quarterFromMonth, sedeCustomDateRange, sedeMonthRangeFromParts, sedeQuarterRange, sedeSemesterRange, sedeYearRange, semesterFromMonth, type SedePeriodRange, type SedePeriodType, yearFromMonth } from '../../utils/sedePeriods';
@@ -31,9 +32,7 @@ function brl(value?: number | null) {
 }
 
 function formatDate(iso?: string | null) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+  return formatDateOnly(iso, '—');
 }
 
 function SedeCard({ card, monthTitle, monthlyLimit }: { card: SedeCostCard; monthTitle: string; monthlyLimit?: number }) {

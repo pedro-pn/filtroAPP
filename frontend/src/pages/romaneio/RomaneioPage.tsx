@@ -1,3 +1,4 @@
+import { formatDateOnly, formatTimestampDate, todayDateOnly } from '../../utils/dateOnly';
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -53,8 +54,7 @@ const NEW_CATEGORY_VALUE = '__new_category__';
 const managedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS', 'STOCK']);
 
 function formatDate(value: string) {
-  if (!value) return '';
-  return new Date(value).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  return formatDateOnly(value, '');
 }
 
 function asString(value: unknown, fallback = '') {
@@ -354,7 +354,7 @@ export function RomaneioPage() {
     setIsDownloadingCatalogPdf(true);
     try {
       const blob = await downloadRomaneioCatalogPdf();
-      downloadBlob(blob, `Lista de materiais romaneio ${new Date().toISOString().slice(0, 10)}.pdf`);
+      downloadBlob(blob, `Lista de materiais romaneio ${todayDateOnly()}.pdf`);
     } catch {
       showToast('Não foi possível gerar o PDF de materiais.');
     } finally {
@@ -427,7 +427,7 @@ export function RomaneioPage() {
                           <div className="report-subtitle">
                             {draft.project?.code || draft.projectId || 'Projeto'} · {draftDateLabel(draft)} · {draftItemCount(draft)} item(ns)
                           </div>
-                          {draft.updatedAt && <div className="rel-meta">Salvo em {formatDate(draft.updatedAt)}</div>}
+                          {draft.updatedAt && <div className="rel-meta">Salvo em {formatTimestampDate(draft.updatedAt)}</div>}
                         </div>
                         <div className="report-card-actions">
                           <button className="mini-btn alt" type="button" onClick={() => navigate(`/romaneio/novo?draft=${draft.id}`)}>

@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
@@ -48,7 +49,7 @@ export function ProjectInvoicesSection({ projectId, groupId, division }: { proje
   const data = query.data;
   const hasSnapshot = Boolean(data?.lastSyncedAt);
   const visibleInvoices = (data?.invoices ?? []).filter(invoice => !division || (
-    invoice.issuedAt.slice(0, 10) >= division.startDate && invoice.issuedAt.slice(0, 10) <= (division.endDate ?? new Date().toISOString().slice(0, 10))
+    invoice.issuedAt.slice(0, 10) >= division.startDate && invoice.issuedAt.slice(0, 10) <= (division.endDate ?? todayDateOnly())
   ));
   const visibleTotal = visibleInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
   const pages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));

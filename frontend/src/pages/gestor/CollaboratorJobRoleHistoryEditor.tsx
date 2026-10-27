@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { SortableTable } from '../../components/ui/SortableTable';
 import { useMemo, useState, type FormEvent } from 'react';
 
@@ -15,7 +16,7 @@ interface Props {
   onRemove: (historyId: string) => Promise<unknown>;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayDateOnly();
 
 function dateLabel(value: string) {
   const key = value.slice(0, 10);

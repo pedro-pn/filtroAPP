@@ -1,4 +1,5 @@
 import type { CompanyEquipment } from '../../api/equipamentos';
+import { dateInputValue as civilDateInputValue, formatDateOnly, todayDateOnly } from '../../utils/dateOnly';
 
 export type CalibrationStatus = 'none' | 'ok' | 'expiring' | 'expired';
 
@@ -6,10 +7,10 @@ const EXPIRING_WINDOW_DAYS = 30;
 
 export function calibrationStatus(item: Pick<CompanyEquipment, 'hasCalibration' | 'expiresAt'>): CalibrationStatus {
   if (!item.hasCalibration || !item.expiresAt) return 'none';
-  const expires = new Date(item.expiresAt);
+  const expires = new Date(civilDateInputValue(item.expiresAt));
   if (Number.isNaN(expires.getTime())) return 'none';
-  const now = new Date();
-  const diffDays = Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const today = new Date(todayDateOnly());
+  const diffDays = Math.round((expires.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays < 0) return 'expired';
   if (diffDays <= EXPIRING_WINDOW_DAYS) return 'expiring';
   return 'ok';
@@ -30,17 +31,11 @@ export const statusTone: Record<CalibrationStatus, 'neutral' | 'success' | 'warn
 };
 
 export function formatDate(value?: string | null) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  return formatDateOnly(value, '—');
 }
 
 export function dateInputValue(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
+  return civilDateInputValue(value);
 }
 
 export function fileToDataUrl(file: File): Promise<string> {

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { Router } from 'express';
 import { RomaneioItemKind, RomaneioMeasureType } from '@prisma/client';
 import { z } from 'zod';
+import { formatDateOnly } from '../../../../shared/modules/date-only.js';
 
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
@@ -350,14 +351,8 @@ function parseDateOnly(value) {
   return date;
 }
 
-function formatDatePt(value, withTime = false) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {})
-  });
+function formatDatePt(value) {
+  return formatDateOnly(value, '');
 }
 
 function contentDisposition(fileName) {
@@ -907,7 +902,7 @@ async function notifyRecipients(romaneio, pdfPath, checklistPdfPaths = []) {
     projectCode: romaneio.project?.code || '',
     projectName: romaneio.project?.name || '',
     clientName: romaneio.project?.clientName || '',
-    romaneioDate: formatDatePt(romaneio.romaneioDate, true),
+    romaneioDate: formatDatePt(romaneio.romaneioDate),
     driverName: romaneio.driverName || '',
     vehiclePlate: romaneio.vehiclePlate || '',
     itemCount: romaneio.items?.length || 0,

@@ -6,6 +6,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { formatCnpj } from './cnpj.js';
 import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { reportWorkLocation } from '../../../shared/modules/rdo-project-context.js';
+import { formatDateOnly } from '../../../shared/modules/date-only.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,8 +73,7 @@ function valueIsEmpty(value) {
 }
 
 function formatDatePt(value) {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('pt-BR');
+  return formatDateOnly(value);
 }
 
 function formatMinutes(total) {

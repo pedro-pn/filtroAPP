@@ -25,6 +25,7 @@ import { normalizeChecklistItems } from '../../lib/equipamentos/equipment-checkl
 import prisma from '../../lib/prisma.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
 import { makeEstoqueSchemas } from '../../../../shared/schemas/estoque.js';
+import { todayDateOnly } from '../../../../shared/modules/date-only.js';
 import {
   requireAuth,
   requireEstoqueAccess,
@@ -100,14 +101,14 @@ function isExpired(expiryDate, now) {
   if (!expiryDate) return false;
   const expiry = new Date(expiryDate);
   if (Number.isNaN(expiry.getTime())) return false;
-  const today = new Date(now.toISOString().slice(0, 10));
+  const today = new Date(`${todayDateOnly(now)}T00:00:00.000Z`);
   return expiry < today;
 }
 
 function isExpiringSoon(expiryDate, now) {
   if (!expiryDate || isExpired(expiryDate, now)) return false;
   const expiry = new Date(expiryDate);
-  const today = new Date(now.toISOString().slice(0, 10));
+  const today = new Date(`${todayDateOnly(now)}T00:00:00.000Z`);
   const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   return diffDays <= 30;
 }

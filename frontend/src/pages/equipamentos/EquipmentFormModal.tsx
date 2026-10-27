@@ -1,3 +1,4 @@
+import { formatTimestampDate } from '../../utils/dateOnly';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import type {
@@ -10,7 +11,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { Button } from '../../components/ui/ds';
-import { dateInputValue, fileToDataUrl, formatDate } from './equipmentStatus';
+import { dateInputValue, fileToDataUrl } from './equipmentStatus';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
 
 interface Props {
@@ -269,7 +270,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
               <div className="equip-history-row" key={certificate!.id}>
                 <div className="equip-history-meta">
                   <strong>{index === 0 ? 'Certificado atual' : `Certificado arquivado #${index}`}</strong>
-                  <span>{formatDate(certificate!.createdAt)} · {certificate!.fileName}</span>
+                  <span>{formatTimestampDate(certificate!.createdAt)} · {certificate!.fileName}</span>
                 </div>
                 <a className="fv-button fv-button--secondary fv-button--sm equip-history-download" href={certificate!.publicUrl} target="_blank" rel="noreferrer">
                   Abrir PDF

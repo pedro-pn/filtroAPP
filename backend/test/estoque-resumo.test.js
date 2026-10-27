@@ -32,6 +32,24 @@ function fakeClient({ items, movements }) {
   };
 }
 
+test('stock expiry follows midnight in São Paulo rather than UTC', async () => {
+  const client = fakeClient({
+    items: [{ id: 'item', code: 'PQ', type: 'PRODUTO_QUIMICO', batches: [
+      { id: 'due-today', expiryDate: new Date('2026-10-31T00:00:00Z') },
+      { id: 'in-31-days', expiryDate: new Date('2026-12-01T00:00:00Z') }
+    ] }],
+    movements: ['due-today', 'in-31-days'].map(batchId => ({ itemId: 'item', batchId, type: 'ENTRADA', quantity: new Prisma.Decimal(1) }))
+  });
+  const [before] = await buildStockSummary(client, new Date('2026-11-01T02:59:59Z'));
+  assert.equal(before.batches[0].expired, false);
+  assert.equal(before.batches[0].expiringSoon, true);
+  assert.equal(before.batches[1].expiringSoon, false);
+  const [after] = await buildStockSummary(client, new Date('2026-11-01T03:00:00Z'));
+  assert.equal(after.batches[0].expired, true);
+  assert.equal(after.batches[0].expiringSoon, false);
+  assert.equal(after.batches[1].expiringSoon, true);
+});
+
 test('stock summary includes every registered item and aggregates balances and alert flags', async () => {
   const now = new Date('2026-07-09T12:00:00.000Z');
   const client = fakeClient({

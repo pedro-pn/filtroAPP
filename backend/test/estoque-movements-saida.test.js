@@ -218,6 +218,17 @@ test('USO_EM_PROJETO rejects invalid project and expired lot without confirmatio
   assert.equal(confirmed.movement.reason, 'USO_EM_PROJETO');
 });
 
+test('lot valid today only requires expiry confirmation after São Paulo midnight', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-01T02:59:59Z') });
+  const client = fakeClient({ batches: [stockBatch({ expiryDate: new Date('2026-10-31T00:00:00Z') })] });
+  const data = { reason: 'USO_EM_PROJETO', itemId: 'item-1', batchId: 'batch-1', projectId: 'project-1', quantity: 1, date: '2026-10-31' };
+  const result = await createMovement(client, { createdById: 'user-1', data });
+  assert.equal(result.movement.date.toISOString(), '2026-10-31T00:00:00.000Z');
+  t.mock.timers.setTime(new Date('2026-11-01T03:00:00Z').getTime());
+  await assert.rejects(() => createMovement(client, { createdById: 'user-1', data }),
+    error => error.requiresConfirmation === true);
+});
+
 test('USO_EM_PROJETO serialized concurrent exits do not leave negative balance', async () => {
   const client = fakeClient({ serializeTransactions: true });
   const payload = {

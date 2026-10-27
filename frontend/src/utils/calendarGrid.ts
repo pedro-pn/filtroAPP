@@ -12,10 +12,7 @@ export function addDateOnlyDays(value: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-export function todayDateOnly(now = new Date()) {
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
+export { todayDateOnly } from '../../../shared/modules/date-only.js';
 
 export function calendarInterval(date: string, view: 'day' | 'week' | 'month') {
   const parsed = parseDateOnly(date);

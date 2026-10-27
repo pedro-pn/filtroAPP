@@ -54,7 +54,7 @@ import { buildReportServicePayload, normalizeServiceType } from '../../utils/rep
 import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../../utils/ongoingServices';
 import { requiresSystemType, systemTypeValue } from '../../utils/cleaningMeasurement';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } from '../../utils/pressureHoseMeasurement';
-import { dateInputValue, formatDateOnlyPtBr } from '../../utils/dateOnly';
+import { dateInputValue, formatDateOnlyPtBr, todayDateOnly } from '../../utils/dateOnly';
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId, createDraftSaveQueue } from '../../utils/draftAutosave';
@@ -320,7 +320,7 @@ function SiteRdoFormPage() {
     .filter(report => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt),
   [lastProjectReportQuery.data, projectId]);
   const projectReports = useMemo(() => {
-    const cutoffDay = reportDate ? dateInputValue(reportDate) : dateInputValue(new Date().toISOString());
+    const cutoffDay = reportDate ? dateInputValue(reportDate) : todayDateOnly();
     return projectHistoryReports.filter(report => dateInputValue(report.reportDate || report.createdAt) <= cutoffDay)
       .sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
   }, [projectHistoryReports, reportDate]);
@@ -343,7 +343,7 @@ function SiteRdoFormPage() {
   const isCheckingDuplicateReportDate = !effectiveServiceOnly && !!projectId && !!reportDate && lastProjectReportQuery.isLoading;
 
   const pendingProjectServices = useMemo(() => pendingProjectServicesForDate(
-    projectHistoryReports, reportDate || new Date().toISOString(), canReview
+    projectHistoryReports, reportDate || todayDateOnly(), canReview
   ), [canReview, projectHistoryReports, reportDate]);
   const visiblePendingProjectServices = useMemo(() => {
     const activeKeys = new Set(services.flatMap(service => formServiceOngoingKeys(service.data || {})));

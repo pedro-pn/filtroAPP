@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { ProjectScopeDialog } from './ProjectScopeDialog';
 import { SortableTable } from '../ui/SortableTable';
 import { useRef, useState, type FormEvent } from 'react';
@@ -159,7 +160,7 @@ export function ProjectDetailDashboard({
     enabled: !isGroup && Boolean(projectId),
     ...acompanhamentoRefreshQueryOptions
   });
-  const planningReferenceDate = data?.header.lastRdoDate?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const planningReferenceDate = data?.header.lastRdoDate?.slice(0, 10) || todayDateOnly();
   const { data: planningContext } = useQuery({
     queryKey: ['acompanhamento-planning-context', projectId, planningReferenceDate],
     queryFn: () => getProjectPlanningContext(projectId!, planningReferenceDate),

@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -25,7 +26,7 @@ function benefitsTotal(params: CostProfile['params']) {
   return Object.values(b).reduce((sum, v) => sum + (Number(v) || 0), 0);
 }
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return todayDateOnly();
 }
 function fmtDate(value?: string | null) {
   if (!value) return 'sem vigência registrada';

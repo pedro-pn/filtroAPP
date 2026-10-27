@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { ProjectEditDialog } from './ProjectEditDialog';
 import { ProjectServiceCategoryFields } from '../../components/projects/ProjectServiceCategoryFields';
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
@@ -1248,7 +1249,7 @@ export function GestorPage() {
     setManualReportForm({
       ...emptyManualReportForm,
       projectId: projectId || manualReportProjectOptions[0]?.id || '',
-      reportDate: new Date().toISOString().slice(0, 10)
+      reportDate: todayDateOnly()
     });
     setManualReportModalOpen(true);
   }
@@ -1260,7 +1261,7 @@ export function GestorPage() {
       projectId: report.projectId,
       reportType: report.reportType,
       sequenceNumber: report.sequenceNumber ? String(report.sequenceNumber) : '',
-      reportDate: String(report.reportDate || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+      reportDate: String(report.reportDate || '').slice(0, 10) || todayDateOnly(),
       signatureMode: manualReportSignatureMode(report),
       serviceEquipment: manualReportServiceField(report, ['Equipamento', 'Equipamento(s)']),
       serviceSystem: manualReportServiceField(report, ['Sistema']),
@@ -1314,7 +1315,7 @@ export function GestorPage() {
       return;
     }
 
-    const baseDate = manualReportForm.reportDate || new Date().toISOString().slice(0, 10);
+    const baseDate = manualReportForm.reportDate || todayDateOnly();
     const serviceEquipment = manualReportForm.serviceEquipment.trim();
     const serviceSystem = manualReportForm.serviceSystem.trim();
 
@@ -1520,7 +1521,7 @@ export function GestorPage() {
     showToast('Gerando ZIP...', 'info');
     try {
       const blob = await downloadReportsBatch(ids, format);
-      downloadBlob(blob, `relatorios_${format}_${new Date().toISOString().slice(0, 10)}.zip`);
+      downloadBlob(blob, `relatorios_${format}_${todayDateOnly()}.zip`);
       showToast('Download em lote concluído.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível baixar os relatórios.', 'error');

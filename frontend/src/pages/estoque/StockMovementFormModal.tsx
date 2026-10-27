@@ -1,3 +1,4 @@
+import { todayDateOnly } from '../../utils/dateOnly';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -24,7 +25,7 @@ export function StockMovementFormModal({ open, onClose }: Props) {
   const showToast = useToast();
   const queryClient = useQueryClient();
   const [values, setValues] = useState<MovementFormValues>(() => ({
-    reason: 'COMPRA', movementType: 'ENTRADA', projectId: '', date: new Date().toISOString().slice(0, 10),
+    reason: 'COMPRA', movementType: 'ENTRADA', projectId: '', date: todayDateOnly(),
     nfNumber: '', supplier: '', requestedBy: '', notes: ''
   }));
   const [lines, setLines] = useState<MovementLine[]>(() => [createMovementLine()]);

@@ -42,6 +42,7 @@ import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity
 import { mergeRomaneioReturnSelection, romaneioReturnKey } from '../../utils/romaneioReturnItems';
 import { RomaneioChecklistModal } from './RomaneioChecklistModal';
 import { romaneioQrRequiresQuantity } from '../../utils/romaneioQr';
+import { todayDateOnly } from '../../utils/dateOnly';
 import { RomaneioProjectAvailabilityNovelty } from './RomaneioProjectAvailabilityNovelty';
 import { RomaneioQrNovelty } from './RomaneioQrNovelty';
 import { RomaneioQrScannerModal } from './RomaneioQrScannerModal';
@@ -62,7 +63,6 @@ interface SelectedItem {
   returnMaxQuantity?: number;
 }
 
-const today = new Date().toISOString().slice(0, 10);
 const MANUAL_PROJECT_OPTION = '__manual_project__';
 const DEFAULT_CHECKLIST_STATUS: RomaneioChecklistItemStatus = 'CONFORME';
 const CHECKLIST_STATUS_VALUES: RomaneioChecklistItemStatus[] = ['CONFORME', 'NAO_CONFORME', 'NAO_APLICAVEL'];
@@ -209,7 +209,7 @@ export function NewRomaneioPage() {
   const [projectId, setProjectId] = useState('');
   const [manualProjectMode, setManualProjectMode] = useState(false);
   const [manualProjectCode, setManualProjectCode] = useState('');
-  const [romaneioDate, setRomaneioDate] = useState(today);
+  const [romaneioDate, setRomaneioDate] = useState(todayDateOnly);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [driverName, setDriverName] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
@@ -649,7 +649,7 @@ export function NewRomaneioPage() {
       ? payload.romaneioDate
       : typeof payload.reportDate === 'string'
         ? payload.reportDate
-        : draft.reportDate || today;
+        : draft.reportDate || todayDateOnly();
 
     setDraftId(draft.id);
     const nextType = payload.romaneioType === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
