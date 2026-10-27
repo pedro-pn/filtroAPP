@@ -15,6 +15,36 @@ async page => {
   };
   await unit().locator('option[value="equipment-chemical"]').waitFor({ state: 'attached' });
   await assertValues(unit(), ['equipment-chemical', 'equipment-flushing']);
+  const project = page.getByRole('combobox', { name: 'Projeto', exact: true });
+  const serviceType = first.getByRole('combobox', { name: 'Tipo do serviço 1', exact: true });
+  const assertSuggestion = async (select, code, expectedId) => {
+    await first.getByText(`Sugestão do romaneio de saída: ${code}.`, { exact: true }).waitFor();
+    const ids = await values(select.locator('optgroup[label="Sugeridos pelo romaneio de saída"]'));
+    if (JSON.stringify(ids) !== JSON.stringify([expectedId])) throw new Error(`Unexpected romaneio suggestions: ${JSON.stringify(ids)}`);
+  };
+  await project.selectOption('9999');
+  await assertSuggestion(unit(), 'ULQ 05', 'equipment-chemical');
+  await assertValues(unit(), ['equipment-chemical', 'equipment-flushing']);
+  if (await unit().inputValue() !== '') throw new Error('Suggestion automatically selected equipment');
+  await unit().selectOption('equipment-flushing');
+  await project.selectOption('7777');
+  await assertSuggestion(unit(), 'FLU-01', 'equipment-flushing');
+  if (await unit().inputValue() !== 'equipment-flushing') throw new Error('Project change replaced chosen equipment');
+  if (await second.getByRole('combobox', { name: 'Unidade de Limpeza Química 1', exact: true }).inputValue() !== 'equipment-chemical') throw new Error('Suggestion replaced existing service equipment');
+  await project.selectOption('8888');
+  if (await first.locator('optgroup').count()) throw new Error('Project without outbound manifest has suggestions');
+  if (await unit().inputValue() !== 'equipment-flushing') throw new Error('Removing suggestions discarded equipment');
+  await project.selectOption('9999');
+  await serviceType.selectOption('filtragem');
+  const filtrationUnit = () => first.getByRole('combobox', { name: 'Unidade de filtragem 1', exact: true });
+  await assertSuggestion(filtrationUnit(), 'UFI 01', 'equipment-filtration');
+  await serviceType.selectOption('flushing');
+  if (await first.locator('optgroup').count()) throw new Error('Primary flushing suggests incompatible equipment');
+  await first.getByRole('radio', { name: 'Secundário', exact: true }).locator('..').click();
+  await assertSuggestion(filtrationUnit(), 'UFI 01', 'equipment-filtration');
+  if (await filtrationUnit().inputValue() !== '') throw new Error('Secondary flushing automatically selected equipment');
+  await serviceType.selectOption('limpeza');
+  await project.selectOption('8888');
   await page.getByRole('button', { name: 'Configuração', exact: true }).click();
   const row = page.locator('.equip-slot-row').filter({ has: page.locator('.equip-slot-name', { hasText: 'Unidade de Limpeza Química' }) });
   await row.getByRole('button', { name: 'Adicionar categoria secundária', exact: true }).click();
@@ -125,5 +155,5 @@ async page => {
   await assertValues(unit(), []);
   await onlyCategory(first.getByRole('button', { name: 'Escolher outra categoria', exact: true }), 'Filtragem');
   await assertValues(unit(), ['equipment-filtration']);
-  return 'Passed: mixed defaults, secondary settings and retry, multi-category dialog, equipment retention, isolated services, save/reload, keyboard focus, read-only, 1365/390/320px, pressure/manometers, both flushing modes, filtration, counters, dehydration and a slot with only one secondary category.';
+  return 'Passed: romaneio suggestions by project and service, mixed defaults, secondary settings and retry, multi-category dialog, equipment retention, isolated services, save/reload, keyboard focus, read-only, 1365/390/320px, pressure/manometers, both flushing modes, filtration, counters, dehydration and a slot with only one secondary category.';
 }

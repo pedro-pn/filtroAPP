@@ -5,6 +5,7 @@ import { listCollaboratorsWithCurrentJobRole } from '../../lib/collaborators/job
 import { UNIT_SYSTEMKEY_PREFIX, legacyUnitCategory } from '../../lib/equipment-categories.js';
 import { listManometersCompat, listParticleCountersCompat, listRdoEquipments, listUnitsCompat } from '../../lib/equipment-compat.js';
 import { resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
+import { reportRomaneioEquipmentByProject } from '../../lib/reports/romaneio-equipment-suggestions.js';
 import { seedInhibitionOptions } from '../../lib/inhibition-options.js';
 import prisma from '../../lib/prisma.js';
 import {
@@ -81,6 +82,8 @@ async function newReportBootstrapData(auth) {
     })
   ]);
 
+  const romaneioEquipmentByProject = await reportRomaneioEquipmentByProject(prisma, projects.map(item => item.id), equipments);
+
   return {
     projects,
     collaborators,
@@ -88,6 +91,7 @@ async function newReportBootstrapData(auth) {
     manometers,
     counters,
     equipments,
+    romaneioEquipmentByProject,
     rdoSlotMap: rdoSlots.map,
     rdoSecondarySlotMap: rdoSlots.secondaryMap,
     rdoEquipmentCategories: rdoSlots.categories,

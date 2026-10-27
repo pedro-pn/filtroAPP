@@ -19,6 +19,7 @@ export interface EquipmentSlotSource {
   secondaryIds: string[];
   categories: RdoEquipmentCategory[];
   equipments: EquipmentOption[];
+  suggestedEquipmentIds?: string[];
 }
 
 function storedCategories(data: Record<string, unknown>): Record<string, unknown> {
@@ -36,7 +37,9 @@ export function resolveEquipmentSlot(source: EquipmentSlotSource | undefined, da
   const categoryIds = saved.length ? [...new Set(saved)] : [...new Set([...source.primaryIds, ...inferred])];
   const options = source.equipments.filter(item => item.isActive !== false && item.categoryId
     && (categoryIds.includes(item.categoryId) || selectedIds.includes(item.id)));
-  return { categoryIds, options };
+  const suggestedIds = new Set(source.suggestedEquipmentIds || []);
+  const suggestedOptions = options.filter(item => suggestedIds.has(item.id) && item.categoryId && categoryIds.includes(item.categoryId));
+  return { categoryIds, options, suggestedOptions };
 }
 
 export function equipmentCategoryPatch(source: EquipmentSlotSource, data: Record<string, unknown>, categoryIds: string[]) {

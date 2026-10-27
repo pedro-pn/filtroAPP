@@ -32,5 +32,15 @@ test('combina categorias, preserva seleções e salva a escolha por campo de cad
     assert.equal(reopened.notes, 'Manter observação');
     const otherSlot = { ...source, key: 'pressao.uth', primaryIds: ['b'], secondaryIds: ['a'] };
     assert.deepEqual(ids(resolveEquipmentSlot(otherSlot, data, [])), ['b1'], 'campos independentes');
+
+    const fromRomaneio = { ...source, suggestedEquipmentIds: ['a1', 'c1', 'c2', 'x1', 'missing'] };
+    const selected = ['b1'];
+    const suggestions = resolveEquipmentSlot(fromRomaneio, {}, selected);
+    assert.deepEqual(suggestions.suggestedOptions.map(item => item.id), ['a1'], 'sugere somente ativos compatíveis com o campo');
+    assert.deepEqual(ids(suggestions), ['a1', 'b1'], 'outros equipamentos continuam disponíveis');
+    assert.deepEqual(selected, ['b1'], 'a sugestão não altera a escolha preenchida');
+    assert.deepEqual(resolveEquipmentSlot({ ...fromRomaneio, suggestedEquipmentIds: [] }, {}, selected).suggestedOptions, [], 'projeto sem romaneio não sugere');
+    assert.deepEqual(resolveEquipmentSlot(fromRomaneio, patch, selected).suggestedOptions.map(item => item.id), ['a1', 'c1'], 'respeita a escolha de categorias');
+    assert.deepEqual(resolveEquipmentSlot(fromRomaneio, {}, ['x1']).suggestedOptions.map(item => item.id), ['a1'], 'seleção antiga incompatível fica visível sem virar sugestão');
   } finally { await server.close(); }
 });

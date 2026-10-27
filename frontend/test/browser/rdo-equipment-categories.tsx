@@ -19,8 +19,8 @@ import '../../src/pages/equipamentos/EquipmentConfig.ds.css';
 
 const storageKey = 'rdo-equipment-categories-fixture';
 const categories = [
-  ['chemical', 'Limpeza química', 'ULQ-01'], ['flushing', 'Flushing', 'FLU-01'],
-  ['filtration', 'Filtragem', 'UFG-01'], ['uth', 'Teste hidrostático', 'UTH-01'],
+  ['chemical', 'Limpeza química', 'ULQ 05'], ['flushing', 'Flushing', 'FLU-01'],
+  ['filtration', 'Filtragem', 'UFI 01'], ['uth', 'Teste hidrostático', 'UTH-01'],
   ['manometer', 'Manômetros', 'MAN-01'], ['manometer-alt', 'Manômetros digitais', 'MAN-02'],
   ['counter', 'Contadores de partículas', 'CP-01'], ['counter-alt', 'Contadores portáteis', 'CP-02'],
   ['dryer', 'Desidratação', 'DES-01'], ['dryer-alt', 'Centrífugas', 'CEN-01'],
@@ -63,6 +63,7 @@ apiClient.defaults.adapter = async config => {
     data = slots.find(item => item.key === key);
   } else if (url.endsWith('/bootstrap/new-report')) data = {
     projects: [], collaborators: [], units: [], manometers: [], counters: [], drafts: [], equipments,
+    romaneioEquipmentByProject: { '9999': ['equipment-chemical', 'equipment-filtration'], '7777': ['equipment-flushing'] },
     rdoSlotMap: Object.fromEntries(slots.map(item => [item.key, item.categoryIds])),
     rdoSecondarySlotMap: Object.fromEntries(slots.map(item => [item.key, item.secondaryCategoryIds])),
     rdoEquipmentCategories: categories, inhibitionOptions: { vessels: [], systems: [] }
@@ -72,6 +73,7 @@ apiClient.defaults.adapter = async config => {
 };
 
 function Fixture() {
+  const [projectId, setProjectId] = useState('8888');
   const [view, setView] = useState('report');
   const [readOnly, setReadOnly] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -86,6 +88,11 @@ function Fixture() {
       <Button onClick={() => setView('config')}>Configuração</Button>
     </nav>
     {view === 'config' ? <RdoSlotsConfig categories={categories} /> : <>
+      <label>Projeto <select aria-label="Projeto" value={projectId} onChange={event => setProjectId(event.target.value)}>
+        <option value="8888">8888 · Sem romaneio de saída</option>
+        <option value="9999">9999 · ULQ 05 e UFI 01</option>
+        <option value="7777">7777 · FLU-01</option>
+      </select></label>
       <label><input type="checkbox" checked={readOnly} onChange={event => setReadOnly(event.target.checked)} /> Somente leitura</label>
       {services.map((service, index) => <section key={service.id} aria-label={`Serviço ${index + 1}`} className="fv-card" style={{ padding: 16, margin: '16px 0' }}>
         <h2>Serviço {index + 1}</h2>
@@ -96,6 +103,7 @@ function Fixture() {
         </select>
         <ServiceFields serviceType={service.type} data={service.data} groupKey={service.id} units={[]} manometers={[]} counters={[]}
           equipments={bootstrap.data?.equipments} rdoSlotMap={bootstrap.data?.rdoSlotMap}
+          suggestedEquipmentIds={bootstrap.data?.romaneioEquipmentByProject?.[projectId]}
           rdoSecondarySlotMap={bootstrap.data?.rdoSecondarySlotMap} rdoEquipmentCategories={bootstrap.data?.rdoEquipmentCategories}
           hideUploads hideNotes appearance="design-system" disabled={readOnly}
           onChange={patch => { setSaved(false); setServices(current => current.map(item => item.id === service.id ? { ...item, data: { ...item.data, ...patch } } : item)); }} />

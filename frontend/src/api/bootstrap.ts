@@ -11,6 +11,7 @@ export interface NewReportBootstrap {
   manometers: Manometer[];
   counters: ParticleCounter[];
   equipments: EquipmentOption[];
+  romaneioEquipmentByProject?: Record<string, string[]>;
   rdoSlotMap: Record<string, string[]>;
   rdoSecondarySlotMap?: Record<string, string[]>;
   rdoEquipmentCategories?: RdoEquipmentCategory[];
