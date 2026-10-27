@@ -97,6 +97,7 @@ test('dashboard e pendências do Acompanhamento ocultam Somente gestor sem exclu
   });
   for (const [model, method] of [
     ['commercialProposal', 'findMany'], ['commercialProposal', 'groupBy'],
+    ['commercialAppProposal', 'findMany'],
     ['projectBudget', 'findMany'], ['projectAdditionalProposal', 'findMany'],
     ['omieReceivable', 'findMany'], ['omieCategory', 'findMany']
   ]) stub(model, method);
