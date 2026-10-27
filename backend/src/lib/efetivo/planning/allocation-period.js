@@ -1,5 +1,5 @@
 import { addCalendarDays, parseDateKey } from './date-only.js';
-import { missionPeriod } from './mission-period.js';
+import { missionPeriod, OPEN_MOBILIZATION_STAGES } from './mission-period.js';
 
 function normalizedCycle(cycle, fallbackEndDate) {
   const startDate = parseDateKey(cycle.mobilizationDate);
@@ -19,7 +19,7 @@ export function missionCycles(mission) {
       .map(cycle => normalizedCycle(cycle, fallback.endDate))
       .sort((left, right) => left.startDate.localeCompare(right.startDate));
   }
-  return [{ id: null, ...fallback, isOpen: false }];
+  return [{ id: null, ...fallback, isOpen: !mission?.returnDate }];
 }
 
 export function allocationPeriods(allocation, mission = allocation?.mission) {
@@ -34,7 +34,7 @@ export function allocationPeriods(allocation, mission = allocation?.mission) {
       id: null,
       startDate: allocation?.mobilizationDate ? parseDateKey(allocation.mobilizationDate) : fallback.startDate,
       endDate: allocation?.demobilizationDate ? parseDateKey(allocation.demobilizationDate) : fallback.endDate,
-      isOpen: false
+      isOpen: !allocation?.demobilizationDate
     }];
   }
   return missionCycles(mission);
@@ -66,7 +66,7 @@ export function missionCoversDate(mission, value, { includeOpenCycles = false } 
   const date = parseDateKey(value);
   return missionCycles(mission).some(period => (
     period.startDate <= date && (period.endDate >= date
-      || (includeOpenCycles && period.isOpen && ['MOBILIZATION', 'EXECUTION'].includes(mission.stage)))
+      || (includeOpenCycles && period.isOpen && OPEN_MOBILIZATION_STAGES.includes(mission.stage)))
   ));
 }
 

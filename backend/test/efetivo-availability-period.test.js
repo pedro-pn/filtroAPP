@@ -60,15 +60,43 @@ test('consulta da disponibilidade carrega ciclos abertos em campo mesmo quando a
   const result = await getPlanningAvailabilityPeriod({ startDate: '2026-10-16', endDate: '2026-10-16' }, { database });
   assert.equal(missionQuery.where.planId, 'official');
   assert.deepEqual(missionQuery.where.OR.at(-1), {
-    stage: { in: ['MOBILIZATION', 'EXECUTION'] },
+    stage: { in: ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT'] },
     OR: [
       { cycles: { some: { demobilizationDate: null } } },
-      { allocations: { some: { deletedAt: null, cycles: { some: { demobilizationDate: null } } } } }
+      { cycles: { none: {} }, returnDate: null },
+      { allocations: { some: { deletedAt: null, OR: [
+        { cycles: { some: { demobilizationDate: null } } },
+        { cycles: { none: {} }, mobilizationDate: { not: null }, demobilizationDate: null }
+      ] } } }
     ]
   });
   assert.ok(missionQuery.include.cycles);
   assert.ok(missionQuery.include.allocations.include.cycles);
   assert.ok(result.people.every(person => person.days[0].status === 'MOBILIZED'));
+});
+
+test('avançar para desmobilização sem informar saída efetiva mantém a equipe no projeto após a previsão', () => {
+  const projection = ongoingProjectProjection();
+  projection.missions[1].stage = 'FINAL_MEASUREMENT';
+  const result = buildAvailabilityPeriod({ startDate: '2026-10-27', endDate: '2026-10-27', projection });
+  assert.ok(result.people.every(person => person.days[0].status === 'MOBILIZED'
+    && person.days[0].detail === '5800 · Reframax'));
+  assert.equal(result.roles[0].daily[0].demand, 3);
+  assert.equal(result.roles[0].daily[0].allocated, 3);
+});
+
+test('registro da saída geral libera a equipe herdada sem encerrar um ciclo individual ainda aberto', () => {
+  const projection = ongoingProjectProjection();
+  const mission = projection.missions[1];
+  mission.stage = 'FINAL_MEASUREMENT';
+  mission.returnDate = '2026-10-27';
+  mission.cycles[0].demobilizationDate = '2026-10-27';
+  mission.allocations[1].cycles = [];
+  const result = buildAvailabilityPeriod({ startDate: '2026-10-27', endDate: '2026-10-28', projection });
+  for (const person of result.people.filter(person => person.id !== 'c3')) {
+    assert.deepEqual(person.days.map(day => day.status), ['MOBILIZED', 'AVAILABLE']);
+  }
+  assert.ok(result.people.find(person => person.id === 'c3').days.every(day => day.status === 'MOBILIZED'));
 });
 
 test('desmobilização individual, pausas e afastamentos continuam liberando ou bloqueando os dias corretos', () => {

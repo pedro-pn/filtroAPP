@@ -21,6 +21,37 @@ test('posição operacional respeita ciclos abertos e o cálculo prospectivo con
   assert.equal(calculateUtilization90Days(input).committedPersonDays, 0);
 });
 
+for (const stage of ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT']) {
+  test(`registro antigo sem ciclos nem saída efetiva continua mobilizado em ${stage}`, () => {
+    const mission = {
+      id: 'current', stage, scheduleStatus: 'CONFIRMED',
+      mobilizationDate: '2026-10-04', executionEndDate: '2026-10-21', returnDate: null,
+      demands: [{ jobRoleId: 'role', requiredCount: 2 }],
+      allocations: [
+        { collaboratorId: 'inherited' },
+        { collaboratorId: 'individual', mobilizationDate: '2026-10-05', demobilizationDate: null }
+      ]
+    };
+    const input = {
+      date: '2026-10-27',
+      jobRoles: [{ id: 'role', name: 'Operador', isActive: true, isOperational: true }],
+      collaborators: ['inherited', 'individual'].map(id => ({ id, jobRoleId: 'role', isActive: true })),
+      missions: [mission], includeOpenCycles: true
+    };
+    const result = calculateDailyCapacity(input);
+    assert.equal(result.totals.allocated, 2);
+    assert.equal(result.totals.demand, 2);
+    assert.ok(result.statuses.every(person => person.mission.id === 'current'));
+
+    mission.returnDate = '2026-10-26';
+    mission.allocations[1].demobilizationDate = '2026-10-26';
+    const demobilized = calculateDailyCapacity(input);
+    assert.equal(demobilized.totals.allocated, 0);
+    assert.equal(demobilized.totals.free, 2);
+    assert.equal(demobilized.totals.demand, 0);
+  });
+}
+
 test('fadiga offshore reduz capacidade e dias disponíveis, respeitando exclusão lógica', () => {
   const input = {
     date: '2026-09-01', endDate: '2026-09-04',
