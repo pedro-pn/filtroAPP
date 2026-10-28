@@ -1,5 +1,6 @@
 import { QUALITY_RECORD_TYPES, QUALITY_STATUSES } from '../../../../shared/schemas/qualidade.js';
 import { INTEGRATION_REPORT_TYPES } from '../../../../shared/schemas/integration-api.js';
+import { PROJECT_WORKFLOW_STAGES } from '../../../../shared/schemas/project-workflow.js';
 
 const queryDefinitions = {
   after: { label: 'Cursor de reconciliação', type: 'text', maxLength: 4096, help: 'Na URI: after=<page.nextCursor>. Use o cursor da página anterior, mantendo os filtros.', advanced: true },
@@ -22,6 +23,7 @@ const queryDefinitions = {
   status: { label: 'Status', type: 'enum-list', options: QUALITY_STATUSES, help: 'Na URI: status=CODIGO1,CODIGO2. Separe múltiplos códigos por vírgula.' },
   type: { label: 'Tipo de registro', type: 'enum-list', options: QUALITY_RECORD_TYPES, help: 'Na URI: type=CODIGO1,CODIGO2. Separe múltiplos códigos por vírgula.' },
   active: { label: 'Situação', type: 'boolean', help: 'Na URI: active=true ou active=false. Vazio inclui registros ativos e inativos.' },
+  stage: { label: 'Etapa do workflow', type: 'text', maxLength: 40, options: PROJECT_WORKFLOW_STAGES, help: 'Na URI: stage=EXECUTION. Informe uma única etapa; vazio inclui também projetos sem workflow.' },
   includeDeleted: { label: 'Incluir excluídos', type: 'boolean', requiredScope: 'qualidade.excluidos.read', help: 'Na URI: includeDeleted=true. Exige a permissão de leitura de excluídos.' }
 };
 

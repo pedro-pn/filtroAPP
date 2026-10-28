@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-10-20.2';
+export const API_CATALOG_VERSION = '2026-10-28.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -23,13 +23,13 @@ export const API_SCOPES = Object.freeze([
   { code: 'qualidade.evidencias.metadata.read', domain: 'Qualidade', label: 'Ler metadados de evidências', description: 'Inclui metadados allowlisted das evidências.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
   { code: 'qualidade.evidencias.download', domain: 'Qualidade', label: 'Baixar evidências', description: 'Permite download autenticado de evidências.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read', 'qualidade.evidencias.metadata.read'] },
   { code: 'qualidade.excluidos.read', domain: 'Qualidade', label: 'Ler excluídos', description: 'Inclui tombstones e registros excluídos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
-  { code: 'efetivo.projetos.status.read', domain: 'Planejamento de efetivo', label: 'Ler situação operacional de projetos', description: 'Resumo por projeto para o CRM, sem equipe, textos de pendências ou documentos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], exposedFields: ['projectId', 'projectCode', 'workflowStarted', 'stage', 'workflowVersion', 'plannedMobilizationDate', 'plannedExecutionStartDate', 'plannedExecutionEndDate', 'fieldCompletionDate', 'demobilizationDate', 'commercialReadiness', 'mobilizationReady', 'closureReady', 'openIssueCount', 'criticalIssueCount', 'progressPercent', 'progressMethod', 'closedAt', 'generatedAt', 'schemaVersion', 'requestId'], excludedFields: ['pessoas', 'observações livres', 'documentos', 'valores financeiros', 'fatos comerciais de origem'] },
+  { code: 'efetivo.projetos.status.read', domain: 'Planejamento de efetivo', label: 'Ler situação operacional de projetos', description: 'Resumo individual para o CRM e coleção paginada para o Omni. Coleção exige leitura completa, sem updatedSince; não expõe equipe, textos de pendências ou documentos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], exposedFields: ['projectId', 'projectCode', 'workflowStarted', 'stage', 'workflowVersion', 'plannedMobilizationDate', 'plannedExecutionStartDate', 'plannedExecutionEndDate', 'fieldCompletionDate', 'demobilizationDate', 'commercialReadiness', 'mobilizationReady', 'closureReady', 'openIssueCount', 'criticalIssueCount', 'progressPercent', 'progressMethod', 'closedAt', 'commercialExpectedMobilizationDate', 'commercialExpectedStartDate', 'commercialExpectedDurationDays', 'actualMobilizationDate', 'generatedAt', 'schemaVersion', 'requestId'], excludedFields: ['pessoas', 'observações livres', 'documentos', 'valores financeiros', 'fatos comerciais de origem'] },
   { code: 'efetivo.projetos.create', domain: 'Planejamento de efetivo', label: 'Criar projetos pelo CRM', description: 'Criação idempotente com os dados mínimos do projeto. Exige acesso a todos os projetos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'acompanhamento.oportunidades.write', domain: 'Acompanhamento e custos', label: 'Enviar oportunidades sinalizadas para planejamento do CRM', description: 'Recebe oportunidades sem número de projeto e vincula o projeto no fechamento. Exige acesso a todos os projetos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: ['efetivo.projetos.create'] },
   { code: 'acompanhamento.oportunidades.read', domain: 'Acompanhamento e custos', label: 'Reconciliar planejamento do CRM', description: 'Consulta estados e vínculos de oportunidades, inclusive retiradas e encerradas, no ambiente autorizado. Exige acesso ALL.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'efetivo.projetos.fatos-comerciais.write', domain: 'Planejamento de efetivo', label: 'Enviar fatos comerciais do CRM', description: 'Atualiza fatos comerciais em projetos autorizados com controle de versão.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'efetivo.projetos.documentos.write', domain: 'Planejamento de efetivo', label: 'Enviar documentos do CRM', description: 'Envia referências e versões de documentos comerciais de projetos autorizados.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
-  ...[...new Set(OPERATIONAL_RESOURCES.map(item => item.scope))].map(code => {
+  ...[...new Set(OPERATIONAL_RESOURCES.map(item => item.scope))].filter(code => code !== 'efetivo.projetos.status.read').map(code => {
     const resources = OPERATIONAL_RESOURCES.filter(item => item.scope === code);
     const domain = API_DATA_DOMAINS.find(item => item.code === resources[0].domainCode);
     return {
@@ -38,7 +38,7 @@ export const API_SCOPES = Object.freeze([
       models: resources.map(item => item.model), exposedFields: [...new Set(resources.flatMap(item => [
         ...Object.keys(item.fields), ...Object.entries(item.fieldSchemas || {}).flatMap(([field, schema]) => Object.keys(schema.properties).map(name => `${field}.${name}`))
       ]))],
-      excludedFields: [...domain.excludedFields, 'campos JSON livres', ...(resources.some(item => item.includesOperationalNotes) ? [] : ['observações livres']), 'campos não listados no contrato']
+      excludedFields: [...(resources[0].excludedFields || domain.excludedFields), 'campos JSON livres', ...(resources.some(item => item.includesOperationalNotes) ? [] : ['observações livres']), 'campos não listados no contrato']
     };
   }),
   ...OPERATIONAL_DOWNLOADS.map(item => ({ code: item.scope, domain: API_DATA_DOMAINS.find(domain => domain.code === item.domainCode).label,

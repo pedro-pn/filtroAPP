@@ -1,4 +1,5 @@
 import { QUALITY_RECORD_TYPES, QUALITY_STATUSES } from './qualidade.js';
+import { PROJECT_WORKFLOW_STAGES } from './project-workflow.js';
 
 export const INTEGRATION_REPORT_TYPES = Object.freeze([
   'RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'
@@ -34,6 +35,7 @@ export function makeOperationalReadQuerySchema(z, { maxPageSize = 500 } = {}) {
     maintenanceId: z.string().trim().min(1).max(100).optional(),
     itemId: z.string().trim().min(1).max(100).optional(),
     reportType: optionalCsvEnum(z, INTEGRATION_REPORT_TYPES),
+    stage: z.enum(PROJECT_WORKFLOW_STAGES).optional(),
     snapshotAt: z.string().datetime({ offset: true }).optional(),
     projectId: z.string().trim().min(1).max(100).optional(),
     projectCode: z.string().trim().min(1).max(100).optional(),

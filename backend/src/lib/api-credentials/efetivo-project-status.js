@@ -57,3 +57,18 @@ export async function getEfetivoProjectStatus(client, id, context) {
   ]);
   return projectEfetivoStatus(detail, progressById.get(id));
 }
+
+export async function enrichEfetivoProjectStatuses(client, rows) {
+  if (!rows.length) return [];
+  const [details, progressById] = await Promise.all([
+    Promise.all(rows.map(row => getProjectWorkflow(row.id, {}, { database: client, includeInactive: true }))),
+    computeProgressForProjects(rows.map(row => row.id), { database: client })
+  ]);
+  return details.map((detail, index) => ({ ...rows[index], summary: {
+    ...projectEfetivoStatus(detail, progressById.get(detail.project.id)),
+    commercialExpectedMobilizationDate: detail.workflow?.commercialExpectedMobilizationDate ?? null,
+    commercialExpectedStartDate: detail.workflow?.commercialExpectedStartDate ?? null,
+    commercialExpectedDurationDays: detail.workflow?.commercialExpectedDurationDays ?? null,
+    actualMobilizationDate: detail.workflow?.actualMobilizationDate ?? null
+  } }));
+}

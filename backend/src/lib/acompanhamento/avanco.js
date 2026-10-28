@@ -529,10 +529,10 @@ export function realizedReportWhere(projectIds) {
   return { report: { projectId: { in: projectIds }, deletedAt: null } };
 }
 
-async function aggregateRealized(projectIds) {
+async function aggregateRealized(projectIds, database = prisma) {
   const byProject = new Map(); // projectId -> Map<serviceType, {tubulacaoM, oleoL}>
   if (projectIds.length === 0) return byProject;
-  const servicesByProject = await loadReportServicesByProject(projectIds);
+  const servicesByProject = await loadReportServicesByProject(projectIds, { database });
   for (const [projectId, services] of servicesByProject) {
     const byType = new Map();
     for (const service of services) {
@@ -547,17 +547,17 @@ async function aggregateRealized(projectIds) {
 // Avanço de vários projetos de uma vez (usado no dashboard). Retorna Map<projectId, progress>.
 // Método: RDO ponderado quando há escopo com meta; senão cai no avanço MANUAL (Project.manualProgressPct)
 // se informado; senão fica indefinido (null).
-export async function computeProgressForProjects(projectIds) {
+export async function computeProgressForProjects(projectIds, { database = prisma } = {}) {
   const result = new Map();
   if (!projectIds || projectIds.length === 0) return result;
 
   const [plannedServices, projects] = await Promise.all([
-    prisma.projectPlannedService.findMany({
+    database.projectPlannedService.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ order: 'asc' }],
       include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
     }),
-    prisma.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, manualProgressPct: true, proposalPercentage: true } })
+    database.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, manualProgressPct: true, proposalPercentage: true } })
   ]);
 
   const manualById = new Map(projects.map(p => [p.id, p.manualProgressPct != null ? Number(p.manualProgressPct) : null]));
@@ -568,7 +568,7 @@ export async function computeProgressForProjects(projectIds) {
     byProject.get(svc.projectId).push(svc);
   }
 
-  const realized = await aggregateRealized([...byProject.keys()]);
+  const realized = await aggregateRealized([...byProject.keys()], database);
 
   for (const projectId of projectIds) {
     const services = byProject.get(projectId);
@@ -588,10 +588,10 @@ export async function computeProgressForProjects(projectIds) {
 
 // Serviços de relatório (nativos + históricos) de cada projeto, no formato consumido pela linha do
 // tempo do avanço. Compartilhado pelo histórico do projeto e pelo avanço por equipamento.
-export async function loadReportServicesByProject(projectIds, { applyCorrections = true } = {}) {
+export async function loadReportServicesByProject(projectIds, { applyCorrections = true, database = prisma } = {}) {
   if (!projectIds?.length) return new Map();
   const [reportServices, historicalServices, corrections] = await Promise.all([
-    prisma.reportService.findMany({
+    database.reportService.findMany({
       where: {
         report: {
           projectId: { in: projectIds },
@@ -607,14 +607,14 @@ export async function loadReportServicesByProject(projectIds, { applyCorrections
         report: { select: { id: true, projectId: true, reportType: true, status: true, reportDate: true, specialConditions: true, measurementLinks: true } }
       }
     }),
-    loadHistoricalRealizedServices(prisma, projectIds),
-    applyCorrections ? prisma.projectRealizedCorrection.findMany({
+    loadHistoricalRealizedServices(database, projectIds),
+    applyCorrections ? database.projectRealizedCorrection.findMany({
       where: { projectId: { in: projectIds } }, orderBy: [{ revision: 'asc' }]
     }) : []
   ]);
 
   const servicesByProject = new Map();
-  const correctedServices = await correctAccompanimentReportServices(reportServices, prisma, isServiceFinalized);
+  const correctedServices = await correctAccompanimentReportServices(reportServices, database, isServiceFinalized);
   for (const service of [...withNativeMeasurementLinks(correctedServices), ...historicalServices]) {
     const projectId = service.report?.projectId;
     if (!projectId) continue;

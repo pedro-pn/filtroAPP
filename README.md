@@ -366,12 +366,12 @@ concluído. `SENT` registra o envio ao SMTP, sem confirmar recebimento na caixa 
 | Sigla | Nome |
 |---|---|
 | RDO | Relatório Diário de Obra |
-| RTP | Relatório Técnico de Processo |
+| RTP | Relatório de Teste de Pressão |
 | RLQ | Relatório de Limpeza Química |
-| RCPU | Relatório de Contagem de Partículas — Upstream |
+| RCPU | Relatório de Contagem de Partículas e Umidade |
 | RLM | Relatório de Limpeza Mecânica |
-| RLF | Relatório de Limpeza por Flushing |
-| RLI | Relatório de Limpeza Industrial |
+| RLF | Relatório de Flushing |
+| RLI | Relatório de Inibição |
 | RDO_MAINTENANCE | Relatório Diário Operacional de Manutenção |
 | RDO_PRODUCTION | Relatório Diário Operacional de Produção |
 
