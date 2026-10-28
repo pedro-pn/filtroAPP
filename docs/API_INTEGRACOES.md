@@ -69,6 +69,8 @@ Os caminhos abaixo usam a mesma base `/api/integracoes/v1`, autenticação Beare
 |---|---|---|
 | Colaboradores e cargos | `/colaboradores`, `/cargos` | `colaboradores.operacional.read`, `cargos.read`, respectivamente |
 | Projetos e segmentos | `/projetos`, `/clientes/segmentos` | `projetos.read`, `clientes.segmentos.read`, respectivamente |
+| Responsáveis por projeto | `/projetos/responsaveis` | `projetos.responsaveis.read` (PERSONAL) |
+| Status operacional em coleção | `/efetivo/projetos/status` | `efetivo.projetos.status.read` |
 | Relatórios aprovados e DDS | `/rdo/relatorios`, `/rdo/dds` | `rdo.relatorios.read`, `rdo.dds.read`, respectivamente |
 | Manutenções aprovadas | `/manutencao/registros` | `manutencao.registros.read` |
 | Perfis e itens de manutenção | `/manutencao/perfis`, `/manutencao/perfis/itens` | `manutencao.perfis.read` |
@@ -215,6 +217,23 @@ A ampliação usa as permissões existentes `rdo.relatorios.read` e `rdo.servico
 
 A paginação continua usando `updatedAt` do registro consultado. Renumeração do relatório, alteração do nome do projeto ou de um equipamento relacionado não necessariamente atualiza o serviço; para refletir essas mudanças de contexto, faça reconciliação completa periódica.
 
+### Dados de projetos para o Omni
+
+`GET /projetos` acrescenta `clientName`, `clientCnpj`, `commercialProposalCode`, `endDate`, `includesSaturday`, `includesSunday`, `workdayHours`, `weekendWorkdayHours` e `executedAtHeadquarters`. O CNPJ contém 14 dígitos; legado inválido/ausente retorna null. O campo de sede vem do workflow e é null quando não existe. Os campos e filtros atuais permanecem; updatedSince continua usando Project.updatedAt, portanto mudanças somente no workflow exigem reconciliação completa desse campo derivado.
+
+`GET /projetos/responsaveis` exige o novo escopo AVAILABLE/PERSONAL `projetos.responsaveis.read`. Cada item contém somente `projectId`, `projectCode`, `role`, `userId`, `collaboratorId`, `name`, `email` e `updatedAt`. LEADER vem de leaderUserId (Líder de Projetos), PLANNER de plannerUserId (Gestor de Contrato) e FIELD_OPERATOR de operatorId (colaborador de campo). Somente User.email no domínio exato `filtrovali.com.br`; e-mail pessoal/ausente retorna null, sem fallback para username ou e-mail do colaborador. Aceita limit, cursor, snapshotAt, updatedSince e projectCode/projectId. O carimbo é max(Project.updatedAt, ProjectWorkflow.updatedAt); a ordem é projectId/role. Alterações de cadastro de pessoas e remoções exigem reconciliação completa periódica.
+
+`GET /efetivo/projetos/status` usa o escopo existente `efetivo.projetos.status.read`, agora também para coleção paginada. Cada item repete a projeção individual e acrescenta `commercialExpectedMobilizationDate`, `commercialExpectedStartDate`, `commercialExpectedDurationDays` e `actualMobilizationDate`. A consulta individual por id conserva seu contrato. Filtros: active, projectCode/projectId, stage; paginação: limit, cursor, snapshotAt. Inclui projetos elegíveis no Efetivo, ativos/inativos conforme active; projetos excluídos, exclusivos do gestor e centros de sede ficam fora.
+
+**A coleção de status exige leitura completa e rejeita updatedSince/createdSince.** O avanço muda por RDO sem alterar workflowVersion. SnapshotAt limita a criação dos projetos e fixa a paginação por id, mas não congela gates/avanço. Para 42 projetos com limite de 100, uma requisição substitui 42 consultas individuais.
+
+```http
+GET /api/integracoes/v1/projetos/responsaveis?projectCode=05776&limit=100
+GET /api/integracoes/v1/efetivo/projetos/status?active=true&stage=EXECUTION&limit=100
+```
+
+O Playground oferece as duas novas operações e seus parâmetros. O envelope continua em **schemaVersion 1.0**. Campos exatos, exemplos completos com dados fictícios e testes estão no [contrato/relatório Omni](../specs/033-api-omni-projetos/contracts/omni-read.md). Para acrescentar o novo escopo ao Omni, emita outro token ou rotacione a credencial; não há ampliação automática.
+
 ### Como percorrer páginas
 
 Coleções retornam `items`, `page`, `generatedAt`, `schemaVersion` e `requestId`. Use `page.nextCursor` exatamente como recebido. O cursor é assinado, fixa `snapshotAt`, inclui a posição de ordenação da coleção e está vinculado à operação, filtros e política de projetos; não o edite nem reutilize com outros filtros.
@@ -222,7 +241,7 @@ Coleções retornam `items`, `page`, `generatedAt`, `schemaVersion` e `requestId
 Para uma carga completa:
 
 1. faça a primeira chamada sem cursor;
-2. processe `items` de forma idempotente pelo `id` (equipe: `reportId` + `collaboratorId`);
+2. processe `items` de forma idempotente pelo `id` (equipe: `reportId` + `collaboratorId`; responsáveis: `projectId` + `role`; status: `projectId`);
 3. repita os mesmos filtros com `cursor=page.nextCursor` até `hasMore=false`;
 4. grave o maior `updatedAt` confirmado somente ao concluir o snapshot, onde essa coluna existir; `createdAt` acompanha apenas criações e equipe não possui watermark.
 
@@ -261,7 +280,7 @@ Erros do teste aparecem no console com status HTTP, código, mensagem e requestI
 
 ### Testar qualquer permissão implementada
 
-1. Em **Testar API**, escolha a credencial e **Permissão a testar**. Todas as 33 permissões implementadas estão disponíveis para seleção; o botão de execução só libera as concedidas ao token.
+1. Em **Testar API**, escolha a credencial e **Permissão a testar**. Todas as permissões implementadas estão disponíveis para seleção; o botão de execução só libera as concedidas ao token.
 2. Escolha uma das operações correspondentes. Uma permissão pode participar de várias operações; o painel não a transforma em acesso irrestrito.
 3. Preencha somente os parâmetros exibidos. Listagens não exigem ID individual; os filtros são opcionais. Consulta individual e downloads indicam qual ID copiar e de qual listagem. Cursor e snapshot estão em **Paginação e snapshot**.
 4. Execute o teste. Nos quatro downloads, **Verificar acesso ao arquivo** retorna id, MIME e tamanho, sem bytes do arquivo, links públicos ou caminhos. A verificação é limitada a 50 MiB e consome requisição/cota do JSON devolvido, não o volume total do arquivo.
@@ -273,7 +292,7 @@ O painel lista status efetivo, prefixo/últimos quatro caracteres, escopos, proj
 
 Uma edição só pode reduzir acesso. Para ampliar escopo, projetos, CIDRs, validade ou limites, use **Rotacionar**, armazene o novo segredo no cofre e encerre a sobreposição em até 60 minutos. **Revogar** é terminal e exige motivo; nunca cole o segredo no motivo.
 
-O catálogo do painel contém os 126 modelos de negócio em 20 domínios. Há 33 permissões disponíveis (5 de Qualidade, 12 operacionais iniciais e 16 desta expansão), selecionáveis dentro de cada domínio; 49 candidatos de outros grupos continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
+O catálogo do painel contém os 126 modelos de negócio em 20 domínios. Há 41 permissões disponíveis, selecionáveis dentro de cada domínio, incluindo o escopo próprio de responsáveis e as operações do CRM; candidatos sem contrato implementado continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
 
 ## Oportunidades quentes do PrismaCRM
 

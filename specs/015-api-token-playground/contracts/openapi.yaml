@@ -349,6 +349,8 @@ paths:
                     - operational.Collaborator.list
                     - operational.JobRole.list
                     - operational.Project.list
+                    - operational.ProjectResponsible.list
+                    - efetivo.projects.status.list
                     - operational.ClientSegment.list
                     - operational.Report.list
                     - operational.DdsTheme.list
@@ -947,8 +949,8 @@ paths:
                     items:
                       type: object
                       additionalProperties: false
-                      required: ["id","createdAt","updatedAt","code","name","isActive","location","clientSegment","mobilizationDate","demobilizationDate","startDate"]
-                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"code":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"},"location":{"type":"string"},"clientSegment":{"type":["string","null"]},"mobilizationDate":{"type":["string","null"],"format":"date-time"},"demobilizationDate":{"type":["string","null"],"format":"date-time"},"startDate":{"type":["string","null"],"format":"date-time"}}
+                      required: ["id","createdAt","updatedAt","code","name","isActive","location","clientSegment","mobilizationDate","demobilizationDate","startDate","clientName","commercialProposalCode","endDate","includesSaturday","includesSunday","workdayHours","weekendWorkdayHours","clientCnpj","executedAtHeadquarters"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time","description":"Em responsáveis: maior carimbo entre Project.updatedAt e ProjectWorkflow.updatedAt."},"code":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"},"location":{"type":"string"},"clientSegment":{"type":["string","null"]},"mobilizationDate":{"type":["string","null"],"format":"date-time"},"demobilizationDate":{"type":["string","null"],"format":"date-time"},"startDate":{"type":["string","null"],"format":"date-time"},"clientName":{"type":"string"},"commercialProposalCode":{"type":["string","null"]},"endDate":{"type":["string","null"],"format":"date-time"},"includesSaturday":{"type":"boolean"},"includesSunday":{"type":"boolean"},"workdayHours":{"type":"string"},"weekendWorkdayHours":{"type":"string"},"clientCnpj":{"type":["string","null"],"pattern":"^[0-9]{14}$","description":"Somente dígitos; null para CNPJ legado ausente ou inválido."},"executedAtHeadquarters":{"type":["boolean","null"]}}
                   page: { $ref: '#/components/schemas/IntegrationPageMeta' }
                   generatedAt: { type: string, format: date-time }
                   schemaVersion: { type: string, const: '1.0' }
@@ -2025,6 +2027,338 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/projetos/responsaveis:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectResponsible
+      summary: Responsáveis dos projetos — identidade e e-mail corporativo
+      description: Uma linha por projeto autorizado e papel. Somente e-mail corporativo @filtrovali.com.br; reconcilie
+        periodicamente alterações de pessoas e remoções.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - projetos.responsaveis.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId.
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Identificador interno mantido para compatibilidade; nao combine com projectCode.
+      responses:
+        "200":
+          description: Página por projectId e role. updatedSince usa max(Project.updatedAt, ProjectWorkflow.updatedAt); alterações
+            de nome/e-mail e remoções exigem reconciliação completa.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - projectId
+                        - projectCode
+                        - role
+                        - userId
+                        - collaboratorId
+                        - name
+                        - email
+                        - updatedAt
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        role:
+                          type: string
+                          enum:
+                            - LEADER
+                            - PLANNER
+                            - FIELD_OPERATOR
+                        userId:
+                          type:
+                            - string
+                            - "null"
+                        collaboratorId:
+                          type:
+                            - string
+                            - "null"
+                        name:
+                          type: string
+                        email:
+                          type:
+                            - string
+                            - "null"
+                          description: User.email no domínio exato filtrovali.com.br; null para e-mail ausente/pessoal. Sem fallback.
+                        updatedAt:
+                          type: string
+                          format: date-time
+                          description: "Em responsáveis: maior carimbo entre Project.updatedAt e ProjectWorkflow.updatedAt."
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /integracoes/v1/efetivo/projetos/status:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationEfetivoProjectStatus
+      summary: Situação operacional dos projetos — coleção completa
+      description: "Resumo de projetos elegíveis no Efetivo. Leitura completa: o avanço de RDO não possui watermark confiável;
+        updatedSince não é aceito."
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - efetivo.projetos.status.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId.
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Identificador interno mantido para compatibilidade; nao combine com projectCode.
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - name: stage
+          in: query
+          schema:
+            type: string
+            enum:
+              - HANDOVER
+              - INITIAL_ANALYSIS
+              - WAITING_PLANNING
+              - MOBILIZATION_PLANNING
+              - PREPARATION
+              - MOBILIZATION
+              - EXECUTION
+              - DEMOBILIZATION
+              - POST_JOB
+              - FINAL_MEASUREMENT
+              - FINISHED
+      responses:
+        "200":
+          description: Página por id; leitura completa, sem watermark de avanço. snapshotAt limita criação de projetos, não
+            congela gates/avanço.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - projectId
+                        - projectCode
+                        - workflowStarted
+                        - stage
+                        - workflowVersion
+                        - plannedMobilizationDate
+                        - plannedExecutionStartDate
+                        - plannedExecutionEndDate
+                        - fieldCompletionDate
+                        - demobilizationDate
+                        - commercialReadiness
+                        - mobilizationReady
+                        - closureReady
+                        - openIssueCount
+                        - criticalIssueCount
+                        - progressPercent
+                        - progressMethod
+                        - closedAt
+                        - commercialExpectedMobilizationDate
+                        - commercialExpectedStartDate
+                        - commercialExpectedDurationDays
+                        - actualMobilizationDate
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        workflowStarted:
+                          type: boolean
+                        stage:
+                          type:
+                            - string
+                            - "null"
+                        workflowVersion:
+                          type:
+                            - integer
+                            - "null"
+                        plannedMobilizationDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        plannedExecutionStartDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        plannedExecutionEndDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        fieldCompletionDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        demobilizationDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        commercialReadiness:
+                          type:
+                            - string
+                            - "null"
+                        mobilizationReady:
+                          type:
+                            - boolean
+                            - "null"
+                        closureReady:
+                          type:
+                            - boolean
+                            - "null"
+                        openIssueCount:
+                          type: integer
+                        criticalIssueCount:
+                          type: integer
+                        progressPercent:
+                          type:
+                            - number
+                            - "null"
+                        progressMethod:
+                          type:
+                            - string
+                            - "null"
+                        closedAt:
+                          type:
+                            - string
+                            - "null"
+                          format: date-time
+                        commercialExpectedMobilizationDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        commercialExpectedStartDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                        commercialExpectedDurationDays:
+                          type:
+                            - integer
+                            - "null"
+                        actualMobilizationDate:
+                          type:
+                            - string
+                            - "null"
+                          format: date
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
 components:
   securitySchemes:

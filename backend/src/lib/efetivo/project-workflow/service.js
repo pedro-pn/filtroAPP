@@ -805,9 +805,11 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   };
 }
 
-async function findEligibleProject(database, projectId, { workflow = false } = {}) {
+async function findEligibleProject(database, projectId, { workflow = false, includeInactive = false } = {}) {
+  const where = eligibleProjectWhere({ id: projectId });
+  if (includeInactive) delete where.isActive;
   return database.project.findFirst({
-    where: eligibleProjectWhere({ id: projectId }),
+    where,
     select: {
       ...PROJECT_FIELDS,
       plannedServices: { select: { serviceType: true }, orderBy: { order: 'asc' } },
@@ -1094,7 +1096,7 @@ export async function listProjectWorkflowLeaders(dependencies = {}) {
 
 export async function getProjectWorkflow(projectId, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
-  const project = await findEligibleProject(database, projectId, { workflow: true });
+  const project = await findEligibleProject(database, projectId, { workflow: true, includeInactive: dependencies.includeInactive === true });
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
   const services = projectServiceTypes(project);
   const history = project.workflow ? await relatedPostJobs(database, project) : [];

@@ -6,6 +6,7 @@ import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
 import { getOperationalResource } from './operational-resources.js';
 import { enrichOperationalRows, serializeOperationalResource } from './operational-serialization.js';
 import { reportAttachmentWhere } from './extended-operational-resources.js';
+import { loadProjectResponsibleRows } from './project-responsibles.js';
 
 const querySchema = makeOperationalReadQuerySchema(z);
 
@@ -63,6 +64,7 @@ function projectWhere(resource, query, context) {
 export function operationalVisibilityWhere(resource, query, context) {
   return { AND: [resource.where, projectWhere(resource, query, context),
     ...resource.filterFields.filter(field => query[field]).map(field => {
+      if (field === 'stage') return { workflow: { is: { stage: query.stage } } };
       if (field === 'reportId' && resource.projectPolicy === 'REPORT_ATTACHMENT') {
         return { OR: [{ reportId: query[field] }, { reportService: { reportId: query[field] } }] };
       }
@@ -112,10 +114,14 @@ export async function listOperationalResources(client, operationId, input, conte
     throw new IntegrationApiError(400, 'INVALID_SNAPSHOT', 'Informe um intervalo válido, sem datas futuras.');
   }
   const positionValue = field => field === timestamp ? new Date(position[field]) : position[field];
-  const rows = await client[resource.delegate].findMany({
+  const visibility = operationalVisibilityWhere(resource, query, context);
+  const rows = resource.collectionKind === 'PROJECT_RESPONSIBLES'
+    ? await loadProjectResponsibleRows(client, { resource, query, visibility, snapshotAt, position })
+    : await client[resource.delegate].findMany({
     select: resource.select,
-    where: { AND: [operationalVisibilityWhere(resource, query, context),
-      timestamp ? { [timestamp]: { lte: snapshotAt, ...(since ? { gte: new Date(since) } : {}) } } : { report: { createdAt: { lte: snapshotAt } } },
+    where: { AND: [visibility,
+      timestamp ? { [timestamp]: { lte: snapshotAt, ...(since ? { gte: new Date(since) } : {}) } }
+        : resource.snapshotField ? { [resource.snapshotField]: { lte: snapshotAt } } : { report: { createdAt: { lte: snapshotAt } } },
       ...(query.active !== undefined ? [{ isActive: query.active }] : []),
       ...(position ? [{ OR: orderFields.map((field, index) => ({
         ...Object.fromEntries(orderFields.slice(0, index).map(previous => [previous, positionValue(previous)])),

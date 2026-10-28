@@ -1,6 +1,7 @@
 import { resource, publishedReport } from './operational-resource-definition.js';
 import { EXTENDED_OPERATIONAL_RESOURCES } from './extended-operational-resources.js';
 import { RDO_PROJECT_SELECT, RDO_REPORT_DERIVED_FIELDS } from './rdo-resource-definition.js';
+import { OMNI_RESOURCES } from './omni-resources.js';
 
 export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('Collaborator', '/colaboradores', 'colaboradores.operacional.read', 'Colaboradores — identificação operacional', 'people-access',
@@ -10,8 +11,12 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
     }),
   resource('JobRole', '/cargos', 'cargos.read', 'Cargos', 'people-access', { name: 'string', isActive: 'boolean', isOperational: 'boolean' }),
   resource('Project', '/projetos', 'projetos.read', 'Projetos — dados operacionais', 'projects-clients',
-    { code: 'string', name: 'string', isActive: 'boolean', location: 'string', clientSegment: 'string?', mobilizationDate: 'datetime?', demobilizationDate: 'datetime?', startDate: 'datetime?' },
-    { projectPolicy: 'SELF', projectNotice: 'Somente projetos autorizados e não excluídos.', where: { deletedAt: null } }),
+    { code: 'string', name: 'string', isActive: 'boolean', location: 'string', clientSegment: 'string?', mobilizationDate: 'datetime?', demobilizationDate: 'datetime?', startDate: 'datetime?',
+      clientName: 'string', commercialProposalCode: 'string?', endDate: 'datetime?', includesSaturday: 'boolean', includesSunday: 'boolean', workdayHours: 'string', weekendWorkdayHours: 'string' },
+    { projectPolicy: 'SELF', projectNotice: 'Somente projetos autorizados e não excluídos. Inclui razão social, CNPJ e regime de trabalho contratado.', where: { deletedAt: null },
+      derivedFields: { clientCnpj: 'string?', executedAtHeadquarters: 'boolean?' },
+      select: { clientCnpj: true, workflow: { select: { executedAtHeadquarters: true } } },
+      excludedFields: ['e-mail', 'telefone', 'contatos de cliente', 'configurações internas', 'campos não listados no contrato'] }),
   resource('ClientSegment', '/clientes/segmentos', 'clientes.segmentos.read', 'Segmentos de clientes', 'projects-clients', { label: 'string', slug: 'string', isActive: 'boolean' }),
   resource('Report', '/rdo/relatorios', 'rdo.relatorios.read', 'Relatórios aprovados — identificação, descrição e horas', 'rdo',
     { projectId: 'string', reportType: 'string', sequenceNumber: 'integer?', status: 'string', reportDate: 'datetime', arrivalTime: 'string', departureTime: 'string', lunchBreak: 'string', daytimeCount: 'integer', daytimeWorkedMinutes: 'integer', nighttimeWorkedMinutes: 'integer', daytimeOvertimeMinutes: 'integer', nighttimeOvertimeMinutes: 'integer', totalOvertimeMinutes: 'integer', approvedAt: 'datetime?', dailyDescription: 'string?', overtimeReason: 'string?' },
@@ -37,7 +42,7 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('StockCategory', '/estoque/categorias', 'estoque.itens.read', 'Categorias de estoque', 'stock', { type: 'string', name: 'string', isActive: 'boolean' })
 ]);
 
-export const OPERATIONAL_RESOURCES = Object.freeze([...BASE_OPERATIONAL_RESOURCES, ...EXTENDED_OPERATIONAL_RESOURCES]);
+export const OPERATIONAL_RESOURCES = Object.freeze([...BASE_OPERATIONAL_RESOURCES, ...EXTENDED_OPERATIONAL_RESOURCES, ...OMNI_RESOURCES]);
 
 export function getOperationalResource(operationId) {
   return OPERATIONAL_RESOURCES.find(item => item.operationId === operationId) || null;
