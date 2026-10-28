@@ -10,7 +10,7 @@ import {
   UNIT_SYSTEMKEY_PREFIX,
   legacyUnitCategory
 } from './equipment-categories.js';
-import { equipmentSerialNumber } from './equipment-attributes.js';
+import { equipmentCalibrationCertificateCode, equipmentSerialNumber } from './equipment-attributes.js';
 
 function attrs(item) {
   return item && typeof item.attributes === 'object' && item.attributes ? item.attributes : {};
@@ -58,7 +58,7 @@ export async function listManometersCompat() {
     id: item.id,
     code: item.code,
     scale: attrs(item).scale || '',
-    calibrationCertCode: attrs(item).calibrationCertCode || '',
+    calibrationCertCode: equipmentCalibrationCertificateCode(item),
     calibratedAt: item.calibratedAt,
     expiresAt: item.expiresAt,
     isActive: item.isActive,
