@@ -18,6 +18,11 @@ export function equipmentTechnicalData(item) {
   return recordValue(item?.technicalData);
 }
 
+export function equipmentCalibrationCertificateCode(item) {
+  const attributes = equipmentAttributes(item);
+  return textValue(attributes.calibrationCertCode) || textValue(attributes.calibrationcertcode);
+}
+
 export function equipmentSerialNumber(item) {
   const attributes = equipmentAttributes(item);
   const technicalData = equipmentTechnicalData(item);

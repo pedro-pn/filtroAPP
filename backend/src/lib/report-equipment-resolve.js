@@ -4,7 +4,7 @@
 // já consomem (code, scale, serialNumber, currentCalibrationCertificate).
 
 import { equipmentAttachmentsInclude, serializeEquipmentAttachment } from './equipment-attachments.js';
-import { equipmentSerialNumber } from './equipment-attributes.js';
+import { equipmentCalibrationCertificateCode, equipmentSerialNumber } from './equipment-attributes.js';
 
 function attrs(item) {
   return item && typeof item.attributes === 'object' && item.attributes ? item.attributes : {};
@@ -43,7 +43,7 @@ export async function resolveReportManometers(client, ids) {
     id: item.id,
     code: item.code,
     scale: attrs(item).scale || '',
-    calibrationCertCode: attrs(item).calibrationCertCode || '',
+    calibrationCertCode: equipmentCalibrationCertificateCode(item),
     calibratedAt: item.calibratedAt,
     expiresAt: item.expiresAt,
     currentCalibrationCertificate: latestCertificate(item)
